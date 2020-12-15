@@ -22,7 +22,7 @@ import jax
 import jax.numpy as np
 import numpy as onp
 
-from google3.experimental.brain.ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import geometry
 
 
 @jax.tree_util.register_pytree_node_class
@@ -95,7 +95,7 @@ class Grid(geometry.Geometry):
 
   @property
   def shape(self):
-    num_a = np.prod(self.grid_size)
+    num_a = onp.prod(self.grid_size)
     return num_a, num_a
 
   # TODO(lpapaxanthos): add properties for cost_matrix and kernel_matrix

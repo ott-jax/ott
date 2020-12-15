@@ -17,12 +17,13 @@
 """Tests for the Policy."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import jax.numpy as np
 import jax.test_util
 
-from google3.experimental.brain.ott.core.ground_geometry import grid
-from google3.experimental.brain.ott.tools import discrete_barycenter as db
+from ott.core.ground_geometry import grid
+from ott.tools import discrete_barycenter as db
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
@@ -31,12 +32,16 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
 
-  def test_discrete_barycenter(self):
+  @parameterized.parameters([True], [False])
+  def test_discrete_barycenter(self, debiased):
     """Tests the discrete barycenters on a 5x5x5 grid.
-
     Puts two masses on opposing ends of the hypercube with small noise in
     between. Check that their W barycenter sits (mostly) at the middle of the
     hypercube (e.g. index (5x5x5-1)/2)
+
+    Args:
+      debiased: bool, use (or not) debiasing as proposed in
+      https://arxiv.org/abs/2006.02575
     """
     size = np.array([5, 5, 5])
     grid_3d = grid.Grid(grid_size=size, epsilon=0.01)
@@ -51,9 +56,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
     bar = db.discrete_barycenter(grid_3d, a=np.stack((a, b))).histogram
     self.assertGreater(bar[(np.prod(size) - 1) // 2], 0.95)
-    # more visual tests:
-    # https://colab.corp.google.com/drive/1iTONU7oQTxBKUYNL_cIsH9FSBdWg0aAB?usp=sharing
-
+    self.assertGreater(1, bar[(np.prod(size) - 1) // 2])
 
 if __name__ == '__main__':
   absltest.main()

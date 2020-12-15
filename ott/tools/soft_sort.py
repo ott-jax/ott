@@ -20,8 +20,8 @@ import jax
 import jax.numpy as np
 import numpy as onp
 
-from google3.experimental.brain.ott.core import sinkhorn
-from google3.experimental.brain.ott.core.ground_geometry import pointcloud
+from ott.core import sinkhorn
+from ott.core.ground_geometry import pointcloud
 
 
 def sinkhorn_for_sort(inputs: np.ndarray,

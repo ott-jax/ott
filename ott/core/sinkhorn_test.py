@@ -23,10 +23,10 @@ import jax.numpy as np
 import jax.test_util
 import numpy as onp
 
-from google3.experimental.brain.ott.core import sinkhorn
-from google3.experimental.brain.ott.core.ground_geometry import geometry
-from google3.experimental.brain.ott.core.ground_geometry import grid
-from google3.experimental.brain.ott.core.ground_geometry import pointcloud
+from ott.core import sinkhorn
+from ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import grid
+from ott.core.ground_geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):

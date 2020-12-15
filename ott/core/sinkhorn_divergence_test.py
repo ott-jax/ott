@@ -21,9 +21,9 @@ import jax
 import jax.numpy as np
 import jax.test_util
 
-from google3.experimental.brain.ott.core import sinkhorn_divergence
-from google3.experimental.brain.ott.core.ground_geometry import geometry
-from google3.experimental.brain.ott.core.ground_geometry import pointcloud
+from ott.core import sinkhorn_divergence
+from ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import pointcloud
 
 
 class SinkhornDivergenceTest(jax.test_util.JaxTestCase):

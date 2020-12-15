@@ -21,7 +21,7 @@ from typing import Union
 import jax
 import jax.numpy as np
 
-from google3.experimental.brain.ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import geometry
 
 
 @jax.tree_util.register_pytree_node_class

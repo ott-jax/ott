@@ -22,7 +22,7 @@ import jax
 import jax.numpy as np
 import jax.test_util
 
-from google3.experimental.brain.ott.tools import soft_sort
+from ott.tools import soft_sort
 
 
 class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):

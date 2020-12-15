@@ -17,9 +17,9 @@
 import collections
 from typing import Optional, Type, Dict, Any
 from jax import numpy as np
-from google3.experimental.brain.ott.core import sinkhorn
+from ott.core import sinkhorn
 
-from google3.experimental.brain.ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import geometry
 
 SinkhornDivergence = collections.namedtuple(
     'SinkhornDivergence', ['divergence', 'potentials', 'geoms', 'errors'])

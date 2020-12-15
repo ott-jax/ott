@@ -23,8 +23,8 @@ from typing import Optional
 import jax
 import jax.numpy as np
 
-from google3.experimental.brain.ott.core import fixed_point_loop
-from google3.experimental.brain.ott.core.ground_geometry import geometry
+from ott.core import fixed_point_loop
+from ott.core.ground_geometry import geometry
 
 
 SinkhornOutput = collections.namedtuple(
