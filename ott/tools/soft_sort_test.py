@@ -64,5 +64,6 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
         sinkhorn_kw={'lse_mode': True})
     self.assertAlmostEqual(q, level, places=1)
 
+
 if __name__ == '__main__':
   absltest.main()
