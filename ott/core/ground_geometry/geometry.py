@@ -14,54 +14,13 @@
 # limitations under the License.
 
 # Lint as: python3
-"""A class describing common operations for a cost."""
+"""A class describing operations used to instantiate and use a geometry."""
 import functools
 from typing import Optional, Union
 
 import jax
 import jax.numpy as np
-
-
-@jax.tree_util.register_pytree_node_class
-class Epsilon:
-  """A generic class to encapsulate the regularization parameter epsilon."""
-
-  def __init__(self,
-               target: float = 1e-2,
-               init: float = 1.0,
-               decay: float = 1.0):
-    self.target = target
-    self._init = init
-    self._decay = decay
-
-  def at(self, iteration: Optional[int] = 1) -> float:
-    if iteration is None:
-      return self.target
-    init = np.where(self._decay < 1.0, self._init, self.target)
-    decay = np.where(self._decay < 1.0, self._decay, 1.0)
-    return np.maximum(init * decay**iteration, self.target)
-
-  def done(self, eps):
-    return eps == self.target
-
-  def done_at(self, iteration):
-    return self.done(self.at(iteration))
-
-  def tree_flatten(self):
-    return (self.target, self._init, self._decay), None
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    del aux_data
-    return cls(*children)
-
-  @classmethod
-  def make(cls, *args, **kwargs):
-    """Create or return a Epsilon instance."""
-    if isinstance(args[0], cls):
-      return args[0]
-    else:
-      return cls(*args, **kwargs)
+from ott.core.ground_geometry import epsilon_scheduler
 
 
 @jax.tree_util.register_pytree_node_class
@@ -71,7 +30,7 @@ class Geometry:
   def __init__(self,
                cost_matrix: Optional[np.ndarray] = None,
                kernel_matrix: Optional[np.ndarray] = None,
-               epsilon: Union[Epsilon, float] = 1e-2,
+               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                **kwargs
                ):
     """Initializes a simple ground cost.
@@ -86,7 +45,7 @@ class Geometry:
     """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-    self._epsilon = Epsilon.make(epsilon, **kwargs)
+    self._epsilon = epsilon_scheduler.Epsilon.make(epsilon, **kwargs)
 
   @property
   def cost_matrix(self):
@@ -105,7 +64,13 @@ class Geometry:
   @property
   def shape(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return mat.shape
+    return mat.shape if mat is not None else None
+
+  @property
+  def is_symmetric(self):
+    mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
+    return (mat.shape[0] == mat.shape[1] and np.all(mat == mat.T)
+            ) if mat is not None else False
 
   # Generic functions to include geometry in Sinkhorn iterations. Particular
   # cases of geometries
@@ -200,13 +165,28 @@ class Geometry:
   # Functions that are not supposed to be changed by inherited classes.
   # These are the point of entry for Sinkhorn's algorithm to use a geometry.
   def error(self, f_u, g_v, target, iteration, axis=0, default_value=1.0,
-            lse_mode: bool = True):
+            norm_error=1, lse_mode: bool = True):
+    """method computing error, given potential/scaling pair.
+
+    Args:
+      f_u: np.ndarray
+      g_v: np.ndarray
+      target: target marginal
+      iteration: iteration number
+      axis: axis along which to compute marginal.
+      default_value: value returned by default
+      norm_error: p-norm used to quantify error between marginal & target
+      lse_mode: whether operating on scalings or potentials
+    Returns:
+      a float, describing difference between target / marginal.
+    """
     if lse_mode:
       marginal = self.marginal_from_potentials(f_u, g_v, axis=axis)
     else:
       marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
-    result = np.max(np.abs(marginal - target) / target, axis=None)
-    return np.where(self._epsilon.done_at(iteration), result, default_value)
+    error = np.sum(
+        np.abs(marginal - target) ** norm_error, axis=None) ** (1 / norm_error)
+    return np.where(self._epsilon.done_at(iteration), error, default_value)
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
     """Updates potentials in log space Sinkhorn iteration.

@@ -95,11 +95,13 @@ class Grid(geometry.Geometry):
 
   @property
   def shape(self):
-    num_a = onp.prod(self.grid_size)
+    num_a = onp.prod(onp.array(self.grid_size))
     return num_a, num_a
 
-  # TODO(lpapaxanthos): add properties for cost_matrix and kernel_matrix
-
+  @property
+  def is_symmetric(self):
+    return True
+    
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(self,
                        f: np.ndarray,

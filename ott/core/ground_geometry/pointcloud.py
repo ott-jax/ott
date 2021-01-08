@@ -20,7 +20,7 @@ from typing import Union
 
 import jax
 import jax.numpy as np
-
+from ott.core.ground_geometry import epsilon_scheduler
 from ott.core.ground_geometry import geometry
 
 
@@ -67,9 +67,9 @@ class PointCloudGeometry(geometry.Geometry):
 
   def __init__(self,
                x: np.ndarray,
-               y: np.ndarray,
+               y: np.ndarray = None,
                cost_fn=None,
-               epsilon: Union[geometry.Epsilon, float] = 1e-2,
+               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                online: bool = False,
                **kwargs):
     """The geometry between two point clouds.
@@ -85,7 +85,7 @@ class PointCloudGeometry(geometry.Geometry):
       **kwargs: potential additional params to epsilon.
     """
     self.x = x
-    self.y = y
+    self.y = x if y is None else y
     self._cost_fn = EuclideanCostFn() if cost_fn is None else cost_fn
     self._online = online
 
@@ -136,6 +136,10 @@ class PointCloudGeometry(geometry.Geometry):
   @property
   def shape(self):
     return self.x.shape[0], self.y.shape[0]
+
+  @property
+  def is_symmetric(self):
+    return np.all(self.x.shape == self.y.shape) and np.all(self.x == self.y)
 
   def apply_lse_kernel(self,
                        f: np.ndarray,

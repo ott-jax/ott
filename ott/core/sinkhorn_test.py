@@ -45,13 +45,40 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.a = a / np.sum(a)
     self.b = b / np.sum(b)
 
-  @parameterized.parameters([True], [False])
-  def test_euclidean_point_cloud(self, lse_mode):
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='lse-Leh-mom',
+          lse_mode=True,
+          momentum_strategy='Lehmann'),
+      dict(
+          testcase_name='lse-no-mom',
+          lse_mode=True,
+          momentum_strategy=1.0),
+      dict(
+          testcase_name='lse-high-mom',
+          lse_mode=True,
+          momentum_strategy=1.5),
+      dict(
+          testcase_name='scal-Leh-mom',
+          lse_mode=False,
+          momentum_strategy='Lehmann'),
+      dict(
+          testcase_name='scal-no-mom',
+          lse_mode=False,
+          momentum_strategy=1.0),
+      dict(
+          testcase_name='scal-high-mom',
+          lse_mode=False,
+          momentum_strategy=1.5))
+  def test_euclidean_point_cloud(self, lse_mode, momentum_strategy):
     """Two point clouds in dimension 10."""
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
-    err = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
-                            threshold=threshold, lse_mode=lse_mode).err
+    errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
+                               threshold=threshold,
+                               momentum_strategy=momentum_strategy,
+                               lse_mode=lse_mode).errors
+    err = errors[np.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([True], [False])
@@ -66,8 +93,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(
         self.x, self.y, epsilon=0.1, online=True)
-    err = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
-                            threshold=threshold, lse_mode=lse_mode).err
+    errors = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
+    err = errors[np.isfinite(errors)][-1]
     self.assertGreater(np.min(threshold - err), 0)
 
   @parameterized.parameters([True], [False])
@@ -76,8 +104,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(
         self.x, self.y, epsilon=0.1, online=True)
-    err = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
-                            threshold=threshold, lse_mode=lse_mode).err
+    errors = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
+    err = errors[np.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([True], [False])
@@ -113,8 +142,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     b = b.ravel() / np.sum(b)
     threshold = 1e-3
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
-    err = sinkhorn.sinkhorn(geom, a=a, b=b,
-                            threshold=threshold, lse_mode=lse_mode).err
+    errors = sinkhorn.sinkhorn(
+        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode).errors
+    err = errors[np.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([True], [False])
@@ -207,51 +237,71 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_sinkhorn_euclidean(self, lse_mode):
-    for lse_mode in [True, False]:
-      d = 3
-      n = 10
-      m = 15
-      keys = jax.random.split(self.rng, 2)
-      x = jax.random.normal(keys[0], (n, d)) / 10
-      y = jax.random.normal(keys[1], (m, d)) / 10
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='lse-Leh-mom',
+          lse_mode=True,
+          momentum_strategy='Lehmann'),
+      dict(
+          testcase_name='lse-no-mom',
+          lse_mode=True,
+          momentum_strategy=1.0),
+      dict(
+          testcase_name='lse-high-mom',
+          lse_mode=True,
+          momentum_strategy=1.5),
+      dict(
+          testcase_name='scal-Leh-mom',
+          lse_mode=False,
+          momentum_strategy='Lehmann'),
+      dict(
+          testcase_name='scal-no-mom',
+          lse_mode=False,
+          momentum_strategy=1.0),
+      dict(
+          testcase_name='scal-high-mom',
+          lse_mode=False,
+          momentum_strategy=1.5))
+  def test_gradient_sinkhorn_euclidean(self, lse_mode, momentum_strategy):
+    d = 3
+    n = 10
+    m = 15
+    keys = jax.random.split(self.rng, 2)
+    x = jax.random.normal(keys[0], (n, d)) / 10
+    y = jax.random.normal(keys[1], (m, d)) / 10
 
-      def loss_fn(x, y):
-        a = np.ones(x.shape[0]) / x.shape[0]
-        b = np.ones(y.shape[0]) / y.shape[0]
-        geom = pointcloud.PointCloudGeometry(x, y, epsilon=0.2)
-        f, g, regularized_transport_cost, _ = sinkhorn.sinkhorn(
-            geom, a, b, lse_mode=lse_mode)
-        return regularized_transport_cost, (geom, f, g)
+    def loss_fn(x, y):
+      geom = pointcloud.PointCloudGeometry(x, y, epsilon=0.01)
+      f, g, regularized_transport_cost, _ = sinkhorn.sinkhorn(
+          geom, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
+      return regularized_transport_cost, (geom, f, g)
 
-      delta = jax.random.normal(keys[0], (n, d))
-      delta = delta / np.sqrt(np.vdot(delta, delta))
-      eps = 1e-5  # perturbation magnitude
+    delta = jax.random.normal(keys[0], (n, d))
+    delta = delta / np.sqrt(np.vdot(delta, delta))
+    eps = 1e-5  # perturbation magnitude
 
-      # first calculation of gradient
-      loss_and_grad = jax.jit(jax.value_and_grad(loss_fn, has_aux=True))
-      (loss_value, aux), grad_loss = loss_and_grad(x, y)
-      custom_grad = np.sum(delta * grad_loss)
+    # first calculation of gradient
+    loss_and_grad = jax.value_and_grad(loss_fn, has_aux=True)
+    (loss_value, aux), grad_loss = loss_and_grad(x, y)
+    custom_grad = np.sum(delta * grad_loss)
+    self.assertIsNot(loss_value, np.nan)
+    self.assertEqual(grad_loss.shape, x.shape)
+    self.assertFalse(np.any(np.isnan(grad_loss)))
 
-      self.assertIsNot(loss_value, np.nan)
-      self.assertEqual(grad_loss.shape, x.shape)
-      self.assertFalse(np.any(np.isnan(grad_loss)))
+    # second calculation of gradient
+    tm = aux[0].transport_from_potentials(aux[1], aux[2])
+    tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
+    grad_x = np.sum(tmp, 1)
+    other_grad = np.sum(delta * grad_x)
 
-      # second calculation of gradient
-      tm = aux[0].transport_from_potentials(aux[1], aux[2])
-      tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
-      grad_x = np.sum(tmp, 1)
-      other_grad = np.sum(delta * grad_x)
+    # third calculation of gradient
+    loss_delta_plus, _ = loss_fn(x + eps * delta, y)
+    loss_delta_minus, _ = loss_fn(x - eps * delta, y)
+    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
-      # third calculation of gradient
-      loss_delta_plus, _ = loss_fn(x + eps * delta, y)
-      loss_delta_minus, _ = loss_fn(x - eps * delta, y)
-      finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
-
-      self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
-      self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
-      self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
 
   def test_apply_transport_geometry(self):
     n, m, d = 160, 230, 6

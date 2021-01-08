@@ -91,4 +91,4 @@ def sinkhorn_divergence(
   ]
   div = out[0].reg_ot_cost - 0.5 * (out[1].reg_ot_cost + out[2].reg_ot_cost)
   return SinkhornDivergence(div, tuple([s.f, s.g] for s in out),
-                            geoms, tuple(s.err for s in out))
+                            geoms, tuple(s.errors for s in out))
