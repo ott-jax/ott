@@ -171,7 +171,7 @@ class Geometry:
             iteration: int,
             axis: int = 0,
             default_value: float = 1.0,
-            norm_error: Union[int, Sequence[int]] = 1,
+            norm_error: Sequence[int] = (1,),
             lse_mode: bool = True):
     """method computing error, given potential/scaling pair.
 
