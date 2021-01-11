@@ -52,6 +52,10 @@ class Geometry:
     return self._cost_matrix
 
   @property
+  def median_cost_matrix(self):
+    return np.nanmedian(self._cost_matrix[:])
+
+  @property
   def kernel_matrix(self):
     if self._kernel_matrix is None:
       return np.exp(-(self._cost_matrix / self.epsilon))
