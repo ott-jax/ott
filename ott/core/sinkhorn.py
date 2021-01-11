@@ -19,10 +19,11 @@
 import collections
 import functools
 import numbers
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 
 import jax
 import jax.numpy as np
+import numpy as onp
 from ott.core import fixed_point_loop
 from ott.core.ground_geometry import geometry
 
@@ -40,7 +41,7 @@ def sinkhorn(geom: geometry.Geometry,
              norm_error: int = 1,
              inner_iterations: int = 10,
              max_iterations: int = 2000,
-             momentum_strategy: Optional[Union[float,str]] = 'Lehmann',
+             momentum_strategy: Optional[Union[float, str]] = 'Lehmann',
              lse_mode: bool = True) -> SinkhornOutput:
   """Runs Sinkhorn iterations, using convergence parameters and momentum.
 
@@ -62,22 +63,34 @@ def sinkhorn(geom: geometry.Geometry,
    max_iterations: (int32) the maximum number of Sinkhorn iterations.
    momentum_strategy: either a float between ]0,2[ or a string.
    lse_mode: True for log-sum-exp computations, False for kernel multiplication.
+
   Returns:
-    tuples of sinkhorn_iterations outputs.
+    a SinkhornOutput named tuple.
+
+  Raises:
+    ValueError: If momentum parameter is not set correctly, or to a wrong value.
   """
   num_a, num_b = geom.shape
   a = np.ones((num_a,)) / num_a if a is None else a
   b = np.ones((num_b,)) / num_b if b is None else b
 
-  if isinstance(momentum_strategy, str) and momentum_strategy == 'Lehmann':
-    if norm_error != 1:
-      raise ValueError('To use Lehmann momentum, norm_error should be 1.')
-    momentum_default, chg_momentum_from = 1.0, 20 // inner_iterations + 1
+  if (isinstance(momentum_strategy, str) and
+      momentum_strategy.lower() == 'lehmann'):
+    # since we need to compute errors in ||.||_1 norm for Lehmann rule, we add
+    # this to the list of errors to compute if that is not the error requested
+    # by the user.
+    norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
+    momentum_default = 1.0
+    chg_momentum_from = onp.maximum(20 // inner_iterations, 2)
   elif isinstance(momentum_strategy, numbers.Number):
-    if momentum_strategy > 2 - 1e-10 or momentum_strategy < 0 + 1e-10:
+    if not 0 < momentum_strategy < 2:
       raise ValueError('Momentum parameter must be strictly between 0 and 2.')
     momentum_default, chg_momentum_from = momentum_strategy, max_iterations + 1
-
+    norm_error = (norm_error,)
+  else:
+    raise ValueError('Momentum parameter must be either a float in ]0,2[ (when',
+                     ' set to 1 one recovers the usual Sinkhorn updates) or ',
+                     'a valid string.')
   return _sinkhorn_iterations(
       geom, a, b, threshold, norm_error, tau_a, tau_b,
       inner_iterations, max_iterations, momentum_default,
@@ -89,7 +102,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
                          a,
                          b,
                          threshold: float,
-                         norm_error: int,
+                         norm_error: Sequence[int],
                          tau_a: float,
                          tau_b: float,
                          inner_iterations,
@@ -105,7 +118,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
     b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
     threshold: (float) the relative threshold on the Sinkhorn error to stop the
       Sinkhorn iterations.
-    norm_error: int, p-norm of error between marginal / target
+    norm_error: t-uple of int, p-norms of marginal / target errors to track
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
@@ -121,24 +134,29 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
       multiplication.
 
   Returns:
-    tuples of sinkhorn_iterations outputs.
+    a SinkhornOutput named tuple.
   """
   num_a, num_b = geom.shape
   if lse_mode:
-    f_u, g_v = (np.zeros_like(a), np.zeros_like(b))
+    f_u, g_v = np.zeros_like(a), np.zeros_like(b)
   else:
-    f_u, g_v = (np.ones_like(a) / num_a,
-                np.ones_like(b) / num_b)
+    f_u, g_v = np.ones_like(a) / num_a, np.ones_like(b) / num_b
 
-  errors = np.ones((max_iterations // inner_iterations + 1,)) * np.inf
+  errors = np.ones((max_iterations // inner_iterations + 1,
+                    len(norm_error))) * np.inf
   const = (geom, a, b, threshold)
 
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
     threshold = const[-1]
     errors = state[0]
-    return np.where(iteration > 0,
-                    errors[iteration // inner_iterations-1] > threshold,
-                    True)
+    return np.logical_or(iteration == 0,
+                         errors[iteration // inner_iterations-1, 0] > threshold)
+
+  def get_momentum(errors, idx):
+    """momentum formula, https://arxiv.org/pdf/2012.12562v1.pdf, p.7 and (5)."""
+    error_ratio = errors[idx - 1, -1] / errors[idx - 2, -1]
+    power = 1.0 / inner_iterations
+    return 2.0 / (1.0 + np.sqrt(1.0 - error_ratio ** power))
 
   def body_fn(iteration, const, state, last):
     """Carries out sinkhorn iteration.
@@ -161,10 +179,8 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
     errors, f_u, g_v = state
 
     w = jax.lax.stop_gradient(
-        np.where((iteration > inner_iterations * chg_momentum_from),
-                 2.0 / (1.0 + np.sqrt(1.0 - (errors[chg_momentum_from - 1] /
-                                             errors[chg_momentum_from - 2])**
-                                      (1.0 / inner_iterations))),
+        np.where(iteration >= (inner_iterations * chg_momentum_from),
+                 get_momentum(errors, chg_momentum_from),
                  momentum_default))
 
     if lse_mode:
@@ -196,9 +212,8 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
       else:
         # TODO(cuturi,lpapaxanthos): implement convergence for unbalanced case.
         err = threshold
-      errors = jax.ops.index_update(errors,
-                                    jax.ops.index[iteration// inner_iterations],
-                                    err)
+      errors = jax.ops.index_update(
+          errors, jax.ops.index[iteration // inner_iterations, :], err)
     return errors, f_u, g_v
 
   errors, f_u, g_v = fixed_point_loop.fixpoint_iter(
@@ -216,4 +231,4 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   # TODO(cuturi): formula below is not correct in unbalanced case.
 
   regularized_transport_cost = (np.sum(f * a) + np.sum(g * b) - geom.epsilon)
-  return SinkhornOutput(f, g, regularized_transport_cost, errors)
+  return SinkhornOutput(f, g, regularized_transport_cost, errors[:, 0])

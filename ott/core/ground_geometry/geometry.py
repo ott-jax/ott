@@ -16,7 +16,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 
 import jax
 import jax.numpy as np
@@ -40,7 +40,7 @@ class Geometry:
         costs.
       kernel_matrix: np.ndarray<float>[num_a, num_b]: a kernel matrix storing
         n x m kernel values.
-      epsilon: a regularization parameter.
+      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
@@ -164,8 +164,15 @@ class Geometry:
 
   # Functions that are not supposed to be changed by inherited classes.
   # These are the point of entry for Sinkhorn's algorithm to use a geometry.
-  def error(self, f_u, g_v, target, iteration, axis=0, default_value=1.0,
-            norm_error=1, lse_mode: bool = True):
+  def error(self,
+            f_u: np.ndarray,
+            g_v: np.ndarray,
+            target: np.ndarray,
+            iteration: int,
+            axis: int = 0,
+            default_value: float = 1.0,
+            norm_error: Union[int, Sequence[int]] = 1,
+            lse_mode: bool = True):
     """method computing error, given potential/scaling pair.
 
     Args:
@@ -175,7 +182,7 @@ class Geometry:
       iteration: iteration number
       axis: axis along which to compute marginal.
       default_value: value returned by default
-      norm_error: p-norm used to quantify error between marginal & target
+      norm_error: (one or many) p's to quantify p-norm between marginal & target
       lse_mode: whether operating on scalings or potentials
     Returns:
       a float, describing difference between target / marginal.
@@ -184,8 +191,10 @@ class Geometry:
       marginal = self.marginal_from_potentials(f_u, g_v, axis=axis)
     else:
       marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
+    norm_error = np.array(norm_error)
     error = np.sum(
-        np.abs(marginal - target) ** norm_error, axis=None) ** (1 / norm_error)
+        np.abs(marginal - target) ** norm_error[:, np.newaxis],
+        axis=1) ** (1 / norm_error)
     return np.where(self._epsilon.done_at(iteration), error, default_value)
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):

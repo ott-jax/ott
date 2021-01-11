@@ -78,7 +78,7 @@ class PointCloudGeometry(geometry.Geometry):
       x : n x d array of n d-dimensional vectors
       y : m x d array of m d-dimensional vectors
       cost_fn: a cost function between two points in dimension d.
-      epsilon: the value of the regularization parameter.
+      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       online: whether to run the online version of the computation or not. The
         online computation is particularly useful for big point clouds which
         cost matrix does not fit in memory.

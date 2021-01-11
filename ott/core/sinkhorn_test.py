@@ -34,9 +34,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
-    self.dim = 10
-    self.n = 100
-    self.m = 150
+    self.dim = 6
+    self.n = 98
+    self.m = 153
     self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -49,34 +49,104 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='lse-Leh-mom',
           lse_mode=True,
-          momentum_strategy='Lehmann'),
+          momentum_strategy='Lehmann',
+          inner_iterations=10,
+          norm_error=1
+          ),
       dict(
           testcase_name='lse-no-mom',
           lse_mode=True,
-          momentum_strategy=1.0),
+          momentum_strategy=1.0,
+          inner_iterations=10,
+          norm_error=1
+          ),
       dict(
           testcase_name='lse-high-mom',
           lse_mode=True,
-          momentum_strategy=1.5),
+          momentum_strategy=1.5,
+          inner_iterations=10,
+          norm_error=1
+          ),
       dict(
           testcase_name='scal-Leh-mom',
           lse_mode=False,
-          momentum_strategy='Lehmann'),
+          momentum_strategy='Lehmann',
+          inner_iterations=10,
+          norm_error=1
+          ),
       dict(
           testcase_name='scal-no-mom',
           lse_mode=False,
-          momentum_strategy=1.0),
+          momentum_strategy=1.0,
+          inner_iterations=10,
+          norm_error=1,
+          ),
       dict(
           testcase_name='scal-high-mom',
           lse_mode=False,
-          momentum_strategy=1.5))
-  def test_euclidean_point_cloud(self, lse_mode, momentum_strategy):
+          momentum_strategy=1.5,
+          inner_iterations=10,
+          norm_error=1,
+          ),
+      dict(
+          testcase_name='lse-Leh-1',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=1,
+          norm_error=1
+          ),
+      dict(
+          testcase_name='lse-Leh-5',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=5,
+          norm_error=2,
+          ),
+      dict(
+          testcase_name='lse-Leh-7',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=10,
+          norm_error=1,
+          ),
+      dict(
+          testcase_name='lse-Leh-13',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=13,
+          norm_error=3,
+          ),
+      dict(
+          testcase_name='lse-Leh-20',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=20,
+          norm_error=1,
+          ),
+      dict(
+          testcase_name='lse-Leh-22',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=22,
+          norm_error=4,
+          ),
+      dict(
+          testcase_name='lse-Leh-27',
+          lse_mode=True,
+          momentum_strategy='Lehmann',
+          inner_iterations=27,
+          norm_error=2,
+          ))
+  def test_euclidean_point_cloud(self, lse_mode, momentum_strategy,
+                                 inner_iterations, norm_error):
     """Two point clouds in dimension 10."""
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
     errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
                                threshold=threshold,
                                momentum_strategy=momentum_strategy,
+                               inner_iterations=inner_iterations,
+                               norm_error=norm_error,
                                lse_mode=lse_mode).errors
     err = errors[np.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
