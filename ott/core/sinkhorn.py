@@ -184,16 +184,16 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
                  momentum_default))
 
     if lse_mode:
-      g_v = (1 - w) * g_v + w * tau_b * geom.update_potential(
+      g_v = (1.0 - w) * g_v + w * tau_b * geom.update_potential(
           f_u, g_v, np.log(b), iteration,
           axis=0)
-      f_u = (1 - w) * f_u + w * tau_a * geom.update_potential(
+      f_u = (1.0 - w) * f_u + w * tau_a * geom.update_potential(
           f_u, g_v, np.log(a), iteration,
           axis=1)
     else:
-      g_v = g_v ** (1 - w) * (geom.update_scaling(
+      g_v = g_v ** (1.0 - w) * (geom.update_scaling(
           f_u, b, iteration, axis=0)**tau_b) ** w
-      f_u = f_u ** (1 - w) * (geom.update_scaling(
+      f_u = f_u ** (1.0 - w) * (geom.update_scaling(
           g_v, a, iteration, axis=1)**tau_a) ** w
 
     if last:
