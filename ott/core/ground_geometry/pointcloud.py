@@ -16,7 +16,7 @@
 # Lint as: python3
 """A class describing common operations for the Euclidean geometry."""
 import abc
-from typing import Union
+from typing import Optional, Union
 
 import jax
 import jax.numpy as np
@@ -68,7 +68,7 @@ class PointCloudGeometry(geometry.Geometry):
   def __init__(self,
                x: np.ndarray,
                y: np.ndarray = None,
-               cost_fn=None,
+               cost_fn: Optional[CostFn] = None,
                epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                online: bool = False,
                **kwargs):

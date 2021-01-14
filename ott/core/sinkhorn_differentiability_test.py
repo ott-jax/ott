@@ -21,7 +21,6 @@ from absl.testing import parameterized
 import jax
 import jax.numpy as np
 import jax.test_util
-
 from ott.core import sinkhorn
 from ott.core.ground_geometry import geometry
 from ott.core.ground_geometry import pointcloud
@@ -37,7 +36,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
   def test_autograd_sinkhorn(self, lse_mode):
     """Test gradient w.r.t. probability weights."""
     d = 3
-    n, m = 10, 15
+    n, m = 11, 13
     eps = 1e-3  # perturbation magnitude
     keys = jax.random.split(self.rng, 5)
     x = jax.random.uniform(keys[0], (n, d))
@@ -77,7 +76,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
       a = np.ones(cm.shape[0]) / cm.shape[0]
       b = np.ones(cm.shape[1]) / cm.shape[1]
       geom = geometry.Geometry(cm, epsilon=0.5)
-      f, g, regularized_transport_cost, _ = sinkhorn.sinkhorn(
+      f, g, regularized_transport_cost, _, _= sinkhorn.sinkhorn(
           geom, a, b, lse_mode=lse_mode)
       return regularized_transport_cost, (geom, f, g)
 
@@ -132,7 +131,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
 
     def loss_fn(x, y):
       geom = pointcloud.PointCloudGeometry(x, y, epsilon=0.01)
-      f, g, regularized_transport_cost, _ = sinkhorn.sinkhorn(
+      f, g, regularized_transport_cost, _, _ = sinkhorn.sinkhorn(
           geom, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
       return regularized_transport_cost, (geom, f, g)
 

@@ -53,7 +53,7 @@ class Geometry:
 
   @property
   def median_cost_matrix(self):
-    return np.nanmedian(self._cost_matrix[:])
+    return np.median(self.cost_matrix[:])
 
   @property
   def kernel_matrix(self):
@@ -131,6 +131,7 @@ class Geometry:
     Returns:
       a np.ndarray corresponding to output above, depending on axis.
     """
+    del eps
     kernel = self.kernel_matrix if axis == 1 else self.kernel_matrix.T
     return np.dot(kernel, scaling)
 
@@ -172,20 +173,16 @@ class Geometry:
             f_u: np.ndarray,
             g_v: np.ndarray,
             target: np.ndarray,
-            iteration: int,
             axis: int = 0,
-            default_value: float = 1.0,
             norm_error: Sequence[int] = (1,),
             lse_mode: bool = True):
-    """method computing error, given potential/scaling pair.
+    """method computing error, given potential/scaling pair and target.
 
     Args:
       f_u: np.ndarray
       g_v: np.ndarray
       target: target marginal
-      iteration: iteration number
       axis: axis along which to compute marginal.
-      default_value: value returned by default
       norm_error: (one or many) p's to quantify p-norm between marginal & target
       lse_mode: whether operating on scalings or potentials
     Returns:
@@ -199,7 +196,7 @@ class Geometry:
     error = np.sum(
         np.abs(marginal - target) ** norm_error[:, np.newaxis],
         axis=1) ** (1 / norm_error)
-    return np.where(self._epsilon.done_at(iteration), error, default_value)
+    return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
     """Updates potentials in log space Sinkhorn iteration.

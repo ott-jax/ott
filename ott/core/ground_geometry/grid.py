@@ -16,13 +16,14 @@
 # Lint as: python3
 """A class describing common operations for a cost."""
 import itertools
-from typing import Callable, Iterable, Optional, Sequence
+from typing import Optional, Sequence, Union
 
 import jax
 import jax.numpy as np
 import numpy as onp
-
+from ott.core.ground_geometry import epsilon_scheduler
 from ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import pointcloud
 
 
 @jax.tree_util.register_pytree_node_class
@@ -44,42 +45,55 @@ class Grid(geometry.Geometry):
       self,
       x: Optional[Sequence[np.ndarray]] = None,
       grid_size: Optional[Sequence[int]] = None,
-      cost_fns: Optional[Iterable[Callable[[float, float], float]]] = None,
+      cost_fns: Optional[Sequence[pointcloud.CostFn]] = None,
+      num_a: Optional[int] = None,
+      grid_dimension: int = None,
+      epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
       **kwargs):
     """Create instance of Euclidean cost to power p.
 
     Args:
-      x : d arrays of varying sizes, locations of the grid
-      grid_size: Sequence of integers describing grid sizes
-      cost_fns: d functions taking two floats and outputting a float. If none
-        the Euclidean distance is assumed by default
+      x : grid_dimension arrays of varying sizes, locations of the grid
+      grid_size: t-uple of integers describing grid sizes
+      cost_fns: a sequence of CostFn's
+      num_a: total size of grid.
+      grid_dimension: dimension of grid.
+      epsilon: a float or a epsilon_scheduler.Epsilon objet
       **kwargs: passed to parent class.
     """
-    super().__init__(None, None, **kwargs)
-    if x is not None:
+    super().__init__(epsilon=epsilon, **kwargs)
+    if grid_size is not None and x is not None and num_a is not None and grid_dimension is not None:
+      self.grid_size = grid_size
       self.x = x
-      self.grid_size = [len(xs) for xs in self.x]
+      self.num_a = num_a
+      self.grid_dimension = grid_dimension
+    elif x is not None:
+      self.x = x
+      self.grid_size = tuple([xs.shape[0] for xs in x])
+      self.num_a = onp.prod(onp.array(self.grid_size))
+      self.grid_dimension = len(self.x)
     elif grid_size is not None:
       self.grid_size = grid_size
-      self.x = [np.arange(n) / np.maximum(1, n - 1) for n in grid_size]
+      self.x = tuple([np.linspace(0, 1, n) for n in self.grid_size])
+      self.num_a = onp.prod(onp.array(grid_size))
+      self.grid_dimension = len(self.grid_size)
     else:
-      raise ValueError('Expected either grid locations or grid specifications')
-    self._grid_dimension = len(self.x)
+      raise ValueError('Expected either grid specifications or grid locations.')
+
     if cost_fns is None:
-      cost_fns = [lambda x, y: (x - y)**2]
+      cost_fns = [pointcloud.EuclideanCostFn()]
     self.cost_fns = cost_fns
-    # kwargs used in tree_flatten
-    self.kwargs = {'x': x, 'grid_size': grid_size, 'cost_fns': cost_fns}
-    self.kwargs.update(kwargs)
+    self.kwargs = {'num_a': self.num_a, 'grid_size': self.grid_size,
+                   'grid_dimension': self.grid_dimension}
 
   @property
   def cost_matrices(self):
     # computes cost matrices along each dimension of the grid
     cost_matrices = []
     for dimension, cost_fn in itertools.zip_longest(
-        range(self._grid_dimension), self.cost_fns,
+        range(self.grid_dimension), self.cost_fns,
         fillvalue=self.cost_fns[-1]):
-      x_values = self.x[dimension]
+      x_values = self.x[dimension][:, np.newaxis]
       cost_matrix = jax.vmap(lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # pylint: disable=cell-var-from-loop
                              (x_values))(x_values)  # pylint: disable=cell-var-from-loop
       cost_matrices.append(cost_matrix)
@@ -95,13 +109,12 @@ class Grid(geometry.Geometry):
 
   @property
   def shape(self):
-    num_a = onp.prod(onp.array(self.grid_size))
-    return num_a, num_a
+    return self.num_a, self.num_a
 
   @property
   def is_symmetric(self):
     return True
-    
+
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(self,
                        f: np.ndarray,
@@ -120,7 +133,7 @@ class Grid(geometry.Geometry):
     if axis == 0:
       f, g = g, f
 
-    for dimension in range(self._grid_dimension):
+    for dimension in range(self.grid_dimension):
       g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
       g -= f
     if vec is None:
@@ -128,13 +141,13 @@ class Grid(geometry.Geometry):
     return g.ravel(), vec.ravel()
 
   def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
-    indices = onp.arange(self._grid_dimension)
+    indices = onp.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
     f, g = np.transpose(f, indices), np.transpose(g, indices)
     centered_cost = (f[:, np.newaxis, ...] + g[np.newaxis, ...]
                      - np.expand_dims(
                          self.cost_matrices[dimension],
-                         axis=tuple(range(2, 1 + self._grid_dimension)))
+                         axis=tuple(range(2, 1 + self.grid_dimension)))
                      ) / eps
 
     if vec is not None:
@@ -150,8 +163,8 @@ class Grid(geometry.Geometry):
   def apply_kernel(self, scaling: np.ndarray, eps=None, axis=None):
     """Applies kernel on grid using sub-kernel matrices on each slice."""
     scaling = np.reshape(scaling, self.grid_size)
-    indices = list(range(1, self._grid_dimension))
-    for dimension in range(self._grid_dimension):
+    indices = list(range(1, self.grid_dimension))
+    for dimension in range(self.grid_dimension):
       ind = indices.copy()
       ind.insert(dimension, 0)
       scaling = np.tensordot(
@@ -179,9 +192,9 @@ class Grid(geometry.Geometry):
     return tuple(sep_grid for _ in range(size))
 
   def tree_flatten(self):
-    return ((), self.kwargs)
+    return (self.x, self.cost_fns, self.epsilon), self.kwargs
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    out = cls(*children, **aux_data) if children else cls(**aux_data)
-    return  out
+    return cls(
+        x=children[0], cost_fns=children[1], epsilon=children[2], **aux_data)

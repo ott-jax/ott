@@ -76,6 +76,7 @@ def fixpoint_iter_fwd(cond_fn, body_fn, max_iterations, inner_iterations,
 def fixpoint_iter_bwd(
     cond_fn, body_fn, max_iterations, inner_iterations, res, g):
   """Backward iteration of fixed point iteration."""
+  del cond_fn, max_iterations
   constants, iteration, states = res
   g_constants = jax.tree_map(np.zeros_like, constants)
   def bwd_cond_fn(iteration_g_gconst):

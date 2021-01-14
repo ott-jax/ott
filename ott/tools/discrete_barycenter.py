@@ -28,7 +28,7 @@ from ott.core.ground_geometry import geometry
 
 
 SinkhornBarycenterOutput = collections.namedtuple(
-    'Barycenter', ['f', 'g', 'histogram'])
+    'Barycenter', ['f', 'g', 'histogram', 'errors'])
 
 
 def discrete_barycenter(geom: geometry.Geometry,
@@ -46,8 +46,7 @@ def discrete_barycenter(geom: geometry.Geometry,
    geom: a Cost object able to apply kernels with a certain epsilon.
    a: np.ndarray<float>[batch, geom.num_a]: batch of histograms.
    weights: np.ndarray of weights in the probability simplex
-   threshold: (float) the relative threshold on the Sinkhorn error to stop the
-     Sinkhorn iterations.
+   threshold: (float) tolerance to monitor convergence.
    norm_error: int, power used to define p-norm of error from marginal to target
    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead to avoid computational overhead.
@@ -55,7 +54,8 @@ def discrete_barycenter(geom: geometry.Geometry,
    lse_mode: True for log-sum-exp computations, False for kernel multiplication.
    debiased: whether to run the debiased version of the Sinkhorn divergence.
   Returns:
-   A histogram a of size geom.num_b, the Wasserstein barycenter of vectors a.
+   A SinkhornBarycenterOutput, which contains two arrays of potentials,
+     the barycentric histogram and a sequence of errors.
   """
   batch_size, num_a = a.shape
   _, num_b = geom.shape
@@ -67,8 +67,8 @@ def discrete_barycenter(geom: geometry.Geometry,
 
   if debiased and not geom.is_symmetric:
     raise ValueError('Geometry must be symmetric to use debiased option.')
-
-  return _discrete_barycenter(geom, a, weights, threshold, (norm_error,),
+  norm_error = (norm_error,)
+  return _discrete_barycenter(geom, a, weights, threshold, norm_error,
                               inner_iterations, max_iterations, lse_mode,
                               debiased, batch_size,
                               num_a, num_b)
@@ -116,18 +116,20 @@ def _discrete_barycenter(geom: geometry.Geometry,
   errors_fn = jax.vmap(
       functools.partial(geom.error, axis=1, norm_error=norm_error,
                         lse_mode=lse_mode),
-      in_axes=[0, 0, 0, None])
+      in_axes=[0, 0, 0])
 
-  err = threshold + 1.0
+  errors = np.ones((max_iterations // inner_iterations + 1,
+                    len(norm_error))) * np.inf
 
-  const = (geom, a, weights, threshold)
+  const = (geom, a, weights)
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
-    threshold = const[-1]
-    err = state[0]
-    return err >= threshold
+    errors = state[0]
+    return np.logical_or(iteration == 0,
+                         errors[iteration // inner_iterations-1, 0] > threshold)
+
   def body_fn(iteration, const, state, last):
-    geom, a, weights, _ = const
-    err, d, f_u, g_v = state
+    geom, a, weights = const
+    errors, d, f_u, g_v = state
 
     eps = geom._epsilon.at(iteration)  # pylint: disable=protected-access
     f_u = parallel_update(f_u, g_v, a, iteration)
@@ -161,14 +163,16 @@ def _discrete_barycenter(geom: geometry.Geometry,
       g_v = b[np.newaxis, :] / kernel_f_u
 
     if last:
-      err = np.max(errors_fn(f_u, g_v, a, iteration))
-    return err, d, f_u, g_v
-  state = (err, d, f_u, g_v)
+      err = np.max(errors_fn(f_u, g_v, a))
+      errors = jax.ops.index_update(
+          errors, jax.ops.index[iteration // inner_iterations, :], err)
+    return errors, d, f_u, g_v
+  state = (errors, d, f_u, g_v)
 
   state = fixed_point_loop.fixpoint_iter(cond_fn, body_fn, max_iterations,
                                          inner_iterations, const, state)
 
-  _, d, f_u, g_v = state
+  errors, d, f_u, g_v = state
   kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)
   if lse_mode:
     b = np.average(
@@ -184,4 +188,4 @@ def _discrete_barycenter(geom: geometry.Geometry,
       b *= d
   if lse_mode:
     b = np.exp(b / geom.epsilon)
-  return SinkhornBarycenterOutput(f_u, g_v, b)
+  return SinkhornBarycenterOutput(f_u, g_v, b, errors)

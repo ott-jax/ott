@@ -37,13 +37,13 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_separable_grid(self, lse_mode):
     """Two histograms in a grid of size 5 x 6 x 7  in the hypercube^3."""
-    grid_size = np.array([5, 6, 7])
+    grid_size = (5, 6, 7)
     keys = jax.random.split(self.rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     a = a.ravel() / np.sum(a)
     b = b.ravel() / np.sum(b)
-    threshold = 1e-3
+    threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
         geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode).errors
@@ -52,7 +52,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
   @parameterized.parameters([True], [False])
   def test_grid_vs_euclidean(self, lse_mode):
-    grid_size = np.array([4, 3, 8])
+    grid_size = (5, 6, 7)
     keys = jax.random.split(self.rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
@@ -73,7 +73,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
   @parameterized.parameters([True], [False])
   def test_apply_transport_grid(self, lse_mode):
-    grid_size = np.array([3, 5, 4])
+    grid_size = (5, 6, 7)
     keys = jax.random.split(self.rng, 3)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
@@ -92,8 +92,10 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
     batch_a = 3
     batch_b = 4
-    vec_a = jax.random.normal(keys[4], [batch_a, np.prod(grid_size)])
-    vec_b = jax.random.normal(keys[4], [batch_b, np.prod(grid_size)])
+    vec_a = jax.random.normal(keys[4], [batch_a,
+                                        onp.prod(onp.array(grid_size))])
+    vec_b = jax.random.normal(keys[4], [batch_b,
+                                        onp.prod(grid_size)])
 
     vec_a = vec_a / np.sum(vec_a, axis=1)[:, np.newaxis]
     vec_b = vec_b / np.sum(vec_b, axis=1)[:, np.newaxis]
@@ -110,6 +112,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
     self.assertAllClose(mat_transport_t_vec_a, grid_transport_t_vec_a)
     self.assertAllClose(mat_transport_vec_b, grid_transport_vec_b)
+    self.assertIsNot(np.any(np.isnan(mat_transport_t_vec_a)), True)
 
 if __name__ == '__main__':
   absltest.main()

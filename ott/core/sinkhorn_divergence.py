@@ -22,7 +22,8 @@ from ott.core import sinkhorn
 from ott.core.ground_geometry import geometry
 
 SinkhornDivergence = collections.namedtuple(
-    'SinkhornDivergence', ['divergence', 'potentials', 'geoms', 'errors'])
+    'SinkhornDivergence', ['divergence', 'potentials', 'geoms', 'errors',
+                           'converged'])
 
 
 def sinkhorn_divergence_wrapper(
@@ -85,10 +86,11 @@ def sinkhorn_divergence(
   """
   geoms = (geometry_xy, geometry_xx, geometry_yy)
   out = [
-      sinkhorn.SinkhornOutput(None, None, 0, None) if geom is None
+      sinkhorn.SinkhornOutput(None, None, 0, None, None) if geom is None
       else sinkhorn.sinkhorn(geom, marginals[0], marginals[1], **kwargs)
       for (geom, marginals) in zip(geoms, [[a, b], [a, a], [b, b]])
   ]
   div = out[0].reg_ot_cost - 0.5 * (out[1].reg_ot_cost + out[2].reg_ot_cost)
   return SinkhornDivergence(div, tuple([s.f, s.g] for s in out),
-                            geoms, tuple(s.errors for s in out))
+                            geoms, tuple(s.errors for s in out),
+                            tuple(s.converged for s in out))

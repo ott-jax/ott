@@ -40,16 +40,6 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
           debiased=True,
           epsilon=0.01),
       dict(
-          testcase_name='lse-no-deb',
-          lse_mode=True,
-          debiased=False,
-          epsilon=0.01),
-      dict(
-          testcase_name='scal-deb',
-          lse_mode=False,
-          debiased=True,
-          epsilon=0.02),
-      dict(
           testcase_name='scal-no-deb',
           lse_mode=False,
           debiased=False,
@@ -77,12 +67,15 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
     b = jax.ops.index_update(b, -1, 10000)
     a = a / np.sum(a)
     b = b / np.sum(b)
-
-    bar = db.discrete_barycenter(
-        grid_3d, a=np.stack((a, b)), lse_mode=lse_mode,
-        debiased=debiased).histogram
+    threshold = 1e-2
+    _, _, bar, errors = db.discrete_barycenter(
+        grid_3d, a=np.stack((a, b)), threshold=threshold,
+        lse_mode=lse_mode,
+        debiased=debiased)
     self.assertGreater(bar[(np.prod(size) - 1) // 2], 0.7)
     self.assertGreater(1, bar[(np.prod(size) - 1) // 2])
+    err = errors[np.isfinite(errors)][-1]
+    self.assertGreater(threshold, err)
 
   @parameterized.named_parameters(
       dict(
