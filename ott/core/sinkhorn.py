@@ -121,7 +121,7 @@ def sinkhorn(geom: geometry.Geometry,
       chg_momentum_from, lse_mode)
 
 
-@functools.partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9, 10, 11))
+@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8, 9, 10, 11))
 def _sinkhorn_iterations(geom: geometry.Geometry,
                          a: np.ndarray,
                          b: np.ndarray,
@@ -168,11 +168,51 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
 
   errors = -np.ones((onp.ceil(max_iterations / inner_iterations).astype(int),
                      len(norm_error)))
-  const = (geom, a, b)
+  const = (geom, a, b, threshold)
+
+  def compute_cost(geom: geometry.Geometry,
+                   a: np.ndarray,
+                   b: np.ndarray,
+                   tau_a: float,
+                   tau_b: float,
+                   f: np.ndarray,
+                   g: np.ndarray) -> np.ndarray:
+    """Computes objective of regularized OT given dual solutions f,g."""
+    if tau_a == 1.0:
+      contrib_a = np.sum(f * a)
+    else:
+      rho_a = geom.epsilon * (tau_a / (1 - tau_a))
+      contrib_a = - np.sum(a * phi_star(-f, rho_a))
+    if tau_b == 1.0:
+      contrib_b = np.sum(g * b)
+    else:
+      rho_b = geom.epsilon * (tau_b / (1 - tau_b))
+      contrib_b = -np.sum(b * phi_star(-g, rho_b))
+
+    if tau_a == 1.0 and tau_b == 1.0:
+      # Regularized transport cost as in dual formula
+      # 4.30 in https://arxiv.org/pdf/1803.00567.pdf. Notice that the double sum
+      # < e^f/eps, K e^g/eps> = 1 when using the Sinkhorn algorithm, due to the
+      # way we perform updates. The last term is therefore constant and equal to
+      # the epsilon regularization strength.
+      regularized_transport_cost = contrib_a + contrib_b - geom.epsilon
+    else:
+      # When unbalanced, several correction terms, including mass difference,
+      # included as in  https://arxiv.org/pdf/1910.12958.pdf p.4,
+      # dual expression obtained for KL, p.4, with dual in Eq. 15
+      regularized_transport_cost = (
+          contrib_a + contrib_b - geom.epsilon * (
+              np.sum(a * geom.apply_transport_from_potentials(f, g, b, axis=1))
+              - np.sum(a) * np.sum(b))
+          + 0.5 * geom.epsilon * (np.sum(a) - np.sum(b))**2
+          )
+    return regularized_transport_cost
 
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
+    threshold = const[-1]
     errors = state[0]
     err = errors[iteration // inner_iterations-1, 0]
+
     return np.logical_or(iteration == 0,
                          np.logical_and(np.isfinite(err), err > threshold))
 
@@ -199,7 +239,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
     Returns:
       state variables.
     """
-    geom, a, b = const
+    geom, a, b, _ = const
     errors, f_u, g_v = state
     # if purely unbalanced, monitor error using two successive iterations.
     if tau_a != 1.0 and tau_b != 1.0 and last:
@@ -256,28 +296,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   f = f_u if lse_mode else geom.potential_from_scaling(f_u)
   g = g_v if lse_mode else geom.potential_from_scaling(g_v)
 
-  if tau_a == 1.0 and tau_b == 1:
-    # Regularized transport cost as in dual formula
-    # 4.30 in https://arxiv.org/pdf/1803.00567.pdf. Notice that the double sum
-    # < e^f/eps, K e^g/eps> = 1 when using the Sinkhorn algorithm, due to the
-    # way we perform updates. The last term is therefore constant and equal to
-    # the epsilon regularization strength.
-    regularized_transport_cost = (np.sum(f * a) + np.sum(g * b) - geom.epsilon)
-  else:
-    # Correction terms, including mass difference, included as in
-    # https://arxiv.org/pdf/1910.12958.pdf p.4,
-    # dual expression obtained for KL, p.4, with dual in Eq. 15
-    rho_a = geom.epsilon * (tau_a / (1 - tau_a))
-    rho_b = geom.epsilon * (tau_b / (1 - tau_b))
-    regularized_transport_cost = (
-        - np.sum(a * phi_star(-f, rho_a))
-        - np.sum(b * phi_star(-g, rho_b))
-        - geom.epsilon * (
-            np.sum(a * geom.apply_transport_from_potentials(f, g, b, axis=1))
-            - np.sum(a) * np.sum(b))
-        + geom.epsilon * (np.sum(a) - np.sum(b))**2
-        )
-
+  regularized_transport_cost = compute_cost(geom, a, b, tau_a, tau_b, f, g)
   # test if the Sinkhorn algorithm has converged.
   converged = np.logical_and(
       np.sum(errors == -1) > 0,
@@ -287,5 +306,8 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
                         converged)
 
 
-def phi_star(f, rho):
+def phi_star(f: np.ndarray, rho: float) -> np.ndarray:
+  """Legendre transform of KL, https://arxiv.org/pdf/1910.12958.pdf p.9."""
   return rho * (np.exp(f / rho) - 1)
+
+
