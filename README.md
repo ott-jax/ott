@@ -55,16 +55,16 @@ One can then plot the transport and obtain something like:
 
 Currently implements the following classes and functions:
 
--   In the `core` folder,
+-   In the [core](ott/core) folder,
 
-    -   The `Geometry` class and its descendants describe a cost structure
+    -   The `Geometry` class in [geometry.py](ott/core/ground_geometry/geometry.py) and its descendants describe a cost structure
         between the supports of a pair of input/output measures. That cost
         structure is accessed through various member functions, mostly used when
         running the Sinkhorn algorithm (typically kernel multiplications, or
         log-sum-exp row/column-wise application) or after (to apply the OT
         transport matrix to a vector).
 
-        -   In its generic `geometry` implementation, the class is initialized
+        -   In its generic `Geometry` implementation, the class is initialized
             with a `cost_matrix` or a `kernel_matrix`, as well as a `epsilon`
             regularization parameter.
 
@@ -82,7 +82,7 @@ Currently implements the following classes and functions:
             the application of the kernel is much simplified, both in log space
             or on the histograms themselves.
 
-    -   The `sinkhorn` function runs the Sinkhorn algorithm, with the aim of
+    -   The `sinkhorn` function in [sinkhorn.py](ott/core/sinkhorn.py) runs the Sinkhorn algorithm, with the aim of
         solving approximately one or various optimal transport problems in
         parallel. An OT problem is defined by a `Geometry` object, and a pair
         $$(a, b)$$ (or batch thereof) of histograms. The function's outputs are
@@ -90,19 +90,19 @@ Currently implements the following classes and functions:
         regularized OT cost and an error term quantifying convergence of the
         algorithm.
 
-    -   In `sinkhorn_divergence`, implentation of the
+    -   The `sinkhorn_divergence` function in [sinkhorn_divergence.py](ott/core/sinkhorn_divergence.py), implements the
         [Sinkhorn divergence](http://proceedings.mlr.press/v84/genevay18a.html),
         a variant of the Wasserstein distance that uses regularization and is
         computed by centering the output of `sinkhorn` when comparing two
         measures.
 
--   In the `tools` folder,
+-   In the [tools](ott/tools) folder,
 
-    -   In `discrete_barycenter`: implentation of discrete Wasserstein
+    -   In [discrete_barycenter.py](ott/tools/discrete_barycenter.py): implementation of discrete Wasserstein
         barycenters : given $$N$$ histograms all supported on the same
         `Geometry`, compute a barycenter of theses measures, using an algorithm
         by [Janati et al. (2020)](https://arxiv.org/abs/2006.02575)
 
-    -   implementation of
+    -   In [soft_sort.py](ott/tools/soft_sort.py): implementation of
         [soft-sorting](https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html)
-        operators in `soft_sort`.
+        operators .
