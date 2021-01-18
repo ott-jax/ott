@@ -7,14 +7,12 @@ OTT is a JAX toolbox that bundles a few utilities to solve numerically
 selected applications that rely on solving OT. This first version considers the
 computation of OT divergences between distributions/point clouds/histograms,
 computation of barycenters of the same, or more advanced estimation problems
-that leverage the optimal transport geometry, such as soft-quantiles / soft-sort
-operators.
+that leverage the optimal transport geometry, such as soft-quantiles / soft-sort operators.
 
 In this first version, we have focused our efforts on providing a sturdy and
 versatile implementation of the Sinkhorn algorithm. The Sinkhorn algorithm is
 the computational workhorse of several approaches building on OT. The Sinkhorn
-algorithm is a fixed-point algorithm; each iteration consists in kernel matrix /
-vector multiplications, followed by elementwise divisions:
+algorithm is a fixed-point algorithm; each iteration consists in kernel matrix / vector multiplications, followed by elementwise divisions:
 
 $$
 u \leftarrow \frac{a}{Kv},\quad v \leftarrow \frac{a}{K^Tu},
@@ -22,15 +20,35 @@ $$
 
 Here $$a$$ and $$b$$ are probability vectors, possibly of different sizes $$n$$
 and $$m$$, while $$K$$ is a linear map from $$\mathbf{R}^m$$ to
-$$\mathbf{R}^n$$. Although this iteration is very simple, we focus here on a few
-important details, such as - parallelism of its application on several pairs of
-measures that may share structure, - backward-mode evaluation for automatic
-differentiation with respect to relevant parameters that define $$K$$, $$a$$ or
-$$b$$, - speed-ups that can be obtained depending on the specifics of the kernel
-$$K$$, - stability using log-space computations.
+$$\mathbf{R}^n$$. Although this iteration is very simple, we focus here on a few important details, such as - parallelism of its application on several pairs of measures that may share structure, - backward-mode evaluation for automatic differentiation with respect to relevant parameters that define $$K$$, $$a$$ or $$b$$, - speed-ups that can be obtained depending on the specifics of the kernel $$K$$, - stability using log-space computations.
 
-In our implementation, we encode such kernels $$K$$ in a `Geometry` object which
-is typically defined using two measures.
+In our implementation, we encode such kernels $$K$$ in a `Geometry` object which is typically defined using two measures.
+
+## Example
+
+```
+from ott import pointcloud
+from ott import sinkhorn
+
+# Samples two point clouds and their weights.
+rngs = jax.random.split(jax.random.PRNGKey(0),4)
+n, m, d = 12, 14, 2
+x = jax.random.normal(rngs[0], (n,d)) + 1
+y = jax.random.uniform(rngs[1], (m,d))
+a = jax.random.uniform(rngs[2], (n,))
+b = jax.random.uniform(rngs[3], (m,))
+a, b  = a / np.sum(a), b / np.sum(b)
+
+# Computes the couplings via Sinkhorn algorithm.
+geom = pointcloud.PointCloudGeometry(x,y)
+out = sinkhorn.sinkhorn(geom, a, b)
+P = geom.transport_from_potentials(out.f, out.g)
+```
+
+One can then plot the transport and obtain something like:
+![obtained coupling](./images/couplings.png)
+
+
 
 ## Overall description of source code
 
