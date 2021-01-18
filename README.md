@@ -14,15 +14,13 @@ versatile implementation of the Sinkhorn algorithm. The Sinkhorn algorithm is
 the computational workhorse of several approaches building on OT. The Sinkhorn
 algorithm is a fixed-point algorithm; each iteration consists in kernel matrix / vector multiplications, followed by elementwise divisions:
 
-$$
-u \leftarrow \frac{a}{Kv},\quad v \leftarrow \frac{a}{K^Tu},
-$$
+<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bu%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BKv%7D%7D%2C%5Cquad%20%5Cmathbf%7Bv%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BK%7D%5ET%5Cmathbf%7Bu%7D%7D%24">
 
-Here $$a$$ and $$b$$ are probability vectors, possibly of different sizes $$n$$
-and $$m$$, while $$K$$ is a linear map from $$\mathbf{R}^m$$ to
-$$\mathbf{R}^n$$. Although this iteration is very simple, we focus here on a few important details, such as - parallelism of its application on several pairs of measures that may share structure, - backward-mode evaluation for automatic differentiation with respect to relevant parameters that define $$K$$, $$a$$ or $$b$$, - speed-ups that can be obtained depending on the specifics of the kernel $$K$$, - stability using log-space computations.
+Here <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Ba%7D%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bb%7D%24"> are probability vectors, possibly of different sizes <img src="https://render.githubusercontent.com/render/math?math=%24n%24">
+and <img src="https://render.githubusercontent.com/render/math?math=%24m%24">, while <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24"> is a linear map from <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbb%7BR%7D%5Em%24"> to
+<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbb%7BR%7D%5En%24">. Although this iteration is very simple, we focus here on a few important details, such as - parallelism of its application on several pairs of measures that may share structure, - backward-mode evaluation for automatic differentiation with respect to relevant parameters that define <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24">, <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Ba%7D%24"> or <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bb%7D%24">, - speed-ups that can be obtained depending on the specifics of the kernel <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24">, - stability using log-space computations.
 
-In our implementation, we encode such kernels $$K$$ in a `Geometry` object which is typically defined using two measures.
+In our implementation, we encode such kernels <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24"> in a `Geometry` object which is typically defined using two measures.
 
 ## Example
 
@@ -69,23 +67,23 @@ Currently implements the following classes and functions:
             regularization parameter.
 
         -   If one wishes to compute OT between two weighted point clouds
-            $$x=(x_1, \dots, x_n)$$ and $$y=(y_1, \dots, y_m)$$ endowed with a
-            given cost function (e.g. Euclidean) $$c$$, the `PointCloudGeometry`
+            <img src="https://render.githubusercontent.com/render/math?math=%24x%3D(x_1%2C%20%5Cdots%2C%20x_n)%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24y%3D(y_1%2C%20%5Cdots%2C%20y_m)%24"> endowed with a
+            given cost function (e.g. Euclidean) <img src="https://render.githubusercontent.com/render/math?math=%24c%24">, the `PointCloudGeometry`
             class can be used to define how the corresponding kernel
-            $$K=\exp(-c(x_i,y_j)/\epsilon)$$.
+            <img src="https://render.githubusercontent.com/render/math?math=%24K_%7Bij%7D%3D%5Cexp(-c(x_i%2Cy_j)%2F%5Cepsilon)%24">.
 
         -   Simlarly, if all measures to be considered are supported on a
-            separable grid (e.g. $$\{1,...,n\}^d$$), and the cost is separable
+            separable grid (e.g. <img src="https://render.githubusercontent.com/render/math?math=%24%5C%7B1%2C...%2Cn%5C%7D%5Ed%24">), and the cost is separable
             along the various axis, i.e. the cost between two points on that
-            grid is equal to the sum of (possibly $$d$$ different) cost
-            functions evaluated on each of the $$d$$ pairs of coordinates, then
+            grid is equal to the sum of (possibly <img src="https://render.githubusercontent.com/render/math?math=%24d%24"> different) cost
+            functions evaluated on each of the <img src="https://render.githubusercontent.com/render/math?math=%24d%24"> pairs of coordinates, then
             the application of the kernel is much simplified, both in log space
             or on the histograms themselves.
 
     -   The `sinkhorn` function in [sinkhorn.py](ott/core/sinkhorn.py) runs the Sinkhorn algorithm, with the aim of
         solving approximately one or various optimal transport problems in
         parallel. An OT problem is defined by a `Geometry` object, and a pair
-        $$(a, b)$$ (or batch thereof) of histograms. The function's outputs are
+        <img src="https://render.githubusercontent.com/render/math?math=%24(a%2C%20b)%24"> (or batch thereof) of histograms. The function's outputs are
         stored in a `SinkhornOutput` named t-uple, containing potentials,
         regularized OT cost and an error term quantifying convergence of the
         algorithm.
@@ -99,7 +97,7 @@ Currently implements the following classes and functions:
 -   In the [tools](ott/tools) folder,
 
     -   In [discrete_barycenter.py](ott/tools/discrete_barycenter.py): implementation of discrete Wasserstein
-        barycenters : given $$N$$ histograms all supported on the same
+        barycenters : given <img src="https://render.githubusercontent.com/render/math?math=%24N%24"> histograms all supported on the same
         `Geometry`, compute a barycenter of theses measures, using an algorithm
         by [Janati et al. (2020)](https://arxiv.org/abs/2006.02575)
 
