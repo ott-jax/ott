@@ -46,6 +46,7 @@ P = geom.transport_from_potentials(out.f, out.g)
 ```
 
 One can then plot the transport and obtain something like:
+
 ![obtained coupling](./images/couplings.png)
 
 
