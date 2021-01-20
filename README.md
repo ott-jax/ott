@@ -2,6 +2,8 @@
 
 **Disclaimer: this is not an official Google product.**
 
+**Disclaimer: this toolbox is still under development, some further changes in the API are likely.**
+
 OTT is a JAX toolbox that bundles a few utilities to solve numerically
 [optimal transport problems](https://arxiv.org/abs/1803.00567), along with
 selected applications that rely on solving OT. This first version considers the
