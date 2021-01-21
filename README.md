@@ -2,6 +2,8 @@
 
 **Disclaimer: this is not an official Google product.**
 
+**Disclaimer: this is still under heavy development, the API is likely to change in places.**
+
 OTT is a JAX toolbox that bundles a few utilities to solve numerically
 [optimal transport problems](https://arxiv.org/abs/1803.00567), along with
 selected applications that rely on solving OT. This first version considers the
@@ -14,7 +16,7 @@ versatile implementation of the Sinkhorn algorithm. The Sinkhorn algorithm is
 the computational workhorse of several approaches building on OT. The Sinkhorn
 algorithm is a fixed-point algorithm; each iteration consists in kernel matrix / vector multiplications, followed by elementwise divisions:
 
-<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bu%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BKv%7D%7D%2C%5Cquad%20%5Cmathbf%7Bv%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BK%7D%5ET%5Cmathbf%7Bu%7D%7D%24">
+<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bu%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BKv%7D%7D%2C%5Cquad%20%5Cmathbf%7Bv%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Bb%7D%7D%7B%5Cmathbf%7BK%7D%5ET%5Cmathbf%7Bu%7D%7D%24">
 
 Here <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Ba%7D%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bb%7D%24"> are probability vectors, possibly of different sizes <img src="https://render.githubusercontent.com/render/math?math=%24n%24">
 and <img src="https://render.githubusercontent.com/render/math?math=%24m%24">, while <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24"> is a linear map from <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbb%7BR%7D%5Em%24"> to
