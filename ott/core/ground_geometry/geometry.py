@@ -195,7 +195,7 @@ class Geometry:
     norm_error = np.array(norm_error)
     error = np.sum(
         np.abs(marginal - target) ** norm_error[:, np.newaxis],
-        axis=1) ** (1 / norm_error)
+        axis=1) ** (1.0 / norm_error)
     return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
@@ -263,12 +263,15 @@ class Geometry:
     Returns:
       array of the size of vec.
     """
+    if vec.ndim == 1:
+      return self._apply_transport_from_potentials(
+          f, g, vec[np.newaxis, :], axis)[0, :]
     return self._apply_transport_from_potentials(f, g, vec, axis)
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_scalings(self, u, v, vec, axis):
-    u, v = (u, v * vec) if axis == 0 else (v, u * vec)
-    return u * self.apply_kernel(v, axis=axis)
+    u, v = (u, v * vec) if axis == 1 else (v, u * vec)
+    return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
 
   # wrapper to allow default option for axis
   def apply_transport_from_scalings(self,
@@ -288,6 +291,9 @@ class Geometry:
     Returns:
       array of the size of vec.
     """
+    if vec.ndim == 1:
+      return self._apply_transport_from_scalings(u, v, vec[np.newaxis, :],
+                                                 axis)[0, :]
     return self._apply_transport_from_scalings(u, v, vec, axis)
 
   def potential_from_scaling(self, scaling: np.ndarray) -> np.ndarray:

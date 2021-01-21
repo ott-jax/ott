@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """OTT ground geometries."""
-
+from . import epsilon_scheduler
 from . import geometry
 from . import grid
 from . import pointcloud

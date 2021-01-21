@@ -49,76 +49,74 @@ class SinkhornTest(jax.test_util.JaxTestCase):
           lse_mode=True,
           momentum_strategy='Lehmann',
           inner_iterations=10,
-          norm_error=1
-          ),
+          norm_error=1),
       dict(
           testcase_name='lse-no-mom',
           lse_mode=True,
           momentum_strategy=1.0,
           inner_iterations=10,
-          norm_error=1
-          ),
+          norm_error=1),
       dict(
           testcase_name='lse-high-mom',
           lse_mode=True,
           momentum_strategy=1.5,
           inner_iterations=10,
-          norm_error=1
-          ),
+          norm_error=1),
       dict(
           testcase_name='scal-Leh-mom',
           lse_mode=False,
           momentum_strategy='Lehmann',
           inner_iterations=10,
-          norm_error=1
-          ),
+          norm_error=1),
       dict(
           testcase_name='scal-no-mom',
           lse_mode=False,
           momentum_strategy=1.0,
           inner_iterations=10,
           norm_error=1,
-          ),
+      ),
       dict(
           testcase_name='scal-high-mom',
           lse_mode=False,
           momentum_strategy=1.5,
           inner_iterations=10,
           norm_error=1,
-          ),
+      ),
       dict(
           testcase_name='lse-Leh-1',
           lse_mode=True,
           momentum_strategy='Lehmann',
           inner_iterations=1,
-          norm_error=2
-          ),
+          norm_error=2),
       dict(
           testcase_name='lse-Leh-13',
           lse_mode=True,
           momentum_strategy='Lehmann',
           inner_iterations=13,
           norm_error=3,
-          ),
+      ),
       dict(
           testcase_name='lse-Leh-24',
           lse_mode=True,
           momentum_strategy='Lehmann',
           inner_iterations=24,
           norm_error=4,
-          ))
+      ))
   def test_euclidean_point_cloud(self, lse_mode, momentum_strategy,
                                  inner_iterations, norm_error):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
-                               threshold=threshold,
-                               momentum_strategy=momentum_strategy,
-                               inner_iterations=inner_iterations,
-                               norm_error=norm_error,
-                               lse_mode=lse_mode).errors
-    err = errors[np.isfinite(errors)][-1]
+    errors = sinkhorn.sinkhorn(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        momentum_strategy=momentum_strategy,
+        inner_iterations=inner_iterations,
+        norm_error=norm_error,
+        lse_mode=lse_mode).errors
+    err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 
   def test_geom_vs_point_cloud(self):
@@ -143,7 +141,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         self.x, self.y, epsilon=0.1, online=True)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
-    err = errors[np.isfinite(errors)][-1]
+    err = errors[errors > -1][-1]
     self.assertGreater(np.min(threshold - err), 0)
 
   @parameterized.parameters([True], [False])
@@ -154,7 +152,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         self.x, self.y, epsilon=0.1, online=True)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
-    err = errors[np.isfinite(errors)][-1]
+    err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([True], [False])
@@ -166,11 +164,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         self.x, self.y, epsilon=eps, online=True)
     batch_geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=eps)
     out_online = sinkhorn.sinkhorn(
-        online_geom, a=self.a, b=self.b, threshold=threshold,
-        lse_mode=lse_mode)
+        online_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode)
     out_batch = sinkhorn.sinkhorn(
-        batch_geom, a=self.a, b=self.b, threshold=threshold,
-        lse_mode=lse_mode)
+        batch_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode)
 
     # Checks regularized transport costs match.
     self.assertAllClose(out_online.reg_ot_cost, out_batch.reg_ot_cost)
@@ -192,10 +188,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     transport_t_vec_a = [None, None, None, None]
     transport_vec_b = [None, None, None, None]
 
-    batch_a = 5
     batch_b = 8
 
-    vec_a = jax.random.normal(keys[4], (batch_a, n))
+    vec_a = jax.random.normal(keys[4], (n,))
     vec_b = jax.random.normal(keys[5], (batch_b, m))
 
     # test with lse_mode and online = True / False
@@ -213,7 +208,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
         self.assertAllClose(
             transport_t_vec_a[i + 2 * j],
-            np.dot(transport.T, vec_a.T).T,
+            np.dot(transport.T, vec_a).T,
             rtol=1e-3,
             atol=1e-3)
         self.assertAllClose(
@@ -227,6 +222,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
           transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3)
       self.assertAllClose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
+
 
 if __name__ == '__main__':
   absltest.main()

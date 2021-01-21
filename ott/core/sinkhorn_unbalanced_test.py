@@ -84,16 +84,20 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b,
-                               threshold=threshold,
-                               momentum_strategy=momentum_strategy,
-                               inner_iterations=inner_iterations,
-                               norm_error=norm_error,
-                               lse_mode=lse_mode,
-                               tau_a=tau_a,
-                               tau_b=tau_b).errors
-    err = errors[np.isfinite(errors)][-1]
+    errors = sinkhorn.sinkhorn(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        momentum_strategy=momentum_strategy,
+        inner_iterations=inner_iterations,
+        norm_error=norm_error,
+        lse_mode=lse_mode,
+        tau_a=tau_a,
+        tau_b=tau_b).errors
+    err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
+    self.assertGreater(err, 0)
 
 if __name__ == '__main__':
   absltest.main()

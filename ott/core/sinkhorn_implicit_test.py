@@ -1,0 +1,122 @@
+# coding=utf-8
+# Copyright 2020 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Lint as: python3
+"""Tests for the Policy."""
+
+from absl.testing import absltest
+from absl.testing import parameterized
+import jax
+import jax.numpy as np
+import jax.test_util
+
+from ott.core import sinkhorn
+from ott.core.ground_geometry import geometry
+from ott.core.ground_geometry import pointcloud
+
+
+class SinkhornTest(jax.test_util.JaxTestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.rng = jax.random.PRNGKey(0)
+    self.dim = 4
+    self.n = 68
+    self.m = 123
+    self.rng, *rngs = jax.random.split(self.rng, 10)
+    self.rngs = rngs
+    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
+    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
+    a = jax.random.uniform(rngs[2], (self.n,)) + .1
+    b = jax.random.uniform(rngs[3], (self.m,)) + .1
+    self.a = a / np.sum(a)
+    self.b = b / np.sum(b)
+
+  @parameterized.parameters([True], [False])
+  def test_implicit_differentiation_versus_autodiff(self, lse_mode):
+    epsilon = 0.02
+
+    def loss_g(a, x, implicit=True):
+      out = sinkhorn.sinkhorn(
+          geometry.Geometry(
+              cost_matrix=np.sum(x**2, axis=1)[:, np.newaxis] +
+              np.sum(self.y**2, axis=1)[np.newaxis, :] -
+              2 * np.dot(x, self.y.T),
+              epsilon=epsilon),
+          a=a,
+          b=self.b,
+          tau_a=0.8,
+          tau_b=0.87,
+          lse_mode=lse_mode,
+          implicit_differentiation=implicit)
+      return out.reg_ot_cost
+
+    def loss_pcg(a, x, implicit=True):
+      out = sinkhorn.sinkhorn(
+          pointcloud.PointCloudGeometry(x, self.y, epsilon=epsilon),
+          a=a,
+          b=self.b,
+          tau_a=1.0,
+          tau_b=0.95,
+          lse_mode=lse_mode,
+          implicit_differentiation=implicit)
+      return out.reg_ot_cost
+
+    for loss in [loss_g, loss_pcg]:
+      loss_and_grad_imp = jax.jit(
+          jax.value_and_grad(lambda a, x: loss(a, x, True), argnums=(0, 1)))
+      loss_and_grad_auto = jax.jit(
+          jax.value_and_grad(lambda a, x: loss(a, x, False), argnums=(0, 1)))
+
+      loss_value_imp, grad_loss_imp = loss_and_grad_imp(self.a, self.x)
+      loss_value_auto, grad_loss_auto = loss_and_grad_auto(self.a, self.x)
+
+      self.assertAllClose(loss_value_imp, loss_value_auto)
+      eps = 1e-3
+
+      # test gradient w.r.t. a works and gradient implicit ~= gradient autodiff
+      delta = jax.random.uniform(self.rngs[4], (self.n,)) / 10
+      delta = delta - np.mean(delta)  # center perturbation
+      reg_ot_delta_plus = loss(self.a + eps * delta, self.x)
+      reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
+      delta_dot_grad = np.sum(delta * grad_loss_imp[0])
+      self.assertAllClose(
+          delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          rtol=1e-03,
+          atol=1e-02)
+      # note how we removed gradients below. This is because gradients are only
+      # determined up to additive constant here (the primal variable is in the
+      # simplex).
+      self.assertAllClose(
+          grad_loss_imp[0] - np.mean(grad_loss_imp[0]),
+          grad_loss_auto[0] - np.mean(grad_loss_auto[0]),
+          rtol=1e-03,
+          atol=1e-02)
+
+      # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
+      delta = jax.random.uniform(self.rngs[4], (self.n, self.dim))
+      reg_ot_delta_plus = loss(self.a, self.x + eps * delta)
+      reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
+      delta_dot_grad = np.sum(delta * grad_loss_imp[1])
+      self.assertAllClose(
+          delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          rtol=1e-03,
+          atol=1e-02)
+      self.assertAllClose(
+          grad_loss_imp[1], grad_loss_auto[1], rtol=1e-03, atol=1e-02)
+
+
+if __name__ == '__main__':
+  absltest.main()

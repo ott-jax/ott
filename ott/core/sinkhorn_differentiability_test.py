@@ -76,9 +76,8 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
       a = np.ones(cm.shape[0]) / cm.shape[0]
       b = np.ones(cm.shape[1]) / cm.shape[1]
       geom = geometry.Geometry(cm, epsilon=0.5)
-      f, g, regularized_transport_cost, _, _= sinkhorn.sinkhorn(
-          geom, a, b, lse_mode=lse_mode)
-      return regularized_transport_cost, (geom, f, g)
+      out = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
+      return out.reg_ot_cost, (geom, out.f, out.g)
 
     # first calculation of gradient
     loss_and_grad = jax.jit(jax.value_and_grad(loss_fn, has_aux=True))
