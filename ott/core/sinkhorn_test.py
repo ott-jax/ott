@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,6 +118,19 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         lse_mode=lse_mode).errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
+
+  def test_euclidean_point_cloud_min_iter(self):
+    """Two point clouds, tested with various parameters."""
+    threshold = 1e-3
+    geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
+    errors = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, threshold=threshold, min_iterations=34).errors
+    err = errors[np.logical_and(errors > -1, np.isfinite(errors))][-1]
+    self.assertGreater(threshold, err)
+    self.assertEqual(np.inf, errors[0])
+    self.assertEqual(np.inf, errors[1])
+    self.assertEqual(np.inf, errors[2])
+    self.assertGreater(errors[3], 0)
 
   def test_geom_vs_point_cloud(self):
     """Two point clouds vs. simple cost_matrix execution of sinkorn."""

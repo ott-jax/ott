@@ -28,7 +28,7 @@ from ott.core.ground_geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
-
+  """Several tests carried out to check the integrity of the Sinkhorn loop."""
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
@@ -44,7 +44,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.a = a / np.sum(a)
     self.b = b / np.sum(b)
 
-  @parameterized.parameters([False])
+  @parameterized.parameters([True])
   def test_implicit_differentiation_versus_autodiff(self, lse_mode):
     epsilon = 0.05
 

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,16 @@ import jax
 from jax import numpy as np
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(0, 1, 2, 3))
-def fixpoint_iter(cond_fn, body_fn, max_iterations, inner_iterations, constants,
-                  state):
+@functools.partial(jax.custom_vjp, nondiff_argnums=(0, 1, 2, 3, 4))
+def fixpoint_iter(cond_fn, body_fn, min_iterations, max_iterations,
+                  inner_iterations, constants, state):
   """Implementation of a backprop friendly fixed point loop.
 
   Args:
     cond_fn : termination condition function
     body_fn : body loop instructions
-    max_iterations : upper bound on outer loop fixed point iterations
+    min_iterations : lower bound on the total amount of fixed point iterations
+    max_iterations : upper bound on the total amount of fixed point iterations
     inner_iterations : default number of iterations in inner loop
     constants : constant (during loop) parameters passed on to body
     state : state variable
@@ -38,7 +39,8 @@ def fixpoint_iter(cond_fn, body_fn, max_iterations, inner_iterations, constants,
   def max_cond_fn(iteration_state):
     iteration, state = iteration_state
     return np.logical_and(iteration < max_iterations,
-                          cond_fn(iteration, constants, state))
+                          np.logical_or(iteration < min_iterations,
+                                        cond_fn(iteration, constants, state)))
   def unrolled_body_fn(iteration_state):
     iteration, state = iteration_state
     for j in range(inner_iterations):
@@ -50,14 +52,15 @@ def fixpoint_iter(cond_fn, body_fn, max_iterations, inner_iterations, constants,
   return state
 
 
-def fixpoint_iter_fwd(cond_fn, body_fn, max_iterations, inner_iterations,
-                      constants, state):
+def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
+                      inner_iterations, constants, state):
   """Forward iteration of fixed point iteration."""
   states = jax.tree_map(lambda x: np.zeros((max_iterations,) + x.shape), state)
   def max_cond_fn(iteration_states_state):
     iteration, _, state = iteration_states_state
     return np.logical_and(iteration < max_iterations,
-                          cond_fn(iteration, constants, state))
+                          np.logical_or(iteration < min_iterations,
+                                        cond_fn(iteration, constants, state)))
   def unrolled_body_fn(iteration_states_state):
     iteration, states, state = iteration_states_state
     states = jax.tree_multimap(
@@ -74,9 +77,9 @@ def fixpoint_iter_fwd(cond_fn, body_fn, max_iterations, inner_iterations,
 
 
 def fixpoint_iter_bwd(
-    cond_fn, body_fn, max_iterations, inner_iterations, res, g):
+    cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, res, g):
   """Backward iteration of fixed point iteration."""
-  del cond_fn, max_iterations
+  del cond_fn, min_iterations, max_iterations
   constants, iteration, states = res
   g_constants = jax.tree_map(np.zeros_like, constants)
   def bwd_cond_fn(iteration_g_gconst):

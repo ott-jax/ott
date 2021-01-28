@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,25 +89,26 @@ class Geometry:
     This function applies the ground geometry's kernel in log domain, using
     a stabilized formulation. At a high level, this iteration performs either
 
-    output = eps * log (K exp(g/eps) )    (1)
+    output = eps * log (K (exp(g / eps) * vec) )    (1)
     or
-    output = eps * log (K' exp(f/eps) )   (2)
+    output = eps * log (K'(exp(f / eps) * vec))   (2)
 
     K is implicitly exp(-cost_matrix/eps).
 
     To carry this out in a stabilized way, we take advantage of the fact that
     the entries of the matrix f[:,*] + g[*,:] - C are all negative, and
-    therefore their exponential never overflows, to add and subtract f and g
-    in iterations 1 & 2 respectively.
+    therefore their exponential never overflows, to add (and subtract after)
+    f and g in iterations 1 & 2 respectively.
 
     Args:
       f: np.ndarray [num_a,] , potential of size num_rows of cost_matrix
       g: np.ndarray [num_b,] , potential of size num_cols of cost_matrix
       eps: float, regularization strength
       vec: np.ndarray [num_a or num_b,] , when not None, this has the effect
-        of doing log-Kernel computations with an addition multiplication of
-        each line/row by a vector. This is carried out by adding weights to
-        the log-sum-exp
+        of doing log-Kernel computations with an addition elementwise
+        multiplication of exp(g /eps) by a vector. This is carried out by
+        adding weights to the log-sum-exp function, and needs to handle signs
+        separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
     Returns:
       A np.ndarray corresponding to output above, depending on axis.

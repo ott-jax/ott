@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ def discrete_barycenter(geom: geometry.Geometry,
                         threshold: float = 1e-2,
                         norm_error: int = 1,
                         inner_iterations: float = 10,
+                        min_iterations: int = 0,
                         max_iterations: int = 2000,
                         lse_mode: bool = True,
                         debiased: bool = False) -> SinkhornBarycenterOutput:
@@ -50,6 +51,8 @@ def discrete_barycenter(geom: geometry.Geometry,
    norm_error: int, power used to define p-norm of error from marginal to target
    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead to avoid computational overhead.
+   min_iterations: (int32) the minimum number of Sinkhorn iterations carried
+     out before the error is computed and monitored.
    max_iterations: (int32) the maximum number of Sinkhorn iterations.
    lse_mode: True for log-sum-exp computations, False for kernel multiplication.
    debiased: whether to run the debiased version of the Sinkhorn divergence.
@@ -69,18 +72,19 @@ def discrete_barycenter(geom: geometry.Geometry,
     raise ValueError('Geometry must be symmetric to use debiased option.')
   norm_error = (norm_error,)
   return _discrete_barycenter(geom, a, weights, threshold, norm_error,
-                              inner_iterations, max_iterations, lse_mode,
-                              debiased, batch_size,
+                              inner_iterations, min_iterations,
+                              max_iterations, lse_mode, debiased, batch_size,
                               num_a, num_b)
 
 
-@functools.partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9, 10, 11))
+@functools.partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9, 10, 11, 12))
 def _discrete_barycenter(geom: geometry.Geometry,
                          a: np.ndarray,
                          weights: np.ndarray,
                          threshold: float,
                          norm_error: Sequence[int],
                          inner_iterations: int,
+                         min_iterations: int,
                          max_iterations: int,
                          lse_mode: bool,
                          debiased: bool,
@@ -163,14 +167,17 @@ def _discrete_barycenter(geom: geometry.Geometry,
       g_v = b[np.newaxis, :] / kernel_f_u
 
     if last:
-      err = np.max(errors_fn(f_u, g_v, a))
+      err = np.where(iteration >= min_iterations,
+                     np.max(errors_fn(f_u, g_v, a)),
+                     np.inf)
       errors = jax.ops.index_update(
           errors, jax.ops.index[iteration // inner_iterations, :], err)
     return errors, d, f_u, g_v
   state = (errors, d, f_u, g_v)
 
-  state = fixed_point_loop.fixpoint_iter(cond_fn, body_fn, max_iterations,
-                                         inner_iterations, const, state)
+  state = fixed_point_loop.fixpoint_iter(cond_fn, body_fn, min_iterations,
+                                         max_iterations, inner_iterations,
+                                         const, state)
 
   errors, d, f_u, g_v = state
   kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)

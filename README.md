@@ -4,31 +4,20 @@
 
 **Disclaimer: this is still under heavy development, the API is likely to change in places.**
 
-OTT is a JAX toolbox that bundles a few utilities to solve numerically
-[optimal transport problems](https://arxiv.org/abs/1803.00567), along with
-selected applications that rely on solving OT. This first version considers the
-computation of OT divergences between distributions/point clouds/histograms,
-computation of barycenters of the same, or more advanced estimation problems
-that leverage the optimal transport geometry, such as soft-quantiles / soft-sort operators.
+OTT is a JAX toolbox that bundles a few utilities to solve [optimal transport problems](https://arxiv.org/abs/1803.00567). These tools can help you compare
+and match (in a loose sense) two weighted point clouds (or histograms, or measures, etc.) using a cost or a distance between the points contained in these point clouds.
 
-In this first version, we have focused our efforts on providing a sturdy and
-versatile implementation of the Sinkhorn algorithm. The Sinkhorn algorithm is
-the computational workhorse of several approaches building on OT. The Sinkhorn
-algorithm is a fixed-point algorithm; each iteration consists in kernel matrix / vector multiplications, followed by elementwise divisions:
+Our focus in OTT is to provide a sturdy, versatile and efficient implementation of the Sinkhorn algorithm, while taking advantage of JAX features, such as [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions) and [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap).
 
-<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bu%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Ba%7D%7D%7B%5Cmathbf%7BKv%7D%7D%2C%5Cquad%20%5Cmathbf%7Bv%7D%20%5Cleftarrow%20%5Cfrac%7B%5Cmathbf%7Bb%7D%7D%7B%5Cmathbf%7BK%7D%5ET%5Cmathbf%7Bu%7D%7D%24">
-
-Here <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Ba%7D%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bb%7D%24"> are probability vectors, possibly of different sizes <img src="https://render.githubusercontent.com/render/math?math=%24n%24">
-and <img src="https://render.githubusercontent.com/render/math?math=%24m%24">, while <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24"> is a linear map from <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbb%7BR%7D%5Em%24"> to
-<img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbb%7BR%7D%5En%24">. Although this iteration is very simple, we focus here on a few important details, such as - parallelism of its application on several pairs of measures that may share structure, - backward-mode evaluation for automatic differentiation with respect to relevant parameters that define <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24">, <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Ba%7D%24"> or <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7Bb%7D%24">, - speed-ups that can be obtained depending on the specifics of the kernel <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24">, - stability using log-space computations.
-
-In our implementation, we encode such kernels <img src="https://render.githubusercontent.com/render/math?math=%24%5Cmathbf%7BK%7D%24"> in a `Geometry` object which is typically defined using two measures.
+An OT problem has two important ingredients: a pair
+of weight vectors `a` and `b` (one for each measure) and a ground cost (typically a pairwise cost matrix between the points contained in each measure). OTT encapsulates the ground cost (and several operations attached to it) in a `Geometry` object. The most common geometry is that of two point clouds compared with the squared Euclidean distance, as used in the example below:
 
 ## Example
 
 ```
-from ott import pointcloud
-from ott import sinkhorn
+import jax
+from ott.core.ground_geometry import pointcloud
+from ott.core import sinkhorn
 
 # Samples two point clouds and their weights.
 rngs = jax.random.split(jax.random.PRNGKey(0),4)
@@ -49,7 +38,8 @@ One can then plot the transport and obtain something like:
 
 ![obtained coupling](./images/couplings.png)
 
-
+As can be seen above, the sinkhorn algorithm will operate on that `Geometry`,
+taking into account weights `a` and `b`, to output a named tuple that contains among other things two potentials `f` and `g` (vectors of the same respective size as `a` and `b`), as well as `reg_OT_cost`, the objective of the regularized OT problem.
 
 ## Overall description of source code
 
@@ -66,7 +56,7 @@ Currently implements the following classes and functions:
 
         -   In its generic `Geometry` implementation, the class is initialized
             with a `cost_matrix` or a `kernel_matrix`, as well as a `epsilon`
-            regularization parameter.
+            regularization parameter or scheduler.
 
         -   If one wishes to compute OT between two weighted point clouds
             <img src="https://render.githubusercontent.com/render/math?math=%24x%3D(x_1%2C%20%5Cdots%2C%20x_n)%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24y%3D(y_1%2C%20%5Cdots%2C%20y_m)%24"> endowed with a
@@ -87,8 +77,9 @@ Currently implements the following classes and functions:
         parallel. An OT problem is defined by a `Geometry` object, and a pair
         <img src="https://render.githubusercontent.com/render/math?math=%24(a%2C%20b)%24"> (or batch thereof) of histograms. The function's outputs are
         stored in a `SinkhornOutput` named t-uple, containing potentials,
-        regularized OT cost and an error term quantifying convergence of the
-        algorithm.
+        regularized OT cost, sequence of errors and a convergence flag. Such
+        outputs (with the exception of errors and convergence flag) can be
+        differentiated either through backprop or implicit differentiation.
 
     -   The `sinkhorn_divergence` function in [sinkhorn_divergence.py](ott/core/sinkhorn_divergence.py), implements the
         [Sinkhorn divergence](http://proceedings.mlr.press/v84/genevay18a.html),

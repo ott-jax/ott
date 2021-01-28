@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ def sinkhorn_divergence(
       for (geom, marginals) in zip(geoms, [[a, b], [a, a], [b, b]])
   ]
   div = (out[0].reg_ot_cost - 0.5 * (out[1].reg_ot_cost + out[2].reg_ot_cost)
-         + geometry_xy.epsilon * (np.sum(a) - np.sum(b))**2)
+         + 0.5 * geometry_xy.epsilon * (np.sum(a) - np.sum(b))**2)
   return SinkhornDivergenceOutput(div, tuple([s.f, s.g] for s in out), geoms,
                                   tuple(s.errors for s in out),
                                   tuple(s.converged for s in out))

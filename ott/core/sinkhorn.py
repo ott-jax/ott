@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC.
+# Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ def sinkhorn(geom: geometry.Geometry,
              threshold: float = 1e-2,
              norm_error: int = 1,
              inner_iterations: int = 10,
+             min_iterations: int = 0,
              max_iterations: int = 2000,
              momentum_strategy: Optional[Union[float, str]] = None,
              lse_mode: bool = True,
@@ -124,7 +125,7 @@ def sinkhorn(geom: geometry.Geometry,
       a and b, or set either tau_a and/or tau_b <1.0
 
   Args:
-    geom: a GroundGeometry object.
+    geom: a Geometry object.
     a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
     b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
@@ -141,6 +142,8 @@ def sinkhorn(geom: geometry.Geometry,
    norm_error: int, power used to define p-norm of error from marginal to target
    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead.
+   min_iterations: (int32) the minimum number of Sinkhorn iterations carried
+     out before the error is computed and monitored.
    max_iterations: (int32) the maximum number of Sinkhorn iterations.
    momentum_strategy: either a float between ]0,2[ or a string.
    lse_mode: True for log-sum-exp computations, False for kernel multiplication.
@@ -174,7 +177,8 @@ def sinkhorn(geom: geometry.Geometry,
     # if that was not the error requested by the user.
     norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
     momentum_default = 1.0
-    chg_momentum_from = onp.maximum(20 // inner_iterations, 2)
+    chg_momentum_from = onp.maximum(
+        (min_iterations + 20) // inner_iterations, 2)
   elif isinstance(momentum_strategy, numbers.Number):
     if not 0 < momentum_strategy < 2:
       raise ValueError('Momentum parameter must be strictly between 0 and 2.')
@@ -186,22 +190,23 @@ def sinkhorn(geom: geometry.Geometry,
                      'a valid string.')
   if implicit_differentiation:
     f, g, errors = _sinkhorn_iterations_implicit(
-        (threshold, norm_error, tau_a, tau_b, inner_iterations, max_iterations,
-         momentum_default, chg_momentum_from, lse_mode), (geom, a, b))
+        (threshold, norm_error, tau_a, tau_b, inner_iterations, min_iterations,
+         max_iterations, momentum_default, chg_momentum_from, lse_mode),
+        (geom, a, b))
   else:
-    f, g, errors = _sinkhorn_iterations(geom, a, b, threshold, norm_error,
-                                        tau_a, tau_b, inner_iterations,
-                                        max_iterations, momentum_default,
-                                        chg_momentum_from, lse_mode)
+    f, g, errors = _sinkhorn_iterations(
+        geom, a, b, threshold, norm_error, tau_a, tau_b, inner_iterations,
+        min_iterations, max_iterations, momentum_default, chg_momentum_from,
+        lse_mode)
 
   reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b, f, g)
-
-  converged = np.logical_and(np.sum(errors == -1) > 0,
-                             np.sum(np.logical_not(np.isfinite(errors))) == 0)
+  converged = np.logical_and(
+      np.sum(errors == -1) > 0,
+      np.sum(np.isnan(errors)) == 0)
   return SinkhornOutput(f, g, reg_ot_cost, errors, converged)
 
 
-@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8, 9, 10, 11))
+@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8, 9, 10, 11, 12))
 def _sinkhorn_iterations(geom: geometry.Geometry,
                          a: np.ndarray,
                          b: np.ndarray,
@@ -210,6 +215,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
                          tau_a: float,
                          tau_b: float,
                          inner_iterations,
+                         min_iterations,
                          max_iterations,
                          momentum_default,
                          chg_momentum_from,
@@ -217,7 +223,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   """Backprop friendly, Jit'ed version of the Sinkhorn algorithm.
 
   Args:
-    geom: a GroundGeometry object.
+    geom: a Geometry object.
     a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
     b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
     threshold: (float) the relative threshold on the Sinkhorn error to stop the
@@ -231,6 +237,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
      formulation.
     inner_iterations: (int32) the Sinkhorn error is not recomputed at each
        iteration but every inner_num_iter instead.
+    min_iterations: (int32) the minimum number of Sinkhorn iterations.
     max_iterations: (int32) the maximum number of Sinkhorn iterations.
     momentum_default: float, a float between ]0,2[
     chg_momentum_from: int, # of iterations after which momentum is computed
@@ -284,10 +291,10 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
     geom, a, b, _ = const
     errors, f_u, g_v = state
 
-    w = jax.lax.stop_gradient(
-        np.where(iteration >= (inner_iterations * chg_momentum_from),
-                 get_momentum(errors, chg_momentum_from),
-                 momentum_default))
+    w = jax.lax.stop_gradient(np.where(iteration >= (
+        inner_iterations * chg_momentum_from + min_iterations),
+                                       get_momentum(errors, chg_momentum_from),
+                                       momentum_default))
 
     if lse_mode:
       g_v = (1.0 - w) * g_v + w * tau_b * geom.update_potential(
@@ -303,37 +310,16 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
           g_v, a, iteration, axis=1)**tau_a) ** w
 
     if last:
-      if tau_b == 1.0:
-        err = geom.error(f_u, g_v, b, 0, norm_error, lse_mode)
-      elif tau_a == 1.0:
-        if lse_mode:
-          g_v = tau_b * geom.update_potential(f_u, g_v, np.log(b), iteration,
-                                              axis=0)
-        else:
-          g_v = geom.update_scaling(f_u, b, iteration, axis=0) ** tau_b
-
-        err = geom.error(f_u, g_v, a, 1, norm_error, lse_mode)
-      else:
-        # In the unbalanced case, we compute the norm of the gradient.
-        # the gradient is equal to the marginal of the current plan minus
-        # the gradient of < z, rho_z(exp^(-h/rho_z) -1> where z is either a or b
-        # and h is either f or g. Note this is equal to z if rho_z -> inf, which
-        # is the case when tau_z -> 1.0
-        if lse_mode:
-          target = grad_of_marginal_fit(a, b, f_u, g_v, tau_a, tau_b, geom)
-        else:
-          target = grad_of_marginal_fit(a, b, geom.potential_from_scaling(f_u),
-                                        geom.potential_from_scaling(g_v), tau_a,
-                                        tau_b, geom)
-        err = geom.error(f_u, g_v, target[0], 1, norm_error, lse_mode)
-        err += geom.error(f_u, g_v, target[1], 0, norm_error, lse_mode)
-
+      err = np.where(iteration >= min_iterations,
+                     marginal_error(geom, a, b, tau_a, tau_b,
+                                    f_u, g_v, norm_error, lse_mode),
+                     np.inf)
       errors = jax.ops.index_update(
           errors, jax.ops.index[iteration // inner_iterations, :], err)
     return errors, f_u, g_v
 
   errors, f_u, g_v = fixed_point_loop.fixpoint_iter(
-      cond_fn, body_fn, max_iterations, inner_iterations, const,
+      cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
       (errors, f_u, g_v))
 
   f = f_u if lse_mode else geom.potential_from_scaling(f_u)
@@ -374,7 +360,7 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
   Returns:
     a tuple of gradients: PyTree for geom, one np.ndarray for each of a and b.
   """
-  _, _, tau_a, tau_b, _, _, _, _, lse_mode = aux
+  _, _, tau_a, tau_b, _, _, _, _, _, lse_mode = aux
   f, g, geom, a, b = res
   f_g = np.concatenate((f, g))
   # Ignores gradients info with respect to 'errors' output.
@@ -436,6 +422,58 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
 
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_implicit_fwd,
                                      _sinkhorn_iterations_implicit_bwd)
+
+
+def marginal_error(geom: geometry.Geometry,
+                   a: np.ndarray,
+                   b: np.ndarray,
+                   tau_a: float,
+                   tau_b: float,
+                   f_u: np.ndarray,
+                   g_v: np.ndarray,
+                   norm_error: int,
+                   lse_mode) -> np.ndarray:
+  """Conputes marginal error, the stopping criterion used to terminate Sinkhorn.
+
+  Args:
+    geom: a Geometry object.
+    a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
+    b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
+    tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+     marginal and itself + epsilon regularizer used in the unbalanced
+     formulation.
+    tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+     marginal and itself + epsilon regularizer used in the unbalanced
+     formulation.
+    f_u: np.ndarray, potential or scaling
+    g_v: np.ndarray, potential or scaling
+    norm_error: int, p-norm used to compute error.
+    lse_mode: True if log-sum-exp operations, False if kernel vector producs.
+
+  Returns:
+    a positive number quantifying how far from convergence the algorithm stands.
+
+  """
+  if tau_b == 1.0:
+    err = geom.error(f_u, g_v, b, 0, norm_error, lse_mode)
+  elif tau_a == 1.0:
+    err = geom.error(f_u, g_v, a, 1, norm_error, lse_mode)
+  else:
+    # In the unbalanced case, we compute the norm of the gradient.
+    # the gradient is equal to the marginal of the current plan minus
+    # the gradient of < z, rho_z(exp^(-h/rho_z) -1> where z is either a or b
+    # and h is either f or g. Note this is equal to z if rho_z -> inf, which
+    # is the case when tau_z -> 1.0
+    if lse_mode:
+      target = grad_of_marginal_fit(a, b, f_u, g_v, tau_a, tau_b, geom)
+    else:
+      target = grad_of_marginal_fit(a, b,
+                                    geom.potential_from_scaling(f_u),
+                                    geom.potential_from_scaling(g_v),
+                                    tau_a, tau_b, geom)
+    err = geom.error(f_u, g_v, target[0], 1, norm_error, lse_mode)
+    err += geom.error(f_u, g_v, target[1], 0, norm_error, lse_mode)
+  return err
 
 
 def ent_reg_cost(geom: geometry.Geometry,
