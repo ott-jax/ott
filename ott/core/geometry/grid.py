@@ -14,50 +14,65 @@
 # limitations under the License.
 
 # Lint as: python3
-"""A class describing common operations for a cost."""
+"""Implements a geometry class for points supported on a cartesian product."""
 import itertools
 from typing import Optional, Sequence, Union
 
 import jax
 import jax.numpy as np
 import numpy as onp
-from ott.core.ground_geometry import epsilon_scheduler
-from ott.core.ground_geometry import geometry
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import costs
+from ott.core.geometry import epsilon_scheduler
+from ott.core.geometry import geometry
 
 
 @jax.tree_util.register_pytree_node_class
 class Grid(geometry.Geometry):
-  """Class to implement separable separable cost on a grid as ground metric.
+  """Class describing the geometry of points taken in a cartestian product.
 
   This class implements a geometry in which probability measures are supported
-  on a d-dimensional cartesian grid (a cartesian product of a list of d values).
-  The transportation cost between points in the grid is assumed to be separable,
-  namely a sum of coordinate-wise cost functions.
+  on a d-dimensional cartesian grid, a cartesian product of d lists of values,
+  each list being itself of size n_i.
 
-  In such a regime, and despite the fact that the number n of points in such
-  grids is exponential in the dimension of the grid, applying a kernel in the
+  The transportation cost between points in the grid is assumed to be separable,
+  namely a sum of coordinate-wise cost functions, as in
+    cost(x,y) = sum_(i=1)^d cost_i(x_i,y_i) where cost_i : R x R -> R.
+
+  In such a regime, and despite the fact that the total number n_total of points
+  in the grid is exponential d (namely prod_i n_i), applying a kernel in the
   context of regularized optimal transport can be carried out in time that is
-  of the order of n^(1+1/d).
+  of the order of n_total^(1+1/d) using convolutions, either in the original
+  domain or log-space domain. This class precomputes d n_i x n_i cost matrices
+  (one per dimension) and implements these two operations by carrying out these
+  convolutions one dimension at a time.
   """
 
   def __init__(
       self,
       x: Optional[Sequence[np.ndarray]] = None,
       grid_size: Optional[Sequence[int]] = None,
-      cost_fns: Optional[Sequence[pointcloud.CostFn]] = None,
+      cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
       grid_dimension: int = None,
       epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
       **kwargs):
-    """Create instance of Euclidean cost to power p.
+    """Create instance of grid using either locations or sizes.
 
     Args:
-      x : grid_dimension arrays of varying sizes, locations of the grid
-      grid_size: t-uple of integers describing grid sizes
-      cost_fns: a sequence of CostFn's
-      num_a: total size of grid.
-      grid_dimension: dimension of grid.
+      x : list of arrays of varying sizes, describing the locations of the grid.
+        Locations are provided as a list of np.ndarrays, that is d vectors of
+        (possibly varying) size n_i. The resulting grid is the Cartesian product
+        of these vectors.
+      grid_size: t-uple of integers describing grid sizes, namely (n_1,...,n_d).
+        This will only be used if x is None. In that case the grid will be
+        assumed to lie in the hypercube [0,1]^d, with the d dimensions described
+        as points regularly sampled in [0,1].
+      cost_fns: a sequence of d costs.CostFn's, each being a cost taken two
+        reals as inputs to output a real number.
+      num_a: total size of grid. This parameters will be computed from other
+        inputs and used in the flatten/unflatten functions.
+      grid_dimension: dimension of grid. This parameters will be computed from
+        other inputs and used in the flatten/unflatten functions.
       epsilon: a float or a epsilon_scheduler.Epsilon objet
       **kwargs: passed to parent class.
     """
@@ -78,10 +93,10 @@ class Grid(geometry.Geometry):
       self.num_a = onp.prod(onp.array(grid_size))
       self.grid_dimension = len(self.grid_size)
     else:
-      raise ValueError('Expected either grid specifications or grid locations.')
+      raise ValueError('Input either grid_size t-uple or grid locations x.')
 
     if cost_fns is None:
-      cost_fns = [pointcloud.EuclideanCostFn()]
+      cost_fns = [costs.Euclidean()]
     self.cost_fns = cost_fns
     self.kwargs = {'num_a': self.num_a, 'grid_size': self.grid_size,
                    'grid_dimension': self.grid_dimension}
@@ -120,11 +135,26 @@ class Grid(geometry.Geometry):
                        f: np.ndarray,
                        g: np.ndarray,
                        eps: float,
-                       vec: np.ndarray = None,
+                       vec: Optional[np.ndarray] = None,
                        axis: int = 0):
-    """Applies grid kernel in log space. see parent for description."""
-    # More implementation details in https://arxiv.org/pdf/1708.01955.pdf
+    """Applies grid kernel in log space. See notes in parent class for use case.
 
+    Reshapes vector inputs below as grids, applies kernels onto each slice, and
+    then expands the outputs as vectors.
+
+    More implementation details in https://arxiv.org/pdf/1708.01955.pdf
+
+    Args:
+      f: np.ndarray, a vector of potentials
+      g: np.ndarray, a vector of potentials
+      eps: float, regularization strength
+      vec: np.ndarray, if needed, a vector onto which apply the kernel weighted
+        by f and g.
+      axis: axis (0 or 1) along which summation should be carried out.
+
+    Returns:
+      a vector, the result of kernel applied in lse space.
+    """
     f, g = np.reshape(f, self.grid_size), np.reshape(g, self.grid_size)
 
     if vec is not None:
@@ -141,6 +171,7 @@ class Grid(geometry.Geometry):
     return g.ravel(), vec.ravel()
 
   def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
+    """Helper function to permute axis & apply the kernel on a single slice."""
     indices = onp.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
     f, g = np.transpose(f, indices), np.transpose(g, indices)
@@ -160,8 +191,27 @@ class Grid(geometry.Geometry):
       softmax_res = jax.scipy.special.logsumexp(centered_cost, axis=1)
       return eps * np.transpose(softmax_res, indices), None
 
-  def apply_kernel(self, scaling: np.ndarray, eps=None, axis=None):
-    """Applies kernel on grid using sub-kernel matrices on each slice."""
+  def apply_kernel(self,
+                   scaling: np.ndarray,
+                   eps: float = None,
+                   axis: int = None):
+    """Applies grid kernel on scaling vector.
+
+    See notes in parent class for use.
+
+    Reshapes vector inputs below as grids, applies kernels onto each slice, and
+    then expands the outputs as vectors.
+
+    More implementation details in https://arxiv.org/pdf/1708.01955.pdf
+
+    Args:
+      scaling: np.ndarray, a vector of scaling (>0) values
+      eps: float, regularization strength
+      axis: axis (0 or 1) along which summation should be carried out.
+
+    Returns:
+      a vector, the result of kernel applied in lse space.
+    """
     scaling = np.reshape(scaling, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension in range(self.grid_dimension):
@@ -172,14 +222,17 @@ class Grid(geometry.Geometry):
           axes=([0], [dimension])).transpose(ind)
     return scaling.ravel()
 
-  # TODO(cuturi) this should be handled with care, as it will likely blow up
   def transport_from_potentials(self, f: np.ndarray, g: np.ndarray, axis=0):
     raise ValueError('Grid geometry cannot instantiate a transport matrix, use',
-                     ' apply_transport_from_potentials(...).')
+                     ' apply_transport_from_potentials(...) if you wish to ',
+                     ' apply the transport matrix to a vector, or use a point '
+                     ' cloud geometry instead')
 
   def transport_from_scalings(self, f: np.ndarray, g: np.ndarray, axis=0):
     raise ValueError('Grid geometry cannot instantiate a transport matrix, use',
-                     ' apply_transport_from_scalings(...)')
+                     ' apply_transport_from_scalings(...) if you wish to ',
+                     ' apply the transport matrix to a vector, or use a point '
+                     ' cloud geometry instead')
 
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):

@@ -22,7 +22,7 @@ import jax.numpy as np
 import jax.test_util
 
 from ott.core import sinkhorn_divergence
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import pointcloud
 
 
 class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
@@ -45,7 +45,7 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
 
     def loss_fn(cloud_a, cloud_b):
       div = sinkhorn_divergence.sinkhorn_divergence_wrapper(
-          pointcloud.PointCloudGeometry, self._a, self._b,
+          pointcloud.PointCloud, self._a, self._b,
           cloud_a, cloud_b, epsilon=1.0,
           sinkhorn_kwargs=dict(threshold=0.05))
       return div.divergence

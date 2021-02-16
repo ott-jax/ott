@@ -21,19 +21,18 @@ from absl.testing import parameterized
 import jax
 import jax.numpy as np
 import jax.test_util
-
 from ott.core import sinkhorn
 from ott.core.geometry import pointcloud
 
 
-class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
+class SinkhornOnlineTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
     self.dim = 4
-    self.n = 68
-    self.m = 123
+    self.n = 20000
+    self.m = 20002
     self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -42,62 +41,21 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
     self.a = a / np.sum(a)
     self.b = b / np.sum(b)
 
-  @parameterized.named_parameters(
-      dict(
-          testcase_name='lse-no-mom',
-          lse_mode=True,
-          momentum_strategy=1.0,
-          inner_iterations=10,
-          norm_error=1,
-          tau_a=0.8,
-          tau_b=0.9
-          ),
-      dict(
-          testcase_name='lse-high-mom',
-          lse_mode=True,
-          momentum_strategy=1.5,
-          inner_iterations=10,
-          norm_error=1,
-          tau_a=0.8,
-          tau_b=0.9
-          ),
-      dict(
-          testcase_name='scal-no-mom',
-          lse_mode=False,
-          momentum_strategy=1.0,
-          inner_iterations=10,
-          norm_error=1,
-          tau_a=0.8,
-          tau_b=0.9
-          ),
-      dict(
-          testcase_name='scal-high-mom',
-          lse_mode=False,
-          momentum_strategy=1.5,
-          inner_iterations=10,
-          norm_error=1,
-          tau_a=0.8,
-          tau_b=0.9
-          ))
-  def test_euclidean_point_cloud(self, lse_mode, momentum_strategy,
-                                 inner_iterations, norm_error, tau_a, tau_b):
+  @parameterized.parameters([True], [False])
+  def test_euclidean_point_cloud(self, lse_mode):
     """Two point clouds, tested with various parameters."""
-    threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    threshold = 1e-1
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=True)
     errors = sinkhorn.sinkhorn(
         geom,
         a=self.a,
         b=self.b,
         threshold=threshold,
-        momentum_strategy=momentum_strategy,
-        inner_iterations=inner_iterations,
-        norm_error=norm_error,
         lse_mode=lse_mode,
-        tau_a=tau_a,
-        tau_b=tau_b).errors
+        implicit_differentiation=True).errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
-    self.assertGreater(err, 0)
+
 
 if __name__ == '__main__':
   absltest.main()

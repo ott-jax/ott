@@ -21,7 +21,7 @@ import jax.numpy as np
 import numpy as onp
 
 from ott.core import sinkhorn
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import pointcloud
 
 
 def sinkhorn_for_sort(inputs: np.ndarray,
@@ -39,7 +39,7 @@ def sinkhorn_for_sort(inputs: np.ndarray,
     sinkhorn_kw: a dictionary holding the sinkhorn keyword arguments. See
       sinkhorn.py for more details.
     pointcloud_kw: a dictionary holding the keyword arguments of the
-      PointCloudGeometry class. See pointcloud.py for more details.
+      PointCloud class. See pointcloud.py for more details.
 
   Returns:
     A np.ndarray<float> representing the transport matrix of the inputs onto
@@ -56,7 +56,7 @@ def sinkhorn_for_sort(inputs: np.ndarray,
   b = np.squeeze(target_weights)
   num_targets = b.shape[0]
   y = np.linspace(0.0, 1.0, num_targets)[:, np.newaxis]
-  geom = pointcloud.PointCloudGeometry(x, y, **pointcloud_kw)
+  geom = pointcloud.PointCloud(x, y, **pointcloud_kw)
   res = sinkhorn.sinkhorn(geom, a, b, **sinkhorn_kw)
   return geom.transport_from_potentials(res.f, res.g)
 
@@ -108,7 +108,7 @@ def softsort(inputs: np.ndarray,
     axis: the axis on which to apply the operator.
     sinkhorn_kw: a dictionary holding the sinkhorn keyword arguments. See
       sinkhorn.py for more details.
-    **kwargs: keyword arguments of the PointCloudGeometry class. See
+    **kwargs: keyword arguments of the PointCloud class. See
       pointcloud.py for more details.
 
   Returns:

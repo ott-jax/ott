@@ -21,10 +21,10 @@ from absl.testing import parameterized
 import jax
 import jax.numpy as np
 import jax.test_util
-
 from ott.core import sinkhorn
-from ott.core.ground_geometry import geometry
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import costs
+from ott.core.geometry import geometry
+from ott.core.geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
@@ -106,7 +106,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
                                  inner_iterations, norm_error):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.2)
     errors = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -122,7 +122,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
   def test_euclidean_point_cloud_min_iter(self):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, min_iterations=34).errors
     err = errors[np.logical_and(errors > -1, np.isfinite(errors))][-1]
@@ -134,7 +134,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
   def test_geom_vs_point_cloud(self):
     """Two point clouds vs. simple cost_matrix execution of sinkorn."""
-    geom = pointcloud.PointCloudGeometry(self.x, self.y)
+    geom = pointcloud.PointCloud(self.x, self.y)
     geom_2 = geometry.Geometry(geom.cost_matrix)
     f = sinkhorn.sinkhorn(geom, a=self.a, b=self.b).f
     f_2 = sinkhorn.sinkhorn(geom_2, a=self.a, b=self.b).f
@@ -150,7 +150,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     a = a / np.sum(a, axis=1)[:, np.newaxis]
     b = b / np.sum(b, axis=1)[:, np.newaxis]
     threshold = 1e-3
-    geom = pointcloud.PointCloudGeometry(
+    geom = pointcloud.PointCloud(
         self.x, self.y, epsilon=0.1, online=True)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
@@ -161,7 +161,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
   def test_online_euclidean_point_cloud(self, lse_mode):
     """Testing the online way to handle geometry."""
     threshold = 1e-3
-    geom = pointcloud.PointCloudGeometry(
+    geom = pointcloud.PointCloud(
         self.x, self.y, epsilon=0.1, online=True)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
@@ -173,13 +173,38 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     """Comparing online vs batch geometry."""
     threshold = 1e-3
     eps = 0.1
-    online_geom = pointcloud.PointCloudGeometry(
+    online_geom = pointcloud.PointCloud(
         self.x, self.y, epsilon=eps, online=True)
-    batch_geom = pointcloud.PointCloudGeometry(self.x, self.y, epsilon=eps)
+    online_geom_euc = pointcloud.PointCloud(
+        self.x,
+        self.y,
+        cost_fn=costs.Euclidean(),
+        epsilon=eps,
+        online=True)
+
+    batch_geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
+    batch_geom_euc = pointcloud.PointCloud(
+        self.x,
+        self.y,
+        cost_fn=costs.Euclidean(),
+        epsilon=eps)
+
     out_online = sinkhorn.sinkhorn(
         online_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode)
     out_batch = sinkhorn.sinkhorn(
         batch_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode)
+    out_online_euc = sinkhorn.sinkhorn(
+        online_geom_euc,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=lse_mode)
+    out_batch_euc = sinkhorn.sinkhorn(
+        batch_geom_euc,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=lse_mode)
 
     # Checks regularized transport costs match.
     self.assertAllClose(out_online.reg_ot_cost, out_batch.reg_ot_cost)
@@ -187,6 +212,17 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.assertAllClose(
         online_geom.transport_from_potentials(out_online.f, out_online.g),
         batch_geom.transport_from_potentials(out_batch.f, out_batch.g))
+
+    self.assertAllClose(
+        online_geom_euc.transport_from_potentials(out_online_euc.f,
+                                                  out_online_euc.g),
+        batch_geom_euc.transport_from_potentials(out_batch_euc.f,
+                                                 out_batch_euc.g))
+
+    self.assertAllClose(
+        batch_geom.transport_from_potentials(out_batch.f, out_batch.g),
+        batch_geom_euc.transport_from_potentials(out_batch_euc.f,
+                                                 out_batch_euc.g))
 
   def test_apply_transport_geometry(self):
     """Applying transport matrix P on vector without instantiating P."""
@@ -209,7 +245,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
       for i, online in enumerate([True, False]):
-        geom = pointcloud.PointCloudGeometry(x, y, online=online, epsilon=0.2)
+        geom = pointcloud.PointCloud(x, y, online=online, epsilon=0.2)
         sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
 
         transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_potentials(

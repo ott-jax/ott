@@ -16,7 +16,7 @@ of weight vectors `a` and `b` (one for each measure) and a ground cost (typicall
 
 ```
 import jax
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import pointcloud
 from ott.core import sinkhorn
 
 # Samples two point clouds and their weights.
@@ -29,7 +29,7 @@ b = jax.random.uniform(rngs[3], (m,))
 a, b  = a / np.sum(a), b / np.sum(b)
 
 # Computes the couplings via Sinkhorn algorithm.
-geom = pointcloud.PointCloudGeometry(x,y)
+geom = pointcloud.PointCloud(x,y)
 out = sinkhorn.sinkhorn(geom, a, b)
 P = geom.transport_from_potentials(out.f, out.g)
 ```
@@ -47,7 +47,7 @@ Currently implements the following classes and functions:
 
 -   In the [core](ott/core) folder,
 
-    -   The `Geometry` class in [geometry.py](ott/core/ground_geometry/geometry.py) and its descendants describe a cost structure
+    -   The `Geometry` class in [geometry.py](ott/core/geometry/geometry.py) and its descendants describe a cost structure
         between the supports of a pair of input/output measures. That cost
         structure is accessed through various member functions, mostly used when
         running the Sinkhorn algorithm (typically kernel multiplications, or
@@ -60,7 +60,7 @@ Currently implements the following classes and functions:
 
         -   If one wishes to compute OT between two weighted point clouds
             <img src="https://render.githubusercontent.com/render/math?math=%24x%3D(x_1%2C%20%5Cdots%2C%20x_n)%24"> and <img src="https://render.githubusercontent.com/render/math?math=%24y%3D(y_1%2C%20%5Cdots%2C%20y_m)%24"> endowed with a
-            given cost function (e.g. Euclidean) <img src="https://render.githubusercontent.com/render/math?math=%24c%24">, the `PointCloudGeometry`
+            given cost function (e.g. Euclidean) <img src="https://render.githubusercontent.com/render/math?math=%24c%24">, the `PointCloud`
             class can be used to define how the corresponding kernel
             <img src="https://render.githubusercontent.com/render/math?math=%24K_%7Bij%7D%3D%5Cexp(-c(x_i%2Cy_j)%2F%5Cepsilon)%24">.
 

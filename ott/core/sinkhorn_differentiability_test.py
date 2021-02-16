@@ -22,8 +22,8 @@ import jax
 import jax.numpy as np
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.ground_geometry import geometry
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import geometry
+from ott.core.geometry import pointcloud
 
 
 class SinkhornGradTest(jax.test_util.JaxTestCase):
@@ -45,7 +45,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     b = jax.random.uniform(keys[3], (m,)) + eps
     a = a / np.sum(a)
     b = b / np.sum(b)
-    geom = pointcloud.PointCloudGeometry(x, y, epsilon=0.1)
+    geom = pointcloud.PointCloud(x, y, epsilon=0.1)
 
     def reg_ot(a, b):
       return sinkhorn.sinkhorn(geom, a=a, b=b, lse_mode=lse_mode).reg_ot_cost
@@ -129,7 +129,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     y = jax.random.normal(keys[1], (m, d)) / 10
 
     def loss_fn(x, y):
-      geom = pointcloud.PointCloudGeometry(x, y, epsilon=0.01)
+      geom = pointcloud.PointCloud(x, y, epsilon=0.01)
       f, g, regularized_transport_cost, _, _ = sinkhorn.sinkhorn(
           geom, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
       return regularized_transport_cost, (geom, f, g)

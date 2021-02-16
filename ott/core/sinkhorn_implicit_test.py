@@ -23,8 +23,8 @@ import jax.numpy as np
 import jax.test_util
 
 from ott.core import sinkhorn
-from ott.core.ground_geometry import geometry
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import geometry
+from ott.core.geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
@@ -66,7 +66,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
     def loss_pcg(a, x, implicit=True):
       out = sinkhorn.sinkhorn(
-          pointcloud.PointCloudGeometry(x, self.y, epsilon=epsilon),
+          pointcloud.PointCloud(x, self.y, epsilon=epsilon),
           a=a,
           b=self.b,
           tau_a=1.0,

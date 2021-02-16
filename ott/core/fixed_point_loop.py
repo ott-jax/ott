@@ -13,17 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Lint as: python3
 """jheek@ backprop-friendly implementation of fixed point loop."""
-import functools
-
 import jax
 from jax import numpy as np
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(0, 1, 2, 3, 4))
 def fixpoint_iter(cond_fn, body_fn, min_iterations, max_iterations,
                   inner_iterations, constants, state):
-  """Implementation of a backprop friendly fixed point loop.
+  """Implementation of a generic fixed point loop.
 
   Args:
     cond_fn : termination condition function
@@ -54,7 +52,7 @@ def fixpoint_iter(cond_fn, body_fn, min_iterations, max_iterations,
 
 def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
                       inner_iterations, constants, state):
-  """Forward iteration of fixed point iteration."""
+  """Forward iteration of fixed point iteration to handle backprop."""
   states = jax.tree_map(lambda x: np.zeros((max_iterations,) + x.shape), state)
   def max_cond_fn(iteration_states_state):
     iteration, _, state = iteration_states_state
@@ -78,7 +76,7 @@ def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
 
 def fixpoint_iter_bwd(
     cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, res, g):
-  """Backward iteration of fixed point iteration."""
+  """Backward iteration of fixed point iteration, using checkpointed states."""
   del cond_fn, min_iterations, max_iterations
   constants, iteration, states = res
   g_constants = jax.tree_map(np.zeros_like, constants)
@@ -106,4 +104,8 @@ def fixpoint_iter_bwd(
       (iteration - inner_iterations, g, g_constants))
   return g_constants, g_state
 
-fixpoint_iter.defvjp(fixpoint_iter_fwd, fixpoint_iter_bwd)
+# definition of backprop friendly variant of fixpoint_iter.
+fixpoint_iter_backprop = jax.custom_vjp(fixpoint_iter,
+                                        nondiff_argnums=(0, 1, 2, 3, 4))
+
+fixpoint_iter_backprop.defvjp(fixpoint_iter_fwd, fixpoint_iter_bwd)

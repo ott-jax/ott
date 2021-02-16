@@ -19,7 +19,7 @@ from typing import Optional, Type, Dict, Any
 from jax import numpy as np
 from ott.core import sinkhorn
 
-from ott.core.ground_geometry import geometry
+from ott.core.geometry import geometry
 
 SinkhornDivergenceOutput = collections.namedtuple(
     'SinkhornDivergenceOutput',
@@ -34,10 +34,10 @@ def sinkhorn_divergence_wrapper(
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     static_b: bool = False,
     **kwargs):
-  """Computes the sinkhorn divergence.
+  """Computes sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
-    geom: A class of geometry.
+    geom: a geometry class.
     a: np.ndarray<float>[n]: the weight of each input point. The sum of
       all elements of b must match that of a to converge.
     b: np.ndarray<float>[m]: the weight of each target point. The sum of

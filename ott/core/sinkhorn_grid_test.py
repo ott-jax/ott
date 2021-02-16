@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Tests for Sinkhorn when applied on a grid."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -24,8 +24,8 @@ import jax.test_util
 import numpy as onp
 
 from ott.core import sinkhorn
-from ott.core.ground_geometry import grid
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import grid
+from ott.core.geometry import pointcloud
 
 
 class SinkhornGridTest(jax.test_util.JaxTestCase):
@@ -66,7 +66,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
         np.array(y.ravel()) / np.maximum(1, grid_size[1] - 1),
         np.array(z.ravel()) / np.maximum(1, grid_size[2] - 1),
     ]).transpose()
-    geometry_mat = pointcloud.PointCloudGeometry(xyz, xyz, epsilon=epsilon)
+    geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
     out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode)
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     self.assertAllClose(out_mat.reg_ot_cost, out_grid.reg_ot_cost)
@@ -86,7 +86,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
         np.array(y.ravel()) / np.maximum(1, grid_size[1] - 1),
         np.array(z.ravel()) / np.maximum(1, grid_size[2] - 1),
     ]).transpose()
-    geom_mat = pointcloud.PointCloudGeometry(xyz, xyz, epsilon=0.1)
+    geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
     sink_mat = sinkhorn.sinkhorn(geom_mat, a=a, b=b, lse_mode=lse_mode)
     sink_grid = sinkhorn.sinkhorn(geom_grid, a=a, b=b, lse_mode=lse_mode)
 

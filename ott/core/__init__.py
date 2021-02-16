@@ -15,6 +15,6 @@
 
 """OTT core libraries."""
 
-from . import ground_geometry
+from . import geometry
 from . import sinkhorn
 from . import sinkhorn_divergence

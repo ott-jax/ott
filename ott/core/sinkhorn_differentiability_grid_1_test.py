@@ -22,7 +22,7 @@ import jax
 import jax.numpy as np
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.ground_geometry import grid
+from ott.core.geometry import grid
 
 
 class SinkhornGradGridTest(jax.test_util.JaxTestCase):
@@ -45,7 +45,8 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
 
     def reg_ot(a, b):
       return sinkhorn.sinkhorn(
-          geom, a=a, b=b, threshold=0.1, lse_mode=lse_mode).reg_ot_cost
+          geom, a=a, b=b, threshold=0.1, lse_mode=lse_mode,
+          implicit_differentiation=False).reg_ot_cost
 
     reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
     _, grad_reg_ot = reg_ot_and_grad(a, b)

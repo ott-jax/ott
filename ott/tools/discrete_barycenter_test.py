@@ -22,8 +22,8 @@ import jax
 import jax.numpy as np
 import jax.test_util
 
-from ott.core.ground_geometry import grid
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import grid
+from ott.core.geometry import pointcloud
 from ott.tools import discrete_barycenter as db
 
 
@@ -113,7 +113,7 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
     x_support_bar = np.atleast_2d((np.arange(0, (n / 2)) /
                                    (n / 2 - 1) - .5) * .9 + .5).T
 
-    geom = pointcloud.PointCloudGeometry(x, x_support_bar, epsilon=epsilon)
+    geom = pointcloud.PointCloud(x, x_support_bar, epsilon=epsilon)
     bar = db.discrete_barycenter(
         geom, a=np.stack((a, b)), lse_mode=lse_mode).histogram
     # check the barycenter has bump in the middle.

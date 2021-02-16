@@ -24,7 +24,7 @@ import jax
 import jax.numpy as np
 
 from ott.core import fixed_point_loop
-from ott.core.ground_geometry import geometry
+from ott.core.geometry import geometry
 
 
 SinkhornBarycenterOutput = collections.namedtuple(
@@ -175,9 +175,11 @@ def _discrete_barycenter(geom: geometry.Geometry,
     return errors, d, f_u, g_v
   state = (errors, d, f_u, g_v)
 
-  state = fixed_point_loop.fixpoint_iter(cond_fn, body_fn, min_iterations,
-                                         max_iterations, inner_iterations,
-                                         const, state)
+  state = fixed_point_loop.fixpoint_iter_backprop(cond_fn, body_fn,
+                                                  min_iterations,
+                                                  max_iterations,
+                                                  inner_iterations, const,
+                                                  state)
 
   errors, d, f_u, g_v = state
   kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)

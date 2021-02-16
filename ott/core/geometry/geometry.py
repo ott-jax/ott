@@ -20,7 +20,7 @@ from typing import Optional, Union, Sequence
 
 import jax
 import jax.numpy as np
-from ott.core.ground_geometry import epsilon_scheduler
+from ott.core.geometry import epsilon_scheduler
 
 
 @jax.tree_util.register_pytree_node_class
@@ -33,7 +33,7 @@ class Geometry:
                epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                **kwargs
                ):
-    """Initializes a simple ground cost.
+    """Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
     Args:
       cost_matrix: np.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
@@ -76,8 +76,7 @@ class Geometry:
     return (mat.shape[0] == mat.shape[1] and np.all(mat == mat.T)
             ) if mat is not None else False
 
-  # Generic functions to include geometry in Sinkhorn iterations. Particular
-  # cases of geometries
+  # The functions below are at the core of Sinkhorn iterations.
   def apply_lse_kernel(self,
                        f: np.ndarray,
                        g: np.ndarray,
@@ -177,17 +176,17 @@ class Geometry:
             axis: int = 0,
             norm_error: Sequence[int] = (1,),
             lse_mode: bool = True):
-    """method computing error, given potential/scaling pair and target.
+    """Outputs error, using 2 potentials/scalings, of transport w.r.t target marginal.
 
     Args:
-      f_u: np.ndarray
-      g_v: np.ndarray
-      target: target marginal
-      axis: axis along which to compute marginal.
-      norm_error: (one or many) p's to quantify p-norm between marginal & target
+      f_u: a vector of potentials or scalings for the first marginal.
+      g_v: a vector of potentials or scalings for the second marginal.
+      target: target marginal.
+      axis: axis (0 or 1) along which to compute marginal.
+      norm_error: (t-uple of int) p's to compute p-norm between marginal/target
       lse_mode: whether operating on scalings or potentials
     Returns:
-      a float, describing difference between target / marginal.
+      t-uple of floats, quantifying difference between target / marginal.
     """
     if lse_mode:
       marginal = self.marginal_from_potentials(f_u, g_v, axis=axis)
@@ -200,7 +199,7 @@ class Geometry:
     return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
-    """Updates potentials in log space Sinkhorn iteration.
+    """Carries out one Sinkhorn update for potentials, i.e. in log space.
 
     Args:
       f: np.ndarray [num_a,] , potential of size num_rows of cost_matrix
@@ -216,6 +215,18 @@ class Geometry:
     return eps * log_marginal - self.apply_lse_kernel(f, g, eps, axis=axis)[0]
 
   def update_scaling(self, scaling, marginal, iteration=None, axis=0):
+    """Carries out one Sinkhorn update for scalings, using kernel directly.
+
+    Args:
+      scaling: np.ndarray of num_a or num_b positive values.
+      marginal: targeted marginal
+      iteration: used to compute epsilon from schedule, if provided.
+      axis: axis along which the update should be carried out.
+
+    Returns:
+      new scaling vector, of size num_b if axis=0, num_a if axis is 1.
+    """
+
     eps = self._epsilon.at(iteration)
     return marginal / self.apply_kernel(scaling, eps, axis=axis)
 
@@ -236,7 +247,7 @@ class Geometry:
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(self, f, g, vec, axis):
-    """Applies lse_kernel while keeping track of signs."""
+    """Applies lse_kernel to arbitrary vector while keeping track of signs."""
     lse_res, lse_sgn = self.apply_lse_kernel(
         f, g, self.epsilon, vec=vec, axis=axis)
     lse_res += f if axis == 1 else g
@@ -250,10 +261,12 @@ class Geometry:
                                       axis: int = 0) -> np.ndarray:
     """Applies transport matrix computed from potentials to a (batched) vec.
 
-    This approach does not instantiate the transport matrix itself.
+    This approach does not instantiate the transport matrix itself, but uses
+    instead potentials to apply the transport using apply_lse_kernel, therefore
+    guaranteeing stability and lower memory footprint.
+
     Computations are done in log space, and take advantage of the
-    (b=, return_sign=True) parameters of logsumexp. Should be more stable
-    than instantiating the transportation matrix from potentials and multiply.
+    (b=..., return_sign=True) optional parameters of logsumexp.
 
     Args:
       f: np.ndarray [num_a,] , potential of size num_rows of cost_matrix
@@ -262,7 +275,7 @@ class Geometry:
         by transport matrix corresponding to potentials f, g, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
     Returns:
-      array of the size of vec.
+      ndarray of the size of vec.
     """
     if vec.ndim == 1:
       return self._apply_transport_from_potentials(
@@ -282,7 +295,9 @@ class Geometry:
                                     axis: int = 0) -> np.ndarray:
     """Applies transport matrix computed from scalings to a (batched) vec.
 
-    This approach does not instantiate the transport matrix itself.
+    This approach does not instantiate the transport matrix itself, but
+    relies instead on the apply_kernel function.
+
     Args:
       u: np.ndarray [num_a,] , scaling of size num_rows of cost_matrix
       v: np.ndarray [num_b,] , scaling of size num_cols of cost_matrix
@@ -290,7 +305,7 @@ class Geometry:
         by transport matrix corresponding to scalings u, v, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
     Returns:
-      array of the size of vec.
+      ndarray of the size of vec.
     """
     if vec.ndim == 1:
       return self._apply_transport_from_scalings(u, v, vec[np.newaxis, :],
@@ -305,7 +320,7 @@ class Geometry:
 
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
-    """Instantiates the geometries used for a divergence computation."""
+    """Instantiates 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
     kernel_matrices = kwargs.pop('kernel_matrix', nones)

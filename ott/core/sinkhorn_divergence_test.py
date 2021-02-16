@@ -22,8 +22,8 @@ import jax.numpy as np
 import jax.test_util
 
 from ott.core import sinkhorn_divergence
-from ott.core.ground_geometry import geometry
-from ott.core.ground_geometry import pointcloud
+from ott.core.geometry import geometry
+from ott.core.geometry import pointcloud
 
 
 class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
@@ -43,9 +43,9 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geometry_xx = pointcloud.PointCloudGeometry(x, x, epsilon=0.1)
-    geometry_xy = pointcloud.PointCloudGeometry(x, y, epsilon=0.1)
-    geometry_yy = pointcloud.PointCloudGeometry(y, y, epsilon=0.1)
+    geometry_xx = pointcloud.PointCloud(x, x, epsilon=0.1)
+    geometry_xy = pointcloud.PointCloud(x, y, epsilon=0.1)
+    geometry_yy = pointcloud.PointCloud(y, y, epsilon=0.1)
     div = sinkhorn_divergence.sinkhorn_divergence(
         geometry_xy,
         geometry_xx,
@@ -63,7 +63,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
     div = sinkhorn_divergence.sinkhorn_divergence_wrapper(
-        pointcloud.PointCloudGeometry, self._a, self._b,
+        pointcloud.PointCloud, self._a, self._b,
         cloud_a, cloud_b, epsilon=0.1,
         sinkhorn_kwargs=dict(threshold=1e-2))
     self.assertGreater(div.divergence, 0.0)
@@ -75,7 +75,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
     div = sinkhorn_divergence.sinkhorn_divergence_wrapper(
-        pointcloud.PointCloudGeometry, self._a +.001, self._b +.002,
+        pointcloud.PointCloud, self._a +.001, self._b +.002,
         cloud_a, cloud_b, epsilon=0.1,
         sinkhorn_kwargs=dict(threshold=1e-2, tau_a=0.8, tau_b=0.9))
     self.assertGreater(div.divergence, 0.0)

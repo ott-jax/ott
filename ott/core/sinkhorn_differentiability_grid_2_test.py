@@ -22,7 +22,7 @@ import jax
 import jax.numpy as np
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.ground_geometry import grid
+from ott.core.geometry import grid
 
 
 class SinkhornGradGridTest(jax.test_util.JaxTestCase):
