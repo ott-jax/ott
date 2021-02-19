@@ -16,7 +16,7 @@ of weight vectors `a` and `b` (one for each measure) and a ground cost (typicall
 
 ```
 import jax
-from ott.core.geometry import pointcloud
+from ott.geometry import pointcloud
 from ott.core import sinkhorn
 
 # Samples two point clouds and their weights.
@@ -47,7 +47,7 @@ Currently implements the following classes and functions:
 
 -   In the [core](ott/core) folder,
 
-    -   The `Geometry` class in [geometry.py](ott/core/geometry/geometry.py) and its descendants describe a cost structure
+    -   The `Geometry` class in [geometry.py](ott/geometry/geometry.py) and its descendants describe a cost structure
         between the supports of a pair of input/output measures. That cost
         structure is accessed through various member functions, mostly used when
         running the Sinkhorn algorithm (typically kernel multiplications, or

@@ -19,11 +19,11 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.geometry import geometry
-from ott.core.geometry import pointcloud
+from ott.geometry import geometry
+from ott.geometry import pointcloud
 
 
 class SinkhornGradTest(jax.test_util.JaxTestCase):
@@ -43,8 +43,8 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(keys[1], (m, d))
     a = jax.random.uniform(keys[2], (n,)) + eps
     b = jax.random.uniform(keys[3], (m,)) + eps
-    a = a / np.sum(a)
-    b = b / np.sum(b)
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
     geom = pointcloud.PointCloud(x, y, epsilon=0.1)
 
     def reg_ot(a, b):
@@ -53,10 +53,10 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
     _, grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[4], (n,))
-    delta = delta - np.mean(delta)  # center perturbation
+    delta = delta - jnp.mean(delta)  # center perturbation
     reg_ot_delta_plus = reg_ot(a + eps * delta, b)
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
-    delta_dot_grad = np.sum(delta * grad_reg_ot)
+    delta_dot_grad = jnp.sum(delta * grad_reg_ot)
     self.assertAllClose(delta_dot_grad,
                         (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
                         rtol=1e-03, atol=1e-02)
@@ -67,14 +67,14 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     n = 10
     m = 15
     keys = jax.random.split(self.rng, 2)
-    cost_matrix = np.abs(jax.random.normal(keys[0], (n, m)))
+    cost_matrix = jnp.abs(jax.random.normal(keys[0], (n, m)))
     delta = jax.random.normal(keys[1], (n, m))
-    delta = delta / np.sqrt(np.vdot(delta, delta))
+    delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-3  # perturbation magnitude
 
     def loss_fn(cm):
-      a = np.ones(cm.shape[0]) / cm.shape[0]
-      b = np.ones(cm.shape[1]) / cm.shape[1]
+      a = jnp.ones(cm.shape[0]) / cm.shape[0]
+      b = jnp.ones(cm.shape[1]) / cm.shape[1]
       geom = geometry.Geometry(cm, epsilon=0.5)
       out = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
       return out.reg_ot_cost, (geom, out.f, out.g)
@@ -82,16 +82,16 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     # first calculation of gradient
     loss_and_grad = jax.jit(jax.value_and_grad(loss_fn, has_aux=True))
     (loss_value, aux), grad_loss = loss_and_grad(cost_matrix)
-    custom_grad = np.sum(delta * grad_loss)
+    custom_grad = jnp.sum(delta * grad_loss)
 
-    self.assertIsNot(loss_value, np.nan)
+    self.assertIsNot(loss_value, jnp.nan)
     self.assertEqual(grad_loss.shape, cost_matrix.shape)
-    self.assertFalse(np.any(np.isnan(grad_loss)))
+    self.assertFalse(jnp.any(jnp.isnan(grad_loss)))
 
     # second calculation of gradient
     transport_matrix = aux[0].transport_from_potentials(aux[1], aux[2])
     grad_x = transport_matrix
-    other_grad = np.sum(delta * grad_x)
+    other_grad = jnp.sum(delta * grad_x)
 
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(cost_matrix + eps * delta)
@@ -135,22 +135,22 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
       return regularized_transport_cost, (geom, f, g)
 
     delta = jax.random.normal(keys[0], (n, d))
-    delta = delta / np.sqrt(np.vdot(delta, delta))
+    delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-5  # perturbation magnitude
 
     # first calculation of gradient
     loss_and_grad = jax.value_and_grad(loss_fn, has_aux=True)
     (loss_value, aux), grad_loss = loss_and_grad(x, y)
-    custom_grad = np.sum(delta * grad_loss)
-    self.assertIsNot(loss_value, np.nan)
+    custom_grad = jnp.sum(delta * grad_loss)
+    self.assertIsNot(loss_value, jnp.nan)
     self.assertEqual(grad_loss.shape, x.shape)
-    self.assertFalse(np.any(np.isnan(grad_loss)))
+    self.assertFalse(jnp.any(jnp.isnan(grad_loss)))
 
     # second calculation of gradient
     tm = aux[0].transport_from_potentials(aux[1], aux[2])
     tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
-    grad_x = np.sum(tmp, 1)
-    other_grad = np.sum(delta * grad_x)
+    grad_x = jnp.sum(tmp, 1)
+    other_grad = jnp.sum(delta * grad_x)
 
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(x + eps * delta, y)
@@ -160,6 +160,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -21,10 +21,10 @@ import functools
 from typing import Sequence
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 
 from ott.core import fixed_point_loop
-from ott.core.geometry import geometry
+from ott.geometry import geometry
 
 
 SinkhornBarycenterOutput = collections.namedtuple(
@@ -32,8 +32,8 @@ SinkhornBarycenterOutput = collections.namedtuple(
 
 
 def discrete_barycenter(geom: geometry.Geometry,
-                        a: np.ndarray,
-                        weights: np.ndarray = None,
+                        a: jnp.ndarray,
+                        weights: jnp.ndarray = None,
                         threshold: float = 1e-2,
                         norm_error: int = 1,
                         inner_iterations: float = 10,
@@ -44,28 +44,29 @@ def discrete_barycenter(geom: geometry.Geometry,
   """Compute discrete barycenter using https://arxiv.org/abs/2006.02575.
 
   Args:
-   geom: a Cost object able to apply kernels with a certain epsilon.
-   a: np.ndarray<float>[batch, geom.num_a]: batch of histograms.
-   weights: np.ndarray of weights in the probability simplex
-   threshold: (float) tolerance to monitor convergence.
-   norm_error: int, power used to define p-norm of error from marginal to target
-   inner_iterations: (int32) the Sinkhorn error is not recomputed at each
+    geom: a Cost object able to apply kernels with a certain epsilon.
+    a: jnp.ndarray<float>[batch, geom.num_a]: batch of histograms.
+    weights: jnp.ndarray of weights in the probability simplex
+    threshold: (float) tolerance to monitor convergence.
+    norm_error: int, power used to define p-norm of error for marginal/target.
+    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead to avoid computational overhead.
-   min_iterations: (int32) the minimum number of Sinkhorn iterations carried
+    min_iterations: (int32) the minimum number of Sinkhorn iterations carried
      out before the error is computed and monitored.
-   max_iterations: (int32) the maximum number of Sinkhorn iterations.
-   lse_mode: True for log-sum-exp computations, False for kernel multiplication.
-   debiased: whether to run the debiased version of the Sinkhorn divergence.
+    max_iterations: (int32) the maximum number of Sinkhorn iterations.
+    lse_mode: True for log-sum-exp computations, False for kernel multiply.
+    debiased: whether to run the debiased version of the Sinkhorn divergence.
+
   Returns:
-   A SinkhornBarycenterOutput, which contains two arrays of potentials,
+    A SinkhornBarycenterOutput, which contains two arrays of potentials,
      the barycentric histogram and a sequence of errors.
   """
   batch_size, num_a = a.shape
   _, num_b = geom.shape
 
   if weights is None:
-    weights = np.ones((batch_size,)) / batch_size
-  if not np.alltrue(weights > 0) or weights.shape[0] != batch_size:
+    weights = jnp.ones((batch_size,)) / batch_size
+  if not jnp.alltrue(weights > 0) or weights.shape[0] != batch_size:
     raise ValueError(f'weights must have positive values and size {batch_size}')
 
   if debiased and not geom.is_symmetric:
@@ -79,8 +80,8 @@ def discrete_barycenter(geom: geometry.Geometry,
 
 @functools.partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9, 10, 11, 12))
 def _discrete_barycenter(geom: geometry.Geometry,
-                         a: np.ndarray,
-                         weights: np.ndarray,
+                         a: jnp.ndarray,
+                         weights: jnp.ndarray,
                          threshold: float,
                          norm_error: Sequence[int],
                          inner_iterations: int,
@@ -92,18 +93,18 @@ def _discrete_barycenter(geom: geometry.Geometry,
                          num_a: int,
                          num_b: int) -> SinkhornBarycenterOutput:
   """Jit'ed function to compute discrete barycenters."""
-  f_u = np.zeros_like(a) if lse_mode else np.ones_like(a) / num_a
-  g_v = np.zeros((batch_size, num_b)) if lse_mode else np.ones(
+  f_u = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a) / num_a
+  g_v = jnp.zeros((batch_size, num_b)) if lse_mode else jnp.ones(
       (batch_size, num_b)) / num_b
   # d below is as described in https://arxiv.org/abs/2006.02575. Note that
   # d should be considered to be equal to eps log(d) with those notations
   # if running in log-sum-exp mode.
-  d = np.zeros((num_b,)) if lse_mode else np.ones((num_b,))
+  d = jnp.zeros((num_b,)) if lse_mode else jnp.ones((num_b,))
 
   if lse_mode:
     parallel_update = jax.vmap(
         lambda f, g, marginal, iter: geom.update_potential(
-            f, g, np.log(marginal), axis=1),
+            f, g, jnp.log(marginal), axis=1),
         in_axes=[0, 0, 0, None])
     parallel_apply = jax.vmap(
         lambda f_, g_, eps_: geom.apply_lse_kernel(
@@ -122,16 +123,17 @@ def _discrete_barycenter(geom: geometry.Geometry,
                         lse_mode=lse_mode),
       in_axes=[0, 0, 0])
 
-  errors = np.ones((max_iterations // inner_iterations + 1,
-                    len(norm_error))) * np.inf
+  errors = jnp.inf * jnp.ones(
+      (max_iterations // inner_iterations + 1, len(norm_error)))
 
   const = (geom, a, weights)
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
     errors = state[0]
-    return np.logical_or(iteration == 0,
-                         errors[iteration // inner_iterations-1, 0] > threshold)
+    return jnp.logical_or(
+        iteration == 0,
+        errors[iteration // inner_iterations - 1, 0] > threshold)
 
-  def body_fn(iteration, const, state, last):
+  def body_fn(iteration, const, state, compute_error):
     geom, a, weights = const
     errors, d, f_u, g_v = state
 
@@ -143,35 +145,37 @@ def _discrete_barycenter(geom: geometry.Geometry,
     # b below is the running estimate for the barycenter if running in scaling
     # mode, eps log b if running in lse mode.
     if lse_mode:
-      b = np.average(kernel_f_u, weights=weights, axis=0)
+      b = jnp.average(kernel_f_u, weights=weights, axis=0)
     else:
-      b = np.prod(
-          kernel_f_u ** weights[:, np.newaxis], axis=0)
+      b = jnp.prod(
+          kernel_f_u ** weights[:, jnp.newaxis], axis=0)
     if debiased:
       if lse_mode:
         b += d
         d = 0.5 * (
             d +
-            geom.update_potential(np.zeros((num_a,)), d,
+            geom.update_potential(jnp.zeros((num_a,)), d,
                                   b / eps,
                                   iteration=iteration, axis=0))
       else:
         b *= d
-        d = np.sqrt(
+        d = jnp.sqrt(
             d *
             geom.update_scaling(d, b,
                                 iteration=iteration, axis=0))
     if lse_mode:
-      g_v = b[np.newaxis, :] - kernel_f_u
+      g_v = b[jnp.newaxis, :] - kernel_f_u
     else:
-      g_v = b[np.newaxis, :] / kernel_f_u
+      g_v = b[jnp.newaxis, :] / kernel_f_u
 
-    if last:
-      err = np.where(iteration >= min_iterations,
-                     np.max(errors_fn(f_u, g_v, a)),
-                     np.inf)
-      errors = jax.ops.index_update(
-          errors, jax.ops.index[iteration // inner_iterations, :], err)
+    # re-compute error if compute_error is True, else set to inf.
+    err = jnp.where(
+        jnp.logical_and(compute_error, iteration >= min_iterations),
+        jnp.max(errors_fn(f_u, g_v, a)),
+        jnp.inf)
+
+    errors = jax.ops.index_update(
+        errors, jax.ops.index[iteration // inner_iterations, :], err)
     return errors, d, f_u, g_v
   state = (errors, d, f_u, g_v)
 
@@ -184,11 +188,11 @@ def _discrete_barycenter(geom: geometry.Geometry,
   errors, d, f_u, g_v = state
   kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)
   if lse_mode:
-    b = np.average(
+    b = jnp.average(
         kernel_f_u, weights=weights, axis=0)
   else:
-    b = np.prod(
-        kernel_f_u**weights[:, np.newaxis], axis=0)
+    b = jnp.prod(
+        kernel_f_u**weights[:, jnp.newaxis], axis=0)
 
   if debiased:
     if lse_mode:
@@ -196,5 +200,5 @@ def _discrete_barycenter(geom: geometry.Geometry,
     else:
       b *= d
   if lse_mode:
-    b = np.exp(b / geom.epsilon)
+    b = jnp.exp(b / geom.epsilon)
   return SinkhornBarycenterOutput(f_u, g_v, b, errors)

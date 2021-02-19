@@ -19,10 +19,10 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.geometry import grid
+from ott.geometry import grid
 
 
 class SinkhornGradGridTest(jax.test_util.JaxTestCase):
@@ -36,14 +36,14 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-3  # perturbation magnitude
     keys = jax.random.split(self.rng, 6)
-    x = (np.array([.0, 1.0]),
-         np.array([.3, .4, .7]),
-         np.array([1.0, 1.3, 2.4, 3.7]))
+    x = (jnp.array([.0, 1.0]),
+         jnp.array([.3, .4, .7]),
+         jnp.array([1.0, 1.3, 2.4, 3.7]))
     grid_size = tuple([xs.shape[0] for xs in x])
     a = jax.random.uniform(keys[0], grid_size) + 1.0
     b = jax.random.uniform(keys[1], grid_size) + 1.0
-    a = a.ravel() / np.sum(a)
-    b = b.ravel() / np.sum(b)
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
 
     def reg_ot(x):
       geom = grid.Grid(x=x, epsilon=1.0)
@@ -60,8 +60,8 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
     # center perturbation
     reg_ot_delta_plus = reg_ot(x_p_delta)
     reg_ot_delta_minus = reg_ot(x_m_delta)
-    delta_dot_grad = np.sum(np.array(
-        [np.sum(delt * gr, axis=None) for delt, gr in zip(delta, grad_reg_ot)]
+    delta_dot_grad = jnp.sum(jnp.array(
+        [jnp.sum(delt * gr, axis=None) for delt, gr in zip(delta, grad_reg_ot)]
         ))
     self.assertAllClose(delta_dot_grad,
                         (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),

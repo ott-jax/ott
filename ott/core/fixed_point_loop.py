@@ -15,36 +15,57 @@
 
 # Lint as: python3
 """jheek@ backprop-friendly implementation of fixed point loop."""
+
 import jax
-from jax import numpy as np
+from jax import numpy as jnp
 
 
 def fixpoint_iter(cond_fn, body_fn, min_iterations, max_iterations,
                   inner_iterations, constants, state):
-  """Implementation of a generic fixed point loop.
+  """Implementation of a fixed point loop.
+
+  This fixed point loop iterator applies body_fn to a tuple
+  (iteration, constants, state, compute_error) to output a new state, using
+  context provided in iteration and constants.
+
+  body_fn is iterated (inner_iterations -1) times, and one last time with the
+  compute_error flag indicating that additional computational effort can be
+  spent on recalculating the latest error (errors are stored as the first
+  element of the state tuple).
+
+  upon termination of these inner_iterations, the loop is continued if iteration
+  is smaller than min_iterations, stopped if equal/larger than max_iterations,
+  and interrupted if cond_fn returns False.
 
   Args:
     cond_fn : termination condition function
     body_fn : body loop instructions
     min_iterations : lower bound on the total amount of fixed point iterations
     max_iterations : upper bound on the total amount of fixed point iterations
-    inner_iterations : default number of iterations in inner loop
+    inner_iterations : number of iterations body_fn will be executed
+      successively before calling cond_fn.
     constants : constant (during loop) parameters passed on to body
     state : state variable
+
   Returns:
-    outputs state returned by body_fn upon termination conditioned on cond_fn
+    outputs state returned by body_fn upon termination.
   """
+  compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
+
   def max_cond_fn(iteration_state):
     iteration, state = iteration_state
-    return np.logical_and(iteration < max_iterations,
-                          np.logical_or(iteration < min_iterations,
-                                        cond_fn(iteration, constants, state)))
+    return jnp.logical_and(iteration < max_iterations,
+                           jnp.logical_or(iteration < min_iterations,
+                                          cond_fn(iteration, constants, state)))
   def unrolled_body_fn(iteration_state):
-    iteration, state = iteration_state
-    for j in range(inner_iterations):
-      state = body_fn(iteration, constants, state, j + 1 == inner_iterations)
+    def one_iteration(iteration_state, compute_error):
+      iteration, state = iteration_state
+      state = body_fn(iteration, constants, state, compute_error)
       iteration += 1
-    return iteration, state
+      return (iteration, state), None
+    iteration_state, _ = jax.lax.scan(one_iteration, iteration_state,
+                                      compute_error_flags)
+    return iteration_state
 
   _, state = jax.lax.while_loop(max_cond_fn, unrolled_body_fn, (0, state))
   return state
@@ -52,21 +73,49 @@ def fixpoint_iter(cond_fn, body_fn, min_iterations, max_iterations,
 
 def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
                       inner_iterations, constants, state):
-  """Forward iteration of fixed point iteration to handle backprop."""
-  states = jax.tree_map(lambda x: np.zeros((max_iterations,) + x.shape), state)
+  """Forward iteration of fixed point iteration to handle backpropagation.
+
+  The main difference with fixpoint_iter is the checkpointing, in variable
+  states, of the state variables as they are recorded through iterations, every
+  inner_iterations. This sequence of states will be used in the backward loop.
+
+  Args:
+    cond_fn : termination condition function
+    body_fn : body loop instructions
+    min_iterations : lower bound on the total amount of fixed point iterations
+    max_iterations : upper bound on the total amount of fixed point iterations
+    inner_iterations : number of iterations body_fn will be executed
+      successively before calling cond_fn.
+    constants : constant (during loop) parameters passed on to body
+    state : state variable
+
+  Returns:
+    outputs state returned by body_fn upon termination.
+  """
+
+  compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
+  states = jax.tree_map(lambda x: jnp.zeros((max_iterations,) + x.shape,
+                                            dtype=x.dtype), state)
   def max_cond_fn(iteration_states_state):
     iteration, _, state = iteration_states_state
-    return np.logical_and(iteration < max_iterations,
-                          np.logical_or(iteration < min_iterations,
-                                        cond_fn(iteration, constants, state)))
+    return jnp.logical_and(iteration < max_iterations,
+                           jnp.logical_or(iteration < min_iterations,
+                                          cond_fn(iteration, constants, state)))
   def unrolled_body_fn(iteration_states_state):
     iteration, states, state = iteration_states_state
     states = jax.tree_multimap(
         lambda states, state: jax.lax.dynamic_update_index_in_dim(
             states, state, iteration // inner_iterations, 0), states, state)
-    for j in range(inner_iterations):
-      state = body_fn(iteration, constants, state, j + 1 == inner_iterations)
+
+    def one_iteration(iteration_state, compute_error):
+      iteration, state = iteration_state
+      state = body_fn(iteration, constants, state, compute_error)
       iteration += 1
+      return (iteration, state), None
+
+    iteration_state, _ = jax.lax.scan(one_iteration, (iteration, state),
+                                      compute_error_flags)
+    iteration, state = iteration_state
     return iteration, states, state
 
   iteration, states, state = jax.lax.while_loop(max_cond_fn, unrolled_body_fn,
@@ -79,21 +128,31 @@ def fixpoint_iter_bwd(
   """Backward iteration of fixed point iteration, using checkpointed states."""
   del cond_fn, min_iterations, max_iterations
   constants, iteration, states = res
-  g_constants = jax.tree_map(np.zeros_like, constants)
+  g_constants = jax.tree_map(lambda x: jnp.zeros_like(x, dtype=x.dtype),
+                             constants)
+
   def bwd_cond_fn(iteration_g_gconst):
     iteration, _, _ = iteration_g_gconst
     return iteration >= 0
 
-  def f(iteration, constants, state):
-    for j in range(inner_iterations):
-      state = body_fn(iteration, constants, state, j + 1 == inner_iterations)
+  def unrolled_body_fn_no_errors(iteration, constants, state):
+    compute_error_flags = jnp.zeros((inner_iterations,), dtype=bool)
+    def one_iteration(iteration_state, compute_error):
+      iteration, state = iteration_state
+      state = body_fn(iteration, constants, state, compute_error)
       iteration += 1
+      return (iteration, state), None
+
+    iteration_state, _ = jax.lax.scan(one_iteration, (iteration, state),
+                                      compute_error_flags)
+    _, state = iteration_state
     return state
 
   def unrolled_body_fn(iteration_g_gconst):
     iteration, g, g_constants = iteration_g_gconst
     state = jax.tree_map(lambda x: x[iteration // inner_iterations], states)
-    _, pullback = jax.vjp(f, iteration, constants, state)
+    _, pullback = jax.vjp(unrolled_body_fn_no_errors, iteration, constants,
+                          state)
     _, gi_constants, g_state = pullback(g)
     g_constants = jax.tree_multimap(lambda x, y: x + y, g_constants,
                                     gi_constants)

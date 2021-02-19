@@ -18,8 +18,15 @@
 import abc
 
 import jax
-import jax.numpy as np
-from ott.core.geometry import matrix_square_root
+from jax.lib import xla_bridge
+import jax.numpy as jnp
+from ott.geometry import matrix_square_root
+
+
+def dot(x: jnp.ndarray, y: jnp.ndarray):
+  """ Accelerator dependent dot. Implemented to avoid OOMs with online mode."""
+  platform = xla_bridge.get_backend().platform
+  return jnp.sum(x * y) if platform == 'gpu' else jnp.vdot(x, y)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -45,10 +52,10 @@ class CostFn(abc.ABC):
   def __call__(self, x, y):
     return self.norm(x) + self.norm(y) - self.dotprod(x, y)
 
-  def all_pairs(self, x: np.ndarray, y: np.ndarray):
+  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_dotprod(self, x: np.ndarray, y: np.ndarray):
+  def all_pairs_dotprod(self, x: jnp.ndarray, y: jnp.ndarray):
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self.dotprod(x_, y_))(y))(x)
 
   def tree_flatten(self):
@@ -65,10 +72,10 @@ class Euclidean(CostFn):
   """The cost function corresponding to the squared euclidean distance."""
 
   def norm(self, x):
-    return np.sum(x ** 2, axis=-1)
+    return jnp.sum(x ** 2, axis=-1)
 
   def dotprod(self, x, y):
-    return 2 * np.dot(x, y.T)
+    return 2 * dot(x, y)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -81,30 +88,27 @@ class Bures(CostFn):
     self._sqrtm_kw = kwargs
 
   def norm(self, x):
-    norm = np.sum(x[..., 0:self._dimension]**2, axis=-1)
-    x_mat = np.reshape(x[..., self._dimension:],
-                       (-1, self._dimension, self._dimension))
+    norm = jnp.sum(x[..., 0:self._dimension]**2, axis=-1)
+    x_mat = jnp.reshape(x[..., self._dimension:],
+                        (-1, self._dimension, self._dimension))
 
-    norm += np.trace(x_mat, axis1=-2, axis2=-1)
+    norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
     return norm
 
   def dotprod(self, x, y):
-    mean_dot_prod = np.dot(x[..., 0:self._dimension],
-                           y[..., 0:self._dimension].T)
-    x_mat = np.reshape(x[..., self._dimension:],
-                       (-1, self._dimension, self._dimension))
-    y_mat = np.reshape(y[..., self._dimension:],
-                       (-1, self._dimension, self._dimension))
-    x_mat = np.squeeze(x_mat, axis=0) if x_mat.shape[0] == 1 else x_mat
-    y_mat = np.squeeze(y_mat, axis=0) if y_mat.shape[0] == 1 else y_mat
+    mean_dot_prod = dot(x[0:self._dimension], y[0:self._dimension])
+    x_mat = jnp.reshape(x[self._dimension:],
+                        (self._dimension, self._dimension))
+    y_mat = jnp.reshape(y[self._dimension:],
+                        (self._dimension, self._dimension))
 
     sq_x = matrix_square_root.sqrtm(x_mat, self._dimension,
                                     **self._sqrtm_kw)[0]
-    sq_x_y_sq_x = np.matmul(sq_x, np.matmul(y_mat, sq_x))
+    sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(y_mat, sq_x))
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, self._dimension,
                                                **self._sqrtm_kw)[0]
     return 2 * (
-        mean_dot_prod + np.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+        mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
@@ -113,3 +117,5 @@ class Bures(CostFn):
   def tree_unflatten(cls, aux_data, children):
     del children
     return cls(aux_data[0], **aux_data[1])
+
+

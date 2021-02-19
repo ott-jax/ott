@@ -19,7 +19,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 
 from ott.tools import soft_sort
@@ -38,24 +38,24 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     x = jax.random.uniform(self.rng, shape)
     xs = soft_sort.softsort(x, axis=0)
     self.assertEqual(x.shape, xs.shape)
-    self.assertTrue(np.alltrue(np.diff(xs, axis=0) >= 0.0))
+    self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=0) >= 0.0))
 
   def test_sort_batch(self):
     x = jax.random.uniform(self.rng, (32, 20, 12, 8))
     xs = soft_sort.softsort(x, axis=1)
     self.assertEqual(x.shape, xs.shape)
-    self.assertTrue(np.alltrue(np.diff(xs, axis=1) >= 0.0))
+    self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=1) >= 0.0))
 
   def test_rank_one_array(self):
     x = jax.random.uniform(self.rng, (20,))
     ranks = soft_sort.softranks(x, epsilon=0.005)
     self.assertEqual(x.shape, ranks.shape)
-    expected_ranks = np.argsort(np.argsort(x, axis=0), axis=0).astype(float)
+    expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
     self.assertAllClose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
   @parameterized.parameters([0.2, 0.5, 0.9])
   def test_quantile(self, level):
-    x = np.linspace(0.0, 1.0, 100)
+    x = jnp.linspace(0.0, 1.0, 100)
     q = soft_sort.softquantile(
         x,
         level=level,

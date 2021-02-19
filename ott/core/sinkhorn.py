@@ -22,11 +22,10 @@ import numbers
 from typing import Optional, Sequence, Union
 
 import jax
-import jax.numpy as np
-
-import numpy as onp
+import jax.numpy as jnp
+import numpy as np
 from ott.core import fixed_point_loop
-from ott.core.geometry import geometry
+from ott.geometry import geometry
 
 
 SinkhornOutput = collections.namedtuple(
@@ -34,8 +33,8 @@ SinkhornOutput = collections.namedtuple(
 
 
 def sinkhorn(geom: geometry.Geometry,
-             a: Optional[np.ndarray] = None,
-             b: Optional[np.ndarray] = None,
+             a: Optional[jnp.ndarray] = None,
+             b: Optional[jnp.ndarray] = None,
              tau_a: float = 1.0,
              tau_b: float = 1.0,
              threshold: float = 1e-3,
@@ -46,7 +45,7 @@ def sinkhorn(geom: geometry.Geometry,
              momentum_strategy: Optional[Union[float, str]] = None,
              lse_mode: bool = True,
              implicit_differentiation: bool = True) -> SinkhornOutput:
-  """Solves regularized OT problems using Sinkhorn iterations.
+  r"""Solves regularized OT problems using Sinkhorn iterations.
 
   The Sinkhorn algorithm is a fixed point algorithm that seeks a pair of
   variables that optimize a regularized optimal transport (reg-OT) problem. This
@@ -61,31 +60,32 @@ def sinkhorn(geom: geometry.Geometry,
   the sinkhorn function.
 
   Given a geometry, which provides either a cost matrix C with its
-  regularization parameter 𝜀, (resp. a cost matrix K) the reg-OT problem
-  solves for two vectors f, g of size n, m
+  regularization parameter :math:`\epsilon`, (resp. a cost matrix K) the reg-OT
+  problem solves for two vectors f, g of size n, m
 
-  argmax_{f,g} - <a,φ_a*(-f)> + <b,φ_b*(-g)> - 𝜀 <e^{f / 𝜀}, e^{-C/𝜀} e^{g / 𝜀}>
+  :math:`arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
 
   (respectively, written the space of positive scaling vectors u, v of size n, m
-  argmax_{u,v} - <a,φ_a*(-log u)> + <b,φ_b*(-log v)> -  <u, K v> )
+  :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K v>` )
 
-  where φ_a(z) = ⍴_a z(log z - 1) is a scaled entropy. This problem corresponds,
-  in a so-called primal representation, to solving the unbalanced optimal
-  transport problem with a variable matrix P of size n x m:
+  where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
+  problem corresponds, in a so-called primal representation, to solving the
+  unbalanced optimal transport problem with a variable matrix P of size n x m:
 
-  argmin_{P} <P,C> - 𝜀H(P) + ⍴_a KL(P1 | a) + ⍴_b KL(P'1 | b)
+  :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
 
-  (resp.
-  argmin_{P} KL(P|K) + ⍴_a KL(P1 | a) + ⍴_b KL(P'1 | b)   )
+  (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)` )
 
-  The *balanced* regularized OT problem is recovered when ⍴_a, ⍴_b → ∞.
+  The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b \rightarrow \infty`.
 
-  The *original* (not regularized) OT problem is recovered when 𝜀 → 0 using the
-  cost formulation. This problem is not handled for now in this toolbox, which
-  focuses exclusively on 𝜀 > 0.
+  The *original* (not regularized) OT problem is recovered
+  when :math:`\epsilon \rightarrow 0` using the cost formulation. This problem
+  is not handled for now in this toolbox, which focuses exclusively
+  on :math:`\epsilon > 0`.
 
-  To allow for the option ⍴_a, ⍴_b → ∞, the sinkhorn function uses parameters
-  tau_a := ⍴_a / (𝜀 + ⍴_a) and tau_b := ⍴_b / (𝜀 + ⍴_b)
+  To allow for the option :math:`\rho_a, \rho_b \rightarrow \infty`,
+  the sinkhorn function uses parameters
+  tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b / (\epsilon + \rho_b)`
   instead. Setting these parameters to 1 corresponds to setting ⍴ to ∞ above.
 
   The Sinkhorn algorithm solves the reg-OT problem by seeking optimal f, g
@@ -93,10 +93,11 @@ def sinkhorn(geom: geometry.Geometry,
   rather than solving it directly for a matrix P. This is mostly for efficiency
   (potentials and scalings have a n + m memory footprint, rather than n x m
   required to store P) and also because both problems are in fact equivalent,
-  since the optimal transport P* can be recovered from optimal potentials f*, g*
-  or scalings u*, v*, using the geometry's cost or kernel matrices respectively:
+  since the optimal transport :math:`P^*` can be recovered from optimal
+  potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`, :math:`v^*`,
+  using the geometry's cost or kernel matrices respectively:
 
-    P* = np.exp {( f* + g* - C )/ 𝜀} or P* = diag(u*) K diag(v*)
+    :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* = \text{diag}(u^*) K \text{diag}(v^*)`
 
   The Sinkhorn algorithm solves this dual problem in f,g or u,v using block
   coordinate ascent, i.e. devising an update for each f and g (resp. u and v)
@@ -113,11 +114,12 @@ def sinkhorn(geom: geometry.Geometry,
 
     - kernel mode (lse_mode=False), in which case it will require access to a
   matrix vector multiplication operator z → K z, where K is either instantiated
-  from C as e^{-C/𝜀}, or provided directly. In that case, rather than optimizing
-  on f and g directly, it is more convenient to optimize on
-  their so called scaling formulations, u :=e^{f / 𝜀} & v :=e^{g / 𝜀}. While
-  faster (applying matrices is faster than applying lse repeatedly over lines),
-  this mode is also less stable numerically, notably for smaller 𝜀.
+  from C as :math:`\exp(-C/\epsilon)`, or provided directly. In that case,
+  rather than optimizing on f and g directly, it is more convenient to optimize
+  on their so called scaling formulations, :math:`u := \exp(f / \epsilon)`
+  & :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster
+  than applying lse repeatedly over lines), this mode is also less stable
+  numerically, notably for smaller :math:`\epsilon`.
 
   In the code below, the variables f_u or g_v can be either regarded as
   potentials (real) or scalings (positive) vectors, depending on the choice
@@ -152,32 +154,32 @@ def sinkhorn(geom: geometry.Geometry,
       either increase max_iterations or threshold.
     2. the probability weights a and b do not have the same total mass, while
       using a balanced (tau_a = tau_b = 1.0) setup. Consider either normalizing
-      a and b, or set either tau_a and/or tau_b <1.0
+      a and b, or set either tau_a and/or tau_b <1.0.
 
   Args:
     geom: a Geometry object.
-    a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
-    b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
-   tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+    tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
-   threshold: (float) tolerance used to stop the Sinkhorn iterations. This is
+    threshold: (float) tolerance used to stop the Sinkhorn iterations. This is
      typically the deviation between a target marginal and the marginal of the
      current primal solution when either or both tau_a and tau_b are 1.0
      (balanced or semi-balanced problem), or the relative change between two
      successive solutions in the unbalanced case.
-   norm_error: int, power used to define p-norm of error from marginal to target
-   inner_iterations: (int32) the Sinkhorn error is not recomputed at each
+    norm_error: int, power used to define p-norm of error for marginal/target.
+    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead.
-   min_iterations: (int32) the minimum number of Sinkhorn iterations carried
+    min_iterations: (int32) the minimum number of Sinkhorn iterations carried
      out before the error is computed and monitored.
-   max_iterations: (int32) the maximum number of Sinkhorn iterations.
-   momentum_strategy: either a float between ]0,2[ or a string.
-   lse_mode: True for log-sum-exp computations, False for kernel multiplication.
-   implicit_differentiation: True if using implicit diff, False if backprop.
+    max_iterations: (int32) the maximum number of Sinkhorn iterations.
+    momentum_strategy: either a float between ]0,2[ or a string.
+    lse_mode: True for log-sum-exp computations, False for kernel multiply.
+    implicit_differentiation: True if using implicit diff, False if backprop.
 
   Returns:
     a SinkhornOutput named tuple.
@@ -186,8 +188,8 @@ def sinkhorn(geom: geometry.Geometry,
     ValueError: If momentum parameter is not set correctly, or to a wrong value.
   """
   num_a, num_b = geom.shape
-  a = np.ones((num_a,)) / num_a if a is None else a
-  b = np.ones((num_b,)) / num_b if b is None else b
+  a = jnp.ones((num_a,)) / num_a if a is None else a
+  b = jnp.ones((num_b,)) / num_b if b is None else b
 
   if momentum_strategy is None:
     momentum_strategy = 1.0
@@ -204,7 +206,7 @@ def sinkhorn(geom: geometry.Geometry,
     # if that was not the error requested by the user.
     norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
     momentum_default = 1.0
-    chg_momentum_from = onp.maximum(
+    chg_momentum_from = np.maximum(
         (min_iterations + 100) // inner_iterations, 2)
   elif isinstance(momentum_strategy, numbers.Number):
     if not 0 < momentum_strategy < 2:
@@ -227,16 +229,16 @@ def sinkhorn(geom: geometry.Geometry,
         lse_mode, False)
 
   reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b, f, g)
-  converged = np.logical_and(
-      np.sum(errors == -1) > 0,
-      np.sum(np.isnan(errors)) == 0)
+  converged = jnp.logical_and(
+      jnp.sum(errors == -1) > 0,
+      jnp.sum(jnp.isnan(errors)) == 0)
   return SinkhornOutput(f, g, reg_ot_cost, errors, converged)
 
 
 @functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8, 9, 10, 11, 12, 13))
 def _sinkhorn_iterations(geom: geometry.Geometry,
-                         a: np.ndarray,
-                         b: np.ndarray,
+                         a: jnp.ndarray,
+                         b: jnp.ndarray,
                          threshold: float,
                          norm_error: Sequence[int],
                          tau_a: float,
@@ -252,8 +254,8 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
 
   Args:
     geom: a Geometry object.
-    a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
-    b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     threshold: (float) the relative threshold on the Sinkhorn error to stop the
       Sinkhorn iterations.
     norm_error: t-uple of int, p-norms of marginal / target errors to track
@@ -275,14 +277,16 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   Returns:
     a SinkhornOutput named tuple.
   """
+
+  # Defining the Sinkhorn loop, by setting initializations, body/cond.
   num_a, num_b = geom.shape
   if lse_mode:
-    f_u, g_v = np.zeros_like(a), np.zeros_like(b)
+    f_u, g_v = jnp.zeros_like(a), jnp.zeros_like(b)
   else:
-    f_u, g_v = np.ones_like(a) / num_a, np.ones_like(b) / num_b
+    f_u, g_v = jnp.ones_like(a) / num_a, jnp.ones_like(b) / num_b
 
-  errors = -np.ones((onp.ceil(max_iterations / inner_iterations).astype(int),
-                     len(norm_error)))
+  errors = -jnp.ones((np.ceil(max_iterations / inner_iterations).astype(int),
+                      len(norm_error)))
   const = (geom, a, b, threshold)
 
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
@@ -290,16 +294,16 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
     errors = state[0]
     err = errors[iteration // inner_iterations-1, 0]
 
-    return np.logical_or(iteration == 0,
-                         np.logical_and(np.isfinite(err), err > threshold))
+    return jnp.logical_or(iteration == 0,
+                          jnp.logical_and(jnp.isfinite(err), err > threshold))
 
   def get_momentum(errors, idx):
     """momentum formula, https://arxiv.org/pdf/2012.12562v1.pdf, p.7 and (5)."""
-    error_ratio = np.minimum(errors[idx - 1, -1] / errors[idx - 2, -1], .99)
+    error_ratio = jnp.minimum(errors[idx - 1, -1] / errors[idx - 2, -1], .99)
     power = 1.0 / inner_iterations
-    return 2.0 / (1.0 + np.sqrt(1.0 - error_ratio ** power))
+    return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio ** power))
 
-  def body_fn(iteration, const, state, last):
+  def body_fn(iteration, const, state, compute_error):
     """Carries out sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
@@ -310,28 +314,28 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
       iteration: iteration number
       const: tuple of constant parameters that do not change throughout the
         loop, here the geometry and the marginals a, b.
-      state: optimization variables updated in the loop with errors.
-      last: flag to indicate this is the last iteration in the inner loop
+      state: potential/scaling variables updated in the loop & error log.
+      compute_error: flag to indicate this iteration computes/stores an error
 
     Returns:
-      state variables.
+      state variables, i.e. errors and updated f_u, g_v potentials.
     """
     geom, a, b, _ = const
     errors, f_u, g_v = state
 
     # compute momentum term if needed, using previously seen errors.
-    w = jax.lax.stop_gradient(np.where(iteration >= (
+    w = jax.lax.stop_gradient(jnp.where(iteration >= (
         inner_iterations * chg_momentum_from + min_iterations),
-                                       get_momentum(errors, chg_momentum_from),
-                                       momentum_default))
+                                        get_momentum(errors, chg_momentum_from),
+                                        momentum_default))
 
-    # (momentum) sinkhorn updates, in either scaling or potential form.
+    # sinkhorn updates using momentum, in either scaling or potential form.
     if lse_mode:
       g_v = (1.0 - w) * g_v + w * tau_b * geom.update_potential(
-          f_u, g_v, np.log(b), iteration,
+          f_u, g_v, jnp.log(b), iteration,
           axis=0)
       f_u = (1.0 - w) * f_u + w * tau_a * geom.update_potential(
-          f_u, g_v, np.log(a), iteration,
+          f_u, g_v, jnp.log(a), iteration,
           axis=1)
     else:
       g_v = g_v ** (1.0 - w) * (geom.update_scaling(
@@ -339,24 +343,26 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
       f_u = f_u ** (1.0 - w) * (geom.update_scaling(
           g_v, a, iteration, axis=1)**tau_a) ** w
 
-    # re-compute errors if this is the last of inner_iterations and above the
-    # min_iterations required before computing errors for the first time.
-    if last:
-      err = np.where(iteration >= min_iterations,
-                     marginal_error(geom, a, b, tau_a, tau_b,
-                                    f_u, g_v, norm_error, lse_mode),
-                     np.inf)
-      errors = jax.ops.index_update(
-          errors, jax.ops.index[iteration // inner_iterations, :], err)
+    # re-computes error if compute_error is True, else set it to inf.
+    err = jnp.where(
+        jnp.logical_and(compute_error, iteration >= min_iterations),
+        marginal_error(geom, a, b, tau_a, tau_b, f_u, g_v, norm_error,
+                       lse_mode),
+        jnp.inf)
+
+    errors = jax.ops.index_update(
+        errors, jax.ops.index[iteration // inner_iterations, :], err)
     return errors, f_u, g_v
 
-  # either run the fixpoint_iter loop in a straightforward manner (for implicit
-  # differentiation, which implements vjp operations at a higher level) or using
-  # backprop, using the custom vjp mechanism of the fixpoint_iter loop.
+  # Run the Sinkhorn loop. choose either a standard fixpoint_iter loop if
+  # differentiation is implicit, otherwise switch to the backprop friendly
+  # version of that loop if using backprop to differentiate.
+
   if implicit:
     fix_point = fixed_point_loop.fixpoint_iter
   else:
     fix_point = fixed_point_loop.fixpoint_iter_backprop
+
   errors, f_u, g_v = fix_point(
       cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
       (errors, f_u, g_v))
@@ -397,11 +403,11 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
       considered.
 
   Returns:
-    a tuple of gradients: PyTree for geom, one np.ndarray for each of a and b.
+    a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   _, _, tau_a, tau_b, _, _, _, _, _, lse_mode, _ = aux
   f, g, geom, a, b = res
-  f_g = np.concatenate((f, g))
+  f_g = jnp.concatenate((f, g))
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
   ridge = 1e-10  #  to regularize the linear system in implicit function diff
@@ -419,9 +425,9 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
   n, _ = geom.shape
 
   def first_order_conditions(geom: geometry.Geometry,
-                             a: np.ndarray,
-                             b: np.ndarray,
-                             fg: np.ndarray):
+                             a: jnp.ndarray,
+                             b: jnp.ndarray,
+                             fg: jnp.ndarray):
     """Computes vector of first order conditions for the reg-OT problem.
 
     The output of this vector should be close to zero at optimality.
@@ -433,16 +439,16 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
 
     Args:
       geom: a geometry object
-      a: np.ndarray, first marginal
-      b: np.ndarray, second marginal
+      a: jnp.ndarray, first marginal
+      b: jnp.ndarray, second marginal
       fg: concatenated vector of two potentials (total size equals the sum of
         that of a and b)
     Returns:
-      a np.ndarray of the size of fg quantifying deviation from optimality.
+      a jnp.ndarray of the size of fg quantifying deviation from optimality.
     """
-    marginals = np.concatenate(
+    marginals = jnp.concatenate(
         (marginal_a(geom, fg[:n], fg[n:]), marginal_b(geom, fg[:n], fg[n:])))
-    gradients_fit = np.concatenate(
+    gradients_fit = jnp.concatenate(
         grad_of_marginal_fit(a, b, fg[:n], fg[n:], tau_a, tau_b, geom))
     return marginals - gradients_fit
 
@@ -453,8 +459,8 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
   # computed here using automatic differentiation of the F.O.C vector.
   _, pull_fg = jax.vjp(foc_fg, f_g)
   # Adds a small regularizer to improve conditioning when solving linear system
-  pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * np.sum(vec ** 2)
-  vjp_gr = -jax.scipy.sparse.linalg.cg(pull_fg_0, np.concatenate(gr))[0]
+  pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * jnp.sum(vec ** 2)
+  vjp_gr = -jax.scipy.sparse.linalg.cg(pull_fg_0, jnp.concatenate(gr))[0]
 
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
@@ -466,28 +472,28 @@ _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_implicit_fwd,
 
 
 def marginal_error(geom: geometry.Geometry,
-                   a: np.ndarray,
-                   b: np.ndarray,
+                   a: jnp.ndarray,
+                   b: jnp.ndarray,
                    tau_a: float,
                    tau_b: float,
-                   f_u: np.ndarray,
-                   g_v: np.ndarray,
+                   f_u: jnp.ndarray,
+                   g_v: jnp.ndarray,
                    norm_error: int,
-                   lse_mode) -> np.ndarray:
+                   lse_mode) -> jnp.ndarray:
   """Conputes marginal error, the stopping criterion used to terminate Sinkhorn.
 
   Args:
     geom: a Geometry object.
-    a: np.ndarray<float>[num_a,] or np.ndarray<float>[batch,num_a] weights.
-    b: np.ndarray<float>[num_b,] or np.ndarray<float>[batch,num_b] weights.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
     tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
-    f_u: np.ndarray, potential or scaling
-    g_v: np.ndarray, potential or scaling
+    f_u: jnp.ndarray, potential or scaling
+    g_v: jnp.ndarray, potential or scaling
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector producs.
 
@@ -518,29 +524,29 @@ def marginal_error(geom: geometry.Geometry,
 
 
 def ent_reg_cost(geom: geometry.Geometry,
-                 a: np.ndarray,
-                 b: np.ndarray,
+                 a: jnp.ndarray,
+                 b: jnp.ndarray,
                  tau_a: float,
                  tau_b: float,
-                 f: np.ndarray,
-                 g: np.ndarray) -> np.ndarray:
+                 f: jnp.ndarray,
+                 g: jnp.ndarray) -> jnp.ndarray:
   """Computes objective of regularized OT given dual solutions f,g."""
   if tau_a == 1.0:
-    div_a = np.sum((f - geom.potential_from_scaling(a)) * a)
+    div_a = jnp.sum((f - geom.potential_from_scaling(a)) * a)
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
-    div_a = np.sum(a * (rho_a - (rho_a + geom.epsilon/2) *
-                        np.exp(-(f - geom.potential_from_scaling(a))/ rho_a)))
+    div_a = jnp.sum(a * (rho_a - (rho_a + geom.epsilon/2) *
+                         jnp.exp(-(f - geom.potential_from_scaling(a))/ rho_a)))
 
   if tau_b == 1.0:
-    div_b = np.sum((g - geom.potential_from_scaling(b)) * b)
+    div_b = jnp.sum((g - geom.potential_from_scaling(b)) * b)
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
-    div_b = np.sum(b * (rho_b - (rho_b + geom.epsilon/2) *
-                        np.exp(-(g - geom.potential_from_scaling(b))/ rho_b)))
+    div_b = jnp.sum(b * (rho_b - (rho_b + geom.epsilon/2) *
+                         jnp.exp(-(g - geom.potential_from_scaling(b))/ rho_b)))
 
   # Using https://arxiv.org/pdf/1910.12958.pdf Eq. 30
-  return div_a + div_b + geom.epsilon * np.sum(a) * np.sum(b)
+  return div_a + div_b + geom.epsilon * jnp.sum(a) * jnp.sum(b)
 
 
 def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
@@ -551,10 +557,10 @@ def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
   (terms involving phi_star)
 
   Args:
-    a: np.ndarray, first target marginal
-    b: np.ndarray, second target marginal
-    f: np.ndarray, potential
-    g: np.ndarray, potential
+    a: jnp.ndarray, first target marginal
+    b: jnp.ndarray, second target marginal
+    f: jnp.ndarray, potential
+    g: jnp.ndarray, potential
     tau_a: float, strength (in ]0,1]) of regularizer w.r.t. marginal a.
     tau_b: float, strength (in ]0,1]) of regularizer w.r.t. marginal b.
     geom: geometry object.
@@ -575,11 +581,11 @@ def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
   return grad_a, grad_b
 
 
-def phi_star(f: np.ndarray, rho: float) -> np.ndarray:
+def phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Legendre transform of KL, https://arxiv.org/pdf/1910.12958.pdf p.9."""
-  return rho * (np.exp(f / rho) - 1)
+  return rho * (jnp.exp(f / rho) - 1)
 
 
-def derivative_phi_star(f: np.ndarray, rho: float) -> np.ndarray:
+def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Derivative of Legendre transform of KL, see phi_star."""
-  return np.exp(f / rho)
+  return jnp.exp(f / rho)

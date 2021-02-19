@@ -19,12 +19,12 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.geometry import costs
-from ott.core.geometry import geometry
-from ott.core.geometry import pointcloud
+from ott.geometry import costs
+from ott.geometry import geometry
+from ott.geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
@@ -40,8 +40,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
-    self.a = a / np.sum(a)
-    self.b = b / np.sum(b)
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
 
   @parameterized.named_parameters(
       dict(
@@ -106,7 +106,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
                                  inner_iterations, norm_error):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.2)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -120,16 +120,17 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.assertGreater(threshold, err)
 
   def test_euclidean_point_cloud_min_iter(self):
-    """Two point clouds, tested with various parameters."""
+    """Testing the min_iterations parameter."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
-        geom, a=self.a, b=self.b, threshold=threshold, min_iterations=34).errors
-    err = errors[np.logical_and(errors > -1, np.isfinite(errors))][-1]
+        geom, a=self.a, b=self.b, threshold=threshold, min_iterations=34,
+        implicit_differentiation=False).errors
+    err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
     self.assertGreater(threshold, err)
-    self.assertEqual(np.inf, errors[0])
-    self.assertEqual(np.inf, errors[1])
-    self.assertEqual(np.inf, errors[2])
+    self.assertEqual(jnp.inf, errors[0])
+    self.assertEqual(jnp.inf, errors[1])
+    self.assertEqual(jnp.inf, errors[2])
     self.assertGreater(errors[3], 0)
 
   def test_geom_vs_point_cloud(self):
@@ -147,15 +148,15 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     batch = 4
     a = jax.random.uniform(rngs[0], (batch, self.n))
     b = jax.random.uniform(rngs[0], (batch, self.m))
-    a = a / np.sum(a, axis=1)[:, np.newaxis]
-    b = b / np.sum(b, axis=1)[:, np.newaxis]
+    a = a / jnp.sum(a, axis=1)[:, jnp.newaxis]
+    b = b / jnp.sum(b, axis=1)[:, jnp.newaxis]
     threshold = 1e-3
     geom = pointcloud.PointCloud(
         self.x, self.y, epsilon=0.1, online=True)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode).errors
     err = errors[errors > -1][-1]
-    self.assertGreater(np.min(threshold - err), 0)
+    self.assertGreater(jnp.min(threshold - err), 0)
 
   @parameterized.parameters([True], [False])
   def test_online_euclidean_point_cloud(self, lse_mode):
@@ -224,7 +225,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         batch_geom_euc.transport_from_potentials(out_batch_euc.f,
                                                  out_batch_euc.g))
 
-  def test_apply_transport_geometry(self):
+  def test_apply_transport_geometry_from_potentials(self):
     """Applying transport matrix P on vector without instantiating P."""
     n, m, d = 160, 230, 6
     keys = jax.random.split(self.rng, 6)
@@ -232,8 +233,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(keys[1], (m, d))
     a = jax.random.uniform(keys[2], (n,))
     b = jax.random.uniform(keys[3], (m,))
-    a = a / np.sum(a)
-    b = b / np.sum(b)
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
     transport_t_vec_a = [None, None, None, None]
     transport_vec_b = [None, None, None, None]
 
@@ -257,12 +258,63 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
         self.assertAllClose(
             transport_t_vec_a[i + 2 * j],
-            np.dot(transport.T, vec_a).T,
+            jnp.dot(transport.T, vec_a).T,
             rtol=1e-3,
             atol=1e-3)
         self.assertAllClose(
             transport_vec_b[i + 2 * j],
-            np.dot(transport, vec_b.T).T,
+            jnp.dot(transport, vec_b.T).T,
+            rtol=1e-3,
+            atol=1e-3)
+
+    for i in range(4):
+      self.assertAllClose(
+          transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3)
+      self.assertAllClose(
+          transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
+
+  def test_apply_transport_geometry_from_scalings(self):
+    """Applying transport matrix P on vector without instantiating P."""
+    n, m, d = 160, 230, 6
+    keys = jax.random.split(self.rng, 6)
+    x = jax.random.uniform(keys[0], (n, d))
+    y = jax.random.uniform(keys[1], (m, d))
+    a = jax.random.uniform(keys[2], (n,))
+    b = jax.random.uniform(keys[3], (m,))
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
+    transport_t_vec_a = [None, None, None, None]
+    transport_vec_b = [None, None, None, None]
+
+    batch_b = 8
+
+    vec_a = jax.random.normal(keys[4], (n,))
+    vec_b = jax.random.normal(keys[5], (batch_b, m))
+
+    # test with lse_mode and online = True / False
+    for j, lse_mode in enumerate([True, False]):
+      for i, online in enumerate([True, False]):
+        geom = pointcloud.PointCloud(x, y, online=online, epsilon=0.2)
+        sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
+
+        u = geom.scaling_from_potential(sink.f)
+        v = geom.scaling_from_potential(sink.g)
+
+        transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_scalings(
+            u, v, vec_a, axis=0)
+        transport_vec_b[i + 2 * j] = geom.apply_transport_from_scalings(
+            u, v, vec_b, axis=1)
+
+        transport = geom.transport_from_scalings(u, v)
+
+        self.assertAllClose(
+            transport_t_vec_a[i + 2 * j],
+            jnp.dot(transport.T, vec_a).T,
+            rtol=1e-3,
+            atol=1e-3)
+        self.assertAllClose(
+            transport_vec_b[i + 2 * j],
+            jnp.dot(transport, vec_b.T).T,
             rtol=1e-3,
             atol=1e-3)
 

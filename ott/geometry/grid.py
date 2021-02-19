@@ -19,11 +19,11 @@ import itertools
 from typing import Optional, Sequence, Union
 
 import jax
-import jax.numpy as np
-import numpy as onp
-from ott.core.geometry import costs
-from ott.core.geometry import epsilon_scheduler
-from ott.core.geometry import geometry
+import jax.numpy as jnp
+import numpy as np
+from ott.geometry import costs
+from ott.geometry import epsilon_scheduler
+from ott.geometry import geometry
 
 
 @jax.tree_util.register_pytree_node_class
@@ -31,25 +31,26 @@ class Grid(geometry.Geometry):
   """Class describing the geometry of points taken in a cartestian product.
 
   This class implements a geometry in which probability measures are supported
-  on a d-dimensional cartesian grid, a cartesian product of d lists of values,
-  each list being itself of size n_i.
+  on a :math:`d`-dimensional cartesian grid, a cartesian product of :math:`d`
+  lists of values, each list being itself of size :math:`n_i`.
 
   The transportation cost between points in the grid is assumed to be separable,
   namely a sum of coordinate-wise cost functions, as in
-    cost(x,y) = sum_(i=1)^d cost_i(x_i,y_i) where cost_i : R x R -> R.
+    :math:`cost(x,y) = \sum_{i=1}^d cost_i(x_i, y_i)` where :math:`cost_i`: R x R → R.
 
-  In such a regime, and despite the fact that the total number n_total of points
-  in the grid is exponential d (namely prod_i n_i), applying a kernel in the
-  context of regularized optimal transport can be carried out in time that is
-  of the order of n_total^(1+1/d) using convolutions, either in the original
-  domain or log-space domain. This class precomputes d n_i x n_i cost matrices
-  (one per dimension) and implements these two operations by carrying out these
+  In such a regime, and despite the fact that the total number :math:`n_{total}`
+  of points in the grid is exponential :math:`d` (namely :math:`\prod_i n_i`),
+  applying a kernel in the context of regularized optimal transport can be
+  carried out in time that is of the order of :math:`n_{total}^{(1+1/d)}` using
+  convolutions, either in the original domain or log-space domain. This class
+  precomputes :math:`d` :math:`n_i` x :math:`n_i` cost matrices (one per
+  dimension) and implements these two operations by carrying out these
   convolutions one dimension at a time.
   """
 
   def __init__(
       self,
-      x: Optional[Sequence[np.ndarray]] = None,
+      x: Optional[Sequence[jnp.ndarray]] = None,
       grid_size: Optional[Sequence[int]] = None,
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
@@ -60,15 +61,16 @@ class Grid(geometry.Geometry):
 
     Args:
       x : list of arrays of varying sizes, describing the locations of the grid.
-        Locations are provided as a list of np.ndarrays, that is d vectors of
-        (possibly varying) size n_i. The resulting grid is the Cartesian product
-        of these vectors.
-      grid_size: t-uple of integers describing grid sizes, namely (n_1,...,n_d).
-        This will only be used if x is None. In that case the grid will be
-        assumed to lie in the hypercube [0,1]^d, with the d dimensions described
-        as points regularly sampled in [0,1].
-      cost_fns: a sequence of d costs.CostFn's, each being a cost taken two
-        reals as inputs to output a real number.
+        Locations are provided as a list of jnp.ndarrays, that is d vectors of
+        (possibly varying) size :math:`n_i`. The resulting grid is the Cartesian
+        product of these vectors.
+      grid_size: t-uple of integers describing grid sizes, namely
+        :math:`(n_1,...,n_d)`. This will only be used if :math:`x` is None.
+        In that case the grid will be assumed to lie in the hypercube
+        :math:`[0,1]^d`, with the :math:`d` dimensions described as points
+        regularly sampled in [0,1].
+      cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taken
+        two reals as inputs to output a real number.
       num_a: total size of grid. This parameters will be computed from other
         inputs and used in the flatten/unflatten functions.
       grid_dimension: dimension of grid. This parameters will be computed from
@@ -85,12 +87,12 @@ class Grid(geometry.Geometry):
     elif x is not None:
       self.x = x
       self.grid_size = tuple([xs.shape[0] for xs in x])
-      self.num_a = onp.prod(onp.array(self.grid_size))
+      self.num_a = np.prod(np.array(self.grid_size))
       self.grid_dimension = len(self.x)
     elif grid_size is not None:
       self.grid_size = grid_size
-      self.x = tuple([np.linspace(0, 1, n) for n in self.grid_size])
-      self.num_a = onp.prod(onp.array(grid_size))
+      self.x = tuple([jnp.linspace(0, 1, n) for n in self.grid_size])
+      self.num_a = np.prod(np.array(grid_size))
       self.grid_dimension = len(self.grid_size)
     else:
       raise ValueError('Input either grid_size t-uple or grid locations x.')
@@ -108,7 +110,7 @@ class Grid(geometry.Geometry):
     for dimension, cost_fn in itertools.zip_longest(
         range(self.grid_dimension), self.cost_fns,
         fillvalue=self.cost_fns[-1]):
-      x_values = self.x[dimension][:, np.newaxis]
+      x_values = self.x[dimension][:, jnp.newaxis]
       cost_matrix = jax.vmap(lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # pylint: disable=cell-var-from-loop
                              (x_values))(x_values)  # pylint: disable=cell-var-from-loop
       cost_matrices.append(cost_matrix)
@@ -119,7 +121,7 @@ class Grid(geometry.Geometry):
     # computes kernel matrices from cost matrices grid
     kernel_matrices = []
     for cost_matrix in self.cost_matrices:
-      kernel_matrices.append(np.exp(-cost_matrix/self.epsilon))
+      kernel_matrices.append(jnp.exp(-cost_matrix/self.epsilon))
     return kernel_matrices
 
   @property
@@ -132,10 +134,10 @@ class Grid(geometry.Geometry):
 
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(self,
-                       f: np.ndarray,
-                       g: np.ndarray,
+                       f: jnp.ndarray,
+                       g: jnp.ndarray,
                        eps: float,
-                       vec: Optional[np.ndarray] = None,
+                       vec: Optional[jnp.ndarray] = None,
                        axis: int = 0):
     """Applies grid kernel in log space. See notes in parent class for use case.
 
@@ -145,20 +147,20 @@ class Grid(geometry.Geometry):
     More implementation details in https://arxiv.org/pdf/1708.01955.pdf
 
     Args:
-      f: np.ndarray, a vector of potentials
-      g: np.ndarray, a vector of potentials
+      f: jnp.ndarray, a vector of potentials
+      g: jnp.ndarray, a vector of potentials
       eps: float, regularization strength
-      vec: np.ndarray, if needed, a vector onto which apply the kernel weighted
+      vec: jnp.ndarray, if needed, a vector onto which apply the kernel weighted
         by f and g.
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
       a vector, the result of kernel applied in lse space.
     """
-    f, g = np.reshape(f, self.grid_size), np.reshape(g, self.grid_size)
+    f, g = jnp.reshape(f, self.grid_size), jnp.reshape(g, self.grid_size)
 
     if vec is not None:
-      vec = np.reshape(vec, self.grid_size)
+      vec = jnp.reshape(vec, self.grid_size)
 
     if axis == 0:
       f, g = g, f
@@ -167,32 +169,32 @@ class Grid(geometry.Geometry):
       g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
       g -= f
     if vec is None:
-      vec = np.array(1.0)
+      vec = jnp.array(1.0)
     return g.ravel(), vec.ravel()
 
   def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
     """Helper function to permute axis & apply the kernel on a single slice."""
-    indices = onp.arange(self.grid_dimension)
+    indices = np.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
-    f, g = np.transpose(f, indices), np.transpose(g, indices)
-    centered_cost = (f[:, np.newaxis, ...] + g[np.newaxis, ...]
-                     - np.expand_dims(
+    f, g = jnp.transpose(f, indices), jnp.transpose(g, indices)
+    centered_cost = (f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...]
+                     - jnp.expand_dims(
                          self.cost_matrices[dimension],
                          axis=tuple(range(2, 1 + self.grid_dimension)))
                      ) / eps
 
     if vec is not None:
-      vec = np.transpose(vec, indices)
+      vec = jnp.transpose(vec, indices)
       softmax_res, softmax_sgn = jax.scipy.special.logsumexp(
           centered_cost, b=vec, axis=1, return_sign=True)
-      return eps * np.transpose(softmax_res, indices), np.transpose(
+      return eps * jnp.transpose(softmax_res, indices), jnp.transpose(
           softmax_sgn, indices)
     else:
       softmax_res = jax.scipy.special.logsumexp(centered_cost, axis=1)
-      return eps * np.transpose(softmax_res, indices), None
+      return eps * jnp.transpose(softmax_res, indices), None
 
   def apply_kernel(self,
-                   scaling: np.ndarray,
+                   scaling: jnp.ndarray,
                    eps: float = None,
                    axis: int = None):
     """Applies grid kernel on scaling vector.
@@ -205,30 +207,30 @@ class Grid(geometry.Geometry):
     More implementation details in https://arxiv.org/pdf/1708.01955.pdf
 
     Args:
-      scaling: np.ndarray, a vector of scaling (>0) values
+      scaling: jnp.ndarray, a vector of scaling (>0) values
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
       a vector, the result of kernel applied in lse space.
     """
-    scaling = np.reshape(scaling, self.grid_size)
+    scaling = jnp.reshape(scaling, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension in range(self.grid_dimension):
       ind = indices.copy()
       ind.insert(dimension, 0)
-      scaling = np.tensordot(
+      scaling = jnp.tensordot(
           self.kernel_matrices[dimension], scaling,
           axes=([0], [dimension])).transpose(ind)
     return scaling.ravel()
 
-  def transport_from_potentials(self, f: np.ndarray, g: np.ndarray, axis=0):
+  def transport_from_potentials(self, f: jnp.ndarray, g: jnp.ndarray, axis=0):
     raise ValueError('Grid geometry cannot instantiate a transport matrix, use',
                      ' apply_transport_from_potentials(...) if you wish to ',
                      ' apply the transport matrix to a vector, or use a point '
                      ' cloud geometry instead')
 
-  def transport_from_scalings(self, f: np.ndarray, g: np.ndarray, axis=0):
+  def transport_from_scalings(self, f: jnp.ndarray, g: jnp.ndarray, axis=0):
     raise ValueError('Grid geometry cannot instantiate a transport matrix, use',
                      ' apply_transport_from_scalings(...) if you wish to ',
                      ' apply the transport matrix to a vector, or use a point '

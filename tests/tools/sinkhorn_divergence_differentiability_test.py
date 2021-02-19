@@ -18,11 +18,10 @@
 
 from absl.testing import absltest
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
-
-from ott.core import sinkhorn_divergence
-from ott.core.geometry import pointcloud
+from ott.geometry import pointcloud
+from ott.tools import sinkhorn_divergence
 
 
 class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
@@ -35,8 +34,8 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
     self.rng, *rngs = jax.random.split(self.rng, 3)
     a = jax.random.uniform(rngs[0], (self._num_points[0],))
     b = jax.random.uniform(rngs[1], (self._num_points[1],))
-    self._a = a / np.sum(a)
-    self._b = b / np.sum(b)
+    self._a = a / jnp.sum(a)
+    self._b = b / jnp.sum(b)
 
   def test_gradient_generic_point_cloud_wrapper(self):
     rngs = jax.random.split(self.rng, 3)
@@ -44,9 +43,10 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
     def loss_fn(cloud_a, cloud_b):
-      div = sinkhorn_divergence.sinkhorn_divergence_wrapper(
-          pointcloud.PointCloud, self._a, self._b,
+      div = sinkhorn_divergence.sinkhorn_divergence(
+          pointcloud.PointCloud,
           cloud_a, cloud_b, epsilon=1.0,
+          a=self._a, b=self._b,
           sinkhorn_kwargs=dict(threshold=0.05))
       return div.divergence
 
@@ -56,11 +56,11 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
     # first calculation of gradient
     loss_and_grad = jax.jit(jax.value_and_grad(loss_fn))
     loss_value, grad_loss = loss_and_grad(x, y)
-    custom_grad = np.sum(delta * grad_loss)
+    custom_grad = jnp.sum(delta * grad_loss)
 
-    self.assertIsNot(loss_value, np.nan)
+    self.assertIsNot(loss_value, jnp.nan)
     self.assertEqual(grad_loss.shape, x.shape)
-    self.assertFalse(np.any(np.isnan(grad_loss)))
+    self.assertFalse(jnp.any(jnp.isnan(grad_loss)))
 
     # second calculation of gradient
     loss_delta_plus = loss_fn(x + eps * delta, y)

@@ -19,11 +19,11 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.geometry import costs
-from ott.core.geometry import pointcloud
+from ott.geometry import costs
+from ott.geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
@@ -31,7 +31,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     self.eps = 1.0
-    self.n = 27
+    self.n = 11
     self.m = 13
     self.dim = 7
     self.rngs = jax.random.split(jax.random.PRNGKey(0), 6)
@@ -39,20 +39,22 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
     y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))
 
-    sig_x = np.matmul(x, np.transpose(x, (0, 2, 1))) / 100
-    sig_y = np.matmul(y, np.transpose(y, (0, 2, 1))) / 100
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / 100
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / 100
 
     m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
     m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
 
-    self.x = np.concatenate((m_x.reshape((self.n, -1)),
-                             sig_x.reshape((self.n, -1))), axis=1)
-    self.y = np.concatenate((m_y.reshape((self.m, -1)),
-                             sig_y.reshape((self.m, -1))), axis=1)
+    self.x = jnp.concatenate((m_x.reshape(
+        (self.n, -1)), sig_x.reshape((self.n, -1))),
+                             axis=1)
+    self.y = jnp.concatenate((m_y.reshape(
+        (self.m, -1)), sig_y.reshape((self.m, -1))),
+                             axis=1)
     a = jax.random.uniform(self.rngs[4], (self.n,)) + .1
     b = jax.random.uniform(self.rngs[5], (self.m,)) + .1
-    self.a = a / np.sum(a)
-    self.b = b / np.sum(b)
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
 
   @parameterized.named_parameters(
       dict(testcase_name='ker-batch', lse_mode=False, online=False))
@@ -71,6 +73,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         lse_mode=lse_mode).errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
+
 
 if __name__ == '__main__':
   absltest.main()

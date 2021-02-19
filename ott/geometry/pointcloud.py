@@ -18,10 +18,10 @@
 from typing import Optional, Union
 
 import jax
-import jax.numpy as np
-from ott.core.geometry import costs
-from ott.core.geometry import epsilon_scheduler
-from ott.core.geometry import geometry
+import jax.numpy as jnp
+from ott.geometry import costs
+from ott.geometry import epsilon_scheduler
+from ott.geometry import geometry
 
 
 @jax.tree_util.register_pytree_node_class
@@ -29,8 +29,8 @@ class PointCloud(geometry.Geometry):
   """Defines geometry for pointclouds using distance or norm/dotproduct fns."""
 
   def __init__(self,
-               x: np.ndarray,
-               y: np.ndarray = None,
+               x: jnp.ndarray,
+               y: jnp.ndarray = None,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
                epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
@@ -93,15 +93,14 @@ class PointCloud(geometry.Geometry):
       return None
     cost_matrix = - self._cost_fn.all_pairs_dotprod(self.x, self.y)
     if self._axis_norm is not None:
-      cost_matrix += self._norm_x[:, np.newaxis] + self._norm_y[np.newaxis, :]
+      cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
     return cost_matrix
 
   @property
   def kernel_matrix(self):
     if self._online:
       return None
-    # TODO(oliviert) or at least take a look at this lint warning
-    return np.exp(-self.cost_matrix / self.epsilon)
+    return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
   def shape(self):
@@ -109,23 +108,21 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_symmetric(self):
-    return self._y is None or (np.all(self.x.shape == self.y.shape) and
-                               np.all(self.x == self.y))
+    return self._y is None or (jnp.all(self.x.shape == self.y.shape) and
+                               jnp.all(self.x == self.y))
 
   def apply_lse_kernel(self,
-                       f: np.ndarray,
-                       g: np.ndarray,
+                       f: jnp.ndarray,
+                       g: jnp.ndarray,
                        eps: float,
-                       vec: np.ndarray = None,
-                       axis: int = 0) -> np.ndarray:
+                       vec: jnp.ndarray = None,
+                       axis: int = 0) -> jnp.ndarray:
     if not self._online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
-    app = jax.vmap(
-        _apply_lse_kernel_xy,
-        in_axes=[
-            None, 0, None, self._axis_norm, None, 0, None, None, None, None
-        ])
+    app = jax.jit(jax.vmap(_apply_lse_kernel_xy, in_axes=[
+                None, 0, None, self._axis_norm, None, 0, None, None, None, None]
+                           ))
 
     if axis == 0:
       h_res, h_sgn = app(self.x, self.y, self._norm_x, self._norm_y, f, g, eps,
@@ -137,12 +134,12 @@ class PointCloud(geometry.Geometry):
       h_res = eps * h_res - f
     return h_res, h_sgn
 
-  def apply_kernel(self, scaling: np.ndarray, eps: float, axis=0):
+  def apply_kernel(self, scaling: jnp.ndarray, eps: float, axis=0):
     if not self._online:
       return super().apply_kernel(scaling, eps, axis)
-    app = jax.vmap(
-        _apply_kernel_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, None, None, None])
+
+    app = jax.jit(jax.vmap(_apply_kernel_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, None, None, None]))
     if axis == 0:
       return app(self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
                  self._cost_fn, self.power)
@@ -155,19 +152,17 @@ class PointCloud(geometry.Geometry):
   def transport_from_potentials(self, f, g):
     if not self._online:
       return super().transport_from_potentials(f, g)
-    transport = jax.vmap(
-        _transport_from_potentials_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, 0, None, None, None])
+    transport = jax.jit(jax.vmap(_transport_from_potentials_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, 0, None, None, None]))
     return transport(self.y, self.x, self._norm_y, self._norm_x, g, f,
                      self.epsilon, self._cost_fn, self.power)
 
   def transport_from_scalings(self, u, v):
     if not self._online:
       return super().transport_from_scalings(u, v)
-    transport = jax.vmap(
-        _transport_from_scalings_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, 0, None, None, None])
-    return transport(self.y, self.x, self._norm_y, self._norm_x, u, v,
+    transport = jax.jit(jax.vmap(_transport_from_scalings_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, 0, None, None, None]))
+    return transport(self.y, self.x, self._norm_y, self._norm_x, v, u,
                      self.epsilon, self._cost_fn, self.power)
 
   @classmethod
@@ -188,25 +183,26 @@ class PointCloud(geometry.Geometry):
 
 def _apply_lse_kernel_xy(x, y, norm_x, norm_y, f, g, eps,
                          vec, cost_fn, cost_pow):
-  return jax.scipy.special.logsumexp(
-      (f + g - _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)) / eps,
-      b=vec, return_sign=True)
+  c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)
+  return jax.scipy.special.logsumexp((f + g - c) / eps, b=vec, return_sign=True,
+                                     axis=-1)
 
 
-def _transport_from_potentials_xy(x, y, norm_x, norm_y, f, g, eps, cost_fn,
-                                  cost_pow):
-  return np.exp((f + g - _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)) / eps)
+def _transport_from_potentials_xy(
+    x, y, norm_x, norm_y, f, g, eps, cost_fn, cost_pow):
+  return jnp.exp((f + g - _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)) / eps)
 
 
 def _apply_kernel_xy(x, y, norm_x, norm_y, vec, eps, cost_fn, cost_pow):
-  return np.dot(np.exp(- _cost(x, y, norm_x, norm_y, cost_fn, cost_pow) / eps),
-                vec)
+  c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)
+  return jnp.dot(jnp.exp(-c / eps), vec)
 
 
 def _transport_from_scalings_xy(x, y, norm_x, norm_y, u, v, eps, cost_fn,
                                 cost_pow):
-  return np.exp(- _cost(x, y, norm_x, norm_y, cost_fn, cost_pow) / eps) * u * v
+  return jnp.exp(- _cost(x, y, norm_x, norm_y, cost_fn, cost_pow) / eps) * u * v
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow):
-  return (norm_x + norm_y - cost_fn.dotprod(x, y))**(0.5 * cost_pow)
+  one_line_dotprod = jax.jit(jax.vmap(cost_fn.dotprod, in_axes=[0, None]))
+  return (norm_x + norm_y - one_line_dotprod(x, y)) ** (0.5 * cost_pow)

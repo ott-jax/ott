@@ -15,6 +15,5 @@
 
 """OTT core libraries."""
 
-from . import geometry
+from . import discrete_barycenter
 from . import sinkhorn
-from . import sinkhorn_divergence

@@ -19,13 +19,13 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
-import numpy as onp
+import numpy as np
 
 from ott.core import sinkhorn
-from ott.core.geometry import grid
-from ott.core.geometry import pointcloud
+from ott.geometry import grid
+from ott.geometry import pointcloud
 
 
 class SinkhornGridTest(jax.test_util.JaxTestCase):
@@ -41,13 +41,13 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     keys = jax.random.split(self.rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
-    a = a.ravel() / np.sum(a)
-    b = b.ravel() / np.sum(b)
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
     threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
         geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode).errors
-    err = errors[np.isfinite(errors)][-1]
+    err = errors[jnp.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([True], [False])
@@ -56,15 +56,15 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     keys = jax.random.split(self.rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
-    a = a.ravel() / np.sum(a)
-    b = b.ravel() / np.sum(b)
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
     epsilon = 0.1
     geometry_grid = grid.Grid(grid_size=grid_size, epsilon=epsilon)
-    x, y, z = onp.mgrid[0:grid_size[0], 0:grid_size[1], 0:grid_size[2]]
-    xyz = np.stack([
-        np.array(x.ravel()) / np.maximum(1, grid_size[0] - 1),
-        np.array(y.ravel()) / np.maximum(1, grid_size[1] - 1),
-        np.array(z.ravel()) / np.maximum(1, grid_size[2] - 1),
+    x, y, z = np.mgrid[0:grid_size[0], 0:grid_size[1], 0:grid_size[2]]
+    xyz = jnp.stack([
+        jnp.array(x.ravel()) / jnp.maximum(1, grid_size[0] - 1),
+        jnp.array(y.ravel()) / jnp.maximum(1, grid_size[1] - 1),
+        jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
     out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode)
@@ -77,14 +77,14 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     keys = jax.random.split(self.rng, 3)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
-    a = a.ravel() / np.sum(a)
-    b = b.ravel() / np.sum(b)
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
-    x, y, z = onp.mgrid[0:grid_size[0], 0:grid_size[1], 0:grid_size[2]]
-    xyz = np.stack([
-        np.array(x.ravel()) / np.maximum(1, grid_size[0] - 1),
-        np.array(y.ravel()) / np.maximum(1, grid_size[1] - 1),
-        np.array(z.ravel()) / np.maximum(1, grid_size[2] - 1),
+    x, y, z = np.mgrid[0:grid_size[0], 0:grid_size[1], 0:grid_size[2]]
+    xyz = jnp.stack([
+        jnp.array(x.ravel()) / jnp.maximum(1, grid_size[0] - 1),
+        jnp.array(y.ravel()) / jnp.maximum(1, grid_size[1] - 1),
+        jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
     sink_mat = sinkhorn.sinkhorn(geom_mat, a=a, b=b, lse_mode=lse_mode)
@@ -93,12 +93,12 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     batch_a = 3
     batch_b = 4
     vec_a = jax.random.normal(keys[4], [batch_a,
-                                        onp.prod(onp.array(grid_size))])
+                                        np.prod(np.array(grid_size))])
     vec_b = jax.random.normal(keys[4], [batch_b,
-                                        onp.prod(grid_size)])
+                                        np.prod(grid_size)])
 
-    vec_a = vec_a / np.sum(vec_a, axis=1)[:, np.newaxis]
-    vec_b = vec_b / np.sum(vec_b, axis=1)[:, np.newaxis]
+    vec_a = vec_a / jnp.sum(vec_a, axis=1)[:, jnp.newaxis]
+    vec_b = vec_b / jnp.sum(vec_b, axis=1)[:, jnp.newaxis]
 
     mat_transport_t_vec_a = geom_mat.apply_transport_from_potentials(
         sink_mat.f, sink_mat.g, vec_a, axis=0)
@@ -112,7 +112,8 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
     self.assertAllClose(mat_transport_t_vec_a, grid_transport_t_vec_a)
     self.assertAllClose(mat_transport_vec_b, grid_transport_vec_b)
-    self.assertIsNot(np.any(np.isnan(mat_transport_t_vec_a)), True)
+    self.assertIsNot(jnp.any(jnp.isnan(mat_transport_t_vec_a)), True)
+
 
 if __name__ == '__main__':
   absltest.main()

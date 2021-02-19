@@ -17,9 +17,9 @@
 """Tests for matrix square roots."""
 from absl.testing import absltest
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
-from ott.core.geometry import matrix_square_root
+from ott.geometry import matrix_square_root
 
 
 class MatrixSquareRootTest(jax.test_util.JaxTestCase):
@@ -36,21 +36,22 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
     matrices = jax.random.normal(self.rng, (self.batch, self.dim, 2 * self.dim))
 
     for x in (matrices, matrices[0, :, :]):  # try with many and only one.
-      x = np.matmul(x, np.swapaxes(x, -1, -2))
+      x = jnp.matmul(x, jnp.swapaxes(x, -1, -2))
       threshold = 1e-4
 
       sqrt_x, inv_sqrt_x, errors = matrix_square_root.sqrtm(x, self.dim,
                                                             threshold)
       err = errors[errors > -1][-1]
       self.assertGreater(threshold, err)
-      self.assertAllClose(x, np.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3)
-      ids = np.eye(self.dim)
-      if np.ndim(x) == 3:
-        ids = ids[np.newaxis, :, :]
+      self.assertAllClose(x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3)
+      ids = jnp.eye(self.dim)
+      if jnp.ndim(x) == 3:
+        ids = ids[jnp.newaxis, :, :]
       self.assertAllClose(
-          np.zeros_like(x),
-          np.matmul(x, np.matmul(inv_sqrt_x, inv_sqrt_x)) - ids,
+          jnp.zeros_like(x),
+          jnp.matmul(x, jnp.matmul(inv_sqrt_x, inv_sqrt_x)) - ids,
           atol=1e-2)
+
 
 if __name__ == '__main__':
   absltest.main()

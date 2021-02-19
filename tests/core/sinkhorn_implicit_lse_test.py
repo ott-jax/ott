@@ -19,16 +19,16 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 
 from ott.core import sinkhorn
-from ott.core.geometry import geometry
-from ott.core.geometry import pointcloud
+from ott.geometry import geometry
+from ott.geometry import pointcloud
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):
-  """Several tests carried out to check the integrity of the Sinkhorn loop."""
+  """Check implicit and autodiff match for Sinkhorn."""
 
   def setUp(self):
     super().setUp()
@@ -42,8 +42,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,)) + .1
     b = jax.random.uniform(rngs[3], (self.m,)) + .1
-    self.a = a / np.sum(a)
-    self.b = b / np.sum(b)
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
 
   @parameterized.parameters([True])
   def test_implicit_differentiation_versus_autodiff(self, lse_mode):
@@ -52,9 +52,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     def loss_g(a, x, implicit=True):
       out = sinkhorn.sinkhorn(
           geometry.Geometry(
-              cost_matrix=np.sum(x**2, axis=1)[:, np.newaxis] +
-              np.sum(self.y**2, axis=1)[np.newaxis, :] -
-              2 * np.dot(x, self.y.T),
+              cost_matrix=jnp.sum(x**2, axis=1)[:, jnp.newaxis] +
+              jnp.sum(self.y**2, axis=1)[jnp.newaxis, :] -
+              2 * jnp.dot(x, self.y.T),
               epsilon=epsilon),
           a=a,
           b=self.b,
@@ -91,10 +91,10 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
       # test gradient w.r.t. a works and gradient implicit ~= gradient autodiff
       delta = jax.random.uniform(self.rngs[4], (self.n,)) / 10
-      delta = delta - np.mean(delta)  # center perturbation
+      delta = delta - jnp.mean(delta)  # center perturbation
       reg_ot_delta_plus = loss(self.a + eps * delta, self.x)
       reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
-      delta_dot_grad = np.sum(delta * grad_loss_imp[0])
+      delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
       self.assertAllClose(
           delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
@@ -103,8 +103,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       # determined up to additive constant here (the primal variable is in the
       # simplex).
       self.assertAllClose(
-          grad_loss_imp[0] - np.mean(grad_loss_imp[0]),
-          grad_loss_auto[0] - np.mean(grad_loss_auto[0]),
+          grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
+          grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
           rtol=1e-02,
           atol=1e-02)
 
@@ -112,7 +112,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       delta = jax.random.uniform(self.rngs[4], (self.n, self.dim))
       reg_ot_delta_plus = loss(self.a, self.x + eps * delta)
       reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
-      delta_dot_grad = np.sum(delta * grad_loss_imp[1])
+      delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
       self.assertAllClose(
           delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,

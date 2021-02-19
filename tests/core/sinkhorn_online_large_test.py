@@ -19,10 +19,10 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
 from ott.core import sinkhorn
-from ott.core.geometry import pointcloud
+from ott.geometry import pointcloud
 
 
 class SinkhornOnlineTest(jax.test_util.JaxTestCase):
@@ -38,8 +38,8 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
-    self.a = a / np.sum(a)
-    self.b = b / np.sum(b)
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
 
   @parameterized.parameters([True], [False])
   def test_euclidean_point_cloud(self, lse_mode):

@@ -15,5 +15,5 @@
 
 """OTT tools."""
 
-from . import discrete_barycenter
+from . import sinkhorn_divergence
 from . import soft_sort

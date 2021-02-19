@@ -19,12 +19,11 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import jax.test_util
-
-from ott.core.geometry import grid
-from ott.core.geometry import pointcloud
-from ott.tools import discrete_barycenter as db
+from ott.core import discrete_barycenter as db
+from ott.geometry import grid
+from ott.geometry import pointcloud
 
 
 class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
@@ -57,24 +56,24 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
       https://arxiv.org/abs/2006.02575
       epsilon: float, regularization parameter
     """
-    size = np.array([5, 5, 5])
+    size = jnp.array([5, 5, 5])
     grid_3d = grid.Grid(grid_size=size, epsilon=epsilon)
-    a = np.ones(size)
-    b = np.ones(size)
+    a = jnp.ones(size)
+    b = jnp.ones(size)
     a = a.ravel()
     b = b.ravel()
     a = jax.ops.index_update(a, 0, 10000)
     b = jax.ops.index_update(b, -1, 10000)
-    a = a / np.sum(a)
-    b = b / np.sum(b)
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
     threshold = 1e-2
     _, _, bar, errors = db.discrete_barycenter(
-        grid_3d, a=np.stack((a, b)), threshold=threshold,
+        grid_3d, a=jnp.stack((a, b)), threshold=threshold,
         lse_mode=lse_mode,
         debiased=debiased)
-    self.assertGreater(bar[(np.prod(size) - 1) // 2], 0.7)
-    self.assertGreater(1, bar[(np.prod(size) - 1) // 2])
-    err = errors[np.isfinite(errors)][-1]
+    self.assertGreater(bar[(jnp.prod(size) - 1) // 2], 0.7)
+    self.assertGreater(1, bar[(jnp.prod(size) - 1) // 2])
+    err = errors[jnp.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
   @parameterized.named_parameters(
@@ -100,22 +99,22 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
     ma = 0.2
     mb = 0.8
     # define two narrow Gaussian bumps in segment [0,1]
-    a = np.exp(-(np.arange(0, n) / (n - 1) - ma)**2 / .01) + 1e-10
-    b = np.exp(-(np.arange(0, n) / (n - 1) - mb)**2 / .01) + 1e-10
-    a = a / np.sum(a)
-    b = b / np.sum(b)
+    a = jnp.exp(-(jnp.arange(0, n) / (n - 1) - ma)**2 / .01) + 1e-10
+    b = jnp.exp(-(jnp.arange(0, n) / (n - 1) - mb)**2 / .01) + 1e-10
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
 
     # positions on the real line where weights are supported.
-    x = np.atleast_2d(np.arange(0, n) / (n - 1)).T
+    x = jnp.atleast_2d(jnp.arange(0, n) / (n - 1)).T
 
     # choose a different support, half the size, for the barycenter.
     # note this is the reason why we do not use debiasing in this case.
-    x_support_bar = np.atleast_2d((np.arange(0, (n / 2)) /
+    x_support_bar = jnp.atleast_2d((jnp.arange(0, (n / 2)) /
                                    (n / 2 - 1) - .5) * .9 + .5).T
 
     geom = pointcloud.PointCloud(x, x_support_bar, epsilon=epsilon)
     bar = db.discrete_barycenter(
-        geom, a=np.stack((a, b)), lse_mode=lse_mode).histogram
+        geom, a=jnp.stack((a, b)), lse_mode=lse_mode).histogram
     # check the barycenter has bump in the middle.
     self.assertGreater(bar[n // 4], 0.1)
 
