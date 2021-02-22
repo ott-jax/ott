@@ -9,6 +9,14 @@ problems: compute the wasserstein distance, the sinkhorn divergences, the
 transport matrix, etc.
 
 
+Optimal Transport
+-----------------
+.. autosummary::
+  :toctree: _autosummary
+
+    transport.Transport
+
+
 Sinkhorn Divergence
 -------------------
 .. autosummary::
