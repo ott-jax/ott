@@ -49,6 +49,8 @@ class Geometry:
 
   @property
   def cost_matrix(self):
+    if self._cost_matrix is None:
+      return -self.epsilon * jnp.log(self._kernel_matrix)
     return self._cost_matrix
 
   @property

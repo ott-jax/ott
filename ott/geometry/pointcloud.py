@@ -31,9 +31,9 @@ class PointCloud(geometry.Geometry):
   def __init__(self,
                x: jnp.ndarray,
                y: jnp.ndarray = None,
+               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
-               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                online: bool = False,
                **kwargs):
     """Creates a geometry from two point clouds, using distance or cost/norm.
@@ -50,9 +50,9 @@ class PointCloud(geometry.Geometry):
     Args:
       x : n x d array of n d-dimensional vectors
       y : m x d array of m d-dimensional vectors
+      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       cost_fn: a CostFn function between two points in dimension d.
       power: a power to raise (norm(x) + norm(y) + cost_fn(x,y)) **
-      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       online: whether to run the online version of the computation or not. The
         online computation is particularly useful for big point clouds such that
         their cost matrix does not fit in memory.
@@ -173,12 +173,13 @@ class PointCloud(geometry.Geometry):
     return tuple(cls(*xy, **kwargs) for xy in couples)
 
   def tree_flatten(self):
-    return (self.x, self.y, self._cost_fn, self.power,
-            self.epsilon), {'online': self._online}
+    return ((self.x, self.y, self.epsilon, self._cost_fn, self.power),
+            {'online': self._online})
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:4], epsilon=children[-1], **aux_data)
+    eps, fn, power = children[2:]
+    return cls(*children[:2], epsilon=eps, cost_fn=fn, power=power, **aux_data)
 
 
 def _apply_lse_kernel_xy(x, y, norm_x, norm_y, f, g, eps,

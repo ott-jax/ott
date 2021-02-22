@@ -61,15 +61,15 @@ class Grid(geometry.Geometry):
 
     Args:
       x : list of arrays of varying sizes, describing the locations of the grid.
-        Locations are provided as a list of jnp.ndarrays, that is d vectors of
-        (possibly varying) size :math:`n_i`. The resulting grid is the Cartesian
-        product of these vectors.
+        Locations are provided as a list of jnp.ndarrays, that is :math:`d`
+        vectors of (possibly varying) size :math:`n_i`. The resulting grid
+        is the Cartesian product of these vectors.
       grid_size: t-uple of integers describing grid sizes, namely
-        :math:`(n_1,...,n_d)`. This will only be used if :math:`x` is None.
+        :math:`(n_1,...,n_d)`. This will only be used if x is None.
         In that case the grid will be assumed to lie in the hypercube
-        :math:`[0,1]^d`, with the :math:`d` dimensions described as points
+        :math:`[0,1]^d`, with the :math:`d` dimensions, described as points
         regularly sampled in [0,1].
-      cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taken
+      cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taking
         two reals as inputs to output a real number.
       num_a: total size of grid. This parameters will be computed from other
         inputs and used in the flatten/unflatten functions.

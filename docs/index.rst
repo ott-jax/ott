@@ -11,6 +11,7 @@ The Optimal Transport Tools documentation
    :caption: Tutorials:
 
    notebooks/point_clouds.ipynb
+   notebooks/introduction_grid.ipynb
    notebooks/application_biology.ipynb
 
 

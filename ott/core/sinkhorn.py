@@ -178,7 +178,8 @@ def sinkhorn(geom: geometry.Geometry,
      out before the error is computed and monitored.
     max_iterations: (int32) the maximum number of Sinkhorn iterations.
     momentum_strategy: either a float between ]0,2[ or a string.
-    lse_mode: True for log-sum-exp computations, False for kernel multiply.
+    lse_mode: True for log-sum-exp computations, False for kernel
+      multiplication.
     implicit_differentiation: True if using implicit diff, False if backprop.
 
   Returns:
