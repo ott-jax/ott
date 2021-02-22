@@ -13,16 +13,14 @@
 # limitations under the License.
 
 """Setup script for installing group_testing as a pip module."""
+import os
 import setuptools
 
 VERSION = '0.1.0'
 
-install_requires = [
-    'absl-py>=0.7.0',
-    'jax>=0.1.67',
-    'jaxlib>=0.1.47',
-    'numpy>=1.18.4',
-]
+folder = os.path.dirname(__file__)
+with open(os.path.join(folder, 'requirements.txt')) as fp:
+  install_requires = [line.strip() for line in fp]
 
 description = ('OTT: Optimal Transport Tools in Jax.')
 

@@ -24,7 +24,7 @@ from ott.geometry import matrix_square_root
 
 
 def dot(x: jnp.ndarray, y: jnp.ndarray):
-  """ Accelerator dependent dot. Implemented to avoid OOMs with online mode."""
+  """Accelerator dependent dot. Implemented to avoid OOMs with online mode."""
   platform = xla_bridge.get_backend().platform
   return jnp.sum(x * y) if platform == 'gpu' else jnp.vdot(x, y)
 
