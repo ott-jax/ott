@@ -128,8 +128,10 @@ def fixpoint_iter_bwd(
   """Backward iteration of fixed point iteration, using checkpointed states."""
   del cond_fn, min_iterations, max_iterations
   constants, iteration, states = res
-  g_constants = jax.tree_map(lambda x: jnp.zeros_like(x, dtype=x.dtype),
-                             constants)
+  # The tree may contain some python floats
+  g_constants = jax.tree_map(
+      lambda x: jnp.zeros_like(x, dtype=x.dtype)
+      if isinstance(x, jnp.ndarray) else 0, constants)
 
   def bwd_cond_fn(iteration_g_gconst):
     iteration, _, _ = iteration_g_gconst

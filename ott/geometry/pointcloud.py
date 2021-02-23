@@ -120,9 +120,11 @@ class PointCloud(geometry.Geometry):
     if not self._online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
-    app = jax.jit(jax.vmap(_apply_lse_kernel_xy, in_axes=[
-                None, 0, None, self._axis_norm, None, 0, None, None, None, None]
-                           ))
+    app = jax.vmap(
+        _apply_lse_kernel_xy,
+        in_axes=[
+            None, 0, None, self._axis_norm, None, 0, None, None, None, None
+        ])
 
     if axis == 0:
       h_res, h_sgn = app(self.x, self.y, self._norm_x, self._norm_y, f, g, eps,
@@ -138,8 +140,8 @@ class PointCloud(geometry.Geometry):
     if not self._online:
       return super().apply_kernel(scaling, eps, axis)
 
-    app = jax.jit(jax.vmap(_apply_kernel_xy, in_axes=[
-        None, 0, None, self._axis_norm, None, None, None, None]))
+    app = jax.vmap(_apply_kernel_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, None, None, None])
     if axis == 0:
       return app(self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
                  self._cost_fn, self.power)
@@ -152,16 +154,16 @@ class PointCloud(geometry.Geometry):
   def transport_from_potentials(self, f, g):
     if not self._online:
       return super().transport_from_potentials(f, g)
-    transport = jax.jit(jax.vmap(_transport_from_potentials_xy, in_axes=[
-        None, 0, None, self._axis_norm, None, 0, None, None, None]))
+    transport = jax.vmap(_transport_from_potentials_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, 0, None, None, None])
     return transport(self.y, self.x, self._norm_y, self._norm_x, g, f,
                      self.epsilon, self._cost_fn, self.power)
 
   def transport_from_scalings(self, u, v):
     if not self._online:
       return super().transport_from_scalings(u, v)
-    transport = jax.jit(jax.vmap(_transport_from_scalings_xy, in_axes=[
-        None, 0, None, self._axis_norm, None, 0, None, None, None]))
+    transport = jax.vmap(_transport_from_scalings_xy, in_axes=[
+        None, 0, None, self._axis_norm, None, 0, None, None, None])
     return transport(self.y, self.x, self._norm_y, self._norm_x, v, u,
                      self.epsilon, self._cost_fn, self.power)
 
@@ -205,5 +207,5 @@ def _transport_from_scalings_xy(x, y, norm_x, norm_y, u, v, eps, cost_fn,
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow):
-  one_line_dotprod = jax.jit(jax.vmap(cost_fn.dotprod, in_axes=[0, None]))
+  one_line_dotprod = jax.vmap(cost_fn.dotprod, in_axes=[0, None])
   return (norm_x + norm_y - one_line_dotprod(x, y)) ** (0.5 * cost_pow)

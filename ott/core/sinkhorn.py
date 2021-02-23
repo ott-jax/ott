@@ -19,7 +19,8 @@
 import collections
 import functools
 import numbers
-from typing import Optional, Sequence, Union
+from typing import Any
+from typing import Optional, Sequence, Union, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -32,19 +33,22 @@ SinkhornOutput = collections.namedtuple(
     'SinkhornOutput', ['f', 'g', 'reg_ot_cost', 'errors', 'converged'])
 
 
-def sinkhorn(geom: geometry.Geometry,
-             a: Optional[jnp.ndarray] = None,
-             b: Optional[jnp.ndarray] = None,
-             tau_a: float = 1.0,
-             tau_b: float = 1.0,
-             threshold: float = 1e-3,
-             norm_error: int = 1,
-             inner_iterations: int = 10,
-             min_iterations: int = 0,
-             max_iterations: int = 2000,
-             momentum_strategy: Optional[Union[float, str]] = None,
-             lse_mode: bool = True,
-             implicit_differentiation: bool = True) -> SinkhornOutput:
+def sinkhorn(
+    geom: geometry.Geometry,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    threshold: float = 1e-3,
+    norm_error: int = 1,
+    inner_iterations: int = 10,
+    min_iterations: int = 0,
+    max_iterations: int = 2000,
+    momentum_strategy: Optional[Union[float, str]] = None,
+    lse_mode: bool = True,
+    implicit_differentiation: bool = True,
+    jit: bool = False,
+) -> SinkhornOutput:
   r"""Solves regularized OT problems using Sinkhorn iterations.
 
   The Sinkhorn algorithm is a fixed point algorithm that seeks a pair of
@@ -181,6 +185,10 @@ def sinkhorn(geom: geometry.Geometry,
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
     implicit_differentiation: True if using implicit diff, False if backprop.
+    jit: bool, if True, jits the function.
+      Should be set to False when used in a function that is jitted by the user,
+      or when computing gradients (in which case the gradient function
+      should be jitted by the user)
 
   Returns:
     a SinkhornOutput named tuple.
@@ -188,6 +196,32 @@ def sinkhorn(geom: geometry.Geometry,
   Raises:
     ValueError: If momentum parameter is not set correctly, or to a wrong value.
   """
+  if jit:
+    call_to_sinkhorn = functools.partial(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9, 10, 11, 12))(
+            _sinkhorn)
+  else:
+    call_to_sinkhorn = _sinkhorn
+  return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
+                          inner_iterations, min_iterations, max_iterations,
+                          momentum_strategy, lse_mode, implicit_differentiation)
+
+
+def _sinkhorn(
+    geom: geometry.Geometry,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    threshold: float = 1e-3,
+    norm_error: int = 1,
+    inner_iterations: int = 10,
+    min_iterations: int = 0,
+    max_iterations: int = 2000,
+    momentum_strategy: Optional[Union[float, str]] = None,
+    lse_mode: bool = True,
+    implicit_differentiation: bool = True,
+) -> SinkhornOutput:
   num_a, num_b = geom.shape
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
@@ -219,16 +253,14 @@ def sinkhorn(geom: geometry.Geometry,
                      ' set to 1 one recovers the usual Sinkhorn updates) or '
                      'a valid string.')
   if implicit_differentiation:
-    f, g, errors = _sinkhorn_iterations_implicit(
-        (threshold, norm_error, tau_a, tau_b, inner_iterations, min_iterations,
-         max_iterations, momentum_default, chg_momentum_from, lse_mode, True),
-        (geom, a, b))
+    iteration_fun = _sinkhorn_iterations_implicit
   else:
-    f, g, errors = _sinkhorn_iterations(
-        geom, a, b, threshold, norm_error, tau_a, tau_b, inner_iterations,
-        min_iterations, max_iterations, momentum_default, chg_momentum_from,
-        lse_mode, False)
-
+    iteration_fun = _sinkhorn_iterations
+  f, g, errors = iteration_fun(tau_a, tau_b, inner_iterations, min_iterations,
+                               max_iterations, momentum_default,
+                               chg_momentum_from, lse_mode,
+                               implicit_differentiation, threshold, norm_error,
+                               geom, a, b)
   reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b, f, g)
   converged = jnp.logical_and(
       jnp.sum(errors == -1) > 0,
@@ -236,47 +268,53 @@ def sinkhorn(geom: geometry.Geometry,
   return SinkhornOutput(f, g, reg_ot_cost, errors, converged)
 
 
-@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8, 9, 10, 11, 12, 13))
-def _sinkhorn_iterations(geom: geometry.Geometry,
-                         a: jnp.ndarray,
-                         b: jnp.ndarray,
-                         threshold: float,
-                         norm_error: Sequence[int],
-                         tau_a: float,
-                         tau_b: float,
-                         inner_iterations,
-                         min_iterations,
-                         max_iterations,
-                         momentum_default,
-                         chg_momentum_from,
-                         lse_mode,
-                         implicit) -> SinkhornOutput:
-  """Backprop friendly / implicitly differentiated, Jit'ed Sinkhorn loop.
+def _sinkhorn_iterations(
+    tau_a: float,
+    tau_b: float,
+    inner_iterations,
+    min_iterations,
+    max_iterations,
+    momentum_default,
+    chg_momentum_from,
+    lse_mode,
+    implicit_differentiation,
+    threshold: float,
+    norm_error: Sequence[int],
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  """The jittable Sinkhorn loop, that uses a custom backward or not.
 
   Args:
-    geom: a Geometry object.
-    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
-    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
-    threshold: (float) the relative threshold on the Sinkhorn error to stop the
-      Sinkhorn iterations.
-    norm_error: t-uple of int, p-norms of marginal / target errors to track
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
-     marginal and itself + epsilon regularizer used in the unbalanced
-     formulation.
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
     tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
-     marginal and itself + epsilon regularizer used in the unbalanced
-     formulation.
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
     inner_iterations: (int32) the Sinkhorn error is not recomputed at each
-       iteration but every inner_num_iter instead.
+      iteration but every inner_num_iter instead.
     min_iterations: (int32) the minimum number of Sinkhorn iterations.
     max_iterations: (int32) the maximum number of Sinkhorn iterations.
     momentum_default: float, a float between ]0,2[
     chg_momentum_from: int, # of iterations after which momentum is computed
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
-    implicit: True if implicit mode differentiation
+    implicit_differentiation: if True, do not backprop through the Sinkhorn
+      loop, but use the implicit function theorem on the fixed point optimality
+      conditions.
+    threshold: (float) the relative threshold on the Sinkhorn error to stop the
+      Sinkhorn iterations.
+    norm_error: t-uple of int, p-norms of marginal / target errors to track
+    geom: a Geometry object.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
+
   Returns:
-    a SinkhornOutput named tuple.
+    f: potential
+    g: potential
+    errors: ndarray of errors
   """
 
   # Defining the Sinkhorn loop, by setting initializations, body/cond.
@@ -359,7 +397,7 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   # differentiation is implicit, otherwise switch to the backprop friendly
   # version of that loop if using backprop to differentiate.
 
-  if implicit:
+  if implicit_differentiation:
     fix_point = fixed_point_loop.fixpoint_iter
   else:
     fix_point = fixed_point_loop.fixpoint_iter_backprop
@@ -374,22 +412,46 @@ def _sinkhorn_iterations(geom: geometry.Geometry,
   return f, g, errors[:, 0]
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(0,))
-def _sinkhorn_iterations_implicit(aux, constants) -> SinkhornOutput:
-  """Naked forward pass of the Sinkhorn algorithm when not differentiated."""
-  geom, a, b = constants
-  return _sinkhorn_iterations(geom, a, b, *aux)
-
-
-def _sinkhorn_iterations_implicit_fwd(aux, constants):
+def _sinkhorn_iterations_taped(
+    tau_a: float,
+    tau_b: float,
+    inner_iterations,
+    min_iterations,
+    max_iterations,
+    momentum_default,
+    chg_momentum_from,
+    lse_mode,
+    implicit_differentiation,
+    threshold: float,
+    norm_error: Sequence[int],
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  geom, a, b = constants
-
-  f, g, errors = _sinkhorn_iterations(geom, a, b, *aux)
+  f, g, errors = _sinkhorn_iterations(
+      tau_a,
+      tau_b,
+      inner_iterations,
+      min_iterations,
+      max_iterations,
+      momentum_default,
+      chg_momentum_from,
+      lse_mode,
+      implicit_differentiation,
+      threshold,
+      norm_error,
+      geom,
+      a,
+      b,
+  )
   return (f, g, errors), (f, g, geom, a, b)
 
 
-def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
+def _sinkhorn_iterations_implicit_bwd(
+    tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
+    momentum_default, chg_momentum_from, lse_mode, implicit_differentiation,
+    res, gr) -> Tuple[Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
@@ -406,7 +468,8 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
   Returns:
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
-  _, _, tau_a, tau_b, _, _, _, _, _, lse_mode, _ = aux
+  del inner_iterations, min_iterations, max_iterations, momentum_default
+  del chg_momentum_from, implicit_differentiation
   f, g, geom, a, b = res
   f_g = jnp.concatenate((f, g))
   # Ignores gradients info with respect to 'errors' output.
@@ -466,21 +529,22 @@ def _sinkhorn_iterations_implicit_bwd(aux, res, gr) -> SinkhornOutput:
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
   g_geom, g_a, g_b = pull_geom_a_b(vjp_gr)
-  return (g_geom, g_a, g_b),
+  # First gradient are for threshold and norm_errors: we set them to None
+  return None, None, g_geom, g_a, g_b
 
-_sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_implicit_fwd,
+
+# We set threshold, norm_errors, geom, a and b to be differentiable
+# as those are non static.
+_sinkhorn_iterations_implicit = functools.partial(
+    jax.custom_vjp, nondiff_argnums=range(9))(
+        _sinkhorn_iterations)
+_sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
 
 
-def marginal_error(geom: geometry.Geometry,
-                   a: jnp.ndarray,
-                   b: jnp.ndarray,
-                   tau_a: float,
-                   tau_b: float,
-                   f_u: jnp.ndarray,
-                   g_v: jnp.ndarray,
-                   norm_error: int,
-                   lse_mode) -> jnp.ndarray:
+def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
+                   tau_a: float, tau_b: float, f_u: jnp.ndarray,
+                   g_v: jnp.ndarray, norm_error: int, lse_mode) -> jnp.ndarray:
   """Conputes marginal error, the stopping criterion used to terminate Sinkhorn.
 
   Args:
@@ -488,11 +552,11 @@ def marginal_error(geom: geometry.Geometry,
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
-     marginal and itself + epsilon regularizer used in the unbalanced
-     formulation.
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
     tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
-     marginal and itself + epsilon regularizer used in the unbalanced
-     formulation.
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
     f_u: jnp.ndarray, potential or scaling
     g_v: jnp.ndarray, potential or scaling
     norm_error: int, p-norm used to compute error.

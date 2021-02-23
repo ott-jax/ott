@@ -46,9 +46,6 @@ class CostFn(abc.ABC):
   def dotprod(self, x, y):
     pass
 
-  def norm(self, x):
-    raise NotImplementedError
-
   def __call__(self, x, y):
     return self.norm(x) + self.norm(y) - self.dotprod(x, y)
 
