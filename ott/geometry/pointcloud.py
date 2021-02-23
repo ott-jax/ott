@@ -61,11 +61,7 @@ class PointCloud(geometry.Geometry):
     super().__init__(epsilon=epsilon, **kwargs)
 
     self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
-    norm_op = getattr(self._cost_fn, 'norm', None)
-    if norm_op is not None and callable(norm_op):
-      self._axis_norm = 0
-    else:
-      self._axis_norm = None
+    self._axis_norm = 0 if callable(self._cost_fn.norm) else None
 
     self.x = x
     self.y = y

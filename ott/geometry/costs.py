@@ -42,12 +42,15 @@ class CostFn(abc.ABC):
   If the norm function is not implemented, that value is handled as a 0.
   """
 
+  norm = None  #  no norm function created by default.
+
   @abc.abstractmethod
   def dotprod(self, x, y):
     pass
 
   def __call__(self, x, y):
-    return self.norm(x) + self.norm(y) - self.dotprod(x, y)
+    return - self.dotprod(x, y) + (
+        0 if self.norm is None else self.norm(x) + self.norm(y))  # pylint: disable=not-callable
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)

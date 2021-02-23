@@ -64,7 +64,7 @@ class TransportTest(jax.test_util.JaxTestCase):
     with self.assertRaises(ValueError):
       transport.Transport(geom, x, threshold=1e-3)
 
-    with self.assertRaises(ValueError):
+    with self.assertRaises(AttributeError):
       transport.Transport(x, y, x, y, threshold=1e-3)
 
 
