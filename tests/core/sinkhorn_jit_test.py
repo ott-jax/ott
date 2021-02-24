@@ -13,16 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Jitting test for Sinkhorn"""
+"""Jitting test for Sinkhorn."""
 import functools
 
-import chex
 from absl.testing import absltest
 from absl.testing import parameterized
+import chex
 import jax
 import jax.numpy as jnp
 import jax.test_util
-
 from ott.core import sinkhorn
 from ott.geometry import geometry
 
@@ -44,6 +43,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,)) + .1
     b = jax.random.uniform(rngs[3], (self.m,)) + .1
+
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
     self.epsilon = 0.05

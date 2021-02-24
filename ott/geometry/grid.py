@@ -155,7 +155,7 @@ class Grid(geometry.Geometry):
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
-      a vector, the result of kernel applied in lse space.
+      a vector, the result of kernel applied in lse space onto vec.
     """
     f, g = jnp.reshape(f, self.grid_size), jnp.reshape(g, self.grid_size)
 
@@ -167,7 +167,7 @@ class Grid(geometry.Geometry):
 
     for dimension in range(self.grid_dimension):
       g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
-      g -= f
+      g -= jnp.where(jnp.isfinite(f), f, 0)
     if vec is None:
       vec = jnp.array(1.0)
     return g.ravel(), vec.ravel()
@@ -201,18 +201,18 @@ class Grid(geometry.Geometry):
 
     See notes in parent class for use.
 
-    Reshapes vector inputs below as grids, applies kernels onto each slice, and
-    then expands the outputs as vectors.
+    Reshapes scaling vector as a grid, applies kernels onto each slice, and
+    then ravels backs the output as a vector.
 
     More implementation details in https://arxiv.org/pdf/1708.01955.pdf
 
     Args:
-      scaling: jnp.ndarray, a vector of scaling (>0) values
+      scaling: jnp.ndarray, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
-      a vector, the result of kernel applied in lse space.
+      a vector, the result of kernel applied onto scaling.
     """
     scaling = jnp.reshape(scaling, self.grid_size)
     indices = list(range(1, self.grid_dimension))

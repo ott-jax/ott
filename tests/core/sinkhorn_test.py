@@ -40,6 +40,10 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
+
+    #  adding zero weights to test proper handling
+    a = jax.ops.index_update(a, 0, 0)
+    b = jax.ops.index_update(b, 3, 0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
@@ -317,12 +321,14 @@ class SinkhornTest(jax.test_util.JaxTestCase):
             jnp.dot(transport, vec_b.T).T,
             rtol=1e-3,
             atol=1e-3)
-
+        self.assertIsNot(jnp.any(jnp.isnan(transport_t_vec_a[i + 2 * j])),
+                         True)
     for i in range(4):
       self.assertAllClose(
           transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3)
       self.assertAllClose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
+
 
 
 if __name__ == '__main__':

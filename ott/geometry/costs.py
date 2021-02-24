@@ -69,7 +69,7 @@ class CostFn(abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):
-  """The cost function corresponding to the squared euclidean distance."""
+  """Squared Euclidean distance cost function."""
 
   def norm(self, x):
     return jnp.sum(x ** 2, axis=-1)
@@ -80,7 +80,7 @@ class Euclidean(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
-  """Implements norm of a (mean, cov matrix) pair given in vector form."""
+  """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
 
   def __init__(self, dimension, **kwargs):
     super().__init__()

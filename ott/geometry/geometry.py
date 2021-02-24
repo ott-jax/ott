@@ -115,7 +115,8 @@ class Geometry:
       A jnp.ndarray corresponding to output above, depending on axis.
     """
     w_res, w_sgn = self._softmax(f, g, eps, vec, axis)
-    return w_res - (f if axis == 1 else g), w_sgn
+    remove = f if axis == 1 else g
+    return w_res - jnp.where(jnp.isfinite(remove), remove, 0), w_sgn
 
   def apply_kernel(self, scaling: jnp.ndarray, eps=None, axis=0):
     """Applies kernel on positive scaling vector.
@@ -214,7 +215,8 @@ class Geometry:
       new potential value, g if axis=0, f if axis is 1.
     """
     eps = self._epsilon.at(iteration)
-    return eps * log_marginal - self.apply_lse_kernel(f, g, eps, axis=axis)[0]
+    app_lse = self.apply_lse_kernel(f, g, eps, axis=axis)[0]
+    return eps * log_marginal - jnp.where(jnp.isfinite(app_lse), app_lse, 0)
 
   def update_scaling(self, scaling, marginal, iteration=None, axis=0):
     """Carries out one Sinkhorn update for scalings, using kernel directly.
@@ -230,7 +232,8 @@ class Geometry:
     """
 
     eps = self._epsilon.at(iteration)
-    return marginal / self.apply_kernel(scaling, eps, axis=axis)
+    app_kernel = self.apply_kernel(scaling, eps, axis=axis)
+    return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
   # Helper functions
   def _center(self, f: jnp.ndarray, g: jnp.ndarray):

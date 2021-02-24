@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2021 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,29 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Setup script for installing group_testing as a pip module."""
+"""Setup script for installing ott as a pip module."""
 import os
 import setuptools
 
-VERSION = '0.1.0'
 
+# Reads the version from ott
+__version__ = None
+with open('ott/version.py') as f:
+  exec(f.read(), globals())
+
+
+# Reads the requirements from requirements.txt
 folder = os.path.dirname(__file__)
 with open(os.path.join(folder, 'requirements.txt')) as fp:
   install_requires = [line.strip() for line in fp]
 
-description = ('OTT: Optimal Transport Tools in Jax.')
 
-
-setuptools.setup(
-    name='ott',
-    version=VERSION,
-    packages=setuptools.find_packages(),
-    description=description,
-    long_description=description,
-    url='https://github.com/google-research/ott',
-    author='Google LLC',
-    author_email='opensource@google.com',
-    install_requires=install_requires,
-    license='Apache 2.0',
-    keywords='optimal transport sinkhorn wasserstein jax',
-)
+setuptools.setup(version=__version__,
+                 install_requires=install_requires)

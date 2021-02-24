@@ -38,6 +38,9 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
+    #  adding zero weights to test proper handling
+    a = jax.ops.index_update(a, 0, 0)
+    b = jax.ops.index_update(b, 3, 0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
@@ -53,6 +56,7 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
         threshold=threshold,
         lse_mode=lse_mode,
         implicit_differentiation=True).errors
+    print(errors)
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 

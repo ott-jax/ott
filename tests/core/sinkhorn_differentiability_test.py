@@ -43,6 +43,9 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(keys[1], (m, d))
     a = jax.random.uniform(keys[2], (n,)) + eps
     b = jax.random.uniform(keys[3], (m,)) + eps
+    # Adding zero weights to test proper handling
+    a = jax.ops.index_update(a, 0, 0)
+    b = jax.ops.index_update(b, 3, 0)
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     geom = pointcloud.PointCloud(x, y, epsilon=0.1)
@@ -53,13 +56,16 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
     _, grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[4], (n,))
+    delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     delta = delta - jnp.mean(delta)  # center perturbation
+    delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     reg_ot_delta_plus = reg_ot(a + eps * delta, b)
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
     delta_dot_grad = jnp.sum(delta * grad_reg_ot)
     self.assertAllClose(delta_dot_grad,
                         (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
                         rtol=1e-03, atol=1e-02)
+    self.assertIsNot(jnp.any(jnp.isnan(delta_dot_grad)), True)
 
   @parameterized.parameters([True], [False])
   def test_gradient_sinkhorn_geometry(self, lse_mode):
@@ -101,6 +107,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
   @parameterized.named_parameters(
       dict(
@@ -160,7 +167,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
-
+    self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
 if __name__ == '__main__':
   absltest.main()

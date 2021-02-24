@@ -13,10 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""OTT library."""
+"""Current ott version."""
 
-from . import core
-from . import geometry
-from . import tools
-
-from .version import __version__
+__version__ = "0.1.1"

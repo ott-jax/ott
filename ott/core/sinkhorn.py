@@ -57,11 +57,10 @@ def sinkhorn(
   that is reached, a vector of errors computed during iterations and a flag.
 
   The reg-OT problem is specified by two measures, of respective sizes n and m.
-  From the viewpoint of this function, these two measures are only seen through
-  a geometry (a cost or kernel structure between their respective points)
-  and marginal probability vectors a and b. Essentially, all of the heavy
-  computations are carried out by the geometry object itself, as requested by
-  the sinkhorn function.
+  From the viewpoint of `sinkhorn` function, these two measures are only seen
+  through a geometry object `geom` (a cost or kernel structure between their
+  respective points) and weight vectors `a` and `b`. The Sinkhorn algorithm
+  direct the `geom` object to carry out the heaviest computations.
 
   Given a geometry, which provides either a cost matrix C with its
   regularization parameter :math:`\epsilon`, (resp. a cost matrix K) the reg-OT
@@ -150,15 +149,18 @@ def sinkhorn(
   outputs. This is the behaviour by default of sinkhorn.
 
   The Sinkhorn algorithm may not converge within the maximum number of
-  iterations for possibly two reasons:
+  iterations for possibly several reasons:
     1. the regularizer (defined as epsilon in the geometry geom object) is
       too small. Consider switching to lse_mode = True (at the price of a slower
       execution), increasing epsilon, or, alternatively, if you are sure that
-      value epsilon is correct, or your cannot modify it,
-      either increase max_iterations or threshold.
+      value epsilon is correct, or your cannot modify it, either increase
+      max_iterations or threshold.
     2. the probability weights a and b do not have the same total mass, while
       using a balanced (tau_a = tau_b = 1.0) setup. Consider either normalizing
       a and b, or set either tau_a and/or tau_b <1.0.
+    3. OOMs issues may arise when storing either cost or kernel matrices that
+      are too large in `geom`. In that case, in the case where, the `geom`
+      geometry is a `PointCloud`, set the `online` flag to `True`.
 
   Args:
     geom: a Geometry object.
@@ -220,8 +222,9 @@ def _sinkhorn(
     max_iterations: int = 2000,
     momentum_strategy: Optional[Union[float, str]] = None,
     lse_mode: bool = True,
-    implicit_differentiation: bool = True,
-) -> SinkhornOutput:
+    implicit_differentiation: bool = True) -> SinkhornOutput:
+  """Checks inputs and forks between implicit/backprop exec of Sinkhorn."""
+
   num_a, num_b = geom.shape
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
@@ -271,19 +274,18 @@ def _sinkhorn(
 def _sinkhorn_iterations(
     tau_a: float,
     tau_b: float,
-    inner_iterations,
-    min_iterations,
-    max_iterations,
-    momentum_default,
-    chg_momentum_from,
-    lse_mode,
-    implicit_differentiation,
+    inner_iterations: int,
+    min_iterations: int,
+    max_iterations: int,
+    momentum_default: float,
+    chg_momentum_from: int,
+    lse_mode: bool,
+    implicit_differentiation: bool,
     threshold: float,
     norm_error: Sequence[int],
     geom: geometry.Geometry,
     a: jnp.ndarray,
-    b: jnp.ndarray,
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    b: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """The jittable Sinkhorn loop, that uses a custom backward or not.
 
   Args:
@@ -328,7 +330,7 @@ def _sinkhorn_iterations(
                       len(norm_error)))
   const = (geom, a, b, threshold)
 
-  def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
+  def cond_fn(iteration, const, state):
     threshold = const[-1]
     errors = state[0]
     err = errors[iteration // inner_iterations-1, 0]
@@ -370,17 +372,19 @@ def _sinkhorn_iterations(
 
     # sinkhorn updates using momentum, in either scaling or potential form.
     if lse_mode:
-      g_v = (1.0 - w) * g_v + w * tau_b * geom.update_potential(
-          f_u, g_v, jnp.log(b), iteration,
-          axis=0)
-      f_u = (1.0 - w) * f_u + w * tau_a * geom.update_potential(
-          f_u, g_v, jnp.log(a), iteration,
-          axis=1)
+      new_g_v = tau_b * geom.update_potential(f_u, g_v, jnp.log(b),
+                                              iteration, axis=0)
+      g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0) + w * new_g_v
+
+      new_f_u = tau_a * geom.update_potential(f_u, g_v, jnp.log(a),
+                                              iteration, axis=1)
+      f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0) + w * new_f_u
     else:
-      g_v = g_v ** (1.0 - w) * (geom.update_scaling(
-          f_u, b, iteration, axis=0)**tau_b) ** w
-      f_u = f_u ** (1.0 - w) * (geom.update_scaling(
-          g_v, a, iteration, axis=1)**tau_a) ** w
+      new_g_v = geom.update_scaling(f_u, b, iteration, axis=0) ** tau_b
+      g_v = jnp.where(g_v > 0, g_v, 1) ** (1.0 - w) * new_g_v ** w
+
+      new_f_u = geom.update_scaling(g_v, a, iteration, axis=1) ** tau_a
+      f_u = jnp.where(f_u > 0, f_u, 1) ** (1.0 - w) * new_f_u ** w
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
@@ -415,36 +419,24 @@ def _sinkhorn_iterations(
 def _sinkhorn_iterations_taped(
     tau_a: float,
     tau_b: float,
-    inner_iterations,
-    min_iterations,
-    max_iterations,
-    momentum_default,
-    chg_momentum_from,
-    lse_mode,
-    implicit_differentiation,
+    inner_iterations: int,
+    min_iterations: int,
+    max_iterations: int,
+    momentum_default: float,
+    chg_momentum_from: int,
+    lse_mode: bool,
+    implicit_differentiation: bool,
     threshold: float,
     norm_error: Sequence[int],
     geom: geometry.Geometry,
     a: jnp.ndarray,
-    b: jnp.ndarray,
-):
+    b: jnp.ndarray):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  f, g, errors = _sinkhorn_iterations(
-      tau_a,
-      tau_b,
-      inner_iterations,
-      min_iterations,
-      max_iterations,
-      momentum_default,
-      chg_momentum_from,
-      lse_mode,
-      implicit_differentiation,
-      threshold,
-      norm_error,
-      geom,
-      a,
-      b,
-  )
+  f, g, errors = _sinkhorn_iterations(tau_a, tau_b, inner_iterations,
+                                      min_iterations, max_iterations,
+                                      momentum_default, chg_momentum_from,
+                                      lse_mode, implicit_differentiation,
+                                      threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
 
 
@@ -455,8 +447,22 @@ def _sinkhorn_iterations_implicit_bwd(
   """Runs Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
-    aux: auxiliary data that was used, as is, in the forward pass. Most of it
-      ends up un-used here, except for parameters used to define first order
+    tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
+    tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
+    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
+      iteration but every inner_num_iter instead.
+    min_iterations: (int32) the minimum number of Sinkhorn iterations.
+    max_iterations: (int32) the maximum number of Sinkhorn iterations.
+    momentum_default: float, a float between ]0,2[
+    chg_momentum_from: int, # of iterations after which momentum is computed
+    lse_mode: True for log-sum-exp computations, False for kernel
+      multiplication.
+    implicit_differentiation: if True, do not backprop through the Sinkhorn
+      loop, but use the implicit function theorem on the fixed point optimality
       conditions.
     res: residual data sent from fwd pass, used for computations below. In this
       case consists in the output itself, as well as inputs against which we

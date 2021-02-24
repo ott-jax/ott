@@ -125,11 +125,11 @@ class PointCloud(geometry.Geometry):
     if axis == 0:
       h_res, h_sgn = app(self.x, self.y, self._norm_x, self._norm_y, f, g, eps,
                          vec, self._cost_fn, self.power)
-      h_res = eps * h_res - g
+      h_res = eps * h_res - jnp.where(jnp.isfinite(g), g, 0)
     if axis == 1:
       h_res, h_sgn = app(self.y, self.x, self._norm_y, self._norm_x, g, f, eps,
                          vec, self._cost_fn, self.power)
-      h_res = eps * h_res - f
+      h_res = eps * h_res - jnp.where(jnp.isfinite(f), f, 0)
     return h_res, h_sgn
 
   def apply_kernel(self, scaling: jnp.ndarray, eps: float, axis=0):

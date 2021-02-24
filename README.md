@@ -12,7 +12,7 @@ An typical OT problem has two main ingredients: a pair of weight vectors `a` and
 
 ## Example
 
-```
+```py
 import jax
 from ott.geometry import pointcloud
 from ott.core import sinkhorn
