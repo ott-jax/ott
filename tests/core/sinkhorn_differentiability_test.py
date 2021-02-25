@@ -57,15 +57,15 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     _, grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[4], (n,))
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
-    delta = delta - jnp.mean(delta)  # center perturbation
+    delta = delta - jnp.sum(delta) / jnp.sum(a > 0)  # center perturbation
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     reg_ot_delta_plus = reg_ot(a + eps * delta, b)
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
-    delta_dot_grad = jnp.sum(delta * grad_reg_ot)
+    delta_dot_grad = jnp.nansum(delta * grad_reg_ot)
+    self.assertIsNot(jnp.any(jnp.isnan(delta_dot_grad)), True)
     self.assertAllClose(delta_dot_grad,
                         (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
                         rtol=1e-03, atol=1e-02)
-    self.assertIsNot(jnp.any(jnp.isnan(delta_dot_grad)), True)
 
   @parameterized.parameters([True], [False])
   def test_gradient_sinkhorn_geometry(self, lse_mode):

@@ -28,7 +28,7 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class Grid(geometry.Geometry):
-  """Class describing the geometry of points taken in a cartestian product.
+  r"""Class describing the geometry of points taken in a cartestian product.
 
   This class implements a geometry in which probability measures are supported
   on a :math:`d`-dimensional cartesian grid, a cartesian product of :math:`d`

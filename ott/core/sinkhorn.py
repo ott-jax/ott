@@ -109,13 +109,13 @@ def sinkhorn(
   will be evaluated and compared with the `threshold` value. The iterations are
   then repeated as long as that errors does not go below `threshold`.
 
-  The boolean flag lse_mode sets whether the algorithm is run in either:
+  The boolean flag `lse_mode` sets whether the algorithm is run in either:
 
-    - log-sum-exp mode (lse_mode=True), in which case it is directly defined
+    - log-sum-exp mode (`lse_mode=True`), in which case it is directly defined
   in terms of updates to f and g, using log-sum-exp computations. This requires
   access to the cost matrix C, as stored or computed on the fly by the geometry.
 
-    - kernel mode (lse_mode=False), in which case it will require access to a
+    - kernel mode (`lse_mode=False`), in which case it will require access to a
   matrix vector multiplication operator z → K z, where K is either instantiated
   from C as :math:`\exp(-C/\epsilon)`, or provided directly. In that case,
   rather than optimizing on f and g directly, it is more convenient to optimize
@@ -133,34 +133,46 @@ def sinkhorn(
   tries to set that parameter adaptively, as a function of progress in the
   error, as proposed in the literature.
 
-  The sinkhorn iterations are wrapped in a fixed point iteration loop defined in
-  fixed_point_loop loop, rather than a standard while loop. This is to ensure
-  the end result of this fixed point loop can be differentiated if needed using
-  standard Jax operations. To do so, if backprop differentiability is used,
-  fixed_point_loop.fixpoint_iter_backprop does checkpointing of state variables
-  (here f_u and g_v) every inner_iterations, and backpropagates automatically,
-  block by block, through blocks of inner_iterations at a time.
+  Differentiation through the Sinkhorn algorithm is carried out by default
+  using implicit differentiation of the optimality conditions, as reflected by
+  the default setting of `implicit_differentiation` to`True`. In that case the
+  termination criterion used to stop Sinkhorn (cancellation of gradient of
+  objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs given a
+  desired change in the outputs.
 
-  Alternatively, differentiation through the Sinkhorn algorithm can be carried
-  out using implicit differentiation of the optimality conditions, by setting
-  the implicit_differentiation flag to True. In that case the termination
-  criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t.
-  f and g) is used to differentiate inputs given a desired change in the
-  outputs. This is the behaviour by default of sinkhorn.
+  Alternatively, the sinkhorn iterations have been wrapped in a fixed point
+  iteration loop, defined in `fixed_point_loop`, rather than a standard while
+  loop. This is to ensure the end result of this fixed point loop can also be
+  differentiated, if needed, using standard JAX operations. To ensure
+  backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop
+  does checkpointing of state variables (here `f_u` and `g_v`) every
+  `inner_iterations`, and backpropagates automatically, block by block,
+  through blocks of `inner_iterations` at a time.
 
-  The Sinkhorn algorithm may not converge within the maximum number of
-  iterations for possibly several reasons:
-    1. the regularizer (defined as epsilon in the geometry geom object) is
-      too small. Consider switching to lse_mode = True (at the price of a slower
-      execution), increasing epsilon, or, alternatively, if you are sure that
-      value epsilon is correct, or your cannot modify it, either increase
-      max_iterations or threshold.
-    2. the probability weights a and b do not have the same total mass, while
-      using a balanced (tau_a = tau_b = 1.0) setup. Consider either normalizing
-      a and b, or set either tau_a and/or tau_b <1.0.
-    3. OOMs issues may arise when storing either cost or kernel matrices that
-      are too large in `geom`. In that case, in the case where, the `geom`
-      geometry is a `PointCloud`, set the `online` flag to `True`.
+  Note:
+    * The Sinkhorn algorithm may not converge within the maximum number of
+    iterations for possibly several reasons:
+      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is
+        too small. Consider switching to `lse_mode = True` (at the price of a
+        slower execution), increasing `epsilon`, or, alternatively, if you are
+        sure that value `epsilon` is correct, or your cannot modify it, either
+        increase `max_iterations` or `threshold`.
+      2. the probability weights `a` and `b` do not have the same total mass,
+        while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either
+        normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
+      3. OOMs issues may arise when storing either cost or kernel matrices that
+        are too large in `geom`. In that case, in the case where, the `geom`
+        geometry is a `PointCloud`, set the `online` flag to `True`.
+
+    * The weight vectors `a` and `b` are assumed to be positive by default,
+    but zero weights are currently handled by relying on simple arithmetic for
+    inf values that will likely arise (starting with log(0) when `lse_mode` is
+    `True`, or divisions by zero when `lse_mode` is `False`). Whenever that
+    arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in
+    the forward pass, we use jnp.where conditional statements. In the backward
+    pass, the inputs corresponding to these 0 weights (typically a location `x`
+    associated with that weight), and the weight itself will have `NaN`
+    gradient values.
 
   Args:
     geom: a Geometry object.
@@ -602,19 +614,31 @@ def ent_reg_cost(geom: geometry.Geometry,
                  f: jnp.ndarray,
                  g: jnp.ndarray) -> jnp.ndarray:
   """Computes objective of regularized OT given dual solutions f,g."""
+  # In all sums below, jnp.where handle situations in which some coordinates of
+  # a and b are zero. For those coordinates, their potential is -inf.
+  # This leads to -inf - -inf or -inf x 0 operations which result in NaN.
+  # These contributions are discarded when computing the objective.
   if tau_a == 1.0:
-    div_a = jnp.sum((f - geom.potential_from_scaling(a)) * a)
+    div_a = jnp.sum(
+        jnp.where(a > 0, (f - geom.potential_from_scaling(a)) * a, 0))
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
-    div_a = jnp.sum(a * (rho_a - (rho_a + geom.epsilon/2) *
-                         jnp.exp(-(f - geom.potential_from_scaling(a))/ rho_a)))
+    div_a = jnp.sum(
+        jnp.where(
+            a > 0,
+            a * (rho_a - (rho_a + geom.epsilon / 2) *
+                 jnp.exp(-(f - geom.potential_from_scaling(a)) / rho_a)), 0))
 
   if tau_b == 1.0:
-    div_b = jnp.sum((g - geom.potential_from_scaling(b)) * b)
+    div_b = jnp.sum(
+        jnp.where(b > 0, (g - geom.potential_from_scaling(b)) * b, 0))
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
-    div_b = jnp.sum(b * (rho_b - (rho_b + geom.epsilon/2) *
-                         jnp.exp(-(g - geom.potential_from_scaling(b))/ rho_b)))
+    div_b = jnp.sum(
+        jnp.where(
+            b > 0,
+            b * (rho_b - (rho_b + geom.epsilon / 2) *
+                 jnp.exp(-(g - geom.potential_from_scaling(b)) / rho_b)), 0))
 
   # Using https://arxiv.org/pdf/1910.12958.pdf Eq. 30
   return div_a + div_b + geom.epsilon * jnp.sum(a) * jnp.sum(b)

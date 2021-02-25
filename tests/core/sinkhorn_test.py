@@ -329,7 +329,5 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       self.assertAllClose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
 
-
-
 if __name__ == '__main__':
   absltest.main()
