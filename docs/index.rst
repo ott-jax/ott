@@ -10,17 +10,17 @@ Optimal Transport Tools (OTT) documentation
 
 Intro
 -----
-OTT is a `JAX <https://jax.readthedocs.io/en/latest/index.html>`_ toolbox that bundles a few utilities to compute and differentiate the
-solution to optimal transport problems. OTT can help you quantify how different two
-weighted clouds of points (or histograms) are, using a cost (e.g. a distance) between individual points.
+OTT is a `JAX <https://jax.readthedocs.io/en/latest/index.html>`_ package that bundles a few utilities to compute and differentiate the
+solution to optimal transport problems. OTT can help you compute Wasserstein distances between
+weighted clouds of points (or histograms), using a cost (e.g. a distance) between individual points.
 
 To that end OTT uses a sturdy and versatile implementation of
 the Sinkhorn algorithm [#]_ [#]_. This implementation takes advantage of several
-JAX features, such as `Just-in-time compilation <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#just-in-time-compilation-jit>`_,
-`auto-vectorization <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#jax.vmap>`_, and
-both `automatic <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#automatic-differentiation>`_ 
+JAX features, such as `Just-in-time (JIT) compilation <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#just-in-time-compilation-jit>`_,
+`auto-vectorization (VMAP) <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#jax.vmap>`_, and
+both `automatic <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#automatic-differentiation>`_
 and/or `implicit <https://jax.readthedocs.io/en/latest/jax.html?highlight=jit#jax.custom_vjp>`_
-differentiation. Some simple examples are provided in the tutorial notebooks below, notably to single-cell genomics [#]_.
+differentiation. Some basic snippets are provided in the tutorial notebooks below, along with a more advanced example to single-cell genomics [#]_.
 
 Packages
 --------
@@ -29,10 +29,9 @@ Packages
 There are currently three packages, ``geometry``, ``core`` and ``tools``, playing the following roles:
 
 - ``geometry`` defines classes that describe *two point clouds* paired with a *cost* function (simpler geometries are also implemented, such as that defined by points supported on a multi-dimensional grids with a separable cost [#]_).
-  A geometry, along with weight vectors ``a`` and ``b``, describe an OT problem. Geometries provide the subroutines that are needed by ``core`` algorithms to solve OT problems.
-- ``core`` contains the Sinkhorn algorithm, the main workhorse used in this package, as well as variants that can be used to compute barycenters;
-- ``tools`` builds on top of outputs produced by ``core`` functions, to carry out standard OT tasks
-such as instantiating OT matrices, computing OT divergences [#]_ [#]_, or computing soft-sort and soft-quantiles [#]_.
+  A geometry, along with weight vectors ``a`` and ``b``, describes an OT problem. Geometries provide the subroutines that are needed by ``core`` algorithms to solve OT problems;
+- ``core`` contains the Sinkhorn algorithm, the main workhorse to solve OT in this package, as well as variants that can be used to compute barycenters of several measures;
+- ``tools`` provide an interface to exploit OT solutions, as produced by ``core`` functions, to carry out tasks such as instantiating OT matrices, computing OT divergences [#]_ [#]_, or computing soft-sort and soft-quantiles [#]_.
 
 .. toctree::
    :maxdepth: 1

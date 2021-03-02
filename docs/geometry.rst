@@ -4,11 +4,13 @@ ott.geometry package
 .. currentmodule:: ott.geometry
 .. automodule:: ott.geometry
 
-This package implements several ways to define a geometry. The geometry is key
-in Optimal Transport, since it defines how much it costs to transport mass from
-a source to a target. The geometry package proposes several implementation of
-such geometries: via a cost matrix, by a point cloud and cost function or by a
-grid.
+This package implements several ways to define a geometry, arguably the most influential
+ingredient of optimal transport problem. A geometry defines source points (input measure), target points (target measure)
+as well as the cost of transporting from any of these source points to target points.
+
+The geometry package proposes a few classic geometries. These can be instantiated in their most basic
+form via a cost matrix, or instead by listing points in point clouds and specifying a cost function, or alternatively 
+by considering points supported on a grid.
 
 
 Geometries
