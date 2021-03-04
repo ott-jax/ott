@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="200"></img>
+<img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="150"></img>
 </div>
 
 # Optimal Transport Tools (OTT), A toolbox for everything Wasserstein.
@@ -11,7 +11,7 @@ and match two weighted point clouds (or histograms, measures, etc.), given a cos
 
 Most of OTT is, for now, supported by a sturdy, versatile and efficient implementation of the Sinkhorn algorithm that takes advantage of JAX features, such as [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html).
 
-An typical OT problem has two main ingredients: a pair of weight vectors `a` and `b` (one for each measure) and a ground cost evaluated on the pair of measures, cast usually as a pairwise cost matrix. OTT encapsulates the ground cost (and several operations associated with it) in a `Geometry` object. The most common geometry is that of two point clouds compared with the squared Euclidean distance, as used in the example below:
+A typical OT problem has two ingredients: a pair of weight vectors `a` and `b` (one for each measure), with a ground cost matrix that is either directly given, or derived as the pairwise evaluation of a cost function on pairs of points taken from two measures. The main design choice in OTT comes from encapsulating the cost in a `Geometry` object, and bundle it with a few useful operations (notably kernel applications). The most common geometry is that of two clouds of vectors compared with the squared Euclidean distance, as illustrated in the example below:
 
 ## Example
 
@@ -35,12 +35,12 @@ out = sinkhorn.sinkhorn(geom, a, b)
 P = geom.transport_from_potentials(out.f, out.g)
 ```
 
-One can then plot the transport linking each point from the first point cloud to one or more points from the second.
+The call to `sinkhorn` above works out the optimal transport solution by storing its output. The transport matrix can be instantiated using those optimal solutions and the `Geometry` again. That transoprt matrix links each point from the first point cloud to one or more points from the second, as illustrated below.
 
 ![obtained coupling](./images/couplings.png)
 
-As can be seen above, the sinkhorn algorithm will operate on that `Geometry`,
-taking into account weights `a` and `b`, to produce a named tuple that contains among other things two potentials `f` and `g` (vectors of the same respective size as `a` and `b`), as well as `reg_ot_cost`, the objective of the regularized OT problem.
+To be more precise, the `sinkhorn` algorithm operates on the `Geometry`,
+taking into account weights `a` and `b`, to solve the OT problem, produce a named tuple that contains two optimal dual potentials `f` and `g` (vectors of the same size as `a` and `b`), the objective `reg_ot_cost` and a log of the `errors` of the algorithm as it converges, and a `converged` flag.
 
 ## Overall description of source code
 
