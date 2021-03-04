@@ -40,7 +40,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/point_clouds.ipynb
    notebooks/introduction_grid.ipynb
    notebooks/application_biology.ipynb
-
+   notebooks/OTT_&_POT.ipynb
 
 .. toctree::
    :maxdepth: 1
@@ -58,9 +58,9 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. [#] G. Schiebinger et al., `Optimal-Transport Analysis of Single-Cell Gene Expression Identifies Developmental Trajectories in Reprogramming <https://www.cell.com/cell/pdf/S0092-8674(19)30039-X.pdf>`_, Cell 176, 928--943.
 .. [#] M. Cuturi, `Sinkhorn Distances: Lightspeed Computation of Optimal Transport <https://papers.nips.cc/paper/2013/hash/af21d0c97db2e27e13572cbf59eb343d-Abstract.html>`_, NIPS'13.
 .. [#] G. Peyré, M. Cuturi, `Computational Optimal Transport <https://www.nowpublishers.com/article/Details/MAL-073>`_, FNT in ML, 2019.
+.. [#] G. Schiebinger et al., `Optimal-Transport Analysis of Single-Cell Gene Expression Identifies Developmental Trajectories in Reprogramming <https://www.cell.com/cell/pdf/S0092-8674(19)30039-X.pdf>`_, Cell 176, 928--943.
 .. [#] J. Solomon et al, `Convolutional Wasserstein distances: efficient optimal transportation on geometric domains <https://dl.acm.org/doi/10.1145/2766963>`_, ACM ToG, SIGGRAPH'15.
 .. [#] A. Genevay et al., `Learning Generative Models with Sinkhorn Divergences <http://proceedings.mlr.press/v84/genevay18a.html>`_, AISTATS'18.
 .. [#] T. Séjourné et al., `Sinkhorn Divergences for Unbalanced Optimal Transport <https://arxiv.org/abs/1910.12958>`_, arXiv:1910.12958.
