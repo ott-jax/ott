@@ -1,7 +1,10 @@
-# Optimal Transport Tools (OTT)
+<div align="center">
+<img src="./oss/docs/logoOTT.png" alt="logo"  width="200"></img>
+</div>
+
+# Optimal Transport Tools (OTT), A toolbox for everything Wasserstein.
 
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/) for detailed info.**
-
 
 OTT is a JAX toolbox that bundles a few utilities to solve [optimal transport problems](https://arxiv.org/abs/1803.00567). These tools can help you compare
 and match two weighted point clouds (or histograms, measures, etc.), given a cost (e.g. a distance) between single points.
