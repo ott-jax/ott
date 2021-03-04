@@ -1,5 +1,5 @@
 <div align="center">
-<img src="./oss/docs/logoOTT.png" alt="logo"  width="200"></img>
+<img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="200"></img>
 </div>
 
 # Optimal Transport Tools (OTT), A toolbox for everything Wasserstein.
