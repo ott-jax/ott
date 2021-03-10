@@ -193,6 +193,44 @@ class Grid(geometry.Geometry):
       softmax_res = jax.scipy.special.logsumexp(centered_cost, axis=1)
       return eps * jnp.transpose(softmax_res, indices), None
 
+  def _apply_cost_to_vec(self, vec: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    r"""Applies grid's cost matrix (without instantiating it) to a vector.
+
+    The `apply_cost` operation on grids rests on the following identity.
+    If it were to be cast as a [num_a, num_a] matrix, the corresponding cost
+    matrix :math:`C` would be a sum of grid_dimension matrices, each of the form
+    (here for the j-th slice)
+    :math:`\tilde{C}_j : = 1_{n_1} \otimes \dots \otimes C_j \otimes 1_{n_d}`
+    where each :math:`1_{n}` is the :math:`n\times n` square matrix full of 1's.
+
+    Applying :math:`\tilde{C}_j` on a vector grid consists in carrying a tensor
+    multiplication on the dimension of that vector reshaped as a grid, followed
+    by a summation on all other axis while keeping dimensions. That identity is
+    a generalization of the formula
+    :math:`(1_{n} \otimes A) vec(X) = vec( A X 1_n)`
+    where the last multiplication by the matrix of ones is equivalent to
+    summation while keeping dimensions.
+
+    Args:
+      vec: jnp.ndarray, flat vector of total size prod(grid_size).
+      axis: axis 0 if applying original costs, 1 if using their transpose.
+
+    Returns:
+      A jnp.ndarray corresponding to cost x matrix
+    """
+    vec = jnp.reshape(vec, self.grid_size)
+    accum_vec = jnp.zeros_like(vec)
+    indices = list(range(1, self.grid_dimension))
+    for dimension, cost in enumerate(self.cost_matrices):
+      ind = indices.copy()
+      ind.insert(dimension, 0)
+      if axis == 1:
+        cost = cost.T
+      accum_vec += np.sum(
+          jnp.tensordot(cost, vec, axes=([0], [dimension])),
+          axis=indices, keepdims=True).transpose(ind)
+    return accum_vec.ravel()
+
   def apply_kernel(self,
                    scaling: jnp.ndarray,
                    eps: float = None,
@@ -216,12 +254,11 @@ class Grid(geometry.Geometry):
     """
     scaling = jnp.reshape(scaling, self.grid_size)
     indices = list(range(1, self.grid_dimension))
-    for dimension in range(self.grid_dimension):
+    for dimension, kernel in enumerate(self.kernel_matrices):
       ind = indices.copy()
       ind.insert(dimension, 0)
-      scaling = jnp.tensordot(
-          self.kernel_matrices[dimension], scaling,
-          axes=([0], [dimension])).transpose(ind)
+      scaling = jnp.tensordot(kernel, scaling,
+                              axes=([0], [dimension])).transpose(ind)
     return scaling.ravel()
 
   def transport_from_potentials(self, f: jnp.ndarray, g: jnp.ndarray, axis=0):

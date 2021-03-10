@@ -64,7 +64,7 @@ class PointCloud(geometry.Geometry):
     self._axis_norm = 0 if callable(self._cost_fn.norm) else None
 
     self.x = x
-    self.y = y
+    self.y = y if y is not None else x
 
     self.power = power
     self._online = online

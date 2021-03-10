@@ -150,29 +150,12 @@ def sinkhorn(
   through blocks of `inner_iterations` at a time.
 
   Note:
-    * The Sinkhorn algorithm may not converge within the maximum number of
-    iterations for possibly several reasons:
-      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is
-        too small. Consider switching to `lse_mode = True` (at the price of a
-        slower execution), increasing `epsilon`, or, alternatively, if you are
-        sure that value `epsilon` is correct, or your cannot modify it, either
-        increase `max_iterations` or `threshold`.
-      2. the probability weights `a` and `b` do not have the same total mass,
-        while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either
-        normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
-      3. OOMs issues may arise when storing either cost or kernel matrices that
-        are too large in `geom`. In that case, in the case where, the `geom`
-        geometry is a `PointCloud`, set the `online` flag to `True`.
+    * The Sinkhorn algorithm may not converge within the maximum number of iterations for possibly several reasons:
+      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is too small. Consider switching to `lse_mode = True` (at the price of a slower execution), increasing `epsilon`, or, alternatively, if you are sure that value `epsilon` is correct, or your cannot modify it, either increase `max_iterations` or `threshold`.
+      2. the probability weights `a` and `b` do not have the same total mass, while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
+      3. OOMs issues may arise when storing either cost or kernel matrices that are too large in `geom`. In that case, in the case where, the `geom` geometry is a `PointCloud`, set the `online` flag to `True`.
 
-    * The weight vectors `a` and `b` are assumed to be positive by default,
-    but zero weights are currently handled by relying on simple arithmetic for
-    inf values that will likely arise (starting with log(0) when `lse_mode` is
-    `True`, or divisions by zero when `lse_mode` is `False`). Whenever that
-    arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in
-    the forward pass, we use jnp.where conditional statements. In the backward
-    pass, the inputs corresponding to these 0 weights (typically a location `x`
-    associated with that weight), and the weight itself will have `NaN`
-    gradient values.
+    * The weight vectors `a` and `b` are assumed to be positive by default, but zero weights are currently handled by relying on simple arithmetic for inf values that will likely arise (starting with log(0) when `lse_mode` is `True`, or divisions by zero when `lse_mode` is `False`). Whenever that arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in the forward pass, we use jnp.where conditional statements. In the backward pass, the inputs corresponding to these 0 weights (typically a location `x` associated with that weight), and the weight itself will have `NaN` gradient values.
 
   Args:
     geom: a Geometry object.

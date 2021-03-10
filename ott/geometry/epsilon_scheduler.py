@@ -23,7 +23,7 @@ import jax.numpy as jnp
 
 @jax.tree_util.register_pytree_node_class
 class Epsilon:
-  """A class to propose schedulers for the regularization parameter epsilon."""
+  """Scheduler class for the regularization parameter epsilon."""
 
   def __init__(self,
                target: float = 1e-2,

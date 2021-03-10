@@ -27,7 +27,7 @@ x = jax.random.normal(rngs[0], (n,d)) + 1
 y = jax.random.uniform(rngs[1], (m,d))
 a = jax.random.uniform(rngs[2], (n,))
 b = jax.random.uniform(rngs[3], (m,))
-a, b  = a / np.sum(a), b / np.sum(b)
+a, b = a / np.sum(a), b / np.sum(b)
 
 # Computes the couplings via Sinkhorn algorithm.
 geom = pointcloud.PointCloud(x,y)

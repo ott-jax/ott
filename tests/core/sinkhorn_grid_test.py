@@ -118,6 +118,24 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     self.assertAllClose(mat_transport_vec_b, grid_transport_vec_b)
     self.assertIsNot(jnp.any(jnp.isnan(mat_transport_t_vec_a)), True)
 
+  def test_apply_cost(self):
+    grid_size = (5, 6, 7)
+
+    geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
+    x, y, z = np.mgrid[0:grid_size[0], 0:grid_size[1], 0:grid_size[2]]
+    xyz = jnp.stack([
+        jnp.array(x.ravel()) / jnp.maximum(1, grid_size[0] - 1),
+        jnp.array(y.ravel()) / jnp.maximum(1, grid_size[1] - 1),
+        jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
+    ]).transpose()
+    geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
+
+    vec = jax.random.uniform(self.rng, grid_size).ravel()
+    self.assertAllClose(geom_mat.apply_cost(vec),
+                        geom_grid.apply_cost(vec))
+
+    self.assertAllClose(geom_grid.apply_cost(vec)[0,:],
+                        np.dot(geom_mat.cost_matrix, vec))
 
 if __name__ == '__main__':
   absltest.main()

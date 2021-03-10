@@ -323,6 +323,29 @@ class Geometry:
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     return jnp.exp(potential / self.epsilon)
 
+  def apply_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies cost matrix to array (vector or matrix).
+
+    Args:
+      arr: jnp.ndarray [num_b,...] or [num_a,...], depending on axis.
+      axis: axis.
+    Returns:
+      A jnp.ndarray corresponding to cost x matrix
+    """
+    return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis)
+                   )(jnp.atleast_2d(arr))
+
+  def _apply_cost_to_vec(self, vec: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies [num_a, num_b] cost matrix to vector.
+
+    Args:
+      vec: jnp.ndarray [num_b,] ([num_a,] if axis=1) vector
+      axis: axis.
+    Returns:
+      A jnp.ndarray corresponding to cost x vector
+    """
+    return jnp.dot(self.cost_matrix if axis == 0 else self.cost_matrix.T, vec)
+
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
     """Instantiates 2 (or 3) geometries to compute a Sinkhorn divergence."""
