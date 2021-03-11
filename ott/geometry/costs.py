@@ -97,7 +97,7 @@ class Euclidean(CostFn):
 @jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
   """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
-
+  #TODO(cuturi) add regularization / unbalanced https://arxiv.org/abs/2006.02572
   def __init__(self, dimension, **kwargs):
     super().__init__()
     self._dimension = dimension

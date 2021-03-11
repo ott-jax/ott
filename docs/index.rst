@@ -41,6 +41,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/introduction_grid.ipynb
    notebooks/application_biology.ipynb
    notebooks/OTT_&_POT.ipynb
+   notebooks/Sinkhorn_Barycenters.ipynb
 
 .. toctree::
    :maxdepth: 1
@@ -57,6 +58,9 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+References
+==========
 
 .. [#] M. Cuturi, `Sinkhorn Distances: Lightspeed Computation of Optimal Transport <https://papers.nips.cc/paper/2013/hash/af21d0c97db2e27e13572cbf59eb343d-Abstract.html>`_, NIPS'13.
 .. [#] G. Peyré, M. Cuturi, `Computational Optimal Transport <https://www.nowpublishers.com/article/Details/MAL-073>`_, FNT in ML, 2019.
