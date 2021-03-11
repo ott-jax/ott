@@ -35,9 +35,9 @@ class CostFn(abc.ABC):
 
   Cost functions evaluate a function on a pair of inputs. For convenience,
   that function is split into two norms -- evaluated on each input separately --
-  followed by a "dot product" like quantity, as in
+  followed by a pairwise cost that involves both inputs, as in
 
-  c(x,y) = norm(x) + norm(y) - dotprod(x,y)
+  c(x,y) = norm(x) + norm(y) + pairwise(x,y)
 
   If the norm function is not implemented, that value is handled as a 0.
   """
@@ -45,18 +45,34 @@ class CostFn(abc.ABC):
   norm = None  #  no norm function created by default.
 
   @abc.abstractmethod
-  def dotprod(self, x, y):
+  def pairwise(self, x, y):
     pass
 
   def __call__(self, x, y):
-    return - self.dotprod(x, y) + (
+    return self.pairwise(x, y) + (
         0 if self.norm is None else self.norm(x) + self.norm(y))  # pylint: disable=not-callable
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
+    """Computes matrix of all costs (including norms) for vectors in x / y.
+
+    Args:
+      x: [num_a, d] jnp.ndarray
+      y: [num_b, d] jnp.ndarray
+    Returns:
+      [num_a, num_b] matrix of cost evaluations.
+    """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_dotprod(self, x: jnp.ndarray, y: jnp.ndarray):
-    return jax.vmap(lambda x_: jax.vmap(lambda y_: self.dotprod(x_, y_))(y))(x)
+  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray):
+    """Computes matrix of all pairwise-costs (no norms) for vectors in x / y.
+
+    Args:
+      x: [num_a, d] jnp.ndarray
+      y: [num_b, d] jnp.ndarray
+    Returns:
+      [num_a, num_b] matrix of pairwise cost evaluations.
+    """
+    return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
   def tree_flatten(self):
     return (), None
@@ -69,13 +85,13 @@ class CostFn(abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):
-  """Squared Euclidean distance cost function."""
+  """Squared Euclidean distance CostFn."""
 
   def norm(self, x):
     return jnp.sum(x ** 2, axis=-1)
 
-  def dotprod(self, x, y):
-    return 2 * dot(x, y)
+  def pairwise(self, x, y):
+    return -2 * dot(x, y)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -95,7 +111,7 @@ class Bures(CostFn):
     norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
     return norm
 
-  def dotprod(self, x, y):
+  def pairwise(self, x, y):
     mean_dot_prod = dot(x[0:self._dimension], y[0:self._dimension])
     x_mat = jnp.reshape(x[self._dimension:],
                         (self._dimension, self._dimension))
@@ -107,7 +123,7 @@ class Bures(CostFn):
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(y_mat, sq_x))
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, self._dimension,
                                                **self._sqrtm_kw)[0]
-    return 2 * (
+    return -2 * (
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   def tree_flatten(self):
@@ -117,5 +133,3 @@ class Bures(CostFn):
   def tree_unflatten(cls, aux_data, children):
     del children
     return cls(aux_data[0], **aux_data[1])
-
-

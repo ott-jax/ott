@@ -26,33 +26,33 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
-  """Defines geometry for pointclouds using distance or norm/dotproduct fns."""
+  """Defines geometry for 2 pointclouds (possibly 1 vs itself) using CostFn."""
 
   def __init__(self,
                x: jnp.ndarray,
-               y: jnp.ndarray = None,
+               y: Optional[jnp.ndarray] = None,
                epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
                online: bool = False,
                **kwargs):
-    """Creates a geometry from two point clouds, using distance or cost/norm.
+    """Creates a geometry from two point clouds, using CostFn.
 
-    Creates a geometry, specifying a cost structure, either a function, or a
-    pair of norm / dotproduct functions. When the number of points
-    is large, setting the online flag to True implies that cost and kernel
-    matrices used in the update potential or scaling functions will be
-    recomputed on the fly, rather than stored in memory. When using online
-    mode, the cost function will be partially cached by storing norm values
-    for each point cloud, and recomputing dotprod values on the fly.
-    The sum of norms minus the dotprod term is raised to a power.
+    Creates a geometry, specifying a cost function passed as CostFn type object.
+    When the number of points is large, setting the `online` flag to `True`
+    implies that cost and kernel matrices used to update potentials or scalings
+    will be recomputed on the fly, rather than stored in memory. More precisely,
+    when setting `online`, the cost function will be partially cached by storing
+    norm values for each point in both point clouds, but the pairwise cost
+    function evaluations won't be. The sum of norms + the pairwise cost term is
+    raised to `power`.
 
     Args:
       x : n x d array of n d-dimensional vectors
       y : m x d array of m d-dimensional vectors
       epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       cost_fn: a CostFn function between two points in dimension d.
-      power: a power to raise (norm(x) + norm(y) + cost_fn(x,y)) **
+      power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
       online: whether to run the online version of the computation or not. The
         online computation is particularly useful for big point clouds such that
         their cost matrix does not fit in memory.
@@ -87,7 +87,7 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self):
     if self._online:
       return None
-    cost_matrix = - self._cost_fn.all_pairs_dotprod(self.x, self.y)
+    cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
     return cost_matrix
@@ -145,7 +145,7 @@ class PointCloud(geometry.Geometry):
       return app(self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
                  self._cost_fn, self.power)
 
-  # TODO(lpapaxanthos) define an apply Cost function
+  # TODO(lpapaxanthos,cuturi) define an apply Cost function
 
   def transport_from_potentials(self, f, g):
     if not self._online:
@@ -203,5 +203,5 @@ def _transport_from_scalings_xy(x, y, norm_x, norm_y, u, v, eps, cost_fn,
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow):
-  one_line_dotprod = jax.vmap(cost_fn.dotprod, in_axes=[0, None])
-  return (norm_x + norm_y - one_line_dotprod(x, y)) ** (0.5 * cost_pow)
+  one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
+  return (norm_x + norm_y + one_line_pairwise(x, y)) ** (0.5 * cost_pow)

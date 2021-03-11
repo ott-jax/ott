@@ -134,8 +134,9 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     self.assertAllClose(geom_mat.apply_cost(vec),
                         geom_grid.apply_cost(vec))
 
-    self.assertAllClose(geom_grid.apply_cost(vec)[0,:],
-                        np.dot(geom_mat.cost_matrix, vec))
+    self.assertAllClose(
+        geom_grid.apply_cost(vec)[0, :], np.dot(geom_mat.cost_matrix, vec))
+
 
 if __name__ == '__main__':
   absltest.main()

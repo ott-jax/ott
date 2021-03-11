@@ -73,8 +73,6 @@ def discrete_barycenter(geom: geometry.Geometry,
 
   if dual_initialization is None:
     # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
-    # TODO(cuturi): might want to leave the option of using a more vanilla
-    # initializer, e.g. zeros.
     dual_initialization = geom.apply_cost(a, axis=1)
     dual_initialization -= jnp.average(dual_initialization,
                                        weights=weights,
@@ -85,11 +83,10 @@ def discrete_barycenter(geom: geometry.Geometry,
   norm_error = (norm_error,)
   return _discrete_barycenter(geom, a, weights, dual_initialization, threshold,
                               norm_error, inner_iterations, min_iterations,
-                              max_iterations, lse_mode, debiased, batch_size,
-                              num_a, num_b)
+                              max_iterations, lse_mode, debiased, num_a, num_b)
 
 
-@functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12, 13))
+@functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12))
 def _discrete_barycenter(geom: geometry.Geometry,
                          a: jnp.ndarray,
                          weights: jnp.ndarray,
@@ -101,12 +98,9 @@ def _discrete_barycenter(geom: geometry.Geometry,
                          max_iterations: int,
                          lse_mode: bool,
                          debiased: bool,
-                         batch_size: int,
                          num_a: int,
                          num_b: int) -> SinkhornBarycenterOutput:
   """Jit'able function to compute discrete barycenters."""
-  batch_size, _ = a.shape
-
   if lse_mode:
     f_u = jnp.zeros_like(a)
     g_v = dual_initialization
