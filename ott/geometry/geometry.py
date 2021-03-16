@@ -154,8 +154,11 @@ class Geometry:
     Returns:
       a vector of marginals of the transport matrix.
     """
-    return jnp.exp((self.apply_lse_kernel(f, g, self.epsilon, axis=axis)[0] +
-                    (f if axis == 1 else g)) / self.epsilon)
+    h = (f if axis == 1 else g)
+    z = self.apply_lse_kernel(f, g, self.epsilon, axis=axis)[0]
+    return jnp.where(jnp.isfinite(h),
+                     jnp.exp((z + h)/self.epsilon),
+                     0)
 
   def marginal_from_scalings(self, u: jnp.ndarray, v: jnp.ndarray, axis=0):
     """Outputs marginal of transportation matrix from scalings."""
@@ -197,7 +200,7 @@ class Geometry:
       marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
     norm_error = jnp.array(norm_error)
     error = jnp.sum(
-        jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis],
+        jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
         axis=1) ** (1.0 / norm_error)
     return error
 
@@ -240,6 +243,7 @@ class Geometry:
     return f[:, jnp.newaxis] + g[jnp.newaxis, :] - self.cost_matrix
 
   def _softmax(self, f, g, eps, vec, axis):
+    """Applies softmax row or column wise, weighted by vec."""
     if vec is not None:
       if axis == 0:
         vec = vec.reshape((vec.size, 1))
@@ -247,8 +251,9 @@ class Geometry:
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True)
       return eps * lse_output[0], lse_output[1]
     else:
-      return eps * jax.scipy.special.logsumexp(
-          self._center(f, g) / eps, b=vec, axis=axis), jnp.array(1.0)
+      lse_output = jax.scipy.special.logsumexp(
+          self._center(f, g) / eps, axis=axis, return_sign=False)
+      return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(self, f, g, vec, axis):

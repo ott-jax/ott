@@ -56,7 +56,6 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
         threshold=threshold,
         lse_mode=lse_mode,
         implicit_differentiation=True).errors
-    print(errors)
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 

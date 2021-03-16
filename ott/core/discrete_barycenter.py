@@ -182,7 +182,7 @@ def _discrete_barycenter(geom: geometry.Geometry,
     # re-compute error if compute_error is True, else set to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= min_iterations),
-        jnp.max(errors_fn(f_u, g_v, a)),
+        jnp.mean(errors_fn(f_u, g_v, a)),
         jnp.inf)
 
     errors = jax.ops.index_update(

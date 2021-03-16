@@ -34,21 +34,21 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_autograd_sinkhorn_x_grid(self, lse_mode):
     """Test gradient w.r.t. probability weights."""
-    eps = 1e-3  # perturbation magnitude
+    eps = 1e-4  # perturbation magnitude
     keys = jax.random.split(self.rng, 3)
     x = (jnp.array([.0, 1.0], dtype=jnp.float32),
          jnp.array([.3, .4, .7], dtype=jnp.float32),
          jnp.array([1.0, 1.3, 2.4, 3.7], dtype=jnp.float32))
     grid_size = tuple([xs.shape[0] for xs in x])
-    a = jax.random.uniform(keys[0], grid_size) + 1.0
-    b = jax.random.uniform(keys[1], grid_size) + 1.0
+    a = jax.random.uniform(keys[0], grid_size) + 1
+    b = jax.random.uniform(keys[1], grid_size) + 1
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
-    geom = grid.Grid(x=x, epsilon=1.0)
+    geom = grid.Grid(x=x, epsilon=1)
 
     def reg_ot(a, b):
       return sinkhorn.sinkhorn(
-          geom, a=a, b=b, threshold=0.1, lse_mode=lse_mode).reg_ot_cost
+          geom, a=a, b=b, threshold=0.001, lse_mode=lse_mode).reg_ot_cost
 
     reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
     _, grad_reg_ot = reg_ot_and_grad(a, b)

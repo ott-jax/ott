@@ -131,14 +131,22 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     d = 3
     n = 10
     m = 15
-    keys = jax.random.split(self.rng, 2)
+    keys = jax.random.split(self.rng, 4)
     x = jax.random.normal(keys[0], (n, d)) / 10
     y = jax.random.normal(keys[1], (m, d)) / 10
+
+    a = jax.random.uniform(keys[2], (n,))
+    b = jax.random.uniform(keys[3], (m,))
+    # Adding zero weights to test proper handling
+    a = jax.ops.index_update(a, 0, 0)
+    b = jax.ops.index_update(b, 3, 0)
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
 
     def loss_fn(x, y):
       geom = pointcloud.PointCloud(x, y, epsilon=0.01)
       f, g, regularized_transport_cost, _, _ = sinkhorn.sinkhorn(
-          geom, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
+          geom, a, b, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
       return regularized_transport_cost, (geom, f, g)
 
     delta = jax.random.normal(keys[0], (n, d))

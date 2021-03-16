@@ -75,12 +75,7 @@ class Transport:
   def solve(self):
     """Runs the sinkhorn algorithm to solve the transport problem."""
     out = sinkhorn.sinkhorn(self.geom, self.a, self.b, **self._kwargs)
-    if not out.converged:
-      # TODO(oliviert): Point to the online doc when available.
-      logging.warning('Sinkhorn has not converged. Please check your setup and '
-                      ' consider increasing max_iterations or epsilon. For more'
-                      ' details, see ott.core.sinkhorn.sinkhorn.')
-
+    # TODO(oliviert): figure out how to warn the user if no convergence.
     # So far we always set the values, even if not converged.
     # TODO(oliviert, cuturi): handles cases where it has not converged.
     self._f = out.f

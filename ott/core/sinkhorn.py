@@ -259,7 +259,24 @@ def _sinkhorn(
                                chg_momentum_from, lse_mode,
                                implicit_differentiation, threshold, norm_error,
                                geom, a, b)
-  reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b, f, g)
+
+  # When differentiating the regularized OT cost, it is not necessary to compute
+  # the Jacobian of the optimal dual potentials f, g w.r.t. inputs `geom`, `a`
+  # and `b` because that value is precisely what is minimized by those optimal
+  # dual potentials. In that case the gradients of reg_ot_cost w.r.t. `geom`,
+  # `a` and `b` can be directly computed from dual potentials, using the
+  # enveloppe theorem. This is impacted below by cutting gradients at the level
+  # of f, g.
+  #
+  # Notice this is only valid, much like the implicit_differentiation mode, if
+  # the Sinkhorn algorithm outputs potentials that are approximately optimal,
+  # namely when the threshold value is set to a small tolerance.
+  #
+  # TODO(cuturi) raise error message when tolerance high, or switch to backprop
+  # when threshold is too large, and therefore do not stop_gradients below.
+
+  reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b,
+                             jax.lax.stop_gradient(f), jax.lax.stop_gradient(g))
   converged = jnp.logical_and(
       jnp.sum(errors == -1) > 0,
       jnp.sum(jnp.isnan(errors)) == 0)
@@ -369,11 +386,11 @@ def _sinkhorn_iterations(
     if lse_mode:
       new_g_v = tau_b * geom.update_potential(f_u, g_v, jnp.log(b),
                                               iteration, axis=0)
-      g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0) + w * new_g_v
+      g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0.0) + w * new_g_v
 
       new_f_u = tau_a * geom.update_potential(f_u, g_v, jnp.log(a),
                                               iteration, axis=1)
-      f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0) + w * new_f_u
+      f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0.0) + w * new_f_u
     else:
       new_g_v = geom.update_scaling(f_u, b, iteration, axis=0) ** tau_b
       g_v = jnp.where(g_v > 0, g_v, 1) ** (1.0 - w) * new_g_v ** w
@@ -511,22 +528,26 @@ def _sinkhorn_iterations_implicit_bwd(
     Returns:
       a jnp.ndarray of the size of fg quantifying deviation from optimality.
     """
-    marginals = jnp.concatenate(
-        (marginal_a(geom, fg[:n], fg[n:]), marginal_b(geom, fg[:n], fg[n:])))
-    gradients_fit = jnp.concatenate(
-        grad_of_marginal_fit(a, b, fg[:n], fg[n:], tau_a, tau_b, geom))
-    return marginals - gradients_fit
+    grad_a, grad_b = grad_of_marginal_fit(
+        a, b, fg[:n], fg[n:], tau_a, tau_b, geom)
+    return jnp.concatenate((
+        jnp.where(a > 0,
+                  marginal_a(geom, fg[:n], fg[n:]) - grad_a,
+                  0.0),
+        jnp.where(b > 0,
+                  marginal_b(geom, fg[:n], fg[n:]) - grad_b,
+                  0.0)
+        ))
 
   foc_fg = lambda fg: first_order_conditions(geom, a, b, fg)
   foc_geom_a_b = lambda geom, a, b: first_order_conditions(geom, a, b, f_g)
 
   # Carries out implicit differentiation of F.O.C. using inversion of VJP
   # computed here using automatic differentiation of the F.O.C vector.
-  _, pull_fg = jax.vjp(foc_fg, f_g)
+  _, pull_fg = jax.vjp(foc_fg, jnp.where(jnp.isfinite(f_g), f_g, 0))
   # Adds a small regularizer to improve conditioning when solving linear system
-  pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * jnp.sum(vec ** 2)
+  pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * jnp.sum(vec**2)
   vjp_gr = -jax.scipy.sparse.linalg.cg(pull_fg_0, jnp.concatenate(gr))[0]
-
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
   g_geom, g_a, g_b = pull_geom_a_b(vjp_gr)
@@ -596,35 +617,62 @@ def ent_reg_cost(geom: geometry.Geometry,
                  tau_b: float,
                  f: jnp.ndarray,
                  g: jnp.ndarray) -> jnp.ndarray:
-  """Computes objective of regularized OT given dual solutions f,g."""
-  # In all sums below, jnp.where handle situations in which some coordinates of
-  # a and b are zero. For those coordinates, their potential is -inf.
-  # This leads to -inf - -inf or -inf x 0 operations which result in NaN.
-  # These contributions are discarded when computing the objective.
+  """Computes objective of regularized OT given dual solutions f,g.
+
+  In all sums below, jnp.where handle situations in which some coordinates of
+  a and b are zero. For those coordinates, their potential is -inf.
+  This leads to -inf - -inf or -inf x 0 operations which result in NaN.
+  These contributions are discarded when computing the objective.
+
+  Args:
+    geom: a Geometry object.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
+    tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
+    tau_b: float, ratio lam/(lam+eps) between KL divergence regularizer to first
+      marginal and itself + epsilon regularizer used in the unbalanced
+      formulation.
+    f: jnp.ndarray, potential
+    g: jnp.ndarray, potential
+
+  Returns:
+    a float, the regularized transport cost.
+  """
+
   if tau_a == 1.0:
     div_a = jnp.sum(
-        jnp.where(a > 0, (f - geom.potential_from_scaling(a)) * a, 0))
+        jnp.where(a > 0, (f - geom.potential_from_scaling(a)) * a, 0.0))
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
     div_a = jnp.sum(
         jnp.where(
             a > 0,
             a * (rho_a - (rho_a + geom.epsilon / 2) *
-                 jnp.exp(-(f - geom.potential_from_scaling(a)) / rho_a)), 0))
+                 jnp.exp(-(f - geom.potential_from_scaling(a)) / rho_a)), 0.0))
 
   if tau_b == 1.0:
     div_b = jnp.sum(
-        jnp.where(b > 0, (g - geom.potential_from_scaling(b)) * b, 0))
+        jnp.where(b > 0, (g - geom.potential_from_scaling(b)) * b, 0.0))
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
     div_b = jnp.sum(
         jnp.where(
             b > 0,
             b * (rho_b - (rho_b + geom.epsilon / 2) *
-                 jnp.exp(-(g - geom.potential_from_scaling(b)) / rho_b)), 0))
+                 jnp.exp(-(g - geom.potential_from_scaling(b)) / rho_b)), 0.0))
 
-  # Using https://arxiv.org/pdf/1910.12958.pdf Eq. 30
-  return div_a + div_b + geom.epsilon * jnp.sum(a) * jnp.sum(b)
+  # Using https://arxiv.org/pdf/1910.12958.pdf (30), corrected with (15)
+  # The total mass of the coupling is computed in scaling space. This avoids
+  # differentiation issues linked with the automatic differention of
+  # jnp.exp(jnp.logsumexp(...)) when some of those logs appear as -inf.
+  # Because we are computing total mass it is irrelevant to have underflow since
+  # this would simply result in near 0 contributions, which, unlike Sinkhorn
+  # iterations, do not appear next in a numerator.
+  total_sum = jnp.sum(geom.marginal_from_scalings(
+      geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
+  return div_a + div_b + geom.epsilon * (jnp.sum(a) * jnp.sum(b) - total_sum)
 
 
 def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
@@ -649,13 +697,13 @@ def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
     grad_a = a
   else:
     rho_a = geom.epsilon * tau_a / (1 - tau_a)
-    grad_a = a * derivative_phi_star(-f, rho_a)
+    grad_a = jnp.where(a > 0, a * derivative_phi_star(-f, rho_a), 0.0)
 
   if tau_b == 1.0:
     grad_b = b
   else:
     rho_b = geom.epsilon * tau_b / (1 - tau_b)
-    grad_b = b * derivative_phi_star(-g, rho_b)
+    grad_b = jnp.where(b > 0, b * derivative_phi_star(-g, rho_b), 0.0)
   return grad_a, grad_b
 
 
