@@ -17,8 +17,8 @@ A typical OT problem has two ingredients: a pair of weight vectors `a` and `b` (
 
 ```py
 import jax
-from ott.geometry import pointcloud
-from ott.core import sinkhorn
+import jax.numpy as jnp
+from ott.tools import transport
 
 # Samples two point clouds and their weights.
 rngs = jax.random.split(jax.random.PRNGKey(0),4)
@@ -27,12 +27,11 @@ x = jax.random.normal(rngs[0], (n,d)) + 1
 y = jax.random.uniform(rngs[1], (m,d))
 a = jax.random.uniform(rngs[2], (n,))
 b = jax.random.uniform(rngs[3], (m,))
-a, b = a / np.sum(a), b / np.sum(b)
+a, b = a / jnp.sum(a), b / jnp.sum(b)
 
 # Computes the couplings via Sinkhorn algorithm.
-geom = pointcloud.PointCloud(x,y)
-out = sinkhorn.sinkhorn(geom, a, b)
-P = geom.transport_from_potentials(out.f, out.g)
+ot = transport.Transport(x, y, a=a, b=b)
+P = ot.matrix
 ```
 
 The call to `sinkhorn` above works out the optimal transport solution by storing its output. The transport matrix can be instantiated using those optimal solutions and the `Geometry` again. That transoprt matrix links each point from the first point cloud to one or more points from the second, as illustrated below.

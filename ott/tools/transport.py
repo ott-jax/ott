@@ -15,7 +15,6 @@
 
 """Some utility functions for transport computation."""
 
-from absl import logging
 import jax.numpy as jnp
 from ott.core import sinkhorn
 from ott.geometry import geometry
