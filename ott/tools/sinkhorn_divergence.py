@@ -34,7 +34,7 @@ def sinkhorn_divergence(
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     static_b: bool = False,
     **kwargs):
-  """Computes sinkhorn divergence defined by a geometry, weights, parameters.
+  """Computes Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
     geom: a geometry class.
@@ -45,7 +45,7 @@ def sinkhorn_divergence(
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
       all elements of b must match that of a to converge.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the sinkhorn function, that is called twice if static_b else
+      calls to the `sinkhorn` function, that is called twice if static_b else
       three times.
     static_b: if True, divergence of measure b against itself is NOT computed
     **kwargs: keywords arguments to the generic class. This is specific to each

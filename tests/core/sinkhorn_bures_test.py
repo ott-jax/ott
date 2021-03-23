@@ -39,8 +39,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
     y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))
 
-    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / 100
-    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / 100
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1)))
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1)))
 
     m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
     m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
@@ -59,7 +59,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
   @parameterized.named_parameters(
       dict(testcase_name='ker-batch', lse_mode=False, online=False))
   def test_bures_point_cloud(self, lse_mode, online):
-    """Two point clouds, tested with various parameters."""
+    """Two point clouds of Gaussians, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(
         self.x, self.y,
@@ -74,6 +74,15 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 
+  def test_regularized_unbalanced_bures(self):
+    """Tests Regularized Unbalanced Bures."""
+    x = jnp.concatenate((jnp.array([0.9]), self.x[0, :]))
+    y = jnp.concatenate((jnp.array([1.1]), self.y[0, :]))
+
+    rub = costs.UnbalancedBures(self.dim, 1, 0.8)
+    self.assertIsNot(jnp.any(jnp.isnan(rub(x, y))), True)
+    self.assertIsNot(jnp.any(jnp.isnan(rub(y, x))), True)
+    self.assertAllClose(rub(x, y), rub(y, x), rtol=1e-3, atol=1e-3)
 
 if __name__ == '__main__':
   absltest.main()

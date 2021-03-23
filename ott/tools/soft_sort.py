@@ -28,15 +28,15 @@ def transport_for_sort(inputs: jnp.ndarray,
                        weights: jnp.ndarray,
                        target_weights: jnp.ndarray,
                        kwargs) -> jnp.ndarray:
-  """Runs sinkhorn on a fixed increasing target.
+  """Solves reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
     inputs: jnp.ndarray[num_points]. Must be one dimensional.
-    weights: jnp.ndarray[num_points]. The weights 'a' for the inputs.
-    target_weights: jnp.ndarray[num_targets]: the weights of the targets. It may
-      be of a different size than the weights.
-    kwargs: a dictionary holding the sinkhorn keyword arguments and the
-      pointcloud argument.
+    weights: jnp.ndarray[num_points]. Weight vector `a` for input values.
+    target_weights: jnp.ndarray[num_targets]: Weight vector of the target
+      measure. It may be of different size than `weights`.
+    kwargs: a dictionary holding the keyword arguments for `sinkhorn` and
+      `PointCloud`.
 
   Returns:
     A jnp.ndarray<float> representing the transport matrix of the inputs onto

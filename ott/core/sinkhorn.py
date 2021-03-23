@@ -140,7 +140,7 @@ def sinkhorn(
   objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs given a
   desired change in the outputs.
 
-  Alternatively, the sinkhorn iterations have been wrapped in a fixed point
+  Alternatively, the Sinkhorn iterations have been wrapped in a fixed point
   iteration loop, defined in `fixed_point_loop`, rather than a standard while
   loop. This is to ensure the end result of this fixed point loop can also be
   differentiated, if needed, using standard JAX operations. To ensure
@@ -382,7 +382,7 @@ def _sinkhorn_iterations(
                                         get_momentum(errors, chg_momentum_from),
                                         momentum_default))
 
-    # sinkhorn updates using momentum, in either scaling or potential form.
+    # Sinkhorn updates using momentum, in either scaling or potential form.
     if lse_mode:
       new_g_v = tau_b * geom.update_potential(f_u, g_v, jnp.log(b),
                                               iteration, axis=0)
@@ -545,6 +545,15 @@ def _sinkhorn_iterations_implicit_bwd(
   # Carries out implicit differentiation of F.O.C. using inversion of VJP
   # computed here using automatic differentiation of the F.O.C vector.
   _, pull_fg = jax.vjp(foc_fg, jnp.where(jnp.isfinite(f_g), f_g, 0))
+
+  grad_a = lambda z : grad_of_marginal_fit(a, b, z, f_g[n:], tau_a, tau_b, geom)[0]
+  grad_b = lambda z : grad_of_marginal_fit(a, b, f_g[:n], z, tau_a, tau_b, geom)[0]
+  vjp_ff = lambda z : z * marginal_a(geom, f_g[:n], fg[n:]) / geom.epsilon
+  vjp_fg = lambda z : geom.apply_transport(f_g[:n], f_g[n:], z, axis=1) - grad_a(z)
+  vjp_gf = lambda z : geom.apply_transport(f_g[:n], f_g[n:], z, axis=0) - grad_b(z)
+  vjp_gg = lambda z : z * marginal_b(geom, f_g[:n], fg[n:]) / geom.epsilon
+
+  
   # Adds a small regularizer to improve conditioning when solving linear system
   pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * jnp.sum(vec**2)
   vjp_gr = -jax.scipy.sparse.linalg.cg(pull_fg_0, jnp.concatenate(gr))[0]
