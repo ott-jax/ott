@@ -7,7 +7,7 @@ Optimal Transport Tools (OTT) documentation
 ===========================================
 
 `Code <https://github.com/google-research/ott>`_ hosted on Github. To install,
-clone that repo or simply run `pip install ott-jax`.
+clone that repo or simply run ``pip install ott-jax``.
 
 Intro
 -----
