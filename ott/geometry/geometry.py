@@ -328,28 +328,49 @@ class Geometry:
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     return jnp.exp(potential / self.epsilon)
 
-  def apply_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply_cost(self,
+                 arr: jnp.ndarray,
+                 axis: int = 0,
+                 fn=None) -> jnp.ndarray:
     """Applies cost matrix to array (vector or matrix).
 
+    This function applies the ground geometry's cost matrix, to perform either
+    output = K arr (if axis=1)
+    output = K' arr (if axis=0)
+    where K is [num_a, num_b]
+
     Args:
-      arr: jnp.ndarray [num_b,...] or [num_a,...], depending on axis.
-      axis: axis.
+      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
+        by the cost matrix.
+      axis: standard cost matrix if axis=1, transport if 0
+      fn: function to apply to cost matrix element-wise before the dot product
+
     Returns:
-      A jnp.ndarray corresponding to cost x matrix
+      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
-    return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis)
-                   )(jnp.atleast_2d(arr))
+    if arr.ndim == 1:
+      return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis, fn), 1, 1,
+                     )(arr.reshape(-1, 1))
+    return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis, fn), 1, 1,
+                   )(arr)
 
-  def _apply_cost_to_vec(self, vec: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Applies [num_a, num_b] cost matrix to vector.
+  def _apply_cost_to_vec(self,
+                         vec: jnp.ndarray,
+                         axis: int = 0,
+                         fn=None) -> jnp.ndarray:
+    """Applies [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
-      vec: jnp.ndarray [num_b,] ([num_a,] if axis=1) vector
-      axis: axis.
+      vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
+      axis: axis on which the reduction is done.
+      fn: function optionally applied to cost matrix element-wise, before the
+        doc product
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
-    return jnp.dot(self.cost_matrix if axis == 0 else self.cost_matrix.T, vec)
+    matrix = self.cost_matrix.T if axis == 0 else self.cost_matrix
+    matrix = fn(matrix) if fn is not None else matrix
+    return jnp.dot(matrix, vec)
 
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
@@ -365,7 +386,7 @@ class Geometry:
     )
 
   def tree_flatten(self):
-    return (self.cost_matrix, self.kernel_matrix, self._epsilon), None
+    return (self._cost_matrix, self._kernel_matrix, self._epsilon), None
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

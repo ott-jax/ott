@@ -92,10 +92,10 @@ def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
   Returns:
     outputs state returned by body_fn upon termination.
   """
-
   compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
-  states = jax.tree_map(lambda x: jnp.zeros((max_iterations,) + x.shape,
-                                            dtype=x.dtype), state)
+  states = jax.tree_map(lambda x: jnp.zeros(
+      (max_iterations // inner_iterations + 1,) + x.shape,
+      dtype=x.dtype), state)
   def max_cond_fn(iteration_states_state):
     iteration, _, state = iteration_states_state
     return jnp.logical_and(iteration < max_iterations,
@@ -164,6 +164,7 @@ def fixpoint_iter_bwd(
       bwd_cond_fn, unrolled_body_fn,
       (iteration - inner_iterations, g, g_constants))
   return g_constants, g_state
+
 
 # definition of backprop friendly variant of fixpoint_iter.
 fixpoint_iter_backprop = jax.custom_vjp(fixpoint_iter,

@@ -193,7 +193,10 @@ class Grid(geometry.Geometry):
       softmax_res = jax.scipy.special.logsumexp(centered_cost, axis=1)
       return eps * jnp.transpose(softmax_res, indices), None
 
-  def _apply_cost_to_vec(self, vec: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def _apply_cost_to_vec(self,
+                         vec: jnp.ndarray,
+                         axis: int = 0,
+                         fn=None) -> jnp.ndarray:
     r"""Applies grid's cost matrix (without instantiating it) to a vector.
 
     The `apply_cost` operation on grids rests on the following identity.
@@ -213,7 +216,9 @@ class Grid(geometry.Geometry):
 
     Args:
       vec: jnp.ndarray, flat vector of total size prod(grid_size).
-      axis: axis 0 if applying original costs, 1 if using their transpose.
+      axis: axis 0 if applying transpose costs, 1 if using the original cost.
+      fn: function optionally applied to cost matrix element-wise, before the
+        dot product.
 
     Returns:
       A jnp.ndarray corresponding to cost x matrix
@@ -224,7 +229,7 @@ class Grid(geometry.Geometry):
     for dimension, cost in enumerate(self.cost_matrices):
       ind = indices.copy()
       ind.insert(dimension, 0)
-      if axis == 1:
+      if axis == 0:
         cost = cost.T
       accum_vec += np.sum(
           jnp.tensordot(cost, vec, axes=([0], [dimension])),

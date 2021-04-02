@@ -135,7 +135,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
                         geom_grid.apply_cost(vec))
 
     self.assertAllClose(
-        geom_grid.apply_cost(vec)[0, :], np.dot(geom_mat.cost_matrix, vec))
+        geom_grid.apply_cost(vec)[:, 0], np.dot(geom_mat.cost_matrix.T, vec))
 
 
 if __name__ == '__main__':

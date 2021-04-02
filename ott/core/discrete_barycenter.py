@@ -73,7 +73,7 @@ def discrete_barycenter(geom: geometry.Geometry,
 
   if dual_initialization is None:
     # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
-    dual_initialization = geom.apply_cost(a, axis=1)
+    dual_initialization = geom.apply_cost(a.T, axis=0).T
     dual_initialization -= jnp.average(dual_initialization,
                                        weights=weights,
                                        axis=0)[jnp.newaxis, :]

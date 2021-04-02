@@ -87,10 +87,12 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self):
     if self._online:
       return None
+    if self._cost_matrix is not None:
+      return self._cost_matrix
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    return cost_matrix
+    return cost_matrix ** (0.5 * self.power)
 
   @property
   def kernel_matrix(self):
@@ -145,8 +147,6 @@ class PointCloud(geometry.Geometry):
       return app(self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
                  self._cost_fn, self.power)
 
-  # TODO(lpapaxanthos,cuturi) define an apply Cost function
-
   def transport_from_potentials(self, f, g):
     if not self._online:
       return super().transport_from_potentials(f, g)
@@ -163,6 +163,72 @@ class PointCloud(geometry.Geometry):
     return transport(self.y, self.x, self._norm_y, self._norm_x, v, u,
                      self.epsilon, self._cost_fn, self.power)
 
+  def apply_cost(self,
+                 arr: jnp.ndarray,
+                 axis: bool = 0,
+                 fn=None) -> jnp.ndarray:
+    """Applies cost matrix to array (vector or matrix).
+
+    This function applies the geometry's cost matrix, to perform either
+    output = C arr (if axis=1)
+    output = C' arr (if axis=0)
+    where C is [num_a, num_b] matrix resulting from the (optional) elementwise
+    application of fn to each entry of the `cost_matrix`.
+
+    Args:
+      arr: jnp.ndarray [num_a or num_b, batch], vector that will be multiplied
+        by the cost matrix.
+      axis: standard cost matrix if axis=1, transpose if 0
+      fn: function optionally applied to cost matrix element-wise, before the
+        apply
+
+    Returns:
+      A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
+    """
+    if self._online:
+      app = jax.vmap(_apply_cost_xy, in_axes=[
+          None, 0, None, self._axis_norm, None, None, None, None])
+      if axis == 0:
+        return app(self.x, self.y, self._norm_x, self._norm_y, arr,
+                   self._cost_fn, self.power, fn)
+      if axis == 1:
+        return app(self.y, self.x, self._norm_y, self._norm_x, arr,
+                   self._cost_fn, self.power, fn)
+    else:
+      return super().apply_cost(arr, axis, fn)
+
+  def vec_apply_cost(self,
+                     arr: jnp.ndarray,
+                     axis: bool = 0,
+                     fn=None) -> jnp.ndarray:
+    """This function applies the geometry's cost matrix in a vectorised way,
+    to perform either:
+    output = K arr (if axis=1)
+    output = K' arr (if axis=0)
+    where K is [num_a, num_b]
+
+    This function can be used when the cost matrix can be used when the
+    cost is squared euclidean and fn is a linear map.
+
+    Args:
+      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
+        by the cost matrix.
+      axis: standard cost matrix if axis=1, transport if 0
+      fn: function optionally applied to cost matrix element-wise, before the
+        apply
+
+    Returns:
+      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
+    """
+    x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
+    nx, ny = self._norm_x, self._norm_y
+    nx, ny = (nx, ny) if axis == 0 else (ny, nx)
+
+    applied_cost = jnp.dot(nx, arr).reshape(1, -1)
+    applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
+    applied_cost += -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
+    return fn(applied_cost) if fn else applied_cost
+
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
     """Instantiates the geometries used for a divergence computation."""
@@ -171,13 +237,14 @@ class PointCloud(geometry.Geometry):
     return tuple(cls(*xy, **kwargs) for xy in couples)
 
   def tree_flatten(self):
-    return ((self.x, self.y, self.epsilon, self._cost_fn, self.power),
-            {'online': self._online})
+    return ((self.x, self.y, self.epsilon, self._cost_fn),
+            {'online': self._online, 'power': self.power})
+  # Passing self.power in aux_data to be able to condition on it.
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    eps, fn, power = children[2:]
-    return cls(*children[:2], epsilon=eps, cost_fn=fn, power=power, **aux_data)
+    eps, fn = children[2:]
+    return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
 
 
 def _apply_lse_kernel_xy(x, y, norm_x, norm_y, f, g, eps,
@@ -205,3 +272,27 @@ def _transport_from_scalings_xy(x, y, norm_x, norm_y, u, v, eps, cost_fn,
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow):
   one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
   return (norm_x + norm_y + one_line_pairwise(x, y)) ** (0.5 * cost_pow)
+
+
+def _apply_cost_xy(x, y, norm_x, norm_y, vec, cost_fn, cost_pow, fn=None):
+  """Applies [num_b, num_a] ([num_a, num_b] if axis=1 from `apply_cost`)
+  fn(cost) matrix (or transpose) to vector.
+
+  Args:
+    x: jnp.ndarray [num_a, d], first pointcloud
+    y: jnp.ndarray [num_b, d], second pointcloud
+    norm_x: jnp.ndarray [num_a,], (squared) norm as defined in by cost_fn
+    norm_y: jnp.ndarray [num_b,], (squared) norm as defined in by cost_fn
+    vec: jnp.ndarray [num_a,] ([num_b,] if axis=1 from `apply_cost`) vector
+    cost_fn: a CostFn function between two points in dimension d.
+    cost_pow: a power to raise (norm(x) + norm(y) + cost(x,y)) **
+    fn: function optionally applied to cost matrix element-wise, before the
+     apply
+
+  Returns:
+    A jnp.ndarray corresponding to cost x vector
+  """
+  c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)
+  return jnp.dot(c, vec) if fn is None else jnp.dot(fn(c), vec)
+
+

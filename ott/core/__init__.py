@@ -16,4 +16,5 @@
 """OTT core libraries."""
 
 from . import discrete_barycenter
+from . import gromov_wasserstein
 from . import sinkhorn
