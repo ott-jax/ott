@@ -66,20 +66,25 @@ def sinkhorn(
   regularization parameter :math:`\epsilon`, (resp. a cost matrix K) the reg-OT
   problem solves for two vectors f, g of size n, m
 
-  :math:`arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
+  :math:`arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
+  <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
 
   (respectively, written the space of positive scaling vectors u, v of size n, m
-  :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K v>` )
+  :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K
+  v>` )
 
   where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
   problem corresponds, in a so-called primal representation, to solving the
   unbalanced optimal transport problem with a variable matrix P of size n x m:
 
-  :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
+  :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
+  | b)`
 
-  (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)` )
+  (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
+  )
 
-  The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b \rightarrow \infty`.
+  The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
+  \rightarrow \infty`.
 
   The *original* (not regularized) OT problem is recovered
   when :math:`\epsilon \rightarrow 0` using the cost formulation. This problem
@@ -88,7 +93,8 @@ def sinkhorn(
 
   To allow for the option :math:`\rho_a, \rho_b \rightarrow \infty`,
   the sinkhorn function uses parameters
-  tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b / (\epsilon + \rho_b)`
+  tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b /
+  (\epsilon + \rho_b)`
   instead. Setting these parameters to 1 corresponds to setting ⍴ to ∞ above.
 
   The Sinkhorn algorithm solves the reg-OT problem by seeking optimal f, g
@@ -100,7 +106,8 @@ def sinkhorn(
   potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`, :math:`v^*`,
   using the geometry's cost or kernel matrices respectively:
 
-    :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* = \text{diag}(u^*) K \text{diag}(v^*)`
+    :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* =
+    \text{diag}(u^*) K \text{diag}(v^*)`
 
   The Sinkhorn algorithm solves this dual problem in f,g or u,v using block
   coordinate ascent, i.e. devising an update for each f and g (resp. u and v)
@@ -150,12 +157,29 @@ def sinkhorn(
   through blocks of `inner_iterations` at a time.
 
   Note:
-    * The Sinkhorn algorithm may not converge within the maximum number of iterations for possibly several reasons:
-      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is too small. Consider switching to `lse_mode = True` (at the price of a slower execution), increasing `epsilon`, or, alternatively, if you are sure that value `epsilon` is correct, or your cannot modify it, either increase `max_iterations` or `threshold`.
-      2. the probability weights `a` and `b` do not have the same total mass, while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
-      3. OOMs issues may arise when storing either cost or kernel matrices that are too large in `geom`. In that case, in the case where, the `geom` geometry is a `PointCloud`, set the `online` flag to `True`.
+    * The Sinkhorn algorithm may not converge within the maximum number of
+    iterations for possibly several reasons:
+      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is
+      too small. Consider switching to `lse_mode = True` (at the price of a
+      slower execution), increasing `epsilon`, or, alternatively, if you are
+      sure that value `epsilon` is correct, or your cannot modify it, either
+      increase `max_iterations` or `threshold`.
+      2. the probability weights `a` and `b` do not have the same total mass,
+      while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either
+      normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
+      3. OOMs issues may arise when storing either cost or kernel matrices that
+      are too large in `geom`. In that case, in the case where, the `geom`
+      geometry is a `PointCloud`, set the `online` flag to `True`.
 
-    * The weight vectors `a` and `b` are assumed to be positive by default, but zero weights are currently handled by relying on simple arithmetic for inf values that will likely arise (starting with log(0) when `lse_mode` is `True`, or divisions by zero when `lse_mode` is `False`). Whenever that arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in the forward pass, we use jnp.where conditional statements. In the backward pass, the inputs corresponding to these 0 weights (typically a location `x` associated with that weight), and the weight itself will have `NaN` gradient values.
+    * The weight vectors `a` and `b` are assumed to be positive by default, but
+    zero weights are currently handled by relying on simple arithmetic for inf
+    values that will likely arise (starting with log(0) when `lse_mode` is
+    `True`, or divisions by zero when `lse_mode` is `False`). Whenever that
+    arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in the
+    forward pass, we use jnp.where conditional statements. In the backward pass,
+    the inputs corresponding to these 0 weights (typically a location `x`
+    associated with that weight), and the weight itself will have `NaN` gradient
+    values.
 
   Args:
     geom: a Geometry object.
@@ -489,86 +513,28 @@ def _sinkhorn_iterations_implicit_bwd(
   del inner_iterations, min_iterations, max_iterations, momentum_default
   del chg_momentum_from, implicit_differentiation
   f, g, geom, a, b = res
-  f_g = jnp.concatenate((f, g))
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
-  ridge = 1e-10  #  to regularize the linear system in implicit function diff
 
-  if lse_mode:
-    marginal_a = lambda geom, f, g: geom.marginal_from_potentials(f, g, 1)
-    marginal_b = lambda geom, f, g: geom.marginal_from_potentials(f, g, 0)
-  else:
-    marginal_a = lambda geom, f, g: geom.marginal_from_scalings(
-        geom.scaling_from_potential(f), geom.scaling_from_potential(g), 1)
 
-    marginal_b = lambda geom, f, g: geom.marginal_from_scalings(
-        geom.scaling_from_potential(f), geom.scaling_from_potential(g), 0)
-
-  n, _ = geom.shape
-
-  def first_order_conditions(geom: geometry.Geometry,
-                             a: jnp.ndarray,
-                             b: jnp.ndarray,
-                             fg: jnp.ndarray):
-    """Computes vector of first order conditions for the reg-OT problem.
-
-    The output of this vector should be close to zero at optimality.
-    Upon completion of the Sinkhorn forward pass, its norm (as computed using
-    the norm_error setting) should be below the threshold parameter.
-
-    This error will be itself assumed to be close to zero when using implicit
-    differentiation.
-
-    Args:
-      geom: a geometry object
-      a: jnp.ndarray, first marginal
-      b: jnp.ndarray, second marginal
-      fg: concatenated vector of two potentials (total size equals the sum of
-        that of a and b)
-    Returns:
-      a jnp.ndarray of the size of fg quantifying deviation from optimality.
-    """
-    grad_a, grad_b = grad_of_marginal_fit(
-        a, b, fg[:n], fg[n:], tau_a, tau_b, geom)
-    return jnp.concatenate((
-        jnp.where(a > 0,
-                  marginal_a(geom, fg[:n], fg[n:]) - grad_a,
-                  0.0),
-        jnp.where(b > 0,
-                  marginal_b(geom, fg[:n], fg[n:]) - grad_b,
-                  0.0)
-        ))
-
-  foc_fg = lambda fg: first_order_conditions(geom, a, b, fg)
-  foc_geom_a_b = lambda geom, a, b: first_order_conditions(geom, a, b, f_g)
-
-  # Carries out implicit differentiation of F.O.C. using inversion of VJP
-  # computed here using automatic differentiation of the F.O.C vector.
-  _, pull_fg = jax.vjp(foc_fg, jnp.where(jnp.isfinite(f_g), f_g, 0))
-
-  grad_a = lambda z : grad_of_marginal_fit(a, b, z, f_g[n:], tau_a, tau_b, geom)[0]
-  grad_b = lambda z : grad_of_marginal_fit(a, b, f_g[:n], z, tau_a, tau_b, geom)[0]
-  vjp_ff = lambda z : z * marginal_a(geom, f_g[:n], fg[n:]) / geom.epsilon
-  vjp_fg = lambda z : geom.apply_transport(f_g[:n], f_g[n:], z, axis=1) - grad_a(z)
-  vjp_gf = lambda z : geom.apply_transport(f_g[:n], f_g[n:], z, axis=0) - grad_b(z)
-  vjp_gg = lambda z : z * marginal_b(geom, f_g[:n], fg[n:]) / geom.epsilon
-
-  
-  # Adds a small regularizer to improve conditioning when solving linear system
-  pull_fg_0 = lambda vec: pull_fg(vec)[0] + ridge * jnp.sum(vec**2)
-  vjp_gr = -jax.scipy.sparse.linalg.cg(pull_fg_0, jnp.concatenate(gr))[0]
+  # Applies first part of vjp to gr: inverse part of implicit function theorem.
+  vjp_gr = apply_inv_hessian(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode)
+  # Instantiates vjp of first order conditions of the objective, as a
+  # function of geom, a, b parameters (against which we seek to differentiate)
+  foc_geom_a_b = lambda geom, a, b: first_order_conditions(
+      geom, a, b, f, g, tau_a, tau_b, lse_mode)
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
   g_geom, g_a, g_b = pull_geom_a_b(vjp_gr)
-  # First gradient are for threshold and norm_errors: we set them to None
+
+  # First gradients are for threshold and norm_errors: we set them to None
   return None, None, g_geom, g_a, g_b
 
 
 # We set threshold, norm_errors, geom, a and b to be differentiable
 # as those are non static.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(9))(
-        _sinkhorn_iterations)
+    jax.custom_vjp, nondiff_argnums=range(9))(_sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
 
@@ -597,10 +563,8 @@ def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
     a positive number quantifying how far from convergence the algorithm stands.
 
   """
-  if tau_b == 1.0:
+  if tau_b == 1.0 and tau_b == 1.0:
     err = geom.error(f_u, g_v, b, 0, norm_error, lse_mode)
-  elif tau_a == 1.0:
-    err = geom.error(f_u, g_v, a, 1, norm_error, lse_mode)
   else:
     # In the unbalanced case, we compute the norm of the gradient.
     # the gradient is equal to the marginal of the current plan minus
@@ -608,14 +572,15 @@ def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
     # and h is either f or g. Note this is equal to z if rho_z → inf, which
     # is the case when tau_z → 1.0
     if lse_mode:
-      target = grad_of_marginal_fit(a, b, f_u, g_v, tau_a, tau_b, geom)
+      grad_a = grad_of_marginal_fit(a, f_u, tau_a, geom.epsilon)
+      grad_b = grad_of_marginal_fit(b, g_v, tau_b, geom.epsilon)
     else:
-      target = grad_of_marginal_fit(a, b,
-                                    geom.potential_from_scaling(f_u),
-                                    geom.potential_from_scaling(g_v),
-                                    tau_a, tau_b, geom)
-    err = geom.error(f_u, g_v, target[0], 1, norm_error, lse_mode)
-    err += geom.error(f_u, g_v, target[1], 0, norm_error, lse_mode)
+      grad_a = grad_of_marginal_fit(a, geom.potential_from_scaling(f_u),
+                                    tau_a, geom.epsilon)
+      grad_b = grad_of_marginal_fit(b, geom.potential_from_scaling(g_v),
+                                    tau_b, geom.epsilon)
+    err = geom.error(f_u, g_v, grad_a, 1, norm_error, lse_mode)
+    err += geom.error(f_u, g_v, grad_b, 0, norm_error, lse_mode)
   return err
 
 
@@ -655,24 +620,22 @@ def ent_reg_cost(geom: geometry.Geometry,
         jnp.where(a > 0, (f - geom.potential_from_scaling(a)) * a, 0.0))
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
-    div_a = jnp.sum(
-        jnp.where(
-            a > 0,
-            a * (rho_a - (rho_a + geom.epsilon / 2) *
-                 jnp.exp(-(f - geom.potential_from_scaling(a)) / rho_a)), 0.0))
+    div_a = - jnp.sum(jnp.where(
+        a > 0,
+        a * phi_star(-(f - geom.potential_from_scaling(a)), rho_a),
+        0.0))
 
   if tau_b == 1.0:
     div_b = jnp.sum(
         jnp.where(b > 0, (g - geom.potential_from_scaling(b)) * b, 0.0))
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
-    div_b = jnp.sum(
-        jnp.where(
-            b > 0,
-            b * (rho_b - (rho_b + geom.epsilon / 2) *
-                 jnp.exp(-(g - geom.potential_from_scaling(b)) / rho_b)), 0.0))
+    div_b = - jnp.sum(jnp.where(
+        b > 0,
+        b * phi_star(-(g - geom.potential_from_scaling(b)), rho_b),
+        0.0))
 
-  # Using https://arxiv.org/pdf/1910.12958.pdf (30), corrected with (15)
+  # Using https://arxiv.org/pdf/1910.12958.pdf (24)
   # The total mass of the coupling is computed in scaling space. This avoids
   # differentiation issues linked with the automatic differention of
   # jnp.exp(jnp.logsumexp(...)) when some of those logs appear as -inf.
@@ -684,43 +647,207 @@ def ent_reg_cost(geom: geometry.Geometry,
   return div_a + div_b + geom.epsilon * (jnp.sum(a) * jnp.sum(b) - total_sum)
 
 
-def grad_of_marginal_fit(a, b, f, g, tau_a, tau_b, geom):
-  """Computes grad of terms linked to marginals a, b in objective.
+def grad_of_marginal_fit(c, h, tau, epsilon):
+  """Computes grad of terms linked to marginals in objective.
 
-  Computes gradient w.r.t. f and g of terms in
+  Computes gradient w.r.t. f ( or g) of terms in
   https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
   (terms involving phi_star)
 
   Args:
-    a: jnp.ndarray, first target marginal
-    b: jnp.ndarray, second target marginal
-    f: jnp.ndarray, potential
-    g: jnp.ndarray, potential
-    tau_a: float, strength (in ]0,1]) of regularizer w.r.t. marginal a.
-    tau_b: float, strength (in ]0,1]) of regularizer w.r.t. marginal b.
-    geom: geometry object.
+    c: jnp.ndarray, first target marginal (either a or b in practice)
+    h: jnp.ndarray, potential (either f or g in practice)
+    tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
+    epsilon: regularization
   Returns:
-    a vector of size concatenate((f,g)).
+    a vector of the same size as c or h
   """
-  if tau_a == 1.0:
-    grad_a = a
+  if tau == 1.0:
+    return c
   else:
-    rho_a = geom.epsilon * tau_a / (1 - tau_a)
-    grad_a = jnp.where(a > 0, a * derivative_phi_star(-f, rho_a), 0.0)
-
-  if tau_b == 1.0:
-    grad_b = b
-  else:
-    rho_b = geom.epsilon * tau_b / (1 - tau_b)
-    grad_b = jnp.where(b > 0, b * derivative_phi_star(-g, rho_b), 0.0)
-  return grad_a, grad_b
+    rho = epsilon * tau / (1 - tau)
+    return jnp.where(c > 0, c * derivative_phi_star(-h, rho), 0.0)
 
 
-def phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
+def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Legendre transform of KL, https://arxiv.org/pdf/1910.12958.pdf p.9."""
-  return rho * (jnp.exp(f / rho) - 1)
+  return rho * (jnp.exp(h / rho) - 1)
 
 
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Derivative of Legendre transform of KL, see phi_star."""
   return jnp.exp(f / rho)
+
+
+def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
+  """Second Derivative of Legendre transform of KL, see phi_star."""
+  return jnp.exp(f / rho) / rho
+
+
+def diag_jacobian_of_marginal_fit(c, h, tau, epsilon):
+  """Computes grad of terms linked to marginals in objective.
+
+  Computes second derivative w.r.t. f ( or g) of terms in
+  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
+  (terms involving phi_star)
+
+  Args:
+    c: jnp.ndarray, first target marginal (either a or b in practice)
+    h: jnp.ndarray, potential (either f or g in practice)
+    tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
+    epsilon: regularization
+  Returns:
+    a vector of the same size as c or h
+  """
+  if tau == 1.0:
+    return 0
+  else:
+    rho = epsilon * tau / (1 - tau)
+    # here no minus sign because we are taking derivative w.r.t -h
+    return jnp.where(c > 0, c * second_derivative_phi_star(-h, rho), 0.0)
+
+
+def get_transport_functions(geom, lse_mode):
+  """Instantiates useful functions from geometry depending on lse_mode."""
+  if lse_mode:
+    marginal_a = lambda f, g: geom.marginal_from_potentials(f, g, 1)
+    marginal_b = lambda f, g: geom.marginal_from_potentials(f, g, 0)
+    app_transport = geom.apply_transport_from_potentials
+  else:
+    marginal_a = lambda f, g: geom.marginal_from_scalings(
+        geom.scaling_from_potential(f), geom.scaling_from_potential(g), 1)
+    marginal_b = lambda f, g: geom.marginal_from_scalings(
+        geom.scaling_from_potential(f), geom.scaling_from_potential(g), 0)
+    app_transport = lambda f, g, z, axis: geom.apply_transport_from_scalings(
+        geom.scaling_from_potential(f), geom.scaling_from_potential(g), z, axis)
+  return marginal_a, marginal_b, app_transport
+
+
+def apply_inv_hessian(gr: Tuple[np.ndarray],
+                      geom: geometry.Geometry,
+                      a: np.ndarray,
+                      b: np.ndarray,
+                      f: np.ndarray,
+                      g: np.ndarray,
+                      tau_a: float,
+                      tau_b: float,
+                      lse_mode: bool,
+                      ridge=1e-6):
+  """Applies - inverse of (hessian of reg_ot_cost w.r.t potentials (f,g)).
+
+  If the Hessian were to be instantiated as a matrix, it would be symmetric
+  and of size (n+m) x (n+m), written [A, B; C, D].
+
+  The implicit function theorem requires solving a linear system w.r.t that
+  Hessian. A and D are diagonal matrices, equal to the row and column marginals
+  respectively, corrected (if handling the unbalanced case) by the second
+  derivative of the part of the objective that ties potentials to the
+  marginals (terms in phi_star). B and C are equal respectively to the OT
+  matrix and its transpose, i.e. a n x m and m x n matrices. Note that we
+  never instantiate those transport matrices, but instead resort to calling
+  the app_transport method from the `Geometry` object (which will either use
+  potentials or scalings, depending on `lse_mode`.
+
+  The Hessian is symmetric definite. Rather than solve the linear system
+  directly we exploit the block diagonal property to use Schur complements.
+  Depending on the sizes involved, it is better to instantiate the Schur
+  complement of the first or of the second diagonal block. Because either Schur
+  complement is rank deficient (1 is a vector with 0 eigenvalue), we use a
+  ridge factor, adding 11' to these complements to promote solutions
+  orthogonal to 1, i.e. with zero sum.
+
+  Args:
+    gr: 2-uple, (vector of size n, vector of size m).
+    geom: Geometry object
+    a: marginal
+    b: marginal
+    f: potential, w.r.t marginal a
+    g: potential, w.r.t marginal b
+    tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal
+    tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal
+    lse_mode: bool
+    ridge: ridge added to promote solutions with 0 sum.
+
+  Returns:
+    A tuple of two vectors of the same size as gr.
+  """
+  marginal_a, marginal_b, app_transport = get_transport_functions(geom,
+                                                                  lse_mode)
+
+  vjp_fg = lambda z: app_transport(f, g, z, axis=1) / geom.epsilon
+  vjp_gf = lambda z: app_transport(f, g, z, axis=0) / geom.epsilon
+
+  diag_hess_a = (marginal_a(f, g) / geom.epsilon +
+                 diag_jacobian_of_marginal_fit(a, f, tau_a, geom.epsilon))
+  diag_hess_b = (marginal_b(f, g) / geom.epsilon +
+                 diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon))
+
+  # fork on either Schur complement of A or D, depending on size.
+  # since the Schur complement has a 0 eigenvalue for vector of 1, we use
+  # https://mathoverflow.net/questions/35643/conjugate-gradient-for-a-slightly-singular-system
+  # wrapping solver because of https://github.com/google/jax/issues/4322
+  my_cg = lambda f, b: jax.scipy.sparse.linalg.cg(f, b)[0]
+
+  if geom.shape[0] > geom.shape[1]:
+    inv_vjp_ff = lambda z: z / diag_hess_a
+    vjp_gg = lambda z: z * diag_hess_b
+    schur = lambda z: (
+        vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))) + ridge * jnp.sum(z))
+    out = jax.lax.custom_linear_solve(
+        schur, jnp.stack((vjp_gf(inv_vjp_ff(gr[0])), gr[1])), my_cg)
+    sch_f, sch_g = out[0,:], out[1,:]
+    vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
+    vjp_gr_g = -sch_f + sch_g
+  else:
+    vjp_ff = lambda z: z * diag_hess_a
+    inv_vjp_gg = lambda z: z / diag_hess_b
+    schur = lambda z: (
+        vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))) + ridge * jnp.sum(z))
+    out = jax.lax.custom_linear_solve(
+        schur, jnp.stack((vjp_fg(inv_vjp_gg(gr[1])), gr[0])), my_cg)
+    sch_g, sch_f = out[0,:], out[1,:]
+    vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
+    vjp_gr_f = -sch_g + sch_f
+
+  return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
+
+
+def first_order_conditions(geom: geometry.Geometry,
+                           a: jnp.ndarray,
+                           b: jnp.ndarray,
+                           f: jnp.ndarray,
+                           g: jnp.ndarray,
+                           tau_a: float,
+                           tau_b: float,
+                           lse_mode):
+  """Computes vector of first order conditions for the reg-OT problem.
+
+  The output of this vector should be close to zero at optimality.
+  Upon completion of the Sinkhorn forward pass, its norm (as computed using
+  the norm_error setting) should be below the threshold parameter.
+
+  This error will be itself assumed to be close to zero when using implicit
+  differentiation.
+
+  Args:
+    geom: a geometry object
+    a: jnp.ndarray, first marginal
+    b: jnp.ndarray, second marginal
+    f: jnp.ndarray, first potential
+    g: jnp.ndarray, second potential
+    tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal
+    tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal
+    lse_mode: bool
+
+  Returns:
+    a jnp.ndarray of size (size of f + size of g) quantifying deviation to
+    optimality.
+  """
+  marginal_a, marginal_b, _ = get_transport_functions(geom, lse_mode)
+
+  grad_a = grad_of_marginal_fit(a, f, tau_a, geom.epsilon)
+  grad_b = grad_of_marginal_fit(b, g, tau_b, geom.epsilon)
+  return jnp.concatenate((
+      jnp.where(a > 0, marginal_a(f, g) - grad_a, 0.0),
+      jnp.where(b > 0, marginal_b(f, g) - grad_b, 0.0)))
+

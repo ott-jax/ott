@@ -200,7 +200,7 @@ class Geometry:
       marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
     norm_error = jnp.array(norm_error)
     error = jnp.sum(
-        jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
+        jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis],
         axis=1) ** (1.0 / norm_error)
     return error
 
