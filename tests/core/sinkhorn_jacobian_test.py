@@ -62,8 +62,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
   def test_implicit_jacobian_versus_autodiff(self, lse_mode, tau_a, tau_b):
     epsilon = 0.1
     dim = 4
-    m = 38
-    for n in (15, 73):  # try both situations where n<m and n>m
+    m = 25
+    for n in (18, 63):  # try both situations where n<m and n>m
       rngs = jax.random.split(jax.random.PRNGKey(0), 10)
       x = jax.random.uniform(rngs[0], (n, dim))
       y = jax.random.uniform(rngs[1], (m, dim))
@@ -138,7 +138,6 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
           atol=1e-02)
       self.assertAllClose(
           grad_loss_imp[1], grad_loss_auto[1], rtol=1e-02, atol=1e-02)
-
 
 if __name__ == '__main__':
   absltest.main()

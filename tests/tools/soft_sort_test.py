@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """Tests for the soft sort tools."""
-
+import functools
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -125,6 +125,36 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     delta = jnp.abs(q - jnp.array([0.12, 0.34, 0.64, 0.86]))
     min_distances = jnp.min(delta, axis=1)
     self.assertAllClose(min_distances, jnp.zeros_like(min_distances), atol=0.05)
+
+  def test_soft_sort_jacobian(self):
+    z = jnp.array([[-0.07894829, -0.19103926, 0.02579477, 0.03337855,
+                    -0.22202155, -0.03641362, 0.05238241, 0.03864529,
+                    -0.04313925, -0.05940657],
+                   [0.13893449, 0.29435925, -0.56479488, 0.06751135,
+                    0.31202596, -0.89441361, 0.82545421, -0.64533559,
+                    -0.12059255, -0.4064632]])
+
+    def loss_fn(logits, implicit=False):
+      ranks_fn = functools.partial(
+          soft_sort.ranks, axis=-1, implicit_differentiation=implicit)
+      return jnp.mean(ranks_fn(logits)[:, 0])
+
+    my_loss_i = jax.jit(
+        jax.value_and_grad(functools.partial(loss_fn, implicit=True)))
+    my_loss_b = jax.jit(
+        jax.value_and_grad(functools.partial(loss_fn, implicit=False)))
+
+    _, grad_i = my_loss_i(z)
+    _, grad_b = my_loss_b(z)
+
+    delta = jax.random.uniform(jax.random.PRNGKey(0), z.shape) - .5
+    eps=1e-3
+    val_peps = loss_fn(z + eps * delta)
+    val_meps = loss_fn(z - eps * delta)
+    self.assertAllClose((val_peps - val_meps)/(2 * eps),
+                        jnp.sum(grad_i * delta), atol=0.1, rtol=0.01)
+    self.assertAllClose((val_peps - val_meps)/(2 * eps),
+                        jnp.sum(grad_b * delta), atol=0.1, rtol=0.01)
 
 
 if __name__ == '__main__':
