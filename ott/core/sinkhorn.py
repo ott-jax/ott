@@ -731,7 +731,9 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
                       g: np.ndarray,
                       tau_a: float,
                       tau_b: float,
-                      lse_mode: bool):
+                      lse_mode: bool,
+                      ridge = 1e-6,
+                      cg_tol = 1e-6):
   """Applies - inverse of (hessian of reg_ot_cost w.r.t potentials (f,g)).
 
   If the Hessian were to be instantiated as a matrix, it would be symmetric
@@ -756,15 +758,16 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
 
   Args:
     gr: 2-uple, (vector of size n, vector of size m).
-    geom: Geometry object
-    a: marginal
-    b: marginal
-    f: potential, w.r.t marginal a
-    g: potential, w.r.t marginal b
-    tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal
-    tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal
-    lse_mode: bool
-
+    geom: Geometry object.
+    a: marginal.
+    b: marginal.
+    f: potential, w.r.t marginal a.
+    g: potential, w.r.t marginal b.
+    tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal.
+    tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal.
+    lse_mode: bool, log-sum-exp mode if True, kernel else.
+    ridge: enforce zero sum solutions (as they should be).
+    cg_tol: tolerance to handle convergence for CG.
   Returns:
     A tuple of two vectors of the same size as gr.
   """
@@ -783,28 +786,29 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   # since the Schur complement has a 0 eigenvalue for vector of 1, we use
   # https://mathoverflow.net/questions/35643/conjugate-gradient-for-a-slightly-singular-system
   # wrapping solver because of https://github.com/google/jax/issues/4322
-  my_cg = lambda f, b: jax.scipy.sparse.linalg.cg(f, b)[0]
+  my_cg = lambda f, b: jax.scipy.sparse.linalg.cg(f, b, tol=cg_tol)[0]
   if geom.shape[0] > geom.shape[1]:
     inv_vjp_ff = lambda z: z / diag_hess_a
     vjp_gg = lambda z: z * diag_hess_b
-    schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
+    schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))) + ridge * jnp.sum(z)
     g0, g1 = vjp_gf(inv_vjp_ff(gr[0])), gr[1]
     g0, g1 = g0 - jnp.mean(g0), g1 - jnp.mean(g1)
-    out = jax.lax.custom_linear_solve(schur, jnp.stack((g0, g1)), my_cg)
-    sch_f, sch_g = out[0,:], out[1,:]
+    sch_f = jax.lax.custom_linear_solve(schur, g0, my_cg)
+    sch_g = jax.lax.custom_linear_solve(schur, g1, my_cg)
+    #sch_f, sch_g = sch_f - jnp.mean(sch_f), sch_g - jnp.mean(sch_g)
     vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
     vjp_gr_g = -sch_f + sch_g
   else:
     vjp_ff = lambda z: z * diag_hess_a
     inv_vjp_gg = lambda z: z / diag_hess_b
-    schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
+    schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))) + ridge * jnp.sum(z)
     g0, g1 = vjp_fg(inv_vjp_gg(gr[1])), gr[0]
     g0, g1 = g0 - jnp.mean(g0), g1 - jnp.mean(g1)
-    out = jax.lax.custom_linear_solve(schur, jnp.stack((g0, g1)), my_cg)
-    sch_g, sch_f = out[0,:], out[1,:]
+    sch_g = jax.lax.custom_linear_solve(schur, g0, my_cg)
+    sch_f = jax.lax.custom_linear_solve(schur, g1, my_cg)
+    #sch_f, sch_g = sch_f - jnp.mean(sch_f), sch_g - jnp.mean(sch_g)
     vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
     vjp_gr_f = -sch_g + sch_f
-
   return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
 

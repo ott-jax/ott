@@ -74,9 +74,9 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       # h, a random vector, will be summed against potential to create
       # an objective function that is not directly reg_ot_cost, to test
       # jacobian application.
-      h = 5 * jax.random.uniform(rngs[5], (n,)) -2.5
-      # since potentials are defined up to an additive constant, it makes
-      # sense to use a function that is invariant w.r.t that.
+      h = jax.random.uniform(rngs[5], (n,)) - 0.5
+      # since potentials are defined up to an additive constant,
+      # we center h so that <x,h> is invariant w.r.t shifts.
       h = h - jnp.mean(h)
 
       def potential(a, x, implicit, d):
@@ -93,18 +93,16 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
             lse_mode=lse_mode,
             threshold=1e-4,
             implicit_differentiation=implicit,
-            inner_iterations=2,
-            jit=False)
+            inner_iterations=2)
         return jnp.sum(out.f * d)
 
-      loss_and_grad_imp = jax.value_and_grad(
-          lambda a, x: potential(a, x, True, h), argnums=(0, 1))
-      loss_and_grad_auto = jax.value_and_grad(
-          lambda a, x: potential(a, x, False, h), argnums=(0, 1))
+      loss_and_grad_imp = jax.jit(jax.value_and_grad(
+          lambda a, x: potential(a, x, True, h), argnums=(0, 1)))
+      loss_and_grad_auto = jax.jit(jax.value_and_grad(
+          lambda a, x: potential(a, x, False, h), argnums=(0, 1)))
 
       loss_value_imp, grad_loss_imp = loss_and_grad_imp(a, x)
       loss_value_auto, grad_loss_auto = loss_and_grad_auto(a, x)
-
       self.assertAllClose(loss_value_imp, loss_value_auto)
       eps = 1e-3
 
@@ -113,19 +111,25 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       delta = delta - jnp.mean(delta)  # center perturbation
       reg_ot_delta_plus = potential(a + eps * delta, x, True, h)
       reg_ot_delta_minus = potential(a - eps * delta, x, True, h)
-      delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
-
+      delta_dot_grad_imp = jnp.sum(delta * grad_loss_imp[0])
+      delta_dot_grad_auto = jnp.sum(delta * grad_loss_auto[0])
       self.assertAllClose(
-          delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          delta_dot_grad_imp, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
           atol=1e-02)
-      # note how we removed gradients below. This is because gradients are only
-      # determined up to additive constant here (the primal variable is in the
-      # simplex).
+      self.assertAllClose(
+          delta_dot_grad_auto, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          rtol=1e-02,
+          atol=1e-02)
+
+      # Note how we removed gradients means below. This is because gradients
+      # are only determined up to additive constant here in the balanced case
+      # (the variable against which we differentiate is in the simplex).
+
       self.assertAllClose(
           grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
           grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
-          rtol=5e-02)
+          rtol=5e-02, atol=5e-2)
 
       # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
       delta = jax.random.uniform(rngs[4], (n, dim))
