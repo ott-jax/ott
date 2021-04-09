@@ -29,8 +29,8 @@ Gaussians [#]_. That cost can be used for instance to compute a distance between
 Gaussian mixtures, as proposed in [#]_ and revisited in [#]_.
 
 To be useful with Sinkhorn solvers, `Geometries` typically need to provide an
-`epsilon` regularization paramter. We propose either to set that value or
-to implement an annealing scheduler.
+`epsilon` regularization parameter. We propose either to set that value once for
+all, or implement an annealing scheduler.
 
 Geometries
 ----------
@@ -65,4 +65,4 @@ References
 
 .. [#] H. Janati et al., `Entropic Optimal Transport between Unbalanced Gaussian Measures has a Closed Form <https://proceedings.neurips.cc//paper_files/paper/2020/hash/766e428d1e232bbdd58664b41346196c-Abstract.html>`_ , NeurIPS 2020.
 .. [#] Y. Chen et al., `Optimal Transport for Gaussian Mixture Models <https://ieeexplore.ieee.org/document/8590715>`_ , IEEE Access (7)
-.. [#] J. Delon and A. Desolneux, `A Wasserstein-Type Distance SIIMS <https://epubs.siam.org/doi/pdf/10.1137/19M1301047>`_ , (13)-2, 936--970
+.. [#] J. Delon and A. Desolneux, `A Wasserstein-Type Distance in the Space of Gaussian Mixture Models <https://epubs.siam.org/doi/pdf/10.1137/19M1301047>`_ , SIIMS  (13)-2, 936--970
