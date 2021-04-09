@@ -30,9 +30,13 @@ Soft Sorting algorithms
 .. autosummary::
   :toctree: _autosummary
 
-    soft_sort.softsort
-    soft_sort.softranks
-    soft_sort.softquantile
+    soft_sort.sort
+    soft_sort.ranks
+    soft_sort.quantile
+    soft_sort.quantile_normalization
+
+References
+==========
 
 .. [#] T. Séjourné et al., `Sinkhorn Divergences for Unbalanced Optimal Transport <https://arxiv.org/abs/1910.12958>`_, arXiv:1910.12958.
 .. [#] M. Cuturi et al. `Differentiable Ranking and Sorting using Optimal Transport <https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html>`_, NeurIPS'19.
