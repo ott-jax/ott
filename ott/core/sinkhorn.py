@@ -516,13 +516,14 @@ def _sinkhorn_iterations_implicit_bwd(
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
 
-
   # Applies first part of vjp to gr: inverse part of implicit function theorem.
   vjp_gr = apply_inv_hessian(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode)
+
   # Instantiates vjp of first order conditions of the objective, as a
-  # function of geom, a, b parameters (against which we seek to differentiate)
+  # function of geom, a and b parameters (against which we differentiate)
   foc_geom_a_b = lambda geom, a, b: first_order_conditions(
       geom, a, b, f, g, tau_a, tau_b, lse_mode)
+
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
   g_geom, g_a, g_b = pull_geom_a_b(vjp_gr)
@@ -531,8 +532,8 @@ def _sinkhorn_iterations_implicit_bwd(
   return None, None, g_geom, g_a, g_b
 
 
-# We set threshold, norm_errors, geom, a and b to be differentiable
-# as those are non static.
+# Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
+# non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
     jax.custom_vjp, nondiff_argnums=range(9))(_sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
@@ -591,12 +592,12 @@ def ent_reg_cost(geom: geometry.Geometry,
                  tau_b: float,
                  f: jnp.ndarray,
                  g: jnp.ndarray) -> jnp.ndarray:
-  """Computes objective of regularized OT given dual solutions f,g.
+  """Computes objective of regularized OT given dual solutions f, g.
 
   In all sums below, jnp.where handle situations in which some coordinates of
   a and b are zero. For those coordinates, their potential is -inf.
   This leads to -inf - -inf or -inf x 0 operations which result in NaN.
-  These contributions are discarded when computing the objective.
+  These computations are therefore discarded when computing the objective.
 
   Args:
     geom: a Geometry object.
@@ -639,9 +640,11 @@ def ent_reg_cost(geom: geometry.Geometry,
   # The total mass of the coupling is computed in scaling space. This avoids
   # differentiation issues linked with the automatic differention of
   # jnp.exp(jnp.logsumexp(...)) when some of those logs appear as -inf.
-  # Because we are computing total mass it is irrelevant to have underflow since
-  # this would simply result in near 0 contributions, which, unlike Sinkhorn
-  # iterations, do not appear next in a numerator.
+  # While potentially less accurate numerically, this has little impact here.
+  # Indeed, scaling computations are only used to evaluate total mass. While
+  # scaling computation might lead to underflows, this simply results in ~0
+  # contributions. Yet, unlike Sinkhorn iterations, these contributions are not
+  # used next in the denominator of fraction, and therefore remain stable.
   total_sum = jnp.sum(geom.marginal_from_scalings(
       geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
   return div_a + div_b + geom.epsilon * (jnp.sum(a) * jnp.sum(b) - total_sum)
@@ -732,8 +735,9 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
                       tau_a: float,
                       tau_b: float,
                       lse_mode: bool,
-                      ridge = 1e-6,
-                      cg_tol = 1e-6):
+                      ridge_kernel=1e-4,
+                      ridge_identity=1e-4,
+                      cg_tol=1e-6):
   """Applies - inverse of (hessian of reg_ot_cost w.r.t potentials (f,g)).
 
   If the Hessian were to be instantiated as a matrix, it would be symmetric
@@ -752,9 +756,19 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   The Hessian is symmetric definite. Rather than solve the linear system
   directly we exploit the block diagonal property to use Schur complements.
   Depending on the sizes involved, it is better to instantiate the Schur
-  complement of the first or of the second diagonal block. Because either Schur
-  complement is rank deficient (1 is a vector with 0 eigenvalue), we center
-  first vectors that need to be solve with the linear system.
+  complement of the first or of the second diagonal block.
+
+  In either case, the Schur complement is rank deficient, with a 0 eigenvalue
+  for the vector of ones (this can be seen by noticing that the Schur complement
+  will be, e.g. for the first block, D(T1) - T D(1/T'1) T', which will be zero
+  if applied to 1_n). For this reason, we center first vectors that need to be
+  solved with the linear system and use a small ridge on the kernel space, i.e.
+  `ridge_kernel * jnp.sum(z)`.
+
+  The Schur complement can also be rank deficient if two lines or columns of T
+  are colinear. This will typically happen it two rows or columns of the cost
+  or kernel matrix are numerically close. To avoid this, we add a more global
+  `ridge_identity` regularizer to achieve better conditioning.
 
   Args:
     gr: 2-uple, (vector of size n, vector of size m).
@@ -766,8 +780,12 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
     tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal.
     tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal.
     lse_mode: bool, log-sum-exp mode if True, kernel else.
-    ridge: enforce zero sum solutions (as they should be).
+    ridge_kernel: promotes zero-sum solutions (as they should be).
+    ridge_identity: handles rank deficient transport matrices (this happens
+      typically when rows/cols in cost/kernel matrices are colinear, or,
+      equivalently when two points from either measure are close).
     cg_tol: tolerance to handle convergence for CG.
+
   Returns:
     A tuple of two vectors of the same size as gr.
   """
@@ -782,31 +800,33 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   diag_hess_b = (marginal_b(f, g) / geom.epsilon +
                  diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon))
 
-  # fork on either Schur complement of A or D, depending on size.
-  # since the Schur complement has a 0 eigenvalue for vector of 1, we use
-  # https://mathoverflow.net/questions/35643/conjugate-gradient-for-a-slightly-singular-system
-  # wrapping solver because of https://github.com/google/jax/issues/4322
+  # Defines wrapper to handle linear solver in differentiable way.
   my_cg = lambda f, b: jax.scipy.sparse.linalg.cg(f, b, tol=cg_tol)[0]
+
+  # Forks on relying on Schur complement of either A or D, depending on size.
   if geom.shape[0] > geom.shape[1]:
     inv_vjp_ff = lambda z: z / diag_hess_a
     vjp_gg = lambda z: z * diag_hess_b
-    schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))) + ridge * jnp.sum(z)
+    schur = lambda z: (
+        vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))) + ridge_kernel * jnp.sum(z) +
+        ridge_identity * z)
     g0, g1 = vjp_gf(inv_vjp_ff(gr[0])), gr[1]
     g0, g1 = g0 - jnp.mean(g0), g1 - jnp.mean(g1)
     sch_f = jax.lax.custom_linear_solve(schur, g0, my_cg)
     sch_g = jax.lax.custom_linear_solve(schur, g1, my_cg)
-    #sch_f, sch_g = sch_f - jnp.mean(sch_f), sch_g - jnp.mean(sch_g)
     vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
     vjp_gr_g = -sch_f + sch_g
   else:
     vjp_ff = lambda z: z * diag_hess_a
     inv_vjp_gg = lambda z: z / diag_hess_b
-    schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))) + ridge * jnp.sum(z)
+    schur = lambda z: (
+        vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))) + ridge_kernel * jnp.sum(z) +
+        ridge_identity * z)
     g0, g1 = vjp_fg(inv_vjp_gg(gr[1])), gr[0]
     g0, g1 = g0 - jnp.mean(g0), g1 - jnp.mean(g1)
     sch_g = jax.lax.custom_linear_solve(schur, g0, my_cg)
     sch_f = jax.lax.custom_linear_solve(schur, g1, my_cg)
-    #sch_f, sch_g = sch_f - jnp.mean(sch_f), sch_g - jnp.mean(sch_g)
+
     vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
     vjp_gr_f = -sch_g + sch_f
   return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))

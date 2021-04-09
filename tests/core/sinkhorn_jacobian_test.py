@@ -114,11 +114,13 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       delta_dot_grad_imp = jnp.sum(delta * grad_loss_imp[0])
       delta_dot_grad_auto = jnp.sum(delta * grad_loss_auto[0])
       self.assertAllClose(
-          delta_dot_grad_imp, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          delta_dot_grad_imp,
+          (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
           atol=1e-02)
       self.assertAllClose(
-          delta_dot_grad_auto, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+          delta_dot_grad_auto,
+          (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
           atol=1e-02)
 

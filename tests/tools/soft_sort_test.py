@@ -143,7 +143,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     _, grad_b = my_loss_b(z)
 
     delta = jax.random.uniform(jax.random.PRNGKey(1), z.shape) - .5
-    eps=1e-3
+    eps = 1e-3
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
     self.assertAllClose((val_peps - val_meps)/(2 * eps),
