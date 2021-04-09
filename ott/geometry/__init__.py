@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""OTT ground geometries."""
+"""OTT ground geometries: Classes and cost functions to instantiate them."""
+from . import costs
 from . import epsilon_scheduler
 from . import geometry
 from . import grid

@@ -25,7 +25,7 @@ Gromov-Wasserstein Solver
     gromov_wasserstein.gromov_wasserstein
 
 References
-==========
+----------
 
 .. [#] J.D. Benamou et al., `Iterative Bregman Projections for Regularized Transportation Problems <https://epubs.siam.org/doi/abs/10.1137/141000439>`_ , SIAM J. Sci. Comput. 37(2), A1111-A1138.
 .. [#] H. Janati et al., `Debiased Sinkhorn Barycenters <http://proceedings.mlr.press/v119/janati20a.html>`_ , ICML 2020.

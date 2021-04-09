@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""OTT tools."""
+"""OTT tools: A set of tools to use OT in differentiable ML pipelines."""
 
 from . import sinkhorn_divergence
 from . import soft_sort

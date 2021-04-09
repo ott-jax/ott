@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""OTT core libraries."""
+"""OTT core libraries: the engines behind most computations happening in OTT."""
 
 from . import discrete_barycenter
 from . import gromov_wasserstein
