@@ -43,6 +43,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/application_biology.ipynb
    notebooks/OTT_&_POT.ipynb
    notebooks/Sinkhorn_Barycenters.ipynb
+   notebooks/soft_sort.ipynb
 
 .. toctree::
    :maxdepth: 1
