@@ -72,6 +72,8 @@ Currently implements the following classes and functions:
 
     -   In [discrete_barycenter.py](ott/tools/discrete_barycenter.py): implementation of discrete Wasserstein barycenters : given <img src="https://render.githubusercontent.com/render/math?math=%24N%24"> histograms all supported on the same `Geometry`, compute a barycenter of theses measures, using an algorithm by [Janati et al. (2020)](https://arxiv.org/abs/2006.02575)
 
+    -   In [gromov_wasserstein.py](ott/tools/gromov_wasserstein.py): implementation of the Gromov-Wasserstein metric between measured-metric spaces, here encoded as a pair of `Geometry` objects along with weights `a` and `b`.
+
 -   In the [tools](ott/tools) folder,
 
     -   In [soft_sort.py](ott/tools/soft_sort.py): implementation of
