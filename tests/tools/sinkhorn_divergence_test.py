@@ -42,20 +42,28 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geometry_xx = pointcloud.PointCloud(x, x, epsilon=0.1)
-    geometry_xy = pointcloud.PointCloud(x, y, epsilon=0.1)
-    geometry_yy = pointcloud.PointCloud(y, y, epsilon=0.1)
+    geometry_xx = pointcloud.PointCloud(x, x, epsilon=0.01)
+    geometry_xy = pointcloud.PointCloud(x, y, epsilon=0.01)
+    geometry_yy = pointcloud.PointCloud(y, y, epsilon=0.01)
     div = sinkhorn_divergence._sinkhorn_divergence(
         geometry_xy,
         geometry_xx,
         geometry_yy,
         self._a,
         self._b,
-        threshold=1e-1,
-        max_iterations=20)
-    # div.divergence = 2.0
+        threshold=1e-2)
     self.assertGreater(div.divergence, 0.0)
     self.assertLen(div.potentials, 3)
+
+    # Test symmetric setting,
+    # test that symmetric evaluation converges earlier/better.
+    div = sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud, x, x, epsilon=1e-1,
+        sinkhorn_kwargs={'inner_iterations': 1})
+    self.assertAllClose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
+    iters_xx = jnp.sum(div.errors[0] > 0)
+    iters_xx_sym = jnp.sum(div.errors[1] > 0)
+    self.assertGreater(iters_xx, iters_xx_sym)
 
   def test_euclidean_point_cloud_wrapper(self):
     rngs = jax.random.split(self.rng, 2)

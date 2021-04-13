@@ -47,35 +47,40 @@ def sinkhorn(
     momentum_strategy: Optional[Union[float, str]] = None,
     lse_mode: bool = True,
     implicit_differentiation: bool = True,
+    parallel_dual_updates: bool = False,
     jit: bool = False,
 ) -> SinkhornOutput:
   r"""Solves regularized OT problems using Sinkhorn iterations.
 
-  The Sinkhorn algorithm is a fixed point algorithm that seeks a pair of
-  variables that optimize a regularized optimal transport (reg-OT) problem. This
-  function outputs this pair of optimal solutions, in addition to the objective
-  that is reached, a vector of errors computed during iterations and a flag.
+  The Sinkhorn algorithm is a fixed point algorithm that seeks solves a
+  regularized formulation of the optimal transport (reg-OT) between measures.
+  More precisely, the optimization itself is carried out over a pair of vectors.
+  These two vectors are returned, in addition to the objective value
+  that is reached, as well as a vector of errors computed during iterations and
+  a flag to ensure whether the algorithm has converged or not.
 
-  The reg-OT problem is specified by two measures, of respective sizes n and m.
-  From the viewpoint of `sinkhorn` function, these two measures are only seen
-  through a geometry object `geom` (a cost or kernel structure between their
-  respective points) and weight vectors `a` and `b`. The Sinkhorn algorithm
-  direct the `geom` object to carry out the heaviest computations.
+  The reg-OT problem is specified by two measures, of respective sizes ``n`` and
+  ``m``. From the viewpoint of the ``sinkhorn`` function, these two measures are
+  seen through a ``geom`` Geometry object and weight vectors ``a`` and ``b``.
+  The Sinkhorn algorithm directs the ``geom`` object to carry out the heaviest
+  computations.
 
-  Given a geometry, which provides either a cost matrix C with its
-  regularization parameter :math:`\epsilon`, (resp. a cost matrix K) the reg-OT
-  problem solves for two vectors f, g of size n, m
+  Given a geometry ``geom``, which provides either a cost matrix :math:`C` with its
+  regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`C`)
+  the reg-OT problem solves for two vectors `f`, `g` of size ``n``, ``m``:
 
-  :math:`arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
+  :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
   <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
 
-  (respectively, written the space of positive scaling vectors u, v of size n, m
+  (respectively, written the space of positive scaling vectors `u`, `v` of size
+  ``n``, ``m``
   :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K
   v>` )
 
   where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
   problem corresponds, in a so-called primal representation, to solving the
-  unbalanced optimal transport problem with a variable matrix P of size n x m:
+  unbalanced optimal transport problem with a variable matrix `P` of size ``n``
+  x ``m``:
 
   :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
   | b)`
@@ -95,26 +100,28 @@ def sinkhorn(
   the sinkhorn function uses parameters
   tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b /
   (\epsilon + \rho_b)`
-  instead. Setting these parameters to 1 corresponds to setting ⍴ to ∞ above.
+  instead. Setting either of these parameters to 1 corresponds to setting either
+  :math:`rho_a, \rho_b` to ∞ above.
 
-  The Sinkhorn algorithm solves the reg-OT problem by seeking optimal f, g
-  potentials (or alternatively their parameterization as positive scalings u, v)
-  rather than solving it directly for a matrix P. This is mostly for efficiency
-  (potentials and scalings have a n + m memory footprint, rather than n x m
-  required to store P) and also because both problems are in fact equivalent,
-  since the optimal transport :math:`P^*` can be recovered from optimal
-  potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`, :math:`v^*`,
-  using the geometry's cost or kernel matrices respectively:
+  The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
+  potentials (or alternatively their parameterization as positive scalings `u`,
+  `v`), rather than directly the primal problem in :math:`P`. This is mostly for
+  efficiency (potentials and scalings have a ``n + m`` memory footprint, rather
+  than ``n m`` required to store `P`). This is also because both problems are,
+  in fact, equivalent, since the optimal transport :math:`P^*` can be recovered
+  from optimal potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`,
+  :math:`v^*`, using the geometry's cost or kernel matrices respectively:
 
     :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* =
     \text{diag}(u^*) K \text{diag}(v^*)`
 
-  The Sinkhorn algorithm solves this dual problem in f,g or u,v using block
-  coordinate ascent, i.e. devising an update for each f and g (resp. u and v)
-  that cancels their respective gradients, one at a time. These two iterations
-  are repeated `inner_iterations` times, after which the norm of these gradients
-  will be evaluated and compared with the `threshold` value. The iterations are
-  then repeated as long as that errors does not go below `threshold`.
+  The Sinkhorn algorithm solves this dual problem in `f, g` or `u, v` using
+  block coordinate ascent, i.e. devising an update for each `f` and `g` (resp.
+  `u` and `v`) that cancels their respective gradients, one at a time.
+  These two iterations are repeated `inner_iterations` times, after which the
+  norm of these gradients will be evaluated and compared with the `threshold`
+  value. The iterations are then repeated as long as that errors does not go
+  below `threshold`.
 
   The boolean flag `lse_mode` sets whether the algorithm is run in either:
 
@@ -131,30 +138,35 @@ def sinkhorn(
   than applying lse repeatedly over lines), this mode is also less stable
   numerically, notably for smaller :math:`\epsilon`.
 
-  In the code below, the variables f_u or g_v can be either regarded as
+  In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as
   potentials (real) or scalings (positive) vectors, depending on the choice
-  of lse_mode by the end user.
+  of ``lse_mode`` by the end user.
 
   In addition to standard Sinkhorn updates, the user can also change them with
-  a `momentum_strategy` parameter in ]0,2[. We also implement a strategy that
+  a ``momentum_strategy`` parameter in ]0,2[. We also implement a strategy that
   tries to set that parameter adaptively, as a function of progress in the
   error, as proposed in the literature.
 
-  Differentiation through the Sinkhorn algorithm is carried out by default
-  using implicit differentiation of the optimality conditions, as reflected by
-  the default setting of `implicit_differentiation` to`True`. In that case the
-  termination criterion used to stop Sinkhorn (cancellation of gradient of
-  objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs given a
-  desired change in the outputs.
+  Differentiation of the optimal solutions of the Sinkhorn algorithm is carried
+  out by default using implicit differentiation of the optimality conditions, as
+  reflected by the default setting of ``implicit_differentiation`` to ``True``.
+  In that case the termination criterion used to stop Sinkhorn (cancellation of
+  gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs
+  given a desired change in the outputs.
 
   Alternatively, the Sinkhorn iterations have been wrapped in a fixed point
-  iteration loop, defined in `fixed_point_loop`, rather than a standard while
+  iteration loop, defined in ``fixed_point_loop``, rather than a standard while
   loop. This is to ensure the end result of this fixed point loop can also be
   differentiated, if needed, using standard JAX operations. To ensure
   backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop
   does checkpointing of state variables (here `f_u` and `g_v`) every
   `inner_iterations`, and backpropagates automatically, block by block,
   through blocks of `inner_iterations` at a time.
+
+  The ``parallel_dual_updates`` flag is set to ``False`` by default. In that
+  setting, ``g_v`` is first updated using the latest values for ``f_u`` and
+  ``g_v``, before proceeding to update ``f_u``. When the flag is set to
+  ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
 
   Note:
     * The Sinkhorn algorithm may not converge within the maximum number of
@@ -206,6 +218,8 @@ def sinkhorn(
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
     implicit_differentiation: True if using implicit diff, False if backprop.
+    parallel_dual_updates: updates potentials or scalings in parallel if True,
+      sequentially (in Gauss-Seidel fashion) if False.
     jit: bool, if True, jits the function.
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
@@ -219,13 +233,14 @@ def sinkhorn(
   """
   if jit:
     call_to_sinkhorn = functools.partial(
-        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9, 10, 11, 12))(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9, 10, 11, 12, 13))(
             _sinkhorn)
   else:
     call_to_sinkhorn = _sinkhorn
   return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
                           inner_iterations, min_iterations, max_iterations,
-                          momentum_strategy, lse_mode, implicit_differentiation)
+                          momentum_strategy, lse_mode, implicit_differentiation,
+                          parallel_dual_updates)
 
 
 def _sinkhorn(
@@ -241,7 +256,8 @@ def _sinkhorn(
     max_iterations: int = 2000,
     momentum_strategy: Optional[Union[float, str]] = None,
     lse_mode: bool = True,
-    implicit_differentiation: bool = True) -> SinkhornOutput:
+    implicit_differentiation: bool = True,
+    parallel_dual_updates: bool = False) -> SinkhornOutput:
   """Checks inputs and forks between implicit/backprop exec of Sinkhorn."""
 
   num_a, num_b = geom.shape
@@ -281,7 +297,9 @@ def _sinkhorn(
   f, g, errors = iteration_fun(tau_a, tau_b, inner_iterations, min_iterations,
                                max_iterations, momentum_default,
                                chg_momentum_from, lse_mode,
-                               implicit_differentiation, threshold, norm_error,
+                               implicit_differentiation,
+                               parallel_dual_updates,
+                               threshold, norm_error,
                                geom, a, b)
 
   # When differentiating the regularized OT cost, it is not necessary to compute
@@ -317,6 +335,7 @@ def _sinkhorn_iterations(
     chg_momentum_from: int,
     lse_mode: bool,
     implicit_differentiation: bool,
+    parallel_dual_updates: bool,
     threshold: float,
     norm_error: Sequence[int],
     geom: geometry.Geometry,
@@ -342,6 +361,8 @@ def _sinkhorn_iterations(
     implicit_differentiation: if True, do not backprop through the Sinkhorn
       loop, but use the implicit function theorem on the fixed point optimality
       conditions.
+    parallel_dual_updates: updates potentials or scalings in parallel if True,
+      sequentially (in Gauss-Seidel fashion) if False.
     threshold: (float) the relative threshold on the Sinkhorn error to stop the
       Sinkhorn iterations.
     norm_error: t-uple of int, p-norms of marginal / target errors to track
@@ -407,19 +428,22 @@ def _sinkhorn_iterations(
                                         momentum_default))
 
     # Sinkhorn updates using momentum, in either scaling or potential form.
+    if parallel_dual_updates:
+      old_g_v = g_v
     if lse_mode:
       new_g_v = tau_b * geom.update_potential(f_u, g_v, jnp.log(b),
                                               iteration, axis=0)
       g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0.0) + w * new_g_v
-
-      new_f_u = tau_a * geom.update_potential(f_u, g_v, jnp.log(a),
-                                              iteration, axis=1)
+      new_f_u = tau_a * geom.update_potential(
+          f_u, old_g_v if parallel_dual_updates else g_v,
+          jnp.log(a), iteration, axis=1)
       f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0.0) + w * new_f_u
     else:
       new_g_v = geom.update_scaling(f_u, b, iteration, axis=0) ** tau_b
       g_v = jnp.where(g_v > 0, g_v, 1) ** (1.0 - w) * new_g_v ** w
-
-      new_f_u = geom.update_scaling(g_v, a, iteration, axis=1) ** tau_a
+      new_f_u = geom.update_scaling(
+          old_g_v if parallel_dual_updates else g_v,
+          a, iteration, axis=1) ** tau_a
       f_u = jnp.where(f_u > 0, f_u, 1) ** (1.0 - w) * new_f_u ** w
 
     # re-computes error if compute_error is True, else set it to inf.
@@ -462,6 +486,7 @@ def _sinkhorn_iterations_taped(
     chg_momentum_from: int,
     lse_mode: bool,
     implicit_differentiation: bool,
+    parallel_dual_updates: bool,
     threshold: float,
     norm_error: Sequence[int],
     geom: geometry.Geometry,
@@ -472,6 +497,7 @@ def _sinkhorn_iterations_taped(
                                       min_iterations, max_iterations,
                                       momentum_default, chg_momentum_from,
                                       lse_mode, implicit_differentiation,
+                                      parallel_dual_updates,
                                       threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
 
@@ -479,7 +505,8 @@ def _sinkhorn_iterations_taped(
 def _sinkhorn_iterations_implicit_bwd(
     tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
     momentum_default, chg_momentum_from, lse_mode, implicit_differentiation,
-    res, gr) -> Tuple[Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
+    parallel_dual_updates, res,
+    gr) -> Tuple[Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
@@ -500,6 +527,8 @@ def _sinkhorn_iterations_implicit_bwd(
     implicit_differentiation: if True, do not backprop through the Sinkhorn
       loop, but use the implicit function theorem on the fixed point optimality
       conditions.
+    parallel_dual_updates: updates potentials or scalings in parallel if True,
+      sequentially (in Gauss-Seidel fashion) if False.
     res: residual data sent from fwd pass, used for computations below. In this
       case consists in the output itself, as well as inputs against which we
       wish to differentiate.
@@ -511,7 +540,7 @@ def _sinkhorn_iterations_implicit_bwd(
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   del inner_iterations, min_iterations, max_iterations, momentum_default
-  del chg_momentum_from, implicit_differentiation
+  del chg_momentum_from, implicit_differentiation, parallel_dual_updates
   f, g, geom, a, b = res
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
@@ -535,7 +564,7 @@ def _sinkhorn_iterations_implicit_bwd(
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(9))(_sinkhorn_iterations)
+    jax.custom_vjp, nondiff_argnums=range(10))(_sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
 
@@ -870,4 +899,3 @@ def first_order_conditions(geom: geometry.Geometry,
   return jnp.concatenate((
       jnp.where(a > 0, marginal_a(f, g) - grad_a, 0.0),
       jnp.where(b > 0, marginal_b(f, g) - grad_b, 0.0)))
-

@@ -87,18 +87,25 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
-    **kwargs: Arguments to sinkhorn_iterations.
+    **kwargs: Arguments to sinkhorn.
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
-  geoms = (geometry_xy, geometry_xx, geometry_yy)
-  out = [
-      sinkhorn.SinkhornOutput(None, None, 0, None, None) if geom is None
-      else sinkhorn.sinkhorn(geom, marginals[0], marginals[1], **kwargs)
-      for (geom, marginals) in zip(geoms, [[a, b], [a, a], [b, b]])
-  ]
-  div = (out[0].reg_ot_cost - 0.5 * (out[1].reg_ot_cost + out[2].reg_ot_cost)
+  # Removes arguments set by default in symmetric case.
+  kwargs_symmetric = kwargs.copy()
+  kwargs_symmetric.update(parallel_dual_updates=True, momentum_strategy=0.5)
+
+  out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
+  out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
+  if geometry_yy is None:
+    out_yy = sinkhorn.SinkhornOutput(None, None, 0, None, None)
+  else:
+    out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
+
+  div = (out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost)
          + 0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b))**2)
-  return SinkhornDivergenceOutput(div, tuple([s.f, s.g] for s in out), geoms,
+  out = (out_xy, out_xx, out_yy)
+  return SinkhornDivergenceOutput(div, tuple([s.f, s.g] for s in out),
+                                  (geometry_xy, geometry_xx, geometry_yy),
                                   tuple(s.errors for s in out),
                                   tuple(s.converged for s in out))
