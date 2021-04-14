@@ -91,7 +91,7 @@ def _sinkhorn_divergence(
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
-  # Removes arguments set by default in symmetric case.
+  # Replaces parallel/momentum arguments in symmetric case.
   kwargs_symmetric = kwargs.copy()
   kwargs_symmetric.update(parallel_dual_updates=True, momentum_strategy=0.5)
 

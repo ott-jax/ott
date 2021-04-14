@@ -52,76 +52,80 @@ def sinkhorn(
 ) -> SinkhornOutput:
   r"""Solves regularized OT problems using Sinkhorn iterations.
 
-  The Sinkhorn algorithm is a fixed point algorithm that seeks solves a
-  regularized formulation of the optimal transport (reg-OT) between measures.
-  More precisely, the optimization itself is carried out over a pair of vectors.
-  These two vectors are returned, in addition to the objective value
-  that is reached, as well as a vector of errors computed during iterations and
-  a flag to ensure whether the algorithm has converged or not.
+  The Sinkhorn algorithm is a fixed point iteration that solves a regularized
+  optimal transport (reg-OT) problem between two measures.
+  The optimization variables are a pair of vectors (called potentials, or
+  scalings when parameterized as exponentials of the former). Two optima vectors
+  are therefore returned, in addition to the objective value, as well as a
+  vector of errors computed during iterations, provided to monitor convergence,
+  as well as a boolean to signify whether the algorithm, using the parameters
+  specified by the user, has converged or not.
 
   The reg-OT problem is specified by two measures, of respective sizes ``n`` and
   ``m``. From the viewpoint of the ``sinkhorn`` function, these two measures are
-  seen through a ``geom`` Geometry object and weight vectors ``a`` and ``b``.
-  The Sinkhorn algorithm directs the ``geom`` object to carry out the heaviest
-  computations.
+  seen through a ``geom`` Geometry object and weight vectors ``a`` and ``b`` of
+  respective sizes ``n`` and ``m``. The Sinkhorn algorithm mainly consists in
+  carrying out updates on initial values for those potentials using elementary
+  operations that are carried out by the ``geom`` object.
 
-  Given a geometry ``geom``, which provides either a cost matrix :math:`C` with its
-  regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`C`)
-  the reg-OT problem solves for two vectors `f`, `g` of size ``n``, ``m``:
+  Some maths:
+    Given a geometry ``geom``, which provides either a cost matrix :math:`C` with its
+    regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`C`)
+    the reg-OT problem solves for two vectors `f`, `g` of size ``n``, ``m``:
 
-  :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
-  <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
+    :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
+    <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
 
-  (respectively, written the space of positive scaling vectors `u`, `v` of size
-  ``n``, ``m``
-  :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K
-  v>` )
+    (respectively, written the space of positive scaling vectors `u`, `v` of size
+    ``n``, ``m``
+    :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K
+    v>` )
 
-  where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
-  problem corresponds, in a so-called primal representation, to solving the
-  unbalanced optimal transport problem with a variable matrix `P` of size ``n``
-  x ``m``:
+    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
+    problem corresponds, in a so-called primal representation, to solving the
+    unbalanced optimal transport problem with a variable matrix `P` of size ``n``
+    x ``m``:
 
-  :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
-  | b)`
+    :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
+    | b)`
 
-  (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
-  )
+    (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
+    )
 
-  The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
-  \rightarrow \infty`.
+    The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
+    \rightarrow \infty`.
 
-  The *original* (not regularized) OT problem is recovered
-  when :math:`\epsilon \rightarrow 0` using the cost formulation. This problem
-  is not handled for now in this toolbox, which focuses exclusively
-  on :math:`\epsilon > 0`.
+    The *original* (not regularized) OT problem is recovered
+    when :math:`\epsilon \rightarrow 0` using the cost formulation. This problem
+    is not handled for now in this toolbox, which focuses exclusively
+    on :math:`\epsilon > 0`.
 
-  To allow for the option :math:`\rho_a, \rho_b \rightarrow \infty`,
-  the sinkhorn function uses parameters
-  tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b /
-  (\epsilon + \rho_b)`
-  instead. Setting either of these parameters to 1 corresponds to setting either
-  :math:`rho_a, \rho_b` to ∞ above.
+    To allow for the option :math:`\rho_a, \rho_b \rightarrow \infty`,
+    the sinkhorn function uses parameters
+    tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b /
+    (\epsilon + \rho_b)`
+    instead. Setting either of these parameters to 1 corresponds to setting either
+    :math:`rho_a, \rho_b` to ∞ above.
 
-  The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
-  potentials (or alternatively their parameterization as positive scalings `u`,
-  `v`), rather than directly the primal problem in :math:`P`. This is mostly for
-  efficiency (potentials and scalings have a ``n + m`` memory footprint, rather
-  than ``n m`` required to store `P`). This is also because both problems are,
-  in fact, equivalent, since the optimal transport :math:`P^*` can be recovered
-  from optimal potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`,
-  :math:`v^*`, using the geometry's cost or kernel matrices respectively:
+    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
+    potentials (or alternatively their parameterization as positive scalings `u`,
+    `v`), rather than directly the primal problem in :math:`P`. This is mostly for
+    efficiency (potentials and scalings have a ``n + m`` memory footprint, rather
+    than ``n m`` required to store `P`). This is also because both problems are,
+    in fact, equivalent, since the optimal transport :math:`P^*` can be recovered
+    from optimal potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`,
+    :math:`v^*`, using the geometry's cost or kernel matrices respectively:
 
-    :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* =
-    \text{diag}(u^*) K \text{diag}(v^*)`
+      :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* =
+      \text{diag}(u^*) K \text{diag}(v^*)`
 
-  The Sinkhorn algorithm solves this dual problem in `f, g` or `u, v` using
-  block coordinate ascent, i.e. devising an update for each `f` and `g` (resp.
-  `u` and `v`) that cancels their respective gradients, one at a time.
-  These two iterations are repeated `inner_iterations` times, after which the
-  norm of these gradients will be evaluated and compared with the `threshold`
-  value. The iterations are then repeated as long as that errors does not go
-  below `threshold`.
+    The Sinkhorn algorithm solves this dual problem in `f, g` or `u, v` using
+    block coordinate ascent, i.e. devising an update for each `f` and `g` (resp.
+    `u` and `v`) that cancels their respective gradients, one at a time.
+    These two iterations are repeated `inner_iterations` times, after which the
+    norm of these gradients will be evaluated and compared with the `threshold`
+    value. The iterations are then repeated as long as that errors does not go
+    below `threshold`.
 
   The boolean flag `lse_mode` sets whether the algorithm is run in either:
 
@@ -142,10 +146,10 @@ def sinkhorn(
   potentials (real) or scalings (positive) vectors, depending on the choice
   of ``lse_mode`` by the end user.
 
-  In addition to standard Sinkhorn updates, the user can also change them with
-  a ``momentum_strategy`` parameter in ]0,2[. We also implement a strategy that
-  tries to set that parameter adaptively, as a function of progress in the
-  error, as proposed in the literature.
+  In addition to standard Sinkhorn updates, the user can also use heavy-ball
+  type updates using a ``momentum_strategy`` parameter in ]0,2[. We also
+  implement a strategy that tries to set that parameter adaptively, as a
+  function of progress in the error, as proposed in the literature.
 
   Differentiation of the optimal solutions of the Sinkhorn algorithm is carried
   out by default using implicit differentiation of the optimality conditions, as
@@ -169,29 +173,13 @@ def sinkhorn(
   ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
 
   Note:
-    * The Sinkhorn algorithm may not converge within the maximum number of
-    iterations for possibly several reasons:
-      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is
-      too small. Consider switching to `lse_mode = True` (at the price of a
-      slower execution), increasing `epsilon`, or, alternatively, if you are
-      sure that value `epsilon` is correct, or your cannot modify it, either
-      increase `max_iterations` or `threshold`.
-      2. the probability weights `a` and `b` do not have the same total mass,
-      while using a balanced (`tau_a = tau_b = 1.0`) setup. Consider either
-      normalizing `a` and `b`, or set either `tau_a` and/or `tau_b < 1.0`.
-      3. OOMs issues may arise when storing either cost or kernel matrices that
-      are too large in `geom`. In that case, in the case where, the `geom`
-      geometry is a `PointCloud`, set the `online` flag to `True`.
+    * The Sinkhorn algorithm may not converge within the maximum number of iterations for possibly several reasons:
 
-    * The weight vectors `a` and `b` are assumed to be positive by default, but
-    zero weights are currently handled by relying on simple arithmetic for inf
-    values that will likely arise (starting with log(0) when `lse_mode` is
-    `True`, or divisions by zero when `lse_mode` is `False`). Whenever that
-    arithmetic is likely to produce `NaN`s (`-inf * 0`, or `-inf - -inf`) in the
-    forward pass, we use jnp.where conditional statements. In the backward pass,
-    the inputs corresponding to these 0 weights (typically a location `x`
-    associated with that weight), and the weight itself will have `NaN` gradient
-    values.
+      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is too small. Consider switching to `lse_mode = True` (at the price of a slower execution), increasing `epsilon`, or, alternatively, if you are sure that value `epsilon` is correct, or your cannot modify it, either increase ``max_iterations`` or ``threshold``.
+      2. the probability weights ``a`` and ``b`` do not have the same total mass, while using a balanced (``tau_a = tau_b = 1.0``) setup. Consider either normalizing ``a`` and ``b``, or set either ``tau_a`` and/or ``tau_b < 1.0``.
+      3. OOMs issues may arise when storing either cost or kernel matrices that are too large in ``geom``. In that case, in the case where, the ``geom`` geometry is a ``PointCloud``, this may be solved by setting the ``online`` flag to ``True``.
+
+    * The weight vectors ``a`` and ``b`` are assumed to be positive by default, but zero weights can be handled by relying on simple arithmetic for ``inf`` values that will likely arise (starting with $log(0)$ when ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is ``False``). Whenever that arithmetic is likely to produce ``NaN``s (``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use ``jnp.where`` conditional statements. In the backward pass, the inputs corresponding to these 0 weights (typically a location `x` associated with that weight), and the weight itself will have ``NaN`` gradient values.
 
   Args:
     geom: a Geometry object.
