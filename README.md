@@ -77,14 +77,9 @@ Currently implements the following classes and functions:
 -   In the [tools](ott/tools) folder,
 
     -   In [soft_sort.py](ott/tools/soft_sort.py): implementation of
-        [soft-sorting](https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html)
-        operators .
+        [soft-sorting](https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html) operators, notably [soft-quantile transforms](http://proceedings.mlr.press/v119/cuturi20a.html)
 
-    -   The `sinkhorn_divergence` function in [sinkhorn_divergence.py](ott/tools/sinkhorn_divergence.py), implements the
-        [Sinkhorn divergence](http://proceedings.mlr.press/v84/genevay18a.html),
-        a variant of the Wasserstein distance that uses regularization and is
-        computed by centering the output of `sinkhorn` when comparing two
-        measures.
+    -   The `sinkhorn_divergence` function in [sinkhorn_divergence.py](ott/tools/sinkhorn_divergence.py), implements the [unbalanced](https://arxiv.org/abs/1910.12958) formulation of the [Sinkhorn divergence](http://proceedings.mlr.press/v84/genevay18a.html), a variant of the Wasserstein distance that uses regularization and is computed by centering the output of `sinkhorn` when comparing two measures.
 
     -   The `Transport` class in [sinkhorn_divergence.py](ott/tools/transport.py), provides a simple wrapper to the `sinkhorn` function defined above when the user is primarily interested in computing and storing an OT matrix.
 

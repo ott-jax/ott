@@ -70,46 +70,49 @@ def sinkhorn(
 
   Some maths:
     Given a geometry ``geom``, which provides either a cost matrix :math:`C` with its
-    regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`C`)
+    regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`K`)
     the reg-OT problem solves for two vectors `f`, `g` of size ``n``, ``m``:
 
-    :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \epsilon
+    :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> - <b, \phi_b^{*}(-g)> - \epsilon
     <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
 
-    (respectively, written the space of positive scaling vectors `u`, `v` of size
-    ``n``, ``m``
-    :math:`arg\max_{u, v} - <a,\phi_a*(-\log u)> + <b, \phi_b*(-\log v)> -  <u, K
-    v>` )
+    That problem can also be written, instead, using positive scaling vectors
+    `u`, `v` of size ``n``, ``m``, handled with the kernel :math:`K:=e^{-C/\epsilon}`,
+    :math:`arg\max_{u, v >0} - <a,\phi_a^{*}(-\epsilon\log u)> + <b, \phi_b^{*}(-\epsilon\log v)> -  <u, K
+    v>`
 
-    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy. This
-    problem corresponds, in a so-called primal representation, to solving the
+    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
+    :math:`\phi_a^{*}(z) = \rho_a e^{f/\varepsilon}` its Legendre transform.
+
+    Both of these problems corresponds, in their *primal* formulation, to solving the
     unbalanced optimal transport problem with a variable matrix `P` of size ``n``
     x ``m``:
 
-    :math:`\arg\min_{P} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
+    :math:`\arg\min_{P>0} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
     | b)`
 
-    (resp. :math:`\arg\min_{P} KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
-    )
+    where :math:`H` is the Shannon entropy, and :math:`KL` is the generalized
+    Kullback-Leibler divergence.
 
-    The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
-    \rightarrow \infty`.
+    The very same primal problem can be written using :math:`K` instead of
+    :math:`C` as well:
+    resp. :math:`\arg\min_{P} \epsilon KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
 
     The *original* (not regularized) OT problem is recovered
-    when :math:`\epsilon \rightarrow 0` using the cost formulation. This problem
-    is not handled for now in this toolbox, which focuses exclusively
-    on :math:`\epsilon > 0`.
+    when :math:`\epsilon \rightarrow 0`, using the formulation above relying on
+    :math:`C`. This problem is not handled for now in this toolbox, which
+    focuses exclusively on :math:`\epsilon > 0`.
 
-    To allow for the option :math:`\rho_a, \rho_b \rightarrow \infty`,
-    the sinkhorn function uses parameters
-    tau_a := :math:`\rho_a / (\epsilon + \rho_a)` and tau_b := :math:`\rho_b /
-    (\epsilon + \rho_b)`
-    instead. Setting either of these parameters to 1 corresponds to setting either
-    :math:`rho_a, \rho_b` to ∞ above.
+    The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
+    \rightarrow \infty`. To allow :math:`\rho_a, \rho_b \rightarrow \infty`,
+    the ``sinkhorn`` function uses parameters
+    ``tau_a`` := :math:`\rho_a / (\epsilon + \rho_a)` and ``tau_b`` := :math:`\rho_b /
+    (\epsilon + \rho_b)` instead. Setting either of these parameters to 1
+    corresponds to setting either :math:`\rho_a, \rho_b` to ∞.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
     potentials (or alternatively their parameterization as positive scalings `u`,
-    `v`), rather than directly the primal problem in :math:`P`. This is mostly for
+    `v`), rather than solving the primal problem in :math:`P`. This is mostly for
     efficiency (potentials and scalings have a ``n + m`` memory footprint, rather
     than ``n m`` required to store `P`). This is also because both problems are,
     in fact, equivalent, since the optimal transport :math:`P^*` can be recovered
@@ -127,59 +130,29 @@ def sinkhorn(
     value. The iterations are then repeated as long as that errors does not go
     below `threshold`.
 
-  The boolean flag `lse_mode` sets whether the algorithm is run in either:
+  Discussion on parameters:
+    The boolean flag `lse_mode` sets whether the algorithm is run in either:
 
-    - log-sum-exp mode (`lse_mode=True`), in which case it is directly defined
-  in terms of updates to f and g, using log-sum-exp computations. This requires
-  access to the cost matrix C, as stored or computed on the fly by the geometry.
+      - log-sum-exp mode (`lse_mode=True`), in which case it is directly defined in terms of updates to f and g, using log-sum-exp computations. This requires access to the cost matrix C, as stored or computed on the fly by the geometry.
 
-    - kernel mode (`lse_mode=False`), in which case it will require access to a
-  matrix vector multiplication operator z → K z, where K is either instantiated
-  from C as :math:`\exp(-C/\epsilon)`, or provided directly. In that case,
-  rather than optimizing on f and g directly, it is more convenient to optimize
-  on their so called scaling formulations, :math:`u := \exp(f / \epsilon)`
-  & :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster
-  than applying lse repeatedly over lines), this mode is also less stable
-  numerically, notably for smaller :math:`\epsilon`.
+      - kernel mode (`lse_mode=False`), in which case it will require access to a matrix vector multiplication operator :math:`z \rightarrow K z`, where :math:`K` is either instantiated from :math:`C` as :math:`\exp(-C/\epsilon)`, or provided directly. In that case, rather than optimizing on :math:`f` and :math:`g` directly, it is more convenient to optimize on their so called scaling formulations, :math:`u := \exp(f / \epsilon)` and :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster than applying ``lse`` repeatedly over lines), this mode is also less stable numerically, notably for smaller :math:`\epsilon`.
 
-  In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as
-  potentials (real) or scalings (positive) vectors, depending on the choice
-  of ``lse_mode`` by the end user.
+    In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as potentials (real) or scalings (positive) vectors, depending on the choice of ``lse_mode`` by the end user.
 
-  In addition to standard Sinkhorn updates, the user can also use heavy-ball
-  type updates using a ``momentum_strategy`` parameter in ]0,2[. We also
-  implement a strategy that tries to set that parameter adaptively, as a
-  function of progress in the error, as proposed in the literature.
+    In addition to standard Sinkhorn updates, the user can also use heavy-ball type updates using a ``momentum_strategy`` parameter in ]0,2[. We also implement a strategy that tries to set that parameter adaptively, as a function of progress in the error, as proposed in the literature.
 
-  Differentiation of the optimal solutions of the Sinkhorn algorithm is carried
-  out by default using implicit differentiation of the optimality conditions, as
-  reflected by the default setting of ``implicit_differentiation`` to ``True``.
-  In that case the termination criterion used to stop Sinkhorn (cancellation of
-  gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs
-  given a desired change in the outputs.
+    Differentiation of the optimal solutions of the Sinkhorn algorithm is carried out by default using implicit differentiation of the optimality conditions, as reflected by the default setting of ``implicit_differentiation`` to ``True``. In that case the termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate inputs given a desired change in the outputs. Alternatively, the Sinkhorn iterations have been wrapped in a fixed point iteration loop, defined in ``fixed_point_loop``, rather than a standard while loop. This is to ensure the end result of this fixed point loop can also be differentiated, if needed, using standard JAX operations. To ensure backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop does checkpointing of state variables (here `f_u` and `g_v`) every `inner_iterations`, and backpropagates automatically, block by block, through blocks of `inner_iterations` at a time.
 
-  Alternatively, the Sinkhorn iterations have been wrapped in a fixed point
-  iteration loop, defined in ``fixed_point_loop``, rather than a standard while
-  loop. This is to ensure the end result of this fixed point loop can also be
-  differentiated, if needed, using standard JAX operations. To ensure
-  backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop
-  does checkpointing of state variables (here `f_u` and `g_v`) every
-  `inner_iterations`, and backpropagates automatically, block by block,
-  through blocks of `inner_iterations` at a time.
-
-  The ``parallel_dual_updates`` flag is set to ``False`` by default. In that
-  setting, ``g_v`` is first updated using the latest values for ``f_u`` and
-  ``g_v``, before proceeding to update ``f_u``. When the flag is set to
-  ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
+    The ``parallel_dual_updates`` flag is set to ``False`` by default. In that setting, ``g_v`` is first updated using the latest values for ``f_u`` and ``g_v``, before proceeding to update ``f_u``. When the flag is set to ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
 
   Note:
     * The Sinkhorn algorithm may not converge within the maximum number of iterations for possibly several reasons:
 
-      1. the regularizer (defined as `epsilon` in the geometry `geom` object) is too small. Consider switching to `lse_mode = True` (at the price of a slower execution), increasing `epsilon`, or, alternatively, if you are sure that value `epsilon` is correct, or your cannot modify it, either increase ``max_iterations`` or ``threshold``.
+      1. the regularizer (defined as ``epsilon`` in the geometry ``geom`` object) is too small. Consider either switching to ``lse_mode = True`` (at the price of a slower execution), increasing ``epsilon``, or, alternatively, if you are unable or unwilling to increase  ``epsilon``, either increase ``max_iterations`` or ``threshold``.
       2. the probability weights ``a`` and ``b`` do not have the same total mass, while using a balanced (``tau_a = tau_b = 1.0``) setup. Consider either normalizing ``a`` and ``b``, or set either ``tau_a`` and/or ``tau_b < 1.0``.
-      3. OOMs issues may arise when storing either cost or kernel matrices that are too large in ``geom``. In that case, in the case where, the ``geom`` geometry is a ``PointCloud``, this may be solved by setting the ``online`` flag to ``True``.
+      3. OOMs issues may arise when storing either cost or kernel matrices that are too large in ``geom``. In that case, in the case where, the ``geom`` geometry is a ``PointCloud``, some of these issues might be solved by setting the ``online`` flag to ``True``.
 
-    * The weight vectors ``a`` and ``b`` are assumed to be positive by default, but zero weights can be handled by relying on simple arithmetic for ``inf`` values that will likely arise (starting with $log(0)$ when ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is ``False``). Whenever that arithmetic is likely to produce ``NaN``s (``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use ``jnp.where`` conditional statements. In the backward pass, the inputs corresponding to these 0 weights (typically a location `x` associated with that weight), and the weight itself will have ``NaN`` gradient values.
+    * The weight vectors ``a`` and ``b`` are assumed to be positive by default, but zero weights can be handled by relying on simple arithmetic for ``inf`` values that will likely arise (due chiefly to :math:`log(0)` when ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is ``False``). Whenever that arithmetic is likely to produce ``NaN`` values (dues to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use ``jnp.where`` conditional statements to carry ``inf`` rather than ``NaN`` values. In the reverse mode differentiation, the inputs corresponding to these 0 weights (a location `x`, or a row in the corresponding cost/kernel matrix), and the weight itself will have ``NaN`` gradient values. This is correct, and reflects that these gradients are meaningless, since these points or weights were not considered in the optimization and have therefore no impact on the output.
 
   Args:
     geom: a Geometry object.

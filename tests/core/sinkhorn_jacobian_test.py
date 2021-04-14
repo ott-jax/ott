@@ -35,16 +35,6 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
           tau_a=1.0,
           tau_b=1.0),
       dict(
-          testcase_name='Bal-Scal',
-          lse_mode=False,
-          tau_a=1.0,
-          tau_b=1.0),
-      dict(
-          testcase_name='Unbal-Lse',
-          lse_mode=True,
-          tau_a=.8,
-          tau_b=.9),
-      dict(
           testcase_name='Unbal-Scal',
           lse_mode=False,
           tau_a=.88,
