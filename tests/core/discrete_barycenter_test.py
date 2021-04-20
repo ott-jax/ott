@@ -109,8 +109,8 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
 
     # choose a different support, half the size, for the barycenter.
     # note this is the reason why we do not use debiasing in this case.
-    x_support_bar = jnp.atleast_2d((jnp.arange(0, (n / 2)) /
-                                   (n / 2 - 1) - .5) * .9 + .5).T
+    x_support_bar = jnp.atleast_2d(
+        (jnp.arange(0, (n / 2)) / (n / 2 - 1) - .5) * .9 + .5).T
 
     geom = pointcloud.PointCloud(x, x_support_bar, epsilon=epsilon)
     bar = db.discrete_barycenter(

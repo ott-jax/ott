@@ -329,5 +329,49 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       self.assertAllClose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
 
+  @parameterized.parameters([True], [False])
+  def test_restart(self, lse_mode):
+    """Two point clouds, tested with various parameters."""
+    threshold = 1e-4
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.01)
+    out = sinkhorn.sinkhorn(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=lse_mode,
+        inner_iterations=1)
+    errors = out.errors
+    err = errors[errors > -1][-1]
+    self.assertGreater(threshold, err)
+
+    # recover solution from previous and ensure faster convergence.
+    if lse_mode:
+      init_dual_a, init_dual_b = out.f, out.g
+    else:
+      init_dual_a, init_dual_b = (geom.scaling_from_potential(out.f),
+                                  geom.scaling_from_potential(out.g))
+    out_restarted = sinkhorn.sinkhorn(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=lse_mode,
+        init_dual_a=init_dual_a,
+        init_dual_b=init_dual_b,
+        inner_iterations=1)
+    errors_restarted = out_restarted.errors
+    err_restarted = errors_restarted[errors_restarted > -1][-1]
+    self.assertGreater(threshold, err_restarted)
+
+    num_iter_restarted = jnp.sum(errors_restarted > -1)
+    # check we can only improve on error
+    self.assertGreater(err, err_restarted)
+    # check first error in restart does at least as well as previous best
+    self.assertGreater(err, errors_restarted[0])
+    # check only one iteration suffices when restarting with same data.
+    self.assertEqual(num_iter_restarted, 1)
+
+
 if __name__ == '__main__':
   absltest.main()

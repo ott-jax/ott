@@ -51,15 +51,15 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     def loss_g(a, x, implicit=True):
       out = sinkhorn.sinkhorn(
           geometry.Geometry(
-              cost_matrix=jnp.sum(x**2, axis=1)[:, jnp.newaxis] +
-              jnp.sum(self.y**2, axis=1)[jnp.newaxis, :] -
+              cost_matrix=jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
+              jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
               2 * jnp.dot(x, self.y.T),
               epsilon=epsilon),
           a=a,
           b=self.b,
-          tau_a=0.8,
+          tau_a=0.9,
           tau_b=0.87,
-          threshold=1e-4,
+          threshold=1e-6,
           lse_mode=lse_mode,
           implicit_differentiation=implicit)
       return out.reg_ot_cost
@@ -71,7 +71,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
           b=self.b,
           tau_a=1.0,
           tau_b=0.95,
-          threshold=1e-4,
+          threshold=1e-6,
           lse_mode=lse_mode,
           implicit_differentiation=implicit)
       return out.reg_ot_cost
