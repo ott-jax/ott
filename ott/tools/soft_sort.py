@@ -20,7 +20,6 @@ from typing import Any, Dict, Optional
 import jax
 import jax.numpy as jnp
 import numpy as np
-
 from ott.tools import transport
 
 
@@ -91,7 +90,7 @@ def apply_on_axis(op, inputs, axis, *args):
   return result
 
 
-def _sort(inputs: jnp.ndarray, topk, kwargs) -> jnp.ndarray:
+def _sort(inputs: jnp.ndarray, topk, num_targets, kwargs) -> jnp.ndarray:
   """Applies the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -102,8 +101,9 @@ def _sort(inputs: jnp.ndarray, topk, kwargs) -> jnp.ndarray:
         jnp.ones(topk, dtype=inputs.dtype) / num_points
     ])
   else:
+    num_targets = num_points if num_targets is None else num_targets
     start_index = 0
-    b = jnp.ones((num_points,)) / num_points
+    b = jnp.ones((num_targets,)) / num_targets
   ot = transport_for_sort(inputs, a, b, kwargs)
   out = 1.0 / b * ot.apply(inputs, axis=0)
   return out[start_index:]
@@ -112,6 +112,7 @@ def _sort(inputs: jnp.ndarray, topk, kwargs) -> jnp.ndarray:
 def sort(inputs: jnp.ndarray,
          axis: int = -1,
          topk: int = -1,
+         num_targets: int = None,
          **kwargs) -> jnp.ndarray:
   """Applies the soft sort operator on a given axis of the input.
 
@@ -120,6 +121,10 @@ def sort(inputs: jnp.ndarray,
     axis: the axis on which to apply the operator.
     topk: if set to a positive value, the returned vector will be only the topk
       values. This also reduces the complexity and speed of soft sorting.
+    num_targets: if topk is not specified, num_targets can be used to define a
+      number of composite sorted values that will be evenly distributed across
+      all input values. if not specified, this will be the size of the slices of
+      the input that are sorted.
     **kwargs: keyword arguments of the PointCloud class. See
       pointcloud.py for more details.
 
@@ -127,34 +132,39 @@ def sort(inputs: jnp.ndarray,
     A jnp.ndarray of the same shape as the input with soft sorted values on the
     given axis.
   """
-  return apply_on_axis(_sort, inputs, axis, topk, kwargs)
+  return apply_on_axis(_sort, inputs, axis, topk, num_targets, kwargs)
 
 
-def _ranks(inputs: jnp.ndarray, kwargs) -> jnp.ndarray:
+def _ranks(inputs: jnp.ndarray, num_targets, kwargs) -> jnp.ndarray:
   """Applies the soft ranks operator on a one dimensional array."""
   num_points = inputs.shape[0]
+  num_targets = num_points if num_targets is None else num_targets
   a = jnp.ones((num_points,)) / num_points
-  b = jnp.ones((num_points,)) / num_points
+  b = jnp.ones((num_targets,)) / num_targets
   ot = transport_for_sort(inputs, a, b, kwargs)
-  out = 1.0 / a * ot.apply(jnp.arange(num_points), axis=1)
+  out = 1.0 / a * ot.apply(jnp.arange(num_targets), axis=1)
   return jnp.reshape(out, inputs.shape)
 
 
 def ranks(inputs: jnp.ndarray,
           axis: int = -1,
+          num_targets: int = None,
           **kwargs) -> jnp.ndarray:
-  """Applies the sof trank operator on input tensor.
+  """Applies the soft trank operator on input tensor.
 
   Args:
     inputs: a jnp.ndarray<float> of any shape.
     axis: the axis on which to apply the soft ranks operator.
+    num_targets: number of targets used to compute soft ranks approximation. if
+      not specified, this becomes the size of the slices of the input that are
+      ranked
     **kwargs: extra arguments to the underlying `PointCloud` geometry object as
       well as the sinkhorn parameters.
 
   Returns:
     A jnp.ndarray<float> of the same shape as inputs, with the ranks.
   """
-  return apply_on_axis(_ranks, inputs, axis, kwargs)
+  return apply_on_axis(_ranks, inputs, axis, num_targets, kwargs)
 
 
 def quantile(inputs: jnp.ndarray,
@@ -183,6 +193,7 @@ def quantile(inputs: jnp.ndarray,
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
   """
+  # TODO(cuturi,oliviert) option to compute several quantiles at once, as in tf.
   def _quantile(inputs: jnp.ndarray,
                 level: float,
                 weight: float,

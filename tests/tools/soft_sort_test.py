@@ -131,7 +131,8 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
 
     def loss_fn(logits, implicit=False):
       ranks_fn = functools.partial(
-          soft_sort.ranks, axis=-1, implicit_differentiation=implicit)
+          soft_sort.ranks, axis=-1, num_targets=123,
+          implicit_differentiation=implicit)
       return jnp.mean(ranks_fn(logits)[:, 5])
 
     my_loss_i = jax.jit(
@@ -147,9 +148,9 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
     self.assertAllClose((val_peps - val_meps)/(2 * eps),
-                        jnp.sum(grad_i * delta), atol=0.1, rtol=0.01)
-    self.assertAllClose((val_peps - val_meps)/(2 * eps),
                         jnp.sum(grad_b * delta), atol=0.1, rtol=0.01)
+    self.assertAllClose((val_peps - val_meps)/(2 * eps),
+                        jnp.sum(grad_i * delta), atol=0.1, rtol=0.01)
 
 
 if __name__ == '__main__':

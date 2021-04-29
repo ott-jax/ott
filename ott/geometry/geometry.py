@@ -21,6 +21,7 @@ from typing import Optional, Union, Sequence
 import jax
 import jax.numpy as jnp
 from ott.geometry import epsilon_scheduler
+from ott.geometry import ops
 
 
 @jax.tree_util.register_pytree_node_class
@@ -156,9 +157,8 @@ class Geometry:
     """
     h = (f if axis == 1 else g)
     z = self.apply_lse_kernel(f, g, self.epsilon, axis=axis)[0]
-    return jnp.where(jnp.isfinite(h),
-                     jnp.exp((z + h)/self.epsilon),
-                     0)
+    return jnp.exp((z + h)/self.epsilon)
+
 
   def marginal_from_scalings(self, u: jnp.ndarray, v: jnp.ndarray, axis=0):
     """Outputs marginal of transportation matrix from scalings."""
@@ -247,11 +247,14 @@ class Geometry:
     if vec is not None:
       if axis == 0:
         vec = vec.reshape((vec.size, 1))
-      lse_output = jax.scipy.special.logsumexp(
-          self._center(f, g) / eps, b=vec, axis=axis, return_sign=True)
+      lse_output = ops.logsumexp(
+          self._center(f, g) / eps,
+          b=vec,
+          axis=axis,
+          return_sign=True)
       return eps * lse_output[0], lse_output[1]
     else:
-      lse_output = jax.scipy.special.logsumexp(
+      lse_output = ops.logsumexp(
           self._center(f, g) / eps, axis=axis, return_sign=False)
       return eps * lse_output, jnp.array([1.0])
 
@@ -326,12 +329,12 @@ class Geometry:
     return self.epsilon * jnp.log(scaling)
 
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
-    return jnp.exp(potential / self.epsilon)
+    finite = jnp.isfinite(potential)
+    return jnp.where(finite,
+                     jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)),
+                     0.0)
 
-  def apply_cost(self,
-                 arr: jnp.ndarray,
-                 axis: int = 0,
-                 fn=None) -> jnp.ndarray:
+  def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
     """Applies cost matrix to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either

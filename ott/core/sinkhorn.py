@@ -131,20 +131,23 @@ def sinkhorn(
     value. The iterations are then repeated as long as that errors does not go
     below `threshold`.
 
-  Discussion on parameters:
-    The boolean flag `lse_mode` sets whether the algorithm is run in either:
+   Note on Sinkhorn updates:
+    The boolean flag ``lse_mode`` sets whether the algorithm is run in either:
 
       - log-sum-exp mode (`lse_mode=True`), in which case it is directly defined in terms of updates to f and g, using log-sum-exp computations. This requires access to the cost matrix C, as stored or computed on the fly by the geometry.
 
       - kernel mode (`lse_mode=False`), in which case it will require access to a matrix vector multiplication operator :math:`z \rightarrow K z`, where :math:`K` is either instantiated from :math:`C` as :math:`\exp(-C/\epsilon)`, or provided directly. In that case, rather than optimizing on :math:`f` and :math:`g` directly, it is more convenient to optimize on their so called scaling formulations, :math:`u := \exp(f / \epsilon)` and :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster than applying ``lse`` repeatedly over lines), this mode is also less stable numerically, notably for smaller :math:`\epsilon`.
 
-    In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as potentials (real) or scalings (positive) vectors, depending on the choice of ``lse_mode`` by the end user.
+    In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as potentials (real) or scalings (positive) vectors, depending on the choice of ``lse_mode`` by the end user. Once optimization is carried out, we only return dual variables in potential form, i.e. ``f`` and ``g``.
 
     In addition to standard Sinkhorn updates, the user can also use heavy-ball type updates using a ``momentum_strategy`` parameter in ]0,2[. We also implement a strategy that tries to set that parameter adaptively, as a function of progress in the error, as proposed in the literature.
 
-    Differentiation of the optimal solutions of the Sinkhorn algorithm is carried out by default using implicit differentiation of the optimality conditions, as reflected by the default setting of ``implicit_differentiation`` to ``True``. This has two consequences:
-      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate any of the outputs of the algorithm, given a change in the inputs.
-      - The objective ``reg_ot_cost`` outputted by Sinkhon uses the so-called enveloppe (or Danskin's) theorem. In that case, because it is assumed that the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are optimal). Therefore, small variations in ``f_u`` and ``g_v`` due to changes in inputs (such as ``geom``, ``a`` and ``b``) are considered negligible. As a result, we can use ``stop_gradient`` on dual variables ``f_u`` and ``g_v`` to simplify the evaluation (and differentiation) of the ``reg_ot_cost`` objective.
+    The ``parallel_dual_updates`` flag is set to ``False`` by default. In that setting, ``g_v`` is first updated using the latest values for ``f_u`` and ``g_v``, before proceeding to update ``f_u`` using that new value for ``g_v``. When the flag is set to ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
+
+  Differentiation:
+    The optimal solutions (dual variables) and the optimal objective (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit differentiation of the optimality conditions (``implicit_differentiation`` set to ``True``). This choice has two consequences:
+      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate ``f`` and ``g`` outputted by the algorithm, given a change in the inputs.
+      - The objective ``reg_ot_cost`` returned by Sinkhon uses the so-called enveloppe (or Danskin's) theorem. In that case, because it is assumed that the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are optimal), small variations in ``f_u`` and ``g_v`` due to changes in inputs (such as ``geom``, ``a`` and ``b``) are considered negligible. As a result, ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v`` when evaluating the ``reg_ot_cost`` objective.
 
     An alternative yet more costly way to differentiate the outputs of the Sinkhorn iterations is to use unrolling, i.e. reverse mode differentiation of the Sinkhorn loop. This is possible because Sinkhorn iterations are wrapped in a custom fixed point iteration loop, defined in ``fixed_point_loop``, rather than a standard while loop. This is to ensure the end result of this fixed point loop can also be differentiated, if needed, using standard JAX operations. To ensure backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop does checkpointing of state variables (here `f_u` and `g_v`) every `inner_iterations`, and backpropagates automatically, block by block, through blocks of `inner_iterations` at a time.
 
@@ -244,6 +247,10 @@ def _sinkhorn(
   if init_dual_b is None:
     init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
 
+  # Cancel dual variables for zero weights.
+  init_dual_a = jnp.where(a > 0, init_dual_a, -jnp.inf if lse_mode else 0.0)
+  init_dual_b = jnp.where(b > 0, init_dual_b, -jnp.inf if lse_mode else 0.0)
+
   if momentum_strategy is None:
     momentum_strategy = 1.0
 
@@ -298,7 +305,7 @@ def _sinkhorn(
   reg_ot_cost = ent_reg_cost(
       geom, a, b, tau_a, tau_b,
       jax.lax.stop_gradient(f) if implicit_differentiation else f,
-      jax.lax.stop_gradient(g) if implicit_differentiation else g)
+      jax.lax.stop_gradient(g) if implicit_differentiation else g, lse_mode)
   converged = jnp.logical_and(
       jnp.sum(errors == -1) > 0,
       jnp.sum(jnp.isnan(errors)) == 0)
@@ -596,7 +603,8 @@ def ent_reg_cost(geom: geometry.Geometry,
                  tau_a: float,
                  tau_b: float,
                  f: jnp.ndarray,
-                 g: jnp.ndarray) -> jnp.ndarray:
+                 g: jnp.ndarray,
+                 lse_mode: bool) -> jnp.ndarray:
   """Computes objective of regularized OT given dual solutions f, g.
 
   In all sums below, jnp.where handle situations in which some coordinates of
@@ -616,42 +624,39 @@ def ent_reg_cost(geom: geometry.Geometry,
       formulation.
     f: jnp.ndarray, potential
     g: jnp.ndarray, potential
+    lse_mode: bool, whether to compute total mass in lse or kernel mode.
 
   Returns:
     a float, the regularized transport cost.
   """
-
+  supp_a = a > 0
+  supp_b = b > 0
   if tau_a == 1.0:
     div_a = jnp.sum(
-        jnp.where(a > 0, (f - geom.potential_from_scaling(a)) * a, 0.0))
+        jnp.where(supp_a, a * (f - geom.potential_from_scaling(a)), 0.0))
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
     div_a = - jnp.sum(jnp.where(
-        a > 0,
+        supp_a,
         a * phi_star(-(f - geom.potential_from_scaling(a)), rho_a),
         0.0))
 
   if tau_b == 1.0:
     div_b = jnp.sum(
-        jnp.where(b > 0, (g - geom.potential_from_scaling(b)) * b, 0.0))
+        jnp.where(supp_b, b * (g - geom.potential_from_scaling(b)), 0.0))
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
     div_b = - jnp.sum(jnp.where(
-        b > 0,
+        supp_b,
         b * phi_star(-(g - geom.potential_from_scaling(b)), rho_b),
         0.0))
 
   # Using https://arxiv.org/pdf/1910.12958.pdf (24)
-  # The total mass of the coupling is computed in scaling space. This avoids
-  # differentiation issues linked with the automatic differention of
-  # jnp.exp(jnp.logsumexp(...)) when some of those logs appear as -inf.
-  # While potentially less accurate numerically, this has little impact here.
-  # Indeed, scaling computations are only used to evaluate total mass. While
-  # scaling computation might lead to underflows, this simply results in ~0
-  # contributions. Yet, unlike Sinkhorn iterations, these contributions are not
-  # used next in the denominator of fraction, and therefore remain stable.
-  total_sum = jnp.sum(geom.marginal_from_scalings(
-      geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
+  if lse_mode:
+    total_sum = jnp.sum(geom.marginal_from_potentials(f, g))
+  else:
+    total_sum = jnp.sum(geom.marginal_from_scalings(
+        geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
   return div_a + div_b + geom.epsilon * (jnp.sum(a) * jnp.sum(b) - total_sum)
 
 

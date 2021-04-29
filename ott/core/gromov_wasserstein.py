@@ -177,7 +177,8 @@ def gromov_wasserstein(
   reg_gw_cost = sinkhorn.ent_reg_cost(
       geom_gw, a, b, tau_a, tau_b,
       jax.lax.stop_gradient(f),
-      jax.lax.stop_gradient(g))
+      jax.lax.stop_gradient(g),
+      lse_mode=True)
   return GromovWassersteinOutput(f, g, transport, cost_matrix, gw_cost,
                                  reg_gw_cost, reg_gw_cost_arr, errors_sinkhorn,
                                  converged_sinkhorn)
@@ -258,8 +259,9 @@ def _init_geometry_gw(
     epsilon: Union[epsilon_scheduler.Epsilon, float],
     loss: GWLoss,
     **kwargs) -> geometry.Geometry:
-  """Initialises the cost matrix for the geometry object for GW. The equation
-  follows Equation 6, Proposition 1 of 
+  """Initialises the cost matrix for the geometry object for GW.
+
+  The equation follows Equation 6, Proposition 1 of
   http://proceedings.mlr.press/v48/peyre16.pdf.
 
   Args:
@@ -297,8 +299,9 @@ def _update_geometry_gw(
     g: jnp.ndarray,
     loss: GWLoss,
     **kwargs) -> geometry.Geometry:
-  """Updates the geometry object for GW by updating the cost matrix. The cost
-  matrix equation follows Equation 6, Proposition 1 of
+  """Updates the geometry object for GW by updating the cost matrix.
+
+  The cost matrix equation follows Equation 6, Proposition 1 of
   http://proceedings.mlr.press/v48/peyre16.pdf.
 
   Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
@@ -354,8 +357,9 @@ def _update_geometry_gw(
 
 
 def _marginal_dependent_cost(marginal_x, marginal_y, geom_x, geom_y, loss):
-  r"""Calculates the term in the cost that depends on the marginals of the
-  transport matrix, according to the first term in Equation 6, Proposition 1 of
+  r"""Calculates part of cost that depends on marginals of transport matrix.
+
+  Uses the first term in Equation 6, Proposition 1 of
   http://proceedings.mlr.press/v48/peyre16.pdf.
 
   Let :math:`p` [num_a,] be the marginal of the transport matrix for samples

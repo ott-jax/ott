@@ -111,23 +111,24 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
 
   @parameterized.named_parameters(
       dict(
-          testcase_name='lse-Leh-mom',
+          testcase_name='lse-implicit',
           lse_mode=True,
-          momentum_strategy='Lehmann'),
+          implicit_differentiation=True,
+          epsilon=0.001),
       dict(
-          testcase_name='lse-high-mom',
+          testcase_name='lse-backprop',
           lse_mode=True,
-          momentum_strategy=1.5),
+          implicit_differentiation=False,
+          epsilon=0.01),
       dict(
-          testcase_name='scal-Leh-mom',
+          testcase_name='scal-implicit',
           lse_mode=False,
-          momentum_strategy='Lehmann'),
-      dict(
-          testcase_name='scal-high-mom',
-          lse_mode=False,
-          momentum_strategy=1.5))
-  def test_gradient_sinkhorn_euclidean(self, lse_mode, momentum_strategy):
+          implicit_differentiation=True,
+          epsilon=0.01))
+  def test_gradient_sinkhorn_euclidean(self, lse_mode,
+                                       implicit_differentiation, epsilon):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
+    # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3
     n = 10
     m = 15
@@ -144,9 +145,10 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     b = b / jnp.sum(b)
 
     def loss_fn(x, y):
-      geom = pointcloud.PointCloud(x, y, epsilon=0.01)
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       f, g, regularized_transport_cost, _, _ = sinkhorn.sinkhorn(
-          geom, a, b, momentum_strategy=momentum_strategy, lse_mode=lse_mode)
+          geom, a, b, lse_mode=lse_mode,
+          implicit_differentiation=implicit_differentiation)
       return regularized_transport_cost, (geom, f, g)
 
     delta = jax.random.normal(keys[0], (n, d))
@@ -160,7 +162,6 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
     self.assertIsNot(loss_value, jnp.nan)
     self.assertEqual(grad_loss.shape, x.shape)
     self.assertFalse(jnp.any(jnp.isnan(grad_loss)))
-
     # second calculation of gradient
     tm = aux[0].transport_from_potentials(aux[1], aux[2])
     tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])

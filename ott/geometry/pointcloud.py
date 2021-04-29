@@ -22,6 +22,7 @@ import jax.numpy as jnp
 from ott.geometry import costs
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
+from ott.geometry import ops
 
 
 @jax.tree_util.register_pytree_node_class
@@ -201,14 +202,15 @@ class PointCloud(geometry.Geometry):
                      arr: jnp.ndarray,
                      axis: bool = 0,
                      fn=None) -> jnp.ndarray:
-    """This function applies the geometry's cost matrix in a vectorised way,
-    to perform either:
-    output = K arr (if axis=1)
-    output = K' arr (if axis=0)
-    where K is [num_a, num_b]
+    """Applies the geometry's cost matrix in a vectorised way.
 
-    This function can be used when the cost matrix can be used when the
-    cost is squared euclidean and fn is a linear map.
+    This performs either:
+    output = C arr (if axis=1)
+    output = C' arr (if axis=0)
+    where C is [num_a, num_b]
+
+    This function can be used when the cost matrix is squared euclidean
+    and fn is a linear map.
 
     Args:
       arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
@@ -250,12 +252,11 @@ class PointCloud(geometry.Geometry):
 def _apply_lse_kernel_xy(x, y, norm_x, norm_y, f, g, eps,
                          vec, cost_fn, cost_pow):
   c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)
-  return jax.scipy.special.logsumexp((f + g - c) / eps, b=vec, return_sign=True,
-                                     axis=-1)
+  return ops.logsumexp((f + g - c) / eps, b=vec, return_sign=True, axis=-1)
 
 
-def _transport_from_potentials_xy(
-    x, y, norm_x, norm_y, f, g, eps, cost_fn, cost_pow):
+def _transport_from_potentials_xy(x, y, norm_x, norm_y, f, g, eps, cost_fn,
+                                  cost_pow):
   return jnp.exp((f + g - _cost(x, y, norm_x, norm_y, cost_fn, cost_pow)) / eps)
 
 
@@ -275,7 +276,9 @@ def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow):
 
 
 def _apply_cost_xy(x, y, norm_x, norm_y, vec, cost_fn, cost_pow, fn=None):
-  """Applies [num_b, num_a] ([num_a, num_b] if axis=1 from `apply_cost`)
+  """Applies [num_b, num_a] fn(cost) matrix (or transpose) to vector.
+
+  Applies [num_b, num_a] ([num_a, num_b] if axis=1 from `apply_cost`)
   fn(cost) matrix (or transpose) to vector.
 
   Args:

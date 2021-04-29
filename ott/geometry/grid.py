@@ -24,6 +24,7 @@ import numpy as np
 from ott.geometry import costs
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
+from ott.geometry import ops
 
 
 @jax.tree_util.register_pytree_node_class
@@ -79,7 +80,8 @@ class Grid(geometry.Geometry):
       **kwargs: passed to parent class.
     """
     super().__init__(epsilon=epsilon, **kwargs)
-    if grid_size is not None and x is not None and num_a is not None and grid_dimension is not None:
+    if (grid_size is not None and x is not None and num_a is not None and
+        grid_dimension is not None):
       self.grid_size = grid_size
       self.x = x
       self.num_a = num_a
@@ -185,12 +187,12 @@ class Grid(geometry.Geometry):
 
     if vec is not None:
       vec = jnp.transpose(vec, indices)
-      softmax_res, softmax_sgn = jax.scipy.special.logsumexp(
+      softmax_res, softmax_sgn = ops.logsumexp(
           centered_cost, b=vec, axis=1, return_sign=True)
       return eps * jnp.transpose(softmax_res, indices), jnp.transpose(
           softmax_sgn, indices)
     else:
-      softmax_res = jax.scipy.special.logsumexp(centered_cost, axis=1)
+      softmax_res = ops.logsumexp(centered_cost, axis=1)
       return eps * jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(self,
