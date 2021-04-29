@@ -51,65 +51,75 @@ def sinkhorn(
     init_dual_a: Optional[jnp.ndarray] = None,
     init_dual_b: Optional[jnp.ndarray] = None,
     jit: bool = False) -> SinkhornOutput:
-  r"""Solves regularized OT problems using Sinkhorn iterations.
+  r"""Solves regularized OT problem using Sinkhorn iterations.
 
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponentials of the former). Two optima vectors
-  are therefore returned, in addition to the objective value, as well as a
-  vector of errors computed during iterations, provided to monitor convergence,
-  as well as a boolean to signify whether the algorithm, using the parameters
-  specified by the user, has converged or not.
+  scalings when parameterized as exponentials of the former). Calling this
+  function returns therefore a pair of optimal vectors. In addition to these,
+  `sinkhorn` also returns the objective value achieved by these optimal vectors;
+  a vector of size `max_iterations/inner_terations` that records the vector of
+  recorded values for the optimization, as computeed throughout the execution of
+  the algorithm, as well as a boolean to signify whether the algorithm has
+  converged within the number of iterations specified by the user.
 
   The reg-OT problem is specified by two measures, of respective sizes ``n`` and
   ``m``. From the viewpoint of the ``sinkhorn`` function, these two measures are
-  seen through a ``geom`` Geometry object and weight vectors ``a`` and ``b`` of
-  respective sizes ``n`` and ``m``. The Sinkhorn algorithm mainly consists in
-  carrying out updates on initial values for those potentials using elementary
-  operations that are carried out by the ``geom`` object.
+  seen through a triplet (``geom``, ``a``, ``b``), where ``geom`` is a Geometry
+  object, and ``a`` and ``b`` are weight vectors of respective sizes ``n`` and
+  ``m``. The Sinkhorn algorithm consists in carrying out updates on initial
+  values for those potentials, using elementary operations that are carried out
+  by the ``geom`` object.
 
   Some maths:
-    Given a geometry ``geom``, which provides either a cost matrix :math:`C` with its
+    Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
     regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`K`)
-    the reg-OT problem solves for two vectors `f`, `g` of size ``n``, ``m``:
+    the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
+    ``m`` that maximize the following criterion.
 
     :math:`\arg\max_{f, g}{- <a, \phi_a^{*}(-f)> - <b, \phi_b^{*}(-g)> - \epsilon
     <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>`
+
+    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
+    :math:`\phi_a^{*}(z) = \rho_a e^{f/\varepsilon}` its Legendre transform.
 
     That problem can also be written, instead, using positive scaling vectors
     `u`, `v` of size ``n``, ``m``, handled with the kernel :math:`K:=e^{-C/\epsilon}`,
     :math:`arg\max_{u, v >0} - <a,\phi_a^{*}(-\epsilon\log u)> + <b, \phi_b^{*}(-\epsilon\log v)> -  <u, K
     v>`
 
-    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{f/\varepsilon}` its Legendre transform.
-
     Both of these problems corresponds, in their *primal* formulation, to solving the
     unbalanced optimal transport problem with a variable matrix `P` of size ``n``
     x ``m``:
 
-    :math:`\arg\min_{P>0} <P,C> -\epsilon H(P) + \rho_a KL(P1 | a) + \rho_b KL(P^T1
-    | b)`
+    :math:`\arg\min_{P>0} <P,C> -\epsilon H(P) + \rho_a \text{KL}(P1 | a) + \rho_b \text{KL}(P^T1 | b)`
 
     where :math:`H` is the Shannon entropy, and :math:`KL` is the generalized
     Kullback-Leibler divergence.
 
-    The very same primal problem can be written using :math:`K` instead of
-    :math:`C` as well:
-    resp. :math:`\arg\min_{P} \epsilon KL(P|K) + \rho_a KL(P1 | a) + \rho_b KL(P^T1 | b)`
+    The very same primal problem can also be written using a kernel :math:`K`
+    instead of a cost :math:`C` as well:
+    :math:`\arg\min_{P} \epsilon KL(P|K) + \rho_a \text{KL}(P1 | a) + \rho_b \text{KL}(P^T1 | b)`
 
-    The *original* (not regularized) OT problem is recovered
-    when :math:`\epsilon \rightarrow 0`, using the formulation above relying on
-    :math:`C`. This problem is not handled for now in this toolbox, which
-    focuses exclusively on :math:`\epsilon > 0`.
+    The *original* OT problem taught in linear programming courses is recovered
+    by using the formulation above relying on the cost :math:`C`, and letting go
+    :math:`\epsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow \infty`.
+    In that case the entropy disappears, whereas the :math:`KL` regularizations
+    above become hard constraints. The resulting problem is an LP.
 
-    The *balanced* regularized OT problem is recovered when :math:`\rho_a, \rho_b
-    \rightarrow \infty`. To allow :math:`\rho_a, \rho_b \rightarrow \infty`,
+    This problem is not handled for now in this toolbox, which focuses
+    exclusively on :math:`\epsilon > 0`.
+
+    The *balanced* regularized OT problem is recovered when :math:`\epsilon > 0`
+    but :math:`\rho_a, \rho_b \rightarrow \infty`. This is handled by Sinkhorn.
+
+    To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`,
     the ``sinkhorn`` function uses parameters
     ``tau_a`` := :math:`\rho_a / (\epsilon + \rho_a)` and ``tau_b`` := :math:`\rho_b /
     (\epsilon + \rho_b)` instead. Setting either of these parameters to 1
-    corresponds to setting either :math:`\rho_a, \rho_b` to ∞.
+    corresponds to setting the corresponding :math:`\rho_a, \rho_b` to
+    :math:`\infty`.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
     potentials (or alternatively their parameterization as positive scalings `u`,
@@ -120,36 +130,36 @@ def sinkhorn(
     from optimal potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`,
     :math:`v^*`, using the geometry's cost or kernel matrices respectively:
 
-      :math:`P^* = \text{jnp.exp}(( f^* + g^* - C )/\epsilon) \text{ or } P^* =
+      :math:`P^* = \exp\left(\frac{f^* + g^* - C}{\epsilon}\right) \text{ or } P^* =
       \text{diag}(u^*) K \text{diag}(v^*)`
 
-    The Sinkhorn algorithm solves this dual problem in `f, g` or `u, v` using
-    block coordinate ascent, i.e. devising an update for each `f` and `g` (resp.
-    `u` and `v`) that cancels their respective gradients, one at a time.
-    These two iterations are repeated `inner_iterations` times, after which the
-    norm of these gradients will be evaluated and compared with the `threshold`
-    value. The iterations are then repeated as long as that errors does not go
-    below `threshold`.
+    By default, the Sinkhorn algorithm solves this dual problem in `f, g` or
+    `u, v` using block coordinate ascent, i.e. devising an update for each `f`
+    and `g` (resp. `u` and `v`) that cancels their respective gradients, one at
+    a time. These two iterations are repeated `inner_iterations` times, after
+    which the norm of these gradients will be evaluated and compared with the
+    `threshold` value. The iterations are then repeated as long as that error
+    exceeds `threshold`.
 
-   Note on Sinkhorn updates:
+  Note on Sinkhorn updates:
     The boolean flag ``lse_mode`` sets whether the algorithm is run in either:
 
-      - log-sum-exp mode (`lse_mode=True`), in which case it is directly defined in terms of updates to f and g, using log-sum-exp computations. This requires access to the cost matrix C, as stored or computed on the fly by the geometry.
+      - log-sum-exp mode (``lse_mode=True``), in which case it is directly defined in terms of updates to `f` and `g`, using log-sum-exp computations. This requires access to the cost matrix :math:`C`, as it is stored, or possibly computed on the fly by ``geom``.
 
-      - kernel mode (`lse_mode=False`), in which case it will require access to a matrix vector multiplication operator :math:`z \rightarrow K z`, where :math:`K` is either instantiated from :math:`C` as :math:`\exp(-C/\epsilon)`, or provided directly. In that case, rather than optimizing on :math:`f` and :math:`g` directly, it is more convenient to optimize on their so called scaling formulations, :math:`u := \exp(f / \epsilon)` and :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster than applying ``lse`` repeatedly over lines), this mode is also less stable numerically, notably for smaller :math:`\epsilon`.
+      - kernel mode (``lse_mode=False``), in which case it will require access to a matrix vector multiplication operator :math:`z \rightarrow K z`, where :math:`K` is either instantiated from :math:`C` as :math:`\exp(-C/\epsilon)`, or provided directly. In that case, rather than optimizing on :math:`f` and :math:`g`, it is more convenient to optimize on their so called scaling formulations, :math:`u := \exp(f / \epsilon)` and :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is faster than applying ``lse`` repeatedly over lines), this mode is also less stable numerically, notably for smaller :math:`\epsilon`.
 
-    In the code below, the variables ``f_u`` or ``g_v`` can be either regarded as potentials (real) or scalings (positive) vectors, depending on the choice of ``lse_mode`` by the end user. Once optimization is carried out, we only return dual variables in potential form, i.e. ``f`` and ``g``.
+    In the source code, the variables ``f_u`` or ``g_v`` can be either regarded as potentials (real) or scalings (positive) vectors, depending on the choice of ``lse_mode`` by the end user. Once optimization is carried out, we only return dual variables in potential form, i.e. ``f`` and ``g``.
 
     In addition to standard Sinkhorn updates, the user can also use heavy-ball type updates using a ``momentum_strategy`` parameter in ]0,2[. We also implement a strategy that tries to set that parameter adaptively, as a function of progress in the error, as proposed in the literature.
 
     The ``parallel_dual_updates`` flag is set to ``False`` by default. In that setting, ``g_v`` is first updated using the latest values for ``f_u`` and ``g_v``, before proceeding to update ``f_u`` using that new value for ``g_v``. When the flag is set to ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
 
   Differentiation:
-    The optimal solutions (dual variables) and the optimal objective (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit differentiation of the optimality conditions (``implicit_differentiation`` set to ``True``). This choice has two consequences:
-      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. `f_u` and `g_v`) is used to differentiate ``f`` and ``g`` outputted by the algorithm, given a change in the inputs.
+    The optimal solutions (dual variables) and the optimal objective (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit differentiation of the optimality conditions (``implicit_differentiation`` set to ``True``). This choice has two consequences.
+      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate ``f`` and ``g`` outputted by the algorithm, given a change in the inputs.
       - The objective ``reg_ot_cost`` returned by Sinkhon uses the so-called enveloppe (or Danskin's) theorem. In that case, because it is assumed that the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are optimal), small variations in ``f_u`` and ``g_v`` due to changes in inputs (such as ``geom``, ``a`` and ``b``) are considered negligible. As a result, ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v`` when evaluating the ``reg_ot_cost`` objective.
 
-    An alternative yet more costly way to differentiate the outputs of the Sinkhorn iterations is to use unrolling, i.e. reverse mode differentiation of the Sinkhorn loop. This is possible because Sinkhorn iterations are wrapped in a custom fixed point iteration loop, defined in ``fixed_point_loop``, rather than a standard while loop. This is to ensure the end result of this fixed point loop can also be differentiated, if needed, using standard JAX operations. To ensure backprop differentiability, the `fixed_point_loop.fixpoint_iter_backprop` loop does checkpointing of state variables (here `f_u` and `g_v`) every `inner_iterations`, and backpropagates automatically, block by block, through blocks of `inner_iterations` at a time.
+    An alternative yet more costly way to differentiate the outputs of the Sinkhorn iterations is to use unrolling, i.e. reverse mode differentiation of the Sinkhorn loop. This is possible because Sinkhorn iterations are wrapped in a custom fixed point iteration loop, defined in ``fixed_point_loop``, rather than a standard while loop. This is to ensure the end result of this fixed point loop can also be differentiated, if needed, using standard JAX operations. To ensure backprop differentiability, the ``fixed_point_loop.fixpoint_iter_backprop`` loop does checkpointing of state variables (here ``f_u`` and ``g_v``) every ``inner_iterations``, and backpropagates automatically, block by block, through blocks of ``inner_iterations`` at a time.
 
     The ``parallel_dual_updates`` flag is set to ``False`` by default. In that setting, ``g_v`` is first updated using the latest values for ``f_u`` and ``g_v``, before proceeding to update ``f_u``. When the flag is set to ``True``, both ``f_u`` and ``g_v`` are updated simultaneously.
 
@@ -193,9 +203,6 @@ def sinkhorn(
       first marginal (``a``) of reg-OT problem.
     init_dual_b: optional initialization for potentials/scalings w.r.t.
       second marginal (``b``) of reg-OT problem.
-      Should be set to False when used in a function that is jitted by the user,
-      or when computing gradients (in which case the gradient function
-      should be jitted by the user)
     jit: bool, if True, jits the function.
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
