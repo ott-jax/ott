@@ -585,7 +585,7 @@ def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
     a positive number quantifying how far from convergence the algorithm stands.
 
   """
-  if tau_b == 1.0 and tau_b == 1.0:
+  if tau_a == 1.0 and tau_b == 1.0:
     err = geom.error(f_u, g_v, b, 0, norm_error, lse_mode)
   else:
     # In the unbalanced case, we compute the norm of the gradient.

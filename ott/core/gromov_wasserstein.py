@@ -119,6 +119,7 @@ def gromov_wasserstein(
     loss: Union[str, GWLoss] = 'sqeucl',
     max_iterations: int = 20,
     jit: bool = False,
+    warm_start: bool = True,
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs) -> GromovWassersteinOutput:
   """Fits Gromov Wasserstein.
@@ -135,6 +136,9 @@ def gromov_wasserstein(
     max_iterations: int32, the maximum number of outer iterations for
      Gromov Wasserstein.
     jit: bool, if True, jits the function.
+    warm_start: bool, optional initialisation of the potentials/scalings w.r.t.
+     first and second marginals between each call to sinkhorn
+     (default is True).
     sinkhorn_kwargs: Optionally a dictionary containing the keywords arguments
      for calls to the sinkhorn function.
     **kwargs: additional kwargs for epsilon.
@@ -158,7 +162,7 @@ def gromov_wasserstein(
 
   gromov_partial = functools.partial(
       _gw_iterations, epsilon=epsilon, loss=loss_fn,
-      max_iterations=max_iterations,
+      max_iterations=max_iterations, warm_start=warm_start,
       sinkhorn_kwargs=sinkhorn_kwargs, **kwargs)
   gromov_fn = jax.jit(gromov_partial) if jit else gromov_partial
   (f, g, geom_gw, reg_gw_cost_arr, errors_sinkhorn,
@@ -192,6 +196,7 @@ def _gw_iterations(
     epsilon: Union[epsilon_scheduler.Epsilon, float],
     loss: GWLoss,
     max_iterations: int,
+    warm_start: bool,
     sinkhorn_kwargs: Optional[Dict[str, Any]],
     **kwargs) -> Tuple[jnp.ndarray, jnp.ndarray, geometry.Geometry, jnp.ndarray,
                        jnp.ndarray, jnp.ndarray]:
@@ -206,6 +211,8 @@ def _gw_iterations(
     loss: GWLoss object.
     max_iterations: int, the maximum number of outer iterations for
      Gromov Wasserstein.
+    warm_start: bool, optional initialisation of the potentials/scalings w.r.t.
+     first and second marginals between each call to sinkhorn.
     sinkhorn_kwargs: Optionally a dictionary containing the keywords arguments
      for calls to the sinkhorn function.
     **kwargs: additional kwargs for epsilon.
@@ -221,6 +228,8 @@ def _gw_iterations(
     converged_sinkhorn: ndarray [max_iterations,] of flags indicating
     that the sinkhorn algorithm converged.
   """
+  lse_mode = sinkhorn_kwargs.get('lse_mode', True)
+
   geom_gw = _init_geometry_gw(
       geom_x, geom_y, jax.lax.stop_gradient(a), jax.lax.stop_gradient(b),
       epsilon, loss, **kwargs)
@@ -234,10 +243,13 @@ def _gw_iterations(
   def body_fn(carry=carry, x=None):
     del x
     geom_gw, f, g = carry
-    # TODO(lpapaxanthos): allow for warm start
     geom_gw = update_geom_partial(geom=geom_gw, f=f, g=g)
+    init_dual_a = ((f if lse_mode else geom_gw.scaling_from_potential(f))
+                   if warm_start else None)
+    init_dual_b = ((g if lse_mode else geom_gw.scaling_from_potential(g))
+                   if warm_start else None)
     f, g, reg_gw_cost, errors_sinkhorn, converged_sinkhorn = sinkhorn_partial(
-        geom=geom_gw)
+        geom=geom_gw, init_dual_a=init_dual_a, init_dual_b=init_dual_b)
     return (geom_gw, f, g), (reg_gw_cost, errors_sinkhorn, converged_sinkhorn)
 
   carry, out = jax.lax.scan(f=body_fn, init=carry, xs=None,

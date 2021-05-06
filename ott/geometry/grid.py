@@ -233,7 +233,7 @@ class Grid(geometry.Geometry):
       ind.insert(dimension, 0)
       if axis == 0:
         cost = cost.T
-      accum_vec += np.sum(
+      accum_vec += jnp.sum(
           jnp.tensordot(cost, vec, axes=([0], [dimension])),
           axis=indices, keepdims=True).transpose(ind)
     return accum_vec.ravel()

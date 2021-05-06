@@ -31,22 +31,24 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
+    d_x = 2
+    d_y = 3
+    self.n, self.m = 5, 6
+    keys = jax.random.split(self.rng, 7)
+    self.x = jax.random.uniform(keys[0], (self.n, d_x))
+    self.y = jax.random.uniform(keys[1], (self.m, d_y))
+    a = jax.random.uniform(keys[2], (self.n,)) + 0.1
+    b = jax.random.uniform(keys[3], (self.m,)) + 0.1
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
+    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
 
   @parameterized.parameters([True], [False])
   def test_gradient_marginals_gromov_wasserstein(self, jit):
     """Test gradient w.r.t. probability weights."""
-    d_x = 2
-    d_y = 3
-    n, m = 5, 6
-    keys = jax.random.split(self.rng, 5)
-    x = jax.random.uniform(keys[0], (n, d_x))
-    y = jax.random.uniform(keys[1], (m, d_y))
-    a = jax.random.uniform(keys[2], (n,)) + 0.1
-    b = jax.random.uniform(keys[3], (m,)) + 0.1
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
-    geom_x = pointcloud.PointCloud(x, x)
-    geom_y = pointcloud.PointCloud(y, y)
+    geom_x = pointcloud.PointCloud(self.x, self.x)
+    geom_y = pointcloud.PointCloud(self.y, self.y)
 
     def reg_gw(a, b, implicit):
       sinkhorn_kwargs = {'implicit_differentiation': implicit,
@@ -62,10 +64,10 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True,
                                            argnums=(0, 1,))
-      (_, aux), grad_reg_gw = reg_gw_and_grad(a, b, implicit)
+      (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
-      grad_manual_a = aux[0] - jnp.log(a)
-      grad_manual_b = aux[1] - jnp.log(b)
+      grad_manual_a = aux[0] - jnp.log(self.a)
+      grad_manual_b = aux[1] - jnp.log(self.b)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
       self.assertAllClose(grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
@@ -78,16 +80,6 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_gradient_gromov_wasserstein_pointcloud(self, lse_mode):
     """Test gradient w.r.t. pointclouds."""
-    d_x = 2
-    d_y = 3
-    n, m = 5, 6
-    keys = jax.random.split(self.rng, 5)
-    x = jax.random.uniform(keys[0], (n, d_x))
-    y = jax.random.uniform(keys[1], (m, d_y))
-    a = jax.random.uniform(keys[2], (n,)) + 0.1
-    b = jax.random.uniform(keys[3], (m,)) + 0.1
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
 
     def reg_gw(x, y, a, b, implicit):
       geom_x = pointcloud.PointCloud(x, x)
@@ -101,7 +93,7 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, argnums=(0, 1,))
-      _, grad_reg_gw = reg_gw_and_grad(x, y, a, b, implicit)
+      _, grad_reg_gw = reg_gw_and_grad(self.x, self.y, self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
@@ -113,15 +105,6 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_gradient_gromov_wasserstein_geometry(self, lse_mode):
     """Test gradient w.r.t. cost matrices."""
-    n, m = 5, 6
-    keys = jax.random.split(self.rng, 5)
-    cx = jax.random.uniform(keys[0], (n, n))
-    cy = jax.random.uniform(keys[1], (m, m))
-    a = jax.random.uniform(keys[2], (n,)) + 0.1
-    b = jax.random.uniform(keys[3], (m,)) + 0.1
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
-
     def reg_gw(cx, cy, a, b, implicit):
       geom_x = geometry.Geometry(cost_matrix=cx)
       geom_y = geometry.Geometry(cost_matrix=cy)
@@ -134,7 +117,8 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, argnums=(0, 1,))
-      _, grad_reg_gw = reg_gw_and_grad(cx, cy, a, b, implicit)
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.cx, self.cy, self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
@@ -142,6 +126,53 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
                         rtol=1e-02, atol=1e-02)
     self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
                         rtol=1e-02, atol=1e-02)
+
+  @parameterized.parameters([True], [False])
+  def test_warm_start(self, lse_mode):
+    """Two point clouds, tested with various parameters."""
+    threshold = 1e-6
+    geom_x = pointcloud.PointCloud(self.x, self.x)
+    geom_y = pointcloud.PointCloud(self.y, self.y)
+    # without warm start for calls to sinkhorn
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_x=geom_x,
+        geom_y=geom_y,
+        a=self.a,
+        b=self.b,
+        epsilon=1.,
+        max_iterations=30,
+        jit=False,
+        sinkhorn_kwargs={'threshold': threshold, 'lse_mode': lse_mode,
+                         'inner_iterations': 1},
+        warm_start=False)
+    # with warm start for calls to sinkhorn
+    out_warm_start = gromov_wasserstein.gromov_wasserstein(
+        geom_x=geom_x,
+        geom_y=geom_y,
+        a=self.a,
+        b=self.b,
+        epsilon=1.,
+        max_iterations=30,
+        jit=False,
+        sinkhorn_kwargs={'threshold': threshold, 'lse_mode': lse_mode,
+                         'inner_iterations': 1},
+        warm_start=True)
+
+    errors_warm_start = out_warm_start.errors_sinkhorn[-1]
+    errors = out.errors_sinkhorn[-1]
+    errors_warm_start = errors_warm_start[errors_warm_start > -1]
+    errors = errors[errors > -1]
+
+    self.assertGreater(threshold, errors[-1])
+    self.assertGreater(threshold, errors_warm_start[-1])
+
+    # check error in warm start is better than without restart
+    self.assertGreater(errors[0], errors_warm_start[0])
+    # check less iterations are needed with warm start for the last sinkhorn
+    self.assertGreater(errors.shape[0], errors_warm_start.shape[0])
+    # check transport matrices are similar
+    self.assertAllClose(out.transport, out_warm_start.transport,
+                        atol=1e-2, rtol=1e-2)
 
 if __name__ == '__main__':
   absltest.main()
