@@ -118,8 +118,8 @@ def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
     iteration, state = iteration_state
     return iteration, states, state
 
-  iteration, states, state = jax.lax.while_loop(max_cond_fn, unrolled_body_fn,
-                                                (0, states, state))
+  iteration, states, state = jax.lax.while_loop(
+      max_cond_fn, unrolled_body_fn, (0, states, state))
   return state, (constants, iteration, states)
 
 
@@ -164,7 +164,6 @@ def fixpoint_iter_bwd(
       bwd_cond_fn, unrolled_body_fn,
       (iteration - inner_iterations, g, g_constants))
   return g_constants, g_state
-
 
 # definition of backprop friendly variant of fixpoint_iter.
 fixpoint_iter_backprop = jax.custom_vjp(fixpoint_iter,

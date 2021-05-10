@@ -28,7 +28,9 @@ class Transport:
     geom: the ground geometry underlying the regularized transport problem.
     a: jnp.ndarray<float> the weights of the source.
     b: jnp.ndarray<float> the weights of the target.
-    reg_ot_cost: if defined the regularized transport cost.
+    reg_ot_cost: if defined, the regularized transport cost.
+    errors: if defined, errors recorded during run of Sinkhorn algorithm.
+    converged: if defined, flag to indicate whether Sinkhorn converged.
     matrix: the transport matrix (if the geometry allows its computation).
   """
 
@@ -69,6 +71,8 @@ class Transport:
     self._g = None
     self._kwargs = kwargs
     self.reg_ot_cost = None
+    self.errors = None
+    self.converged = None
     self.solve()
 
   def solve(self):
@@ -76,10 +80,11 @@ class Transport:
     out = sinkhorn.sinkhorn(self.geom, self.a, self.b, **self._kwargs)
     # TODO(oliviert): figure out how to warn the user if no convergence.
     # So far we always set the values, even if not converged.
-    # TODO(oliviert, cuturi): handles cases where it has not converged.
     self._f = out.f
     self._g = out.g
     self.reg_ot_cost = out.reg_ot_cost
+    self.errors = out.errors
+    self.converged = out.converged
 
   @property
   def matrix(self) -> jnp.ndarray:

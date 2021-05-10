@@ -60,8 +60,10 @@ def discrete_barycenter(geom: geometry.Geometry,
     debiased: whether to run the debiased version of the Sinkhorn divergence.
 
   Returns:
-    A SinkhornBarycenterOutput, which contains two arrays of potentials,
-     the barycentric histogram and a sequence of errors.
+    A ``SinkhornBarycenterOutput``, which contains two arrays of potentials,
+    each of size ``batch`` times ``geom.num_a``, summarizing the OT between each
+    histogram in the database onto the barycenter, described in ``histogram``,
+    as well as a sequence of errors that monitors convergence.
   """
   batch_size, num_a = a.shape
   _, num_b = geom.shape
