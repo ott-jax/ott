@@ -15,6 +15,8 @@ Sinkhorn and variants
   :toctree: _autosummary
 
     sinkhorn.sinkhorn
+    sinkhorn.apply_inv_hessian
+    sinkhorn.first_order_conditions
     discrete_barycenter.discrete_barycenter
 
 Gromov-Wasserstein Solver

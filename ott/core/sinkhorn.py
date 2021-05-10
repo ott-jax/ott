@@ -654,12 +654,14 @@ def ent_reg_cost(geom: geometry.Geometry,
                  f: jnp.ndarray,
                  g: jnp.ndarray,
                  lse_mode: bool) -> jnp.ndarray:
-  """Computes objective of regularized OT given dual solutions f, g.
+  r"""Computes objective of regularized OT given dual solutions ``f``, ``g``.
 
-  In all sums below, jnp.where handle situations in which some coordinates of
-  a and b are zero. For those coordinates, their potential is -inf.
-  This leads to -inf - -inf or -inf x 0 operations which result in NaN.
-  These computations are therefore discarded when computing the objective.
+  The objective is evaluated for dual solution ``f`` and ``g``, using inputs
+  ``geom``, ``a`` and ``b``, in addition to parameters ``tau_a``, ``tau_b``.
+  Situations where ``a`` or ``b`` have zero coordinates are reflected in
+  minus infinity entries in their corresponding dual potentials. To avoid NaN
+  that may result when multiplying 0's by infinity values, ``jnp.where`` is
+  used to cancel these contributions.
 
   Args:
     geom: a Geometry object.
