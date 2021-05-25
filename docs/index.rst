@@ -34,6 +34,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
 - ``core`` contains the Sinkhorn algorithm, the main workhorse to solve OT in this package, as well as variants that can be used to compute barycenters of several measures;
 - ``tools`` provides an interface to exploit OT solutions, as produced by ``core`` functions. Such tasks include instantiating OT matrices, computing approximations to Wasserstein distances [#]_ [#]_, or computing differentiable sort and quantile operations [#]_.
 
+
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials:
@@ -44,6 +45,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/OTT_&_POT.ipynb
    notebooks/Sinkhorn_Barycenters.ipynb
    notebooks/soft_sort.ipynb
+   notebooks/Hessians.ipynb
 
 .. toctree::
    :maxdepth: 1
