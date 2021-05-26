@@ -108,6 +108,7 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
       self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
       self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
+
   @parameterized.named_parameters(
       dict(
           testcase_name='lse-implicit',
@@ -115,7 +116,21 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
           implicit_differentiation=True,
           epsilon=0.001),
       dict(
+          testcase_name='lse-implicit-force_scan',
+          lse_mode=True,
+          implicit_differentiation=True,
+          epsilon=0.001,
+          min_iterations=1000,
+          max_iterations=1000),
+      dict(
           testcase_name='lse-backprop',
+          lse_mode=True,
+          implicit_differentiation=False,
+          epsilon=0.01,
+          min_iterations=1000,
+          max_iterations=1000),
+      dict(
+          testcase_name='lse-backprop-force_scan',
           lse_mode=True,
           implicit_differentiation=False,
           epsilon=0.01),
@@ -125,7 +140,10 @@ class SinkhornGradTest(jax.test_util.JaxTestCase):
           implicit_differentiation=True,
           epsilon=0.01))
   def test_gradient_sinkhorn_euclidean(self, lse_mode,
-                                       implicit_differentiation, epsilon):
+                                       implicit_differentiation, epsilon,
+                                       min_iterations=0,
+                                       max_iterations=2000
+                                       ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3

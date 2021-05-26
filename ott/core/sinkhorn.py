@@ -196,7 +196,12 @@ def sinkhorn(
      iteration but every inner_num_iter instead.
     min_iterations: (int32) the minimum number of Sinkhorn iterations carried
      out before the error is computed and monitored.
-    max_iterations: (int32) the maximum number of Sinkhorn iterations.
+    max_iterations: (int32) the maximum number of Sinkhorn iterations. If
+      ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
+      run by default using a ``jax.lax.scan`` loop rather than a custom,
+      unroll-able ``jax.lax.while_loop`` that monitors convergence. In that case
+      the error is not monitored and the ``converged`` flag will return
+      ``False`` as a consequence.
     momentum_strategy: either a float between ]0,2[ or a string.
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
@@ -500,8 +505,8 @@ def _sinkhorn_iterations(
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
   errors, f_u, g_v = fix_point(
-      cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
-      (errors, f_u, g_v))
+      cond_fn, body_fn, min_iterations, max_iterations, inner_iterations,
+      const, (errors, f_u, g_v))
 
   f = f_u if lse_mode else geom.potential_from_scaling(f_u)
   g = g_v if lse_mode else geom.potential_from_scaling(g_v)
@@ -519,7 +524,7 @@ def _sinkhorn_iterations_taped(
     chg_momentum_from: int,
     lse_mode: bool,
     implicit_differentiation: bool,
-    linear_solve_kwargs: Mapping[str, Union[Callable, float]],
+    linear_solve_kwargs: Mapping[str, Any],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
     init_dual_b: jnp.ndarray,
@@ -572,6 +577,7 @@ def _sinkhorn_iterations_implicit_bwd(
   """
   del inner_iterations, min_iterations, max_iterations, momentum_default
   del chg_momentum_from, implicit_differentiation, parallel_dual_updates
+
   f, g, geom, a, b = res
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
@@ -796,7 +802,9 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
                       tau_a: float,
                       tau_b: float,
                       lse_mode: bool,
-                      linear_solver_fun: Callable[[Callable[[jnp.ndarray], jnp.ndarray], jnp.ndarray], Tuple[jnp.ndarray, Any]] = jax.scipy.sparse.linalg.cg,
+                      linear_solver_fun: Callable[
+                          [Callable[[jnp.ndarray], jnp.ndarray], jnp.ndarray],
+                          Tuple[jnp.ndarray, Any]] = jax.scipy.sparse.linalg.cg,
                       ridge_kernel: float = 1e-4,
                       ridge_identity: float = 1e-4):
   r"""Applies minus inverse of [hessian of ``reg_ot_cost`` w.r.t ``f``, ``g``].
