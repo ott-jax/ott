@@ -46,6 +46,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/Sinkhorn_Barycenters.ipynb
    notebooks/soft_sort.ipynb
    notebooks/Hessians.ipynb
+   notebooks/fairness.ipynb
 
 .. toctree::
    :maxdepth: 1
