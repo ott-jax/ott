@@ -64,11 +64,11 @@ class ApplyTest(jax.test_util.JaxTestCase):
     self.assertAllClose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 
     geom = pointcloud.PointCloud(x, y, power=2, online=True)
-    prod0_online = geom.apply_kernel(vec0, 1., axis=0)
-    prod1_online = geom.apply_kernel(vec1, 1., axis=1)
+    prod0_online = geom.apply_kernel(vec0, axis=0)
+    prod1_online = geom.apply_kernel(vec1, axis=1)
     geom = pointcloud.PointCloud(x, y, power=2, online=False)
-    prod0 = geom.apply_kernel(vec0, 1., axis=0)
-    prod1 = geom.apply_kernel(vec1, 1., axis=1)
+    prod0 = geom.apply_kernel(vec0, axis=0)
+    prod1 = geom.apply_kernel(vec1, axis=1)
     self.assertAllClose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
     self.assertAllClose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 

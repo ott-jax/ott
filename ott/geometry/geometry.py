@@ -16,7 +16,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Optional, Union, Sequence
+from typing import Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
@@ -26,27 +26,71 @@ from ott.geometry import ops
 
 @jax.tree_util.register_pytree_node_class
 class Geometry:
-  """Base class to define ground costs/kernels used in optimal transport."""
+  r"""Base class to define ground costs/kernels used in optimal transport.
+
+  Optimal transport problems are intrinsically geometric: they compute an
+  optimal way to transport mass from one configuration onto another. To define
+  what is meant by optimality of a transport requires defining a cost, of moving
+  mass from one among several sources, towards one out of multiple targets.
+  These sources and targets can be provided as points in vectors spaces, grids,
+  or more generally exclusively described through a (dissimilarity) cost matrix,
+  or almost equivalently, a (similarity) kernel matrix.
+
+  Once that cost or kernel matrix is set, the ``Geometry`` class provides a
+  basic operations to be run with the Sinkhorn algorithm.
+
+  Note:
+    When defining a ``Geometry`` through a ``cost_matrix``, it is important to
+    select an ``epsilon`` regularization parameter that is meaningful. That
+    parameter can be provided by the user, or assigned a default value through
+    a simple rule, using the mean cost value implied by the ``cost_matrix``.
+  """
 
   def __init__(self,
                cost_matrix: Optional[jnp.ndarray] = None,
                kernel_matrix: Optional[jnp.ndarray] = None,
-               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
-               **kwargs
-               ):
-    """Initializes a geometry by passing it a cost matrix or a kernel matrix.
+               epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
+               relative_epsilon: Optional[bool] = None,
+               **kwargs):
+    r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
     Args:
       cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
         costs.
-      kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing
-        n x m kernel values.
-      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
+      kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
+        x m kernel values.
+      epsilon: a regularization parameter. If a ``epsilon_scheduler.Epsilon``
+        object is passed, other parameters below are ignored in practice. If the
+        parameter is a float, then this is understood to be the regularization
+        that is needed, unless ``relative_epsilon`` below is ``True``, in which
+        case ``epsilon`` is understood as a normalized quantity, to be scaled by
+        the mean value of the ``cost_matrix``.
+      relative_epsilon: whether epsilon is passed relative to scale of problem,
+        here understood as mean value of ``cost_matrix``.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-    self._epsilon = epsilon_scheduler.Epsilon.make(epsilon, **kwargs)
+    self._epsilon_init = epsilon
+    self._relative_epsilon = relative_epsilon
+    # Define default dictionary and update it with user's values.
+    self._kwargs = {**{'scale': None, 'init': None, 'decay': None}, **kwargs}
+
+  @property
+  def _epsilon(self):
+    """Return epsilon scheduler, either passed directly or by building it."""
+    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
+      return self._epsilon_init
+    eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
+    scale = self._kwargs.pop('scale', None)
+    rel = self._relative_epsilon
+    trigger = (scale is None) and (rel is not False) and (
+        self._epsilon_init is None or rel)
+    scale = (
+        scale if scale is not None and rel is not True else
+        (self.mean_cost_matrix if trigger else 1.0))
+    self._kwargs.update(scale=scale)
+    return epsilon_scheduler.Epsilon.make(eps, **self._kwargs)
 
   @property
   def cost_matrix(self):
@@ -56,7 +100,15 @@ class Geometry:
 
   @property
   def median_cost_matrix(self):
-    return jnp.median(self.cost_matrix[:])
+    return jnp.median(self.cost_matrix)
+
+  @property
+  def mean_cost_matrix(self):
+    if isinstance(self.shape[0], int) and (self.shape[0] > 0):
+      return jnp.sum(self.apply_cost(jnp.ones((self.shape[0],)))) / (
+          self.shape[0] * self.shape[1])
+    else:
+      return 1.0
 
   @property
   def kernel_matrix(self):
@@ -71,15 +123,25 @@ class Geometry:
   @property
   def shape(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return mat.shape if mat is not None else None
+    return mat.shape if isinstance(mat, jnp.ndarray) else (0, 0)
 
   @property
   def is_symmetric(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return (mat.shape[0] == mat.shape[1] and jnp.all(mat == mat.T)
-            ) if mat is not None else False
+    return (mat.shape[0] == mat.shape[1] and
+            jnp.all(mat == mat.T)) if mat is not None else False
 
-  # The functions below are at the core of Sinkhorn iterations.
+  def copy_epsilon(self, other):
+    """Copies the epsilon parameters from another geometry."""
+    scheduler = other._epsilon
+    self._epsilon_init = scheduler._target_init
+    self._kwargs.update(scale=scheduler._scale)
+    self._relative_epsilon = False
+
+  # The functions below are at the core of Sinkhorn iterations, they are
+  # are implemented here in their default form, either in lse (using directly
+  # cost matrices in stabilized form) or kernel mode (using kernel matrices).
+
   def apply_lse_kernel(self,
                        f: jnp.ndarray,
                        g: jnp.ndarray,
@@ -106,12 +168,13 @@ class Geometry:
       f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
       g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
       eps: float, regularization strength
-      vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect
-        of doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g /eps) by a vector. This is carried out by
-        adding weights to the log-sum-exp function, and needs to handle signs
+      vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
+        doing log-Kernel computations with an addition elementwise
+        multiplication of exp(g /eps) by a vector. This is carried out by adding
+        weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
+
     Returns:
       A jnp.ndarray corresponding to output above, depending on axis.
     """
@@ -128,18 +191,24 @@ class Geometry:
     where K is [num_a, num_b]
 
     Args:
-      scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows
-        or num_cols of kernel_matrix
+      scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
+        num_cols of kernel_matrix
       eps: passed for consistency, not used yet.
       axis: standard kernel product if axis is 1, transpose if 0.
+
     Returns:
       a jnp.ndarray corresponding to output above, depending on axis.
     """
-    del eps
-    kernel = self.kernel_matrix if axis == 1 else self.kernel_matrix.T
+    if eps is None:
+      kernel = self.kernel_matrix
+    else:
+      kernel = self.kernel_matrix**(self.epsilon / eps)
+    kernel = kernel if axis == 1 else kernel.T
+
     return jnp.dot(kernel, scaling)
 
-  def marginal_from_potentials(self, f: jnp.ndarray,
+  def marginal_from_potentials(self,
+                               f: jnp.ndarray,
                                g: jnp.ndarray,
                                axis: int = 0) -> jnp.ndarray:
     """Outputs marginal of transportation matrix from potentials.
@@ -152,13 +221,13 @@ class Geometry:
       f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
       g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
       axis: axis along which to integrate, returns marginal on other axis.
+
     Returns:
       a vector of marginals of the transport matrix.
     """
     h = (f if axis == 1 else g)
     z = self.apply_lse_kernel(f, g, self.epsilon, axis=axis)[0]
-    return jnp.exp((z + h)/self.epsilon)
-
+    return jnp.exp((z + h) / self.epsilon)
 
   def marginal_from_scalings(self, u: jnp.ndarray, v: jnp.ndarray, axis=0):
     """Outputs marginal of transportation matrix from scalings."""
@@ -191,6 +260,7 @@ class Geometry:
       axis: axis (0 or 1) along which to compute marginal.
       norm_error: (t-uple of int) p's to compute p-norm between marginal/target
       lse_mode: whether operating on scalings or potentials
+
     Returns:
       t-uple of floats, quantifying difference between target / marginal.
     """
@@ -200,12 +270,14 @@ class Geometry:
       marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
     norm_error = jnp.array(norm_error)
     error = jnp.sum(
-        jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis],
-        axis=1) ** (1.0 / norm_error)
+        jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
+        axis=1)**(1.0 / norm_error)
     return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
-    """Carries out one Sinkhorn update for potentials, i.e. in log space.
+    """Carries out one Sinkhorn update for potentials, i.e.
+
+    in log space.
 
     Args:
       f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
@@ -248,10 +320,7 @@ class Geometry:
       if axis == 0:
         vec = vec.reshape((vec.size, 1))
       lse_output = ops.logsumexp(
-          self._center(f, g) / eps,
-          b=vec,
-          axis=axis,
-          return_sign=True)
+          self._center(f, g) / eps, b=vec, axis=axis, return_sign=True)
       return eps * lse_output[0], lse_output[1]
     else:
       lse_output = ops.logsumexp(
@@ -287,12 +356,13 @@ class Geometry:
       vec: jnp.ndarray [batch, num_a or num_b], vector that will be multiplied
         by transport matrix corresponding to potentials f, g, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
+
     Returns:
       ndarray of the size of vec.
     """
     if vec.ndim == 1:
-      return self._apply_transport_from_potentials(
-          f, g, vec[jnp.newaxis, :], axis)[0, :]
+      return self._apply_transport_from_potentials(f, g, vec[jnp.newaxis, :],
+                                                   axis)[0, :]
     return self._apply_transport_from_potentials(f, g, vec, axis)
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
@@ -317,6 +387,7 @@ class Geometry:
       vec: jnp.ndarray [batch, num_a or num_b], vector that will be multiplied
         by transport matrix corresponding to scalings u, v, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
+
     Returns:
       ndarray of the size of vec.
     """
@@ -338,13 +409,13 @@ class Geometry:
     """Applies cost matrix to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either
-    output = K arr (if axis=1)
-    output = K' arr (if axis=0)
-    where K is [num_a, num_b]
+    output = C arr (if axis=1)
+    output = C' arr (if axis=0)
+    where C is [num_a, num_b]
 
     Args:
-      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
-        by the cost matrix.
+      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied by
+        the cost matrix.
       axis: standard cost matrix if axis=1, transport if 0
       fn: function to apply to cost matrix element-wise before the dot product
 
@@ -352,10 +423,18 @@ class Geometry:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
-      return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis, fn), 1, 1,
-                     )(arr.reshape(-1, 1))
-    return jax.vmap(lambda x: self._apply_cost_to_vec(x, axis, fn), 1, 1,
-                   )(arr)
+      return jax.vmap(
+          lambda x: self._apply_cost_to_vec(x, axis, fn),
+          1,
+          1,
+      )(
+          arr.reshape(-1, 1))
+    return jax.vmap(
+        lambda x: self._apply_cost_to_vec(x, axis, fn),
+        1,
+        1,
+    )(
+        arr)
 
   def _apply_cost_to_vec(self,
                          vec: jnp.ndarray,
@@ -368,6 +447,7 @@ class Geometry:
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
+
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
@@ -385,13 +465,13 @@ class Geometry:
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
-        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
-    )
+        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size)))
 
   def tree_flatten(self):
-    return (self._cost_matrix, self._kernel_matrix, self._epsilon), None
+    return (self._cost_matrix, self._kernel_matrix, self._epsilon_init,
+            self._relative_epsilon, self._kwargs), None
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     del aux_data
-    return cls(*children)
+    return cls(*children[:-1], **children[-1])

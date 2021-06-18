@@ -364,8 +364,8 @@ def _update_geometry_gw(
       marginal_x, marginal_y, geom_x, geom_y, loss)
   cost_matrix = marginal_dep_term - apply_cost_fn(geom_y)(
       tmp.T, axis=1, fn=loss.right_y).T
-  return geometry.Geometry(cost_matrix=cost_matrix,
-                           epsilon=geom._epsilon, **kwargs)
+  return geometry.Geometry(
+      cost_matrix=cost_matrix, epsilon=geom._epsilon_init, **kwargs)
 
 
 def _marginal_dependent_cost(marginal_x, marginal_y, geom_x, geom_y, loss):

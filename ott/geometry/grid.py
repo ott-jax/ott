@@ -22,7 +22,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ott.geometry import costs
-from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import ops
 
@@ -56,7 +55,6 @@ class Grid(geometry.Geometry):
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
       grid_dimension: int = None,
-      epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
       **kwargs):
     """Create instance of grid using either locations or sizes.
 
@@ -76,10 +74,10 @@ class Grid(geometry.Geometry):
         inputs and used in the flatten/unflatten functions.
       grid_dimension: dimension of grid. This parameters will be computed from
         other inputs and used in the flatten/unflatten functions.
-      epsilon: a float or a epsilon_scheduler.Epsilon objet
-      **kwargs: passed to parent class.
+      **kwargs: other optional parameters to be passed on to superclass
+        initializer, notably those related to epsilon regularization.
+
     """
-    super().__init__(epsilon=epsilon, **kwargs)
     if (grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None):
       self.grid_size = grid_size
@@ -105,6 +103,8 @@ class Grid(geometry.Geometry):
     self.kwargs = {'num_a': self.num_a, 'grid_size': self.grid_size,
                    'grid_dimension': self.grid_dimension}
 
+    super().__init__(**kwargs)
+
   @property
   def cost_matrices(self):
     # computes cost matrices along each dimension of the grid
@@ -123,8 +123,12 @@ class Grid(geometry.Geometry):
     # computes kernel matrices from cost matrices grid
     kernel_matrices = []
     for cost_matrix in self.cost_matrices:
-      kernel_matrices.append(jnp.exp(-cost_matrix/self.epsilon))
+      kernel_matrices.append(jnp.exp(-cost_matrix / self.epsilon))
     return kernel_matrices
+
+  @property
+  def median_cost_matrix(self):
+    raise NotImplementedError('Median cost not implemented for grids')
 
   @property
   def shape(self):
@@ -240,7 +244,7 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(self,
                    scaling: jnp.ndarray,
-                   eps: float = None,
+                   eps: Optional[float] = None,
                    axis: int = None):
     """Applies grid kernel on scaling vector.
 
@@ -264,6 +268,7 @@ class Grid(geometry.Geometry):
     for dimension, kernel in enumerate(self.kernel_matrices):
       ind = indices.copy()
       ind.insert(dimension, 0)
+      kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       scaling = jnp.tensordot(kernel, scaling,
                               axes=([0], [dimension])).transpose(ind)
     return scaling.ravel()
@@ -291,7 +296,7 @@ class Grid(geometry.Geometry):
     return tuple(sep_grid for _ in range(size))
 
   def tree_flatten(self):
-    return (self.x, self.cost_fns, self.epsilon), self.kwargs
+    return (self.x, self.cost_fns, self._epsilon), self.kwargs
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

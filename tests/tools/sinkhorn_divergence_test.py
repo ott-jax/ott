@@ -65,6 +65,33 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     iters_xx_sym = jnp.sum(div.errors[1] > 0)
     self.assertGreater(iters_xx, iters_xx_sym)
 
+  def test_euclidean_autoepsilon(self):
+    rngs = jax.random.split(self.rng, 2)
+    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
+    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    div = sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud,
+        cloud_a, cloud_b,
+        a=self._a, b=self._b,
+        sinkhorn_kwargs=dict(threshold=1e-2))
+    self.assertGreater(div.divergence, 0.0)
+    self.assertLen(div.potentials, 3)
+    self.assertLen(div.geoms, 3)
+    print(div.geoms[0].epsilon, div.geoms[1].epsilon)
+    print(div.geoms[0]._epsilon._scale, div.geoms[1]._epsilon._scale)
+    self.assertAllClose(div.geoms[0].epsilon, div.geoms[1].epsilon)
+
+  def test_euclidean_autoepsilon_not_share_epsilon(self):
+    rngs = jax.random.split(self.rng, 2)
+    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
+    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    div = sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud,
+        cloud_a, cloud_b,
+        a=self._a, b=self._b,
+        sinkhorn_kwargs=dict(threshold=1e-2), share_epsilon=False)
+    self.assertGreater(jnp.abs(div.geoms[0].epsilon - div.geoms[1].epsilon), 0)
+
   def test_euclidean_point_cloud_wrapper(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))

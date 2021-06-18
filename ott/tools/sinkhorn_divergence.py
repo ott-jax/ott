@@ -33,6 +33,7 @@ def sinkhorn_divergence(
     b: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     static_b: bool = False,
+    share_epsilon: bool = True,
     **kwargs):
   """Computes Sinkhorn divergence defined by a geometry, weights, parameters.
 
@@ -48,6 +49,12 @@ def sinkhorn_divergence(
       calls to the `sinkhorn` function, that is called twice if static_b else
       three times.
     static_b: if True, divergence of measure b against itself is NOT computed
+    share_epsilon: if True, enforces that the same epsilon regularizer is shared
+      for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
+      will be by default that used when comparing x to y (contained in the first
+      geometry). This flag is set to True by default, because in the default
+      setting, the epsilon regularization is a function of the mean of the cost
+      matrix.
     **kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
@@ -56,6 +63,10 @@ def sinkhorn_divergence(
   """
   geometries = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
+  if share_epsilon:
+    for geom in geometries[1:(2 if static_b else 3)]:
+      if isinstance(geom, geometry.Geometry):
+        geom.copy_epsilon(geometries[0])
 
   num_a, num_b = geometries[0].shape
   a = jnp.ones((num_a,)) / num_a if a is None else a

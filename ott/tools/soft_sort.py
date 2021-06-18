@@ -52,6 +52,14 @@ def transport_for_sort(inputs: jnp.ndarray,
   b = jnp.squeeze(target_weights)
   num_targets = b.shape[0]
   y = jnp.linspace(0.0, 1.0, num_targets)[:, jnp.newaxis]
+
+  # When runnning soft-sort, the entries are remapped into the segment [0,1].
+  # For that reason, it makes sense to have a default epsilon value adapted
+  # to that scale. If none is passed, we provide a default of 1e-2.
+  epsilon = kwargs.pop('epsilon', None)
+  scale = kwargs.pop('scale', None)
+  kwargs.update(epsilon=(1e-2 if epsilon is None else epsilon))
+
   return transport.Transport(x, y, a=a, b=b, **kwargs)
 
 

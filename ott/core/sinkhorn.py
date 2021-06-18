@@ -95,10 +95,9 @@ def sinkhorn(
     unbalanced optimal transport problem with a variable matrix `P` of size ``n``
     x ``m``:
 
-    :math:`\arg\min_{P>0} <P,C> -\epsilon H(P) + \rho_a \text{KL}(P1 | a) + \rho_b \text{KL}(P^T1 | b)`
+    :math:`\arg\min_{P>0} <P,C> -\epsilon \text{KL}(P | ab^T) + \rho_a \text{KL}(P1 | a) + \rho_b \text{KL}(P^T1 | b)`
 
-    where :math:`H` is the Shannon entropy, and :math:`KL` is the generalized
-    Kullback-Leibler divergence.
+    where :math:`KL` is the generalized Kullback-Leibler divergence.
 
     The very same primal problem can also be written using a kernel :math:`K`
     instead of a cost :math:`C` as well:

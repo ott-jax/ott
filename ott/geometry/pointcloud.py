@@ -20,7 +20,6 @@ from typing import Optional, Union
 import jax
 import jax.numpy as jnp
 from ott.geometry import costs
-from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import ops
 
@@ -32,7 +31,6 @@ class PointCloud(geometry.Geometry):
   def __init__(self,
                x: jnp.ndarray,
                y: Optional[jnp.ndarray] = None,
-               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1e-2,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
                online: bool = False,
@@ -51,15 +49,14 @@ class PointCloud(geometry.Geometry):
     Args:
       x : n x d array of n d-dimensional vectors
       y : m x d array of m d-dimensional vectors
-      epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
       cost_fn: a CostFn function between two points in dimension d.
       power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
       online: whether to run the online version of the computation or not. The
         online computation is particularly useful for big point clouds such that
         their cost matrix does not fit in memory.
-      **kwargs: optional parameters to be passed on to epsilon scheduler.
+      **kwargs: other optional parameters to be passed on to superclass
+      initializer, notably those related to epsilon regularization.
     """
-    super().__init__(epsilon=epsilon, **kwargs)
 
     self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
     self._axis_norm = 0 if callable(self._cost_fn.norm) else None
@@ -69,6 +66,8 @@ class PointCloud(geometry.Geometry):
 
     self.power = power
     self._online = online
+
+    super().__init__(**kwargs)
 
   @property
   def _norm_x(self):
@@ -88,8 +87,6 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self):
     if self._online:
       return None
-    if self._cost_matrix is not None:
-      return self._cost_matrix
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
@@ -103,7 +100,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self):
-    return self.x.shape[0], self.y.shape[0]
+    return (self.x.shape[0] if isinstance(self.x, jnp.ndarray) else 0,
+            self.y.shape[0] if isinstance(self.y, jnp.ndarray) else 0)
 
   @property
   def is_symmetric(self):
@@ -135,7 +133,13 @@ class PointCloud(geometry.Geometry):
       h_res = eps * h_res - jnp.where(jnp.isfinite(f), f, 0)
     return h_res, h_sgn
 
-  def apply_kernel(self, scaling: jnp.ndarray, eps: float, axis=0):
+  def apply_kernel(self,
+                   scaling: jnp.ndarray,
+                   eps: Optional[float] = None,
+                   axis=0):
+    if eps is None:
+      eps = self.epsilon
+
     if not self._online:
       return super().apply_kernel(scaling, eps, axis)
 
@@ -239,7 +243,7 @@ class PointCloud(geometry.Geometry):
     return tuple(cls(*xy, **kwargs) for xy in couples)
 
   def tree_flatten(self):
-    return ((self.x, self.y, self.epsilon, self._cost_fn),
+    return ((self.x, self.y, self._epsilon, self._cost_fn),
             {'online': self._online, 'power': self.power})
   # Passing self.power in aux_data to be able to condition on it.
 
