@@ -41,12 +41,25 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
 
    notebooks/point_clouds.ipynb
    notebooks/introduction_grid.ipynb
-   notebooks/application_biology.ipynb
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Benchmarks:
+
    notebooks/OTT_&_POT.ipynb
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Advanced Applications:
+
    notebooks/Sinkhorn_Barycenters.ipynb
-   notebooks/soft_sort.ipynb
    notebooks/Hessians.ipynb
+   notebooks/soft_sort.ipynb
+   notebooks/application_biology.ipynb
    notebooks/fairness.ipynb
+
 
 .. toctree::
    :maxdepth: 1
