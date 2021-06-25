@@ -303,7 +303,7 @@ def _sinkhorn(
     norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
     momentum_default = 1.0
     chg_momentum_from = np.maximum(
-        (min_iterations + 100) // inner_iterations, 2)
+        (min_iterations + 20) // inner_iterations, 2)
   elif isinstance(momentum_strategy, numbers.Number):
     if not 0 < momentum_strategy < 2:
       raise ValueError('Momentum parameter must be strictly between 0 and 2.')
