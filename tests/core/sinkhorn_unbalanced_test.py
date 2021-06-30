@@ -46,7 +46,7 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='lse-no-mom',
           lse_mode=True,
-          momentum_strategy=1.0,
+          momentum=1.0,
           inner_iterations=10,
           norm_error=1,
           tau_a=0.8,
@@ -55,7 +55,7 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='lse-high-mom',
           lse_mode=True,
-          momentum_strategy=1.5,
+          momentum=1.5,
           inner_iterations=10,
           norm_error=1,
           tau_a=0.8,
@@ -64,7 +64,7 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='scal-no-mom',
           lse_mode=False,
-          momentum_strategy=1.0,
+          momentum=1.0,
           inner_iterations=10,
           norm_error=1,
           tau_a=0.8,
@@ -73,13 +73,13 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='scal-high-mom',
           lse_mode=False,
-          momentum_strategy=1.5,
+          momentum=1.5,
           inner_iterations=10,
           norm_error=1,
           tau_a=0.8,
           tau_b=0.9
           ))
-  def test_euclidean_point_cloud(self, lse_mode, momentum_strategy,
+  def test_euclidean_point_cloud(self, lse_mode, momentum,
                                  inner_iterations, norm_error, tau_a, tau_b):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
@@ -89,7 +89,7 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
         a=self.a,
         b=self.b,
         threshold=threshold,
-        momentum_strategy=momentum_strategy,
+        momentum=momentum,
         inner_iterations=inner_iterations,
         norm_error=norm_error,
         lse_mode=lse_mode,
