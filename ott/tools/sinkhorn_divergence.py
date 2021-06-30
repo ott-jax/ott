@@ -104,7 +104,7 @@ def _sinkhorn_divergence(
   """
   # Replaces parallel/momentum arguments in symmetric case.
   kwargs_symmetric = kwargs.copy()
-  kwargs_symmetric.update(parallel_dual_updates=True, momentum=0.5)
+  kwargs_symmetric.update(parallel_dual_updates=True, momentum_strategy=0.5)
 
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
