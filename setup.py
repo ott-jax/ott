@@ -26,8 +26,11 @@ with open('ott/version.py') as f:
 
 # Reads the requirements from requirements.txt
 folder = os.path.dirname(__file__)
-with open(os.path.join(folder, 'requirements.txt')) as fp:
-  install_requires = [line.strip() for line in fp]
+path = os.path.join(folder, 'requirements.txt')
+install_requires = []
+if os.path.exits(path):
+  with open(path) as fp:
+    install_requires = [line.strip() for line in fp]
 
 
 setuptools.setup(version=__version__,
