@@ -28,7 +28,7 @@ with open('ott/version.py') as f:
 folder = os.path.dirname(__file__)
 path = os.path.join(folder, 'requirements.txt')
 install_requires = []
-if os.path.exits(path):
+if os.path.exists(path):
   with open(path) as fp:
     install_requires = [line.strip() for line in fp]
 
