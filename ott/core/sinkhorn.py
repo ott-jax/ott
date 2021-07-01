@@ -447,7 +447,8 @@ def _sinkhorn_iterations(
 
     # compute momentum term if needed, using previously seen errors.
     w = jax.lax.stop_gradient(jnp.where(
-        iteration >= (chg_momentum_from + (chg_momentum_from == 0) * jnp.inf),
+        iteration >= jnp.where(
+            chg_momentum_from == 0, jnp.inf, chg_momentum_from),
         get_momentum(errors, chg_momentum_from // inner_iterations),
         momentum))
 
