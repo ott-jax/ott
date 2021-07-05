@@ -18,7 +18,6 @@
 
 import collections
 import functools
-import numbers
 from typing import Any
 from typing import Optional, Sequence, Union, Tuple, Mapping, Callable
 
