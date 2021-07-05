@@ -30,10 +30,12 @@ Soft Sorting algorithms
 .. autosummary::
   :toctree: _autosummary
 
-    soft_sort.sort
-    soft_sort.ranks
     soft_sort.quantile
     soft_sort.quantile_normalization
+    soft_sort.quantize
+    soft_sort.ranks
+    soft_sort.sort
+    soft_sort.sort_with
 
 References
 ----------

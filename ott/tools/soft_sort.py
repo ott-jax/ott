@@ -15,7 +15,8 @@
 
 """Soft sort operators."""
 
-from typing import Any, Dict, Optional
+import functools
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -23,23 +24,27 @@ import numpy as np
 from ott.tools import transport
 
 
-def transport_for_sort(inputs: jnp.ndarray,
-                       weights: jnp.ndarray,
-                       target_weights: jnp.ndarray,
-                       kwargs) -> jnp.ndarray:
-  """Solves reg. OT, from inputs to a weighted family of increasing values.
+def transport_for_sort(
+    inputs: jnp.ndarray,
+    weights: jnp.ndarray,
+    target_weights: jnp.ndarray,
+    squashing_fun: Callable[[jnp.ndarray], jnp.ndarray] = None,
+    **kwargs) -> jnp.ndarray:
+  r"""Solves reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
     inputs: jnp.ndarray[num_points]. Must be one dimensional.
     weights: jnp.ndarray[num_points]. Weight vector `a` for input values.
     target_weights: jnp.ndarray[num_targets]: Weight vector of the target
       measure. It may be of different size than `weights`.
-    kwargs: a dictionary holding the keyword arguments for `sinkhorn` and
-      `PointCloud`.
+    squashing_fun: function taking an array to squash all its entries in [0,1].
+      sigmoid of whitened values by default. Can be set to be the identity by
+      passing ``squashing_fun = lambda x : x`` instead.
+    **kwargs: keyword arguments for `sinkhorn` and / or `PointCloud`.
 
   Returns:
-    A jnp.ndarray<float> representing the transport matrix of the inputs onto
-    the underlying sorted target.
+    A jnp.ndarray<float> num_points x num_target transport matrix, from all
+    inputs onto the sorted target.
   """
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
@@ -47,7 +52,10 @@ def transport_for_sort(inputs: jnp.ndarray,
         'Shape ({shape}) not supported. The input should be one-dimensional.')
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
-  x = jax.nn.sigmoid((x - jnp.mean(x)) / (jnp.std(x) + 1e-10))
+  if squashing_fun is None:
+    squashing_fun = lambda z : jax.nn.sigmoid(
+        (z - jnp.mean(z)) / (jnp.std(z) + 1e-10))
+  x = squashing_fun(x)
   a = jnp.squeeze(weights)
   b = jnp.squeeze(target_weights)
   num_targets = b.shape[0]
@@ -59,11 +67,10 @@ def transport_for_sort(inputs: jnp.ndarray,
   epsilon = kwargs.pop('epsilon', None)
   scale = kwargs.pop('scale', None)
   kwargs.update(epsilon=(1e-2 if epsilon is None else epsilon))
-
   return transport.Transport(x, y, a=a, b=b, **kwargs)
 
 
-def apply_on_axis(op, inputs, axis, *args):
+def apply_on_axis(op, inputs, axis, *args, **kwargs):
   """Applies a differentiable operator on a given axis of the input.
 
   Args:
@@ -78,6 +85,7 @@ def apply_on_axis(op, inputs, axis, *args):
     A jnp.ndarray holding the output of the differentiable operator on the given
     axis.
   """
+  op_inner = functools.partial(op, **kwargs)
   axis = (axis,) if isinstance(axis, int) else axis
   num_points = np.prod(np.array(inputs.shape)[tuple([axis])])
   permutation = np.arange(len(inputs.shape))
@@ -85,7 +93,7 @@ def apply_on_axis(op, inputs, axis, *args):
   permutation = tuple(sorted(set(permutation) - set(axis)) + sorted(axis))
   inputs = jnp.transpose(inputs, permutation)
 
-  batch_fn = jax.vmap(op, in_axes=(0,) + (None,) * len(args))
+  batch_fn = jax.vmap(op_inner, in_axes=(0,) + (None,) * len(args))
   result = batch_fn(jnp.reshape(inputs, (-1, num_points)), *args)
   shrink = len(axis)
   result = jnp.reshape(result, inputs.shape[:-shrink] + result.shape[-1:])
@@ -98,7 +106,7 @@ def apply_on_axis(op, inputs, axis, *args):
   return result
 
 
-def _sort(inputs: jnp.ndarray, topk, num_targets, kwargs) -> jnp.ndarray:
+def _sort(inputs: jnp.ndarray, topk, num_targets, **kwargs) -> jnp.ndarray:
   """Applies the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -112,7 +120,7 @@ def _sort(inputs: jnp.ndarray, topk, num_targets, kwargs) -> jnp.ndarray:
     num_targets = num_points if num_targets is None else num_targets
     start_index = 0
     b = jnp.ones((num_targets,)) / num_targets
-  ot = transport_for_sort(inputs, a, b, kwargs)
+  ot = transport_for_sort(inputs, a, b, **kwargs)
   out = 1.0 / b * ot.apply(inputs, axis=0)
   return out[start_index:]
 
@@ -122,34 +130,42 @@ def sort(inputs: jnp.ndarray,
          topk: int = -1,
          num_targets: int = None,
          **kwargs) -> jnp.ndarray:
-  """Applies the soft sort operator on a given axis of the input.
+  r"""Applies the soft sort operator on a given axis of the input.
 
   Args:
     inputs: jnp.ndarray<float> of any shape.
     axis: the axis on which to apply the operator.
-    topk: if set to a positive value, the returned vector will be only the topk
-      values. This also reduces the complexity and speed of soft sorting.
-    num_targets: if topk is not specified, num_targets can be used to define a
-      number of composite sorted values that will be evenly distributed across
-      all input values. if not specified, this will be the size of the slices of
-      the input that are sorted.
-    **kwargs: keyword arguments of the PointCloud class. See
-      pointcloud.py for more details.
+    topk: if set to a positive value, the returned vector will only contain
+      the topk values. This also reduces the complexity of soft sorting.
+    num_targets: if topk is not specified, num_targets defines the number of
+      (composite) sorted values computed from the inputs (each value is a convex
+      combination of values recorded in the inputs, provided in increasing
+      order). If not specified, ``num_targets`` is set by default to be the size
+      of the slices of the input that are sorted, i.e. the number of composite
+      sorted values is equal to that of the inputs that are sorted.
+   **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
 
   Returns:
     A jnp.ndarray of the same shape as the input with soft sorted values on the
     given axis.
   """
-  return apply_on_axis(_sort, inputs, axis, topk, num_targets, kwargs)
+  return apply_on_axis(_sort, inputs, axis, topk, num_targets, **kwargs)
 
 
-def _ranks(inputs: jnp.ndarray, num_targets, kwargs) -> jnp.ndarray:
+def _ranks(inputs: jnp.ndarray, num_targets, **kwargs) -> jnp.ndarray:
   """Applies the soft ranks operator on a one dimensional array."""
   num_points = inputs.shape[0]
   num_targets = num_points if num_targets is None else num_targets
   a = jnp.ones((num_points,)) / num_points
   b = jnp.ones((num_targets,)) / num_targets
-  ot = transport_for_sort(inputs, a, b, kwargs)
+  ot = transport_for_sort(inputs, a, b, **kwargs)
   out = 1.0 / a * ot.apply(jnp.arange(num_targets), axis=1)
   return jnp.reshape(out, inputs.shape)
 
@@ -158,21 +174,30 @@ def ranks(inputs: jnp.ndarray,
           axis: int = -1,
           num_targets: int = None,
           **kwargs) -> jnp.ndarray:
-  """Applies the soft trank operator on input tensor.
+  r"""Applies the soft trank operator on input tensor.
 
   Args:
     inputs: a jnp.ndarray<float> of any shape.
     axis: the axis on which to apply the soft ranks operator.
-    num_targets: number of targets used to compute soft ranks approximation. if
-      not specified, this becomes the size of the slices of the input that are
-      ranked
-    **kwargs: extra arguments to the underlying `PointCloud` geometry object as
-      well as the sinkhorn parameters.
+    num_targets: num_targets defines the number of targets used to compute a
+      composite ranks for each value in ``inputs``: that soft rank will be a
+      convex combination of values in [0,...,``(num_targets-2)/num_targets``,1]
+      specified by the optimal transport between values in ``inputs`` towards
+      those values. If not specified, ``num_targets`` is set by default to be
+      the size of the slices of the input that are sorted.
+   **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
 
   Returns:
     A jnp.ndarray<float> of the same shape as inputs, with the ranks.
   """
-  return apply_on_axis(_ranks, inputs, axis, num_targets, kwargs)
+  return apply_on_axis(_ranks, inputs, axis, num_targets, **kwargs)
 
 
 def quantile(inputs: jnp.ndarray,
@@ -180,7 +205,7 @@ def quantile(inputs: jnp.ndarray,
              level: float = 0.5,
              weight: float = 0.05,
              **kwargs) -> jnp.ndarray:
-  """Applies the soft quantile operator on the input tensor.
+  r"""Applies the soft quantile operator on the input tensor.
 
   For instance:
 
@@ -195,8 +220,14 @@ def quantile(inputs: jnp.ndarray,
    axis: the axis on which to apply the operator.
    level: the value of the quantile level to be computed. 0.5 for median.
    weight: the weight of the quantile in the transport problem.
-   **kwargs: extra arguments to the underlying `PointCloud` geometry object.
-
+   **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -205,25 +236,25 @@ def quantile(inputs: jnp.ndarray,
   def _quantile(inputs: jnp.ndarray,
                 level: float,
                 weight: float,
-                kwargs: Dict[str, Any]) -> jnp.ndarray:
+                **kwargs) -> jnp.ndarray:
     num_points = inputs.shape[0]
     a = jnp.ones((num_points,)) / num_points
     b = jnp.array([level - weight / 2, weight, 1.0 - weight / 2 - level])
-    ot = transport_for_sort(inputs, a, b, kwargs)
+    ot = transport_for_sort(inputs, a, b, **kwargs)
     out = 1.0 / b * ot.apply(jnp.squeeze(inputs), axis=0)
     return out[1:2]
 
-  return apply_on_axis(_quantile, inputs, axis, level, weight, kwargs)
+  return apply_on_axis(_quantile, inputs, axis, level, weight, **kwargs)
 
 
 def _quantile_normalization(inputs: jnp.ndarray,
                             targets: jnp.ndarray,
                             weights: float,
-                            kwargs: Dict[str, Any]) -> jnp.ndarray:
+                            **kwargs) -> jnp.ndarray:
   """Applies soft quantile normalization on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
-  ot = transport_for_sort(inputs, a, weights, kwargs)
+  ot = transport_for_sort(inputs, a, weights, **kwargs)
   return 1.0 / a * ot.apply(targets, axis=1)
 
 
@@ -232,7 +263,7 @@ def quantile_normalization(inputs: jnp.ndarray,
                            weights: Optional[jnp.ndarray] = None,
                            axis: int = -1,
                            **kwargs) -> jnp.ndarray:
-  """Renormalizes inputs so that its quantiles match those of targets/weights.
+  r"""Renormalizes inputs so that its quantiles match those of targets/weights.
 
   The idea of quantile normalization is to map the inputs to values so that the
   distribution of transformed values matches the distribution of target values.
@@ -244,9 +275,14 @@ def quantile_normalization(inputs: jnp.ndarray,
     targets: the target values of dimension 1. The targets must be sorted.
     weights: if set, the weights or the target.
     axis: the axis along which to apply the transformation on the inputs.
-    **kwargs: extra arguments to the underlying `PointCloud` geometry object as
-      well as the sinkhorn algorithm.
-
+    **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -263,29 +299,36 @@ def quantile_normalization(inputs: jnp.ndarray,
     weights = jnp.ones((num_targets,)) / num_targets
 
   op = _quantile_normalization
-  return apply_on_axis(op, inputs, axis, targets, weights, kwargs)
+  return apply_on_axis(op, inputs, axis, targets, weights, **kwargs)
 
 
 def sort_with(inputs: jnp.ndarray,
               criterion: jnp.ndarray,
               topk: int = -1,
               **kwargs) -> jnp.ndarray:
-  """Sort an array according to a criterion.
+  r"""Sort a multidimensional array according to a real valued criterion.
 
-  Given `batch` vectors of dimension `dim`, this function produces `topk` (or
-  `batch` if `topk` is set to -1, as by default) vectors of size `dim` that will
-  be convex combinations of all vectors, ranked from smallest to largest.
-  Vectors with the largest indices will contain convex combinations of those
-  vectors with highest criterion, vectors with smaller indices will contain
-  combinations of vectors with smaller criterion.
+  Given ``batch`` vectors of dimension `dim`, to which, for each, a real value
+  ``criterion`` is associated, this function produces ``topk`` (or
+  ``batch`` if ``topk`` is set to -1, as by default) composite vectors of size
+  ``dim`` that will be convex combinations of all vectors, ranked from smallest
+  to largest criterion. Composite vectors with the largest indices will contain
+  convex combinations of those vectors with highest criterion, vectors with
+  smaller indices will contain combinations of vectors with smaller criterion.
 
   Args:
     inputs: the inputs as a jnp.ndarray[batch, dim].
     criterion: the values according to which to sort the inputs. It has shape
       [batch, 1].
     topk: The number of outputs to keep.
-    **kwargs: extra arguments to the underlying `PointCloud` geometry object as
-      well as the sinkhorn parameters.
+    **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
 
   Returns:
     A jnp.ndarray[batch | topk, dim].
@@ -301,7 +344,7 @@ def sort_with(inputs: jnp.ndarray,
   else:
     start_index = 0
     target_weights = jnp.ones((num_points,)) / num_points
-  ot = transport_for_sort(criterion, weights, target_weights, kwargs)
+  ot = transport_for_sort(criterion, weights, target_weights, **kwargs)
   # Applies the topk on each of the dimensions of the inputs.
   sort_fn = jax.vmap(
       lambda x: (1.0 / target_weights * ot.apply(x, axis=0))[start_index:],
@@ -311,18 +354,46 @@ def sort_with(inputs: jnp.ndarray,
 
 def _quantize(inputs: jnp.ndarray,
               num_levels: int,
-              kwargs: Dict[str, Any]) -> jnp.ndarray:
+              **kwargs) -> jnp.ndarray:
   """Applies the soft quantization operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
   b = jnp.ones((num_levels,)) / num_levels
-  ot = transport_for_sort(inputs, a, b, kwargs)
+  ot = transport_for_sort(inputs, a, b, **kwargs)
   return 1.0 / a * ot.apply(1.0 / b * ot.apply(inputs), axis=1)
 
 
 def quantize(inputs: jnp.ndarray,
-             num_levels: int,
+             num_levels: int = 10,
              axis: int = -1,
              **kwargs):
-  """Soft quantizes an inputs according to some levels along the given axis."""
-  return apply_on_axis(_quantize, inputs, axis, num_levels, kwargs)
+  r"""Soft quantizes an input according using num_levels values along axis.
+
+  The quantization operator consists in concentrating several values around
+  a few predefined ``num_levels``. The soft quantization operator proposed here
+  does so by carrying out a `soft` concentration that is differentiable. The
+  ``inputs`` values are first soft-sorted, resulting in ``num_levels`` values.
+  In a second step, the ``inputs`` values are then provided again a composite
+  value that is equal (for each) to a convex combination of those soft-sorted
+  values using the transportation matrix. As the regularization parameter
+  ``epsilon`` of regularized optimal transport goes to 0, this operator recovers
+  the expected behavior of quantization, namely each value in ``inputs`` is
+  assigned a single level. When using ``epsilon>0`` the bheaviour is similar but
+  differentiable.
+
+  Args:
+    inputs: the inputs as a jnp.ndarray[batch, dim].
+    num_levels: number of levels available to quantize the signal.
+    **kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+      that defines the ground cost function to transport from ``inputs`` to the
+      ``num_targets`` target values (squared Euclidean distance by default, see
+      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+      parameters to shape the ``sinkhorn`` algorithm.
+
+  Returns:
+    A jnp.ndarray of the same size as ``inputs``.
+  """
+  return apply_on_axis(_quantize, inputs, axis, num_levels, **kwargs)

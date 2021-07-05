@@ -41,12 +41,32 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     self.assertEqual(x.shape, xs.shape)
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=0) >= 0.0))
 
+  def test_sort_array_squashing_momentum(self):
+    shape = (113,1)
+    x = jax.random.uniform(self.rng, shape)
+    xs_lin = soft_sort.sort(x, axis=0,
+                            squashing_fun=lambda x: x,
+                            epsilon=5e-4,
+                            chg_momentum_from=100)
+    xs_sig = soft_sort.sort(x, axis=0,
+                            squashing_fun=None,
+                            epsilon=2e-4,
+                            chg_momentum_from=100)
+    # Notice xs_lin and xs_sig have no reason to be equal, since they use
+    # different squashing functions, but they should be similar.
+    # One can recover "similar" looking outputs by tuning the regularization
+    # parameter slightly higher for 'lin'
+    self.assertAllClose(xs_sig, xs_lin, rtol=0.05, atol=0.01)
+    self.assertTrue(jnp.alltrue(jnp.diff(xs_lin, axis=0) >= -1e-8))
+    self.assertTrue(jnp.alltrue(jnp.diff(xs_sig, axis=0) >= -1e-8))
+
   @parameterized.parameters(-1, 4, 100)
   def test_topk_one_array(self, k):
     n = 20
     x = jax.random.uniform(self.rng, (n,))
     axis = 0
-    xs = soft_sort.sort(x, axis=axis, topk=k, epsilon=1e-3)
+    xs = soft_sort.sort(x, axis=axis, topk=k, epsilon=1e-3,
+                        squashing_fun = lambda x : x)
     outsize = k if 0 < k < n else n
     self.assertEqual(xs.shape, (outsize,))
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=axis) >= 0.0))
