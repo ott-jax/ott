@@ -58,7 +58,8 @@ class Transport:
       self.geom = args[0]
     else:
       pc_kw = {}
-      for key in ['epsilon', 'cost_fn', 'power', 'online']:
+      for key in ['epsilon', 'cost_fn', 'power', 'online', 'relative_epsilon',
+                  'target', 'scale', 'init', 'decay']:
         value = kwargs.pop(key, None)
         if value is not None:
           pc_kw[key] = value

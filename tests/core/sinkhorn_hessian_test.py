@@ -41,7 +41,8 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     eps = 1e-3
     n, m = shape
     # use slightly different parameter to test linear_solve_kwargs
-    linear_solve_kwargs = {'ridge_kernel' : 1.2e-4}
+    linear_solve_kwargs = {'ridge_kernel' : 1.2e-4, 'ridge_identity': .9e-4}
+
     dim = 3
     rngs = jax.random.split(self.rng, 6)
     x = jax.random.uniform(rngs[0], (n, dim))

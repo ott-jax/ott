@@ -168,9 +168,9 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
     self.assertAllClose((val_peps - val_meps)/(2 * eps),
-                        jnp.sum(grad_b * delta), atol=0.1, rtol=0.01)
+                        jnp.sum(grad_b * delta), atol=0.001, rtol=0.001)
     self.assertAllClose((val_peps - val_meps)/(2 * eps),
-                        jnp.sum(grad_i * delta), atol=0.1, rtol=0.01)
+                        jnp.sum(grad_i * delta), atol=0.001, rtol=0.001)
 
 
 if __name__ == '__main__':

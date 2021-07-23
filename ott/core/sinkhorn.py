@@ -241,41 +241,8 @@ def sinkhorn(
   Raises:
     ValueError: If momentum parameter is not set correctly, or to a wrong value.
   """
-  if jit:
-    call_to_sinkhorn = functools.partial(
-        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 17)))(
-            _sinkhorn)
-  else:
-    call_to_sinkhorn = _sinkhorn
-  return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
-                          inner_iterations, min_iterations, max_iterations,
-                          momentum, chg_momentum_from, lse_mode,
-                          implicit_differentiation,
-                          linear_solve_kwargs, parallel_dual_updates,
-                          use_danskin, init_dual_a, init_dual_b)
 
-
-def _sinkhorn(
-    geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    threshold: float = 1e-3,
-    norm_error: int = 1,
-    inner_iterations: int = 10,
-    min_iterations: int = 0,
-    max_iterations: int = 2000,
-    momentum: float = 1.0,
-    chg_momentum_from: int = 0,
-    lse_mode: bool = True,
-    implicit_differentiation: bool = True,
-    linear_solve_kwargs: Optional[Mapping[str, Union[Callable, float]]] = None,
-    parallel_dual_updates: bool = False,
-    use_danskin: bool = None,
-    init_dual_a: Optional[jnp.ndarray] = None,
-    init_dual_b: Optional[jnp.ndarray] = None) -> SinkhornOutput:
-  """Checks inputs and forks between implicit/backprop exec of Sinkhorn."""
+  # Start by checking inputs.
   num_a, num_b = geom.shape
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
@@ -298,11 +265,49 @@ def _sinkhorn(
   # if that was not the error requested by the user.
   norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
 
+  if jit:
+    call_to_sinkhorn = functools.partial(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 17)))(
+            _sinkhorn)
+  else:
+    call_to_sinkhorn = _sinkhorn
+  return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
+                          inner_iterations, min_iterations, max_iterations,
+                          momentum, chg_momentum_from, lse_mode,
+                          implicit_differentiation,
+                          linear_solve_kwargs, parallel_dual_updates,
+                          use_danskin, init_dual_a, init_dual_b)
+
+
+def _sinkhorn(
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    tau_a: float,
+    tau_b: float,
+    threshold: float,
+    norm_error: int,
+    inner_iterations: int,
+    min_iterations: int,
+    max_iterations: int,
+    momentum: float,
+    chg_momentum_from: int,
+    lse_mode: bool,
+    implicit_differentiation: bool,
+    linear_solve_kwargs: Mapping[str, Union[Callable, float]],
+    parallel_dual_updates: bool,
+    use_danskin: bool,
+    init_dual_a: jnp.ndarray,
+    init_dual_b: jnp.ndarray) -> SinkhornOutput:
+  """Forks between implicit/backprop exec of Sinkhorn."""
+
   if implicit_differentiation:
     iteration_fun = _sinkhorn_iterations_implicit
   else:
     iteration_fun = _sinkhorn_iterations
 
+  # By default, use Danskin theorem to differentiate
+  # the objective when using implicit_differentiation.
   use_danskin = implicit_differentiation if use_danskin is None else use_danskin
 
   f, g, errors = iteration_fun(tau_a, tau_b, inner_iterations, min_iterations,
@@ -337,6 +342,7 @@ def _sinkhorn(
   converged = jnp.logical_and(
       jnp.sum(errors == -1) > 0,
       jnp.sum(jnp.isnan(errors)) == 0)
+
   return SinkhornOutput(f, g, reg_ot_cost, errors, converged)
 
 
@@ -845,7 +851,7 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
     tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal.
     lse_mode: bool, log-sum-exp mode if True, kernel else.
     linear_solver_fun: Callable, should return (solution, ...)
-    ridge_kernel: promotes zero-sum solutions.
+    ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are colinear, or,
       equivalently when two points from either measure are close).
@@ -866,8 +872,12 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
 
   solve_fun = lambda lin_op, b: linear_solver_fun(lin_op, b)[0]
 
-  # Forks on using Schur complement of either A or D, depending on size.
   n, m = geom.shape
+  # Remove ridge on kernel space if problem is balanced.
+  ridge_kernel = jnp.where(tau_a == 1.0 and tau_b == 1.0,
+                           ridge_kernel,
+                           0.0)
+  # Forks on using Schur complement of either A or D, depending on size.
   if n > m:  #  if n is bigger, run m x m linear system.
     inv_vjp_ff = lambda z: z / diag_hess_a
     vjp_gg = lambda z: z * diag_hess_b
