@@ -42,16 +42,16 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=0) >= 0.0))
 
   def test_sort_array_squashing_momentum(self):
-    shape = (113,1)
+    shape = (113, 1)
     x = jax.random.uniform(self.rng, shape)
-    xs_lin = soft_sort.sort(x, axis=0,
-                            squashing_fun=lambda x: x,
-                            epsilon=5e-4,
-                            chg_momentum_from=100)
-    xs_sig = soft_sort.sort(x, axis=0,
-                            squashing_fun=None,
-                            epsilon=2e-4,
-                            chg_momentum_from=100)
+    xs_lin = soft_sort.sort(
+        x,
+        axis=0,
+        squashing_fun=lambda x: x,
+        epsilon=5e-4,
+        chg_momentum_from=100)
+    xs_sig = soft_sort.sort(
+        x, axis=0, squashing_fun=None, epsilon=2e-4, chg_momentum_from=100)
     # Notice xs_lin and xs_sig have no reason to be equal, since they use
     # different squashing functions, but they should be similar.
     # One can recover "similar" looking outputs by tuning the regularization
@@ -65,8 +65,8 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     n = 20
     x = jax.random.uniform(self.rng, (n,))
     axis = 0
-    xs = soft_sort.sort(x, axis=axis, topk=k, epsilon=1e-3,
-                        squashing_fun = lambda x : x)
+    xs = soft_sort.sort(
+        x, axis=axis, topk=k, epsilon=1e-3, squashing_fun=lambda x: x)
     outsize = k if 0 < k < n else n
     self.assertEqual(xs.shape, (outsize,))
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=axis) >= 0.0))
@@ -93,23 +93,14 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
   def test_quantile(self, level):
     x = jnp.linspace(0.0, 1.0, 100)
     q = soft_sort.quantile(
-        x,
-        level=level,
-        weight=0.05,
-        epsilon=1e-3,
-        lse_mode=True)
+        x, level=level, weight=0.05, epsilon=1e-3, lse_mode=True)
     self.assertAlmostEqual(q, level, places=1)
 
   def test_quantile_on_several_axes(self):
     batch, height, width, channels = 16, 100, 100, 3
     x = jax.random.uniform(self.rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
-        x,
-        axis=(1, 2),
-        level=0.5,
-        weight=0.05,
-        epsilon=1e-3,
-        lse_mode=True)
+        x, axis=(1, 2), level=0.5, weight=0.05, epsilon=1e-3, lse_mode=True)
     self.assertEqual(q.shape, (batch, 1, channels))
     self.assertAllClose(q, 0.5 * np.ones((batch, 1, channels)), atol=3e-2)
 
@@ -122,7 +113,8 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     qn = soft_sort.quantile_normalization(x, jnp.sort(y), epsilon=1e-4)
     mu_transform, sigma_transform = qn.mean(), qn.std()
     self.assertAllClose([mu_transform, sigma_transform],
-                        [mu_target, sigma_target], rtol=0.05)
+                        [mu_target, sigma_target],
+                        rtol=0.05)
 
   def test_sort_with(self):
     n, d = 20, 4
@@ -147,13 +139,18 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     self.assertAllClose(min_distances, jnp.zeros_like(min_distances), atol=0.05)
 
   def test_soft_sort_jacobian(self):
-    z = jax.random.uniform(jax.random.PRNGKey(0), ((10, 200)))
+    b, n = 10, 200
+    idx_column = 5
+    z = jax.random.uniform(jax.random.PRNGKey(0), ((b, n)))
+    random_dir = jax.random.normal(jax.random.PRNGKey(1), (b,)) / b
 
     def loss_fn(logits, implicit=False):
       ranks_fn = functools.partial(
-          soft_sort.ranks, axis=-1, num_targets=123,
+          soft_sort.ranks,
+          axis=-1,
+          num_targets=167,
           implicit_differentiation=implicit)
-      return jnp.mean(ranks_fn(logits)[:, 5])
+      return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 
     my_loss_i = jax.jit(
         jax.value_and_grad(functools.partial(loss_fn, implicit=True)))
@@ -167,10 +164,16 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     eps = 1e-3
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
-    self.assertAllClose((val_peps - val_meps)/(2 * eps),
-                        jnp.sum(grad_b * delta), atol=0.001, rtol=0.001)
-    self.assertAllClose((val_peps - val_meps)/(2 * eps),
-                        jnp.sum(grad_i * delta), atol=0.001, rtol=0.001)
+    self.assertAllClose(
+        (val_peps - val_meps) / (2 * eps),
+        jnp.sum(grad_b * delta),
+        atol=0.001,
+        rtol=0.001)
+    self.assertAllClose(
+        (val_peps - val_meps) / (2 * eps),
+        jnp.sum(grad_i * delta),
+        atol=0.001,
+        rtol=0.001)
 
 
 if __name__ == '__main__':

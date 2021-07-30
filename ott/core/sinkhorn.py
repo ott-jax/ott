@@ -27,7 +27,6 @@ import numpy as np
 from ott.core import fixed_point_loop
 from ott.geometry import geometry
 
-
 SinkhornOutput = collections.namedtuple(
     'SinkhornOutput', ['f', 'g', 'reg_ot_cost', 'errors', 'converged'])
 
@@ -237,9 +236,6 @@ def sinkhorn(
     ``inner_iterations`` and a flag ``converged`` that is ``True`` if the
     algorithm has converged within the number of iterations that was predefined
     by the user.
-
-  Raises:
-    ValueError: If momentum parameter is not set correctly, or to a wrong value.
   """
 
   # Start by checking inputs.
@@ -274,9 +270,9 @@ def sinkhorn(
   return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
                           inner_iterations, min_iterations, max_iterations,
                           momentum, chg_momentum_from, lse_mode,
-                          implicit_differentiation,
-                          linear_solve_kwargs, parallel_dual_updates,
-                          use_danskin, init_dual_a, init_dual_b)
+                          implicit_differentiation, linear_solve_kwargs,
+                          parallel_dual_updates, use_danskin, init_dual_a,
+                          init_dual_b)
 
 
 def _sinkhorn(
@@ -311,14 +307,10 @@ def _sinkhorn(
   use_danskin = implicit_differentiation if use_danskin is None else use_danskin
 
   f, g, errors = iteration_fun(tau_a, tau_b, inner_iterations, min_iterations,
-                               max_iterations,
-                               chg_momentum_from, lse_mode,
+                               max_iterations, chg_momentum_from, lse_mode,
                                implicit_differentiation, linear_solve_kwargs,
-                               parallel_dual_updates,
-                               init_dual_a, init_dual_b,
-                               momentum,
-                               threshold, norm_error,
-                               geom, a, b)
+                               parallel_dual_updates, init_dual_a, init_dual_b,
+                               momentum, threshold, norm_error, geom, a, b)
 
   # When differentiating the regularized OT cost, and assuming Sinkhorn has run
   # to convergence, Danskin's (or the enveloppe) theorem
@@ -335,10 +327,10 @@ def _sinkhorn(
   # default, that flag is set to the value of ``implicit_differentiation`` if
   # not specified. If you wish to compute derivatives of order 2 and above,
   # set ``use_danskin`` to ``False``.
-  reg_ot_cost = ent_reg_cost(
-      geom, a, b, tau_a, tau_b,
-      jax.lax.stop_gradient(f) if use_danskin else f,
-      jax.lax.stop_gradient(g) if use_danskin else g, lse_mode)
+  reg_ot_cost = ent_reg_cost(geom, a, b, tau_a, tau_b,
+                             jax.lax.stop_gradient(f) if use_danskin else f,
+                             jax.lax.stop_gradient(g) if use_danskin else g,
+                             lse_mode)
   converged = jnp.logical_and(
       jnp.sum(errors == -1) > 0,
       jnp.sum(jnp.isnan(errors)) == 0)
@@ -388,10 +380,10 @@ def _sinkhorn_iterations(
       differentiation.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
-    init_dual_a: optional initialization for potentials/scalings w.r.t.
-      first marginal (``a``) of reg-OT problem.
-    init_dual_b: optional initialization for potentials/scalings w.r.t.
-      second marginal (``b``) of reg-OT problem.
+    init_dual_a: optional initialization for potentials/scalings w.r.t. first
+      marginal (``a``) of reg-OT problem.
+    init_dual_b: optional initialization for potentials/scalings w.r.t. second
+      marginal (``b``) of reg-OT problem.
     momentum: float, a float between ]0,2[
     threshold: (float) the relative threshold on the Sinkhorn error to stop the
       Sinkhorn iterations.
@@ -412,14 +404,14 @@ def _sinkhorn_iterations(
   del linear_solve_kwargs
 
   # Defining the Sinkhorn loop, by setting initializations, body/cond.
-  errors = -jnp.ones((np.ceil(max_iterations / inner_iterations).astype(int),
-                      len(norm_error)))
+  errors = -jnp.ones(
+      (np.ceil(max_iterations / inner_iterations).astype(int), len(norm_error)))
   const = (geom, a, b, threshold)
 
   def cond_fn(iteration, const, state):
     threshold = const[-1]
     errors = state[0]
-    err = errors[iteration // inner_iterations-1, 0]
+    err = errors[iteration // inner_iterations - 1, 0]
 
     return jnp.logical_or(iteration == 0,
                           jnp.logical_and(jnp.isfinite(err), err > threshold))
@@ -428,7 +420,7 @@ def _sinkhorn_iterations(
     """momentum formula, https://arxiv.org/pdf/2012.12562v1.pdf, p.7 and (5)."""
     error_ratio = jnp.minimum(errors[idx - 1, -1] / errors[idx - 2, -1], .99)
     power = 1.0 / inner_iterations
-    return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio ** power))
+    return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio**power))
 
   def body_fn(iteration, const, state, compute_error):
     """Carries out sinkhorn iteration.
@@ -451,37 +443,40 @@ def _sinkhorn_iterations(
     errors, f_u, g_v = state
 
     # compute momentum term if needed, using previously seen errors.
-    w = jax.lax.stop_gradient(jnp.where(
-        iteration >= jnp.where(
-            chg_momentum_from == 0, jnp.inf, chg_momentum_from),
-        get_momentum(errors, chg_momentum_from // inner_iterations),
-        momentum))
+    w = jax.lax.stop_gradient(
+        jnp.where(
+            iteration >= jnp.where(chg_momentum_from == 0, jnp.inf,
+                                   chg_momentum_from),
+            get_momentum(errors, chg_momentum_from // inner_iterations),
+            momentum))
 
     # Sinkhorn updates using momentum, in either scaling or potential form.
     if parallel_dual_updates:
       old_g_v = g_v
     if lse_mode:
-      new_g_v = tau_b * geom.update_potential(f_u, g_v, jnp.log(b),
-                                              iteration, axis=0)
+      new_g_v = tau_b * geom.update_potential(
+          f_u, g_v, jnp.log(b), iteration, axis=0)
       g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0.0) + w * new_g_v
       new_f_u = tau_a * geom.update_potential(
-          f_u, old_g_v if parallel_dual_updates else g_v,
-          jnp.log(a), iteration, axis=1)
+          f_u,
+          old_g_v if parallel_dual_updates else g_v,
+          jnp.log(a),
+          iteration,
+          axis=1)
       f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0.0) + w * new_f_u
     else:
-      new_g_v = geom.update_scaling(f_u, b, iteration, axis=0) ** tau_b
-      g_v = jnp.where(g_v > 0, g_v, 1) ** (1.0 - w) * new_g_v ** w
+      new_g_v = geom.update_scaling(f_u, b, iteration, axis=0)**tau_b
+      g_v = jnp.where(g_v > 0, g_v, 1)**(1.0 - w) * new_g_v**w
       new_f_u = geom.update_scaling(
-          old_g_v if parallel_dual_updates else g_v,
-          a, iteration, axis=1) ** tau_a
-      f_u = jnp.where(f_u > 0, f_u, 1) ** (1.0 - w) * new_f_u ** w
+          old_g_v if parallel_dual_updates else g_v, a, iteration,
+          axis=1)**tau_a
+      f_u = jnp.where(f_u > 0, f_u, 1)**(1.0 - w) * new_f_u**w
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= min_iterations),
         marginal_error(geom, a, b, tau_a, tau_b, f_u, g_v, norm_error,
-                       lse_mode),
-        jnp.inf)
+                       lse_mode), jnp.inf)
 
     errors = jax.ops.index_update(
         errors, jax.ops.index[iteration // inner_iterations, :], err)
@@ -496,9 +491,8 @@ def _sinkhorn_iterations(
   else:
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
-  errors, f_u, g_v = fix_point(
-      cond_fn, body_fn, min_iterations, max_iterations, inner_iterations,
-      const, (errors, f_u, g_v))
+  errors, f_u, g_v = fix_point(cond_fn, body_fn, min_iterations, max_iterations,
+                               inner_iterations, const, (errors, f_u, g_v))
 
   f = f_u if lse_mode else geom.potential_from_scaling(f_u)
   g = g_v if lse_mode else geom.potential_from_scaling(g_v)
@@ -526,23 +520,19 @@ def _sinkhorn_iterations_taped(
     a: jnp.ndarray,
     b: jnp.ndarray):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  f, g, errors = _sinkhorn_iterations(tau_a, tau_b, inner_iterations,
-                                      min_iterations, max_iterations,
-                                      chg_momentum_from,
-                                      lse_mode, implicit_differentiation,
-                                      linear_solve_kwargs,
-                                      parallel_dual_updates,
-                                      init_dual_a, init_dual_b,
-                                      momentum, threshold,
-                                      norm_error, geom, a, b)
+  f, g, errors = _sinkhorn_iterations(
+      tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
+      chg_momentum_from, lse_mode, implicit_differentiation,
+      linear_solve_kwargs, parallel_dual_updates, init_dual_a, init_dual_b,
+      momentum, threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
 
 
 def _sinkhorn_iterations_implicit_bwd(
     tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
-    chg_momentum_from, lse_mode, implicit_differentiation,
-    linear_solve_kwargs, parallel_dual_updates, res, gr
-    ) -> Tuple[Any, Any, Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
+    chg_momentum_from, lse_mode, implicit_differentiation, linear_solve_kwargs,
+    parallel_dual_updates, res, gr
+) -> Tuple[Any, Any, Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
@@ -595,14 +585,22 @@ def _sinkhorn_iterations_implicit_bwd(
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(10))(_sinkhorn_iterations)
+    jax.custom_vjp, nondiff_argnums=range(10))(
+        _sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
 
 
-def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
-                   tau_a: float, tau_b: float, f_u: jnp.ndarray,
-                   g_v: jnp.ndarray, norm_error: int, lse_mode) -> jnp.ndarray:
+def marginal_error(
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    tau_a: float,
+    tau_b: float,
+    f_u: jnp.ndarray,
+    g_v: jnp.ndarray,
+    norm_error: int,
+    lse_mode: bool) -> jnp.ndarray:
   """Conputes marginal error, the stopping criterion used to terminate Sinkhorn.
 
   Args:
@@ -636,23 +634,24 @@ def marginal_error(geom: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray,
       grad_a = grad_of_marginal_fit(a, f_u, tau_a, geom.epsilon)
       grad_b = grad_of_marginal_fit(b, g_v, tau_b, geom.epsilon)
     else:
-      grad_a = grad_of_marginal_fit(a, geom.potential_from_scaling(f_u),
-                                    tau_a, geom.epsilon)
-      grad_b = grad_of_marginal_fit(b, geom.potential_from_scaling(g_v),
-                                    tau_b, geom.epsilon)
+      grad_a = grad_of_marginal_fit(a, geom.potential_from_scaling(f_u), tau_a,
+                                    geom.epsilon)
+      grad_b = grad_of_marginal_fit(b, geom.potential_from_scaling(g_v), tau_b,
+                                    geom.epsilon)
     err = geom.error(f_u, g_v, grad_a, 1, norm_error, lse_mode)
     err += geom.error(f_u, g_v, grad_b, 0, norm_error, lse_mode)
   return err
 
 
-def ent_reg_cost(geom: geometry.Geometry,
-                 a: jnp.ndarray,
-                 b: jnp.ndarray,
-                 tau_a: float,
-                 tau_b: float,
-                 f: jnp.ndarray,
-                 g: jnp.ndarray,
-                 lse_mode: bool) -> jnp.ndarray:
+def ent_reg_cost(
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    tau_a: float,
+    tau_b: float,
+    f: jnp.ndarray,
+    g: jnp.ndarray,
+    lse_mode: bool) -> jnp.ndarray:
   r"""Computes objective of regularized OT given dual solutions ``f``, ``g``.
 
   The objective is evaluated for dual solution ``f`` and ``g``, using inputs
@@ -686,27 +685,28 @@ def ent_reg_cost(geom: geometry.Geometry,
         jnp.where(supp_a, a * (f - geom.potential_from_scaling(a)), 0.0))
   else:
     rho_a = geom.epsilon * (tau_a / (1 - tau_a))
-    div_a = - jnp.sum(jnp.where(
-        supp_a,
-        a * phi_star(-(f - geom.potential_from_scaling(a)), rho_a),
-        0.0))
+    div_a = -jnp.sum(
+        jnp.where(supp_a,
+                  a * phi_star(-(f - geom.potential_from_scaling(a)), rho_a),
+                  0.0))
 
   if tau_b == 1.0:
     div_b = jnp.sum(
         jnp.where(supp_b, b * (g - geom.potential_from_scaling(b)), 0.0))
   else:
     rho_b = geom.epsilon * (tau_b / (1 - tau_b))
-    div_b = - jnp.sum(jnp.where(
-        supp_b,
-        b * phi_star(-(g - geom.potential_from_scaling(b)), rho_b),
-        0.0))
+    div_b = -jnp.sum(
+        jnp.where(supp_b,
+                  b * phi_star(-(g - geom.potential_from_scaling(b)), rho_b),
+                  0.0))
 
   # Using https://arxiv.org/pdf/1910.12958.pdf (24)
   if lse_mode:
     total_sum = jnp.sum(geom.marginal_from_potentials(f, g))
   else:
-    total_sum = jnp.sum(geom.marginal_from_scalings(
-        geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
+    total_sum = jnp.sum(
+        geom.marginal_from_scalings(
+            geom.scaling_from_potential(f), geom.scaling_from_potential(g)))
   return div_a + div_b + geom.epsilon * (jnp.sum(a) * jnp.sum(b) - total_sum)
 
 
@@ -722,6 +722,7 @@ def grad_of_marginal_fit(c, h, tau, epsilon):
     h: jnp.ndarray, potential (either f or g in practice)
     tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
     epsilon: regularization
+
   Returns:
     a vector of the same size as c or h
   """
@@ -759,6 +760,7 @@ def diag_jacobian_of_marginal_fit(c, h, tau, epsilon):
     h: jnp.ndarray, potential (either f or g in practice)
     tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
     epsilon: regularization
+
   Returns:
     a vector of the same size as c or h
   """
@@ -859,24 +861,24 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   Returns:
     A tuple of two vectors, of the same size as ``gr``.
   """
-  marginal_a, marginal_b, app_transport = get_transport_functions(geom,
-                                                                  lse_mode)
+  marginal_a, marginal_b, app_transport = get_transport_functions(
+      geom, lse_mode)
 
   vjp_fg = lambda z: app_transport(f, g, z, axis=1) / geom.epsilon
   vjp_gf = lambda z: app_transport(f, g, z, axis=0) / geom.epsilon
 
-  diag_hess_a = (marginal_a(f, g) / geom.epsilon +
-                 diag_jacobian_of_marginal_fit(a, f, tau_a, geom.epsilon))
-  diag_hess_b = (marginal_b(f, g) / geom.epsilon +
-                 diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon))
+  diag_hess_a = (
+      marginal_a(f, g) / geom.epsilon +
+      diag_jacobian_of_marginal_fit(a, f, tau_a, geom.epsilon))
+  diag_hess_b = (
+      marginal_b(f, g) / geom.epsilon +
+      diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon))
 
   solve_fun = lambda lin_op, b: linear_solver_fun(lin_op, b)[0]
 
   n, m = geom.shape
   # Remove ridge on kernel space if problem is balanced.
-  ridge_kernel = jnp.where(tau_a == 1.0 and tau_b == 1.0,
-                           ridge_kernel,
-                           0.0)
+  ridge_kernel = jnp.where(tau_a == 1.0 and tau_b == 1.0, ridge_kernel, 0.0)
   # Forks on using Schur complement of either A or D, depending on size.
   if n > m:  #  if n is bigger, run m x m linear system.
     inv_vjp_ff = lambda z: z / diag_hess_a
@@ -904,14 +906,15 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
 
-def first_order_conditions(geom: geometry.Geometry,
-                           a: jnp.ndarray,
-                           b: jnp.ndarray,
-                           f: jnp.ndarray,
-                           g: jnp.ndarray,
-                           tau_a: float,
-                           tau_b: float,
-                           lse_mode):
+def first_order_conditions(
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    f: jnp.ndarray,
+    g: jnp.ndarray,
+    tau_a: float,
+    tau_b: float,
+    lse_mode: bool):
   r"""Computes vector of first order conditions for the reg-OT problem.
 
   The output of this vector should be close to zero at optimality.
@@ -940,6 +943,8 @@ def first_order_conditions(geom: geometry.Geometry,
 
   grad_a = grad_of_marginal_fit(a, f, tau_a, geom.epsilon)
   grad_b = grad_of_marginal_fit(b, g, tau_b, geom.epsilon)
-  return jnp.concatenate((
-      jnp.where(a > 0, marginal_a(f, g) - grad_a, 0.0),
-      jnp.where(b > 0, marginal_b(f, g) - grad_b, 0.0)))
+  return jnp.concatenate(
+      (jnp.where(a > 0,
+                 marginal_a(f, g) - grad_a,
+                 0.0), jnp.where(b > 0,
+                                 marginal_b(f, g) - grad_b, 0.0)))

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Tests for the Jacobian of optimal potential."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -24,7 +24,7 @@ import jax.test_util
 from ott.tools import transport
 
 
-class SinkhornHessianTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()
@@ -36,45 +36,54 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
       tau_b=[1.0, .91],
       shape=[(12, 15), (27, 18), (345, 434)],
       arg=[0, 1])
-  def test_potential_jacobian_sinkhorn(self, lse_mode,
-                                       tau_a, tau_b, shape, arg):
+  def test_potential_jacobian_sinkhorn(self, lse_mode, tau_a, tau_b, shape,
+                                       arg):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     n, m = shape
     dim = 3
-    rngs = jax.random.split(self.rng, 6)
+    rngs = jax.random.split(self.rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) +.2
-    b = jax.random.uniform(rngs[3], (m,)) +.2
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
-
-    # As expected, lse_mode False has a harder time with small epsilon.
-    epsilon = 0.01 if lse_mode else 0.1
-
-    random_dir = jax.random.uniform(rngs[2], (n,)) / n
+    a = jax.random.uniform(rngs[2], (n,)) + .2
+    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
+    b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
+    random_dir = jax.random.uniform(rngs[4], (n,)) / n
+    # center projection direction so that < potential , random_dir>
+    # is invariant w.r.t additive shifts.
     random_dir = random_dir - jnp.mean(random_dir)
+    delta_a = jax.random.uniform(rngs[5], (n,))
+    if tau_a == 1.0:
+      delta_a = delta_a - jnp.mean(delta_a)
+    delta_x = jax.random.uniform(rngs[6], (n, dim))
+
+    # As expected, lse_mode False has a harder time with small epsilon when
+    # differentiating.
+    epsilon = 0.01 if lse_mode else 0.1
 
     def loss_from_potential(a, x, implicit):
       out = transport.Transport(
-          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
-          lse_mode=lse_mode, implicit_differentiation=implicit
-          )
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          lse_mode=lse_mode,
+          implicit_differentiation=implicit)
       return jnp.sum(random_dir * out._f)
 
-    delta_a = jax.random.uniform(rngs[4], (n,))
-    delta_a = delta_a - jnp.mean(delta_a)
-    delta_x = jax.random.uniform(rngs[5], (n, dim))
-
     # Compute implicit gradient
-    loss_imp = jax.jit(jax.value_and_grad(
-        lambda a, x: loss_from_potential(a, x, True), argnums=arg))
+    loss_imp = jax.jit(
+        jax.value_and_grad(
+            lambda a, x: loss_from_potential(a, x, True), argnums=arg))
     _, g_imp = loss_imp(a, x)
     imp_dif = jnp.sum(g_imp * (delta_a if arg == 0 else delta_x))
     # Compute backprop (unrolling) gradient
 
-    loss_back = jax.jit(jax.grad(
-        lambda a, x: loss_from_potential(a, x, False), argnums=arg))
+    loss_back = jax.jit(
+        jax.grad(lambda a, x: loss_from_potential(a, x, False), argnums=arg))
     g_back = loss_back(a, x)
     back_dif = jnp.sum(g_back * (delta_a if arg == 0 else delta_x))
 
@@ -97,6 +106,7 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
       g_imp = g_imp - jnp.mean(g_imp)
       g_back = g_back - jnp.mean(g_back)
     self.assertAllClose(g_imp, g_back, atol=5e-2, rtol=1e-2)
+
 
 if __name__ == '__main__':
   absltest.main()
