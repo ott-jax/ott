@@ -260,10 +260,6 @@ def sinkhorn(
   init_dual_a = jnp.where(a > 0, init_dual_a, -jnp.inf if lse_mode else 0.0)
   init_dual_b = jnp.where(b > 0, init_dual_b, -jnp.inf if lse_mode else 0.0)
 
-  # Initialize (implicit) linear solver parameters to empty dic if needed.
-  if linear_solve_kwargs is None:
-    linear_solve_kwargs = {}
-
   # Force implicit_differentiation to True when using Anderson acceleration,
   # Reset all momentum parameters.
   if anderson_acceleration:
@@ -594,7 +590,7 @@ def _sinkhorn_iterations_taped(
     anderson_acceleration: int,
     lse_mode: bool,
     implicit_differentiation: bool,
-    linear_solve_kwargs: Mapping[str, Any],
+    linear_solve_kwargs: Optional[Mapping[str, Any]],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
     init_dual_b: jnp.ndarray,
@@ -651,6 +647,11 @@ def _sinkhorn_iterations_implicit_bwd(
   f, g, geom, a, b = res
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
+
+
+  # Pass empty kwargs if None given.
+  if linear_solve_kwargs is None:
+    linear_solve_kwargs = {}
 
   # Applies first part of vjp to gr: inverse part of implicit function theorem.
   vjp_gr = apply_inv_hessian(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode,
