@@ -44,6 +44,7 @@ def sinkhorn(
     max_iterations: int = 2000,
     momentum: float = 1.0,
     chg_momentum_from: int = 0,
+    anderson_acceleration: int = 0,
     lse_mode: bool = True,
     implicit_differentiation: bool = True,
     linear_solve_kwargs: Optional[Mapping[str, Union[Callable, float]]] = None,
@@ -204,6 +205,13 @@ def sinkhorn(
     chg_momentum_from: if positive, momentum is recomputed using the
       adaptive rule provided in https://arxiv.org/pdf/2012.12562v1.pdf after
       that number of iterations.
+    anderson_acceleration: int, if 0 (default), no acceleration. If positive,
+      use Anderson acceleration on the dual sinkhorn (in log/potential form), as
+      described in https://en.wikipedia.org/wiki/Anderson_acceleration and
+      advocated in https://arxiv.org/abs/2006.08172, with a memory of size equal
+      to ``anderson_acceleration``. In that case, differentiation is
+      necessarly handled implicitly (``implicit_differentiation`` is set to
+      ``True``) and all ``momentum`` related parameters are ignored.
     lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
       multiplication.
     implicit_differentiation: ``True`` if using implicit differentiation,
@@ -237,7 +245,6 @@ def sinkhorn(
     algorithm has converged within the number of iterations that was predefined
     by the user.
   """
-
   # Start by checking inputs.
   num_a, num_b = geom.shape
   a = jnp.ones((num_a,)) / num_a if a is None else a
@@ -253,26 +260,37 @@ def sinkhorn(
   init_dual_a = jnp.where(a > 0, init_dual_a, -jnp.inf if lse_mode else 0.0)
   init_dual_b = jnp.where(b > 0, init_dual_b, -jnp.inf if lse_mode else 0.0)
 
+  # Initialize (implicit) linear solver parameters to empty dic if needed.
   if linear_solve_kwargs is None:
     linear_solve_kwargs = {}
 
-  # To change momentum, one needs to keep track of errors in ||.||_1 norm.
+  # Force implicit_differentiation to True when using Anderson acceleration,
+  # Reset all momentum parameters.
+  if anderson_acceleration:
+    implicit_differentiation = True
+    momentum = 1.0
+    chg_momentum_from = 0
+
+  # To change momentum adaptively, one needs errors in ||.||_1 norm.
   # In that case, we add this exponent to the list of errors to compute,
-  # if that was not the error requested by the user.
-  norm_error = (norm_error,) if norm_error == 1 else (norm_error, 1)
+  # notably if that was not the error requested by the user.
+  if chg_momentum_from > 0 and norm_error != 1:
+    norm_error = (norm_error, 1)
+  else:
+    norm_error = (norm_error,)
 
   if jit:
     call_to_sinkhorn = functools.partial(
-        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 17)))(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 18)))(
             _sinkhorn)
   else:
     call_to_sinkhorn = _sinkhorn
   return call_to_sinkhorn(geom, a, b, tau_a, tau_b, threshold, norm_error,
                           inner_iterations, min_iterations, max_iterations,
-                          momentum, chg_momentum_from, lse_mode,
-                          implicit_differentiation, linear_solve_kwargs,
-                          parallel_dual_updates, use_danskin, init_dual_a,
-                          init_dual_b)
+                          momentum, chg_momentum_from, anderson_acceleration,
+                          lse_mode, implicit_differentiation,
+                          linear_solve_kwargs, parallel_dual_updates,
+                          use_danskin, init_dual_a, init_dual_b)
 
 
 def _sinkhorn(
@@ -288,6 +306,7 @@ def _sinkhorn(
     max_iterations: int,
     momentum: float,
     chg_momentum_from: int,
+    anderson_acceleration: int,
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Mapping[str, Union[Callable, float]],
@@ -306,11 +325,11 @@ def _sinkhorn(
   # the objective when using implicit_differentiation.
   use_danskin = implicit_differentiation if use_danskin is None else use_danskin
 
-  f, g, errors = iteration_fun(tau_a, tau_b, inner_iterations, min_iterations,
-                               max_iterations, chg_momentum_from, lse_mode,
-                               implicit_differentiation, linear_solve_kwargs,
-                               parallel_dual_updates, init_dual_a, init_dual_b,
-                               momentum, threshold, norm_error, geom, a, b)
+  f, g, errors = iteration_fun(
+      tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
+      chg_momentum_from, anderson_acceleration, lse_mode,
+      implicit_differentiation, linear_solve_kwargs, parallel_dual_updates,
+      init_dual_a, init_dual_b, momentum, threshold, norm_error, geom, a, b)
 
   # When differentiating the regularized OT cost, and assuming Sinkhorn has run
   # to convergence, Danskin's (or the enveloppe) theorem
@@ -345,6 +364,7 @@ def _sinkhorn_iterations(
     min_iterations: int,
     max_iterations: int,
     chg_momentum_from: int,
+    anderson_acceleration: int,
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Mapping[str, Union[Callable, float]],
@@ -357,8 +377,9 @@ def _sinkhorn_iterations(
     geom: geometry.Geometry,
     a: jnp.ndarray,
     b: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-  """The jittable Sinkhorn loop, that uses a custom backward or not.
+  r"""A jit'able Sinkhorn loop.
 
+  For a detailed explanation of args, see parent function ``sinkhorn``
   Args:
     tau_a: float, ratio lam/(lam+eps) between KL divergence regularizer to first
       marginal and itself + epsilon regularizer used in the unbalanced
@@ -371,6 +392,7 @@ def _sinkhorn_iterations(
     min_iterations: (int32) the minimum number of Sinkhorn iterations.
     max_iterations: (int32) the maximum number of Sinkhorn iterations.
     chg_momentum_from: int, # of iterations after which momentum is computed
+    anderson_acceleration: int, memory size for anderson acceleration.
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
     implicit_differentiation: if True, do not backprop through the Sinkhorn
@@ -422,6 +444,16 @@ def _sinkhorn_iterations(
     power = 1.0 / inner_iterations
     return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio**power))
 
+  def anderson_extrapolation(xs, fxs, ridge_identity=1e-8):
+    residuals = fxs - xs
+    gram_matrix = jnp.matmul(residuals.T, residuals)
+    gram_matrix /= jnp.linalg.norm(gram_matrix)
+    weights = jax.scipy.sparse.linalg.cg(
+        gram_matrix + ridge_identity * jnp.eye(xs.shape[1]),
+        jnp.ones(xs.shape[1]))[0]
+    weights /= jnp.sum(weights)
+    return jnp.sum(fxs * weights[None,:], axis=1)
+
   def body_fn(iteration, const, state, compute_error):
     """Carries out sinkhorn iteration.
 
@@ -433,14 +465,15 @@ def _sinkhorn_iterations(
       iteration: iteration number
       const: tuple of constant parameters that do not change throughout the
         loop, here the geometry and the marginals a, b.
-      state: potential/scaling variables updated in the loop & error log.
+      state: error log, potential/scaling variables updated in the loop, and
+        history for Anderson acceleration if selected.
       compute_error: flag to indicate this iteration computes/stores an error
 
     Returns:
-      state variables, i.e. errors and updated f_u, g_v potentials.
+      state variables, i.e. errors and updated f_u, g_v potentials + history.
     """
     geom, a, b, _ = const
-    errors, f_u, g_v = state
+    errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s = state
 
     # compute momentum term if needed, using previously seen errors.
     w = jax.lax.stop_gradient(
@@ -450,9 +483,40 @@ def _sinkhorn_iterations(
             get_momentum(errors, chg_momentum_from // inner_iterations),
             momentum))
 
-    # Sinkhorn updates using momentum, in either scaling or potential form.
+    # Sinkhorn updates using momentum or Anderson acceleration,
+    # in either scaling or potential form.
+
+    # When running updates in parallel (Gauss-Seidel mode), old_g_v will be
+    # used to update f_u, rather than the latest g_v computed in this loop.
     if parallel_dual_updates:
       old_g_v = g_v
+
+    # When using Anderson acceleration, first update the dual variable f_u with
+    # previous updates (if iteration count sufficiently large), then record
+    # new iterations in array.
+    if anderson_acceleration:
+      # Anderson acceleration always happens in potentials (not scalings) space,
+      # regardless of the lse_mode setting. If the iteration count is large
+      # enough, the update below will output a potential variable.
+
+      f_u = jnp.where(iteration > anderson_acceleration,
+                      anderson_extrapolation(old_f_u_s, old_mapped_f_u_s),
+                      f_u)
+
+      old_f_u_s = jnp.where(
+          iteration > anderson_acceleration,
+          jnp.concatenate((old_f_u_s[:, 1:], f_u[:, None]), axis=1),
+          jnp.concatenate((
+              old_f_u_s[:, 1:],
+              (f_u if lse_mode else geom.potential_from_scaling(f_u))[:, None]
+              ), axis=1))
+
+      # Return scaling if running sinkhorn updates in kernel mode.
+      f_u = jnp.where(iteration > anderson_acceleration,
+                      f_u if lse_mode else geom.scaling_from_potential(f_u),
+                      f_u)
+
+    # In lse_mode, run additive updates.
     if lse_mode:
       new_g_v = tau_b * geom.update_potential(
           f_u, g_v, jnp.log(b), iteration, axis=0)
@@ -464,6 +528,7 @@ def _sinkhorn_iterations(
           iteration,
           axis=1)
       f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0.0) + w * new_f_u
+    # In kernel mode, run multiplicative updates.
     else:
       new_g_v = geom.update_scaling(f_u, b, iteration, axis=0)**tau_b
       g_v = jnp.where(g_v > 0, g_v, 1)**(1.0 - w) * new_g_v**w
@@ -471,6 +536,13 @@ def _sinkhorn_iterations(
           old_g_v if parallel_dual_updates else g_v, a, iteration,
           axis=1)**tau_a
       f_u = jnp.where(f_u > 0, f_u, 1)**(1.0 - w) * new_f_u**w
+
+    # When using Anderson acceleration, refresh latest update.
+    if anderson_acceleration:
+      old_mapped_f_u_s = jnp.concatenate((
+          old_mapped_f_u_s[:, 1:],
+          (f_u if lse_mode else geom.potential_from_scaling(f_u))[:, None]),
+                                         axis=1)
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
@@ -480,7 +552,7 @@ def _sinkhorn_iterations(
 
     errors = jax.ops.index_update(
         errors, jax.ops.index[iteration // inner_iterations, :], err)
-    return errors, f_u, g_v
+    return errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s
 
   # Run the Sinkhorn loop. choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
@@ -491,8 +563,20 @@ def _sinkhorn_iterations(
   else:
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
-  errors, f_u, g_v = fix_point(cond_fn, body_fn, min_iterations, max_iterations,
-                               inner_iterations, const, (errors, f_u, g_v))
+  # Initialize log matrix used in Anderson acceleration with large values
+  # that will be neglected when solving the linear system.
+  if anderson_acceleration:
+    old_f_u_s = jnp.concatenate((
+        jnp.ones((geom.shape[0], anderson_acceleration - 1)) * 1e5,
+        (f_u if lse_mode else geom.potential_from_scaling(f_u))[:, None]),
+        axis=1)
+    old_mapped_f_u_s = jnp.ones((geom.shape[0], anderson_acceleration)) * 1e5
+  else:
+    old_f_u_s, old_mapped_f_u_s = None, None
+
+  errors, f_u, g_v, _, _ = fix_point(cond_fn, body_fn, min_iterations, max_iterations,
+                               inner_iterations, const,
+                               (errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s))
 
   f = f_u if lse_mode else geom.potential_from_scaling(f_u)
   g = g_v if lse_mode else geom.potential_from_scaling(g_v)
@@ -507,6 +591,7 @@ def _sinkhorn_iterations_taped(
     min_iterations: int,
     max_iterations: int,
     chg_momentum_from: int,
+    anderson_acceleration: int,
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Mapping[str, Any],
@@ -522,7 +607,7 @@ def _sinkhorn_iterations_taped(
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
   f, g, errors = _sinkhorn_iterations(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
-      chg_momentum_from, lse_mode, implicit_differentiation,
+      chg_momentum_from, anderson_acceleration, lse_mode, implicit_differentiation,
       linear_solve_kwargs, parallel_dual_updates, init_dual_a, init_dual_b,
       momentum, threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
@@ -530,8 +615,9 @@ def _sinkhorn_iterations_taped(
 
 def _sinkhorn_iterations_implicit_bwd(
     tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
-    chg_momentum_from, lse_mode, implicit_differentiation, linear_solve_kwargs,
-    parallel_dual_updates, res, gr
+    chg_momentum_from, anderson_acceleration, lse_mode,
+    implicit_differentiation, linear_solve_kwargs, parallel_dual_updates, res,
+    gr
 ) -> Tuple[Any, Any, Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
 
@@ -542,6 +628,7 @@ def _sinkhorn_iterations_implicit_bwd(
     min_iterations: minimum number of Sinkhorn iterations.
     max_iterations: maximum number of Sinkhorn iterations.
     chg_momentum_from: int
+    anderson_acceleration: int
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
     implicit_differentiation: implicit or backprop.
@@ -558,7 +645,8 @@ def _sinkhorn_iterations_implicit_bwd(
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   del inner_iterations, min_iterations, max_iterations
-  del chg_momentum_from, implicit_differentiation, parallel_dual_updates
+  del chg_momentum_from, anderson_acceleration, implicit_differentiation
+  del parallel_dual_updates
 
   f, g, geom, a, b = res
   # Ignores gradients info with respect to 'errors' output.
@@ -585,7 +673,7 @@ def _sinkhorn_iterations_implicit_bwd(
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(10))(
+    jax.custom_vjp, nondiff_argnums=range(11))(
         _sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
