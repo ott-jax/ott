@@ -35,10 +35,12 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
   @parameterized.product(
       lse_mode=[True, False],
       tau_a=[1.0, .98],
-      tau_b=[1.0, .99],
-      shape=[(237, 153)])
+      tau_b=[1.0, .985],
+      shape=[(237, 153)],
+      refresh_anderson_frequency=[1, 5]
+      )
   def test_anderson(self, lse_mode, tau_a,
-                    tau_b, shape):
+                    tau_b, shape, refresh_anderson_frequency):
     """Test efficiency of Anderson acceleration.
 
     Args:
@@ -46,6 +48,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       tau_a: unbalanced parameter w.r.t. 1st marginal
       tau_b: unbalanced parameter w.r.t. 1st marginal
       shape: shape of test problem
+      refresh_anderson_frequency: how often to Anderson interpolation should be
+        recomputed.
     """
     n, m = shape
     dim = 4
@@ -54,6 +58,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(rngs[1], (m, dim)) / dim + .2
     a = jax.random.uniform(rngs[2], (n,))
     b = jax.random.uniform(rngs[3], (m,))
+    a = jax.ops.index_update(a, 0, 0)
+    b = jax.ops.index_update(b, 3, 0)
 
     # Make weights roughly sum to 1 if unbalanced, normalize else.
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
@@ -65,7 +71,7 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     threshold = 1e-3
     iterations_anderson = []
 
-    anderson_memory = [0, 3, 5, 8]
+    anderson_memory = [0, 5, 8]
     for anderson_acceleration in anderson_memory:
       out = sinkhorn.sinkhorn(
           pointcloud.PointCloud(x, y, epsilon=epsilon),
@@ -75,7 +81,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
           tau_b=tau_b,
           lse_mode=lse_mode,
           threshold=threshold,
-          anderson_acceleration=anderson_acceleration)
+          anderson_acceleration=anderson_acceleration,
+          refresh_anderson_frequency=refresh_anderson_frequency)
       errors = out.errors
       clean_errors = errors[errors > -1]
       # Check convergence
