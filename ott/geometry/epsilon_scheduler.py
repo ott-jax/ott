@@ -57,9 +57,9 @@ class Epsilon:
   def at(self, iteration: Optional[int] = 1) -> float:
     if iteration is None:
       return self.target
-    init = jnp.where(self._decay < 1.0, self._init * self._scale, self.target)
+    init = jnp.where(self._decay < 1.0, self._init, self._target_init)
     decay = jnp.where(self._decay < 1.0, self._decay, 1.0)
-    return jnp.maximum(init * decay**iteration, self.target)
+    return jnp.maximum(init * decay**iteration, self._target_init) * self._scale
 
   def done(self, eps):
     return eps == self.target

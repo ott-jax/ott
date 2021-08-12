@@ -135,14 +135,28 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
   def test_autoepsilon(self):
     """Check that with auto-epsilon, dual potentials scale."""
-    scale = 13
-    geom_1 = pointcloud.PointCloud(self.x, self.y)
-    f_1 = sinkhorn.sinkhorn(geom_1, a=self.a, b=self.b).f
+    scale = 2.77
+    # First geom specifies explicitly relative_epsilon to be True. This is not
+    # needed in principle, but introduced here to test logic.
+    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
+    # jit first with jit inside sinkhorn call.
+    f_1 = sinkhorn.sinkhorn(
+        geom_1, a=self.a, b=self.b, tau_a=.99, tau_b=.97, jit=True).f
+
+    # Second geom does not provide whether epsilon is relative.
     geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
-    f_2 = sinkhorn.sinkhorn(geom_2, a=self.a, b=self.b).f
-    # recentering to remove ambiguity on equality up to additive constant.
-    f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
-    f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
+    # jit now with jit outside sinkhorn call.
+    compute_f = jax.jit(
+        lambda g, a, b: sinkhorn.sinkhorn(g, a, b, tau_a=.99, tau_b=.97).f)
+    f_2 = compute_f(geom_2, self.a, self.b)
+
+    # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
+    self.assertAllClose(geom_1.epsilon * scale**2, geom_2.epsilon,
+                        rtol=1e-3, atol=1e-3)
+
+    self.assertAllClose(geom_1._epsilon.at(2) * scale**2,
+                        geom_2._epsilon.at(2),
+                        rtol=1e-3, atol=1e-3)
 
     self.assertAllClose(f_1 * scale**2, f_2, rtol=1e-3, atol=1e-3)
 

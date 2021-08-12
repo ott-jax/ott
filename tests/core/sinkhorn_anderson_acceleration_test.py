@@ -37,7 +37,7 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       tau_a=[1.0, .98],
       tau_b=[1.0, .985],
       shape=[(237, 153)],
-      refresh_anderson_frequency=[1, 5]
+      refresh_anderson_frequency=[1, 3]
       )
   def test_anderson(self, lse_mode, tau_a,
                     tau_b, shape, refresh_anderson_frequency):
@@ -66,12 +66,13 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
 
     # Here epsilon must be small enough to valide gain in performance using
-    # Anderson, but large enough when lse_mode=False to avoid underflow.
-    epsilon = 1e-4 if lse_mode else 5e-3
+    # Anderson by large enough number of saved iterations,
+    # but large enough when lse_mode=False to avoid underflow.
+    epsilon = 5e-4 if lse_mode else 5e-3
     threshold = 1e-3
     iterations_anderson = []
 
-    anderson_memory = [0, 5, 8]
+    anderson_memory = [0, 5]
     for anderson_acceleration in anderson_memory:
       out = sinkhorn.sinkhorn(
           pointcloud.PointCloud(x, y, epsilon=epsilon),

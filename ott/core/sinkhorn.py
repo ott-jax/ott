@@ -331,8 +331,9 @@ def _sinkhorn(
   f, g, errors = iteration_fun(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
       chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-      lse_mode, implicit_differentiation, linear_solve_kwargs, parallel_dual_updates,
-      init_dual_a, init_dual_b, momentum, threshold, norm_error, geom, a, b)
+      lse_mode, implicit_differentiation, linear_solve_kwargs,
+      parallel_dual_updates, init_dual_a, init_dual_b, momentum, threshold,
+      norm_error, geom, a, b)
 
   # When differentiating the regularized OT cost, and assuming Sinkhorn has run
   # to convergence, Danskin's (or the enveloppe) theorem
@@ -449,7 +450,7 @@ def _sinkhorn_iterations(
     power = 1.0 / inner_iterations
     return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio**power))
 
-  def anderson_extrapolation(xs, fxs, ridge_identity=1e-5):
+  def anderson_extrapolation(xs, fxs, ridge_identity=1e-2):
     """Computes Anderson extrapolation from past observations."""
     # Remove -inf values to instantiate quadratic problem. All others
     # remain since they might be caused by a valid issue.

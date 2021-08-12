@@ -85,10 +85,9 @@ class Geometry:
     scale = self._kwargs.pop('scale', None)
     rel = self._relative_epsilon
     trigger = (scale is None) and (rel is not False) and (
-        self._epsilon_init is None or rel)
-    scale = (
-        scale if scale is not None and rel is not True else
-        (self.mean_cost_matrix if trigger else 1.0))
+        (self._epsilon_init is None) or rel)
+    if (scale is None) and (trigger is not None):  # the 2nd test is for dry run
+      scale = jnp.where(trigger, self.mean_cost_matrix, 1.0)
     self._kwargs.update(scale=scale)
     return epsilon_scheduler.Epsilon.make(eps, **self._kwargs)
 
