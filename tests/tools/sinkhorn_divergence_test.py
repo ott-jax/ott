@@ -168,6 +168,84 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     self.assertLen(div.potentials, 3)
     self.assertLen(div.geoms, 3)
 
+  def test_segment_sinkhorn_result(self):
+
+    # Test that segmented sinkhorn gives the same results:
+    rngs = jax.random.split(self.rng, 4)
+    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
+    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    geom_kwargs = dict(epsilon=0.01)
+    sinkhorn_kwargs = dict(threshold=1e-2)
+    geometry = pointcloud.PointCloud
+    true_divergence = sinkhorn_divergence.sinkhorn_divergence(
+        geometry,
+        x,
+        y,
+        a=self._a,
+        b=self._b,
+        sinkhorn_kwargs=sinkhorn_kwargs,
+        **geom_kwargs).divergence
+
+    for shuffle in [False, True]:
+      if shuffle:
+        # Now, shuffle the order of both arrays, but
+        # still maintain the segment assignments:
+        idx_x = jax.random.shuffle(rngs[2], jnp.arange(x.shape[0] * 2))
+        idx_y = jax.random.shuffle(rngs[3], jnp.arange(y.shape[0] * 2))
+      else:
+        idx_x = jnp.arange(x.shape[0] * 2)
+        idx_y = jnp.arange(y.shape[0] * 2)
+
+      # Duplicate arrays:
+      x_copied = jnp.concatenate((x, x))[idx_x]
+      a_copied = jnp.concatenate((self._a, self._a))[idx_x]
+      segment_ids_x = jnp.arange(2).repeat(x.shape[0])[idx_x]
+
+      y_copied = jnp.concatenate((y, y))[idx_y]
+      b_copied = jnp.concatenate((self._b, self._b))[idx_y]
+      segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
+
+      segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+          x_copied,
+          y_copied,
+          segment_ids_x=segment_ids_x,
+          segment_ids_y=segment_ids_y,
+          indices_are_sorted=False,
+          weights_x=a_copied,
+          weights_y=b_copied,
+          sinkhorn_kwargs=sinkhorn_kwargs,
+          **geom_kwargs)
+
+      self.assertArraysAllClose(
+          true_divergence.repeat(2), segmented_divergences)
+
+  def test_segment_sinkhorn_different_segment_sizes(self):
+
+    # Test other array sizes
+    x1 = jnp.arange(10)[:, None].repeat(2, axis=1)
+    y1 = jnp.arange(11)[:, None].repeat(2, axis=1) + 0.1
+
+    # Should have larger divergence since further apart:
+    x2 = jnp.arange(12)[:, None].repeat(2, axis=1)
+    y2 = 2 * jnp.arange(13)[:, None].repeat(2, axis=1) + 0.1
+
+    segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+        jnp.concatenate((x1, x2)),
+        jnp.concatenate((y1, y2)),
+        num_per_segment_x=jnp.array([10, 12]),
+        num_per_segment_y=jnp.array([11, 13]),
+        epsilon=0.01)
+
+    self.assertEqual(segmented_divergences.shape[0], 2)
+    self.assertGreater(segmented_divergences[1], segmented_divergences[0])
+
+    true_divergences = jnp.array([
+        sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud, x, y, epsilon=0.01).divergence
+        for x, y in zip((x1, x2), (y1, y2))
+    ])
+    self.assertArraysAllClose(segmented_divergences, true_divergences)
+
 
 if __name__ == '__main__':
   absltest.main()
