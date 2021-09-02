@@ -30,19 +30,21 @@ class Epsilon:
                scale: Optional[float] = None,
                init: Optional[float] = None,
                decay: Optional[float] = None):
-    """Initializes a scheduler using possibly geometric decay.
+    r"""Initializes a scheduler using possibly geometric decay.
 
-    The entropic regularization value is given either directly or relative to
-    a scale. In that case, the initial ``target`` value is understood to be a
-    proportion of the ``scale``. Both are recorded and merged in the ``target``
-    field which is built from those two parameters.
+    An epsilon scheduler outputs a regularization strength, to be used by in a
+    Sinkhorn-type algorithm, at any iteration count. That value is either the
+    final, targetted regularization, or one that is larger, obtained by
+    geometric decay of an initialization parameter. Concretely, the value
+    returned by such a scheduler will either be ``target``, or
+    ``init * decay ** iteration``, whichever is larger. When
+    a scale parameter is passed one, both values are rescaled (multiplied
+    by ``scale``).
 
     Args:
-      target: the epsilon regularizing value that is targeted, understood
-        as a multiple of scale.
-      scale: scale to be used with target_init to define a target epsilon.
-      init: initial value when using epsilon scheduling, understood as a
-        a fraction of scale as well.
+      target: the epsilon regularizing value that is targeted.
+      scale: when passed, used to multiply the output to rescale it.
+      init: initial value when using epsilon scheduling.
       decay: geometric decay factor, smaller than 1.
     """
     self._target_init = .01 if target is None else target
