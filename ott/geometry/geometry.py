@@ -87,7 +87,8 @@ class Geometry:
     trigger = (scale is None) and (rel is not False) and (
         (self._epsilon_init is None) or rel)
     if (scale is None) and (trigger is not None):  # the 2nd test is for dry run
-      scale = jnp.where(trigger, self.mean_cost_matrix, 1.0)
+      scale = jnp.where(trigger,
+                        jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
     self._kwargs.update(scale=scale)
     return epsilon_scheduler.Epsilon.make(eps, **self._kwargs)
 
@@ -459,8 +460,8 @@ class Geometry:
     """Instantiates 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
-    kernel_matrices = kwargs.pop('kernel_matrix', nones)
     cost_matrices = kwargs.pop('cost_matrix', args)
+    kernel_matrices = kwargs.pop('kernel_matrix', nones)
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
