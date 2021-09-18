@@ -35,16 +35,18 @@ class Epsilon:
     An epsilon scheduler outputs a regularization strength, to be used by in a
     Sinkhorn-type algorithm, at any iteration count. That value is either the
     final, targetted regularization, or one that is larger, obtained by
-    geometric decay of an initialization parameter. Concretely, the value
-    returned by such a scheduler will either be ``target``, or
-    ``init * decay ** iteration``, whichever is larger. When
-    a scale parameter is passed one, both values are rescaled (multiplied
-    by ``scale``).
+    geometric decay of an initial value that is larger than the intended target.
+    Concretely, the value returned by such a scheduler will consider first
+    the max between ``target`` and ``init * target * decay ** iteration``.
+    If the ``scale`` parameter is provided, that value is used to multiply the
+    max computed previously by ``scale``.
 
     Args:
-      target: the epsilon regularizing value that is targeted.
-      scale: when passed, used to multiply the output to rescale it.
-      init: initial value when using epsilon scheduling.
+      target: the epsilon regularizer that is targeted.
+      scale: if passed, used to multiply the regularizer, to rescale it.
+      init: initial value when using epsilon scheduling, understood as multiple
+        of target value. if passed, ``int * decay ** iteration`` will be used
+        to rescale target.
       decay: geometric decay factor, smaller than 1.
     """
     self._target_init = .01 if target is None else target
@@ -54,14 +56,18 @@ class Epsilon:
 
   @property
   def target(self):
+    """Returns final regularizer value of scheduler."""
     return self._target_init * self._scale
 
   def at(self, iteration: Optional[int] = 1) -> float:
+    """Returns (intermediate) regularizer value at a given iteration."""
     if iteration is None:
       return self.target
-    init = jnp.where(self._decay < 1.0, self._init, self._target_init)
+    # check the decay is smaller than 1.0.
     decay = jnp.where(self._decay < 1.0, self._decay, 1.0)
-    return jnp.maximum(init * decay**iteration, self._target_init) * self._scale
+    # the multiple is either 1.0 or a larger init value that is decayed.
+    multiple = jnp.maximum(self._init * (decay ** iteration), 1.0)
+    return  multiple * self.target
 
   def done(self, eps):
     return eps == self.target
@@ -84,4 +90,3 @@ class Epsilon:
       return args[0]
     else:
       return cls(*args, **kwargs)
-

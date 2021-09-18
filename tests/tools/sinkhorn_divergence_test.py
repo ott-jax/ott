@@ -17,6 +17,7 @@
 """Tests for the Sinkhorn divergence."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import jax.test_util
@@ -77,8 +78,6 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     self.assertGreater(div.divergence, 0.0)
     self.assertLen(div.potentials, 3)
     self.assertLen(div.geoms, 3)
-    print(div.geoms[0].epsilon, div.geoms[1].epsilon)
-    print(div.geoms[0]._epsilon._scale, div.geoms[1]._epsilon._scale)
     self.assertAllClose(div.geoms[0].epsilon, div.geoms[1].epsilon)
 
   def test_euclidean_autoepsilon_not_share_epsilon(self):
@@ -169,16 +168,14 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     self.assertLen(div.geoms, 3)
 
   def test_segment_sinkhorn_result(self):
-
     # Test that segmented sinkhorn gives the same results:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
     geom_kwargs = dict(epsilon=0.01)
     sinkhorn_kwargs = dict(threshold=1e-2)
-    geometry = pointcloud.PointCloud
     true_divergence = sinkhorn_divergence.sinkhorn_divergence(
-        geometry,
+        pointcloud.PointCloud,
         x,
         y,
         a=self._a,
@@ -246,6 +243,33 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     ])
     self.assertArraysAllClose(segmented_divergences, true_divergences)
 
+  @parameterized.parameters(
+      [dict(anderson_acceleration=3), 1e-2],
+      [dict(anderson_acceleration=6), None],
+      [dict(chg_momentum_from=20), 1e-3],
+      [dict(chg_momentum_from=30), None],
+      [dict(momentum=1.05), 1e-3],
+      [dict(momentum=1.01), None])
+  def test_euclidean_momentum_params(self, sinkhorn_kwargs, epsilon):
+    # check if sinkhorn divergence sinkhorn_kwargs parameters used for
+    # momentum/Anderson are properly overriden for the symmetric (x,x) and
+    # (y,y) parts.
+    rngs = jax.random.split(self.rng, 2)
+    threshold = 3.2e-3
+    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
+    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    div = sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud,
+        cloud_a,
+        cloud_b,
+        epsilon=epsilon,
+        a=self._a,
+        b=self._b,
+        sinkhorn_kwargs=sinkhorn_kwargs.update({'threshold': threshold}))
+    self.assertGreater(threshold, div.errors[0][-1])
+    self.assertGreater(threshold, div.errors[1][-1])
+    self.assertGreater(threshold, div.errors[2][-1])
+    self.assertGreater(div.divergence, 0.0)
 
 if __name__ == '__main__':
   absltest.main()

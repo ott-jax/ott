@@ -160,6 +160,31 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
     self.assertAllClose(f_1 * scale**2, f_2, rtol=1e-3, atol=1e-3)
 
+  @parameterized.product(
+      lse_mode=[True, False],
+      init=[2, 5],
+      decay=[.8, .9],
+      tau_a=[1.0, .93],
+      tau_b=[1.0, .91])
+  def test_autoepsilon_with_decay(self, lse_mode, init, decay, tau_a, tau_b):
+    """Check that variations in init/decay work, and result in same solution."""
+    geom = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
+    out_1 = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b, jit=True,
+        threshold=1e-5)
+
+    geom = pointcloud.PointCloud(self.x, self.y)
+    out_2 = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b, jit=True,
+        threshold=1e-5)
+    # recenter if problem is balanced, since in that case solution is only
+    # valid up to additive constant.
+    unb = (tau_a < 1.0 or tau_b < 1.0)
+    self.assertAllClose(
+        out_1.f if unb else out_1.f - jnp.mean(out_1.f[jnp.isfinite(out_1.f)]),
+        out_2.f if unb else out_2.f - jnp.mean(out_2.f[jnp.isfinite(out_2.f)]),
+        rtol=1e-4, atol=1e-4)
+
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
     threshold = 1e-3

@@ -105,9 +105,19 @@ def _sinkhorn_divergence(
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
-  # Replaces parallel/momentum arguments in symmetric case.
+  # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
+  # terms are computed independently. The user might want to pass some
+  # sinkhorn_kwargs to parameterize sinkhorn's behavior, but those should
+  # only apply to the (x,y) part. For the (x,x) / (y,y) part we fall back
+  # on a simpler choice (parallel_dual_updates + momentum 0.5) that is known
+  # to work well in such settings. In the future we might want to give some
+  # freedom on setting parameters for the (x,x)/(y,y) part.
   kwargs_symmetric = kwargs.copy()
-  kwargs_symmetric.update(parallel_dual_updates=True, momentum=0.5)
+  kwargs_symmetric.update(
+      parallel_dual_updates=True,
+      momentum=0.5,
+      chg_momentum_from=0,
+      anderson_acceleration=0)
 
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)

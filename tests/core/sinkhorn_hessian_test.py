@@ -41,7 +41,7 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     eps = 1e-3
     n, m = shape
     # use slightly different parameter to test linear_solve_kwargs
-    linear_solve_kwargs = {'ridge_kernel' : 1.2e-4, 'ridge_identity': .9e-4}
+    linear_solve_kwargs = {'ridge_kernel': 1.2e-4, 'ridge_identity': .9e-4}
 
     dim = 3
     rngs = jax.random.split(self.rng, 6)
@@ -54,9 +54,17 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     epsilon = 0.1
     def loss(a, x, implicit):
       out = transport.Transport(
-          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
-          lse_mode=lse_mode, implicit_differentiation=implicit,
-          use_danskin=False, linear_solve_kwargs = linear_solve_kwargs,
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          lse_mode=lse_mode,
+          implicit_differentiation=implicit,
+          use_danskin=False,
+          linear_solve_kwargs=linear_solve_kwargs,
           threshold=1e-5)
       return out.reg_ot_cost
 
@@ -79,8 +87,8 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     # For that reason we remove that contribution and check the
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
-      hess_imp -= jnp.mean(hess_imp,axis=1)[:,None]
-      hess_back -= jnp.mean(hess_back,axis=1)[:,None]
+      hess_imp -= jnp.mean(hess_imp, axis=1)[:, None]
+      hess_back -= jnp.mean(hess_back, axis=1)[:, None]
 
     # Uniform equality is difficult to obtain numerically on the
     # entire matrices. We switch to relative 1-norm of difference.
@@ -89,8 +97,7 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     self.assertGreater(0.1, rel_dif_norm)
 
     for impl in [True, False]:
-      grad_ = jax.jit(jax.grad(lambda a, x: loss(a, x, impl),
-                                  argnums=arg))
+      grad_ = jax.jit(jax.grad(lambda a, x: loss(a, x, impl), argnums=arg))
       grad_init = grad_(a, x)
 
       # Depending on variable tested, perturb either a or x.
