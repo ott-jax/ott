@@ -49,6 +49,7 @@ def sinkhorn(
     lse_mode: bool = True,
     implicit_differentiation: bool = True,
     linear_solve_kwargs: Optional[Mapping[str, Union[Callable, float]]] = None,
+    precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
     init_dual_a: Optional[jnp.ndarray] = None,
@@ -163,7 +164,7 @@ def sinkhorn(
   Differentiation:
     The optimal solutions ``f`` and ``g`` and the optimal objective (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit differentiation of the optimality conditions (``implicit_differentiation`` set to ``True``). This choice has two consequences.
 
-      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate ``f`` and ``g``, given a change in the inputs. These changes are computed by solving a linear system. The argument ``linear_solve_kwargs`` allows to define the linear solver that is used, and to control for two types or regularization (we have observed that, depending on the architecture, linear solves may require higher ridge parameters to remain stable).
+      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate ``f`` and ``g``, given a change in the inputs. These changes are computed by solving a linear system. The argument ``linear_solve_kwargs`` allows to define the linear solver that is used, and to control for two types or regularization (we have observed that, depending on the architecture, linear solves may require higher ridge parameters to remain stable). The optimality conditions in Sinkhorn can be analyzed as satisfying a ``z=z'`` condition, which are then differentiated. It might be beneficial (e.g. as in https://arxiv.org/abs/2002.03229) to use a preconditionning function ``precondition_fun`` to differentiate instead ``h(z)=h(z')``.
 
       - The objective ``reg_ot_cost`` returned by Sinkhon uses the so-called enveloppe (or Danskin's) theorem. In that case, because it is assumed that the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are optimal), small variations in ``f_u`` and ``g_v`` due to changes in inputs (such as ``geom``, ``a`` and ``b``) are considered negligible. As a result, ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v`` when evaluating the ``reg_ot_cost`` objective. Note that this approach is `invalid` when computing higher order derivatives. In that case the ``use_danskin`` flag must be set to ``False``.
 
@@ -223,9 +224,11 @@ def sinkhorn(
       ``False`` if unrolling Sinkhorn iterations.
     linear_solve_kwargs: parameterization of linear solver when using implicit
       differentiation. Arguments currently accepted appear in the optional
-      arguments of ``apply_inv_hessian``, namely ``linear_solver_fun``,  a
+      arguments of ``solve_implicit_system``, namely ``linear_solver_fun``,  a
       Callable that specifies the linear solver, as well as ``ridge_kernel`` and
       ``ridge_identity``, to be added to enforce stability of linear solve.
+    precondition_fun: Callable to modify FOC before differentiating them in
+      implicit differentiation.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
     use_danskin: when ``True``, it is assumed the entropy regularized cost is
@@ -261,6 +264,9 @@ def sinkhorn(
   if init_dual_b is None:
     init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
 
+  if precondition_fun is None:
+    precondition_fun = lambda x: geom.epsilon * jnp.log(x)
+
   # Cancel dual variables for zero weights.
   init_dual_a = jnp.where(a > 0, init_dual_a, -jnp.inf if lse_mode else 0.0)
   init_dual_b = jnp.where(b > 0, init_dual_b, -jnp.inf if lse_mode else 0.0)
@@ -282,7 +288,7 @@ def sinkhorn(
 
   if jit:
     call_to_sinkhorn = functools.partial(
-        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 19)))(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 20)))(
             _sinkhorn)
   else:
     call_to_sinkhorn = _sinkhorn
@@ -291,7 +297,8 @@ def sinkhorn(
                           momentum, chg_momentum_from, anderson_acceleration,
                           refresh_anderson_frequency,
                           lse_mode, implicit_differentiation,
-                          linear_solve_kwargs, parallel_dual_updates,
+                          linear_solve_kwargs, precondition_fun,
+                          parallel_dual_updates,
                           use_danskin, init_dual_a, init_dual_b)
 
 
@@ -313,6 +320,7 @@ def _sinkhorn(
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Mapping[str, Union[Callable, float]],
+    precondition_fun: Callable[[float], float],
     parallel_dual_updates: bool,
     use_danskin: bool,
     init_dual_a: jnp.ndarray,
@@ -331,7 +339,7 @@ def _sinkhorn(
   f, g, errors = iteration_fun(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
       chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-      lse_mode, implicit_differentiation, linear_solve_kwargs,
+      lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
       parallel_dual_updates, init_dual_a, init_dual_b, momentum, threshold,
       norm_error, geom, a, b)
 
@@ -373,6 +381,7 @@ def _sinkhorn_iterations(
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Mapping[str, Union[Callable[[Any], Any], float]],
+    precondition_fun: Callable[[float], float],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
     init_dual_b: jnp.ndarray,
@@ -406,6 +415,7 @@ def _sinkhorn_iterations(
       conditions.
     linear_solve_kwargs: parameterization of linear solver when using implicit
       differentiation.
+    precondition_fun: preconditioning function to stabilize FOC system.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
     init_dual_a: optional initialization for potentials/scalings w.r.t. first
@@ -429,7 +439,7 @@ def _sinkhorn_iterations(
   f_u, g_v = init_dual_a, init_dual_b
 
   # Delete arguments not used in forward pass.
-  del linear_solve_kwargs
+  del linear_solve_kwargs, precondition_fun
 
   # Defining the Sinkhorn loop, by setting initializations, body/cond.
   errors = -jnp.ones(
@@ -629,6 +639,7 @@ def _sinkhorn_iterations_taped(
     lse_mode: bool,
     implicit_differentiation: bool,
     linear_solve_kwargs: Optional[Mapping[str, Any]],
+    precondition_fun: Optional[Callable[[float], float]],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
     init_dual_b: jnp.ndarray,
@@ -642,7 +653,7 @@ def _sinkhorn_iterations_taped(
   f, g, errors = _sinkhorn_iterations(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
       chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-      lse_mode, implicit_differentiation, linear_solve_kwargs,
+      lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
       parallel_dual_updates, init_dual_a, init_dual_b, momentum,
       threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
@@ -651,7 +662,7 @@ def _sinkhorn_iterations_taped(
 def _sinkhorn_iterations_implicit_bwd(
     tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
     chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-    lse_mode, implicit_differentiation, linear_solve_kwargs,
+    lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
     parallel_dual_updates, res, gr
 ) -> Tuple[Any, Any, Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
@@ -669,6 +680,8 @@ def _sinkhorn_iterations_implicit_bwd(
       multiplication.
     implicit_differentiation: implicit or backprop.
     linear_solve_kwargs: arguments to define linear solve and regularizers.
+    precondition_fun: function to apply to the two blocks of the first
+      order condition.
     parallel_dual_updates: update sequence.
     res: residual data sent from fwd pass, used for computations below. In this
       case consists in the output itself, as well as inputs against which we
@@ -693,13 +706,14 @@ def _sinkhorn_iterations_implicit_bwd(
     linear_solve_kwargs = {}
 
   # Applies first part of vjp to gr: inverse part of implicit function theorem.
-  vjp_gr = apply_inv_hessian(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode,
-                             **linear_solve_kwargs)
+  vjp_gr = solve_implicit_system(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode,
+                                 precondition_fun, **linear_solve_kwargs)
 
   # Instantiates vjp of first order conditions of the objective, as a
   # function of geom, a and b parameters (against which we differentiate)
+
   foc_geom_a_b = lambda geom, a, b: first_order_conditions(
-      geom, a, b, f, g, tau_a, tau_b, lse_mode)
+      geom, a, b, f, g, tau_a, tau_b, lse_mode, precondition_fun)
 
   # Carries pullback onto original inputs, here geom, a and b.
   _, pull_geom_a_b = jax.vjp(foc_geom_a_b, geom, a, b)
@@ -713,7 +727,7 @@ def _sinkhorn_iterations_implicit_bwd(
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(12))(
+    jax.custom_vjp, nondiff_argnums=range(13))(
         _sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
@@ -876,11 +890,11 @@ def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   return jnp.exp(f / rho) / rho
 
 
-def diag_jacobian_of_marginal_fit(c, h, tau, epsilon):
+def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
   """Computes grad of terms linked to marginals in objective.
 
   Computes second derivative w.r.t. f ( or g) of terms in
-  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
+  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 32
   (terms involving phi_star)
 
   Args:
@@ -888,6 +902,7 @@ def diag_jacobian_of_marginal_fit(c, h, tau, epsilon):
     h: jnp.ndarray, potential (either f or g in practice)
     tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
     epsilon: regularization
+    derivative: Callable
 
   Returns:
     a vector of the same size as c or h
@@ -897,7 +912,10 @@ def diag_jacobian_of_marginal_fit(c, h, tau, epsilon):
   else:
     rho = epsilon * tau / (1 - tau)
     # here no minus sign because we are taking derivative w.r.t -h
-    return jnp.where(c > 0, c * second_derivative_phi_star(-h, rho), 0.0)
+    return jnp.where(c > 0,
+                     c * second_derivative_phi_star(-h, rho) * derivative(
+                         c * derivative_phi_star(-h, rho)),
+                     0.0)
 
 
 def get_transport_functions(geom, lse_mode):
@@ -916,51 +934,74 @@ def get_transport_functions(geom, lse_mode):
   return marginal_a, marginal_b, app_transport
 
 
-def apply_inv_hessian(gr: Tuple[np.ndarray],
-                      geom: geometry.Geometry,
-                      a: np.ndarray,
-                      b: np.ndarray,
-                      f: np.ndarray,
-                      g: np.ndarray,
-                      tau_a: float,
-                      tau_b: float,
-                      lse_mode: bool,
-                      linear_solver_fun: Callable[
-                          [Callable[[jnp.ndarray], jnp.ndarray], jnp.ndarray],
-                          Tuple[jnp.ndarray, Any]] = jax.scipy.sparse.linalg.cg,
-                      ridge_kernel: float = 1e-4,
-                      ridge_identity: float = 1e-4):
+def solve_implicit_system(
+    gr: Tuple[np.ndarray],
+    geom: geometry.Geometry,
+    a: np.ndarray,
+    b: np.ndarray,
+    f: np.ndarray,
+    g: np.ndarray,
+    tau_a: float,
+    tau_b: float,
+    lse_mode: bool,
+    precondition_fun: Callable[[float], float],
+    linear_solver_fun: Callable[
+        [Callable[[jnp.ndarray], jnp.ndarray], jnp.ndarray],
+        Tuple[jnp.ndarray, Any]] = jax.scipy.sparse.linalg.cg,
+    ridge_kernel: float = 0.0,
+    ridge_identity: float = 0.0,
+    symmetric: bool = False):
   r"""Applies minus inverse of [hessian of ``reg_ot_cost`` w.r.t ``f``, ``g``].
 
   This function is used to carry out implicit differentiation of ``sinkhorn``
   outputs, notably optimal potentials ``f`` and ``g``. That differentiation
-  requires solving a linear system w.r.t. Hessian matrix of the reg-OT problem.
+  requires solving a linear system, using (and inverting) the Jacobian of
+  (preconditioned) first-order conditions w.r.t. the reg-OT problem.
 
-  If the Hessian were to be instantiated as a matrix, it would be symmetric
-  and of size :math:`(n+m) \times (n+m)`, and written :math:`[A, B; B^T, D]`.
+  Given a ``precondition_fun``, written here for short as :math:`h`,
+  the first order conditions for the dual energy
+  :math:`E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> + <b, \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K
+    \exp^{g/\epsilon}>`
 
-  The implicit function theorem requires solving a linear system w.r.t that
-  Hessian. :math:`A` and :math:`D` are diagonal matrices, equal to the row and
-  column marginals respectively, corrected (if handling the unbalanced case)
+  form the basis of the Sinkhorn algorithm. To differentiate optimal solutions
+  to that problem, we exploit the fact that :math:`h(\nabla E = 0)` and
+  differentiate that identity to recover variations (Jacobians) of optimal
+  solutions :math:`f^\star, g^\star$` as a function of changes in the inputs.
+  The Jacobian of :math:`h(\nabla_{f,g} E = 0)` is a linear operator which, if
+  it were to be instantiated as a matrix, would be of size
+  :math:`(n+m) \times (n+m)`. When :math:`h` is the identity, that matrix is the
+  Hessian of :math:`E`, is symmetric and negative-definite
+  (:math:`E` is concave) and is structured as :math:`[A, B; B^T, D]`. More
+  generally, for other functions :math:`h`, the Jacobian of these preconditioned
+  first order conditions is no longer symmetric (except if ``a==b``), and
+  has now a structure as :math:`[A, B; C, D]`. That system can
+  be still inverted more generic solvers. By default, :math:`h = \epsilon \log`,
+  as proposed in https://arxiv.org/pdf/2002.03229.pdf.
+
+  In both cases :math:`A` and :math:`D` are diagonal matrices, equal to the row and
+  column marginals respectively, multiplied by the derivatives of :math:`h`
+  evaluated at those marginals, corrected (if handling the unbalanced case)
   by the second derivative of the part of the objective that ties potentials to
-  the marginals (terms in ``phi_star``). :math:`B` and :math:`B^T` are equal
-  respectively to the OT matrix and its transpose, i.e. :math:`n \times m` and
-  :math:`m \times n` matrices. Note that we do not instantiate those transport
-  matrices, but rely instead on calls to the ``app_transport`` method from the
+  the marginals (terms in ``phi_star``). When :math:`h` is the identity,
+  :math:`B` and :math:`B^T` are equal respectively to the OT matrix and its
+  transpose, i.e. :math:`n \times m` and :math:`m \times n` matrices.
+  When :math:`h` is not the identity, :math:`B` (resp. :math:`C`) is equal
+  to the OT matrix (resp. its transpose), rescaled on the left by the
+  application elementwise of :math:`h'` to the row (respectively column)
+  marginal sum of the transport.
+
+  Note that we take great care in not instantiatiating these transport
+  matrices, to rely instead on calls to the ``app_transport`` method from the
   ``Geometry`` object ``geom`` (which will either use potentials or scalings,
   depending on ``lse_mode``)
 
-  The Hessian is symmetric definite. Rather than solve the linear system
-  directly we exploit the block diagonal property to use Schur complements.
-  Depending on the sizes involved, it is better to instantiate the Schur
-  complement of the first or of the second diagonal block.
+  The Jacobian's diagonal + off-diagonal blocks structure allows to exploit
+  Schur complements. Depending on the sizes involved, it is better to
+  instantiate the Schur complement of the first or of the second diagonal block.
 
   In either case, the Schur complement is rank deficient, with a 0 eigenvalue
-  for the vector of ones (this can be seen by noticing that the Schur complement
-  will be, e.g. for the first block, :math:`D(T1) - T D(1/(T^T 1)) T^T`, which
-  will be zero if applied to 1). For this reason, we center first vectors that
-  need to be solved with the linear system and use a small ridge on the kernel
-  space, i.e. ``ridge_kernel * jnp.sum(z)``.
+  for the vector of ones in the balanced case, which is why we add a ridge on
+  that subspace to enforce solutions have zero sum.
 
   The Schur complement can also be rank deficient if two lines or columns of T
   are colinear. This will typically happen it two rows or columns of the cost
@@ -968,7 +1009,10 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
   ``ridge_identity * z`` regularizer to achieve better conditioning.
 
   These linear systems are solved using the user defined ``linear_solver_fun``,
-  which is set by default to ``cg`` since the system is symmetric definite.
+  which is set by default to ``cg``. When the system is symmetric (as detected
+  by the corresponding flag ``symmetric``), ``cg`` is applied directly. When it
+  is not, normal equations are used (i.e. the Schur complement is multiplied by
+  its transpose before solving the system).
 
   Args:
     gr: 2-uple, (vector of size ``n``, vector of size ``m``).
@@ -980,54 +1024,88 @@ def apply_inv_hessian(gr: Tuple[np.ndarray],
     tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal.
     tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal.
     lse_mode: bool, log-sum-exp mode if True, kernel else.
+    precondition_fun: preconditioning function to stabilize FOC implicit system.
     linear_solver_fun: Callable, should return (solution, ...)
     ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are colinear, or,
       equivalently when two points from either measure are close).
+    symmetric: flag used to figure out whether the linear system solved in the
+      implicit function theorem is symmetric or not. This happens when either
+      ``a == b`` or the precondition_fun is the identity. False by default, and,
+      at the moment, needs to be set manually by the user in the more favorable
+      case where the system is guaranteed to be symmetric.
 
   Returns:
     A tuple of two vectors, of the same size as ``gr``.
   """
   marginal_a, marginal_b, app_transport = get_transport_functions(
       geom, lse_mode)
+  # elementwise vmap apply of derivative of precondition_fun. No vmapping
+  # can be problematic here.
+  derivative = jax.vmap(jax.grad(precondition_fun))
 
-  vjp_fg = lambda z: app_transport(f, g, z, axis=1) / geom.epsilon
-  vjp_gf = lambda z: app_transport(f, g, z, axis=0) / geom.epsilon
+  n, m = geom.shape
+
+  vjp_fg = lambda z: app_transport(
+      f, g, z * derivative(marginal_b(f, g)), axis=1) / geom.epsilon
+  vjp_gf = lambda z: app_transport(
+      f, g, z * derivative(marginal_a(f, g)), axis=0) / geom.epsilon
+
+  if not symmetric:
+    vjp_fgt = lambda z: app_transport(
+        f, g, z, axis=0) * derivative(marginal_b(f, g)) / geom.epsilon
+    vjp_gft = lambda z: app_transport(
+        f, g, z, axis=1) * derivative(marginal_a(f, g)) / geom.epsilon
 
   diag_hess_a = (
-      marginal_a(f, g) / geom.epsilon +
-      diag_jacobian_of_marginal_fit(a, f, tau_a, geom.epsilon))
+      marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
+      diag_jacobian_of_marginal_fit(a, f, tau_a, geom.epsilon, derivative))
   diag_hess_b = (
-      marginal_b(f, g) / geom.epsilon +
-      diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon))
-
-  solve_fun = lambda lin_op, b: linear_solver_fun(lin_op, b)[0]
+      marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
+      diag_jacobian_of_marginal_fit(b, g, tau_b, geom.epsilon, derivative))
 
   n, m = geom.shape
   # Remove ridge on kernel space if problem is balanced.
   ridge_kernel = jnp.where(tau_a == 1.0 and tau_b == 1.0, ridge_kernel, 0.0)
+
   # Forks on using Schur complement of either A or D, depending on size.
   if n > m:  #  if n is bigger, run m x m linear system.
     inv_vjp_ff = lambda z: z / diag_hess_a
     vjp_gg = lambda z: z * diag_hess_b
-    schur = lambda z: (
-        vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))) + ridge_kernel * jnp.sum(z) +
-        ridge_identity * z)
+    schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
     g0, g1 = vjp_gf(inv_vjp_ff(gr[0])), gr[1]
-    sch_f = solve_fun(schur, g0)
-    sch_g = solve_fun(schur, g1)
+
+    if symmetric:
+      schur = lambda z: (schur_(z) + ridge_kernel * jnp.sum(z)
+                         + ridge_identity * z)
+    else:
+      schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
+      g0, g1 = schur_t(g0), schur_t(g1)
+      schur = lambda z: (
+          schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + ridge_identity * z)
+
+    sch_f = linear_solver_fun(schur, g0)[0]
+    sch_g = linear_solver_fun(schur, g1)[0]
     vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
     vjp_gr_g = -sch_f + sch_g
   else:
     vjp_ff = lambda z: z * diag_hess_a
     inv_vjp_gg = lambda z: z / diag_hess_b
-    schur = lambda z: (
-        vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))) + ridge_kernel * jnp.sum(z) +
-        ridge_identity * z)
+    schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
     g0, g1 = vjp_fg(inv_vjp_gg(gr[1])), gr[0]
-    sch_g = solve_fun(schur, g0)
-    sch_f = solve_fun(schur, g1)
+
+    if symmetric:
+      schur = lambda z: (schur_(z) + ridge_kernel * jnp.sum(z)
+                         + ridge_identity * z)
+    else:
+      schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
+      g0, g1 = schur_t(g0), schur_t(g1)
+      schur = lambda z: (schur_t(schur_(z)) + ridge_kernel * jnp.sum(z)
+                         + ridge_identity * z)
+
+    sch_g = linear_solver_fun(schur, g0)[0]
+    sch_f = linear_solver_fun(schur, g1)[0]
     vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
     vjp_gr_f = -sch_g + sch_f
 
@@ -1042,7 +1120,8 @@ def first_order_conditions(
     g: jnp.ndarray,
     tau_a: float,
     tau_b: float,
-    lse_mode: bool):
+    lse_mode: bool,
+    precondition_fun: Optional[Callable[[float], float]]):
   r"""Computes vector of first order conditions for the reg-OT problem.
 
   The output of this vector should be close to zero at optimality.
@@ -1062,17 +1141,19 @@ def first_order_conditions(
     tau_a: float, ratio lam/(lam+eps), ratio of regularizers, first marginal
     tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal
     lse_mode: bool
+    precondition_fun: elementwise to apply on both sides of FOC.
 
   Returns:
     a jnp.ndarray of size (size of ``n + m``) quantifying deviation to
     optimality for variables ``f`` and ``g``.
   """
   marginal_a, marginal_b, _ = get_transport_functions(geom, lse_mode)
-
   grad_a = grad_of_marginal_fit(a, f, tau_a, geom.epsilon)
   grad_b = grad_of_marginal_fit(b, g, tau_b, geom.epsilon)
-  return jnp.concatenate(
-      (jnp.where(a > 0,
-                 marginal_a(f, g) - grad_a,
-                 0.0), jnp.where(b > 0,
-                                 marginal_b(f, g) - grad_b, 0.0)))
+  return jnp.concatenate((
+      jnp.where(a > 0,
+                precondition_fun(marginal_a(f, g)) - precondition_fun(grad_a),
+                0.0),
+      jnp.where(b > 0,
+                precondition_fun(marginal_b(f, g)) - precondition_fun(grad_b),
+                0.0)))

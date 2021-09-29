@@ -40,8 +40,6 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     """Test hessian w.r.t. weights and locations."""
     eps = 1e-3
     n, m = shape
-    # use slightly different parameter to test linear_solve_kwargs
-    linear_solve_kwargs = {'ridge_kernel': 1.2e-4, 'ridge_identity': .9e-4}
 
     dim = 3
     rngs = jax.random.split(self.rng, 6)
@@ -64,8 +62,8 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
           lse_mode=lse_mode,
           implicit_differentiation=implicit,
           use_danskin=False,
-          linear_solve_kwargs=linear_solve_kwargs,
-          threshold=1e-5)
+          threshold=1e-4,
+          linear_solve_kwargs={'ridge_kernel': 1e-4, 'ridge_identity': 1e-4})
       return out.reg_ot_cost
 
     delta_a = jax.random.uniform(rngs[4], (n,))

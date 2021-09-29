@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -26,7 +26,7 @@ from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-class SinkhornGradTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()

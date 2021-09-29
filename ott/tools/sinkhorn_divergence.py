@@ -119,6 +119,13 @@ def _sinkhorn_divergence(
       chg_momentum_from=0,
       anderson_acceleration=0)
 
+  # Since symmetric terms are computed assuming a = b, the linear systems
+  # arising in implicit differentiation (if used) of the potentials computed for
+  # the symmetric parts should be marked as symmetric.
+  linear_solve_kwargs = kwargs_symmetric.pop('linear_solve_kwargs', {})
+  linear_solve_kwargs.update(symmetric=True)
+  kwargs_symmetric.update(linear_solve_kwargs=linear_solve_kwargs)
+
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
