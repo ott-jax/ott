@@ -15,6 +15,6 @@
 
 """OTT core libraries: the engines behind most computations happening in OTT."""
 
-from . import discrete_barycenter
-from . import gromov_wasserstein
-from . import sinkhorn
+from . import discrete_barycenter  # pytype: disable=import-error  # kwargs-checking
+from . import gromov_wasserstein  # pytype: disable=import-error  # kwargs-checking
+from . import sinkhorn  # pytype: disable=import-error  # kwargs-checking
