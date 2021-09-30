@@ -96,17 +96,17 @@ class Euclidean(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class Cosine(CostFn):
-  """Cosine distance distance CostFn."""
+  """Cosine distance CostFn."""
 
-  def __init__(self, eps=1e-8):
+  def __init__(self, ridge=1e-8):
     super().__init__()
-    self._eps = eps
+    self._ridge = ridge
 
   def pairwise(self, x, y):
-    eps = self._eps
+    ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
-    cosine_similarity = dot(x, y) / jnp.maximum(x_norm * y_norm, eps)
+    cosine_similarity = dot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
     return cosine_distance
 

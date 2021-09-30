@@ -30,12 +30,22 @@ class CostFnTest(jax.test_util.JaxTestCase):
     self.rng = jax.random.PRNGKey(0)
 
   def test_cosine(self):
-    """Test the cosince cost function."""
+    """Test the cosine cost function."""
 
     x = jnp.array([0, 0], dtype=jnp.float32)
     y = jnp.array([0, 0], dtype=jnp.float32)
     dist_x_y = costs.Cosine().pairwise(x, y)
     self.assertAllClose(dist_x_y, 1.0 - 0.0)
+
+    x = jnp.array([1.0, 0], dtype=jnp.float32)
+    y = jnp.array([1.0, 0], dtype=jnp.float32)
+    dist_x_y = costs.Cosine().pairwise(x, y)
+    self.assertAllClose(dist_x_y, 1.0 - 1.0)
+
+    x = jnp.array([1.0, 0], dtype=jnp.float32)
+    y = jnp.array([-1.0, 0], dtype=jnp.float32)
+    dist_x_y = costs.Cosine().pairwise(x, y)
+    self.assertAllClose(dist_x_y, 1.0 - -1.0)
 
     n, m, d = 10, 12, 7
     keys = jax.random.split(self.rng, 2)
@@ -43,7 +53,6 @@ class CostFnTest(jax.test_util.JaxTestCase):
     y = jax.random.normal(keys[1], (m, d))
 
     cosine_fn = costs.Cosine()
-
     normalize = lambda v: v / jnp.sqrt(jnp.sum(v**2))
     for i in range(n):
       for j in range(m):
