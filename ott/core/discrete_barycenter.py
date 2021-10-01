@@ -187,8 +187,7 @@ def _discrete_barycenter(geom: geometry.Geometry,
         jnp.mean(errors_fn(f_u, g_v, a)),
         jnp.inf)
 
-    errors = jax.ops.index_update(
-        errors, jax.ops.index[iteration // inner_iterations, :], err)
+    errors = errors.at[iteration // inner_iterations, :].set(err)
     return errors, d, f_u, g_v
 
   state = (errors, d, f_u, g_v)

@@ -42,9 +42,9 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     #  adding zero weights  to test proper handling, then ravel.
-    a = jax.ops.index_update(a, 0, 0).ravel()
+    a = a.at[0].set(0).ravel()
     a = a / jnp.sum(a)
-    b = jax.ops.index_update(b, 3, 0).ravel()
+    b = b.at[3].set(0).ravel()
     b = b / jnp.sum(b)
 
     threshold = 0.01

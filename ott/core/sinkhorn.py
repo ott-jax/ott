@@ -595,8 +595,7 @@ def _sinkhorn_iterations(
         marginal_error(geom, a, b, tau_a, tau_b, f_u, g_v, norm_error,
                        lse_mode), jnp.inf)
 
-    errors = jax.ops.index_update(
-        errors, jax.ops.index[iteration // inner_iterations, :], err)
+    errors = errors.at[iteration // inner_iterations, :].set(err)
     return errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s
 
   # Run the Sinkhorn loop. choose either a standard fixpoint_iter loop if

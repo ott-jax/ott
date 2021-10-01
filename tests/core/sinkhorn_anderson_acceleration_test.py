@@ -58,8 +58,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(rngs[1], (m, dim)) / dim + .2
     a = jax.random.uniform(rngs[2], (n,))
     b = jax.random.uniform(rngs[3], (m,))
-    a = jax.ops.index_update(a, 0, 0)
-    b = jax.ops.index_update(b, 3, 0)
+    a = a.at[0].set(0)
+    b = b.at[3].set(0)
 
     # Make weights roughly sum to 1 if unbalanced, normalize else.
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)

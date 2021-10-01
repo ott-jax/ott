@@ -44,8 +44,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       a = jax.random.uniform(keys[2], (n,)) + eps
       b = jax.random.uniform(keys[3], (m,)) + eps
       # Adding zero weights to test proper handling
-      a = jax.ops.index_update(a, 0, 0)
-      b = jax.ops.index_update(b, 3, 0)
+      a = a.at[0].set(0)
+      b = b.at[3].set(0)
       a = a / jnp.sum(a)
       b = b / jnp.sum(b)
       geom = pointcloud.PointCloud(x, y, epsilon=0.1)
@@ -155,8 +155,8 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       a = jax.random.uniform(keys[2], (n,))
       b = jax.random.uniform(keys[3], (m,))
       # Adding zero weights to test proper handling
-      a = jax.ops.index_update(a, 0, 0)
-      b = jax.ops.index_update(b, 3, 0)
+      a = a.at[0].set(0)
+      b = b.at[3].set(0)
       a = a / jnp.sum(a)
       b = b / jnp.sum(b)
 

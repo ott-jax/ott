@@ -62,8 +62,8 @@ class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
     b = jnp.ones(size)
     a = a.ravel()
     b = b.ravel()
-    a = jax.ops.index_update(a, 0, 10000)
-    b = jax.ops.index_update(b, -1, 10000)
+    a = a.at[0].set(10000)
+    b = b.at[-1].set(10000)
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     threshold = 1e-2

@@ -89,8 +89,7 @@ def sqrtm(
 
     err = jnp.where(compute_error, new_err(x, norm_x, y), np.inf)
 
-    errors = jax.ops.index_update(
-        errors, jax.ops.index[iteration // inner_iterations], err)
+    errors = errors.at[iteration // inner_iterations].set(err)
 
     return errors, y, z
 
