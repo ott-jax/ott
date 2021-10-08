@@ -95,6 +95,23 @@ class Euclidean(CostFn):
 
 
 @jax.tree_util.register_pytree_node_class
+class Cosine(CostFn):
+  """Cosine distance CostFn."""
+
+  def __init__(self, ridge=1e-8):
+    super().__init__()
+    self._ridge = ridge
+
+  def pairwise(self, x, y):
+    ridge = self._ridge
+    x_norm = jnp.linalg.norm(x, axis=-1)
+    y_norm = jnp.linalg.norm(y, axis=-1)
+    cosine_similarity = dot(x, y) / (x_norm * y_norm + ridge)
+    cosine_distance = 1.0 - cosine_similarity
+    return cosine_distance
+
+
+@jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
   """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
 
