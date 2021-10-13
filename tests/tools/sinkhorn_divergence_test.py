@@ -167,7 +167,8 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     self.assertLen(div.potentials, 3)
     self.assertLen(div.geoms, 3)
 
-  def test_segment_sinkhorn_result(self):
+  @parameterized.parameters([True, False])
+  def test_segment_sinkhorn_result(self, shuffle):
     # Test that segmented sinkhorn gives the same results:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
@@ -183,38 +184,37 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
         sinkhorn_kwargs=sinkhorn_kwargs,
         **geom_kwargs).divergence
 
-    for shuffle in [False, True]:
-      if shuffle:
-        # Now, shuffle the order of both arrays, but
-        # still maintain the segment assignments:
-        idx_x = jax.random.shuffle(rngs[2], jnp.arange(x.shape[0] * 2))
-        idx_y = jax.random.shuffle(rngs[3], jnp.arange(y.shape[0] * 2))
-      else:
-        idx_x = jnp.arange(x.shape[0] * 2)
-        idx_y = jnp.arange(y.shape[0] * 2)
+    if shuffle:
+      # Now, shuffle the order of both arrays, but
+      # still maintain the segment assignments:
+      idx_x = jax.random.shuffle(rngs[2], jnp.arange(x.shape[0] * 2))
+      idx_y = jax.random.shuffle(rngs[3], jnp.arange(y.shape[0] * 2))
+    else:
+      idx_x = jnp.arange(x.shape[0] * 2)
+      idx_y = jnp.arange(y.shape[0] * 2)
 
-      # Duplicate arrays:
-      x_copied = jnp.concatenate((x, x))[idx_x]
-      a_copied = jnp.concatenate((self._a, self._a))[idx_x]
-      segment_ids_x = jnp.arange(2).repeat(x.shape[0])[idx_x]
+    # Duplicate arrays:
+    x_copied = jnp.concatenate((x, x))[idx_x]
+    a_copied = jnp.concatenate((self._a, self._a))[idx_x]
+    segment_ids_x = jnp.arange(2).repeat(x.shape[0])[idx_x]
 
-      y_copied = jnp.concatenate((y, y))[idx_y]
-      b_copied = jnp.concatenate((self._b, self._b))[idx_y]
-      segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
+    y_copied = jnp.concatenate((y, y))[idx_y]
+    b_copied = jnp.concatenate((self._b, self._b))[idx_y]
+    segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
 
-      segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
-          x_copied,
-          y_copied,
-          segment_ids_x=segment_ids_x,
-          segment_ids_y=segment_ids_y,
-          indices_are_sorted=False,
-          weights_x=a_copied,
-          weights_y=b_copied,
-          sinkhorn_kwargs=sinkhorn_kwargs,
-          **geom_kwargs)
+    segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+        x_copied,
+        y_copied,
+        segment_ids_x=segment_ids_x,
+        segment_ids_y=segment_ids_y,
+        indices_are_sorted=False,
+        weights_x=a_copied,
+        weights_y=b_copied,
+        sinkhorn_kwargs=sinkhorn_kwargs,
+        **geom_kwargs)
 
-      self.assertArraysAllClose(
-          true_divergence.repeat(2), segmented_divergences)
+    self.assertArraysAllClose(
+        true_divergence.repeat(2), segmented_divergences)
 
   def test_segment_sinkhorn_different_segment_sizes(self):
 

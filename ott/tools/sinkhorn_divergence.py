@@ -67,9 +67,8 @@ def sinkhorn_divergence(
   geometries = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
   if share_epsilon:
-    for geom in geometries[1:(2 if static_b else 3)]:
-      if isinstance(geom, geometry.Geometry):
-        geom.copy_epsilon(geometries[0])
+    for geom in filter(None, geometries[1:(2 if static_b else 3)]):
+      geom.copy_epsilon(geometries[0])
 
   num_a, num_b = geometries[0].shape
   a = jnp.ones((num_a,)) / num_a if a is None else a

@@ -51,6 +51,7 @@ class Geometry:
                kernel_matrix: Optional[jnp.ndarray] = None,
                epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
                relative_epsilon: Optional[bool] = None,
+               scale: float = None,
                **kwargs):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
@@ -67,30 +68,40 @@ class Geometry:
         the mean value of the ``cost_matrix``.
       relative_epsilon: whether epsilon is passed relative to scale of problem,
         here understood as mean value of ``cost_matrix``.
+      scale: the scale multiplier for epsilon.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
     self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
+    self._scale = scale
     # Define default dictionary and update it with user's values.
-    self._kwargs = {**{'scale': None, 'init': None, 'decay': None}, **kwargs}
+    self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
+
+  @property
+  def scale(self) -> float:
+    """Computes the scale of the epsilon, potentially based on data."""
+    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
+      return 1.0
+
+    rel = self._relative_epsilon
+    trigger = ((self._scale is None) and
+               (rel or rel is None) and
+               (self._epsilon_init is None or rel))
+    if (self._scale is None) and (trigger is not None):  # for dry run
+      return jnp.where(
+          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
+    else:
+      return self._scale
 
   @property
   def _epsilon(self):
-    """Return epsilon scheduler, either passed directly or by building it."""
+    """Returns epsilon scheduler, either passed directly or by building it."""
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return self._epsilon_init
     eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
-    scale = self._kwargs.pop('scale', None)
-    rel = self._relative_epsilon
-    trigger = (scale is None) and (rel is not False) and (
-        (self._epsilon_init is None) or rel)
-    if (scale is None) and (trigger is not None):  # the 2nd test is for dry run
-      scale = jnp.where(trigger,
-                        jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
-    self._kwargs.update(scale=scale)
-    return epsilon_scheduler.Epsilon.make(eps, **self._kwargs)
+    return epsilon_scheduler.Epsilon.make(eps, scale=self.scale, **self._kwargs)
 
   @property
   def cost_matrix(self):
@@ -135,8 +146,8 @@ class Geometry:
     """Copies the epsilon parameters from another geometry."""
     scheduler = other._epsilon
     self._epsilon_init = scheduler._target_init
-    self._kwargs.update(scale=scheduler._scale)
     self._relative_epsilon = False
+    self._scale = other.scale
 
   # The functions below are at the core of Sinkhorn iterations, they are
   # are implemented here in their default form, either in lse (using directly

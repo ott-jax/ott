@@ -108,7 +108,6 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
       self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
-
   @parameterized.named_parameters(
       dict(
           testcase_name='lse-implicit',
@@ -193,6 +192,17 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
       self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
       self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
+
+  def test_autoepsilon_differentiability(self):
+    cost = jax.random.uniform(self.rng, (15, 17))
+
+    def reg_ot_cost(c):
+      geom = geometry.Geometry(c, epsilon=None)  # autoepsilon.
+      return sinkhorn.sinkhorn(geom).reg_ot_cost
+
+    gradient = jax.grad(reg_ot_cost)(cost)
+    self.assertFalse(jnp.any(jnp.isnan(gradient)))
+
 
 if __name__ == '__main__':
   absltest.main()
