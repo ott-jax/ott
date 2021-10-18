@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A geometry defined using 2 point clouds and a cost function between them."""
-from typing import Optional, Union
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
