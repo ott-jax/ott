@@ -16,7 +16,7 @@
 """Low level functions used within the scope of Geometric processing."""
 
 import functools
-from typing import Union, Sequence
+from typing import Sequence
 
 import jax
 import jax.numpy as jnp

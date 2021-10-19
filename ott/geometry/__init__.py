@@ -15,8 +15,9 @@
 
 """OTT ground geometries: Classes and cost functions to instantiate them."""
 from . import costs
-from . import epsilon_scheduler
-from . import geometry
-from . import grid
 from . import ops
-from . import pointcloud
+
+from .epsilon_scheduler import Epsilon
+from .geometry import Geometry
+from .grid import Grid
+from .pointcloud import PointCloud
