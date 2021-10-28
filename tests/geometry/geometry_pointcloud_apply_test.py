@@ -72,5 +72,19 @@ class ApplyTest(jax.test_util.JaxTestCase):
     self.assertAllClose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
     self.assertAllClose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 
+  def test_shape_with_jnp_ndarrays(self):
+    n = 11
+    d = 17
+    x = jnp.zeros((n, d))
+    pc = pointcloud.PointCloud(x=x)
+    self.assertEqual(pc.shape, (n, n))
+
+  def test_shape_with_np_ndarrays(self):
+    n = 11
+    d = 17
+    x = jnp.zeros((n, d))
+    pc = pointcloud.PointCloud(x=x)
+    self.assertEqual(pc.shape, (n, n))
+
 if __name__ == '__main__':
   absltest.main()

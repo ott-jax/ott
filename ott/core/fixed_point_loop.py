@@ -19,6 +19,7 @@ from typing import Callable, Any
 
 import jax
 from jax import numpy as jnp
+import numpy as np
 
 
 def fixpoint_iter(cond_fn: Callable[[int, Any, Any], bool],
@@ -159,7 +160,7 @@ def fixpoint_iter_bwd(
   # The tree may contain some python floats
   g_constants = jax.tree_map(
       lambda x: jnp.zeros_like(x, dtype=x.dtype)
-      if isinstance(x, jnp.ndarray) else 0, constants)
+      if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants)
 
   def bwd_cond_fn(iteration_g_gconst):
     iteration, _, _ = iteration_g_gconst

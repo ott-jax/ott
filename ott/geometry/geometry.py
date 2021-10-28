@@ -134,7 +134,9 @@ class Geometry:
   @property
   def shape(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return mat.shape if isinstance(mat, jnp.ndarray) else (0, 0)
+    if mat is not None:
+      return mat.shape
+    return (0, 0)
 
   @property
   def is_symmetric(self):

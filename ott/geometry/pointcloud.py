@@ -100,8 +100,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self):
-    return (self.x.shape[0] if isinstance(self.x, jnp.ndarray) else 0,
-            self.y.shape[0] if isinstance(self.y, jnp.ndarray) else 0)
+    return (self.x.shape[0] if self.x is not None else 0,
+            self.y.shape[0] if self.y is not None else 0)
 
   @property
   def is_symmetric(self):
