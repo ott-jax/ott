@@ -80,7 +80,7 @@ class Grid(geometry.Geometry):
     """
     if (grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None):
-      self.grid_size = grid_size
+      self.grid_size = tuple(map(int, grid_size))
       self.x = x
       self.num_a = num_a
       self.grid_dimension = grid_dimension
@@ -90,7 +90,7 @@ class Grid(geometry.Geometry):
       self.num_a = np.prod(np.array(self.grid_size))
       self.grid_dimension = len(self.x)
     elif grid_size is not None:
-      self.grid_size = grid_size
+      self.grid_size = tuple(map(int, grid_size))
       self.x = tuple([jnp.linspace(0, 1, n) for n in self.grid_size])
       self.num_a = np.prod(np.array(grid_size))
       self.grid_dimension = len(self.grid_size)
