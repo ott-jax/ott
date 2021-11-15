@@ -41,18 +41,39 @@ class ICNNTest(jax.test_util.JaxTestCase):
     params = icnn.init(self.rng, jnp.ones(n_features))['params']
 
     # check convexity
-    for _ in range(n_samples):
-        x = jax.random.normal(self.rng, (n_samples, n_features))
-        y = jax.random.normal(self.rng, (n_samples, n_features))
+    x = jax.random.normal(self.rng, (n_samples, n_features))
+    y = jax.random.normal(self.rng, (n_samples, n_features))
 
-        out_x = icnn.apply({'params': params}, x)
-        out_y = icnn.apply({'params': params}, x)
+    out_x = icnn.apply({'params': params}, x)
+    out_y = icnn.apply({'params': params}, y)
 
-        for t in jnp.linspace(0, 1, 10):
-            out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
-            out = (t * out_x + (1 - t) * out_y) - out_xy
-            self.assertAllClose(
-              jnp.minimum(out, 0), jnp.zeros(n_samples), atol=1e-5)
+    for t in jnp.linspace(0, 1, 10):
+        out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
+        out = (t * out_x + (1 - t) * out_y) - out_xy
+        self.assertAllClose(
+          out, jnp.zeros(n_samples), atol=1e-4)
+
+  @parameterized.parameters({'n_samples': 10})
+  def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):
+    """Tests convexity of input convex neural network."""
+
+    # define icnn model
+    icnn = ICNN(dim_hidden)
+
+    # initialize model
+    params = icnn.init(self.rng, jnp.ones(n_samples, ))['params']
+
+    # check if Hessian is positive-semidefinite via eigenvalues
+    data = jax.random.normal(self.rng, (n_samples, ))
+
+    # compute Hessian
+    hessian = jax.jacfwd(jax.jacrev(icnn.apply, argnums=1), argnums=1)
+    icnn_hess = hessian({'params': params}, data)
+
+    # compute eigenvalues
+    w, _ = jnp.linalg.eig(icnn_hess)
+
+    self.assertTrue((w >= 0).all())
 
 
 if __name__ == '__main__':
