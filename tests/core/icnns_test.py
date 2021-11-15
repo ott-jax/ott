@@ -74,5 +74,6 @@ class ICNNTest(jax.test_util.JaxTestCase):
 
     self.assertTrue((w >= 0).all())
 
+
 if __name__ == '__main__':
   absltest.main()
