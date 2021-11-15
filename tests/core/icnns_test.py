@@ -54,7 +54,7 @@ class ICNNTest(jax.test_util.JaxTestCase):
 
   @parameterized.parameters({'n_samples': 10})
   def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):
-    """Tests is Hessian of ICNN is positive-semidefinite."""
+    """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model
     icnn = ICNN(dim_hidden)

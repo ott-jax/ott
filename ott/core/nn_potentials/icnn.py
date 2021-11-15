@@ -79,8 +79,8 @@ class ICNN(nn.Module):
   """Input convex neural network (ICNN) architeture.
 
   Args:
-    dim_hidden: sequence specifying dimension of hidden dimensions. The
-      output dimension is 1 by default.
+    dim_hidden: sequence specifying size of hidden dimensions. The
+      output dimension of the last layer is 1 by default.
     init_std: value of standard deviation of weight initialization method.
     init_fn: choice of initialization method for weight matrices (default:
       `jax.nn.initializers.normal`).
@@ -120,11 +120,10 @@ class ICNN(nn.Module):
     """Applies ICNN module.
 
     Args:
-      x jnp.ndarray<float>[batch_size, n_features]: input to the input
-        convex neural network.
+      x: jnp.ndarray<float>[batch_size, n_features]: input to the ICNN.
 
     Returns:
-      jnp.ndarray<float>[1]: output of input convex neural network.
+      jnp.ndarray<float>[1]: output of ICNN.
     """
     z = self.act_fn(self.Wxs[0](x))
     z = jnp.multiply(z, z)
