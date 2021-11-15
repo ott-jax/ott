@@ -1,0 +1,59 @@
+# coding=utf-8
+# Copyright 2021 Google LLC.
+#
+# Licensed under the Ap`ache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Lint as: python3
+"""Tests for ICNN network architecture."""
+
+from absl.testing import absltest
+from absl.testing import parameterized
+import jax
+import jax.numpy as jnp
+import jax.test_util
+from ott.core.nn_potentials.icnn import ICNN
+
+
+class ICNNTest(jax.test_util.JaxTestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.rng = jax.random.PRNGKey(0)
+
+  @parameterized.parameters({'n_samples': 10, 'n_features': 2})
+  def test_icnn_convexity(self, n_samples, n_features, dim_hidden=[64, 64]):
+    """Tests convexity of input convex neural network."""
+
+    # define icnn model
+    icnn = ICNN(dim_hidden)
+
+    # initialize model
+    params = icnn.init(self.rng, jnp.ones(n_features))['params']
+
+    # check convexity
+    for _ in range(n_samples):
+        x = jax.random.normal(self.rng, (n_samples, n_features))
+        y = jax.random.normal(self.rng, (n_samples, n_features))
+
+        out_x = icnn.apply({'params': params}, x)
+        out_y = icnn.apply({'params': params}, x)
+
+        for t in jnp.linspace(0, 1, 10):
+            out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
+            out = (t * out_x + (1 - t) * out_y) - out_xy
+            self.assertAllClose(
+              jnp.minimum(out, 0), jnp.zeros(n_samples), atol=1e-5)
+
+
+if __name__ == '__main__':
+  absltest.main()
