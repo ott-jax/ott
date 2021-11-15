@@ -32,7 +32,7 @@ class ICNNTest(jax.test_util.JaxTestCase):
 
   @parameterized.parameters({'n_samples': 10, 'n_features': 2})
   def test_icnn_convexity(self, n_samples, n_features, dim_hidden=[64, 64]):
-    """Tests convexity of input convex neural network."""
+    """Tests convexity of ICNN."""
 
     # define icnn model
     icnn = ICNN(dim_hidden)
@@ -49,13 +49,12 @@ class ICNNTest(jax.test_util.JaxTestCase):
 
     for t in jnp.linspace(0, 1, 10):
         out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
-        out = (t * out_x + (1 - t) * out_y) - out_xy
-        self.assertAllClose(
-          out, jnp.zeros(n_samples), atol=1e-4)
+        out = (t * out_x + (1 - t) * out_y) - out_xy + 1e-5
+        self.assertTrue((out >= 0).all())
 
   @parameterized.parameters({'n_samples': 10})
   def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):
-    """Tests convexity of input convex neural network."""
+    """Tests is Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model
     icnn = ICNN(dim_hidden)
@@ -74,7 +73,6 @@ class ICNNTest(jax.test_util.JaxTestCase):
     w, _ = jnp.linalg.eig(icnn_hess)
 
     self.assertTrue((w >= 0).all())
-
 
 if __name__ == '__main__':
   absltest.main()
