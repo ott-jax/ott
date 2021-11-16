@@ -49,6 +49,7 @@ Cost Functions
 
     costs.CostFn
     costs.Euclidean
+    costs.Cosine
     costs.Bures
     costs.UnbalancedBures
 
