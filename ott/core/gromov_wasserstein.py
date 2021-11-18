@@ -150,8 +150,6 @@ def gromov_wasserstein(
   if loss_fn is None:
     raise ValueError('Unknown loss. Either pass an instance of GWLoss or '
                      f'a string among: [{",".join(GW_LOSSES.keys())}]')
-  sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
-
   tau_a = sinkhorn_kwargs.get('tau_a', 1.0)
   tau_b = sinkhorn_kwargs.get('tau_b', 1.0)
   if tau_a != 1.0 or tau_b != 1.0:
