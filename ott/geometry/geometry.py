@@ -105,8 +105,12 @@ class Geometry:
 
   @property
   def cost_matrix(self):
+    """Returns cost matrix, computes it if only kernel was specified."""
     if self._cost_matrix is None:
-      return -self.epsilon * jnp.log(self._kernel_matrix)
+      # If no epsilon was passed on to the geometry, then assume it is one by
+      # default.
+      cost = -jnp.log(self._kernel_matrix)
+      return cost if self._epsilon_init is None else self.epsilon * cost
     return self._cost_matrix
 
   @property
