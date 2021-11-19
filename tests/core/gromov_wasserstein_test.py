@@ -47,8 +47,8 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_gradient_marginals_gromov_wasserstein(self, jit):
     """Test gradient w.r.t. probability weights."""
-    geom_x = pointcloud.PointCloud(self.x, self.x)
-    geom_y = pointcloud.PointCloud(self.y, self.y)
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
 
     def reg_gw(a, b, implicit):
       sinkhorn_kwargs = {'implicit_differentiation': implicit,
@@ -78,12 +78,24 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
                         rtol=1e-02, atol=1e-02)
 
   @parameterized.parameters([True], [False])
+  def test_gromov_wasserstein_pointcloud(self, lse_mode):
+    """Test basic computations pointclouds."""
+
+    def reg_gw(x, y, a, b):
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x, geom_y, a=a, b=b, epsilon=1.0, max_iterations=10).reg_gw_cost
+
+    self.assertIsNot(jnp.isnan(reg_gw(self.x, self.y, self.a, self.b)), True)
+
+  @parameterized.parameters([True], [False])
   def test_gradient_gromov_wasserstein_pointcloud(self, lse_mode):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, a, b, implicit):
-      geom_x = pointcloud.PointCloud(x, x)
-      geom_y = pointcloud.PointCloud(y, y)
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
       sinkhorn_kwargs = {'implicit_differentiation': implicit,
                          'max_iterations': 1001, 'lse_mode': lse_mode}
       return gromov_wasserstein.gromov_wasserstein(
