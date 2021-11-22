@@ -41,16 +41,18 @@ class ICNNTest(jax.test_util.JaxTestCase):
     params = icnn.init(self.rng, jnp.ones(n_features))['params']
 
     # check convexity
-    x = jax.random.normal(self.rng, (n_samples, n_features))
+    x = jax.random.normal(self.rng, (n_samples, n_features)) * 0.1
     y = jax.random.normal(self.rng, (n_samples, n_features))
 
-    out_x = icnn.apply({'params': params}, x) + 1e-5
-    out_y = icnn.apply({'params': params}, y) + 1e-5
+    out_x = icnn.apply({'params': params}, x)
+    out_y = icnn.apply({'params': params}, y)
 
-    for t in jnp.linspace(0, 1, 10):
+    out = list()
+    for t in jnp.linspace(0, 1):
       out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
-      out = (t * out_x + (1 - t) * out_y) - out_xy
-      self.assertTrue((out >= 0).all())
+      out.append((t * out_x + (1 - t) * out_y) - out_xy)
+
+    self.assertTrue((jnp.array(out) >= 0).all())
 
   @parameterized.parameters({'n_samples': 10})
   def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):
