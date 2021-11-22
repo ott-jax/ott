@@ -70,9 +70,11 @@ Currently implements the following classes and functions:
 -   In the [core](ott/core) folder,
     -   The `sinkhorn` function in [sinkhorn.py](ott/core/sinkhorn.py) runs the Sinkhorn algorithm, with the aim of solving approximately one or various optimal transport problems in parallel. An OT problem is defined by a `Geometry` object, and a pair <img src="https://render.githubusercontent.com/render/math?math=%24(a%2C%20b)%24"> (or batch thereof) of histograms. The function's outputs are stored in a `SinkhornOutput` named t-uple, containing potentials, regularized OT cost, sequence of errors and a convergence flag. Such outputs (with the exception of errors and convergence flag) can be differentiated w.r.t. any of the three inputs `(Geometry, a, b)` either through backprop or implicit differentiation of the optimality conditions of the optimal potentials `f` and `g`.
 
-    -   In [discrete_barycenter.py](ott/tools/discrete_barycenter.py): implementation of discrete Wasserstein barycenters : given <img src="https://render.githubusercontent.com/render/math?math=%24N%24"> histograms all supported on the same `Geometry`, compute a barycenter of theses measures, using an algorithm by [Janati et al. (2020)](https://arxiv.org/abs/2006.02575)
+    -   In [discrete_barycenter.py](ott/core/discrete_barycenter.py): implementation of discrete Wasserstein barycenters : given <img src="https://render.githubusercontent.com/render/math?math=%24N%24"> histograms all supported on the same `Geometry`, compute a barycenter of theses measures, using an algorithm by [Janati et al. (2020)](https://arxiv.org/abs/2006.02575)
 
-    -   In [gromov_wasserstein.py](ott/tools/gromov_wasserstein.py): implementation of the Gromov-Wasserstein metric between measured-metric spaces, here encoded as a pair of `Geometry` objects along with weights `a` and `b`.
+    -   In [gromov_wasserstein.py](ott/core/gromov_wasserstein.py): implementation of the Gromov-Wasserstein metric between measured-metric spaces, here encoded as a pair of `Geometry` objects along with weights `a` and `b`.
+
+    -   In [icnn.py](ott/core/icnn.py): implementation of input convex neural networks using the [flax](https://github.com/google/flax) library.
 
 -   In the [tools](ott/tools) folder,
 
