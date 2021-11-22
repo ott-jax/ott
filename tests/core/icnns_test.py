@@ -44,13 +44,13 @@ class ICNNTest(jax.test_util.JaxTestCase):
     x = jax.random.normal(self.rng, (n_samples, n_features))
     y = jax.random.normal(self.rng, (n_samples, n_features))
 
-    out_x = icnn.apply({'params': params}, x)
-    out_y = icnn.apply({'params': params}, y)
+    out_x = icnn.apply({'params': params}, x) + 1e-5
+    out_y = icnn.apply({'params': params}, y) + 1e-5
 
     for t in jnp.linspace(0, 1, 10):
-        out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
-        out = (t * out_x + (1 - t) * out_y) - out_xy + 1e-5
-        self.assertTrue((out >= 0).all())
+      out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
+      out = (t * out_x + (1 - t) * out_y) - out_xy
+      self.assertTrue((out >= 0).all())
 
   @parameterized.parameters({'n_samples': 10})
   def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):

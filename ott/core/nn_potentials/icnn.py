@@ -28,12 +28,11 @@ Array = Any
 
 
 class PositiveDense(nn.Module):
-  """A linear transformation with positive weight matrix.
+  """A linear transformation using a weight matrix with all entries positive.
 
   Args:
     dim_hidden: the number of output dim_hidden.
-    beta: value for softplus formation to restrict weights to positive
-      values only.
+    beta: inverse temperature parameter of the softplus function (default: 1).
     use_bias: whether to add a bias to the output (default: True).
     dtype: the dtype of the computation (default: float32).
     precision: numerical precision of computation see `jax.lax.Precision`
@@ -96,24 +95,24 @@ class ICNN(nn.Module):
   def setup(self):
     num_hidden = len(self.dim_hidden)
 
-    Wzs = list()
+    w_zs = list()
 
     for i in range(1, num_hidden):
-      Wzs.append(PositiveDense(
+      w_zs.append(PositiveDense(
         self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
         use_bias=False))
-    Wzs.append(PositiveDense(
+    w_zs.append(PositiveDense(
       1, kernel_init=self.init_fn(self.init_std), use_bias=False))
-    self.Wzs = Wzs
+    self.w_zs = w_zs
 
-    Wxs = list()
+    w_xs = list()
     for i in range(num_hidden):
-      Wxs.append(nn.Dense(
+      w_xs.append(nn.Dense(
         self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
         use_bias=True))
-    Wxs.append(nn.Dense(
+    w_xs.append(nn.Dense(
       1, kernel_init=self.init_fn(self.init_std), use_bias=True))
-    self.Wxs = Wxs
+    self.w_xs = w_xs
 
   @nn.compact
   def __call__(self, x):
@@ -125,11 +124,11 @@ class ICNN(nn.Module):
     Returns:
       jnp.ndarray<float>[1]: output of ICNN.
     """
-    z = self.act_fn(self.Wxs[0](x))
+    z = self.act_fn(self.w_xs[0](x))
     z = jnp.multiply(z, z)
 
-    for Wz, Wx in zip(self.Wzs[:-1], self.Wxs[1:-1]):
+    for Wz, Wx in zip(self.w_zs[:-1], self.w_xs[1:-1]):
       z = self.act_fn(jnp.add(Wz(z), Wx(x)))
-    y = jnp.add(self.Wzs[-1](z), self.Wxs[-1](x))
+    y = jnp.add(self.w_zs[-1](z), self.w_xs[-1](x))
 
     return jnp.squeeze(y)
