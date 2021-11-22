@@ -21,7 +21,7 @@ from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import jax.test_util
-from ott.core.nn_potentials.icnn import ICNN
+from ott.core.icnn import ICNN
 
 
 class ICNNTest(jax.test_util.JaxTestCase):
