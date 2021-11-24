@@ -111,19 +111,16 @@ def _sinkhorn_divergence(
   # on a simpler choice (parallel_dual_updates + momentum 0.5) that is known
   # to work well in such settings. In the future we might want to give some
   # freedom on setting parameters for the (x,x)/(y,y) part.
+  # Since symmetric terms are computed assuming a = b, the linear systems
+  # arising in implicit differentiation (if used) of the potentials computed for
+  # the symmetric parts should be marked as symmetric.
   kwargs_symmetric = kwargs.copy()
   kwargs_symmetric.update(
       parallel_dual_updates=True,
       momentum=0.5,
       chg_momentum_from=0,
-      anderson_acceleration=0)
-
-  # Since symmetric terms are computed assuming a = b, the linear systems
-  # arising in implicit differentiation (if used) of the potentials computed for
-  # the symmetric parts should be marked as symmetric.
-  linear_solve_kwargs = kwargs_symmetric.pop('linear_solve_kwargs', {})
-  linear_solve_kwargs.update(symmetric=True)
-  kwargs_symmetric.update(linear_solve_kwargs=linear_solve_kwargs)
+      anderson_acceleration=0,
+      implicit_solver_symmetric=True)
 
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)

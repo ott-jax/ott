@@ -63,7 +63,8 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
           implicit_differentiation=implicit,
           use_danskin=False,
           threshold=1e-4,
-          linear_solve_kwargs={'ridge_kernel': 1e-4, 'ridge_identity': 1e-4})
+          implicit_solver_ridge_kernel=1e-4,
+          implicit_solver_ridge_identity=1e-4)
       return out.reg_ot_cost
 
     delta_a = jax.random.uniform(rngs[4], (n,))

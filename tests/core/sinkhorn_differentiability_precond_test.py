@@ -66,6 +66,8 @@ class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
                             x,
                             precondition_fun=None,
                             linear_solve_kwargs=None):
+      if linear_solve_kwargs is None:
+        linear_solve_kwargs = {}
       out = transport.Transport(
           x,
           y,
@@ -76,7 +78,7 @@ class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
           tau_b=tau_b,
           lse_mode=lse_mode,
           precondition_fun=precondition_fun,
-          linear_solve_kwargs=linear_solve_kwargs)
+          **linear_solve_kwargs)
       return jnp.sum(random_dir * out._f)
 
     # Compute implicit gradient
@@ -86,7 +88,7 @@ class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
                 loss_from_potential,
                 precondition_fun=lambda x: x,
                 linear_solve_kwargs={
-                    'symmetric': True
+                    'implicit_solver_symmetric': True
                 }),
             argnums=arg))
 

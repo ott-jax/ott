@@ -19,7 +19,7 @@
 import collections
 import functools
 from typing import Any
-from typing import Optional, Sequence, Union, Tuple, Mapping, Callable
+from typing import Optional, Sequence, Tuple, Callable
 
 import jax
 import jax.numpy as jnp
@@ -48,7 +48,10 @@ def sinkhorn(
     refresh_anderson_frequency: int = 1,
     lse_mode: bool = True,
     implicit_differentiation: bool = True,
-    linear_solve_kwargs: Optional[Mapping[str, Union[Callable, float]]] = None,
+    implicit_solver_fun=jax.scipy.sparse.linalg.cg,
+    implicit_solver_ridge_kernel: float = 0.0,
+    implicit_solver_ridge_identity: float = 0.0,
+    implicit_solver_symmetric: bool = False,
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
@@ -164,7 +167,7 @@ def sinkhorn(
   Differentiation:
     The optimal solutions ``f`` and ``g`` and the optimal objective (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit differentiation of the optimality conditions (``implicit_differentiation`` set to ``True``). This choice has two consequences.
 
-      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate ``f`` and ``g``, given a change in the inputs. These changes are computed by solving a linear system. The argument ``linear_solve_kwargs`` allows to define the linear solver that is used, and to control for two types or regularization (we have observed that, depending on the architecture, linear solves may require higher ridge parameters to remain stable). The optimality conditions in Sinkhorn can be analyzed as satisfying a ``z=z'`` condition, which are then differentiated. It might be beneficial (e.g. as in https://arxiv.org/abs/2002.03229) to use a preconditionning function ``precondition_fun`` to differentiate instead ``h(z)=h(z')``.
+      - The termination criterion used to stop Sinkhorn (cancellation of gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate ``f`` and ``g``, given a change in the inputs. These changes are computed by solving a linear system. The arguments starting with ``implicit_solver_*`` allow to define the linear solver that is used, and to control for two types or regularization (we have observed that, depending on the architecture, linear solves may require higher ridge parameters to remain stable). The optimality conditions in Sinkhorn can be analyzed as satisfying a ``z=z'`` condition, which are then differentiated. It might be beneficial (e.g. as in https://arxiv.org/abs/2002.03229) to use a preconditionning function ``precondition_fun`` to differentiate instead ``h(z)=h(z')``.
 
       - The objective ``reg_ot_cost`` returned by Sinkhon uses the so-called enveloppe (or Danskin's) theorem. In that case, because it is assumed that the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are optimal), small variations in ``f_u`` and ``g_v`` due to changes in inputs (such as ``geom``, ``a`` and ``b``) are considered negligible. As a result, ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v`` when evaluating the ``reg_ot_cost`` objective. Note that this approach is `invalid` when computing higher order derivatives. In that case the ``use_danskin`` flag must be set to ``False``.
 
@@ -222,11 +225,10 @@ def sinkhorn(
       multiplication.
     implicit_differentiation: ``True`` if using implicit differentiation,
       ``False`` if unrolling Sinkhorn iterations.
-    linear_solve_kwargs: parameterization of linear solver when using implicit
-      differentiation. Arguments currently accepted appear in the optional
-      arguments of ``solve_implicit_system``, namely ``linear_solver_fun``,  a
-      Callable that specifies the linear solver, as well as ``ridge_kernel`` and
-      ``ridge_identity``, to be added to enforce stability of linear solve.
+    implicit_solver_fun: see ``solve_implicit_system``
+    implicit_solver_ridge_kernel: see ``solve_implicit_system``
+    implicit_solver_ridge_identity: see ``solve_implicit_system``
+    implicit_solver_symmetric: see ``solve_implicit_system``
     precondition_fun: Callable to modify FOC before differentiating them in
       implicit differentiation.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
@@ -288,7 +290,7 @@ def sinkhorn(
 
   if jit:
     call_to_sinkhorn = functools.partial(
-        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 20)))(
+        jax.jit, static_argnums=(3, 4, 6, 7, 8, 9) + tuple(range(11, 23)))(
             _sinkhorn)
   else:
     call_to_sinkhorn = _sinkhorn
@@ -297,7 +299,11 @@ def sinkhorn(
                           momentum, chg_momentum_from, anderson_acceleration,
                           refresh_anderson_frequency,
                           lse_mode, implicit_differentiation,
-                          linear_solve_kwargs, precondition_fun,
+                          implicit_solver_fun,
+                          implicit_solver_ridge_kernel,
+                          implicit_solver_ridge_identity,
+                          implicit_solver_symmetric,
+                          precondition_fun,
                           parallel_dual_updates,
                           use_danskin, init_dual_a, init_dual_b)
 
@@ -319,7 +325,10 @@ def _sinkhorn(
     refresh_anderson_frequency: int,
     lse_mode: bool,
     implicit_differentiation: bool,
-    linear_solve_kwargs: Mapping[str, Union[Callable, float]],
+    implicit_solver_fun: Callable,
+    implicit_solver_ridge_kernel: float,
+    implicit_solver_ridge_identity: float,
+    implicit_solver_symmetric: bool,
     precondition_fun: Callable[[float], float],
     parallel_dual_updates: bool,
     use_danskin: bool,
@@ -339,7 +348,9 @@ def _sinkhorn(
   f, g, errors = iteration_fun(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
       chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-      lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
+      lse_mode, implicit_differentiation, implicit_solver_fun,
+      implicit_solver_ridge_kernel, implicit_solver_ridge_identity,
+      implicit_solver_symmetric, precondition_fun,
       parallel_dual_updates, init_dual_a, init_dual_b, momentum, threshold,
       norm_error, geom, a, b)
 
@@ -380,7 +391,10 @@ def _sinkhorn_iterations(
     refresh_anderson_frequency: int,
     lse_mode: bool,
     implicit_differentiation: bool,
-    linear_solve_kwargs: Mapping[str, Union[Callable[[Any], Any], float]],
+    implicit_solver_fun: Callable,
+    implicit_solver_ridge_kernel: float,
+    implicit_solver_ridge_identity: float,
+    implicit_solver_symmetric: bool,
     precondition_fun: Callable[[float], float],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
@@ -413,8 +427,10 @@ def _sinkhorn_iterations(
     implicit_differentiation: if True, do not backprop through the Sinkhorn
       loop, but use the implicit function theorem on the fixed point optimality
       conditions.
-    linear_solve_kwargs: parameterization of linear solver when using implicit
-      differentiation.
+    implicit_solver_fun: see ``solve_implicit_system``
+    implicit_solver_ridge_kernel: see ``solve_implicit_system``
+    implicit_solver_ridge_identity: see ``solve_implicit_system``
+    implicit_solver_symmetric: see ``solve_implicit_system``
     precondition_fun: preconditioning function to stabilize FOC system.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
@@ -439,7 +455,9 @@ def _sinkhorn_iterations(
   f_u, g_v = init_dual_a, init_dual_b
 
   # Delete arguments not used in forward pass.
-  del linear_solve_kwargs, precondition_fun
+  del implicit_solver_fun, implicit_solver_ridge_kernel
+  del implicit_solver_ridge_identity, implicit_solver_symmetric
+  del precondition_fun
 
   # Defining the Sinkhorn loop, by setting initializations, body/cond.
   errors = -jnp.ones(
@@ -559,7 +577,8 @@ def _sinkhorn_iterations(
     # previous updates (if iteration count sufficiently large), then record
     # new iterations in array.
     if anderson_acceleration:
-      f_u, old_f_u_s = anderson_update(iteration, f_u, old_f_u_s, old_mapped_f_u_s)
+      f_u, old_f_u_s = anderson_update(
+          iteration, f_u, old_f_u_s, old_mapped_f_u_s)
 
     # In lse_mode, run additive updates.
     if lse_mode:
@@ -637,7 +656,10 @@ def _sinkhorn_iterations_taped(
     refresh_anderson_frequency: int,
     lse_mode: bool,
     implicit_differentiation: bool,
-    linear_solve_kwargs: Optional[Mapping[str, Any]],
+    implicit_solver_fun: Callable,
+    implicit_solver_ridge_kernel: float,
+    implicit_solver_ridge_identity: float,
+    implicit_solver_symmetric: bool,
     precondition_fun: Optional[Callable[[float], float]],
     parallel_dual_updates: bool,
     init_dual_a: jnp.ndarray,
@@ -652,7 +674,12 @@ def _sinkhorn_iterations_taped(
   f, g, errors = _sinkhorn_iterations(
       tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
       chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-      lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
+      lse_mode, implicit_differentiation,
+      implicit_solver_fun,
+      implicit_solver_ridge_kernel,
+      implicit_solver_ridge_identity,
+      implicit_solver_symmetric,
+      precondition_fun,
       parallel_dual_updates, init_dual_a, init_dual_b, momentum,
       threshold, norm_error, geom, a, b)
   return (f, g, errors), (f, g, geom, a, b)
@@ -661,7 +688,9 @@ def _sinkhorn_iterations_taped(
 def _sinkhorn_iterations_implicit_bwd(
     tau_a, tau_b, inner_iterations, min_iterations, max_iterations,
     chg_momentum_from, anderson_acceleration, refresh_anderson_frequency,
-    lse_mode, implicit_differentiation, linear_solve_kwargs, precondition_fun,
+    lse_mode, implicit_differentiation, implicit_solver_fun,
+    implicit_solver_ridge_kernel, implicit_solver_ridge_identity,
+    implicit_solver_symmetric, precondition_fun,
     parallel_dual_updates, res, gr
 ) -> Tuple[Any, Any, Any, Any, geometry.Geometry, jnp.ndarray, jnp.ndarray]:
   """Runs Sinkhorn in backward mode, using implicit differentiation.
@@ -678,7 +707,10 @@ def _sinkhorn_iterations_implicit_bwd(
     lse_mode: True for log-sum-exp computations, False for kernel
       multiplication.
     implicit_differentiation: implicit or backprop.
-    linear_solve_kwargs: arguments to define linear solve and regularizers.
+    implicit_solver_fun: see ``solve_implicit_system``
+    implicit_solver_ridge_kernel: see ``solve_implicit_system``
+    implicit_solver_ridge_identity: see ``solve_implicit_system``
+    implicit_solver_symmetric: see ``solve_implicit_system``
     precondition_fun: function to apply to the two blocks of the first
       order condition.
     parallel_dual_updates: update sequence.
@@ -700,13 +732,13 @@ def _sinkhorn_iterations_implicit_bwd(
   # Ignores gradients info with respect to 'errors' output.
   gr = gr[0], gr[1]
 
-  # Pass empty kwargs if None given.
-  if linear_solve_kwargs is None:
-    linear_solve_kwargs = {}
-
   # Applies first part of vjp to gr: inverse part of implicit function theorem.
   vjp_gr = solve_implicit_system(gr, geom, a, b, f, g, tau_a, tau_b, lse_mode,
-                                 precondition_fun, **linear_solve_kwargs)
+                                 precondition_fun,
+                                 implicit_solver_fun,
+                                 implicit_solver_ridge_kernel,
+                                 implicit_solver_ridge_identity,
+                                 implicit_solver_symmetric)
 
   # Instantiates vjp of first order conditions of the objective, as a
   # function of geom, a and b parameters (against which we differentiate)
@@ -726,7 +758,7 @@ def _sinkhorn_iterations_implicit_bwd(
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non static. Only differentiability w.r.t. geom, a and b will be used.
 _sinkhorn_iterations_implicit = functools.partial(
-    jax.custom_vjp, nondiff_argnums=range(13))(
+    jax.custom_vjp, nondiff_argnums=range(16))(
         _sinkhorn_iterations)
 _sinkhorn_iterations_implicit.defvjp(_sinkhorn_iterations_taped,
                                      _sinkhorn_iterations_implicit_bwd)
@@ -944,12 +976,10 @@ def solve_implicit_system(
     tau_b: float,
     lse_mode: bool,
     precondition_fun: Callable[[float], float],
-    linear_solver_fun: Callable[
-        [Callable[[jnp.ndarray], jnp.ndarray], jnp.ndarray],
-        Tuple[jnp.ndarray, Any]] = jax.scipy.sparse.linalg.cg,
-    ridge_kernel: float = 0.0,
-    ridge_identity: float = 0.0,
-    symmetric: bool = False):
+    implicit_solver_fun: Callable,
+    ridge_kernel: float,
+    ridge_identity: float,
+    symmetric: bool):
   r"""Applies minus inverse of [hessian of ``reg_ot_cost`` w.r.t ``f``, ``g``].
 
   This function is used to carry out implicit differentiation of ``sinkhorn``
@@ -1007,7 +1037,7 @@ def solve_implicit_system(
   or kernel matrix are numerically close. To avoid this, we add a more global
   ``ridge_identity * z`` regularizer to achieve better conditioning.
 
-  These linear systems are solved using the user defined ``linear_solver_fun``,
+  These linear systems are solved using the user defined ``implicit_solver_fun``,
   which is set by default to ``cg``. When the system is symmetric (as detected
   by the corresponding flag ``symmetric``), ``cg`` is applied directly. When it
   is not, normal equations are used (i.e. the Schur complement is multiplied by
@@ -1024,7 +1054,7 @@ def solve_implicit_system(
     tau_b: float, ratio lam/(lam+eps), ratio of regularizers, second marginal.
     lse_mode: bool, log-sum-exp mode if True, kernel else.
     precondition_fun: preconditioning function to stabilize FOC implicit system.
-    linear_solver_fun: Callable, should return (solution, ...)
+    implicit_solver_fun: Callable, should return (solution, ...)
     ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are colinear, or,
@@ -1084,8 +1114,8 @@ def solve_implicit_system(
       schur = lambda z: (
           schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + ridge_identity * z)
 
-    sch_f = linear_solver_fun(schur, g0)[0]
-    sch_g = linear_solver_fun(schur, g1)[0]
+    sch_f = implicit_solver_fun(schur, g0)[0]
+    sch_g = implicit_solver_fun(schur, g1)[0]
     vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
     vjp_gr_g = -sch_f + sch_g
   else:
@@ -1103,8 +1133,8 @@ def solve_implicit_system(
       schur = lambda z: (schur_t(schur_(z)) + ridge_kernel * jnp.sum(z)
                          + ridge_identity * z)
 
-    sch_g = linear_solver_fun(schur, g0)[0]
-    sch_f = linear_solver_fun(schur, g1)[0]
+    sch_g = implicit_solver_fun(schur, g0)[0]
+    sch_f = implicit_solver_fun(schur, g1)[0]
     vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
     vjp_gr_f = -sch_g + sch_f
 

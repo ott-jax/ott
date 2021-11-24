@@ -203,6 +203,15 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     gradient = jax.grad(reg_ot_cost)(cost)
     self.assertFalse(jnp.any(jnp.isnan(gradient)))
 
+  def test_differentiability_with_jit(self):
+    cost = jax.random.uniform(self.rng, (15, 17))
+
+    def reg_ot_cost(c):
+      geom = geometry.Geometry(c, epsilon=1e-2)  # autoepsilon.
+      return sinkhorn.sinkhorn(geom, jit=True).reg_ot_cost
+
+    gradient = jax.grad(reg_ot_cost)(cost)
+    self.assertFalse(jnp.any(jnp.isnan(gradient)))
 
 if __name__ == '__main__':
   absltest.main()
