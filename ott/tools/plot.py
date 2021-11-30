@@ -54,7 +54,7 @@ class Plot:
                cost_threshold: float = 0.0,
                scale: int = 200,
                show_lines: bool = True,
-               cmap: str = 'Purples'):
+               cmap: str = 'cool'):
     if ax is None and fig is None:
       fig, ax = plt.subplots()
     elif fig is None:
