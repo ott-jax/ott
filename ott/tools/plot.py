@@ -124,13 +124,14 @@ class Plot:
       return
 
     new_lines = self._mapping(x, y, ot.matrix)
+    cmap = plt.get_cmap(self._cmap)
     for line, new_line in zip(self._lines, new_lines):
       start, end, strength = new_line
       line.set_data(start, end)
       line.set_linewidth(0.5 + 4 * strength)
+      line.set_color(cmap(strength))
 
     # Maybe add new lines to the plot.
-    cmap = plt.get_cmap(self._cmap)
     num_lines = len(self._lines)
     num_to_plot = len(new_lines) if self._show_lines else 0
     for i in range(num_lines, num_to_plot):
