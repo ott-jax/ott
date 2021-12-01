@@ -147,6 +147,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ott.core import anderson as anderson_lib
+from ott.core import dataclasses
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import momentum as momentum_lib
@@ -154,8 +155,39 @@ from ott.core import problems
 from ott.geometry import geometry
 
 
-SinkhornOutput = collections.namedtuple(
-    'SinkhornOutput', ['f', 'g', 'reg_ot_cost', 'errors', 'converged'])
+@dataclasses.register_pytree_node
+class SinkhornOutput:
+  """Holds the outputs of the Sinkhorn algorithm."""
+  f: jnp.ndarray
+  g: jnp.ndarray
+  reg_ot_cost: jnp.ndarray
+  errors: jnp.ndarray
+  converged: jnp.ndarray
+
+  def __iter__(self):
+    """For backward compatibility with namedtuple."""
+    yield from vars(self).values()
+
+  def scalings(self, geom):
+    u = geom.scaling_from_potential(self.f)
+    v = geom.scaling_from_potential(self.g)
+    return u, v
+
+  def matrix(self, geom) -> jnp.ndarray:
+    """Transport matrix if it can be instantiated."""
+    try:
+      return geom.transport_from_potentials(self.f, self.g)
+    except ValueError:
+      return geom.transport_from_scalings(*self.scalings(geom))
+
+  def apply(self, geom, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies the transport to a ndarray; axis=1 for its transpose."""
+    try:
+      return geom.apply_transport_from_potentials(
+          self.f, self.g, inputs, axis=axis)
+    except ValueError:
+      u, v = self.scalings(geom)
+      return geom.apply_transport_from_scalings(u, v, inputs, axis=axis)
 
 
 @jax.tree_util.register_pytree_node_class

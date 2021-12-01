@@ -28,6 +28,11 @@ from ott.geometry import geometry
 non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
 
+def assert_output_close(x, y):
+  """Asserst SinkhornOutputs are close."""
+  return chex.assert_tree_all_close(tuple(x), tuple(y), atol=1e-6, rtol=0)
+
+
 class SinkhornTest(jax.test_util.JaxTestCase):
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
@@ -61,10 +66,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       return non_jitted_sinkhorn(g, a, b)
 
     user_jitted_result = jax.jit(f)(self.geometry, self.a, self.b)
-    chex.assert_tree_all_close(
-        jitted_result, non_jitted_result, atol=1e-6, rtol=0)
-    chex.assert_tree_all_close(
-        jitted_result, user_jitted_result, atol=1e-6, rtol=0)
+    assert_output_close(jitted_result, non_jitted_result)
+    assert_output_close(jitted_result, user_jitted_result)
 
   @parameterized.parameters([True, False])
   def test_jit_vs_non_jit_bwd(self, implicit):
@@ -88,13 +91,12 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     def value_and_grad(a, x):
       return jax.value_and_grad(loss)(a, x, non_jitted_sinkhorn)
 
-    jitted_loss, jitted_grad = jax.value_and_grad(loss)(self.a, self.x,
-                                                        sinkhorn.sinkhorn)
+    jitted_loss, jitted_grad = jax.value_and_grad(loss)(
+        self.a, self.x, sinkhorn.sinkhorn)
     non_jitted_loss, non_jitted_grad = jax.value_and_grad(loss)(
         self.a, self.x, non_jitted_sinkhorn)
 
     user_jitted_loss, user_jitted_grad = jax.jit(value_and_grad)(self.a, self.x)
-
     chex.assert_tree_all_close(jitted_loss, non_jitted_loss, atol=1e-6, rtol=0)
     chex.assert_tree_all_close(jitted_grad, non_jitted_grad, atol=1e-6, rtol=0)
     chex.assert_tree_all_close(user_jitted_loss, jitted_loss, atol=1e-6, rtol=0)
