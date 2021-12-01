@@ -25,7 +25,7 @@ from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
 
-class SinkhornJacobianTest(jax.test_util.JaxTestCase):
+class SinkhornAndersonTest(jax.test_util.JaxTestCase):
   """Tests for Anderson acceleration."""
 
   def setUp(self):

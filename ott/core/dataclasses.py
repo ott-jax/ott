@@ -13,20 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""OTT core libraries: the engines behind most computations happening in OTT."""
+"""pytree_nodes Dataclasses."""
 
-# pytype: disable=import-error  # kwargs-checking
-from . import anderson
-from . import dataclasses
-from . import discrete_barycenter
-from . import gromov_wasserstein
-from . import icnn
-from . import implicit_differentiation
-from . import momentum
-from . import problems
-from . import sinkhorn
+import dataclasses
+import jax
 
-from .implicit_differentiation import ImplicitDiff
-from .problems import LinearProblem
-from .sinkhorn import Sinkhorn
-# pytype: enable=import-error  # kwargs-checking
+
+def register_pytree_node(cls):
+  """Decorator to register dataclasses as pytree_nodes."""
+  cls = dataclasses.dataclass()(cls)
+  flatten = lambda obj: jax.tree_flatten(dataclasses.asdict(obj))
+  unflatten = lambda d, children: cls(**d.unflatten(children))
+  jax.tree_util.register_pytree_node(cls, flatten, unflatten)
+  return cls

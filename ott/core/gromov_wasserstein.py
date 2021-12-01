@@ -23,6 +23,7 @@ from typing import Optional, Union, Tuple, Any, Dict
 import jax
 import jax.numpy as jnp
 from ott.core import sinkhorn
+from ott.core import problems
 from ott.geometry import costs
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
@@ -180,11 +181,10 @@ def gromov_wasserstein(
   transport = geom_gw.transport_from_potentials(f, g)
   cost_matrix = 0.5 * geom_gw.cost_matrix
   gw_cost = jnp.sum(transport * cost_matrix)
-  reg_gw_cost = sinkhorn.ent_reg_cost(
-      geom_gw, a, b, tau_a, tau_b,
-      jax.lax.stop_gradient(f),
-      jax.lax.stop_gradient(g),
-      lse_mode=True)
+  prob = problems.LinearProblem(geom_gw, a, b, tau_a, tau_b)
+  reg_gw_cost = prob.ent_reg_cost(jax.lax.stop_gradient(f),
+                                  jax.lax.stop_gradient(g),
+                                  lse_mode=True)
   return GromovWassersteinOutput(f, g, transport, cost_matrix, gw_cost,
                                  reg_gw_cost, reg_gw_cost_arr, errors_sinkhorn,
                                  converged_sinkhorn)

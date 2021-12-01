@@ -16,12 +16,17 @@
 # Lint as: python3
 """Tests for the Policy."""
 
+import functools
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import jax.test_util
-from ott.tools import transport
+from ott.core import implicit_differentiation as implicit_lib
+from ott.core import problems
+from ott.core import sinkhorn
+from ott.geometry import pointcloud
 
 
 class SinkhornHessianTest(jax.test_util.JaxTestCase):
@@ -38,7 +43,6 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
       arg=[0, 1])
   def test_hessian_sinkhorn(self, lse_mode, tau_a, tau_b, shape, arg):
     """Test hessian w.r.t. weights and locations."""
-    eps = 1e-3
     n, m = shape
 
     dim = 3
@@ -50,36 +54,30 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
-    def loss(a, x, implicit):
-      out = transport.Transport(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          lse_mode=lse_mode,
-          implicit_differentiation=implicit,
-          use_danskin=False,
-          threshold=1e-4,
-          implicit_solver_ridge_kernel=1e-4,
-          implicit_solver_ridge_identity=1e-4)
-      return out.reg_ot_cost
+    ridge = 1e-5
+
+    def loss(a, x, implicit=True):
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
+      implicit_diff = (
+          None if not implicit else
+          implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge))
+      solver = sinkhorn.Sinkhorn(
+          lse_mode=lse_mode, threshold=1e-4, use_danskin=False,
+          implicit_diff=implicit_diff)
+      return solver(prob).reg_ot_cost
 
     delta_a = jax.random.uniform(rngs[4], (n,))
     delta_a = delta_a - jnp.mean(delta_a)
     delta_x = jax.random.uniform(rngs[5], (n, dim))
 
     # Test that Hessians produced with either backprop or implicit do match.
-    hess_loss_imp = jax.jit(jax.hessian(lambda a, x: loss(a, x, True),
-                                        argnums=arg))
+    hess_loss_imp = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, True), argnums=arg))
     hess_imp = hess_loss_imp(a, x)
-
-    hess_loss_back = jax.jit(jax.hessian(lambda a, x: loss(a, x, False),
-                                         argnums=arg))
+    hess_loss_back = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg))
     hess_back = hess_loss_back(a, x)
-
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
     # but only need to be so on the orthogonal space to 1s.
@@ -91,12 +89,14 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
 
     # Uniform equality is difficult to obtain numerically on the
     # entire matrices. We switch to relative 1-norm of difference.
-    dif_norm = jnp.sum(jnp.abs(hess_imp-hess_back))
+    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
     rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
     self.assertGreater(0.1, rel_dif_norm)
 
+    eps = 1e-3
     for impl in [True, False]:
-      grad_ = jax.jit(jax.grad(lambda a, x: loss(a, x, impl), argnums=arg))
+      grad_ = jax.jit(jax.grad(
+          functools.partial(loss, implicit=impl), argnums=arg))
       grad_init = grad_(a, x)
 
       # Depending on variable tested, perturb either a or x.
@@ -118,8 +118,8 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
         grad_dif -= jnp.mean(grad_dif)
 
       # No rtol here because many of these values can be close to 0.
-      self.assertAllClose(grad_dif, hess_delta,
-                          atol=0.1, rtol=0)
+      self.assertAllClose(grad_dif, hess_delta, atol=0.1, rtol=0)
+
 
 if __name__ == '__main__':
   absltest.main()
