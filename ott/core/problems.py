@@ -15,9 +15,13 @@
 
 """Functions to manipulate the problem(s) or regularized optimal transport."""
 
+from typing import Callable, Optional, Tuple
 import jax
 import jax.numpy as jnp
 from ott.geometry import geometry
+
+LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
+Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -26,10 +30,26 @@ class LinearProblem:
 
   def __init__(self,
                geom: geometry.Geometry,
-               a: jnp.ndarray = None,
-               b: jnp.ndarray = None,
+               a: Optional[jnp.ndarray] = None,
+               b: Optional[jnp.ndarray] = None,
                tau_a: float = 1.0,
                tau_b: float = 1.0):
+    """Initializes the LinearProblem.
+
+    min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
+
+    Args:
+      geom: the geometry.Geometry object defining the ground geometry / cost of
+        the linear problem.
+      a: jnp.ndarray[n] representing the first marginal. If None, it will be
+        uniform.
+      b: jnp.ndarray[n] representing the first marginal. If None, it will be
+        uniform.
+      tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+        the first marginal.
+      tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+        the second marginal.
+    """
     self.geom = geom
     self._a = a
     self._b = b
@@ -195,3 +215,133 @@ def grad_of_marginal_fit(c, h, tau, epsilon):
   else:
     rho = epsilon * tau / (1 - tau)
     return jnp.where(c > 0, c * derivative_phi_star(-h, rho), 0.0)
+
+
+def make_square_loss():
+  return (lambda x: x ** 2, lambda y: y ** 2), (lambda x: x, lambda y: 2.0 * y)
+
+
+def make_kl_loss(clipping_value: float = 1e-8):
+
+  return (
+      (lambda x: -jax.scipy.special.entr(x) - x, lambda y: y),
+      (lambda x: x, lambda y: jnp.log(jnp.clip(y, clipping_value)))
+  )
+
+
+@jax.tree_util.register_pytree_node_class
+class QuadraticProblem:
+  """Holds the definition of the quadratic regularized OT problem.
+
+  The quadratic loss of a single OT matrix is assumed to
+  have the form given in Eq. 4 from
+
+  http://proceedings.mlr.press/v48/peyre16.pdf
+
+  The two geometries below parameterize matrices C and bar{C} in that equation.
+  The function L (of two real values) in that equation is assumed
+  to match the form given in Eq. 5. , with our notations:
+
+  L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
+  """
+
+  def __init__(self,
+               geom_1: geometry.Geometry,
+               geom_2: geometry.Geometry,
+               a: Optional[jnp.ndarray] = None,
+               b: Optional[jnp.ndarray] = None,
+               loss: Optional[Loss] = None,
+               tau_a: float = 1.0,
+               tau_b: float = 1.0):
+    """Initializes the QuadraticProblem.
+
+    Args:
+      geom_1: the geometry.Geometry object defining the ground geometry / cost of
+        of the first space.
+      geom_2: the geometry.Geometry object defining the ground geometry / cost of
+        of the second space.
+      a: jnp.ndarray[n] representing the first marginal. If None, it will be
+        uniform.
+      b: jnp.ndarray[n] representing the first marginal. If None, it will be
+        uniform.
+      loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
+        part of the loss (see in the pydoc of the class lin1, lin2). The second
+        one is the quadratic part (quad1, quad2). If None is passed, the loss
+        is set as the 4 functions representing the squared euclidean loss. See
+        make_square_loss and and make_kl_loss for convenient way of setting the
+        loss.
+      tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+        the first marginal.
+      tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+        the second marginal.
+    """
+    self.geom_1 = geom_1
+    self.geom_2 = geom_2
+    self._a = a
+    self._b = b
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.loss = make_square_loss() if loss is None else loss
+
+  @property
+  def linear_loss(self):
+    return self.loss[0]
+
+  @property
+  def quad_loss(self):
+    return self.loss[1]
+
+  @property
+  def is_balanced(self):
+    return self.tau_a == 1.0 and self.tau_b == 1.0
+
+  def tree_flatten(self):
+    return (
+        [self.geom_1, self.geom_2, self._a, self._b],
+        {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss})
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    return cls(*children, **aux_data)
+
+  @property
+  def a(self):
+    num_a = self.geom_1.shape[0]
+    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
+
+  @property
+  def b(self):
+    num_b = self.geom_2.shape[0]
+    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
+
+  def marginal_dependent_cost(self, marginal_1, marginal_2):
+    r"""Calculates part of cost that depends on marginals of transport matrix.
+
+    Uses the first term in Equation 6, Proposition 1 of
+    http://proceedings.mlr.press/v48/peyre16.pdf.
+
+    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
+    from geom_x and :math:`q` [num_b,] be the marginal of the transport matrix
+    for samples from geom_y. The term in the cost that depends on these
+    marginals can be written as:
+    marginal_dep_term = fn_x(cost_x) :math:`p \mathbb{1}_{num_b}^T`
+                      + (fn_y(cost_y) :math:`q \mathbb{1}_{num_a}^T)^T`
+
+    Args:
+      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
+       for samples from geom_1
+      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
+       for samples from geom_2
+
+    Returns:
+      jnp.ndarray, [num_a, num_b]
+    """
+    x_term = jnp.dot(
+        self.geom_1.apply_cost(
+            marginal_1[:, None], 1, self.linear_loss[0]).reshape(-1, 1),
+        jnp.ones((1, marginal_2.size)))
+    y_term = jnp.dot(
+        self.geom_2.apply_cost(
+            marginal_2[:, None], 1, self.linear_loss[1]).reshape(-1, 1),
+        jnp.ones((1, marginal_1.size))).T
+    return x_term + y_term

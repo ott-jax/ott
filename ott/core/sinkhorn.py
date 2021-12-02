@@ -506,10 +506,7 @@ _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
 
 
-def sinkhorn(
-    geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+def make(
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     threshold: float = 1e-3,
@@ -530,9 +527,7 @@ def sinkhorn(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
-    init_dual_a: Optional[jnp.ndarray] = None,
-    init_dual_b: Optional[jnp.ndarray] = None,
-    jit: bool = False) -> SinkhornOutput:
+    jit: bool = False) -> Sinkhorn:
   """For backward compatibility."""
   if not implicit_differentiation:
     implicit_diff = None
@@ -551,7 +546,7 @@ def sinkhorn(
   else:
     anderson = None
 
-  sink = Sinkhorn(
+  return Sinkhorn(
       lse_mode=lse_mode,
       threshold=threshold,
       norm_error=norm_error,
@@ -565,5 +560,16 @@ def sinkhorn(
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
       jit=jit)
+
+
+def sinkhorn(geom: geometry.Geometry,
+             a: Optional[jnp.ndarray] = None,
+             b: Optional[jnp.ndarray] = None,
+             tau_a: float = 1.0,
+             tau_b: float = 1.0,
+             init_dual_a: Optional[jnp.ndarray] = None,
+             init_dual_b: Optional[jnp.ndarray] = None,
+             **kwargs):
+  sink = make(**kwargs)
   ot_prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
   return sink(ot_prob, init_dual_a, init_dual_b)

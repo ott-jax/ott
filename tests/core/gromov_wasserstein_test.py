@@ -55,7 +55,7 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
                          'max_iterations': 1001}
       out = gromov_wasserstein.gromov_wasserstein(
           geom_x, geom_y, a=a, b=b, epsilon=1.0,
-          loss=gromov_wasserstein.GWSqEuclLoss(),
+          loss='sqeucl',
           max_iterations=10, jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs)
       return out.reg_gw_cost, (out.f, out.g)

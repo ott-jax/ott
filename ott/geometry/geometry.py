@@ -143,6 +143,14 @@ class Geometry:
     return (0, 0)
 
   @property
+  def is_squared_euclidean(self):
+    return False
+
+  @property
+  def is_online(self):
+    return False
+
+  @property
   def is_symmetric(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
     return (mat.shape[0] == mat.shape[1] and

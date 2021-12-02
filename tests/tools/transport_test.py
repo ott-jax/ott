@@ -61,7 +61,7 @@ class TransportTest(jax.test_util.JaxTestCase):
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
     geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
-    with self.assertRaises(ValueError):
+    with self.assertRaises(TypeError):
       transport.Transport(geom, x, threshold=1e-3)
 
     with self.assertRaises(AttributeError):

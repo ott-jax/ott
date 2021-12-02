@@ -24,6 +24,13 @@ from ott.geometry import geometry
 from ott.geometry import ops
 
 
+def is_linear(fn) -> bool:
+  """Tests heuristically if a function is linear."""
+  x = jnp.arange(10.0)
+  out = jax.vmap(jax.grad(fn))(x)
+  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
+
+
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 pointclouds (possibly 1 vs itself) using CostFn."""
@@ -108,6 +115,14 @@ class PointCloud(geometry.Geometry):
     return self._y is None or (jnp.all(self.x.shape == self.y.shape) and
                                jnp.all(self.x == self.y))
 
+  @property
+  def is_squared_euclidean(self):
+    return isinstance(self._cost_fn, costs.Euclidean) and self.power == 2.0
+
+  @property
+  def is_online(self) -> bool:
+    return self._online
+
   def apply_lse_kernel(self,
                        f: jnp.ndarray,
                        g: jnp.ndarray,
@@ -190,6 +205,18 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
+    if fn is None:
+      return self.vec_apply_cost(arr, axis, fn=fn)
+    # Switch to efficient computation for the squared euclidean case.
+    return jnp.where(jnp.logical_and(self.is_squared_euclidean, is_linear(fn)),
+                     self.vec_apply_cost(arr, axis, fn=fn),
+                     self._apply_cost(arr, axis, fn=fn))
+
+  def _apply_cost(self,
+                  arr: jnp.ndarray,
+                  axis: bool = 0,
+                  fn=None) -> jnp.ndarray:
+    """See apply_cost."""
     if self._online:
       app = jax.vmap(_apply_cost_xy, in_axes=[
           None, 0, None, self._axis_norm, None, None, None, None])
@@ -226,13 +253,15 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
+    rank = len(arr.shape)
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
     nx, ny = self._norm_x, self._norm_y
     nx, ny = (nx, ny) if axis == 0 else (ny, nx)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
-    applied_cost += -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
+    cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
+    applied_cost += cross_term[:, None] if rank == 1 else cross_term
     return fn(applied_cost) if fn else applied_cost
 
   @classmethod
