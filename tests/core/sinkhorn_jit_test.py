@@ -30,7 +30,9 @@ non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
 def assert_output_close(x, y):
   """Asserst SinkhornOutputs are close."""
-  return chex.assert_tree_all_close(tuple(x), tuple(y), atol=1e-6, rtol=0)
+  x = tuple(a for a in x if a is not None)
+  y = tuple(a for a in y if a is not None)
+  return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
 
 class SinkhornTest(jax.test_util.JaxTestCase):

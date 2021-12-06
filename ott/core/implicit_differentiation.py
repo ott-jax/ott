@@ -252,10 +252,6 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(self, prob, f, g, lse_mode, gr) -> problems.LinearProblem:
-    """TODO(oliviert, cuturi): fix it."""
-    # Ignores gradients info with respect to 'errors' output.
-    gr = gr[0], gr[1]
-
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 

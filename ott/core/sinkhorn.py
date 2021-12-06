@@ -156,22 +156,53 @@ from ott.geometry import geometry
 
 
 @dataclasses.register_pytree_node
-class SinkhornOutput:
+class SinkhornState:
   """Holds the outputs of the Sinkhorn algorithm."""
-  f: jnp.ndarray
-  g: jnp.ndarray
-  reg_ot_cost: jnp.ndarray
-  errors: jnp.ndarray
-  converged: jnp.ndarray
+  # Output of the algorithm.
+  f: Optional[jnp.ndarray] = None
+  g: Optional[jnp.ndarray] = None
+  reg_ot_cost: Optional[jnp.ndarray] = None  # For backward compatibility.
+  errors: Optional[jnp.ndarray] = None
+  # Intermediate values.
+  fu: Optional[jnp.ndarray] = None
+  gv: Optional[jnp.ndarray] = None
+  old_fus: Optional[jnp.ndarray] = None
+  old_mapped_fus: Optional[jnp.ndarray] = None
 
   def __iter__(self):
     """For backward compatibility with namedtuple."""
     yield from vars(self).values()
 
+  def set(self, **kwargs) -> 'SinkhornState':
+    """Returns a copy of self, with potential overwrites."""
+    return self.__class__(**{**vars(self), **kwargs})
+
+  def finalize(self):
+    return self.set(fu=None, gv=None, old_fus=None, old_mapped_fus=None)
+
+  def set_cost(self, ot_prob, lse_mode, use_danskin):
+    f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
+    g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
+    cost = ot_prob.ent_reg_cost(f, g, lse_mode)
+    return self.set(reg_ot_cost=cost)
+
+  @property
+  def converged(self):
+    if self.errors is None:
+      return False
+    return jnp.logical_and(jnp.sum(self.errors == -1) > 0,
+                           jnp.sum(jnp.isnan(self.errors)) == 0)
+
   def scalings(self, geom):
     u = geom.scaling_from_potential(self.f)
     v = geom.scaling_from_potential(self.g)
     return u, v
+
+  def postprocess(self, ot_prob, lse_mode) -> 'SinkhornState':
+    fu, gv = self.fu, self.gv
+    f = fu if lse_mode else ot_prob.geom.potential_from_scaling(fu)
+    g = gv if lse_mode else ot_prob.geom.potential_from_scaling(gv)
+    return self.set(f=f, g=g, errors=self.errors[:, 0])
 
   def matrix(self, geom) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
@@ -230,13 +261,10 @@ class Sinkhorn:
       should be jitted by the user)
 
   Returns:
-    a ``SinkhornOutput``. The tuple contains two optimal potential
-    vectors ``f`` and ``g``, the objective ``reg_ot_cost`` evaluated at those
-    solutions, an array of ``errors`` to monitor convergence every
-    ``inner_iterations`` and a flag ``converged`` that is ``True`` if the
-    algorithm has converged within the number of iterations that was predefined
-    by the user.
+    A ``SinkhornState``.
   """
+
+  STATE_CLS = SinkhornState
 
   def __init__(self,
                lse_mode: bool = True,
@@ -257,8 +285,12 @@ class Sinkhorn:
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self._norm_error = norm_error
-    self.momentum = (
-        momentum if momentum is not None else momentum_lib.Momentum())
+    if momentum is not None:
+      self.momentum = momentum_lib.Momentum(
+          momentum.start, momentum.value, self.inner_iterations)
+    else:
+      self.momentum = momentum_lib.Momentum(
+          inner_iterations=self.inner_iterations)
     self.anderson = anderson
     self.implicit_diff = implicit_diff
     self.parallel_dual_updates = parallel_dual_updates
@@ -290,7 +322,7 @@ class Sinkhorn:
   def __call__(self,
                ot_prob: problems.LinearProblem,
                init_dual_a=None,
-               init_dual_b=None) -> SinkhornOutput:
+               init_dual_b=None) -> SinkhornState:
     """Main interface to run sinkhorn."""
     a, b = ot_prob.a, ot_prob.b
     if init_dual_a is None:
@@ -316,7 +348,34 @@ class Sinkhorn:
   def tree_unflatten(cls, aux_data, children):
     return cls(**aux_data, threshold=children[0])
 
-  def one_iteration(self, iteration, ot_prob, state, compute_error):
+  def lse_step(self, ot_prob, state, iteration) -> SinkhornState:
+    """Sinkhorn LSE update."""
+    w = self.momentum.weight(state, iteration)
+    old_gv = state.gv
+
+    new_gv = ot_prob.tau_b * ot_prob.geom.update_potential(
+        state.fu, state.gv, jnp.log(ot_prob.b), iteration, axis=0)
+    gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
+    new_fu = ot_prob.tau_a * ot_prob.geom.update_potential(
+        state.fu, old_gv if self.parallel_dual_updates else gv,
+        jnp.log(ot_prob.a), iteration, axis=1)
+    fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
+    return state.set(fu=fu, gv=gv)
+
+  def kernel_step(self, ot_prob, state, iteration) -> SinkhornState:
+    """Sinkhorn multiplicative update."""
+    w = self.momentum.weight(state, iteration)
+    old_gv = state.gv
+    new_gv = ot_prob.geom.update_scaling(
+        state.fu, ot_prob.b, iteration, axis=0) ** ot_prob.tau_b
+    gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
+    new_fu = ot_prob.geom.update_scaling(
+        old_gv if self.parallel_dual_updates else gv,
+        ot_prob.a, iteration, axis=1) ** ot_prob.tau_a
+    fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
+    return state.set(fu=fu, gv=gv)
+
+  def one_iteration(self, ot_prob, state, iteration, compute_error):
     """Carries out sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
@@ -324,73 +383,54 @@ class Sinkhorn:
       - scaling space, using standard kernel-vector multiply operations.
 
     Args:
-      iteration: iteration number
       ot_prob: the transport problem definition
-      state: error log, potential/scaling variables updated in the loop, and
-        history for Anderson acceleration if selected.
+      state: SinkhornState named tuple.
+      iteration: the current iteration of the Sinkhorn loop.
       compute_error: flag to indicate this iteration computes/stores an error
 
     Returns:
-      state variables, i.e. errors and updated f_u, g_v potentials + history.
+      The updated state.
     """
-    errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s = state
-    # Compute momentum term if needed, using previously seen errors.
-    w = jax.lax.stop_gradient(
-        self.momentum.weight(iteration, errors, self.inner_iterations))
     # When running updates in parallel (Gauss-Seidel mode), old_g_v will be
     # used to update f_u, rather than the latest g_v computed in this loop.
     # Unused otherwise.
-    old_g_v = g_v
-    # When using Anderson acceleration, first update the dual variable f_u
-    # with previous updates (if iteration count sufficiently large), then
-    # record new iterations in array.
     if self.anderson:
-      # TODO(oliviert): turn the state into an object.
-      f_u, old_f_u_s = self.anderson.update(
-          ot_prob, self.lse_mode, iteration, f_u, old_f_u_s, old_mapped_f_u_s)
+      state = self.anderson.update(state, iteration, ot_prob, self.lse_mode)
 
     if self.lse_mode:  # In lse_mode, run additive updates.
-      new_g_v = ot_prob.tau_b * ot_prob.geom.update_potential(
-          f_u, g_v, jnp.log(ot_prob.b), iteration, axis=0)
-      g_v = (1.0 - w) * jnp.where(jnp.isfinite(g_v), g_v, 0.0) + w * new_g_v
-      new_f_u = ot_prob.tau_a * ot_prob.geom.update_potential(
-          f_u,
-          old_g_v if self.parallel_dual_updates else g_v,
-          jnp.log(ot_prob.a),
-          iteration,
-          axis=1)
-      f_u = (1.0 - w) * jnp.where(jnp.isfinite(f_u), f_u, 0.0) + w * new_f_u
-    else:  # In kernel mode, run multiplicative updates.
-      new_g_v = ot_prob.geom.update_scaling(
-          f_u, ot_prob.b, iteration, axis=0) ** ot_prob.tau_b
-      g_v = jnp.where(g_v > 0, g_v, 1)**(1.0 - w) * new_g_v ** w
-      new_f_u = ot_prob.geom.update_scaling(
-          old_g_v if self.parallel_dual_updates else g_v, ot_prob.a, iteration,
-          axis=1) ** ot_prob.tau_a
-      f_u = jnp.where(f_u > 0, f_u, 1) ** (1.0 - w) * new_f_u ** w
+      state = self.lse_step(ot_prob, state, iteration)
+    else:
+      state = self.kernel_step(ot_prob, state, iteration)
 
-    # When using Anderson acceleration, refresh latest update.
     if self.anderson:
-      f = f_u if self.lse_mode else ot_prob.geom.potential_from_scaling(f_u)
-      old_mapped_f_u_s = jnp.concatenate(
-          (old_mapped_f_u_s[:, 1:], f[:, None]), axis=1)
+      state = self.anderson.update_history(state, ot_prob, self.lse_mode)
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        ot_prob.marginal_error(f_u, g_v, self.norm_error, self.lse_mode),
+        ot_prob.marginal_error(
+            state.fu, state.gv, self.norm_error, self.lse_mode),
         jnp.inf)
-    errors = errors.at[iteration // self.inner_iterations, :].set(err)
-    return errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s
+    errors = (
+        state.errors.at[iteration // self.inner_iterations, :].set(err))
+    return state.set(errors=errors)
 
-  def not_converged(self, iteration, errors):
-    err = errors[iteration // self.inner_iterations - 1, 0]
+  def not_converged(self, state, iteration):
+    err = state.errors[iteration // self.inner_iterations - 1, 0]
     return jnp.logical_or(
         iteration == 0,
         jnp.logical_and(jnp.isfinite(err), err > self.threshold))
 
+  def init_state(self, ot_prob, init_dual_a, init_dual_b):
+    """Returns the initial state of the loop."""
+    fu, gv = init_dual_a, init_dual_b
+    outer_iterations = np.ceil(self.max_iterations / self.inner_iterations)
+    errors = -jnp.ones((outer_iterations.astype(int), len(self.norm_error)))
+    state = SinkhornState(errors=errors, fu=fu, gv=gv)
+    return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
-def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornOutput:
+
+def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornState:
   """A jittable sinkhorn.
 
   Note:
@@ -415,32 +455,27 @@ def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornOutput:
     init_dual_b: the initial value for ``g``.
 
   Returns:
-    A SinkhornOutput.
+    A SinkhornState.
   """
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
-  f, g, errors = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
-  reg_ot_cost = ot_prob.ent_reg_cost(
-      jax.lax.stop_gradient(f) if solver.use_danskin else f,
-      jax.lax.stop_gradient(g) if solver.use_danskin else g,
-      solver.lse_mode)
-  converged = jnp.logical_and(
-      jnp.sum(errors == -1) > 0,
-      jnp.sum(jnp.isnan(errors)) == 0)
-  return SinkhornOutput(f, g, reg_ot_cost, errors, converged)
+  flat_state = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
+  state = solver.STATE_CLS(*flat_state)
+  state = state.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
+  return state.finalize()
 
 
-def iterations(ot_prob, solver, init_dual_a, init_dual_b
-               ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def iterations(ot_prob, solver, init_dual_a, init_dual_b):
   """A jit'able Sinkhorn loop."""
 
   def cond_fn(iteration, const, state):
     _, solver = const
-    errors = state[0]
-    return solver.not_converged(iteration, errors)
+    state = solver.STATE_CLS(*state)
+    return solver.not_converged(state, iteration)
 
   def body_fn(iteration, const, state, compute_error):
     ot_prob, solver = const
-    return solver.one_iteration(iteration, ot_prob, state, compute_error)
+    state = solver.STATE_CLS(*state)
+    return tuple(solver.one_iteration(ot_prob, state, iteration, compute_error))
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
@@ -451,24 +486,14 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
   const = ot_prob, solver
-
-  f_u, g_v = init_dual_a, init_dual_b  # Initializing solutions
-  outer_iterations = np.ceil(solver.max_iterations / solver.inner_iterations)
-  errors = -jnp.ones((outer_iterations.astype(int), len(solver.norm_error)))
-  # Initialize log matrix used in Anderson acceleration with nan values.
-  # these values will be replaced by actual iteration values.
-  old_f_u_s, old_mapped_f_u_s = (
-      solver.anderson.init_maps(ot_prob) if solver.anderson
-      else (None, None))
-  state_0 = (errors, f_u, g_v, old_f_u_s, old_mapped_f_u_s)
-  errors, f_u, g_v, _, _ = fix_point(
+  state = tuple(solver.init_state(ot_prob, init_dual_a, init_dual_b))
+  state = fix_point(
       cond_fn, body_fn,
       solver.min_iterations, solver.max_iterations, solver.inner_iterations,
-      const, state_0)
-
-  f = f_u if solver.lse_mode else ot_prob.geom.potential_from_scaling(f_u)
-  g = g_v if solver.lse_mode else ot_prob.geom.potential_from_scaling(g_v)
-  return f, g, errors[:, 0]
+      const, state)
+  state = solver.STATE_CLS(*state)
+  state = state.postprocess(ot_prob, solver.lse_mode)
+  return tuple(state)
 
 
 def _iterations_taped(ot_prob: problems.LinearProblem,
@@ -476,8 +501,9 @@ def _iterations_taped(ot_prob: problems.LinearProblem,
                       init_dual_a: jnp.ndarray,
                       init_dual_b: jnp.ndarray):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  f, g, errors = iterations(ot_prob, solver, init_dual_a, init_dual_b)
-  return (f, g, errors), (f, g, ot_prob, solver)
+  flat_state = iterations(ot_prob, solver, init_dual_a, init_dual_b)
+  state = solver.STATE_CLS(*flat_state)
+  return flat_state, (state.f, state.g, ot_prob, solver)
 
 
 def _iterations_implicit_bwd(res, gr):
@@ -495,6 +521,7 @@ def _iterations_implicit_bwd(res, gr):
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   f, g, ot_prob, solver = res
+  gr = gr[:2]
   return (
       *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr),
       None, None, None)
@@ -529,6 +556,7 @@ def make(
     use_danskin: bool = None,
     jit: bool = False) -> Sinkhorn:
   """For backward compatibility."""
+  del tau_a, tau_b
   if not implicit_differentiation:
     implicit_diff = None
   else:
@@ -570,6 +598,7 @@ def sinkhorn(geom: geometry.Geometry,
              init_dual_a: Optional[jnp.ndarray] = None,
              init_dual_b: Optional[jnp.ndarray] = None,
              **kwargs):
+  """For backward compatibility."""
   sink = make(**kwargs)
   ot_prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
   return sink(ot_prob, init_dual_a, init_dual_b)

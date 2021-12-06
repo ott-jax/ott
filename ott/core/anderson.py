@@ -50,7 +50,7 @@ class AndersonAcceleration:
     combination = jnp.sum(fxs * weights[None, :], axis=1)
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
-  def update(self, pb, lse_mode, iteration, f_u, old_f_u_s, old_mapped_f_u_s):
+  def update(self, state, iteration, pb, lse_mode: bool):
     """Anderson acceleration update.
 
     When using Anderson acceleration, first update the dual variable f_u with
@@ -62,42 +62,45 @@ class AndersonAcceleration:
     enough the update below will output a potential variable.
 
     Args:
-     pb: a problem.LinearProblem defining the OT problem.
-     lse_mode: whether to compute in log-sum-exp or in scalings.
-     iteration: current iteration
-     f_u: current potential/scaling
-     old_f_u_s: previous updates
-     old_mapped_f_u_s: previous updates.
+      state: A SinkhornState
+      iteration: int, the current iteration.
+      pb: a problem.LinearProblem defining the OT problem.
+      lse_mode: whether to compute in log-sum-exp or in scalings.
 
     Returns:
       A potential variable.
     """
     geom = pb.geom
-    trigger_update = jnp.logical_and(
-        iteration > self.memory, iteration % self.refresh_every == 0)
-
-    f_u = jnp.where(
-        trigger_update, self.extrapolation(old_f_u_s, old_mapped_f_u_s), f_u)
+    trigger_update = jnp.logical_and(iteration > self.memory,
+                                     iteration % self.refresh_every == 0)
+    fu = jnp.where(trigger_update,
+                   self.extrapolation(state.old_fus, state.old_mapped_fus),
+                   state.fu)
     # If the interpolation was triggered, we store it in memory
     # Otherwise we add the previous value (converting it to potential form if
     # it was initially stored in scaling form).
-    old_f_u_s = jnp.where(
+    old_fus = jnp.where(
         trigger_update,
-        jnp.concatenate((old_f_u_s[:, 1:], f_u[:, None]), axis=1),
+        jnp.concatenate((state.old_fus[:, 1:], fu[:, None]), axis=1),
         jnp.concatenate(
-            (old_f_u_s[:, 1:],
-             (f_u if lse_mode
-              else geom.potential_from_scaling(f_u))[:, None]),
+            (state.old_fus[:, 1:],
+             (fu if lse_mode else geom.potential_from_scaling(fu))[:, None]),
             axis=1))
 
     # If update was triggered, ensure a scaling is returned, since the result
     # from the extrapolation was outputted in potential form.
-    f_u = jnp.where(
+    fu = jnp.where(
         trigger_update,
-        f_u if lse_mode else geom.scaling_from_potential(f_u),
-        f_u)
-    return f_u, old_f_u_s
+        fu if lse_mode else geom.scaling_from_potential(fu),
+        fu)
+    return state.set(fu=fu, old_fus=old_fus)
 
-  def init_maps(self, pb):
+  def init_maps(self, pb, state):
+    """Initializes log matrix used in Anderson acceleration with nan values."""
     fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
-    return fus, fus
+    return state.set(old_fus=fus, old_mapped_fus=fus)
+
+  def update_history(self, state, pb, lse_mode: bool):
+    f = state.fu if lse_mode else pb.geom.potential_from_scaling(state.fu)
+    mapped = jnp.concatenate((state.old_mapped_fus[:, 1:], f[:, None]), axis=1)
+    return state.set(old_mapped_fus=mapped)

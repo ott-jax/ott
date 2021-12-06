@@ -125,7 +125,7 @@ def _sinkhorn_divergence(
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
-    out_yy = sinkhorn.SinkhornOutput(None, None, 0, None, None)
+    out_yy = sinkhorn.SinkhornState(errors=jnp.array([]), reg_ot_cost=0)
   else:
     out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
 

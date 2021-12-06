@@ -93,7 +93,7 @@ class GromovWasserstein:
   def update_linearization(self,
                            prob: problems.QuadraticProblem,
                            linearization: problems.LinearProblem,
-                           linear_solution: sinkhorn.SinkhornOutput
+                           linear_solution: sinkhorn.SinkhornState
                            ) -> problems.LinearProblem:
     """Updates linearization of GW problem by updating cost matrix.
 

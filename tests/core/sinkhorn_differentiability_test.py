@@ -161,10 +161,10 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
 
       def loss_fn(x, y):
         geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-        f, g, regularized_transport_cost, _, _ = sinkhorn.sinkhorn(
+        out = sinkhorn.sinkhorn(
             geom, a, b, lse_mode=lse_mode,
             implicit_differentiation=implicit_differentiation)
-        return regularized_transport_cost, (geom, f, g)
+        return out.reg_ot_cost, (geom, out.f, out.g)
 
       delta = jax.random.normal(keys[0], (n, d))
       delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
