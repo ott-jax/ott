@@ -26,7 +26,7 @@ from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
+class GromovWassersteinTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()
@@ -43,6 +43,32 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
     self.b = b / jnp.sum(b)
     self.cx = jax.random.uniform(keys[4], (self.n, self.n))
     self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+
+  def test_flag_store_errors(self):
+    """Tests whether errors are properly stored if requested."""
+    threshold_sinkhorn = 1e-2
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_x=geom_x, geom_y=geom_y, a=self.a, b=self.b,
+        epsilon=.1).errors_sinkhorn
+    self.assertIsNone(out)
+
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_x=geom_x,
+        geom_y=geom_y,
+        a=self.a,
+        b=self.b,
+        epsilon=.1,
+        store_sinkhorn_errors=True,
+        sinkhorn_kwargs={
+            'threshold': threshold_sinkhorn
+        }).errors_sinkhorn
+
+    out = out[jnp.sum(out > 0, axis=1) > 0, :]
+    last_errors = out[-1, :]
+    self.assertGreater(threshold_sinkhorn, last_errors[last_errors > -1][-1])
+    self.assertEqual(out.ndim, 2)
 
   @parameterized.parameters([True], [False])
   def test_gradient_marginals_gromov_wasserstein(self, jit):
@@ -139,52 +165,18 @@ class GromovWassersteinGradTest(jax.test_util.JaxTestCase):
     self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
                         rtol=1e-02, atol=1e-02)
 
-  @parameterized.parameters([True], [False])
-  def test_warm_start(self, lse_mode):
-    """Two point clouds, tested with various parameters."""
-    threshold = 1e-6
+  def test_adaptive_threshold(self):
+    """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(self.x, self.x)
     geom_y = pointcloud.PointCloud(self.y, self.y)
     # without warm start for calls to sinkhorn
-    out = gromov_wasserstein.gromov_wasserstein(
-        geom_x=geom_x,
-        geom_y=geom_y,
-        a=self.a,
-        b=self.b,
-        epsilon=1.,
-        max_iterations=30,
-        jit=False,
-        sinkhorn_kwargs={'threshold': threshold, 'lse_mode': lse_mode,
-                         'inner_iterations': 1},
-        warm_start=False)
-    # with warm start for calls to sinkhorn
-    out_warm_start = gromov_wasserstein.gromov_wasserstein(
-        geom_x=geom_x,
-        geom_y=geom_y,
-        a=self.a,
-        b=self.b,
-        epsilon=1.,
-        max_iterations=30,
-        jit=False,
-        sinkhorn_kwargs={'threshold': threshold, 'lse_mode': lse_mode,
-                         'inner_iterations': 1},
-        warm_start=True)
+    def loss_thre(threshold):
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x=geom_x, geom_y=geom_y, a=self.a, b=self.b,
+          epsilon=.1, threshold=threshold).reg_gw_cost
 
-    errors_warm_start = out_warm_start.errors_sinkhorn[-1]
-    errors = out.errors_sinkhorn[-1]
-    errors_warm_start = errors_warm_start[errors_warm_start > -1]
-    errors = errors[errors > -1]
-
-    self.assertGreater(threshold, errors[-1])
-    self.assertGreater(threshold, errors_warm_start[-1])
-
-    # check error in warm start is better than without restart
-    self.assertGreater(errors[0], errors_warm_start[0])
-    # check less iterations are needed with warm start for the last sinkhorn
-    self.assertGreater(errors.shape[0], errors_warm_start.shape[0])
-    # check transport matrices are similar
-    self.assertAllClose(out.transport, out_warm_start.transport,
-                        atol=1e-2, rtol=1e-2)
+    self.assertGreater(loss_thre(.1), loss_thre(.001))
+    self.assertGreater(loss_thre(.001), loss_thre(.00001))
 
 if __name__ == '__main__':
   absltest.main()

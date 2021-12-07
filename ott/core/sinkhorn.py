@@ -140,8 +140,7 @@ Note:
 
   * The weight vectors ``a`` and ``b`` can be passed on with coordinates that have zero weight. This is then handled by relying on simple arithmetic for ``inf`` values that will likely arise (due to :math:`log(0)` when ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is ``False``). Whenever that arithmetic is likely to produce ``NaN`` values (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use ``jnp.where`` conditional statements to carry ``inf`` rather than ``NaN`` values. In the reverse mode differentiation, the inputs corresponding to these 0 weights (a location `x`, or a row in the corresponding cost/kernel matrix), and the weight itself will have ``NaN`` gradient values. This is reflects that these gradients are undefined, since these points were not considered in the optimization and have therefore no impact on the output.
 """
-import collections
-from typing import Optional, Tuple, Callable
+from typing import Optional, Callable
 
 import jax
 import jax.numpy as jnp
@@ -421,11 +420,19 @@ class Sinkhorn:
         iteration == 0,
         jnp.logical_and(jnp.isfinite(err), err > self.threshold))
 
+  @property
+  def outer_iterations(self):
+    """Upper bound on number of times inner_iterations are carried out.
+
+    This integer can be used to set constant array sizes to track the algorithm
+    progress, notably errors.
+    """
+    return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
+
   def init_state(self, ot_prob, init_dual_a, init_dual_b):
     """Returns the initial state of the loop."""
     fu, gv = init_dual_a, init_dual_b
-    outer_iterations = np.ceil(self.max_iterations / self.inner_iterations)
-    errors = -jnp.ones((outer_iterations.astype(int), len(self.norm_error)))
+    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
     state = SinkhornState(errors=errors, fu=fu, gv=gv)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
