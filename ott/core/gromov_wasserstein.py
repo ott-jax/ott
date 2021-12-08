@@ -58,7 +58,7 @@ class GromovWasserstein:
                threshold: float = 1e-3,
                jit: bool = True,
                warm_start: bool = False,
-               store_sinkhorn_errors = False,
+               store_sinkhorn_errors: bool = False,
                linear_ot_solver: sinkhorn.Sinkhorn = sinkhorn.Sinkhorn(),
                **kwargs):
     self.epsilon = epsilon
