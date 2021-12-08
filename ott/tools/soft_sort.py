@@ -28,7 +28,7 @@ def transport_for_sort(
     inputs: jnp.ndarray,
     weights: jnp.ndarray,
     target_weights: jnp.ndarray,
-    squashing_fun: Callable[[jnp.ndarray], jnp.ndarray] = None,
+    squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
     epsilon: float = 1e-2,
     **kwargs) -> jnp.ndarray:
   r"""Solves reg. OT, from inputs to a weighted family of increasing values.
@@ -54,8 +54,8 @@ def transport_for_sort(
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
   if squashing_fun is None:
-    squashing_fun = lambda z: jax.nn.sigmoid((z - jnp.mean(z)) /
-                                             (jnp.std(z) + 1e-10))
+    squashing_fun = lambda z: jax.nn.sigmoid(
+        (z - jnp.mean(z)) / (jnp.std(z) + 1e-10))
   x = squashing_fun(x)
   a = jnp.squeeze(weights)
   b = jnp.squeeze(target_weights)
@@ -75,6 +75,8 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs):
       several axes are passed the operator, those are merged as a single
       dimension.
     *args: other positional arguments to the operator.
+    **kwargs: other positional arguments to the operator.
+
 
   Returns:
     A jnp.ndarray holding the output of the differentiable operator on the given
@@ -123,7 +125,7 @@ def _sort(inputs: jnp.ndarray, topk, num_targets, **kwargs) -> jnp.ndarray:
 def sort(inputs: jnp.ndarray,
          axis: int = -1,
          topk: int = -1,
-         num_targets: int = None,
+         num_targets: Optional[int] = None,
          **kwargs) -> jnp.ndarray:
   r"""Applies the soft sort operator on a given axis of the input.
 
@@ -167,7 +169,7 @@ def _ranks(inputs: jnp.ndarray, num_targets, **kwargs) -> jnp.ndarray:
 
 def ranks(inputs: jnp.ndarray,
           axis: int = -1,
-          num_targets: int = None,
+          num_targets: Optional[int] = None,
           **kwargs) -> jnp.ndarray:
   r"""Applies the soft trank operator on input tensor.
 

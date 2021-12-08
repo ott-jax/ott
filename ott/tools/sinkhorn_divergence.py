@@ -16,7 +16,7 @@
 """Implements the sinkhorn divergence."""
 
 import collections
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Mapping, Optional, Type
 
 import jax
 from jax import numpy as jnp
@@ -65,12 +65,13 @@ def sinkhorn_divergence(
     tuple: (sinkhorn divergence value, three pairs of potentials, three costs)
   """
   geometries = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
+  num_a, num_b = geometries[0].shape
+
   geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
   if share_epsilon:
     for geom in filter(None, geometries[1:(2 if static_b else 3)]):
       geom.copy_epsilon(geometries[0])
 
-  num_a, num_b = geometries[0].shape
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
   div_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
@@ -125,7 +126,7 @@ def _sinkhorn_divergence(
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
-    out_yy = sinkhorn.SinkhornState(errors=jnp.array([]), reg_ot_cost=0)
+    out_yy = sinkhorn.SinkhornState(errors=jnp.array([]), reg_ot_cost=0)  # pytype: disable=wrong-keyword-args
   else:
     out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
 
@@ -138,21 +139,21 @@ def _sinkhorn_divergence(
                                   tuple(s.converged for s in out))
 
 
-def segment_sinkhorn_divergence(x: jnp.ndarray,
-                                y: jnp.ndarray,
-                                segment_ids_x: Optional[jnp.ndarray] = None,
-                                segment_ids_y: Optional[jnp.ndarray] = None,
-                                num_segments: Optional[int] = None,
-                                indices_are_sorted: Optional[bool] = None,
-                                num_per_segment_x: Optional[jnp.ndarray] = None,
-                                num_per_segment_y: Optional[jnp.ndarray] = None,
-                                weights_x: Optional[jnp.ndarray] = None,
-                                weights_y: Optional[jnp.ndarray] = None,
-                                sinkhorn_kwargs: Optional[Dict[str,
-                                                               Any]] = None,
-                                static_b: bool = False,
-                                share_epsilon: bool = True,
-                                **kwargs) -> jnp.ndarray:
+def segment_sinkhorn_divergence(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    segment_ids_x: Optional[jnp.ndarray] = None,
+    segment_ids_y: Optional[jnp.ndarray] = None,
+    num_segments: Optional[int] = None,
+    indices_are_sorted: Optional[bool] = None,
+    num_per_segment_x: Optional[jnp.ndarray] = None,
+    num_per_segment_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[jnp.ndarray] = None,
+    weights_y: Optional[jnp.ndarray] = None,
+    sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+    static_b: bool = False,
+    share_epsilon: bool = True,
+    **kwargs) -> jnp.ndarray:
   """Computes Sinkhorn divergence between subsets of data with pointcloud.
 
   There are two interfaces: either use `segment_ids_x`, `segment_ids_y`, and
@@ -231,6 +232,7 @@ def segment_sinkhorn_divergence(x: jnp.ndarray,
         indices_are_sorted=indices_are_sorted)
   else:
     assert num_segments is None
+    assert num_per_segment_x is not None
     num_segments = num_per_segment_x.shape[0]
     segment_ids_x = jnp.arange(num_segments).repeat(num_per_segment_x)
     segment_ids_y = jnp.arange(num_segments).repeat(num_per_segment_y)

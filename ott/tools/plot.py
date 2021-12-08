@@ -102,7 +102,7 @@ class Plot:
         *y.T, s=sy, edgecolors='k', marker='X', label='y')
     self.ax.legend(fontsize=15)
     if not self._show_lines:
-      return
+      return []
 
     lines = self._mapping(x, y, ot.matrix)
     cmap = plt.get_cmap(self._cmap)
@@ -121,7 +121,7 @@ class Plot:
     self._points_x.set_offsets(x)
     self._points_y.set_offsets(y)
     if not self._show_lines:
-      return
+      return []
 
     new_lines = self._mapping(x, y, ot.matrix)
     cmap = plt.get_cmap(self._cmap)

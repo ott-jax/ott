@@ -16,7 +16,7 @@
 # Lint as: python3
 """Implements a geometry class for points supported on a cartesian product."""
 import itertools
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -54,7 +54,7 @@ class Grid(geometry.Geometry):
       grid_size: Optional[Sequence[int]] = None,
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
-      grid_dimension: int = None,
+      grid_dimension: Optional[int] = None,
       **kwargs):
     """Create instance of grid using either locations or sizes.
 
@@ -245,7 +245,7 @@ class Grid(geometry.Geometry):
   def apply_kernel(self,
                    scaling: jnp.ndarray,
                    eps: Optional[float] = None,
-                   axis: int = None):
+                   axis: Optional[int] = None):
     """Applies grid kernel on scaling vector.
 
     See notes in parent class for use.

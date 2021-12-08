@@ -23,7 +23,7 @@ import numpy as np
 
 
 def fixpoint_iter(cond_fn: Callable[[int, Any, Any], bool],
-                  body_fn: Callable[[Any], Any],
+                  body_fn: Callable[[Any, Any, Any, Any], Any],
                   min_iterations: int,
                   max_iterations: int,
                   inner_iterations: int,

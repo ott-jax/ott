@@ -15,7 +15,7 @@
 
 """Functions to manipulate the problem(s) or regularized optimal transport."""
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 from ott.geometry import geometry
@@ -85,7 +85,7 @@ class LinearProblem:
   def marginal_error(self,
                      f_u: jnp.ndarray,
                      g_v: jnp.ndarray,
-                     norm_error: int,
+                     norm_error: Sequence[int],
                      lse_mode: bool) -> jnp.ndarray:
     """Given two potentials (or scalings), computes marginal error.
 
@@ -256,9 +256,9 @@ class QuadraticProblem:
     """Initializes the QuadraticProblem.
 
     Args:
-      geom_1: the geometry.Geometry object defining the ground geometry / cost of
+      geom_1: the geometry.Geometry object defining the ground geometry / cost
         of the first space.
-      geom_2: the geometry.Geometry object defining the ground geometry / cost of
+      geom_2: the geometry.Geometry object defining the ground geometry / cost
         of the second space.
       a: jnp.ndarray[n] representing the first marginal. If None, it will be
         uniform.

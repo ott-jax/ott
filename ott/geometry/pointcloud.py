@@ -112,8 +112,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_symmetric(self):
-    return self._y is None or (jnp.all(self.x.shape == self.y.shape) and
-                               jnp.all(self.x == self.y))
+    return self.y is None or (jnp.all(self.x.shape == self.y.shape) and
+                              jnp.all(self.x == self.y))
 
   @property
   def is_squared_euclidean(self):
@@ -151,7 +151,7 @@ class PointCloud(geometry.Geometry):
   def apply_kernel(self,
                    scaling: jnp.ndarray,
                    eps: Optional[float] = None,
-                   axis=0):
+                   axis: int = 0):
     if eps is None:
       eps = self.epsilon
 
@@ -185,7 +185,7 @@ class PointCloud(geometry.Geometry):
 
   def apply_cost(self,
                  arr: jnp.ndarray,
-                 axis: bool = 0,
+                 axis: int = 0,
                  fn=None) -> jnp.ndarray:
     """Applies cost matrix to array (vector or matrix).
 
@@ -214,7 +214,7 @@ class PointCloud(geometry.Geometry):
 
   def _apply_cost(self,
                   arr: jnp.ndarray,
-                  axis: bool = 0,
+                  axis: int = 0,
                   fn=None) -> jnp.ndarray:
     """See apply_cost."""
     if self._online:
@@ -231,7 +231,7 @@ class PointCloud(geometry.Geometry):
 
   def vec_apply_cost(self,
                      arr: jnp.ndarray,
-                     axis: bool = 0,
+                     axis: int = 0,
                      fn=None) -> jnp.ndarray:
     """Applies the geometry's cost matrix in a vectorised way.
 
@@ -255,7 +255,7 @@ class PointCloud(geometry.Geometry):
     """
     rank = len(arr.shape)
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx, ny = self._norm_x, self._norm_y
+    nx, ny = jnp.array(self._norm_x), jnp.array(self._norm_y)
     nx, ny = (nx, ny) if axis == 0 else (ny, nx)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)

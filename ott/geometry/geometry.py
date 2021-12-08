@@ -51,7 +51,7 @@ class Geometry:
                kernel_matrix: Optional[jnp.ndarray] = None,
                epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
                relative_epsilon: Optional[bool] = None,
-               scale: float = None,
+               scale: Optional[float] = None,
                **kwargs):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 

@@ -174,7 +174,7 @@ class SinkhornState:
 
   def set(self, **kwargs) -> 'SinkhornState':
     """Returns a copy of self, with potential overwrites."""
-    return self.__class__(**{**vars(self), **kwargs})
+    return type(self)(**{**vars(self), **kwargs})  # pytype: disable=wrong-keyword-args
 
   def finalize(self):
     return self.set(fu=None, gv=None, old_fus=None, old_mapped_fus=None)
@@ -433,7 +433,7 @@ class Sinkhorn:
     """Returns the initial state of the loop."""
     fu, gv = init_dual_a, init_dual_b
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
-    state = SinkhornState(errors=errors, fu=fu, gv=gv)
+    state = SinkhornState(errors=errors, fu=fu, gv=gv)  # pytype: disable=wrong-keyword-args
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
 
