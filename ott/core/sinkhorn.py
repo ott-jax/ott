@@ -140,13 +140,12 @@ Note:
 
   * The weight vectors ``a`` and ``b`` can be passed on with coordinates that have zero weight. This is then handled by relying on simple arithmetic for ``inf`` values that will likely arise (due to :math:`log(0)` when ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is ``False``). Whenever that arithmetic is likely to produce ``NaN`` values (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use ``jnp.where`` conditional statements to carry ``inf`` rather than ``NaN`` values. In the reverse mode differentiation, the inputs corresponding to these 0 weights (a location `x`, or a row in the corresponding cost/kernel matrix), and the weight itself will have ``NaN`` gradient values. This is reflects that these gradients are undefined, since these points were not considered in the optimization and have therefore no impact on the output.
 """
-from typing import Optional, Callable
+from typing import Optional, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ott.core import anderson as anderson_lib
-from ott.core import dataclasses
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import momentum as momentum_lib
@@ -154,8 +153,7 @@ from ott.core import problems
 from ott.geometry import geometry
 
 
-@dataclasses.register_pytree_node
-class SinkhornState:
+class SinkhornState(NamedTuple):
   """Holds the outputs of the Sinkhorn algorithm."""
   # Output of the algorithm.
   f: Optional[jnp.ndarray] = None
@@ -168,13 +166,9 @@ class SinkhornState:
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
-  def __iter__(self):
-    """For backward compatibility with namedtuple."""
-    yield from vars(self).values()
-
   def set(self, **kwargs) -> 'SinkhornState':
     """Returns a copy of self, with potential overwrites."""
-    return type(self)(**{**vars(self), **kwargs})  # pytype: disable=wrong-keyword-args
+    return type(self)(**{**self._asdict(), **kwargs})  # pytype: disable=wrong-keyword-args
 
   def finalize(self):
     return self.set(fu=None, gv=None, old_fus=None, old_mapped_fus=None)
@@ -262,8 +256,6 @@ class Sinkhorn:
   Returns:
     A ``SinkhornState``.
   """
-
-  STATE_CLS = SinkhornState
 
   def __init__(self,
                lse_mode: bool = True,
@@ -465,8 +457,7 @@ def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornState:
     A SinkhornState.
   """
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
-  flat_state = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
-  state = solver.STATE_CLS(*flat_state)
+  state = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
   state = state.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
   return state.finalize()
 
@@ -476,13 +467,11 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b):
 
   def cond_fn(iteration, const, state):
     _, solver = const
-    state = solver.STATE_CLS(*state)
     return solver.not_converged(state, iteration)
 
   def body_fn(iteration, const, state, compute_error):
     ot_prob, solver = const
-    state = solver.STATE_CLS(*state)
-    return tuple(solver.one_iteration(ot_prob, state, iteration, compute_error))
+    return solver.one_iteration(ot_prob, state, iteration, compute_error)
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
@@ -493,14 +482,13 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b):
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
   const = ot_prob, solver
-  state = tuple(solver.init_state(ot_prob, init_dual_a, init_dual_b))
+  state = solver.init_state(ot_prob, init_dual_a, init_dual_b)
   state = fix_point(
       cond_fn, body_fn,
       solver.min_iterations, solver.max_iterations, solver.inner_iterations,
       const, state)
-  state = solver.STATE_CLS(*state)
   state = state.postprocess(ot_prob, solver.lse_mode)
-  return tuple(state)
+  return state
 
 
 def _iterations_taped(ot_prob: problems.LinearProblem,
@@ -508,9 +496,8 @@ def _iterations_taped(ot_prob: problems.LinearProblem,
                       init_dual_a: jnp.ndarray,
                       init_dual_b: jnp.ndarray):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  flat_state = iterations(ot_prob, solver, init_dual_a, init_dual_b)
-  state = solver.STATE_CLS(*flat_state)
-  return flat_state, (state.f, state.g, ot_prob, solver)
+  state = iterations(ot_prob, solver, init_dual_a, init_dual_b)
+  return state, (state.f, state.g, ot_prob, solver)
 
 
 def _iterations_implicit_bwd(res, gr):
