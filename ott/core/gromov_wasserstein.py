@@ -15,9 +15,8 @@
 
 # Lint as: python3
 """A Jax version of Sinkhorn's algorithm."""
-import collections
 import functools
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, NamedTuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -28,23 +27,53 @@ from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 
 
-GromovWassersteinOutput = collections.namedtuple(
-    'GromovWassersteinOutput', ['f', 'g', 'transport', 'cost_matrix', 'gw_cost',
-                                'reg_gw_cost', 'reg_gw_cost_arr',
-                                'errors_sinkhorn', 'converged_sinkhorn'])
+class GWState(NamedTuple):
+  """Holds the state of the Gromov-Wasserstein solver.
 
+  Attributes:
+    cost: Holds the sequence of regularized GW costs seen through the outer loop
+      of the solver.
+    convergence: Holds the sequence of bool convergence flags of the inner
+      Sinkhorn iterations.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm at
+      each iteration.
+    linear_state: state used to solve and store solutions to the local
+      linearization of GW.
+    linear_pb: local linearizationg of the quadratic GW problem.
+    geom: the geometry underlying the local linearization.
+    transport: the transport matrix.
+    reg_gw_cost: regularized optimal transport cost of the linearization.
+  """
+  costs: Optional[jnp.ndarray] = None
+  convergence: Optional[jnp.ndarray] = None
+  errors: Optional[jnp.ndarray] = None
+  linear_state: Any = None
+  linear_pb: Optional[problems.LinearProblem] = None
 
-def sinkhornsol_to_gwsol(out: sinkhorn.SinkhornState,
-                         transport, cost_matrix, gw_cost,
-                         reg_gw_cost_arr, errors, converged):
-  return GromovWassersteinOutput(
-      out.f, out.g, transport, cost_matrix, gw_cost,
-      out.reg_ot_cost, reg_gw_cost_arr, errors, converged)
+  def set(self, **kwargs) -> 'GWState':
+    """Returns a copy of self, possibly with overwrites."""
+    return self._replace(**kwargs)
 
+  def update(self, iteration: int, linear_sol, linear_pb, store_errors: bool):
+    costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
+    errors = None
+    if store_errors and self.errors is not None:
+      errors = self.errors.at[iteration, :].set(linear_sol.errors)
+    convergence = self.convergence.at[iteration].set(linear_sol.converged)
+    return self.set(linear_state=linear_sol, linear_pb=linear_pb,
+                    costs=costs, convergence=convergence, errors=errors)
 
-def gwsol_to_sinkhornsol(out: GromovWassersteinOutput):
-  return sinkhorn.SinkhornState(
-      out.f, out.g, out.reg_gw_cost, None)
+  @property
+  def geom(self):
+    return self.linear_pb.geom
+
+  @property
+  def transport(self):
+    return self.linear_state.matrix(self.geom)
+
+  @property
+  def reg_gw_cost(self):
+    return self.linear_state.reg_ot_cost
 
 
 @jax.tree_util.register_pytree_node_class
@@ -57,7 +86,6 @@ class GromovWasserstein:
                max_iterations: int = 50,
                threshold: float = 1e-3,
                jit: bool = True,
-               warm_start: bool = False,
                store_sinkhorn_errors: bool = False,
                linear_ot_solver: sinkhorn.Sinkhorn = sinkhorn.Sinkhorn(),
                **kwargs):
@@ -66,7 +94,6 @@ class GromovWasserstein:
     self.max_iterations = max_iterations
     self.threshold = threshold
     self.jit = jit
-    self.warm_start = warm_start
     self.store_sinkhorn_errors = store_sinkhorn_errors
     self.linear_ot_solver = linear_ot_solver
     self._kwargs = kwargs
@@ -79,7 +106,6 @@ class GromovWasserstein:
                 min_iterations=self.min_iterations,
                 max_iterations=self.max_iterations,
                 jit=self.jit,
-                warm_start=self.warm_start,
                 store_sinkhorn_errors=self.store_sinkhorn_errors,
                 **self._kwargs))
 
@@ -91,14 +117,12 @@ class GromovWasserstein:
                **aux_data)
 
   def not_converged(self, state, iteration):
-    objs = state.reg_gw_cost_arr
-    i = iteration
-    tol = self.threshold
+    costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_or(
         i <= 2,
         jnp.logical_and(
-            jnp.isfinite(objs[i - 1]),
-            jnp.logical_not(jnp.isclose(objs[i - 2], objs[i - 1], rtol=tol))))
+            jnp.isfinite(costs[i - 1]),
+            jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
 
   def init_linearization(
       self, prob: problems.QuadraticProblem) -> problems.LinearProblem:
@@ -129,7 +153,7 @@ class GromovWasserstein:
   def update_linearization(self,
                            prob: problems.QuadraticProblem,
                            linearization: problems.LinearProblem,
-                           gw_solution: sinkhorn.SinkhornState
+                           linear_solution: sinkhorn.SinkhornState
                            ) -> problems.LinearProblem:
     """Updates linearization of GW problem by updating cost matrix.
 
@@ -147,12 +171,12 @@ class GromovWasserstein:
     Args:
       prob: the quadratic problem.
       linearization: a LinearProblem object, linearizing the quadratic one.
-      gw_solution: solution of the linearization of the quadratic problem.
+      linear_solution: solution of the linearization of the quadratic problem.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
     """
-    geom, f, g = linearization.geom, gw_solution.f, gw_solution.g
+    geom = linearization.geom
     # Computes tmp = cost_matrix_x * transport
     # When the transport can be instantiated and a low rank structure
     # of the cost can be taken advantage of, it is preferable to do the product
@@ -160,16 +184,16 @@ class GromovWasserstein:
     # and applying the cost to it on the left.
     # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_1 better
     if not prob.geom_1.is_online or prob.geom_1.is_squared_euclidean:
-      transport = geom.transport_from_potentials(f, g)
+      transport = linear_solution.matrix(geom)
       tmp = prob.geom_1.apply_cost(transport, axis=1, fn=prob.quad_loss[0])
     else:
       # When on the contrary the transport is difficult to instantiate
       # we default back on the application of the transport to the cost matrix.
-      tmp = geom.apply_transport_from_potentials(
-          f, g, prob.quad_loss[0](prob.geom_1.cost_matrix), axis=0)
+      tmp = linear_solution.apply(
+          geom, prob.quad_loss[0](prob.geom_1.cost_matrix), axis=0)
 
-    marginal_1 = geom.marginal_from_potentials(f, g, axis=1)
-    marginal_2 = geom.marginal_from_potentials(f, g, axis=0)
+    marginal_1 = linear_solution.marginal(geom, axis=1)
+    marginal_2 = linear_solution.marginal(geom, axis=0)
     marginal_term = prob.marginal_dependent_cost(marginal_1, marginal_2)
     # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_2's.
     cost_matrix = marginal_term - prob.geom_2.apply_cost(
@@ -177,90 +201,57 @@ class GromovWasserstein:
     return problems.LinearProblem(
         self._make_geom_fn(cost_matrix=cost_matrix), prob.a, prob.b)
 
-  def __call__(
-      self, prob: problems.QuadraticProblem) -> GromovWassersteinOutput:
+  def __call__(self, prob: problems.QuadraticProblem) -> GWState:
     if not prob.is_balanced:
       raise ValueError('Unbalanced Gromov-Wasserstein is not supported yet.')
 
     gromov_fn = jax.jit(iterations) if self.jit else iterations
-    linearization, linear_sol = gromov_fn(self, prob)
-    f, g = linear_sol.f, linear_sol.g
-
-    # TODO(lpapaxanthos): remove stop_gradient when using backprop
+    state = gromov_fn(self, prob)
+    # # TODO(lpapaxanthos): remove stop_gradient when using backprop
     linearization = self.update_linearization(
         prob,
-        jax.lax.stop_gradient(linearization),
-        jax.lax.stop_gradient(linear_sol))
-    geom_gw = linearization.geom
-    transport = geom_gw.transport_from_potentials(f, g)
-    cost_matrix = 0.5 * geom_gw.cost_matrix
-    gw_cost = jnp.sum(transport * cost_matrix)
-    reg_gw_cost = linearization.ent_reg_cost(
-        jax.lax.stop_gradient(f), jax.lax.stop_gradient(g), lse_mode=True)
-    # TODO(oliviert): revisit the definition of the GW output.
-    return GromovWassersteinOutput(
-        f, g, transport, cost_matrix, gw_cost, reg_gw_cost,
-        linear_sol.reg_gw_cost_arr, linear_sol.errors_sinkhorn,
-        linear_sol.converged_sinkhorn)
+        jax.lax.stop_gradient(state.linear_pb),
+        jax.lax.stop_gradient(state.linear_state))
+    linear_state = state.linear_state.set_cost(linearization, True, True)
+    return state.set(linear_pb=linearization, linear_state=linear_state)
+
+  def init_state(self, prob: problems.QuadraticProblem) -> GWState:
+    """Initializes the state of the Gromov-Wasserstein iterations."""
+    linearization = self.init_linearization(prob)
+    linear_state = self.linear_ot_solver(linearization)
+    num_iter = self.max_iterations
+    if self.store_sinkhorn_errors:
+      errors = jnp.zeros((num_iter, self.linear_ot_solver.outer_iterations))
+    else:
+      errors = None
+    return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)), errors,
+                   linear_state, linearization)
 
 
-def iterations(solver: GromovWasserstein, prob: problems.QuadraticProblem):
+def iterations(solver: GromovWasserstein,
+               prob: problems.QuadraticProblem) -> GWState:
   """A jittable Gromov-Wasserstein outer loop."""
-  lse_mode = solver.linear_ot_solver.lse_mode
 
   def cond_fn(iteration, constants, state):
     solver = constants
-    _, gw_solution = state
-    return solver.not_converged(gw_solution, iteration)
+    return solver.not_converged(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
-    solver = constants
     del compute_error  # Always assumed True for outer loop of GW.
-    linear_pb, gw_solution = state
-    sinkhorn_solution = gwsol_to_sinkhornsol(gw_solution)
-    linear_pb = solver.update_linearization(prob, linear_pb, sinkhorn_solution)
-    f, g = sinkhorn_solution.f, gw_solution.g
-    if solver.warm_start:
-      init_dual_a = f if lse_mode else linear_pb.geom.scaling_from_potential(f)
-      init_dual_b = g if lse_mode else linear_pb.geom.scaling_from_potential(g)
-    else:
-      init_dual_a, init_dual_b = None, None
-    out = solver.linear_ot_solver(linear_pb, init_dual_a, init_dual_b)
-    reg_gw_cost_arr = gw_solution.reg_gw_cost_arr
-    reg_gw_cost_arr = reg_gw_cost_arr.at[iteration].set(out.reg_ot_cost)
+    solver = constants
+    linear_pb = solver.update_linearization(
+        prob, state.linear_pb, state.linear_state)
+    out = solver.linear_ot_solver(linear_pb)
+    return state.update(iteration, out, linear_pb, solver.store_sinkhorn_errors)
 
-
-    errors_sinkhorn = gw_solution.errors_sinkhorn
-    if solver.store_sinkhorn_errors:
-      errors_sinkhorn = errors_sinkhorn.at[iteration, :].set(out.errors)
-
-    converged_sinkhorn = gw_solution.converged_sinkhorn
-    converged_sinkhorn = converged_sinkhorn.at[iteration].set(out.converged)
-    out = sinkhornsol_to_gwsol(
-        out, None, None, None,
-        reg_gw_cost_arr, errors_sinkhorn, converged_sinkhorn)
-    return linear_pb, out
-
-  linearization = solver.init_linearization(prob)
-  sinkhorn_solution = solver.linear_ot_solver(linearization)
-  # initialize the GW State
-  gw_solution = sinkhornsol_to_gwsol(
-      sinkhorn_solution,
-      None, None, None,
-      jnp.zeros((solver.max_iterations,)),
-      None if not solver.store_sinkhorn_errors else jnp.zeros(
-          (solver.max_iterations, solver.linear_ot_solver.outer_iterations)),
-      jnp.zeros((solver.max_iterations,)))
-
-  (linearization, gw_solution) = fixed_point_loop.fixpoint_iter(
+  return fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=(linearization, gw_solution))
-  return linearization, gw_solution
+      state=solver.init_state(prob))
 
 
 def gromov_wasserstein(
@@ -277,12 +268,36 @@ def gromov_wasserstein(
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
-    **kwargs) -> GromovWassersteinOutput:
-  """For backward compatibility."""
+    **kwargs) -> GWState:
+  """Fits Gromov Wasserstein.
+
+  Args:
+    geom_x: a Geometry object for the first view.
+    geom_y: a second Geometry object for the second view.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
+    epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
+    loss: str 'sqeucl' or 'kl' to define the GW loss.
+    max_iterations: int32, the maximum number of outer iterations for
+     Gromov Wasserstein.
+    jit: bool, if True, jits the function.
+    warm_start: deprecated.
+    store_sinkhorn_errors: whether or not to return all the errors of the inner
+      Sinkhorn iterations.
+    sinkhorn_kwargs: Optionally a dictionary containing the keywords arguments
+     for calls to the sinkhorn function.
+    threshold: threshold (progress between two iterate costs) used to stop GW.
+    min_iterations: see fixed_point_loop.
+    **kwargs: additional kwargs for epsilon.
+
+  Returns:
+    A GromovWassersteinState named tuple.
+  """
+  del warm_start
   sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
   sink = sinkhorn.make(**sinkhorn_kwargs)
   solver = GromovWasserstein(
-      epsilon, max_iterations=max_iterations, warm_start=warm_start,
+      epsilon, max_iterations=max_iterations,
       jit=jit, linear_ot_solver=sink, threshold=threshold,
       store_sinkhorn_errors=store_sinkhorn_errors,
       min_iterations=min_iterations, **kwargs)

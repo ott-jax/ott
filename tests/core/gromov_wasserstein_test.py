@@ -51,7 +51,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     geom_y = pointcloud.PointCloud(self.y)
     out = gromov_wasserstein.gromov_wasserstein(
         geom_x=geom_x, geom_y=geom_y, a=self.a, b=self.b,
-        epsilon=.1).errors_sinkhorn
+        epsilon=.1).errors
     self.assertIsNone(out)
 
     out = gromov_wasserstein.gromov_wasserstein(
@@ -63,7 +63,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
         store_sinkhorn_errors=True,
         sinkhorn_kwargs={
             'threshold': threshold_sinkhorn
-        }).errors_sinkhorn
+        }).errors
 
     out = out[jnp.sum(out > 0, axis=1) > 0, :]
     last_errors = out[-1, :]
@@ -84,12 +84,12 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
           loss='sqeucl',
           max_iterations=10, jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs)
-      return out.reg_gw_cost, (out.f, out.g)
+      return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
-      reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True,
-                                           argnums=(0, 1,))
+      reg_gw_and_grad = jax.value_and_grad(
+          reg_gw, has_aux=True, argnums=(0, 1))
       (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)
@@ -177,6 +177,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
 
     self.assertGreater(loss_thre(.1), loss_thre(.001))
     self.assertGreater(loss_thre(.001), loss_thre(.00001))
+
 
 if __name__ == '__main__':
   absltest.main()

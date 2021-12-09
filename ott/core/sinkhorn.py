@@ -168,7 +168,7 @@ class SinkhornState(NamedTuple):
 
   def set(self, **kwargs) -> 'SinkhornState':
     """Returns a copy of self, with potential overwrites."""
-    return type(self)(**{**self._asdict(), **kwargs})  # pytype: disable=wrong-keyword-args
+    return self._replace(**kwargs)
 
   def finalize(self):
     return self.set(fu=None, gv=None, old_fus=None, old_mapped_fus=None)
@@ -212,6 +212,9 @@ class SinkhornState(NamedTuple):
     except ValueError:
       u, v = self.scalings(geom)
       return geom.apply_transport_from_scalings(u, v, inputs, axis=axis)
+
+  def marginal(self, geom: geometry.Geometry, axis: int) -> jnp.ndarray:
+    return geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
 
 @jax.tree_util.register_pytree_node_class
