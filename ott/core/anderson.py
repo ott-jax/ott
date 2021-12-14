@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 
 from ott.core import dataclasses
+from ott.core import sinkhorn_state
 
 
 @dataclasses.register_pytree_node
@@ -50,7 +51,10 @@ class AndersonAcceleration:
     combination = jnp.sum(fxs * weights[None, :], axis=1)
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
-  def update(self, state, iteration, pb, lse_mode: bool):
+  def update(self,
+             state: sinkhorn_state.SinkhornState,
+             iteration: int,
+             pb, lse_mode: bool):
     """Anderson acceleration update.
 
     When using Anderson acceleration, first update the dual variable f_u with
@@ -62,7 +66,7 @@ class AndersonAcceleration:
     enough the update below will output a potential variable.
 
     Args:
-      state: A SinkhornState
+      state: A sinkhorn_state.SinkhornState
       iteration: int, the current iteration.
       pb: a problem.LinearProblem defining the OT problem.
       lse_mode: whether to compute in log-sum-exp or in scalings.

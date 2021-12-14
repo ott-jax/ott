@@ -126,7 +126,7 @@ class ImplicitDiff:
 
     Args:
       gr: 2-uple, (vector of size ``n``, vector of size ``m``).
-      prob: the instantiation of the regularizad transport problem.
+      ot_prob: the instantiation of the regularizad transport problem.
       f: potential, w.r.t marginal a.
       g: potential, w.r.t marginal b.
       lse_mode: bool, log-sum-exp mode if True, kernel else.
@@ -252,6 +252,7 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(self, prob, f, g, lse_mode, gr) -> problems.LinearProblem:
+    """Applies vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 

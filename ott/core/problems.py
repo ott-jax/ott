@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Functions to manipulate the problem(s) or regularized optimal transport."""
+"""Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Callable, Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ott.core import sinkhorn_state
+from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
@@ -348,6 +350,88 @@ class QuadraticProblem:
             marginal_2[:, None], 1, self.linear_loss[1]).reshape(-1, 1),
         jnp.ones((1, marginal_1.size))).T
     return x_term + y_term
+
+  def init_linearization(
+      self,
+      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
+  ) -> LinearProblem:
+    """Initialises a linear problem locally around a naive initializer ab'.
+
+    The equation follows Equation 6, Proposition 1 of
+    http://proceedings.mlr.press/v48/peyre16.pdf.
+
+    Args:
+      epsilon: An epsilon scheduler or a float passed on to the linearization.
+
+    Returns:
+      A LinearProblem, representing local linearization of GW problem.
+    """
+    a = jax.lax.stop_gradient(self.a)
+    b = jax.lax.stop_gradient(self.b)
+    # TODO(oliviert, cuturi): consider passing a custom initialization.
+    ab = a[:, None] * b[None, :]
+    marginal_1 = ab.sum(1)
+    marginal_2 = ab.sum(0)
+    marginal_term = self.marginal_dependent_cost(marginal_1, marginal_2)
+    tmp = self.geom_1.apply_cost(ab, axis=1, fn=self.quad_loss[0])
+    cost_matrix = marginal_term - self.geom_2.apply_cost(
+        tmp.T, axis=1, fn=self.quad_loss[1]).T
+    return LinearProblem(
+        geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon), self.a,
+        self.b)
+
+  def update_linearization(
+      self,
+      linearization: LinearProblem,
+      linear_solution: sinkhorn_state.SinkhornState,
+      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
+  ) -> LinearProblem:
+    """Updates linearization of GW problem by updating cost matrix.
+
+    The cost matrix equation follows Equation 6, Proposition 1 of
+    http://proceedings.mlr.press/v48/peyre16.pdf.
+
+    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
+    from geom_x and :math:`q` [num_b,] be the marginal of the transport matrix
+    for samples from geom_y. Let :math:`T` [num_a, num_b] be the transport
+    matrix. The cost matrix equation can be written as:
+
+    cost_matrix = marginal_dep_term
+                + left_x(cost_x) :math:`T` right_y(cost_y):math:`^T`
+
+    Args:
+      linearization: a LinearProblem object, linearizing the quadratic one.
+      linear_solution: solution of the linearization of the quadratic problem.
+      epsilon: An epsilon scheduler or a float passed on to the linearization.
+
+    Returns:
+      Updated linear OT problem, a new local linearization of GW problem.
+    """
+    geom = linearization.geom
+    # Computes tmp = cost_matrix_x * transport
+    # When the transport can be instantiated and a low rank structure
+    # of the cost can be taken advantage of, it is preferable to do the product
+    # between transport and cost matrix by instantiating first the transport
+    # and applying the cost to it on the left.
+    # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_1 better
+    if not self.geom_1.is_online or self.geom_1.is_squared_euclidean:
+      transport = linear_solution.matrix(geom)
+      tmp = self.geom_1.apply_cost(transport, axis=1, fn=self.quad_loss[0])
+    else:
+      # When on the contrary the transport is difficult to instantiate
+      # we default back on the application of the transport to the cost matrix.
+      tmp = linear_solution.apply(
+          geom, self.quad_loss[0](self.geom_1.cost_matrix), axis=0)
+
+    marginal_1 = linear_solution.marginal(geom, axis=1)
+    marginal_2 = linear_solution.marginal(geom, axis=0)
+    marginal_term = self.marginal_dependent_cost(marginal_1, marginal_2)
+    # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_2's.
+    cost_matrix = marginal_term - self.geom_2.apply_cost(
+        tmp.T, axis=1, fn=self.quad_loss[1]).T
+    return LinearProblem(geometry.Geometry(cost_matrix=cost_matrix,
+                                           epsilon=epsilon),
+                         self.a, self.b)
 
 
 def make(*args,

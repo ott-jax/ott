@@ -15,7 +15,6 @@
 
 # Lint as: python3
 """A Jax version of Sinkhorn's algorithm."""
-import functools
 from typing import Any, Dict, Optional, NamedTuple, Union
 
 import jax
@@ -97,8 +96,6 @@ class GromovWasserstein:
     self.store_sinkhorn_errors = store_sinkhorn_errors
     self.linear_ot_solver = linear_ot_solver
     self._kwargs = kwargs
-    self._make_geom_fn = functools.partial(
-        geometry.Geometry, epsilon=epsilon, **kwargs)
 
   def tree_flatten(self):
     return ([self.epsilon, self.linear_ot_solver, self.threshold],
@@ -124,83 +121,6 @@ class GromovWasserstein:
             jnp.isfinite(costs[i - 1]),
             jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
 
-  def init_linearization(
-      self, prob: problems.QuadraticProblem) -> problems.LinearProblem:
-    """Initialises the cost matrix for the geometry object for GW.
-
-    The equation follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
-
-    Args:
-      prob: a quadratic problem.
-
-    Returns:
-      A LinearProblem, representing local linearization of GW problem.
-    """
-    a = jax.lax.stop_gradient(prob.a)
-    b = jax.lax.stop_gradient(prob.b)
-    # TODO(oliviert, cuturi): consider passing a custom initialization.
-    ab = a[:, None] * b[None, :]
-    marginal_1 = ab.sum(1)
-    marginal_2 = ab.sum(0)
-    marginal_term = prob.marginal_dependent_cost(marginal_1, marginal_2)
-    tmp = prob.geom_1.apply_cost(ab, axis=1, fn=prob.quad_loss[0])
-    cost_matrix = marginal_term - prob.geom_2.apply_cost(
-        tmp.T, axis=1, fn=prob.quad_loss[1]).T
-    return problems.LinearProblem(
-        self._make_geom_fn(cost_matrix=cost_matrix), prob.a, prob.b)
-
-  def update_linearization(self,
-                           prob: problems.QuadraticProblem,
-                           linearization: problems.LinearProblem,
-                           linear_solution: sinkhorn.SinkhornState
-                           ) -> problems.LinearProblem:
-    """Updates linearization of GW problem by updating cost matrix.
-
-    The cost matrix equation follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
-
-    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
-    from geom_x and :math:`q` [num_b,] be the marginal of the transport matrix
-    for samples from geom_y. Let :math:`T` [num_a, num_b] be the transport
-    matrix. The cost matrix equation can be written as:
-
-    cost_matrix = marginal_dep_term
-                + left_x(cost_x) :math:`T` right_y(cost_y):math:`^T`
-
-    Args:
-      prob: the quadratic problem.
-      linearization: a LinearProblem object, linearizing the quadratic one.
-      linear_solution: solution of the linearization of the quadratic problem.
-
-    Returns:
-      Updated linear OT problem, a new local linearization of GW problem.
-    """
-    geom = linearization.geom
-    # Computes tmp = cost_matrix_x * transport
-    # When the transport can be instantiated and a low rank structure
-    # of the cost can be taken advantage of, it is preferable to do the product
-    # between transport and cost matrix by instantiating first the transport
-    # and applying the cost to it on the left.
-    # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_1 better
-    if not prob.geom_1.is_online or prob.geom_1.is_squared_euclidean:
-      transport = linear_solution.matrix(geom)
-      tmp = prob.geom_1.apply_cost(transport, axis=1, fn=prob.quad_loss[0])
-    else:
-      # When on the contrary the transport is difficult to instantiate
-      # we default back on the application of the transport to the cost matrix.
-      tmp = linear_solution.apply(
-          geom, prob.quad_loss[0](prob.geom_1.cost_matrix), axis=0)
-
-    marginal_1 = linear_solution.marginal(geom, axis=1)
-    marginal_2 = linear_solution.marginal(geom, axis=0)
-    marginal_term = prob.marginal_dependent_cost(marginal_1, marginal_2)
-    # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_2's.
-    cost_matrix = marginal_term - prob.geom_2.apply_cost(
-        tmp.T, axis=1, fn=prob.quad_loss[1]).T
-    return problems.LinearProblem(
-        self._make_geom_fn(cost_matrix=cost_matrix), prob.a, prob.b)
-
   def __call__(self, prob: problems.QuadraticProblem) -> GWState:
     if not prob.is_balanced:
       raise ValueError('Unbalanced Gromov-Wasserstein is not supported yet.')
@@ -208,16 +128,16 @@ class GromovWasserstein:
     gromov_fn = jax.jit(iterations) if self.jit else iterations
     state = gromov_fn(self, prob)
     # # TODO(lpapaxanthos): remove stop_gradient when using backprop
-    linearization = self.update_linearization(
-        prob,
+    linearization = prob.update_linearization(
         jax.lax.stop_gradient(state.linear_pb),
-        jax.lax.stop_gradient(state.linear_state))
+        jax.lax.stop_gradient(state.linear_state),
+        self.epsilon)
     linear_state = state.linear_state.set_cost(linearization, True, True)
     return state.set(linear_pb=linearization, linear_state=linear_state)
 
   def init_state(self, prob: problems.QuadraticProblem) -> GWState:
     """Initializes the state of the Gromov-Wasserstein iterations."""
-    linearization = self.init_linearization(prob)
+    linearization = prob.init_linearization(self.epsilon)
     linear_state = self.linear_ot_solver(linearization)
     num_iter = self.max_iterations
     if self.store_sinkhorn_errors:
@@ -239,8 +159,9 @@ def iterations(solver: GromovWasserstein,
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True for outer loop of GW.
     solver = constants
-    linear_pb = solver.update_linearization(
-        prob, state.linear_pb, state.linear_state)
+    linear_pb = prob.update_linearization(
+        state.linear_pb, state.linear_state,
+        solver.epsilon)
     out = solver.linear_ot_solver(linear_pb)
     return state.update(iteration, out, linear_pb, solver.store_sinkhorn_errors)
 
