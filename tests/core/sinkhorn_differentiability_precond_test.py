@@ -68,18 +68,12 @@ class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
                             linear_solve_kwargs=None):
       if linear_solve_kwargs is None:
         linear_solve_kwargs = {}
-      out = transport.Transport(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
+      out = transport.solve(
+          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
           lse_mode=lse_mode,
           precondition_fun=precondition_fun,
           **linear_solve_kwargs)
-      return jnp.sum(random_dir * out._f)
+      return jnp.sum(random_dir * out.solver_output.f)
 
     # Compute implicit gradient
     loss_imp_no_precond = jax.jit(

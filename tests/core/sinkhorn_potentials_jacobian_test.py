@@ -62,17 +62,11 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     epsilon = 0.01 if lse_mode else 0.1
 
     def loss_from_potential(a, x, implicit):
-      out = transport.Transport(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
+      out = transport.solve(
+          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
           lse_mode=lse_mode,
           implicit_differentiation=implicit)
-      return jnp.sum(random_dir * out._f)
+      return jnp.sum(random_dir * out.solver_output.f)
 
     # Compute implicit gradient
     loss_imp = jax.jit(

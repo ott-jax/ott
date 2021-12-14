@@ -254,13 +254,8 @@ def iterations(solver: GromovWasserstein,
       state=solver.init_state(prob))
 
 
-def gromov_wasserstein(
-    geom_x: geometry.Geometry,
-    geom_y: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+def make(
     epsilon: Union[epsilon_scheduler.Epsilon, float] = 1.,
-    loss: str = 'sqeucl',
     max_iterations: int = 50,
     jit: bool = False,
     warm_start: bool = True,
@@ -268,18 +263,13 @@ def gromov_wasserstein(
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
-    **kwargs) -> GWState:
-  """Fits Gromov Wasserstein.
+    **kwargs) -> GromovWasserstein:
+  """Creates a GromovWasserstein solver.
 
   Args:
-    geom_x: a Geometry object for the first view.
-    geom_y: a second Geometry object for the second view.
-    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
-    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
-    loss: str 'sqeucl' or 'kl' to define the GW loss.
     max_iterations: int32, the maximum number of outer iterations for
-     Gromov Wasserstein.
+      Gromov Wasserstein.
     jit: bool, if True, jits the function.
     warm_start: deprecated.
     store_sinkhorn_errors: whether or not to return all the errors of the inner
@@ -291,20 +281,40 @@ def gromov_wasserstein(
     **kwargs: additional kwargs for epsilon.
 
   Returns:
-    A GromovWassersteinState named tuple.
+    A GromovWasserstein solver.
   """
   del warm_start
   sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
   sink = sinkhorn.make(**sinkhorn_kwargs)
-  solver = GromovWasserstein(
+  return GromovWasserstein(
       epsilon, max_iterations=max_iterations,
       jit=jit, linear_ot_solver=sink, threshold=threshold,
       store_sinkhorn_errors=store_sinkhorn_errors,
       min_iterations=min_iterations, **kwargs)
+
+
+def gromov_wasserstein(
+    geom_x: geometry.Geometry,
+    geom_y: geometry.Geometry,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    loss: str = 'sqeucl',
+    **kwargs) -> GWState:
+  """Fits Gromov Wasserstein.
+
+  Args:
+    geom_x: a Geometry object for the first view.
+    geom_y: a second Geometry object for the second view.
+    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
+    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
+    loss: str 'sqeucl' or 'kl' to define the GW loss.
+    **kwargs: keyword arguments to make.
+
+  Returns:
+    A GromovWassersteinState named tuple.
+  """
   losses = {'sqeucl': problems.make_square_loss, 'kl': problems.make_kl_loss}
   loss_fn = losses.get(loss, None)
-  tau_a = sinkhorn_kwargs.get('tau_a', 1.0)  # For backward compatibility.
-  tau_b = sinkhorn_kwargs.get('tau_b', 1.0)  # For backward compatibility.
-  prob = problems.QuadraticProblem(
-      geom_x, geom_y, a=a, b=b, loss=loss_fn(), tau_a=tau_a, tau_b=tau_b)
+  prob = problems.QuadraticProblem(geom_x, geom_y, a=a, b=b, loss=loss_fn())
+  solver = make(**kwargs)
   return solver(prob)

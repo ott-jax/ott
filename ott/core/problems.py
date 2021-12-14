@@ -18,7 +18,10 @@
 from typing import Callable, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
+import numpy as np
 from ott.geometry import geometry
+from ott.geometry import pointcloud
+
 
 LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
 Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
@@ -345,3 +348,34 @@ class QuadraticProblem:
             marginal_2[:, None], 1, self.linear_loss[1]).reshape(-1, 1),
         jnp.ones((1, marginal_1.size))).T
     return x_term + y_term
+
+
+def make(*args,
+         a: Optional[jnp.ndarray] = None,
+         b: Optional[jnp.ndarray] = None,
+         tau_a: float = 1.0,
+         tau_b: float = 1.0,
+         objective: Optional[str] = None,
+         **kwargs):
+  """Makes a problem from arrays, assuming PointCloud geometries."""
+  if isinstance(args[0], (jnp.ndarray, np.ndarray)):
+    x = args[0]
+    y = args[1] if len(args) > 1 else args[0]
+    if ((objective == 'linear') or
+        (objective is None and x.shape[1] == y.shape[1])):
+      geom = pointcloud.PointCloud(x, y, **kwargs)
+      return LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    elif ((objective == 'quadratic') or
+          (objective is None and x.shape[1] != y.shape[1])):
+      geom1 = pointcloud.PointCloud(x, x, **kwargs)
+      geom2 = pointcloud.PointCloud(y, y, **kwargs)
+      return QuadraticProblem(geom1, geom2, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    else:
+      raise ValueError(f'Unknown transport problem `{objective}`')
+  elif isinstance(args[0], geometry.Geometry):
+    cls = LinearProblem if len(args) == 1 else QuadraticProblem
+    return cls(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+  elif isinstance(args[0], (LinearProblem, QuadraticProblem)):
+    return args[0]
+  else:
+    raise ValueError('Cannot instantiate a transport problem.')

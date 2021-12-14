@@ -41,6 +41,7 @@ def transport_for_sort(
     squashing_fun: function taking an array to squash all its entries in [0,1].
       sigmoid of whitened values by default. Can be set to be the identity by
       passing ``squashing_fun = lambda x : x`` instead.
+    epsilon: the regularization parameter.
     **kwargs: keyword arguments for `sinkhorn` and / or `PointCloud`.
 
   Returns:
@@ -62,7 +63,7 @@ def transport_for_sort(
   num_targets = b.shape[0]
   y = jnp.linspace(0.0, 1.0, num_targets)[:, jnp.newaxis]
 
-  return transport.Transport(x, y, a=a, b=b, epsilon=epsilon, **kwargs)
+  return transport.solve(x, y, a=a, b=b, epsilon=epsilon, **kwargs)
 
 
 def apply_on_axis(op, inputs, axis, *args, **kwargs):

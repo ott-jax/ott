@@ -77,9 +77,10 @@ class Plot:
       raise ValueError('So far we only plot PointCloud geometry.')
 
     x, y = ot.geom.x, ot.geom.y
+    a, b = ot.problem.a, ot.problem.b
     x, y = bidimensional(x, y)
-    scales_x = ot.a * self._scale / jnp.min(ot.a)
-    scales_y = ot.b * self._scale / jnp.min(ot.b)
+    scales_x = a * self._scale / jnp.min(a)
+    scales_y = b * self._scale / jnp.min(b)
     return x, y, scales_x, scales_y
 
   def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):

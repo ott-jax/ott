@@ -84,5 +84,6 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     self.assertIsNot(jnp.any(jnp.isnan(rub(y, x))), True)
     self.assertAllClose(rub(x, y), rub(y, x), rtol=1e-3, atol=1e-3)
 
+
 if __name__ == '__main__':
   absltest.main()

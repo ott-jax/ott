@@ -21,6 +21,7 @@ import jax
 import jax.numpy as jnp
 import jax.test_util
 
+from ott.core import problems
 from ott.geometry import pointcloud
 from ott.tools import transport
 
@@ -37,7 +38,7 @@ class TransportTest(jax.test_util.JaxTestCase):
     num_a, num_b = 23, 48
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    ot = transport.Transport(x, y, epsilon=1e-2, threshold=1e-2)
+    ot = transport.solve(x, y, epsilon=1e-2, threshold=1e-2)
     self.assertEqual(ot.matrix.shape, (num_a, num_b))
     self.assertAllClose(jnp.sum(ot.matrix, axis=1), ot.a, atol=1e-3)
     self.assertAllClose(jnp.sum(ot.matrix, axis=0), ot.b, atol=1e-3)
@@ -50,7 +51,21 @@ class TransportTest(jax.test_util.JaxTestCase):
     geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
-    ot = transport.Transport(geom, b=b, threshold=1e-3)
+    ot = transport.solve(geom, b=b, threshold=1e-3)
+    self.assertEqual(ot.matrix.shape, (num_a, num_b))
+    self.assertAllClose(jnp.sum(ot.matrix, axis=1), ot.a, atol=1e-3)
+    self.assertAllClose(jnp.sum(ot.matrix, axis=0), ot.b, atol=1e-3)
+
+  def test_transport_from_problem(self):
+    rngs = jax.random.split(self.rng, 3)
+    num_a, num_b = 23, 48
+    x = jax.random.uniform(rngs[0], (num_a, 4))
+    y = jax.random.uniform(rngs[1], (num_b, 4))
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
+    b = jax.random.uniform(rngs[2], (num_b,))
+    b /= jnp.sum(b)
+    pb = problems.LinearProblem(geom, b=b)
+    ot = transport.solve(pb)
     self.assertEqual(ot.matrix.shape, (num_a, num_b))
     self.assertAllClose(jnp.sum(ot.matrix, axis=1), ot.a, atol=1e-3)
     self.assertAllClose(jnp.sum(ot.matrix, axis=0), ot.b, atol=1e-3)
@@ -62,10 +77,10 @@ class TransportTest(jax.test_util.JaxTestCase):
     y = jax.random.uniform(rngs[1], (num_b, 4))
     geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
     with self.assertRaises(TypeError):
-      transport.Transport(geom, x, threshold=1e-3)
+      transport.solve(geom, x, threshold=1e-3)
 
-    with self.assertRaises(AttributeError):
-      transport.Transport(x, y, x, y, threshold=1e-3)
+    with self.assertRaises(ValueError):
+      transport.solve('pointcloud', threshold=1e-3)
 
 
 if __name__ == '__main__':
