@@ -30,8 +30,8 @@ non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
 def assert_output_close(x, y):
   """Asserst SinkhornOutputs are close."""
-  x = tuple(a for a in x if a is not None)
-  y = tuple(a for a in y if a is not None)
+  x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
+  y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
   return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
 

@@ -138,13 +138,16 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     min_distances = jnp.min(delta, axis=1)
     self.assertAllClose(min_distances, jnp.zeros_like(min_distances), atol=0.05)
 
-  def test_soft_sort_jacobian(self):
+  @parameterized.parameters([True, False])
+  def test_soft_sort_jacobian(self, implicit: bool):
     b, n = 10, 200
     idx_column = 5
-    z = jax.random.uniform(jax.random.PRNGKey(0), ((b, n)))
-    random_dir = jax.random.normal(jax.random.PRNGKey(1), (b,)) / b
+    rng = jax.random.PRNGKey(0)
+    rngs = jax.random.split(rng, 3)
+    z = jax.random.uniform(rngs[0], ((b, n)))
+    random_dir = jax.random.normal(rngs[1], (b,)) / b
 
-    def loss_fn(logits, implicit=False):
+    def loss_fn(logits):
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
@@ -152,28 +155,14 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
           implicit_differentiation=implicit)
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 
-    my_loss_i = jax.jit(
-        jax.value_and_grad(functools.partial(loss_fn, implicit=True)))
-    my_loss_b = jax.jit(
-        jax.value_and_grad(functools.partial(loss_fn, implicit=False)))
-
-    _, grad_i = my_loss_i(z)
-    _, grad_b = my_loss_b(z)
-
-    delta = (jax.random.uniform(jax.random.PRNGKey(1), z.shape) - .5 )
+    _, grad = jax.jit(jax.value_and_grad(loss_fn))(z)
+    delta = jax.random.uniform(rngs[2], z.shape) - 0.5
     eps = 1e-3
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
-    self.assertAllClose(
-        (val_peps - val_meps) / (2 * eps),
-        jnp.sum(grad_b * delta),
-        atol=0.01,
-        rtol=0.1)
-    self.assertAllClose(
-        (val_peps - val_meps) / (2 * eps),
-        jnp.sum(grad_i * delta),
-        atol=0.01,
-        rtol=0.1)
+    self.assertAllClose((val_peps - val_meps) / (2 * eps),
+                        jnp.sum(grad * delta),
+                        atol=0.01, rtol=0.1)
 
 
 if __name__ == '__main__':

@@ -21,7 +21,6 @@ from typing import Any, Dict, Mapping, Optional, Type
 import jax
 from jax import numpy as jnp
 from ott.core import sinkhorn
-from ott.core import sinkhorn_state
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
@@ -127,7 +126,7 @@ def _sinkhorn_divergence(
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
-    out_yy = sinkhorn_state.SinkhornState(errors=jnp.array([]), reg_ot_cost=0)  # pytype: disable=wrong-keyword-args
+    out_yy = sinkhorn.SinkhornOutput(errors=jnp.array([]), reg_ot_cost=0)
   else:
     out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
 

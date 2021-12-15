@@ -19,14 +19,33 @@ from typing import Callable, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.core import sinkhorn_state
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import pointcloud
+# Because Protocol is not available in Python < 3.8
+from typing_extensions import Protocol
 
 
 LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
 Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
+
+
+class Transport(Protocol):
+  """Defines the interface for the solution of a transport problem.
+
+  Classes implementing those function do not have to inherit from it, the
+  class can however be used in type hints to support duck typing.
+  """
+
+  @property
+  def matrix(self) -> jnp.ndarray:
+    ...
+
+  def apply(self, inputs: jnp.ndarray, axis: int) -> jnp.ndarray:
+    ...
+
+  def marginal(self, axis: int = 0) -> jnp.ndarray:
+    ...
 
 
 @jax.tree_util.register_pytree_node_class
@@ -383,7 +402,7 @@ class QuadraticProblem:
   def update_linearization(
       self,
       linearization: LinearProblem,
-      linear_solution: sinkhorn_state.SinkhornState,
+      transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
   ) -> LinearProblem:
     """Updates linearization of GW problem by updating cost matrix.
@@ -401,13 +420,12 @@ class QuadraticProblem:
 
     Args:
       linearization: a LinearProblem object, linearizing the quadratic one.
-      linear_solution: solution of the linearization of the quadratic problem.
+      solution: solution of the linearization of the quadratic problem.
       epsilon: An epsilon scheduler or a float passed on to the linearization.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
     """
-    geom = linearization.geom
     # Computes tmp = cost_matrix_x * transport
     # When the transport can be instantiated and a low rank structure
     # of the cost can be taken advantage of, it is preferable to do the product
@@ -415,23 +433,22 @@ class QuadraticProblem:
     # and applying the cost to it on the left.
     # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_1 better
     if not self.geom_1.is_online or self.geom_1.is_squared_euclidean:
-      transport = linear_solution.matrix(geom)
-      tmp = self.geom_1.apply_cost(transport, axis=1, fn=self.quad_loss[0])
+      tmp = self.geom_1.apply_cost(
+          transport.matrix, axis=1, fn=self.quad_loss[0])
     else:
       # When on the contrary the transport is difficult to instantiate
       # we default back on the application of the transport to the cost matrix.
-      tmp = linear_solution.apply(
-          geom, self.quad_loss[0](self.geom_1.cost_matrix), axis=0)
+      tmp = transport.apply(self.quad_loss[0](self.geom_1.cost_matrix), axis=0)
 
-    marginal_1 = linear_solution.marginal(geom, axis=1)
-    marginal_2 = linear_solution.marginal(geom, axis=0)
+    marginal_1 = transport.marginal(axis=1)
+    marginal_2 = transport.marginal(axis=0)
     marginal_term = self.marginal_dependent_cost(marginal_1, marginal_2)
     # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_2's.
     cost_matrix = marginal_term - self.geom_2.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
-    return LinearProblem(geometry.Geometry(cost_matrix=cost_matrix,
-                                           epsilon=epsilon),
-                         self.a, self.b)
+
+    geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+    return LinearProblem(geom, self.a, self.b)
 
 
 def make(*args,

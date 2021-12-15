@@ -14,11 +14,13 @@
 # limitations under the License.
 
 """Tools for Anderson acceleration."""
+from typing import Any
 import jax
 import jax.numpy as jnp
 
 from ott.core import dataclasses
-from ott.core import sinkhorn_state
+
+SinkhornState = Any
 
 
 @dataclasses.register_pytree_node
@@ -52,7 +54,7 @@ class AndersonAcceleration:
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
   def update(self,
-             state: sinkhorn_state.SinkhornState,
+             state: SinkhornState,
              iteration: int,
              pb, lse_mode: bool):
     """Anderson acceleration update.
@@ -66,7 +68,7 @@ class AndersonAcceleration:
     enough the update below will output a potential variable.
 
     Args:
-      state: A sinkhorn_state.SinkhornState
+      state: A sinkhorn.SinkhornState
       iteration: int, the current iteration.
       pb: a problem.LinearProblem defining the OT problem.
       lse_mode: whether to compute in log-sum-exp or in scalings.

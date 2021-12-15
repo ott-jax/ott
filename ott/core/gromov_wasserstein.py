@@ -68,7 +68,7 @@ class GWState(NamedTuple):
 
   @property
   def transport(self):
-    return self.linear_state.matrix(self.geom)
+    return self.linear_state.matrix
 
   @property
   def reg_gw_cost(self):

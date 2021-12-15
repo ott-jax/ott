@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Optional, Callable
+from typing import Optional, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -25,8 +25,72 @@ from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import momentum as momentum_lib
 from ott.core import problems
-from ott.core import sinkhorn_state
 from ott.geometry import geometry
+
+
+class SinkhornState(NamedTuple):
+  """Holds the outputs of the Sinkhorn algorithm."""
+  errors: Optional[jnp.ndarray] = None
+  fu: Optional[jnp.ndarray] = None
+  gv: Optional[jnp.ndarray] = None
+  old_fus: Optional[jnp.ndarray] = None
+  old_mapped_fus: Optional[jnp.ndarray] = None
+
+  def set(self, **kwargs) -> 'SinkhornState':
+    """Returns a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
+
+
+class SinkhornOutput(NamedTuple):
+  """Implements the problems.Transport interface, for Sinkhorn."""
+
+  f: Optional[jnp.ndarray] = None
+  g: Optional[jnp.ndarray] = None
+  errors: Optional[jnp.ndarray] = None
+  reg_ot_cost: Optional[jnp.ndarray] = None
+  geom: Optional[geometry.Geometry] = None
+
+  def set(self, **kwargs) -> 'SinkhornOutput':
+    """Returns a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
+
+  def set_cost(self, pb, lse_mode, use_danskin) -> 'SinkhornOutput':
+    f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
+    g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
+    return self.set(reg_ot_cost=pb.ent_reg_cost(f, g, lse_mode))
+
+  @property
+  def converged(self):
+    if self.errors is None:
+      return False
+    return jnp.logical_and(jnp.sum(self.errors == -1) > 0,
+                           jnp.sum(jnp.isnan(self.errors)) == 0)
+
+  @property
+  def scalings(self):
+    u = self.geom.scaling_from_potential(self.f)
+    v = self.geom.scaling_from_potential(self.g)
+    return u, v
+
+  @property
+  def matrix(self) -> jnp.ndarray:
+    """Transport matrix if it can be instantiated."""
+    try:
+      return self.geom.transport_from_potentials(self.f, self.g)
+    except ValueError:
+      return self.geom.transport_from_scalings(*self.scalings)
+
+  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies the transport to a ndarray; axis=1 for its transpose."""
+    try:
+      return self.geom.apply_transport_from_potentials(
+          self.f, self.g, inputs, axis=axis)
+    except ValueError:
+      u, v = self.scalings
+      return self.geom.apply_transport_from_scalings(u, v, inputs, axis=axis)
+
+  def marginal(self, axis: int) -> jnp.ndarray:
+    return self.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -67,9 +131,6 @@ class Sinkhorn:
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
       should be jitted by the user)
-
-  Returns:
-    A ``sinkhorn_state.SinkhornState``.
   """
 
   def __init__(self,
@@ -128,7 +189,7 @@ class Sinkhorn:
   def __call__(self,
                ot_prob: problems.LinearProblem,
                init_dual_a=None,
-               init_dual_b=None) -> sinkhorn_state.SinkhornState:
+               init_dual_b=None) -> SinkhornOutput:
     """Main interface to run sinkhorn."""
     a, b = ot_prob.a, ot_prob.b
     if init_dual_a is None:
@@ -154,7 +215,7 @@ class Sinkhorn:
   def tree_unflatten(cls, aux_data, children):
     return cls(**aux_data, threshold=children[0])
 
-  def lse_step(self, ot_prob, state, iteration) -> sinkhorn_state.SinkhornState:
+  def lse_step(self, ot_prob, state, iteration) -> SinkhornState:
     """Sinkhorn LSE update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
@@ -168,7 +229,7 @@ class Sinkhorn:
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(fu=fu, gv=gv)
 
-  def kernel_step(self, ot_prob, state, iteration) -> sinkhorn_state.SinkhornState:
+  def kernel_step(self, ot_prob, state, iteration) -> SinkhornState:
     """Sinkhorn multiplicative update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
@@ -190,7 +251,7 @@ class Sinkhorn:
 
     Args:
       ot_prob: the transport problem definition
-      state: sinkhorn_state.SinkhornState named tuple.
+      state: SinkhornState named tuple.
       iteration: the current iteration of the Sinkhorn loop.
       compute_error: flag to indicate this iteration computes/stores an error
 
@@ -240,41 +301,49 @@ class Sinkhorn:
     """Returns the initial state of the loop."""
     fu, gv = init_dual_a, init_dual_b
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
-    state = sinkhorn_state.SinkhornState(errors=errors, fu=fu, gv=gv)  # pytype: disable=wrong-keyword-args
+    state = SinkhornState(errors=errors, fu=fu, gv=gv)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
+  def output_from_state(self, ot_prob, state):
+    """Creates an output from a loop state.
 
-def run(ot_prob, solver, init_dual_a, init_dual_b) -> sinkhorn_state.SinkhornState:
-  """A jittable sinkhorn.
+    Note:
+    When differentiating the regularized OT cost, and assuming Sinkhorn has
+    run to convergence, Danskin's (or the enveloppe) theorem
+    https://en.wikipedia.org/wiki/Danskin%27s_theorem
+    states that the resulting OT cost as a function of any of the inputs
+    (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
+    potentials were frozen and did not vary with those inputs.
+      Notice this is only valid, as when using ``implicit_differentiation``
+    mode, if the Sinkhorn algorithm outputs potentials that are near optimal.
+    namely when the threshold value is set to a small tolerance.
+      The flag ``use_danskin`` controls whether that assumption is made. By
+    default, that flag is set to the value of ``implicit_differentiation`` if
+    not specified. If you wish to compute derivatives of order 2 and above,
+    set ``use_danskin`` to ``False``.
 
-  Note:
-  When differentiating the regularized OT cost, and assuming Sinkhorn has
-  run to convergence, Danskin's (or the enveloppe) theorem
-  https://en.wikipedia.org/wiki/Danskin%27s_theorem
-  states that the resulting OT cost as a function of any of the inputs
-  (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
-  potentials were frozen and did not vary with those inputs.
-    Notice this is only valid, as when using ``implicit_differentiation``
-  mode, if the Sinkhorn algorithm outputs potentials that are near optimal.
-  namely when the threshold value is set to a small tolerance.
-    The flag ``use_danskin`` controls whether that assumption is made. By
-  default, that flag is set to the value of ``implicit_differentiation`` if
-  not specified. If you wish to compute derivatives of order 2 and above,
-  set ``use_danskin`` to ``False``.
+    Args:
+      ot_prob: the transport problem.
+      state: a SinkhornState.
 
-  Args:
-    ot_prob: the transport problem.
-    solver: Sinkhorn parameters.
-    init_dual_a: the initial value for ``f``.
-    init_dual_b: the initial value for ``g``.
+    Returns:
+      A SinkhornOutput.
+    """
+    geom = ot_prob.geom
+    f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
+    g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
+    errors = state.errors[:, 0]
+    return SinkhornOutput(f=f, g=g, errors=errors)
 
-  Returns:
-    A sinkhorn_state.SinkhornState.
-  """
+
+def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornOutput:
+  """A jittable sinkhorn."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
-  state = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
-  state = state.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
-  return state.finalize()
+  out = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
+  # Be careful here, the geom and the cost are injected at the end, where it
+  # does not interfere with the implicit differentiation.
+  out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
+  return out.set(geom=ot_prob.geom)
 
 
 def iterations(ot_prob, solver, init_dual_a, init_dual_b):
@@ -302,8 +371,7 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b):
       cond_fn, body_fn,
       solver.min_iterations, solver.max_iterations, solver.inner_iterations,
       const, state)
-  state = state.postprocess(ot_prob, solver.lse_mode)
-  return state
+  return solver.output_from_state(ot_prob, state)
 
 
 def _iterations_taped(ot_prob: problems.LinearProblem,

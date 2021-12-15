@@ -37,7 +37,7 @@ from ott.core import sinkhorn
 
 
 class Transport(NamedTuple):
-  """An interface to transport problems."""
+  """Implements a core.problems.Transport interface to transport solutions."""
   problem: Any = None
   solver_output: Any = None
 
@@ -64,10 +64,13 @@ class Transport(NamedTuple):
 
   @property
   def matrix(self):
-    return self.linear_output.matrix(self.geom)
+    return self.linear_output.matrix
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    return self.linear_output.apply(self.geom, inputs, axis)
+    return self.linear_output.apply(inputs, axis)
+
+  def marginal(self, axis: int = 0) -> jnp.ndarray:
+    return self.linear_output.marginal(axis)
 
 
 def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
