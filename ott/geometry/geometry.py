@@ -163,7 +163,7 @@ class Geometry:
     self._relative_epsilon = False
     self._scale = other.scale
 
-  # The functions below are at the core of Sinkhorn iterations, they are
+  # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
   # cost matrices in stabilized form) or kernel mode (using kernel matrices).
 

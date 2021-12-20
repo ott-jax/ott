@@ -401,7 +401,6 @@ class QuadraticProblem:
 
   def update_linearization(
       self,
-      linearization: LinearProblem,
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
   ) -> LinearProblem:
@@ -419,8 +418,7 @@ class QuadraticProblem:
                 + left_x(cost_x) :math:`T` right_y(cost_y):math:`^T`
 
     Args:
-      linearization: a LinearProblem object, linearizing the quadratic one.
-      solution: solution of the linearization of the quadratic problem.
+      transport: Solution of the linearization of the quadratic problem.
       epsilon: An epsilon scheduler or a float passed on to the linearization.
 
     Returns:

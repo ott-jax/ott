@@ -30,12 +30,13 @@ class GWState(NamedTuple):
   """Holds the state of the Gromov-Wasserstein solver.
 
   Attributes:
-    cost: Holds the sequence of regularized GW costs seen through the outer loop
-      of the solver.
-    convergence: Holds the sequence of bool convergence flags of the inner
-      Sinkhorn iterations.
-    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm at
-      each iteration.
+    costs: Holds the sequence of regularized GW costs seen through the outer
+      loop of the solver.
+    linear_convergence: Holds the sequence of bool convergence flags of the
+      inner Sinkhorn iterations.
+    convergence: Bool convergence flag for the outer GW iterations.
+    linear: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
     linear_state: state used to solve and store solutions to the local
       linearization of GW.
     linear_pb: local linearizationg of the quadratic GW problem.
@@ -44,7 +45,8 @@ class GWState(NamedTuple):
     reg_gw_cost: regularized optimal transport cost of the linearization.
   """
   costs: Optional[jnp.ndarray] = None
-  convergence: Optional[jnp.ndarray] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  convergence: bool = False
   errors: Optional[jnp.ndarray] = None
   linear_state: Any = None
   linear_pb: Optional[problems.LinearProblem] = None
@@ -58,9 +60,11 @@ class GWState(NamedTuple):
     errors = None
     if store_errors and self.errors is not None:
       errors = self.errors.at[iteration, :].set(linear_sol.errors)
-    convergence = self.convergence.at[iteration].set(linear_sol.converged)
+    linear_convergence = self.linear_convergence.at[iteration].set(
+        linear_sol.converged)
     return self.set(linear_state=linear_sol, linear_pb=linear_pb,
-                    costs=costs, convergence=convergence, errors=errors)
+                    costs=costs, linear_convergence=linear_convergence,
+                    errors=errors)
 
   @property
   def geom(self):
@@ -127,13 +131,15 @@ class GromovWasserstein:
 
     gromov_fn = jax.jit(iterations) if self.jit else iterations
     state = gromov_fn(self, prob)
-    # # TODO(lpapaxanthos): remove stop_gradient when using backprop
+    # TODO(lpapaxanthos): remove stop_gradient when using backprop
     linearization = prob.update_linearization(
-        jax.lax.stop_gradient(state.linear_pb),
         jax.lax.stop_gradient(state.linear_state),
         self.epsilon)
     linear_state = state.linear_state.set_cost(linearization, True, True)
-    return state.set(linear_pb=linearization, linear_state=linear_state)
+    iteration = jnp.sum(state.costs != 0)
+    convergence = jnp.logical_not(self.not_converged(state, iteration))
+    return state.set(linear_pb=linearization, linear_state=linear_state,
+                     convergence=convergence)
 
   def init_state(self, prob: problems.QuadraticProblem) -> GWState:
     """Initializes the state of the Gromov-Wasserstein iterations."""
@@ -141,11 +147,11 @@ class GromovWasserstein:
     linear_state = self.linear_ot_solver(linearization)
     num_iter = self.max_iterations
     if self.store_sinkhorn_errors:
-      errors = jnp.zeros((num_iter, self.linear_ot_solver.outer_iterations))
+      errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
-    return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)), errors,
-                   linear_state, linearization)
+    return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)),
+                   False, errors, linear_state, linearization)
 
 
 def iterations(solver: GromovWasserstein,
@@ -160,10 +166,11 @@ def iterations(solver: GromovWasserstein,
     del compute_error  # Always assumed True for outer loop of GW.
     solver = constants
     linear_pb = prob.update_linearization(
-        state.linear_pb, state.linear_state,
+        state.linear_state,
         solver.epsilon)
     out = solver.linear_ot_solver(linear_pb)
-    return state.update(iteration, out, linear_pb, solver.store_sinkhorn_errors)
+    return state.update(
+        iteration, out, linear_pb, solver.store_sinkhorn_errors)
 
   return fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
