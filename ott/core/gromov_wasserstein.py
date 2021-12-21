@@ -26,6 +26,43 @@ from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 
 
+class GWOutput(NamedTuple):
+  """Holds the output of the Gromov-Wasserstein solver.
+
+  Attributes:
+    costs: Holds the sequence of regularized GW costs seen through the outer
+      loop of the solver.
+    linear_convergence: Holds the sequence of bool convergence flags of the
+      inner Sinkhorn iterations.
+    convergence: Bool convergence flag for the outer GW iterations.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
+    linear_state: State used to solve and store solutions to the local
+      linearization of GW.
+    geom: The geometry underlying the local linearization.
+    transport: The transport matrix.
+    reg_gw_cost: Regularized optimal transport cost of the linearization.
+  """
+  costs: Optional[jnp.ndarray] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  convergence: bool = False
+  errors: Optional[jnp.ndarray] = None
+  linear_state: Any = None
+  geom: geometry.Geometry = None
+
+  def set(self, **kwargs) -> 'GWOutput':
+    """Returns a copy of self, possibly with overwrites."""
+    return self._replace(**kwargs)
+
+  @property
+  def transport(self):
+    return self.linear_state.matrix
+
+  @property
+  def reg_gw_cost(self):
+    return self.linear_state.reg_ot_cost
+
+
 class GWState(NamedTuple):
   """Holds the state of the Gromov-Wasserstein solver.
 
@@ -34,19 +71,14 @@ class GWState(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    convergence: Bool convergence flag for the outer GW iterations.
-    linear: Holds sequence of vectors of errors of the Sinkhorn algorithm
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
-    linear_state: state used to solve and store solutions to the local
+    linear_state: State used to solve and store solutions to the local
       linearization of GW.
-    linear_pb: local linearizationg of the quadratic GW problem.
-    geom: the geometry underlying the local linearization.
-    transport: the transport matrix.
-    reg_gw_cost: regularized optimal transport cost of the linearization.
+    linear_pb: Local linearization of the quadratic GW problem.
   """
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
-  convergence: bool = False
   errors: Optional[jnp.ndarray] = None
   linear_state: Any = None
   linear_pb: Optional[problems.LinearProblem] = None
@@ -62,21 +94,11 @@ class GWState(NamedTuple):
       errors = self.errors.at[iteration, :].set(linear_sol.errors)
     linear_convergence = self.linear_convergence.at[iteration].set(
         linear_sol.converged)
-    return self.set(linear_state=linear_sol, linear_pb=linear_pb,
-                    costs=costs, linear_convergence=linear_convergence,
+    return self.set(linear_state=linear_sol,
+                    linear_pb=linear_pb,
+                    costs=costs,
+                    linear_convergence=linear_convergence,
                     errors=errors)
-
-  @property
-  def geom(self):
-    return self.linear_pb.geom
-
-  @property
-  def transport(self):
-    return self.linear_state.matrix
-
-  @property
-  def reg_gw_cost(self):
-    return self.linear_state.reg_ot_cost
 
 
 @jax.tree_util.register_pytree_node_class
@@ -125,21 +147,21 @@ class GromovWasserstein:
             jnp.isfinite(costs[i - 1]),
             jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
 
-  def __call__(self, prob: problems.QuadraticProblem) -> GWState:
+  def __call__(self, prob: problems.QuadraticProblem) -> GWOutput:
     if not prob.is_balanced:
       raise ValueError('Unbalanced Gromov-Wasserstein is not supported yet.')
 
     gromov_fn = jax.jit(iterations) if self.jit else iterations
-    state = gromov_fn(self, prob)
+    out = gromov_fn(self, prob)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     linearization = prob.update_linearization(
-        jax.lax.stop_gradient(state.linear_state),
+        jax.lax.stop_gradient(out.linear_state),
         self.epsilon)
-    linear_state = state.linear_state.set_cost(linearization, True, True)
-    iteration = jnp.sum(state.costs != 0)
-    convergence = jnp.logical_not(self.not_converged(state, iteration))
-    return state.set(linear_pb=linearization, linear_state=linear_state,
-                     convergence=convergence)
+    linear_state = out.linear_state.set_cost(linearization, True, True)
+    iteration = jnp.sum(out.costs != 0)
+    convergence = jnp.logical_not(self.not_converged(out, iteration))
+    return out.set(linear_state=linear_state,
+                   convergence=convergence)
 
   def init_state(self, prob: problems.QuadraticProblem) -> GWState:
     """Initializes the state of the Gromov-Wasserstein iterations."""
@@ -151,11 +173,27 @@ class GromovWasserstein:
     else:
       errors = None
     return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)),
-                   False, errors, linear_state, linearization)
+                   errors, linear_state, linearization)
+
+  def output_from_state(self, state):
+    """Create an output from a loop state.
+
+    Arguments:
+      state: A GWState.
+
+    Returns:
+      A GWOutput.
+    """
+    geom = state.linear_pb.geom
+    return GWOutput(costs=state.costs,
+                    linear_convergence=state.linear_convergence,
+                    errors=state.errors,
+                    linear_state=state.linear_state,
+                    geom=geom)
 
 
 def iterations(solver: GromovWasserstein,
-               prob: problems.QuadraticProblem) -> GWState:
+               prob: problems.QuadraticProblem) -> GWOutput:
   """A jittable Gromov-Wasserstein outer loop."""
 
   def cond_fn(iteration, constants, state):
@@ -172,7 +210,7 @@ def iterations(solver: GromovWasserstein,
     return state.update(
         iteration, out, linear_pb, solver.store_sinkhorn_errors)
 
-  return fixed_point_loop.fixpoint_iter(
+  state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,
@@ -180,6 +218,8 @@ def iterations(solver: GromovWasserstein,
       inner_iterations=1,
       constants=solver,
       state=solver.init_state(prob))
+
+  return solver.output_from_state(state)
 
 
 def make(
@@ -227,7 +267,7 @@ def gromov_wasserstein(
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     loss: str = 'sqeucl',
-    **kwargs) -> GWState:
+    **kwargs) -> GWOutput:
   """Fits Gromov Wasserstein.
 
   Args:
