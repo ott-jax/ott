@@ -114,37 +114,37 @@ def sqrtm(
   return sqrt_x, inv_sqrt_x, errors
 
 
-def _solve_sylvester(
+def solve_sylvester_bartels_stewart(
     a: jnp.ndarray,
-    b: jnp.ndarray
-) -> Tuple[jnp.ndarray]:
-  """Solve a Sylvester equation of the form XA + AX = B for X.
+    b: jnp.ndarray,
+    c: jnp.ndarray,
+) -> jnp.ndarray:
+  """Solve the real Sylvester equation AX - XB = C using Bartels-Stewart."""
+  # See https://nhigham.com/2020/09/01/what-is-the-sylvester-equation/ for
+  # discussion of the algorithm (but note that in the derivation, the sign on
+  # the right hand side is flipped in the equation in which the columns are set
+  # to be equal).
+  m = a.shape[-1]
+  n = b.shape[-1]
+  # Cast a and b to complex to ensure we get the complex Schur decomposition
+  # (the real Schur decomposition may not give an upper triangular solution).
+  # For the decomposition below, a = u r u* and b = v s v*
+  r, u = jax.lax.linalg.schur(a + 0j)
+  s, v = jax.lax.linalg.schur(b + 0j)
+  d = jnp.matmul(jnp.conjugate(jnp.swapaxes(u, axis1=-2, axis2=-1)),
+                 jnp.matmul(c, v))
+  # The solution in the transformed space will in general be complex, too.
+  y = jnp.zeros(a.shape[:-2] + (m, n)) + 0j
+  idx = jnp.arange(m, dtype=jnp.int32)
+  for j in range(n):
+    lhs = r.at[..., idx, idx].add(-s[..., j:j+1, j])
+    rhs = d[..., j] + jnp.matmul(y[..., :j], s[..., :j, j:j+1])[..., 0]
+    y = y.at[..., j].set(jax.scipy.linalg.solve_triangular(lhs, rhs))
 
-  When we differentiate X^{1/2}X^{1/2} = X, we obtain the Sylvester equation
-  d(X^{1/2}) X^{1/2} + X^{1/2} d(X^{1/2}) = dX. We solve below by reformulating
-  as a single linear equation using the vec operator (see
-  https://nhigham.com/2020/09/01/what-is-the-sylvester-equation/ )
-  Note that this is quite computationally expensive (O(n^6)!).
-
-  Similarly, when we differentiate X^{-1/2}X^{-1/2} = X^{-1}, we obtain the
-  equation d(X^{-1/2}) X^{-1/2} + X^{-1/2} d(X^{-1/2}) = d X^{-1} =
-  -x^{-T} dx x^{-T}
-
-  Args:
-    a: value A on the left hand side of the Sylvester equation
-    b: value B on the right hand side of the Sylvester equation
-
-  Returns:
-    The solution X.
-  """
-  # TODO(geoffd): reimplement using the Bartels-Stewart algorithm to solve
-  #   in O(n^3) time when there is a JAX solver.
-  d = a.shape[-1]
-  eye_d = jnp.eye(d)
-  a_t = jnp.swapaxes(a, axis1=-2, axis2=-1)
-  l = jnp.kron(a_t, eye_d) + jnp.kron(eye_d, a)
-  b = b.reshape(list(b.shape[:-2]) + [d * d, 1])
-  return jnp.linalg.solve(l, b).reshape(a.shape)
+  x = jnp.matmul(
+      u, jnp.matmul(y, jnp.conjugate(jnp.swapaxes(v, axis1=-2, axis2=-1))))
+  # The end result should be real; remove the imaginary part of the solution.
+  return jnp.real(x)
 
 
 def sqrtm_fwd(
@@ -183,19 +183,37 @@ def sqrtm_bwd(
   # ignores cotangent associated with errors
   cot_sqrt, cot_inv_sqrt, _ = cotangent
 
-  # get d(x^{1/2})
-  vjp_cot_sqrt = _solve_sylvester(a=sqrt_x, b=cot_sqrt)
+  # Solve for d(X^{1/2}):
+  # Start with X^{1/2} X^{1/2} = X
+  # Differentiate to obtain
+  # d(X^{1/2}) X^{1/2} + X^{1/2} d(X^{1/2}) = dX
+  # The above is a Sylvester equation that we can solve using Bartels-Stewart.
+  # Below think of cot_sqrt as (dX)^T and vjp_cot_sqrt as d(X^{1/2})^T.
+  # See https://jax.readthedocs.io/en/latest/notebooks/autodiff_cookbook.html
+  vjp_cot_sqrt = jnp.swapaxes(
+      solve_sylvester_bartels_stewart(
+          a=sqrt_x, b=-sqrt_x,
+          c=jnp.swapaxes(cot_sqrt, axis1=-1, axis2=-2)),
+      axis1=-1, axis2=-2)
 
-  # If we differentiate x^{-1/2}x^{-1/2} = x^{-1}, we obtain a similar
-  # Sylvester equation to the one used to obtain d(x^{1/2}) above:
-  # d(x^{-1/2})x^{-1/2} + x^{-1/2}d(x^{-1/2}) = d(x^{-1})
-  # We then use the fact that d(x^{-1}) = -x^{-T} dx x^{-T}
+  # Now solve for d(X^{-1/2}):
+  # Start with X^{-1/2} X^{-1/2} = X^{-1}
+  # Use the product rule and the fact that d(X^{-1}) = -X^{-1} dX X^{-1}
+  # to obtain
   # (See The Matrix Cookbook section on derivatives of an inverse
   # https://www.math.uwaterloo.ca/~hwolkowi/matrixcookbook.pdf )
-  inv_x_t = jnp.swapaxes(
-      jnp.matmul(inv_sqrt_x, inv_sqrt_x), axis1=-2, axis2=-1)
-  vjp_cot_inv_sqrt = _solve_sylvester(
-      a=inv_sqrt_x, b=-jnp.matmul(inv_x_t, jnp.matmul(cot_inv_sqrt, inv_x_t)))
+  # d(X^{-1/2}) X^{-1/2} + X^{-1/2} d(X^{-1/2}) = -X^{-1} dX X^{-1}
+  # Again we have a Sylvester equation that we solve as above, and again we
+  # think of cot_inv_sqrt as (dX)^T and vjp_cot_inv_sqrt as d(X^{-1/2})^T
+  inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
+  vjp_cot_inv_sqrt = jnp.swapaxes(
+      solve_sylvester_bartels_stewart(
+          a=inv_sqrt_x, b=-inv_sqrt_x,
+          c=-jnp.matmul(
+              inv_x,
+              jnp.matmul(jnp.swapaxes(cot_inv_sqrt, axis1=-2, axis2=-1),
+                         inv_x))),
+      axis1=-1, axis2=-2)
   return (vjp_cot_sqrt + vjp_cot_inv_sqrt,)
 
 
@@ -224,7 +242,11 @@ def sqrtm_only_bwd(
     sqrt_x: jnp.ndarray,
     cotangent: jnp.ndarray
 ) -> Tuple[jnp.ndarray]:
-  vjp = _solve_sylvester(a=sqrt_x, b=cotangent)
+  vjp = jnp.swapaxes(
+      solve_sylvester_bartels_stewart(
+          a=sqrt_x, b=-sqrt_x,
+          c=jnp.swapaxes(cotangent, axis1=-2, axis2=-1)),
+      axis1=-2, axis2=-1)
   return (vjp,)
 
 
@@ -246,12 +268,18 @@ def inv_sqrtm_only_fwd(
 
 
 def inv_sqrtm_only_bwd(
-    residual: Tuple[jnp.ndarray, jnp.ndarray],
+    residual: jnp.ndarray,
     cotangent: jnp.ndarray) -> jnp.ndarray:
   inv_sqrt_x = residual
-  inv_x_t = jnp.swapaxes(jnp.matmul(inv_sqrt_x, inv_sqrt_x), axis1=-2, axis2=-1)
-  vjp = _solve_sylvester(
-      a=inv_sqrt_x, b=-jnp.matmul(inv_x_t, jnp.matmul(cotangent, inv_x_t)))
+  inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
+  vjp = jnp.swapaxes(
+      solve_sylvester_bartels_stewart(
+          a=inv_sqrt_x, b=-inv_sqrt_x,
+          c=-jnp.matmul(
+              inv_x,
+              jnp.matmul(jnp.swapaxes(cotangent, axis1=-2, axis2=-1),
+                         inv_x))),
+      axis1=-1, axis2=-2)
   return (vjp,)
 
 

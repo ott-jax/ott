@@ -78,9 +78,23 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+    key = jax.random.PRNGKey(0)
     self.dim = 23
     self.batch = 3
+
+    # Values for testing the Sylvester solver
+    # Sylvester equations have the form AX - XB = C
+    # Shapes: A = (m, m), B = (n, n), C = (m, n), X = (m, n)
+    m = 3
+    n = 2
+    key, subkey0, subkey1, subkey2 = jax.random.split(key, 4)
+    self.a = jax.random.normal(key=subkey0, shape=(2, m, m))
+    self.b = jax.random.normal(key=subkey1, shape=(2, n, n))
+    self.x = jax.random.normal(key=subkey2, shape=(2, m, n))
+    # make sure the system has a solution
+    self.c = jnp.matmul(self.a, self.x) - jnp.matmul(self.x, self.b)
+
+    self.rng = key
 
   def test_sqrtm(self):
     """Sample a random p.s.d. (Wishart) matrix, check its sqrt matches."""
@@ -129,6 +143,22 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
             eye,
             jnp.matmul(x[i, j], jnp.matmul(inv_sqrt_x[i, j], inv_sqrt_x[i, j])),
             atol=1e-2)
+
+  def test_solve_bartels_stewart(self):
+    x = matrix_square_root.solve_sylvester_bartels_stewart(
+        a=self.a[0], b=self.b[0], c=self.c[0])
+    self.assertAllClose(self.x[0], x, atol=1.e-5)
+
+  def test_solve_bartels_stewart_batch(self):
+    x = matrix_square_root.solve_sylvester_bartels_stewart(
+        a=self.a, b=self.b, c=self.c)
+    self.assertAllClose(self.x, x, atol=1.e-5)
+    x = matrix_square_root.solve_sylvester_bartels_stewart(
+        a=self.a[None], b=self.b[None], c=self.c[None])
+    self.assertAllClose(self.x, x[0], atol=1.e-5)
+    x = matrix_square_root.solve_sylvester_bartels_stewart(
+        a=self.a[None, None], b=self.b[None, None], c=self.c[None, None])
+    self.assertAllClose(self.x, x[0, 0], atol=1.e-5)
 
   @parameterized.named_parameters(
       dict(
