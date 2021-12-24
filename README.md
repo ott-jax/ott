@@ -2,7 +2,7 @@
 <img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="150"></img>
 </div>
 
-# Optimal Transport Tools (OTT), A toolbox for everything Wasserstein.
+# Optimal Transport Tools (OTT), A toolbox for all things Wasserstein.
 
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/) for detailed info.**
 
