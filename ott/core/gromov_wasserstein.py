@@ -222,8 +222,10 @@ def make(
 
 
 def gromov_wasserstein(
-    geom_x: geometry.Geometry,
-    geom_y: geometry.Geometry,
+    geom_xx: geometry.Geometry,
+    geom_yy: geometry.Geometry,
+    geom_xy: Optional[geometry.Geometry] = None,
+    fused_penalty: Optional[float] = 0.0,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     loss: str = 'sqeucl',
@@ -231,8 +233,13 @@ def gromov_wasserstein(
   """Fits Gromov Wasserstein.
 
   Args:
-    geom_x: a Geometry object for the first view.
-    geom_y: a second Geometry object for the second view.
+    geom_xx: a Geometry object for the first view.
+    geom_yy: a second Geometry object for the second view.
+    geom_xy: a Geometry object representing the linear cost in FGW.
+    fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
+      i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
+      None fused_penalty will be ignored, i.e. fused_penalty = 0
+
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     loss: str 'sqeucl' or 'kl' to define the GW loss.
@@ -243,6 +250,7 @@ def gromov_wasserstein(
   """
   losses = {'sqeucl': problems.make_square_loss, 'kl': problems.make_kl_loss}
   loss_fn = losses.get(loss, None)
-  prob = problems.QuadraticProblem(geom_x, geom_y, a=a, b=b, loss=loss_fn())
+  is_fused = True if fused_penalty > 0 else False
+  prob = problems.QuadraticProblem(geom_xx, geom_yy, geom_xy=geom_xy, fused_penalty=fused_penalty, is_fused=is_fused, a=a, b=b, loss=loss_fn())
   solver = make(**kwargs)
   return solver(prob)
