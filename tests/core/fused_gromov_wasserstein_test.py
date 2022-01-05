@@ -26,7 +26,7 @@ from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-class GromovWassersteinTest(jax.test_util.JaxTestCase):
+class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
     super().setUp()
@@ -241,7 +241,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
 
     fgw_output = reg_fgw(self.x, self.y, self.x_2, self.y_2, self.fused_penalty, self.a, self.b)
     gw_output = reg_gw(self.x, self.y, self.a, self.b)
-    self.assertNotAlmostEqual(fgw_output.reg_gw_cost, gw_output.reg_gw_cost)
+    self.assertGreater(fgw_output.reg_gw_cost, gw_output.reg_gw_cost)
     self.assertNotAlmostEqual(fgw_output.transport[0, 0], gw_output.transport[0, 0])
 
 

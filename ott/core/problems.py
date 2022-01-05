@@ -274,9 +274,9 @@ class QuadraticProblem:
                geom_yy: geometry.Geometry,
                geom_xy: Optional[geometry.Geometry],
                fused_penalty: Optional[float] = 0.0,
-               is_fused: Optional[bool] = False,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
+               is_fused: Optional[bool] = False,
                loss: Optional[Loss] = None,
                tau_a: float = 1.0,
                tau_b: float = 1.0):
@@ -293,12 +293,12 @@ class QuadraticProblem:
       fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
         i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
         None fused_penalty will be ignored, i.e. fused_penalty = 0
-      is_fused: indicates whether we have a pure Gromov-Wasserstein or a FGW
-        problem
       a: jnp.ndarray[n] representing the first marginal. If None, it will be
         uniform.
       b: jnp.ndarray[n] representing the first marginal. If None, it will be
         uniform.
+      is_fused: indicates whether we have a pure Gromov-Wasserstein or a FGW
+        problem
       loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
         part of the loss (see in the pydoc of the class lin1, lin2). The second
         one is the quadratic part (quad1, quad2). If None is passed, the loss
@@ -314,9 +314,9 @@ class QuadraticProblem:
     self.geom_yy = geom_yy
     self.geom_xy = geom_xy
     self.fused_penalty = fused_penalty
-    self.is_fused = is_fused
     self._a = a
     self._b = b
+    self.is_fused = is_fused
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.loss = make_square_loss() if loss is None else loss
@@ -335,8 +335,8 @@ class QuadraticProblem:
 
   def tree_flatten(self):
     return (
-        [self.geom_xx, self.geom_yy, self._a, self._b],
-        {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss})
+        [self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a, self._b],
+        {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss, 'is_fused': self.is_fused})
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
