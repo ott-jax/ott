@@ -1,0 +1,157 @@
+# coding=utf-8
+# Copyright 2021 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Tests for linalg."""
+
+from absl.testing import absltest
+
+import jax
+import jax.numpy as jnp
+import jax.test_util
+
+from ott.tools.gaussian_mixture import linalg
+
+
+class LinalgTest(jax.test_util.JaxTestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.key = jax.random.PRNGKey(seed=0)
+
+  def test_get_mean_and_var(self):
+    points = jax.random.normal(key=self.key, shape=(10, 2))
+    weights = jnp.ones(10)
+    expected_mean = jnp.mean(points, axis=0)
+    expected_var = jnp.var(points, axis=0)
+    actual_mean, actual_var = linalg.get_mean_and_var(
+        points=points, weights=weights)
+    self.assertArraysAllClose(expected_mean, actual_mean)
+    self.assertArraysAllClose(expected_var, actual_var)
+
+  def test_get_mean_and_var_nonuniform_weights(self):
+    points = jax.random.normal(key=self.key, shape=(10, 2))
+    weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
+    expected_mean = jnp.mean(points[:5], axis=0)
+    expected_var = jnp.var(points[:5], axis=0)
+    actual_mean, actual_var = linalg.get_mean_and_var(
+        points=points, weights=weights)
+    self.assertArraysAllClose(expected_mean, actual_mean)
+    self.assertArraysAllClose(expected_var, actual_var)
+
+  def test_get_mean_and_cov(self):
+    points = jax.random.normal(key=self.key, shape=(10, 2))
+    weights = jnp.ones(10)
+    expected_mean = jnp.mean(points, axis=0)
+    expected_cov = jnp.cov(points, rowvar=False, bias=True)
+    actual_mean, actual_cov = linalg.get_mean_and_cov(
+        points=points, weights=weights)
+    self.assertArraysAllClose(expected_mean, actual_mean)
+    self.assertArraysAllClose(expected_cov, actual_cov)
+
+  def test_get_mean_and_cov_nonuniform_weights(self):
+    points = jax.random.normal(key=self.key, shape=(10, 2))
+    weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
+    expected_mean = jnp.mean(points[:5], axis=0)
+    expected_cov = jnp.cov(points[:5], rowvar=False, bias=True)
+    actual_mean, actual_cov = linalg.get_mean_and_cov(
+        points=points, weights=weights)
+    self.assertArraysAllClose(expected_mean, actual_mean)
+    self.assertArraysAllClose(expected_cov, actual_cov)
+
+  def test_flat_to_tril(self):
+    size = 3
+    x = jax.random.normal(key=self.key, shape=(5, 4, size * (size + 1) // 2))
+    m = linalg.flat_to_tril(x, size)
+    # check size of m
+    self.assertEqual(m.shape, (5, 4, size, size))
+
+    # make sure m is lower triangular
+    for i in range(size):
+      for j in range(size):
+        if j <= i:
+          continue
+        self.assertArraysEqual(m[..., i, j], jnp.zeros_like(m[..., i, j]))
+
+    # make sure we can invert
+    actual = linalg.tril_to_flat(m)
+    self.assertArraysAllClose(x, actual)
+
+  def test_tril_to_flat(self):
+    key = jax.random.PRNGKey(seed=0)
+    size = 3
+    m = jax.random.normal(key=key, shape=(5, 4, size, size))
+    for i in range(size):
+      for j in range(size):
+        if j > i:
+          m = m.at[..., i, j].set(0.)
+    m = jnp.array(m)
+    flat = linalg.tril_to_flat(m)
+
+    # check size of flat
+    self.assertEqual(flat.shape, (5, 4, size * (size + 1) // 2))
+
+    # make sure flattening is invertible
+    inverted = linalg.flat_to_tril(flat, size)
+    self.assertArraysAllClose(m, inverted)
+
+  def test_apply_to_diag(self):
+    key = jax.random.PRNGKey(seed=0)
+    size = 3
+    m = jax.random.normal(key=key, shape=(5, 4, size, size))
+    mnew = linalg.apply_to_diag(m, jnp.exp)
+    for i in range(size):
+      for j in range(size):
+        if i != j:
+          self.assertArraysAllClose(m[..., i, j], mnew[..., i, j])
+        else:
+          self.assertArraysAllClose(jnp.exp(m[..., i, j]), mnew[..., i, j])
+
+  def test_matrix_powers(self):
+    key = jax.random.PRNGKey(0)
+    key, subkey = jax.random.split(key)
+    m = jax.random.normal(key=subkey, shape=(4, 4))
+    m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
+    m = jnp.matmul(m, m)  # symmetric, pos def
+    inv_m = jnp.linalg.inv(m)
+    msq = jnp.matmul(m, m)
+    actual = linalg.matrix_powers(msq, powers=(0.5, -0.5))
+    self.assertArraysAllClose(m, actual[0], rtol=1.e-5)
+    self.assertArraysAllClose(inv_m, actual[1], rtol=1.e-4)
+
+  def test_invmatvectril(self):
+    key = jax.random.PRNGKey(0)
+    key, subkey = jax.random.split(key)
+    m = jax.random.normal(key=subkey, shape=(2, 2))
+    m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
+    m = jnp.matmul(m, m)  # symmetric, pos def
+    cholesky = jnp.linalg.cholesky(m)  # lower triangular
+    key, subkey = jax.random.split(key)
+    x = jax.random.normal(key=subkey, shape=(10, 2))
+    inv_cholesky = jnp.linalg.inv(cholesky)
+    expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
+    actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)
+    self.assertArraysAllClose(expected, actual)
+
+  def test_get_random_orthogonal(self):
+    key = jax.random.PRNGKey(0)
+    key, subkey = jax.random.split(key)
+    q = linalg.get_random_orthogonal(key=subkey, dim=3)
+    qt = jnp.transpose(q)
+    expected = jnp.eye(3)
+    actual = jnp.matmul(q, qt)
+    self.assertArraysAllClose(expected, actual)
+
+if __name__ == '__main__':
+  absltest.main()
