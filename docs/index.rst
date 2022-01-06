@@ -49,6 +49,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
 
    notebooks/OTT_&_POT.ipynb
    notebooks/One_Sinkhorn.ipynb
+   notebooks/LRSinkhorn.ipynb
 
 
 .. toctree::
