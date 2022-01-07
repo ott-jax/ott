@@ -290,7 +290,7 @@ def gromov_wasserstein(
   """
   losses = {'sqeucl': problems.make_square_loss, 'kl': problems.make_kl_loss}
   loss_fn = losses.get(loss, None)
-  is_fused = True if fused_penalty > 0 else False
+  is_fused = True if fused_penalty > 0.0 else False
   prob = problems.QuadraticProblem(geom_xx, geom_yy, geom_xy=geom_xy, fused_penalty=fused_penalty, is_fused=is_fused, a=a, b=b, loss=loss_fn())
   solver = make(**kwargs)
   return solver(prob)

@@ -276,7 +276,7 @@ class QuadraticProblem:
                fused_penalty: Optional[float] = 0.0,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
-               is_fused: Optional[bool] = False,
+               is_fused: bool = False,
                loss: Optional[Loss] = None,
                tau_a: float = 1.0,
                tau_b: float = 1.0):
@@ -409,7 +409,7 @@ class QuadraticProblem:
     tmp = self.geom_xx.apply_cost(ab, axis=1, fn=self.quad_loss[0])
     cost_matrix = marginal_term - self.geom_yy.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
-    if self.is_fused > 0:
+    if self.is_fused:
       geom = geometry.Geometry(cost_matrix=cost_matrix + self.fused_penalty * self.geom_xy.cost_matrix, epsilon=epsilon)
     else:
       geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
