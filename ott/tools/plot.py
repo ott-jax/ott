@@ -79,8 +79,8 @@ class Plot:
     x, y = ot.geom.x, ot.geom.y
     a, b = ot.problem.a, ot.problem.b
     x, y = bidimensional(x, y)
-    scales_x = a * self._scale / jnp.min(a)
-    scales_y = b * self._scale / jnp.min(b)
+    scales_x = a * self._scale * a.shape[0]
+    scales_y = b * self._scale * b.shape[0]
     return x, y, scales_x, scales_y
 
   def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):

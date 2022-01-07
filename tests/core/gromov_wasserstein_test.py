@@ -50,13 +50,13 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     out = gromov_wasserstein.gromov_wasserstein(
-        geom_x=geom_x, geom_y=geom_y, a=self.a, b=self.b,
+        geom_xx=geom_x, geom_yy=geom_y, a=self.a, b=self.b,
         epsilon=.1).errors
     self.assertIsNone(out)
 
     out = gromov_wasserstein.gromov_wasserstein(
-        geom_x=geom_x,
-        geom_y=geom_y,
+        geom_xx=geom_x,
+        geom_yy=geom_y,
         a=self.a,
         b=self.b,
         epsilon=.1,
@@ -172,7 +172,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     # without warm start for calls to sinkhorn
     def loss_thre(threshold):
       return gromov_wasserstein.gromov_wasserstein(
-          geom_x=geom_x, geom_y=geom_y, a=self.a, b=self.b,
+          geom_xx=geom_x, geom_yy=geom_y, a=self.a, b=self.b,
           epsilon=.1, threshold=threshold).reg_gw_cost
 
     self.assertGreater(loss_thre(.1), loss_thre(.001))

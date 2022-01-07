@@ -270,24 +270,35 @@ class QuadraticProblem:
   """
 
   def __init__(self,
-               geom_1: geometry.Geometry,
-               geom_2: geometry.Geometry,
+               geom_xx: geometry.Geometry,
+               geom_yy: geometry.Geometry,
+               geom_xy: Optional[geometry.Geometry],
+               fused_penalty: Optional[float] = 0.0,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
+               is_fused: bool = False,
                loss: Optional[Loss] = None,
                tau_a: float = 1.0,
                tau_b: float = 1.0):
     """Initializes the QuadraticProblem.
 
     Args:
-      geom_1: the geometry.Geometry object defining the ground geometry / cost
+      geom_xx: the geometry.Geometry object defining the ground geometry / cost
         of the first space.
-      geom_2: the geometry.Geometry object defining the ground geometry / cost
+      geom_yy: the geometry.Geometry object defining the ground geometry / cost
         of the second space.
+      geom_xy: the geometry.Geometry object defining the linear penalty term
+        for Fused Gromov Wasserstein. If None, the problem reduces to a plain
+        Gromov Wasserstein problem.
+      fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
+        i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
+        None fused_penalty will be ignored, i.e. fused_penalty = 0
       a: jnp.ndarray[n] representing the first marginal. If None, it will be
         uniform.
       b: jnp.ndarray[n] representing the first marginal. If None, it will be
         uniform.
+      is_fused: indicates whether we have a pure Gromov-Wasserstein or a FGW
+        problem
       loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
         part of the loss (see in the pydoc of the class lin1, lin2). The second
         one is the quadratic part (quad1, quad2). If None is passed, the loss
@@ -299,10 +310,13 @@ class QuadraticProblem:
       tau_b: if lower that 1.0, defines how much unbalanced the problem is on
         the second marginal.
     """
-    self.geom_1 = geom_1
-    self.geom_2 = geom_2
+    self.geom_xx = geom_xx
+    self.geom_yy = geom_yy
+    self.geom_xy = geom_xy
+    self.fused_penalty = fused_penalty
     self._a = a
     self._b = b
+    self.is_fused = is_fused
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.loss = make_square_loss() if loss is None else loss
@@ -320,9 +334,15 @@ class QuadraticProblem:
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
   def tree_flatten(self):
-    return (
-        [self.geom_1, self.geom_2, self._a, self._b],
-        {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss})
+    return ([
+        self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a,
+        self._b
+    ], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b,
+        'loss': self.loss,
+        'is_fused': self.is_fused
+    })
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -330,12 +350,12 @@ class QuadraticProblem:
 
   @property
   def a(self):
-    num_a = self.geom_1.shape[0]
+    num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
   def b(self):
-    num_b = self.geom_2.shape[0]
+    num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
   def marginal_dependent_cost(self, marginal_1, marginal_2):
@@ -353,19 +373,19 @@ class QuadraticProblem:
 
     Args:
       marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
-       for samples from geom_1
+       for samples from geom_xx
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
-       for samples from geom_2
+       for samples from geom_yy
 
     Returns:
       jnp.ndarray, [num_a, num_b]
     """
     x_term = jnp.dot(
-        self.geom_1.apply_cost(
+        self.geom_xx.apply_cost(
             marginal_1[:, None], 1, self.linear_loss[0]).reshape(-1, 1),
         jnp.ones((1, marginal_2.size)))
     y_term = jnp.dot(
-        self.geom_2.apply_cost(
+        self.geom_yy.apply_cost(
             marginal_2[:, None], 1, self.linear_loss[1]).reshape(-1, 1),
         jnp.ones((1, marginal_1.size))).T
     return x_term + y_term
@@ -392,12 +412,17 @@ class QuadraticProblem:
     marginal_1 = ab.sum(1)
     marginal_2 = ab.sum(0)
     marginal_term = self.marginal_dependent_cost(marginal_1, marginal_2)
-    tmp = self.geom_1.apply_cost(ab, axis=1, fn=self.quad_loss[0])
-    cost_matrix = marginal_term - self.geom_2.apply_cost(
+    tmp = self.geom_xx.apply_cost(ab, axis=1, fn=self.quad_loss[0])
+    cost_matrix = marginal_term - self.geom_yy.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
-    return LinearProblem(
-        geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon), self.a,
-        self.b)
+    if self.is_fused:
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix +
+          self.fused_penalty * self.geom_xy.cost_matrix,
+          epsilon=epsilon)
+    else:
+      geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+    return LinearProblem(geom, self.a, self.b)
 
   def update_linearization(
       self,
@@ -429,23 +454,28 @@ class QuadraticProblem:
     # of the cost can be taken advantage of, it is preferable to do the product
     # between transport and cost matrix by instantiating first the transport
     # and applying the cost to it on the left.
-    # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_1 better
-    if not self.geom_1.is_online or self.geom_1.is_squared_euclidean:
-      tmp = self.geom_1.apply_cost(
+    # TODO(cuturi,oliviert,lpapaxanthos): handle online & sqEuc geom_xx better
+    if not self.geom_xx.is_online or self.geom_xx.is_squared_euclidean:
+      tmp = self.geom_xx.apply_cost(
           transport.matrix, axis=1, fn=self.quad_loss[0])
     else:
       # When on the contrary the transport is difficult to instantiate
       # we default back on the application of the transport to the cost matrix.
-      tmp = transport.apply(self.quad_loss[0](self.geom_1.cost_matrix), axis=0)
+      tmp = transport.apply(self.quad_loss[0](self.geom_xx.cost_matrix), axis=0)
 
     marginal_1 = transport.marginal(axis=1)
     marginal_2 = transport.marginal(axis=0)
     marginal_term = self.marginal_dependent_cost(marginal_1, marginal_2)
-    # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_2's.
-    cost_matrix = marginal_term - self.geom_2.apply_cost(
+    # TODO(cuturi,oliviert,lpapaxanthos): handle low rank products for geom_yy's.
+    cost_matrix = marginal_term - self.geom_yy.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
-
-    geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+    if self.is_fused > 0:
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix +
+          self.fused_penalty * self.geom_xy.cost_matrix,
+          epsilon=epsilon)
+    else:
+      geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return LinearProblem(geom, self.a, self.b)
 
 
@@ -462,13 +492,26 @@ def make(*args,
     y = args[1] if len(args) > 1 else args[0]
     if ((objective == 'linear') or
         (objective is None and x.shape[1] == y.shape[1])):
-      geom = pointcloud.PointCloud(x, y, **kwargs)
-      return LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return LinearProblem(geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
     elif ((objective == 'quadratic') or
           (objective is None and x.shape[1] != y.shape[1])):
-      geom1 = pointcloud.PointCloud(x, x, **kwargs)
-      geom2 = pointcloud.PointCloud(y, y, **kwargs)
-      return QuadraticProblem(geom1, geom2, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy,
+                              geom_xy=None,
+                              is_fused=False,
+                              fused_penalty=0.0,
+                              a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    elif objective == 'fused':
+      fused_penalty = kwargs.pop('fused_penalty', None)
+      is_fused = kwargs.pop('is_fused', True)
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy, geom_xy=geom_xy,
+                              is_fused=is_fused, fused_penalty=fused_penalty,
+                              a=a, b=b, tau_a=tau_a, tau_b=tau_b)
     else:
       raise ValueError(f'Unknown transport problem `{objective}`')
   elif isinstance(args[0], geometry.Geometry):

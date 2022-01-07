@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Optional, Callable, NamedTuple
+from typing import Optional, Callable, NamedTuple, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -95,9 +95,13 @@ class SinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
-  """A pytree describing a Sinkhorn solver for linear reg-OT problem.
+  """A Sinkhorn solver for linear reg-OT problem implemented as a pytree.
 
-  Atributes:
+  A Sinkhorn solver takes a linear OT problem object as an input and returns a
+  SinkhornOutput object that contains all the information required to compute
+  transports. See function ``sinkhorn`` for a wrapper.
+
+  Attributes:
     threshold: tolerance used to stop the Sinkhorn iterations. This is
      typically the deviation between a target marginal and the marginal of the
      current primal solution when either or both tau_a and tau_b are 1.0
@@ -186,11 +190,13 @@ class Sinkhorn:
     else:
       return (self._norm_error,)
 
-  def __call__(self,
-               ot_prob: problems.LinearProblem,
-               init_dual_a=None,
-               init_dual_b=None) -> SinkhornOutput:
+  def __call__(
+      self,
+      ot_prob: problems.LinearProblem,
+      init: Optional[Tuple[Optional[jnp.ndarray],
+                           ...]] = None) -> SinkhornOutput:
     """Main interface to run sinkhorn."""
+    init_dual_a, init_dual_b = (init if init is not None else (None, None))
     a, b = ot_prob.a, ot_prob.b
     if init_dual_a is None:
       init_dual_a = jnp.zeros_like(a) if self.lse_mode else jnp.ones_like(a)
@@ -203,7 +209,7 @@ class Sinkhorn:
         b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0)
 
     run_fn = run if not self.jit else jax.jit(run)
-    return run_fn(ot_prob, self, init_dual_a, init_dual_b)
+    return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
   def tree_flatten(self):
     aux = vars(self).copy()
@@ -297,9 +303,9 @@ class Sinkhorn:
     """
     return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
 
-  def init_state(self, ot_prob, init_dual_a, init_dual_b):
+  def init_state(self, ot_prob, init):
     """Returns the initial state of the loop."""
-    fu, gv = init_dual_a, init_dual_b
+    fu, gv = init
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
     state = SinkhornState(errors=errors, fu=fu, gv=gv)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
@@ -336,18 +342,18 @@ class Sinkhorn:
     return SinkhornOutput(f=f, g=g, errors=errors)
 
 
-def run(ot_prob, solver, init_dual_a, init_dual_b) -> SinkhornOutput:
-  """A jittable sinkhorn."""
+def run(ot_prob, solver, init) -> SinkhornOutput:
+  """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
-  out = iter_fun(ot_prob, solver, init_dual_a, init_dual_b)
+  out = iter_fun(ot_prob, solver, init)
   # Be careful here, the geom and the cost are injected at the end, where it
   # does not interfere with the implicit differentiation.
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
   return out.set(geom=ot_prob.geom)
 
 
-def iterations(ot_prob, solver, init_dual_a, init_dual_b):
-  """A jit'able Sinkhorn loop."""
+def iterations(ot_prob, solver, init):
+  """A jit'able Sinkhorn loop. args contain initialization variables."""
 
   def cond_fn(iteration, const, state):
     _, solver = const
@@ -366,7 +372,7 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b):
     fix_point = fixed_point_loop.fixpoint_iter_backprop
 
   const = ot_prob, solver
-  state = solver.init_state(ot_prob, init_dual_a, init_dual_b)
+  state = solver.init_state(ot_prob, init)
   state = fix_point(
       cond_fn, body_fn,
       solver.min_iterations, solver.max_iterations, solver.inner_iterations,
@@ -376,10 +382,9 @@ def iterations(ot_prob, solver, init_dual_a, init_dual_b):
 
 def _iterations_taped(ot_prob: problems.LinearProblem,
                       solver: Sinkhorn,
-                      init_dual_a: jnp.ndarray,
-                      init_dual_b: jnp.ndarray):
+                      init: Tuple[jnp.ndarray, jnp.ndarray]):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
-  state = iterations(ot_prob, solver, init_dual_a, init_dual_b)
+  state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
 
 
@@ -401,7 +406,7 @@ def _iterations_implicit_bwd(res, gr):
   gr = gr[:2]
   return (
       *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr),
-      None, None, None)
+      None, None)
 
 
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
@@ -669,7 +674,7 @@ def sinkhorn(geom: geometry.Geometry,
       should be jitted by the user)
 
   Returns:
-    a ``SinkhornState`` named tuple. The tuple contains two optimal potential
+    a ``SinkhornOutput`` named tuple. The tuple contains two optimal potential
     vectors ``f`` and ``g``, the objective ``reg_ot_cost`` evaluated at those
     solutions, an array of ``errors`` to monitor convergence every
     ``inner_iterations`` and a flag ``converged`` that is ``True`` if the
@@ -678,4 +683,4 @@ def sinkhorn(geom: geometry.Geometry,
   """
   sink = make(**kwargs)
   ot_prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
-  return sink(ot_prob, init_dual_a, init_dual_b)
+  return sink(ot_prob, (init_dual_a, init_dual_b))

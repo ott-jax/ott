@@ -4,11 +4,8 @@
 
 # Optimal Transport Tools (OTT), A toolbox for all things Wasserstein.
 
-**See [full documentation](https://ott-jax.readthedocs.io/en/latest/) for detailed info.**
-
-OTT is a JAX toolbox that bundles a few utilities to solve [optimal transport problems](https://arxiv.org/abs/1803.00567). These tools can help you compare
-and match two weighted point clouds (or histograms, measures, etc.), given a cost (e.g. a distance) between single points.
-
+**See [full documentation](https://ott-jax.readthedocs.io/en/latest/) for detailed info on the toolbox.**
+=======
 Most of OTT is, for now, supported by a sturdy, versatile and efficient implementation of the Sinkhorn algorithm that takes advantage of JAX features, such as [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html).
 
 A typical OT problem has two ingredients: a pair of weight vectors `a` and `b` (one for each measure), with a ground cost matrix that is either directly given, or derived as the pairwise evaluation of a cost function on pairs of points taken from two measures. The main design choice in OTT comes from encapsulating the cost in a `Geometry` object, and bundle it with a few useful operations (notably kernel applications). The most common geometry is that of two clouds of vectors compared with the squared Euclidean distance, as illustrated in the example below:
