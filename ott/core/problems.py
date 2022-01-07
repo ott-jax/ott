@@ -334,9 +334,15 @@ class QuadraticProblem:
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
   def tree_flatten(self):
-    return (
-        [self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a, self._b],
-        {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss, 'is_fused': self.is_fused})
+    return ([
+        self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a,
+        self._b
+    ], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b,
+        'loss': self.loss,
+        'is_fused': self.is_fused
+    })
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -410,7 +416,10 @@ class QuadraticProblem:
     cost_matrix = marginal_term - self.geom_yy.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
     if self.is_fused:
-      geom = geometry.Geometry(cost_matrix=cost_matrix + self.fused_penalty * self.geom_xy.cost_matrix, epsilon=epsilon)
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix +
+          self.fused_penalty * self.geom_xy.cost_matrix,
+          epsilon=epsilon)
     else:
       geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return LinearProblem(geom, self.a, self.b)
@@ -461,7 +470,10 @@ class QuadraticProblem:
     cost_matrix = marginal_term - self.geom_yy.apply_cost(
         tmp.T, axis=1, fn=self.quad_loss[1]).T
     if self.is_fused > 0:
-      geom = geometry.Geometry(cost_matrix=cost_matrix + self.fused_penalty * self.geom_xy.cost_matrix, epsilon=epsilon)
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix +
+          self.fused_penalty * self.geom_xy.cost_matrix,
+          epsilon=epsilon)
     else:
       geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return LinearProblem(geom, self.a, self.b)
@@ -480,13 +492,26 @@ def make(*args,
     y = args[1] if len(args) > 1 else args[0]
     if ((objective == 'linear') or
         (objective is None and x.shape[1] == y.shape[1])):
-      geom = pointcloud.PointCloud(x, y, **kwargs)
-      return LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return LinearProblem(geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
     elif ((objective == 'quadratic') or
           (objective is None and x.shape[1] != y.shape[1])):
-      geom1 = pointcloud.PointCloud(x, x, **kwargs)
-      geom2 = pointcloud.PointCloud(y, y, **kwargs)
-      return QuadraticProblem(geom1, geom2, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy,
+                              geom_xy=None,
+                              is_fused=False,
+                              fused_penalty=0.0,
+                              a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    elif objective == 'fused':
+      fused_penalty = kwargs.pop('fused_penalty', None)
+      is_fused = kwargs.pop('is_fused', True)
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy, geom_xy=geom_xy,
+                              is_fused=is_fused, fused_penalty=fused_penalty,
+                              a=a, b=b, tau_a=tau_a, tau_b=tau_b)
     else:
       raise ValueError(f'Unknown transport problem `{objective}`')
   elif isinstance(args[0], geometry.Geometry):
