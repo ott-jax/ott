@@ -382,6 +382,7 @@ def quantize(inputs: jnp.ndarray,
   Args:
     inputs: the inputs as a jnp.ndarray[batch, dim].
     num_levels: number of levels available to quantize the signal.
+    axis: axis along which quantization is carried out.
     **kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to

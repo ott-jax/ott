@@ -126,20 +126,41 @@ class LRSinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class LRSinkhorn(sinkhorn.Sinkhorn):
-  r"""A pytree describing a LR Sinkhorn solver for linear reg-OT problem.
+  r"""A Low-Rank Sinkhorn solver for linear reg-OT problems.
+
+  A Low-Rank Sinkhorn solver takes a linear OT problem as an input, to return
+  a LRSinkhornOutput object.
 
   The algorithm is described in:
   Low-Rank Sinkhorn Factorization, Scetbon-Cuturi-Peyre, ICML'21.
   http://proceedings.mlr.press/v139/scetbon21a/scetbon21a.pdf
 
-  This implementation inspired by:
+  and the implementation contained here is adapted from that of:
   https://github.com/meyerscetbon/LOT
 
-  Note:
-    Only ``lse_mode=True`` implemented at this moment.
-    The main parameter in this approach is ``rank``.
-    The random seed ``rng`` is used to initialize the factor matrices ``q`` and
-      ``r``.
+  The algorithm minimizes a non-convex problem. It therefore requires special
+  care to initialization and convergence. Initialization is random by default,
+  and convergence evaluated on successive evaluations of the objective. The
+  algorithm is only provided for the balanced case.
+
+  Attributes:
+    rank: the rank constraint on the coupling to minimize the linear OT problem
+    gamma: the (inverse of) gradient stepsize used by mirror descent.
+    lse_mode: whether to run computations in lse or kernel mode. At this moment,
+      only ``lse_mode=True`` is implemented.
+    threshold: convergence threshold, used to quantify whether two successive
+      evaluations of the objective are (relatively) close enough to terminate.
+    norm_error: norm used to quantify feasibility (deviation to marginals).
+    inner_iterations: number of inner iterations used by the algorithm before
+      reevaluating progress.
+    min_iterations: min number of iterations before evaluating objective.
+    max_iterations: max number of iterations allowed.
+    use_danskin: use Danskin theorem to evaluate gradient of objective w.r.t.
+      input parameters. Only ``True`` handled at this moment.
+    implicit_diff: whether to use implicit differentiation. Not implemented
+      at this moment.
+    jit: jit by default iterations loop.
+    rng_key: seed of random numer generator to initialize the LR factors.
   """
 
   def __init__(self,
@@ -170,7 +191,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def __call__(self,
                ot_prob: problems.LinearProblem,
-               init: Optional[Tuple[Optional[jnp.ndarray],...]] = None
+               init: Optional[Tuple[Optional[jnp.ndarray], ...]] = None
                ) -> LRSinkhornOutput:
     """Main interface to run LR sinkhorn."""
     init_q, init_r, init_g = (init if init is not None else (None, None, None))

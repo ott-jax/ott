@@ -95,9 +95,13 @@ class SinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
-  """A pytree describing a Sinkhorn solver for linear reg-OT problem.
+  """A Sinkhorn solver for linear reg-OT problem implemented as a pytree.
 
-  Atributes:
+  A Sinkhorn solver takes a linear OT problem object as an input and returns a
+  SinkhornOutput object that contains all the information required to compute
+  transports. See function ``sinkhorn`` for a wrapper.
+
+  Attributes:
     threshold: tolerance used to stop the Sinkhorn iterations. This is
      typically the deviation between a target marginal and the marginal of the
      current primal solution when either or both tau_a and tau_b are 1.0
@@ -670,7 +674,7 @@ def sinkhorn(geom: geometry.Geometry,
       should be jitted by the user)
 
   Returns:
-    a ``SinkhornState`` named tuple. The tuple contains two optimal potential
+    a ``SinkhornOutput`` named tuple. The tuple contains two optimal potential
     vectors ``f`` and ``g``, the objective ``reg_ot_cost`` evaluated at those
     solutions, an array of ``errors`` to monitor convergence every
     ``inner_iterations`` and a flag ``converged`` that is ``True`` if the

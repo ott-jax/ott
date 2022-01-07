@@ -4,22 +4,22 @@ ott.core package
 .. currentmodule:: ott.core
 .. automodule:: ott.core
 
-The core package contains the classic Sinkhorn routine, along with a
+The core package contains the classic ``sinkhorn`` routine (essentially a
+wrapper for the ``Sinkhorn`` solver class), along with a
 generalization of that algorithm that can be used to compute barycenters
 [#]_ [#]_. In addition, we provide a low-rank Sinkhorn solver [#]_ to handle
 very large instances, as well as a Gromov-Wasserstein solver (which builds
-itself on top of Sinkhorn), and an implementation of input convex neural
+itself on top of ``Sinkhorn``), and an implementation of input convex neural
 networks [#]_
 
 
-Sinkhorn Solver
+Sinkhorn
 ---------------------
 .. autosummary::
   :toctree: _autosummary
 
     sinkhorn.sinkhorn
-    sinkhorn.apply_inv_hessian
-    sinkhorn.first_order_conditions
+    sinkhorn.Sinkhorn
     discrete_barycenter.discrete_barycenter
 
 Low-Rank Sinkhorn Solver
@@ -27,7 +27,7 @@ Low-Rank Sinkhorn Solver
 .. autosummary::
   :toctree: _autosummary
 
-    sinkhorn_lr.sinkhorn_lr
+    sinkhorn_lr.LRSinkhorn
 
 Gromov-Wasserstein Solver
 -------------------------
