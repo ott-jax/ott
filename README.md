@@ -1,3 +1,4 @@
+<div align="center">
 <img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="150"></img>
 </div>
 

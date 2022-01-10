@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Implementation of Janati+(2020) barycenter algorithm."""
+"""Implementation of Janati+(2020) Wasserstein barycenter algorithm."""
 
 import collections
 import functools
@@ -24,6 +24,7 @@ import jax
 import jax.numpy as jnp
 
 from ott.core import fixed_point_loop
+from ott.core import sinkhorn
 from ott.geometry import geometry
 
 
@@ -132,8 +133,12 @@ def _discrete_barycenter(geom: geometry.Geometry,
         in_axes=[0, 0, None])
 
   errors_fn = jax.vmap(
-      functools.partial(geom.error, axis=1, norm_error=norm_error,
-                        lse_mode=lse_mode),
+      functools.partial(
+          sinkhorn.marginal_error,
+          geom=geom,
+          axis=1,
+          norm_error=norm_error,
+          lse_mode=lse_mode),
       in_axes=[0, 0, 0])
 
   errors = - jnp.ones(

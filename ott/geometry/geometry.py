@@ -16,7 +16,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Optional, Sequence, Union
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -269,35 +269,6 @@ class Geometry:
 
   # Functions that are not supposed to be changed by inherited classes.
   # These are the point of entry for Sinkhorn's algorithm to use a geometry.
-  def error(self,
-            f_u: jnp.ndarray,
-            g_v: jnp.ndarray,
-            target: jnp.ndarray,
-            axis: int = 0,
-            norm_error: Sequence[int] = (1,),
-            lse_mode: bool = True):
-    """Outputs error, using 2 potentials/scalings, of transport w.r.t target marginal.
-
-    Args:
-      f_u: a vector of potentials or scalings for the first marginal.
-      g_v: a vector of potentials or scalings for the second marginal.
-      target: target marginal.
-      axis: axis (0 or 1) along which to compute marginal.
-      norm_error: (t-uple of int) p's to compute p-norm between marginal/target
-      lse_mode: whether operating on scalings or potentials
-
-    Returns:
-      t-uple of floats, quantifying difference between target / marginal.
-    """
-    if lse_mode:
-      marginal = self.marginal_from_potentials(f_u, g_v, axis=axis)
-    else:
-      marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
-    norm_error = jnp.array(norm_error)
-    error = jnp.sum(
-        jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
-        axis=1)**(1.0 / norm_error)
-    return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
     """Carries out one Sinkhorn update for potentials, i.e.
