@@ -254,6 +254,12 @@ class SinkhornOutput(NamedTuple):
   def marginal(self, axis: int) -> jnp.ndarray:
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
+  def cost_at_geom(self, other_geom: geometry.Geometry):
+    """Returns reg-OT cost for matrix, evaluated at other cost matrix."""
+    return (
+        jnp.sum(self.matrix * other_geom.cost_matrix)
+        - self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix)))
+
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:

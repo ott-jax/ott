@@ -22,6 +22,7 @@ import jax.numpy as jnp
 from ott.core import fixed_point_loop
 from ott.core import problems
 from ott.core import sinkhorn
+from ott.geometry import geometry
 
 
 class LRSinkhornState(NamedTuple):
@@ -138,6 +139,11 @@ class LRSinkhornOutput(NamedTuple):
   def marginal(self, axis: int) -> jnp.ndarray:
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
+
+  def cost_at_geom(self, other_geom: geometry.Geometry):
+    """Returns OT cost for matrix, evaluated at other cost matrix."""
+    return jnp.sum(
+        self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :])
 
 
 @jax.tree_util.register_pytree_node_class
