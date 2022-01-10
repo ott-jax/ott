@@ -183,7 +183,7 @@ def ent_reg_cost(
 
 
 class SinkhornOutput(NamedTuple):
-  """Implements the transport.Transport interface, for a Sinkhorn solution."""
+  """Implements the problems.Transport interface, for a Sinkhorn solution."""
 
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None

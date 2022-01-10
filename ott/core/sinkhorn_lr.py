@@ -85,7 +85,7 @@ def solution_error(q, r, ot_prob,
 
 
 class LRSinkhornOutput(NamedTuple):
-  """Implements the transport.Transport interface, for a LR Sinkhorn solution."""
+  """Implements the problems.Transport interface, for a LR Sinkhorn solution."""
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None

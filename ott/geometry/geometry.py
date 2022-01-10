@@ -80,6 +80,10 @@ class Geometry:
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
   @property
+  def cost_rank(self):
+    return None
+
+  @property
   def scale(self) -> float:
     """Computes the scale of the epsilon, potentially based on data."""
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
@@ -412,7 +416,7 @@ class Geometry:
     Args:
       arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied by
         the cost matrix.
-      axis: standard cost matrix if axis=1, transport if 0
+      axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
 
     Returns:
@@ -471,3 +475,15 @@ class Geometry:
   def tree_unflatten(cls, aux_data, children):
     del aux_data
     return cls(*children[:-1], **children[-1])
+
+
+def is_affine(fn) -> bool:
+  """Tests heuristically if a function is affine."""
+  x = jnp.arange(10.0)
+  out = jax.vmap(jax.grad(fn))(x)
+  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
+
+
+def is_linear(fn) -> bool:
+  """Tests heuristically if a function is linear."""
+  return fn(0.0) == 0 and is_affine(fn)
