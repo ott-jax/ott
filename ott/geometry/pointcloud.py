@@ -24,13 +24,6 @@ from ott.geometry import geometry
 from ott.geometry import ops
 
 
-def is_linear(fn) -> bool:
-  """Tests heuristically if a function is linear."""
-  x = jnp.arange(10.0)
-  out = jax.vmap(jax.grad(fn))(x)
-  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
-
-
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 pointclouds (possibly 1 vs itself) using CostFn."""
@@ -208,7 +201,8 @@ class PointCloud(geometry.Geometry):
     if fn is None:
       return self.vec_apply_cost(arr, axis, fn=fn)
     # Switch to efficient computation for the squared euclidean case.
-    return jnp.where(jnp.logical_and(self.is_squared_euclidean, is_linear(fn)),
+    return jnp.where(jnp.logical_and(self.is_squared_euclidean,
+                                     geometry.is_affine(fn)),
                      self.vec_apply_cost(arr, axis, fn=fn),
                      self._apply_cost(arr, axis, fn=fn))
 

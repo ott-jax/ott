@@ -77,7 +77,7 @@ class Plot:
       raise ValueError('So far we only plot PointCloud geometry.')
 
     x, y = ot.geom.x, ot.geom.y
-    a, b = ot.problem.a, ot.problem.b
+    a, b = ot.a, ot.b
     x, y = bidimensional(x, y)
     scales_x = a * self._scale * a.shape[0]
     scales_y = b * self._scale * b.shape[0]

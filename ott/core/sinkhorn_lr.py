@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""A Jax implementation of the Sinkhorn algorithm."""
+"""A Jax implementation of the Low-Rank Sinkhorn algorithm."""
 from typing import Optional, NamedTuple, Tuple
 
 import jax
@@ -36,25 +36,27 @@ class LRSinkhornState(NamedTuple):
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def reg_ot_cost(self, ot_prob):
-    return jnp.sum(
-        ot_prob.geom.apply_cost(self.r.T) * self.q * (1.0 / self.g)[None, :])
+  def reg_ot_cost(self, ot_prob, use_danskin=False):
+    return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
-  def compute_reg_ot_cost(self, ot_prob, use_danskin=False):
-    q = jax.lax.stop_gradient(self.q) if use_danskin else self.q
-    r = jax.lax.stop_gradient(self.r) if use_danskin else self.r
-    g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
-    return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
-
-  def marginal_error(self, ot_prob, norm_error: jnp.ndarray, lse_mode: bool
+  def solution_error(self, ot_prob, norm_error: jnp.ndarray, lse_mode: bool
                      ) -> jnp.ndarray:
-    return marginal_error(self.q, self.r, ot_prob, norm_error, lse_mode)
+    return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
 
-def marginal_error(q, r, ot_prob,
+def compute_reg_ot_cost(q, r, g, ot_prob, use_danskin=False):
+  q = jax.lax.stop_gradient(q) if use_danskin else q
+  r = jax.lax.stop_gradient(r) if use_danskin else r
+  g = jax.lax.stop_gradient(g) if use_danskin else g
+  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+
+
+def solution_error(q, r, ot_prob,
                    norm_error: jnp.ndarray, lse_mode: bool) -> jnp.ndarray:
 
-  """Computes marginal error.
+  """Computes solution error.
+
+  Since only balanced case is available for LR, this is marginal deviation.
 
   Args:
     q: first factor of solution
@@ -83,14 +85,13 @@ def marginal_error(q, r, ot_prob,
 
 
 class LRSinkhornOutput(NamedTuple):
-  """Holds the output of the Low Rank Sinkhorn algorithm."""
-
+  """Implements the problems.Transport interface, for a LR Sinkhorn solution."""
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[jnp.ndarray] = None
-  geom: Optional[geometry.Geometry] = None
+  ot_prob: Optional[problems.LinearProblem] = None
 
   def set(self, **kwargs) -> 'LRSinkhornOutput':
     """Returns a copy of self, with potential overwrites."""
@@ -98,16 +99,32 @@ class LRSinkhornOutput(NamedTuple):
 
   def set_cost(self, ot_prob, lse_mode, use_danskin) -> 'LRSinkhornOutput':
     del lse_mode
-    return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
+    return self.set(reg_ot_cost=self.compute_reg_ot_cost(
+        ot_prob, use_danskin))
 
-  # TODO(cuturi,oliviert) duplicate function, arising from ambiguity
-  # between state/output and ot_prob (the value of the solution should be
-  # computed by the state, and not by the ot_prob.
-  def compute_reg_ot_cost(self, ot_prob, use_danskin=False):
-    q = jax.lax.stop_gradient(self.q) if use_danskin else self.q
-    r = jax.lax.stop_gradient(self.r) if use_danskin else self.r
-    g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
-    return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+  def compute_reg_ot_cost(self, ot_prob, use_danskin):
+    return compute_reg_ot_cost(self.q, self.r, self.g,
+                               ot_prob, use_danskin)
+
+  @property
+  def linear(self):
+    return isinstance(self.ot_prob, problems.LinearProblem)
+
+  @property
+  def geom(self):
+    return self.ot_prob.geom
+
+  @property
+  def a(self):
+    return self.ot_prob.a
+
+  @property
+  def b(self):
+    return self.ot_prob.b
+
+  @property
+  def linear_output(self):
+    return True
 
   @property
   def matrix(self) -> jnp.ndarray:
@@ -122,6 +139,11 @@ class LRSinkhornOutput(NamedTuple):
   def marginal(self, axis: int) -> jnp.ndarray:
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
+
+  def cost_at_geom(self, other_geom: geometry.Geometry):
+    """Returns OT cost for matrix, evaluated at other cost matrix."""
+    return jnp.sum(
+        self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :])
 
 
 @jax.tree_util.register_pytree_node_class
@@ -295,7 +317,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       err = jnp.where(
           jnp.logical_and(compute_error, iteration >= self.min_iterations),
-          marginal_error(q, r, ot_prob, self.norm_error, self.lse_mode), err)[0]
+          solution_error(q, r, ot_prob, self.norm_error, self.lse_mode), err)[0]
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
@@ -349,7 +371,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # re-computes error if compute_error is True, else set it to inf.
     cost = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.compute_reg_ot_cost(ot_prob), jnp.inf)
+        state.reg_ot_cost(ot_prob), jnp.inf)
     costs = state.costs.at[iteration // self.inner_iterations].set(cost)
     return state.set(costs=costs)
 
@@ -370,11 +392,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       A LRSinkhornOutput.
     """
     return LRSinkhornOutput(
-        q=state.q, r=state.r, g=state.g, geom=ot_prob.geom, costs=state.costs)
+        q=state.q, r=state.r, g=state.g, ot_prob=ot_prob, costs=state.costs)
 
 
 def run(ot_prob, solver, init) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
-  return out.set(geom=ot_prob.geom)
+  return out.set(ot_prob=ot_prob)

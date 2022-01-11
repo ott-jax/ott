@@ -22,6 +22,7 @@ import jax.numpy as jnp
 import numpy as np
 from ott.core import dataclasses
 from ott.core import problems
+from ott.core import unbalanced_functions
 
 
 @dataclasses.register_pytree_node
@@ -161,11 +162,11 @@ class ImplicitDiff:
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
-        diag_jacobian_of_marginal_fit(
+        unbalanced_functions.diag_jacobian_of_marginal_fit(
             ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative))
     diag_hess_b = (
         marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
-        diag_jacobian_of_marginal_fit(
+        unbalanced_functions.diag_jacobian_of_marginal_fit(
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative))
 
     n, m = geom.shape
@@ -238,8 +239,10 @@ class ImplicitDiff:
     """
     geom = prob.geom
     marginal_a, marginal_b, _ = prob.get_transport_functions(lse_mode)
-    grad_a = problems.grad_of_marginal_fit(prob.a, f, prob.tau_a, geom.epsilon)
-    grad_b = problems.grad_of_marginal_fit(prob.b, g, prob.tau_b, geom.epsilon)
+    grad_a = unbalanced_functions.grad_of_marginal_fit(prob.a, f, prob.tau_a,
+                                                       geom.epsilon)
+    grad_b = unbalanced_functions.grad_of_marginal_fit(prob.b, g, prob.tau_b,
+                                                       geom.epsilon)
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
     else:
@@ -263,36 +266,3 @@ class ImplicitDiff:
     # Carries pullback onto original inputs, here geom, a and b.
     _, pull_prob = jax.vjp(foc_prob, prob)
     return pull_prob(vjp_gr)
-
-
-def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Second Derivative of Legendre transform of KL, see phi_star."""
-  return jnp.exp(f / rho) / rho
-
-
-def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
-  """Computes grad of terms linked to marginals in objective.
-
-  Computes second derivative w.r.t. f ( or g) of terms in
-  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 32
-  (terms involving phi_star)
-
-  Args:
-    c: jnp.ndarray, first target marginal (either a or b in practice)
-    h: jnp.ndarray, potential (either f or g in practice)
-    tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
-    epsilon: regularization
-    derivative: Callable
-
-  Returns:
-    a vector of the same size as c or h.
-  """
-  if tau == 1.0:
-    return 0
-  else:
-    rho = epsilon * tau / (1 - tau)
-    # here no minus sign because we are taking derivative w.r.t -h
-    return jnp.where(c > 0,
-                     c * second_derivative_phi_star(-h, rho) * derivative(
-                         c * problems.derivative_phi_star(-h, rho)),
-                     0.0)

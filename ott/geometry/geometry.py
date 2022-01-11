@@ -16,7 +16,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Optional, Sequence, Union
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -78,6 +78,10 @@ class Geometry:
     self._scale = scale
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
+
+  @property
+  def cost_rank(self):
+    return None
 
   @property
   def scale(self) -> float:
@@ -269,35 +273,6 @@ class Geometry:
 
   # Functions that are not supposed to be changed by inherited classes.
   # These are the point of entry for Sinkhorn's algorithm to use a geometry.
-  def error(self,
-            f_u: jnp.ndarray,
-            g_v: jnp.ndarray,
-            target: jnp.ndarray,
-            axis: int = 0,
-            norm_error: Sequence[int] = (1,),
-            lse_mode: bool = True):
-    """Outputs error, using 2 potentials/scalings, of transport w.r.t target marginal.
-
-    Args:
-      f_u: a vector of potentials or scalings for the first marginal.
-      g_v: a vector of potentials or scalings for the second marginal.
-      target: target marginal.
-      axis: axis (0 or 1) along which to compute marginal.
-      norm_error: (t-uple of int) p's to compute p-norm between marginal/target
-      lse_mode: whether operating on scalings or potentials
-
-    Returns:
-      t-uple of floats, quantifying difference between target / marginal.
-    """
-    if lse_mode:
-      marginal = self.marginal_from_potentials(f_u, g_v, axis=axis)
-    else:
-      marginal = self.marginal_from_scalings(f_u, g_v, axis=axis)
-    norm_error = jnp.array(norm_error)
-    error = jnp.sum(
-        jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
-        axis=1)**(1.0 / norm_error)
-    return error
 
   def update_potential(self, f, g, log_marginal, iteration=None, axis=0):
     """Carries out one Sinkhorn update for potentials, i.e.
@@ -441,7 +416,7 @@ class Geometry:
     Args:
       arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied by
         the cost matrix.
-      axis: standard cost matrix if axis=1, transport if 0
+      axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
 
     Returns:
@@ -500,3 +475,15 @@ class Geometry:
   def tree_unflatten(cls, aux_data, children):
     del aux_data
     return cls(*children[:-1], **children[-1])
+
+
+def is_affine(fn) -> bool:
+  """Tests heuristically if a function is affine."""
+  x = jnp.arange(10.0)
+  out = jax.vmap(jax.grad(fn))(x)
+  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
+
+
+def is_linear(fn) -> bool:
+  """Tests heuristically if a function is linear."""
+  return fn(0.0) == 0 and is_affine(fn)

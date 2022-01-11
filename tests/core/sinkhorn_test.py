@@ -120,7 +120,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(
+    out = sinkhorn.sinkhorn(
         geom,
         a=self.a,
         b=self.b,
@@ -129,9 +129,14 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         chg_momentum_from=chg_momentum_from,
         inner_iterations=inner_iterations,
         norm_error=norm_error,
-        lse_mode=lse_mode).errors
+        lse_mode=lse_mode)
+    errors = out.errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
+
+    other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
+    cost_other = out.cost_at_geom(other_geom)
+    self.assertIsNot(jnp.isnan(cost_other), True)
 
   def test_autoepsilon(self):
     """Check that with auto-epsilon, dual potentials scale."""
