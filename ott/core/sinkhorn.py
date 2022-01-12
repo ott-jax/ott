@@ -260,6 +260,10 @@ class SinkhornOutput(NamedTuple):
         jnp.sum(self.matrix * other_geom.cost_matrix)
         - self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix)))
 
+  def transport_mass(self) -> float:
+    """Sum of transport matrix."""
+    return self.marginal(0).sum()
+
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
