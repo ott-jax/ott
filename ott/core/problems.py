@@ -30,8 +30,6 @@ LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
 Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
 
 
-
-
 class Transport(Protocol):
   """Defines the interface for the solution of a transport problem.
 
@@ -416,15 +414,14 @@ class QuadraticProblem:
           self.fused_penalty * self.geom_xy.cost_matrix, epsilon=epsilon)
     else:
       geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return LinearProblem(geom, self.a, self.b,
-                         tau_a=self.tau_a, tau_b=self.tau_b)
+    return LinearProblem(
+        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b)
 
-  def update_linearization(
-      self,
-      transport: Transport,
-      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
-      old_transport_mass: float = 1.0
-  ) -> LinearProblem:
+  def update_linearization(self,
+                           transport: Transport,
+                           epsilon: Optional[Union[epsilon_scheduler.Epsilon,
+                                                   float]] = None,
+                           old_transport_mass: float = 1.0) -> LinearProblem:
     """Updates linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
@@ -507,8 +504,7 @@ def make(*args,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
          **kwargs):
-  """Makes a problem from arrays, assuming PointCloud geometries.
-  """
+  """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
     x = args[0]
     y = args[1] if len(args) > 1 else args[0]

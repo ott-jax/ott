@@ -62,6 +62,21 @@ class LRCGeometry(geometry.Geometry):
     return (self.cost_1.shape[0] == self.cost_2.shape[0] and
             jnp.all(self.cost_1 == self.cost_2))
 
+  def apply_squared_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies elementwise-square of cost matrix to array (vector or matrix)."""
+    (n, m), r = self.shape, self.cost_rank
+    # When applying square of a LRCgeometry, one can either elementwise square
+    # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
+    # and apply it. First is O(nm), the other is O((n+m)r^2).
+    if n * m < (n + m) * r**2:  #  better use regular apply
+      return super().apply_squared_cost(arr, axis)
+    else:
+      new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
+      new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
+      return LRCGeometry(
+          cost_1=new_cost_1.reshape((n, r**2)),
+          cost_2=new_cost_2.reshape((m, r**2))).apply_cost(arr, axis)
+
   def _apply_cost_to_vec(self,
                          vec: jnp.ndarray,
                          axis: int = 0,

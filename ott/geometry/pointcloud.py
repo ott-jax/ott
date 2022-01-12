@@ -21,6 +21,7 @@ import jax
 import jax.numpy as jnp
 from ott.geometry import costs
 from ott.geometry import geometry
+from ott.geometry import geometry_lr
 from ott.geometry import ops
 
 
@@ -274,6 +275,27 @@ class PointCloud(geometry.Geometry):
   def tree_unflatten(cls, aux_data, children):
     eps, fn = children[2:]
     return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
+
+  def to_LRCGeometry(self) -> geometry_lr.LRCGeometry:
+    """Convert PointCloud with sq. Euclidean metric to LRCGeometry."""
+    if self.is_squared_euclidean:
+      return geometry_lr.LRCGeometry(
+          cost_1=jnp.concatenate(
+              (jnp.sum(self.x ** 2, axis=1, keepdims=True),
+               jnp.ones((self.shape[0], 1)),
+               -jnp.sqrt(2) * self.x),
+              axis=1),
+          cost_2=jnp.concatenate(
+              (jnp.ones((self.shape[1], 1)),
+               jnp.sum(self.y ** 2, axis=1, keepdims=True),
+               jnp.sqrt(2) * self.y),
+              axis=1),
+          epsilon=self._epsilon_init,
+          relative_epsilon=self._relative_epsilon,
+          scale=self._scale,
+          **self._kwargs)
+    else:
+      raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
 
 
 def _apply_lse_kernel_xy(x, y, norm_x, norm_y, f, g, eps,

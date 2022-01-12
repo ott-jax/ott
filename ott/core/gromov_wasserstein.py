@@ -14,9 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""A Jax version of the regularised version (Peyre et al. 2016) of the
-Gromov-Wasserstein problem (Memoli 2011).
-"""
+"""A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import Any, Dict, Optional, NamedTuple, Union
 
 import jax
@@ -24,6 +22,7 @@ import jax.numpy as jnp
 from ott.core import fixed_point_loop
 from ott.core import problems
 from ott.core import sinkhorn
+from ott.core import sinkhorn_lr
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 
@@ -118,38 +117,53 @@ class GromovWasserstein:
   """A Gromov Wasserstein solver."""
 
   def __init__(self,
-               epsilon: Union[epsilon_scheduler.Epsilon, float] = 1.0,
+               epsilon: Optional[Union[epsilon_scheduler.Epsilon,
+                                       float]] = None,
+               rank: Optional[int] = None,
+               linear_ot_solver: Any = None,
                min_iterations: int = 5,
                max_iterations: int = 50,
                threshold: float = 1e-3,
                jit: bool = True,
-               store_sinkhorn_errors: bool = False,
-               linear_ot_solver: sinkhorn.Sinkhorn = sinkhorn.Sinkhorn(),
+               store_inner_errors: bool = False,
                **kwargs):
     self.epsilon = epsilon
+    self.rank = rank
+    default_epsilon = 1.0
+    if epsilon is None and rank is None:
+      self.epsilon = default_epsilon
+    self.linear_ot_solver = linear_ot_solver
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
     self.jit = jit
-    self.store_sinkhorn_errors = store_sinkhorn_errors
-    self.linear_ot_solver = linear_ot_solver
+    self.store_inner_errors = store_inner_errors
     self._kwargs = kwargs
 
+    if self.linear_ot_solver is None:
+      if self.rank is not None and self.rank > 0:
+        self.linear_ot_solver = sinkhorn_lr.LRSinkhorn()
+      else:
+        self.linear_ot_solver = sinkhorn.Sinkhorn()
+
   def tree_flatten(self):
-    return ([self.epsilon, self.linear_ot_solver, self.threshold],
+    return ([self.epsilon, self.rank,
+             self.linear_ot_solver, self.threshold],
             dict(
                 min_iterations=self.min_iterations,
                 max_iterations=self.max_iterations,
                 jit=self.jit,
-                store_sinkhorn_errors=self.store_sinkhorn_errors,
+                store_inner_errors=self.store_inner_errors,
                 **self._kwargs))
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(epsilon=children[0],
-               linear_ot_solver=children[1],
-               threshold=children[2],
-               **aux_data)
+    return cls(
+        epsilon=children[0],
+        rank=children[1],
+        linear_ot_solver=children[2],
+        threshold=children[3],
+        **aux_data)
 
   def not_converged(self, state, iteration):
     costs, i, tol = state.costs, iteration, self.threshold
@@ -175,11 +189,13 @@ class GromovWasserstein:
 
   def init_state(self, prob: problems.QuadraticProblem) -> GWState:
     """Initializes the state of the Gromov-Wasserstein iterations."""
+    # TODO(cuturi) branch to LR from here
     linearization = prob.init_linearization(self.epsilon)
+
     linear_state = self.linear_ot_solver(linearization)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
-    if self.store_sinkhorn_errors:
+    if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
@@ -226,7 +242,7 @@ def iterations(solver: GromovWasserstein,
         iteration,
         out,
         linear_pb,
-        solver.store_sinkhorn_errors,
+        solver.store_inner_errors,
         old_transport_mass)
 
   state = fixed_point_loop.fixpoint_iter(
@@ -246,7 +262,7 @@ def make(
     max_iterations: int = 50,
     jit: bool = False,
     warm_start: bool = True,
-    store_sinkhorn_errors: bool = False,
+    store_inner_errors: bool = False,
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
@@ -259,7 +275,7 @@ def make(
       Gromov Wasserstein.
     jit: bool, if True, jits the function.
     warm_start: deprecated.
-    store_sinkhorn_errors: whether or not to return all the errors of the inner
+    store_inner_errors: whether or not to return all the errors of the inner
       Sinkhorn iterations.
     sinkhorn_kwargs: Optionally a dictionary containing the keywords arguments
      for calls to the sinkhorn function.
@@ -276,7 +292,7 @@ def make(
   return GromovWasserstein(
       epsilon, max_iterations=max_iterations,
       jit=jit, linear_ot_solver=sink, threshold=threshold,
-      store_sinkhorn_errors=store_sinkhorn_errors,
+      store_inner_errors=store_inner_errors,
       min_iterations=min_iterations, **kwargs)
 
 

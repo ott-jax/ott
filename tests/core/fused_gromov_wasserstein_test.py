@@ -70,7 +70,7 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
         a=self.a,
         b=self.b,
         epsilon=.1,
-        store_sinkhorn_errors=True,
+        store_inner_errors=True,
         sinkhorn_kwargs={
             'threshold': threshold_sinkhorn
         }).errors

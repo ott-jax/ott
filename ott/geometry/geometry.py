@@ -405,6 +405,11 @@ class Geometry:
                      jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)),
                      0.0)
 
+  def apply_squared_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Applies elementwise-square of cost matrix to array (vector or matrix)."""
+    fn = lambda x: x ** 2
+    return self.apply_cost(arr, axis, fn)
+
   def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
     """Applies cost matrix to array (vector or matrix).
 
