@@ -28,6 +28,7 @@ class LRCGeometry(geometry.Geometry):
   def __init__(self,
                cost_1: jnp.ndarray,
                cost_2: jnp.ndarray,
+               bias: float = 0.0,
                **kwargs
                ):
     r"""Initializes a geometry by passing it low-rank factors.
@@ -35,11 +36,13 @@ class LRCGeometry(geometry.Geometry):
     Args:
       cost_1: jnp.ndarray<float>[num_a, r]
       cost_2: jnp.ndarray<float>[num_b, r]
+      bias: constant added to entire cost matrix.
       **kwargs: additional kwargs to Geometry
     """
     assert cost_1.shape[1] == cost_2.shape[1]
     self.cost_1 = cost_1
     self.cost_2 = cost_2
+    self.bias = bias
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
@@ -51,7 +54,7 @@ class LRCGeometry(geometry.Geometry):
   @property
   def cost_matrix(self):
     """Returns cost matrix if requested."""
-    return jnp.matmul(self.cost_1, self.cost_2.T)
+    return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
   def shape(self):
@@ -62,14 +65,14 @@ class LRCGeometry(geometry.Geometry):
     return (self.cost_1.shape[0] == self.cost_2.shape[0] and
             jnp.all(self.cost_1 == self.cost_2))
 
-  def apply_squared_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Applies elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
     # When applying square of a LRCgeometry, one can either elementwise square
     # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
     # and apply it. First is O(nm), the other is O((n+m)r^2).
     if n * m < (n + m) * r**2:  #  better use regular apply
-      return super().apply_squared_cost(arr, axis)
+      return super().apply_square_cost(arr, axis)
     else:
       new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
       new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
@@ -92,16 +95,30 @@ class LRCGeometry(geometry.Geometry):
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
-    if fn is None or geometry.is_linear(fn):
+    def efficient_apply(vec, axis, fn):
       c1 = self.cost_1 if axis == 1 else self.cost_2
       c2 = self.cost_2 if axis == 1 else self.cost_1
       c2 = fn(c2) if fn is not None else c2
-      return jnp.dot(c1, jnp.dot(c2.T, vec))
-    # Default to super class application and instantiation of cost matrix
-    return super()._apply_cost_to_vec(vec, axis, fn)
+      bias = fn(self.bias) if fn is not None else self.bias
+      out = jnp.dot(c1, jnp.dot(c2.T, vec))
+      return out + bias * jnp.sum(vec) * jnp.ones_like(out)
+
+    return jnp.where(fn is None or geometry.is_linear(fn),
+                     efficient_apply(vec, axis, fn),
+                     super()._apply_cost_to_vec(vec, axis, fn))
+
+  def apply_cost_1(self, vec, axis=0):
+    return jnp.dot(self.cost_1 if axis == 0 else self.cost_1.T, vec)
+
+  def apply_cost_2(self, vec, axis=0):
+    return jnp.dot(self.cost_2 if axis == 0 else self.cost_2.T, vec)
 
   def tree_flatten(self):
     return (self.cost_1, self.cost_2, self._kwargs), None
+
+  def rescale_cost(self, factor: float):
+    self.cost_1 *= jnp.sqrt(factor)
+    self.cost_2 *= jnp.sqrt(factor)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

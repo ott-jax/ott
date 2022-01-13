@@ -38,8 +38,9 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
     c1 = jax.random.normal(keys[0], (n, r))
     c2 = jax.random.normal(keys[1], (m, r))
     c = jnp.matmul(c1, c2.T)
-    geom = geometry.Geometry(c)
-    geom_lr = geometry_lr.LRCGeometry(c1, c2)
+    bias = 0.27
+    geom = geometry.Geometry(c + bias)
+    geom_lr = geometry_lr.LRCGeometry(c1, c2, bias=bias)
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(keys[2], mat_shape)
@@ -79,9 +80,9 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
       for dim, axis in ((m, 1), (n, 0)):
         for mat_shape in ((dim, 2), (dim,)):
           mat = jax.random.normal(keys[2], mat_shape)
-          out_lr = geom_lr.apply_squared_cost(mat, axis=axis)
+          out_lr = geom_lr.apply_square_cost(mat, axis=axis)
           self.assertAllClose(
-              geom.apply_squared_cost(mat, axis=axis),
+              geom.apply_square_cost(mat, axis=axis),
               out_lr,
               rtol=1e-4)
           self.assertAllClose(

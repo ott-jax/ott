@@ -22,6 +22,7 @@ import jax
 import jax.numpy as jnp
 import jax.test_util
 from ott.core import gromov_wasserstein
+from ott.core import quad_problems
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
@@ -176,6 +177,50 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     self.assertGreater(loss_thre(.1), loss_thre(.001))
     self.assertGreater(loss_thre(.001), loss_thre(.00001))
 
+  def test_gw_lr(self):
+    """Checking LR and Entropic have similar outputs on same problem."""
+    rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+    n, m, d1, d2 = 24, 17, 2, 3
+    x = jax.random.uniform(rngs[0], (n, d1))
+    y = jax.random.uniform(rngs[1], (m, d2))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y)
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
+    solver = gromov_wasserstein.GromovWasserstein(rank=5)
+    ot_gwlr = solver(prob)
+    solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
+    ot_gw = solver(prob)
+    self.assertAllClose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
+
+  def test_gw_lr_fused(self):
+    """Checking LR and Entropic have similar outputs on same fused problem."""
+    rngs = jax.random.split(jax.random.PRNGKey(0), 5)
+    n, m, d1, d2 = 24, 17, 2, 3
+    x = jax.random.uniform(rngs[0], (n, d1))
+    y = jax.random.uniform(rngs[1], (m, d2))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
+    z = jax.random.uniform(rngs[4], (m, d1))
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(x, z)  # only used to compute n x m matrix
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, geom_xy=geom_xy,
+                                          fused_penalty=1.3,
+                                          a=a, b=b)
+    solver = gromov_wasserstein.GromovWasserstein(rank=6)
+    ot_gwlr = solver(prob)
+    solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
+    ot_gw = solver(prob)
+
+    self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix))
 
 if __name__ == '__main__':
   absltest.main()

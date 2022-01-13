@@ -276,24 +276,28 @@ class PointCloud(geometry.Geometry):
     eps, fn = children[2:]
     return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
 
-  def to_LRCGeometry(self) -> geometry_lr.LRCGeometry:
-    """Convert PointCloud with sq. Euclidean metric to LRCGeometry."""
+  def to_LRCGeometry(self):
+    """Convert sq. Euc. PointCloud with to LRCGeometry if useful."""
     if self.is_squared_euclidean:
-      return geometry_lr.LRCGeometry(
-          cost_1=jnp.concatenate(
-              (jnp.sum(self.x ** 2, axis=1, keepdims=True),
-               jnp.ones((self.shape[0], 1)),
-               -jnp.sqrt(2) * self.x),
-              axis=1),
-          cost_2=jnp.concatenate(
-              (jnp.ones((self.shape[1], 1)),
-               jnp.sum(self.y ** 2, axis=1, keepdims=True),
-               jnp.sqrt(2) * self.y),
-              axis=1),
-          epsilon=self._epsilon_init,
-          relative_epsilon=self._relative_epsilon,
-          scale=self._scale,
-          **self._kwargs)
+      (n, m), d = self.shape, self.x.shape[1]
+      if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
+        return geometry_lr.LRCGeometry(
+            cost_1=jnp.concatenate(
+                (jnp.sum(self.x ** 2, axis=1, keepdims=True),
+                 jnp.ones((self.shape[0], 1)),
+                 -jnp.sqrt(2) * self.x),
+                axis=1),
+            cost_2=jnp.concatenate(
+                (jnp.ones((self.shape[1], 1)),
+                 jnp.sum(self.y ** 2, axis=1, keepdims=True),
+                 jnp.sqrt(2) * self.y),
+                axis=1),
+            epsilon=self._epsilon_init,
+            relative_epsilon=self._relative_epsilon,
+            scale=self._scale,
+            **self._kwargs)
+      else:
+        return self
     else:
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
 

@@ -17,6 +17,7 @@
 """Tests for the Policy."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import jax.test_util
@@ -45,10 +46,13 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  def test_euclidean_point_cloud(self):
+  @parameterized.parameters([True], [False])
+  def test_euclidean_point_cloud(self, use_lrcgeom):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y)
+    if use_lrcgeom:
+      geom = geom.to_LRCGeometry()
     ot_prob = problems.LinearProblem(geom, self.a, self.b)
     solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10)
     costs = solver(ot_prob).costs
@@ -64,6 +68,7 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
     cost_other = out.cost_at_geom(other_geom)
     self.assertGreater(cost_other, 0.0)
+
 
 if __name__ == '__main__':
   absltest.main()

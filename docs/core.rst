@@ -14,7 +14,7 @@ networks [#]_
 
 
 Sinkhorn
----------------------
+--------
 .. autosummary::
   :toctree: _autosummary
 
@@ -22,22 +22,22 @@ Sinkhorn
     sinkhorn.Sinkhorn
     discrete_barycenter.discrete_barycenter
 
-Low-Rank Sinkhorn Solver
----------------------
+Low-Rank Sinkhorn
+-----------------
 .. autosummary::
   :toctree: _autosummary
 
     sinkhorn_lr.LRSinkhorn
 
-Gromov-Wasserstein Solver
--------------------------
+Gromov-Wasserstein (Entropic and LR)
+------------------------------------
 .. autosummary::
   :toctree: _autosummary
 
     gromov_wasserstein.gromov_wasserstein
 
 Neural Potentials
--------------------------
+-----------------
 .. autosummary::
   :toctree: _autosummary
 

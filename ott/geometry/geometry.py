@@ -405,7 +405,7 @@ class Geometry:
                      jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)),
                      0.0)
 
-  def apply_squared_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Applies elementwise-square of cost matrix to array (vector or matrix)."""
     fn = lambda x: x ** 2
     return self.apply_cost(arr, axis, fn)
@@ -440,6 +440,18 @@ class Geometry:
         1,
     )(
         arr)
+
+  def rescale_cost(self, factor: float):
+    if self._cost_matrix is not None:
+      self._cost_matrix *= factor
+    if self._kernel_matrix is not None:
+      self._cost_matrix **= 1/factor
+
+  def apply_cost_1(self, vec, axis=0):
+    pass
+
+  def apply_cost_2(self, vec, axis=0):
+    pass
 
   def _apply_cost_to_vec(self,
                          vec: jnp.ndarray,
@@ -491,4 +503,4 @@ def is_affine(fn) -> bool:
 
 def is_linear(fn) -> bool:
   """Tests heuristically if a function is linear."""
-  return fn(0.0) == 0 and is_affine(fn)
+  return fn(0.0) == 0.0 and is_affine(fn)
