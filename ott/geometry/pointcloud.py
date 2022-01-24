@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -276,27 +276,34 @@ class PointCloud(geometry.Geometry):
     eps, fn = children[2:]
     return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
 
-  def to_LRCGeometry(self):
-    """Convert sq. Euc. PointCloud with to LRCGeometry if useful."""
+  def to_LRCGeometry(self, scale=1.0):
+    """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
+        cost_1 = jnp.concatenate(
+            (jnp.sum(self.x ** 2, axis=1, keepdims=True),
+             jnp.ones((self.shape[0], 1)),
+             -jnp.sqrt(2) * self.x),
+            axis=1)
+        cost_2 = jnp.concatenate(
+            (jnp.ones((self.shape[1], 1)),
+             jnp.sum(self.y ** 2, axis=1, keepdims=True),
+             jnp.sqrt(2) * self.y),
+            axis=1)
+        cost_1 *= jnp.sqrt(scale)
+        cost_2 *= jnp.sqrt(scale)
+
         return geometry_lr.LRCGeometry(
-            cost_1=jnp.concatenate(
-                (jnp.sum(self.x ** 2, axis=1, keepdims=True),
-                 jnp.ones((self.shape[0], 1)),
-                 -jnp.sqrt(2) * self.x),
-                axis=1),
-            cost_2=jnp.concatenate(
-                (jnp.ones((self.shape[1], 1)),
-                 jnp.sum(self.y ** 2, axis=1, keepdims=True),
-                 jnp.sqrt(2) * self.y),
-                axis=1),
+            cost_1=cost_1,
+            cost_2=cost_2,
             epsilon=self._epsilon_init,
             relative_epsilon=self._relative_epsilon,
             scale=self._scale,
             **self._kwargs)
       else:
+        self.x *= jnp.sqrt(scale)
+        self.y *= jnp.sqrt(scale)
         return self
     else:
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')

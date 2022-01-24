@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -398,7 +398,7 @@ class QuadraticProblem:
       geom = geometry_lr.add_lrc_geom(geom, marginal_cost)
       if self.is_fused:
         geom = geometry_lr.add_lrc_geom(
-            geom, self.geom_xy.rescale_cost(self.fused_penalty))
+            geom, self.geom_xy)
 
     else:
       tmp1 = self.geom_xx.apply_cost(q, axis=1, fn=self.quad_loss[0])

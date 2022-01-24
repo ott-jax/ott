@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -445,7 +445,7 @@ class Geometry:
     if self._cost_matrix is not None:
       self._cost_matrix *= factor
     if self._kernel_matrix is not None:
-      self._cost_matrix **= 1/factor
+      self._kernel_matrix **= 1/factor
 
   def apply_cost_1(self, vec, axis=0):
     pass

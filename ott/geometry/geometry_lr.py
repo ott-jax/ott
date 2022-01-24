@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -115,10 +115,6 @@ class LRCGeometry(geometry.Geometry):
 
   def tree_flatten(self):
     return (self.cost_1, self.cost_2, self._kwargs), None
-
-  def rescale_cost(self, factor: float):
-    self.cost_1 *= jnp.sqrt(factor)
-    self.cost_2 *= jnp.sqrt(factor)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -200,7 +200,7 @@ class GromovWasserstein:
         else:
           if (isinstance(prob.geom_xy, pointcloud.PointCloud) and
               prob.geom_xy.is_squared_euclidean):
-            prob.geom_xy = prob.geom_xy.to_LRCGeometry()
+            prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
             prob.geom_xx = prob.geom_xx.to_LRCGeometry()
             prob.geom_yy = prob.geom_yy.to_LRCGeometry()
 
