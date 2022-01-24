@@ -58,6 +58,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
 
    notebooks/Sinkhorn_Barycenters.ipynb
    notebooks/gromov_wasserstein.ipynb
+   notebooks/GWLRSinkhorn.ipynb
    notebooks/Hessians.ipynb
    notebooks/soft_sort.ipynb
    notebooks/application_biology.ipynb

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ from typing import Any, NamedTuple
 import jax.numpy as jnp
 from ott.core import gromov_wasserstein
 from ott.core import problems
+from ott.core import quad_problems
 from ott.core import sinkhorn
 
 
@@ -97,8 +98,14 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
   tau_a, tau_b = kwargs.get('tau_a', 1.0), kwargs.get('tau_b', 1.0)
   eps_keys = ['epsilon', 'init', 'target', 'decay']
   pb_kwargs = {k: v for k, v in kwargs.items() if k in eps_keys}
-  pb = problems.make(*args, objective=objective,
-                     a=a, b=b, tau_a=tau_a, tau_b=tau_b, **pb_kwargs)
+  pb = quad_problems.make(
+      *args,
+      objective=objective,
+      a=a,
+      b=b,
+      tau_a=tau_a,
+      tau_b=tau_b,
+      **pb_kwargs)
   linear = isinstance(pb, problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -259,6 +259,10 @@ class SinkhornOutput(NamedTuple):
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix)
         - self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix)))
+
+  def transport_mass(self) -> float:
+    """Sum of transport matrix."""
+    return self.marginal(0).sum()
 
 
 @jax.tree_util.register_pytree_node_class

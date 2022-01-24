@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Optional, NamedTuple, Tuple
+from typing import Optional, NamedTuple, Tuple, Any
 
 import jax
 import jax.numpy as jnp
@@ -127,13 +127,20 @@ class LRSinkhornOutput(NamedTuple):
     return True
 
   @property
+  def converged(self):
+    if self.costs is None:
+      return False
+    return jnp.logical_and(jnp.sum(self.costs == -1) > 0,
+                           jnp.sum(jnp.isnan(self.costs)) == 0)
+
+  @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
     return jnp.matmul(self.q * (1/self.g)[None, :], self.r.T)
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Applies the transport to a ndarray; axis=1 for its transpose."""
-    q, r = (self.q, self.r) if axis == 0 else (self.r, self.q)
+    q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
     return jnp.dot(q, jnp.dot(r.T, inputs) / self.g)
 
   def marginal(self, axis: int) -> jnp.ndarray:
@@ -144,6 +151,10 @@ class LRSinkhornOutput(NamedTuple):
     """Returns OT cost for matrix, evaluated at other cost matrix."""
     return jnp.sum(
         self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :])
+
+  def transport_mass(self) -> float:
+    """Sum of transport matrix."""
+    return self.marginal(0).sum()
 
 
 @jax.tree_util.register_pytree_node_class
@@ -183,6 +194,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       at this moment.
     jit: jit by default iterations loop.
     rng_key: seed of random numer generator to initialize the LR factors.
+    kwargs_dys : keyword arguments passed onto dysktra_update.
   """
 
   def __init__(self,
@@ -197,7 +209,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
                use_danskin: bool = True,
                implicit_diff: bool = False,
                jit: bool = True,
-               rng_key: Optional[int] = None):
+               rng_key: int = 0,
+               kwargs_dys: Any = None):
     self.rank = rank
     self.gamma = gamma
     self.lse_mode = lse_mode
@@ -209,7 +222,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.jit = jit
     self.use_danskin = use_danskin
     self.implicit_diff = implicit_diff
-    self.rng_key = 0 if rng_key is None else rng_key
+    self.rng_key = rng_key
+    self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
 
   def __call__(self,
                ot_prob: problems.LinearProblem,
@@ -255,7 +269,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return c_q, c_r, h
 
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
-                     alpha=1e-6, max_iter=1000, delta=1e-9):
+                     min_value=1e-6, tolerance=1e-4,
+                     min_iter=0, inner_iter=10, max_iter=200):
 
     # shortcuts for problem's definition.
     r = self.rank
@@ -275,7 +290,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     def cond_fn(iteration, constants, state_inner):
       del iteration, constants
       err = state_inner[-1]
-      return err > delta
+      return err > tolerance
 
     def _softm(f, g, c, axis):
       return jax.scipy.special.logsumexp(
@@ -290,7 +305,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       f2 = (jnp.log(b) - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2
 
       h = h_old + w_gi
-      h = jnp.maximum(jnp.log(alpha) / self.gamma, h)
+      h = jnp.maximum(jnp.log(min_value) / self.gamma, h)
       w_gi += h_old - h
       h_old = h
 
@@ -316,14 +331,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       err = jnp.where(
-          jnp.logical_and(compute_error, iteration >= self.min_iterations),
+          jnp.logical_and(compute_error, iteration >= min_iter),
           solution_error(q, r, ot_prob, self.norm_error, self.lse_mode), err)[0]
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
     state_inner = fixed_point_loop.fixpoint_iter_backprop(
-        cond_fn, body_fn, self.min_iterations, self.max_iterations,
-        self.inner_iterations, constants, state_inner)
+        cond_fn, body_fn, min_iter, max_iter,
+        inner_iter, constants, state_inner)
 
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
 
@@ -339,7 +354,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def lse_step(self, ot_prob, state, iteration) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
     c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
-    q, r, g = self.dysktra_update(c_q, c_r, h, ot_prob, state, iteration)
+    q, r, g = self.dysktra_update(
+        c_q, c_r, h, ot_prob, state, iteration, **self.kwargs_dys)
     return state.set(q=q, g=g, r=r)
 
   def kernel_step(self, ot_prob, state, iteration) -> LRSinkhornState:

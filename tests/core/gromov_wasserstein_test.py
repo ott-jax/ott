@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import jax
 import jax.numpy as jnp
 import jax.test_util
 from ott.core import gromov_wasserstein
+from ott.core import quad_problems
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
@@ -60,7 +61,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
         a=self.a,
         b=self.b,
         epsilon=.1,
-        store_sinkhorn_errors=True,
+        store_inner_errors=True,
         sinkhorn_kwargs={
             'threshold': threshold_sinkhorn
         }).errors
@@ -103,8 +104,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
                         rtol=1e-02, atol=1e-02)
 
-  @parameterized.parameters([True], [False])
-  def test_gromov_wasserstein_pointcloud(self, lse_mode):
+  def test_gromov_wasserstein_pointcloud(self):
     """Test basic computations pointclouds."""
 
     def reg_gw(x, y, a, b):
@@ -169,7 +169,6 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(self.x, self.x)
     geom_y = pointcloud.PointCloud(self.y, self.y)
-    # without warm start for calls to sinkhorn
     def loss_thre(threshold):
       return gromov_wasserstein.gromov_wasserstein(
           geom_xx=geom_x, geom_yy=geom_y, a=self.a, b=self.b,
@@ -178,6 +177,50 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     self.assertGreater(loss_thre(.1), loss_thre(.001))
     self.assertGreater(loss_thre(.001), loss_thre(.00001))
 
+  def test_gw_lr(self):
+    """Checking LR and Entropic have similar outputs on same problem."""
+    rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+    n, m, d1, d2 = 24, 17, 2, 3
+    x = jax.random.uniform(rngs[0], (n, d1))
+    y = jax.random.uniform(rngs[1], (m, d2))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y)
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
+    solver = gromov_wasserstein.GromovWasserstein(rank=5)
+    ot_gwlr = solver(prob)
+    solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
+    ot_gw = solver(prob)
+    self.assertAllClose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
+
+  def test_gw_lr_fused(self):
+    """Checking LR and Entropic have similar outputs on same fused problem."""
+    rngs = jax.random.split(jax.random.PRNGKey(0), 5)
+    n, m, d1, d2 = 24, 17, 2, 3
+    x = jax.random.uniform(rngs[0], (n, d1))
+    y = jax.random.uniform(rngs[1], (m, d2))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
+    z = jax.random.uniform(rngs[4], (m, d1))
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(x, z)  # only used to compute n x m matrix
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, geom_xy=geom_xy,
+                                          fused_penalty=1.3,
+                                          a=a, b=b)
+    solver = gromov_wasserstein.GromovWasserstein(rank=6)
+    ot_gwlr = solver(prob)
+    solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
+    ot_gw = solver(prob)
+
+    self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix))
 
 if __name__ == '__main__':
   absltest.main()

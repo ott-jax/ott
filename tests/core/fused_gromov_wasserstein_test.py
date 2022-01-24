@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,7 +58,12 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
     fused_penalty = self.fused_penalty
     out = gromov_wasserstein.gromov_wasserstein(
-        geom_xx=geom_x, geom_yy=geom_y, geom_xy=geom_xy, fused_penalty=fused_penalty, a=self.a, b=self.b,
+        geom_xx=geom_x,
+        geom_yy=geom_y,
+        geom_xy=geom_xy,
+        fused_penalty=fused_penalty,
+        a=self.a,
+        b=self.b,
         epsilon=.1).errors
     self.assertIsNone(out)
 
@@ -70,7 +75,7 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
         a=self.a,
         b=self.b,
         epsilon=.1,
-        store_sinkhorn_errors=True,
+        store_inner_errors=True,
         sinkhorn_kwargs={
             'threshold': threshold_sinkhorn
         }).errors
@@ -312,8 +317,8 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
                          self.a, self.b)
     gw_output = reg_gw(self.x, self.y, self.a, self.b)
     self.assertGreater(fgw_output.reg_gw_cost, gw_output.reg_gw_cost)
-    self.assertNotAlmostEqual(fgw_output.transport[0, 0],
-                              gw_output.transport[0, 0])
+    self.assertNotAlmostEqual(fgw_output.matrix[0, 0],
+                              gw_output.matrix[0, 0])
 
 
 if __name__ == '__main__':
