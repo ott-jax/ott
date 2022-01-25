@@ -1,3 +1,5 @@
+![Tests](https://github.com/google-research/ott/actions/workflows/tests.yml/badge.svg)
+
 <div align="center">
 <img src="https://github.com/google-research/ott/raw/master/docs/logoOTT.png" alt="logo"  width="150"></img>
 </div>
