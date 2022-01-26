@@ -84,7 +84,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
 
   def test_rank_one_array(self):
     x = jax.random.uniform(self.rng, (20,))
-    ranks = soft_sort.ranks(x, epsilon=0.005)
+    ranks = soft_sort.ranks(x, epsilon=0.001)
     self.assertEqual(x.shape, ranks.shape)
     expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
     self.assertAllClose(ranks, expected_ranks, atol=0.9, rtol=0.1)

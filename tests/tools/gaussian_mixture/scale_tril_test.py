@@ -50,7 +50,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
 
   def test_cholesky(self):
     self.assertArraysAllClose(
-        self.m_chol, self.chol.cholesky())
+        self.m_chol, self.chol.cholesky(), atol=1e-4, rtol=1e-4)
 
   def test_covariance(self):
     self.assertArraysAllClose(
@@ -59,7 +59,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
   def test_covariance_sqrt(self):
     actual = self.chol.covariance_sqrt()
     expected = matrix_square_root.sqrtm_only(self.chol.covariance())
-    self.assertArraysAllClose(expected, actual)
+    self.assertArraysAllClose(expected, actual, atol=1e-4, rtol=1e-4)
 
   def test_log_det_covariance(self):
     expected = jnp.log(jnp.linalg.det(self.chol.covariance()))
@@ -77,7 +77,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     cholesky = scale_tril.ScaleTriL.from_random(
         key=self.key, n_dimensions=n_dimensions, stdev=1.).cholesky()
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
-    self.assertArraysAllClose(cholesky, scale.cholesky())
+    self.assertArraysAllClose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
 
   def test_w2_dist(self):
     # make sure distance between a random normal and itself is 0
@@ -85,7 +85,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     s = scale_tril.ScaleTriL.from_random(key=subkey, n_dimensions=3)
     w2 = s.w2_dist(s)
     expected = 0.
-    self.assertAllClose(expected, w2, atol=1.e-4)
+    self.assertAllClose(expected, w2, atol=1e-4, rtol=1e-4)
 
     # When covariances commute (e.g. if covariance is diagonal), have
     # distance between covariances = frobenius norm^2 of (delta sqrt(cov))
@@ -98,7 +98,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1))**2.)
-    self.assertArraysAllClose(delta_sigma, w2)
+    self.assertArraysAllClose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
   def test_transport(self):
     size = 4
@@ -112,10 +112,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     x = jax.random.normal(key=subkey, shape=(100, size))
     transported = s0.transport(s1, points=x)
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
-    self.assertAllClose(expected, transported)
-
-
-
+    self.assertAllClose(expected, transported, atol=1e-4, rtol=1e-4)
 
   def test_flatten_unflatten(self):
     scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
