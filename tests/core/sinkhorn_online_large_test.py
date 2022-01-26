@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Tests Online option for PointCloud geometry."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
