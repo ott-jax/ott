@@ -39,7 +39,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     cov = jnp.diag(jnp.array([4., 5., 6.]))
     g = gaussian.Gaussian.from_mean_and_cov(mean=mean, cov=cov)
     self.assertArraysEqual(mean, g.loc)
-    self.assertArraysAllClose(cov, g.covariance())
+    self.assertArraysAllClose(cov, g.covariance(), atol=1e-4, rtol=1e-4)
 
   def test_to_z(self):
     g = gaussian.Gaussian(
@@ -64,7 +64,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     x = g.sample(key=self.key, size=100)
     z = g.to_z(x)
     xnew = g.from_z(z)
-    self.assertArraysAllClose(x, xnew)
+    self.assertArraysAllClose(x, xnew, atol=1e-4, rtol=1e-4)
 
   def test_log_prob(self):
     g = gaussian.Gaussian(
