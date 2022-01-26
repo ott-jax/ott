@@ -35,20 +35,20 @@ class TransportTest(jax.test_util.JaxTestCase):
 
   def test_transport_from_point(self):
     rngs = jax.random.split(self.rng, 2)
-    num_a, num_b = 23, 48
+    num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    ot = transport.solve(x, y, epsilon=1e-2, threshold=1e-2)
+    ot = transport.solve(x, y, threshold=1e-2)
     self.assertEqual(ot.matrix.shape, (num_a, num_b))
     self.assertAllClose(jnp.sum(ot.matrix, axis=1), ot.a, atol=1e-3)
     self.assertAllClose(jnp.sum(ot.matrix, axis=0), ot.b, atol=1e-3)
 
   def test_transport_from_geom(self):
     rngs = jax.random.split(self.rng, 3)
-    num_a, num_b = 23, 48
+    num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, online=True)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
     ot = transport.solve(geom, b=b, threshold=1e-3)
@@ -58,10 +58,10 @@ class TransportTest(jax.test_util.JaxTestCase):
 
   def test_transport_from_problem(self):
     rngs = jax.random.split(self.rng, 3)
-    num_a, num_b = 23, 48
+    num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
+    geom = pointcloud.PointCloud(x, y, online=True)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
     pb = problems.LinearProblem(geom, b=b)
@@ -72,10 +72,10 @@ class TransportTest(jax.test_util.JaxTestCase):
 
   def test_transport_wrong_init(self):
     rngs = jax.random.split(self.rng, 2)
-    num_a, num_b = 23, 48
+    num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, epsilon=1e-3, online=True)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, online=True)
     with self.assertRaises(TypeError):
       transport.solve(geom, x, threshold=1e-3)
 

@@ -34,7 +34,7 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       lse_mode=[True, False],
       tau_a=[1.0, .94],
       tau_b=[1.0, .92],
-      shape=[(237, 153), (358, 421)],
+      shape=[(237, 153)],
       arg=[0, 1],
       axis=[0, 1])
   def test_apply_transport_jacobian(self, lse_mode, tau_a, tau_b, shape, arg,

@@ -33,8 +33,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
     self.dim = 4
-    self.n = 68
-    self.m = 123
+    self.n = 17
+    self.m = 29
     self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -56,42 +56,12 @@ class SinkhornTest(jax.test_util.JaxTestCase):
           inner_iterations=10,
           norm_error=1),
       dict(
-          testcase_name='lse-small-mom',
-          lse_mode=True,
-          momentum=1.01,
-          chg_momentum_from=0,
-          inner_iterations=10,
-          norm_error=1),
-      dict(
-          testcase_name='lse-high-mom',
-          lse_mode=True,
-          momentum=1.5,
-          chg_momentum_from=0,
-          inner_iterations=10,
-          norm_error=1),
-      dict(
           testcase_name='scal-Leh-mom',
           lse_mode=False,
-          momentum=1.01,
+          momentum=1.00,
           chg_momentum_from=30,
           inner_iterations=10,
           norm_error=1),
-      dict(
-          testcase_name='scal-no-mom',
-          lse_mode=False,
-          momentum=1.0,
-          chg_momentum_from=0,
-          inner_iterations=10,
-          norm_error=1,
-      ),
-      dict(
-          testcase_name='scal-high-mom',
-          lse_mode=False,
-          momentum=1.5,
-          chg_momentum_from=0,
-          inner_iterations=10,
-          norm_error=1,
-      ),
       dict(
           testcase_name='lse-Leh-1',
           lse_mode=True,
@@ -99,14 +69,6 @@ class SinkhornTest(jax.test_util.JaxTestCase):
           chg_momentum_from=60,
           inner_iterations=1,
           norm_error=2),
-      dict(
-          testcase_name='lse-Leh-13',
-          lse_mode=True,
-          momentum=1.0,
-          chg_momentum_from=40,
-          inner_iterations=13,
-          norm_error=3,
-      ),
       dict(
           testcase_name='lse-Leh-24',
           lse_mode=True,
@@ -167,8 +129,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
   @parameterized.product(
       lse_mode=[True, False],
-      init=[2, 5],
-      decay=[.8, .9],
+      init=[5],
+      decay=[.9],
       tau_a=[1.0, .93],
       tau_b=[1.0, .91])
   def test_autoepsilon_with_decay(self, lse_mode, init, decay, tau_a, tau_b):

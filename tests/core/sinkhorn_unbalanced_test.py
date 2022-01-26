@@ -32,8 +32,8 @@ class SinkhornUnbalancedTest(jax.test_util.JaxTestCase):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
     self.dim = 4
-    self.n = 68
-    self.m = 123
+    self.n = 17
+    self.m = 23
     self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))

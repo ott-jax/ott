@@ -34,7 +34,7 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       lse_mode=[True, False],
       tau_a=[1.0, .93],
       tau_b=[1.0, .91],
-      shape=[(12, 15), (27, 18), (345, 434)],
+      shape=[(12, 15), (27, 18)],
       arg=[0, 1])
   def test_potential_jacobian_sinkhorn(self, lse_mode, tau_a, tau_b, shape,
                                        arg):

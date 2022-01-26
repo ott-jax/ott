@@ -50,7 +50,8 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
-        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode).errors
+        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode,
+        jit=False).errors
     err = errors[jnp.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
@@ -71,7 +72,8 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
-    out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode)
+    out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode,
+                                jit=False)
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     self.assertAllClose(out_mat.reg_ot_cost, out_grid.reg_ot_cost)
 

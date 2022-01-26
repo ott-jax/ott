@@ -79,7 +79,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     key = jax.random.PRNGKey(0)
-    self.dim = 23
+    self.dim = 13
     self.batch = 3
 
     # Values for testing the Sylvester solver
@@ -164,7 +164,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='test_sqrtm_sqrtm',
           fn=lambda x: matrix_square_root.sqrtm(x)[0],
-          n_tests=10,
+          n_tests=3,
           dim=3,
           epsilon=1.e-6,
           atol=1.e-6,
@@ -173,7 +173,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='test_sqrtm_inv_sqrtm',
           fn=lambda x: matrix_square_root.sqrtm(x)[1],
-          n_tests=10,
+          n_tests=3,
           dim=3,
           epsilon=1.e-6,
           atol=1.e-8,
@@ -182,7 +182,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='test_sqrtm_sqrtm_plus_inv_sqrtm',
           fn=_sqrt_plus_inv_sqrt,
-          n_tests=10,
+          n_tests=3,
           dim=3,
           epsilon=1.e-6,
           atol=1.e-8,
@@ -191,7 +191,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='test_sqrtm_only',
           fn=matrix_square_root.sqrtm_only,
-          n_tests=10,
+          n_tests=3,
           dim=3,
           epsilon=1.e-6,
           atol=1.e-8,
@@ -200,7 +200,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       dict(
           testcase_name='test_inv_sqrtm_only',
           fn=matrix_square_root.inv_sqrtm_only,
-          n_tests=10,
+          n_tests=3,
           dim=2,
           epsilon=1.e-6,
           atol=1.e-8,
