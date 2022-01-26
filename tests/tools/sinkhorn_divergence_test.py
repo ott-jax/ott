@@ -32,7 +32,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
     self._dim = 4
-    self._num_points = 30, 37
+    self._num_points = 13, 17
     self.rng, *rngs = jax.random.split(self.rng, 3)
     a = jax.random.uniform(rngs[0], (self._num_points[0],))
     b = jax.random.uniform(rngs[1], (self._num_points[1],))

@@ -83,8 +83,8 @@ class SinkhornTest(jax.test_util.JaxTestCase):
               epsilon=self.epsilon),
           a=a,
           b=self.b,
-          tau_a=0.8,
-          tau_b=0.87,
+          tau_a=0.94,
+          tau_b=0.97,
           threshold=1e-4,
           lse_mode=True,
           implicit_differentiation=implicit)

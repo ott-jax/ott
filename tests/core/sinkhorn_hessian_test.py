@@ -39,7 +39,7 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
       lse_mode=[True, False],
       tau_a=[1.0, .93],
       tau_b=[1.0, .91],
-      shape=[(12, 15), (27, 18)],
+      shape=[(12, 15)],
       arg=[0, 1])
   def test_hessian_sinkhorn(self, lse_mode, tau_a, tau_b, shape, arg):
     """Test hessian w.r.t. weights and locations."""

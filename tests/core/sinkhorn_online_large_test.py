@@ -15,7 +15,6 @@
 
 # Lint as: python3
 """Tests Online option for PointCloud geometry."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -30,9 +29,9 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
-    self.dim = 4
-    self.n = 20000
-    self.m = 20002
+    self.dim = 3
+    self.n = 4000
+    self.m = 402
     self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))

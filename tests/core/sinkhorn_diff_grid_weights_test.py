@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Test gradient of Sinkhorn applied to grid w.r.t. probability weights."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -32,7 +32,7 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
     self.rng = jax.random.PRNGKey(0)
 
   @parameterized.parameters([True], [False])
-  def test_autograd_sinkhorn_x_grid(self, lse_mode):
+  def test_diff_sinkhorn_x_grid_weights_perturbation(self, lse_mode):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-4  # perturbation magnitude
     keys = jax.random.split(self.rng, 3)
@@ -50,7 +50,7 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
       return sinkhorn.sinkhorn(
           geom, a=a, b=b, threshold=0.001, lse_mode=lse_mode).reg_ot_cost
 
-    reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
+    reg_ot_and_grad = jax.value_and_grad(reg_ot)
     _, grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[2], grid_size).ravel()
     delta = delta - jnp.mean(delta)

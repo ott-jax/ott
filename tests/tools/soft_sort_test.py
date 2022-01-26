@@ -42,7 +42,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=0) >= 0.0))
 
   def test_sort_array_squashing_momentum(self):
-    shape = (113, 1)
+    shape = (33, 1)
     x = jax.random.uniform(self.rng, shape)
     xs_lin = soft_sort.sort(
         x,
@@ -72,9 +72,9 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=axis) >= 0.0))
     self.assertAllClose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
 
-  @parameterized.parameters([-1, 5, 10, 21])
+  @parameterized.parameters([-1, 2, 5, 11])
   def test_sort_batch(self, topk):
-    x = jax.random.uniform(self.rng, (32, 20, 12, 8))
+    x = jax.random.uniform(self.rng, (32, 10, 6, 4))
     axis = 1
     xs = soft_sort.sort(x, axis=axis, topk=topk)
     expected_shape = list(x.shape)
@@ -89,7 +89,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
     self.assertAllClose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
-  @parameterized.parameters([0.2, 0.5, 0.9])
+  @parameterized.parameters([0.2, 0.9])
   def test_quantile(self, level):
     x = jnp.linspace(0.0, 1.0, 100)
     q = soft_sort.quantile(
@@ -140,7 +140,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
 
   @parameterized.parameters([True, False])
   def test_soft_sort_jacobian(self, implicit: bool):
-    b, n = 10, 200
+    b, n = 10, 40
     idx_column = 5
     rng = jax.random.PRNGKey(0)
     rngs = jax.random.split(rng, 3)
