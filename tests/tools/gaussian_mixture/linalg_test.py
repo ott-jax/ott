@@ -142,7 +142,8 @@ class LinalgTest(jax.test_util.JaxTestCase):
     inv_cholesky = jnp.linalg.inv(cholesky)
     expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
     actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)
-    self.assertArraysAllClose(expected, actual)
+    self.assertArraysAllClose(expected, actual,
+                              atol=1e-4, rtol=1.e-4)
 
   def test_get_random_orthogonal(self):
     key = jax.random.PRNGKey(0)
@@ -151,7 +152,7 @@ class LinalgTest(jax.test_util.JaxTestCase):
     qt = jnp.transpose(q)
     expected = jnp.eye(3)
     actual = jnp.matmul(q, qt)
-    self.assertArraysAllClose(expected, actual)
+    self.assertGreater(1e-4, jnp.linalg.norm(expected-actual))
 
 if __name__ == '__main__':
   absltest.main()
