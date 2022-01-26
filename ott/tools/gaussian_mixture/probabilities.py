@@ -74,7 +74,7 @@ class Probabilities:
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
     return jax.random.categorical(
-       key=key, logits=self.unnormalized_log_probs(), shape=(size,))
+        key=key, logits=self.unnormalized_log_probs(), shape=(size,))
 
   def tree_flatten(self):
     children = (self.params,)
