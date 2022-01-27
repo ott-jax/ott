@@ -88,7 +88,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     self.assertAllClose(expected, w2, atol=1e-4, rtol=1e-4)
 
     # When covariances commute (e.g. if covariance is diagonal), have
-    # distance between covariances = frobenius norm^2 of (delta sqrt(cov))
+    # distance between covariances = Frobenius norm^2 of (delta sqrt(cov))
     # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # pylint: disable=line-too-long
     size = 4
     key, subkey0, subkey1 = jax.random.split(key, num=3)
