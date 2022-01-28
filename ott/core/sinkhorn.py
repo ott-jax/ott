@@ -478,7 +478,8 @@ class Sinkhorn:
   def init_state(self, ot_prob, init):
     """Returns the initial state of the loop."""
     fu, gv = init
-    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
+    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
+                       dtype=fu.dtype)
     state = SinkhornState(errors=errors, fu=fu, gv=gv)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 

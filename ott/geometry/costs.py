@@ -193,7 +193,7 @@ class UnbalancedBures(CostFn):
                         (self._dimension, self._dimension))
 
     # Identity matrix of suitable size
-    iden = jnp.eye(self._dimension)
+    iden = jnp.eye(self._dimension, dtype=x.dtype)
 
     # Creates matrices needed in the computation
     tilde_a = 0.5 * gam * (iden - lam * jnp.linalg.inv(x_mat + lam * iden))

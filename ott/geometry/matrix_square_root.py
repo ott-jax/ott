@@ -98,11 +98,13 @@ def sqrtm(
     norm_fn = functools.partial(jnp.linalg.norm, axis=(-2, -1))
     return jnp.max(norm_fn(res) / norm_fn(x))
 
+  dtype = x.dtype
   y = x / norm_x
-  z = jnp.eye(dimension)
+  z = jnp.eye(dimension, dtype=dtype)
   if jnp.ndim(x) > 2:
     z = jnp.tile(z, list(x.shape[:-2]) + [1, 1])
-  errors = -jnp.ones((np.ceil(max_iterations / inner_iterations).astype(int),))
+  errors = -jnp.ones((np.ceil(max_iterations / inner_iterations).astype(int),),
+                     dtype=dtype)
   state = (errors, y, z)
   const = (x, threshold)
   errors, y, z = fixed_point_loop.fixpoint_iter_backprop(

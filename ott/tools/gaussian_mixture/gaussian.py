@@ -16,6 +16,7 @@
 """Pytree for a normal distribution."""
 
 import math
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -38,7 +39,7 @@ class Gaussian:
       key: jnp.ndarray,
       n_dimensions: int,
       stdev: float = 0.1,
-      dtype: jnp.dtype = jnp.float32
+      dtype: Optional[jnp.dtype] = None
   ) -> 'Gaussian':
     """Construct a random Gaussian.
 

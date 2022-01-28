@@ -107,7 +107,7 @@ class GaussianMixturePairTest(jax.test_util.JaxTestCase):
     coupling = pair.get_normalized_sinkhorn_coupling(
         sinkhorn_output=sinkhorn_output)
     expected = jnp.diag(self.gmm0.component_weights)
-    self.assertArraysAllClose(expected, coupling)
+    self.assertArraysAllClose(expected, coupling, atol=1.e-6)
 
   def test_get_coupling_to_shifted(self):
     loc_shift = jnp.stack(

@@ -15,7 +15,7 @@
 
 """Linear algebra utility methods for optimal transport of Gaussian mixtures."""
 
-from typing import Callable, Iterable, List, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -137,7 +137,7 @@ def invmatvectril(
 def get_random_orthogonal(
     key: jnp.ndarray,
     dim: int,
-    dtype=jnp.float32
+    dtype: Optional[jnp.dtype] = None
 ) -> jnp.ndarray:
   """Get a random orthogonal matrix with the specified dimension."""
   m = jax.random.normal(
