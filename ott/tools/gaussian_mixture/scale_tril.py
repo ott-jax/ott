@@ -66,7 +66,8 @@ class ScaleTriL:
     q = linalg.get_random_orthogonal(key=subkey, dim=n_dimensions, dtype=dtype)
 
     # generate random eigenvalues
-    eigs = stdev * jnp.exp(jax.random.normal(key=key, shape=(n_dimensions,)))
+    eigs = stdev * jnp.exp(
+        jax.random.normal(key=key, shape=(n_dimensions,), dtype=dtype))
 
     # random positive definite matrix
     sigma = jnp.matmul(
@@ -193,6 +194,13 @@ class ScaleTriL:
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     return cls(*children, **aux_data)
+
+  def __repr__(self):
+    class_name = type(self).__name__
+    children, aux = self.tree_flatten()
+    return '{}({})'.format(
+        class_name, ', '.join([repr(c) for c in children] +
+                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

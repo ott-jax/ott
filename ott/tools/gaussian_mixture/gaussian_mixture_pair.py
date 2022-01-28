@@ -86,6 +86,10 @@ class GaussianMixturePair:
     self._lock_gmm1 = lock_gmm1
 
   @property
+  def dtype(self):
+    return self.gmm0.dtype
+
+  @property
   def gmm0(self):
     return self._gmm0
 
@@ -195,6 +199,13 @@ class GaussianMixturePair:
       gmm1 = aux_data.pop('gmm1')
       children.insert(1, gmm1)
     return cls(*children, **aux_data)
+
+  def __repr__(self):
+    class_name = type(self).__name__
+    children, aux = self.tree_flatten()
+    return '{}({})'.format(
+        class_name, ', '.join([repr(c) for c in children] +
+                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

@@ -39,7 +39,7 @@ class Probabilities:
       key: jnp.ndarray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
-      dtype: jnp.dtype = jnp.float32) -> 'Probabilities':
+      dtype: Optional[jnp.dtype] = None) -> 'Probabilities':
     """Construct a random Probabilities."""
     return cls(params=jax.random.normal(
         key=key, shape=(n_dimensions - 1,), dtype=dtype) * stdev)
@@ -84,6 +84,13 @@ class Probabilities:
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     return cls(*children, **aux_data)
+
+  def __repr__(self):
+    class_name = type(self).__name__
+    children, aux = self.tree_flatten()
+    return '{}({})'.format(
+        class_name, ', '.join([repr(c) for c in children] +
+                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

@@ -16,7 +16,7 @@
 # Lint as: python 3
 """Pytree for a Gaussian mixture model."""
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -79,7 +79,7 @@ class GaussianMixture:
       n_components: int,
       n_dimensions: int,
       stdev: float = 0.1,
-      dtype: jnp.dtype = jnp.float32) -> 'GaussianMixture':
+      dtype: Optional[jnp.dtype] = None) -> 'GaussianMixture':
     """Construct a random GMM."""
     loc = []
     scale_params = []
@@ -132,6 +132,10 @@ class GaussianMixture:
         assignment_probs=assignment_probs)
     return cls.from_mean_cov_component_weights(
         mean=mean, cov=cov, component_weights=wts)
+
+  @property
+  def dtype(self):
+    return self.loc.dtype
 
   @property
   def n_dimensions(self):
@@ -280,6 +284,13 @@ class GaussianMixture:
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     return cls(*children, **aux_data)
+
+  def __repr__(self):
+    class_name = type(self).__name__
+    children, aux = self.tree_flatten()
+    return '{}({})'.format(
+        class_name, ', '.join([repr(c) for c in children] +
+                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()
