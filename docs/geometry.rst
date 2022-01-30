@@ -41,7 +41,7 @@ Geometries
     pointcloud.PointCloud
     grid.Grid
     geometry_lr.LRGeometry
-    geometry.epsilon_scheduler.Epsilon
+    epsilon_scheduler.Epsilon
 
 
 Cost Functions
