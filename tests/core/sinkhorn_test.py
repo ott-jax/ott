@@ -27,7 +27,6 @@ from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornTest(jax.test_util.JaxTestCase):
 
   def setUp(self):

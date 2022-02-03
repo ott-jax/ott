@@ -27,7 +27,6 @@ from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class GromovWassersteinTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
@@ -218,18 +217,10 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
                                           a=a, b=b)
     solver = gromov_wasserstein.GromovWasserstein(rank=6)
     ot_gwlr = solver(prob)
-    solver = gromov_wasserstein.GromovWasserstein(rank=6, epsilon=1e-1)
-    ot_gwlreps = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
     ot_gw = solver(prob)
 
-    # Test solutions look alike 
     self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix))
-    self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix))
-    # Test at least some difference when adding bigger entropic regularization
-    self.assertGreater(
-      jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix), 1e-3)
-
 
 if __name__ == '__main__':
   absltest.main()

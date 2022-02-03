@@ -15,19 +15,15 @@
 
 # Lint as: python3
 """Tests Online option for PointCloud geometry."""
-from functools import partial
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import jax.test_util
-import numpy as np
 from ott.core import sinkhorn
-from ott.core.sinkhorn import SinkhornOutput
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornOnlineTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
@@ -60,74 +56,6 @@ class SinkhornOnlineTest(jax.test_util.JaxTestCase):
         lse_mode=lse_mode,
         implicit_differentiation=True).errors
     err = errors[errors > -1][-1]
-    self.assertGreater(threshold, err)
-
-  @parameterized.parameters([1], [13], [402], [4000])
-  def test_online_matches_offline_size(self, online: int):
-    threshold, rtol, atol = 1e-1, 1e-6, 1e-6
-    geom_offline = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=False)
-    geom_online = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=online)
-
-    sol_online = sinkhorn.sinkhorn(
-      geom_online,
-      a=self.a,
-      b=self.b,
-      threshold=threshold,
-      lse_mode=True,
-      implicit_differentiation=True
-    )
-    errors_online = sol_online.errors
-    err_online = errors_online[errors_online > -1][-1]
-
-    sol_offline = sinkhorn.sinkhorn(
-      geom_offline,
-      a=self.a,
-      b=self.b,
-      threshold=threshold,
-      lse_mode=True,
-      implicit_differentiation=True
-    )
-
-    self.assertGreater(threshold, err_online)
-    np.testing.assert_allclose(sol_online.matrix, sol_offline.matrix, rtol=rtol, atol=atol)
-    np.testing.assert_allclose(sol_online.a, sol_offline.a, rtol=rtol, atol=atol)
-    np.testing.assert_allclose(sol_online.b, sol_offline.b, rtol=rtol, atol=atol)
-
-  def test_online_sinkhorn_jit(self):
-    threshold = 1e-1
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=512)
-    errors = sinkhorn.sinkhorn(
-      geom,
-      a=self.a,
-      b=self.b,
-      threshold=threshold,
-      jit=True,
-      lse_mode=True,
-      implicit_differentiation=True
-    ).errors
-    err = errors[errors > -1][-1]
-
-    self.assertGreater(threshold, err)
-
-  def test_online_external_jit(self):
-    @partial(jax.jit, static_argnums=1)
-    def callback(epsilon: float, online: int) -> SinkhornOutput:
-      geom = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon, online=online)
-      return sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
-        threshold=threshold,
-        jit=True,
-        lse_mode=True,
-        implicit_differentiation=True
-      )
-
-    threshold = 1e-1
-    sol = callback(epsilon=1, online=42)
-    errors = sol.errors
-    err = errors[errors > -1][-1]
-
     self.assertGreater(threshold, err)
 
 
