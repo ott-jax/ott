@@ -28,7 +28,6 @@ from ott.geometry import grid
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornGridTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
@@ -135,7 +134,7 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
 
     vec = jax.random.uniform(self.rng, grid_size).ravel()
     self.assertAllClose(geom_mat.apply_cost(vec),
-                        geom_grid.apply_cost(vec), rtol=1e-4, atol=1e-4)
+                        geom_grid.apply_cost(vec))
 
     self.assertAllClose(
         geom_grid.apply_cost(vec)[:, 0], np.dot(geom_mat.cost_matrix.T, vec))

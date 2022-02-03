@@ -25,7 +25,6 @@ from ott.core import sinkhorn
 from ott.geometry import grid
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornGradGridTest(jax.test_util.JaxTestCase):
 
   def setUp(self):

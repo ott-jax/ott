@@ -3,8 +3,6 @@ name: tests
 on:
   push:
     branches: ["master"]
-  pull_request:
-    branches: ["master"]
 
 jobs:
   build-and-test:
@@ -39,5 +37,5 @@ jobs:
           python -VV
           python -c "import jax; print('jax', jax.__version__)"
           python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
-          pytest tests -n 8
+          pytest tests
         shell: bash

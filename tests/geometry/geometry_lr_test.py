@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import jax.test_util
 from ott.geometry import geometry
-from ott.geometry import low_rank
+from ott.geometry import geometry_lr
 from ott.geometry import pointcloud
 
 
@@ -40,7 +40,7 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
     c = jnp.matmul(c1, c2.T)
     bias = 0.27
     geom = geometry.Geometry(c + bias)
-    geom_lr = low_rank.LRCGeometry(c1, c2, bias=bias)
+    geom_lr = geometry_lr.LRCGeometry(c1, c2, bias=bias)
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(keys[2], mat_shape)
@@ -76,7 +76,7 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
       c = jnp.matmul(c1, c2.T)
       geom = geometry.Geometry(c)
       geom2 = geometry.Geometry(c ** 2)
-      geom_lr = low_rank.LRCGeometry(c1, c2)
+      geom_lr = geometry_lr.LRCGeometry(c1, c2)
       for dim, axis in ((m, 1), (n, 0)):
         for mat_shape in ((dim, 2), (dim,)):
           mat = jax.random.normal(keys[2], mat_shape)
@@ -103,9 +103,9 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
     d = jnp.matmul(d1, d2.T)
     geom = geometry.Geometry(c + d)
 
-    geom_lr_c = low_rank.LRCGeometry(c1, c2)
-    geom_lr_d = low_rank.LRCGeometry(d1, d2)
-    geom_lr = low_rank.add_lrc_geom(geom_lr_c, geom_lr_d)
+    geom_lr_c = geometry_lr.LRCGeometry(c1, c2)
+    geom_lr_d = geometry_lr.LRCGeometry(d1, d2)
+    geom_lr = geometry_lr.add_lrc_geom(geom_lr_c, geom_lr_d)
 
     for dim, axis in ((m, 1), (n, 0)):
       mat = jax.random.normal(keys[1], (dim, 2))

@@ -26,7 +26,6 @@ from ott.geometry import grid
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class DiscreteBarycenterTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
