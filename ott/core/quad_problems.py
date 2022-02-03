@@ -24,7 +24,7 @@ from ott.core import problems
 from ott.core import sinkhorn_lr
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
-from ott.geometry import geometry_lr
+from ott.geometry import low_rank
 from ott.geometry import pointcloud
 # Because Protocol is not available in Python < 3.8
 from typing_extensions import Protocol
@@ -150,10 +150,10 @@ class QuadraticProblem:
   @property
   def is_all_geoms_lr(self):
     lr_geoms = (
-        isinstance(self.geom_xx, geometry_lr.LRCGeometry) and
-        isinstance(self.geom_yy, geometry_lr.LRCGeometry))
+        isinstance(self.geom_xx, low_rank.LRCGeometry) and
+        isinstance(self.geom_yy, low_rank.LRCGeometry))
     lr_geoms = lr_geoms and (
-        isinstance(self.geom_xy, geometry_lr.LRCGeometry)
+        isinstance(self.geom_xy, low_rank.LRCGeometry)
         or
         not self.is_fused
         )
@@ -228,7 +228,7 @@ class QuadraticProblem:
                                      fn=self.linear_loss[1])
     x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
     y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
-    return geometry_lr.LRCGeometry(cost_1=x_term, cost_2=y_term)
+    return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
 
   def cost_unbalanced_correction(self, transport_matrix, marginal_1, marginal_2,
                                  epsilon, rescale_factor, delta=1e-9) -> float:
@@ -394,10 +394,10 @@ class QuadraticProblem:
     if self.is_all_geoms_lr:
       tmp1r = self.geom_xx.apply_cost_2(q)
       tmp2l = jnp.transpose(self.geom_yy.apply_cost_1(r, 1))
-      geom = geometry_lr.LRCGeometry(cost_1=tmp1r, cost_2=-tmp2l)
-      geom = geometry_lr.add_lrc_geom(geom, marginal_cost)
+      geom = low_rank.LRCGeometry(cost_1=tmp1r, cost_2=-tmp2l)
+      geom = low_rank.add_lrc_geom(geom, marginal_cost)
       if self.is_fused:
-        geom = geometry_lr.add_lrc_geom(
+        geom = low_rank.add_lrc_geom(
             geom, self.geom_xy)
 
     else:

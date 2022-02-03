@@ -59,7 +59,7 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
     cost_1 = costs[costs > -1][-1]
 
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20)
+    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20, epsilon=0.0)
     out = solver(ot_prob)
     costs = out.costs
     cost_2 = costs[costs > -1][-1]
@@ -68,6 +68,12 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
     cost_other = out.cost_at_geom(other_geom)
     self.assertGreater(cost_other, 0.0)
+
+    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20, epsilon=1e-2)
+    out = solver(ot_prob)
+    costs = out.costs
+    cost_3 = costs[costs > -1][-1]
+    self.assertGreater(cost_3, cost_2)
 
 
 if __name__ == '__main__':
