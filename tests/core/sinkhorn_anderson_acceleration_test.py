@@ -25,6 +25,7 @@ from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornAndersonTest(jax.test_util.JaxTestCase):
   """Tests for Anderson acceleration."""
 
