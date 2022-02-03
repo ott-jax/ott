@@ -26,6 +26,7 @@ from ott.core import sinkhorn_lr
 from ott.geometry import pointcloud
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornLRTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
