@@ -96,6 +96,8 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
     A Transport object.
   """
   tau_a, tau_b = kwargs.get('tau_a', 1.0), kwargs.get('tau_b', 1.0)
+  gw_unbalanced_correction = kwargs.get('gw_unbalanced_correction', True)
+  fused_penalty = kwargs.get('fused_penalty', None)
   eps_keys = ['epsilon', 'init', 'target', 'decay']
   pb_kwargs = {k: v for k, v in kwargs.items() if k in eps_keys}
   pb = quad_problems.make(
@@ -105,6 +107,8 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
       b=b,
       tau_a=tau_a,
       tau_b=tau_b,
+      gw_unbalanced_correction=gw_unbalanced_correction,
+      fused_penalty=fused_penalty,
       **pb_kwargs)
   linear = isinstance(pb, problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
