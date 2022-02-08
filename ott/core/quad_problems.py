@@ -425,11 +425,11 @@ class QuadraticProblem:
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
     follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
-    If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), two cases are
-    possible.
-    It is also possible to consider a Fused Gromov Wasserstein problem.
-    More details are given in the pydoc of `init_linearization` above.
+    http://proceedings.mlr.press/v48/peyre16.pdf. If the problem is unbalanced
+    (`tau_a<1.0 or tau_b<1.0`), two cases are possible, as explained in the
+    pydoc of `init_linearization` above. Finally, it is also possible to
+    consider a Fused Gromov Wasserstein problem. Details about the resulting
+    cost matrix are given in the pydoc of `init_linearization`.
 
     Args:
       transport: Solution of the linearization of the quadratic problem.
