@@ -27,7 +27,7 @@ a = jax.random.uniform(rngs[2], (n,))
 b = jax.random.uniform(rngs[3], (m,))
 a, b = a / jnp.sum(a), b / jnp.sum(b)
 # Computes the couplings via Sinkhorn algorithm.
-ot = transport.Transport(x, y, a=a, b=b)
+ot = transport.solve(x, y, a=a, b=b)
 P = ot.matrix
 ```
 
