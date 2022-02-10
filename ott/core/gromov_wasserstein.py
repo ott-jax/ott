@@ -240,7 +240,7 @@ class GromovWasserstein:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
-    return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)),
+    return GWState(-jnp.ones((num_iter,)), -jnp.ones((num_iter,)),
                    errors, linear_state, linearization, transport_mass)
 
   def output_from_state(self, state):
