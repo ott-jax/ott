@@ -499,6 +499,7 @@ def make(*args,
          tau_b: float = 1.0,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
+         fused_penalty: Optional[float] = 0.0,
          **kwargs):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
@@ -517,7 +518,7 @@ def make(*args,
                               a=a, b=b, tau_a=tau_a, tau_b=tau_b,
                               gw_unbalanced_correction=gw_unbalanced_correction)
     elif objective == 'fused':
-      fused_penalty = kwargs.pop('fused_penalty', None)
+      # fused_penalty = kwargs.pop('fused_penalty', None)
       geom_xx = pointcloud.PointCloud(x, x, **kwargs)
       geom_yy = pointcloud.PointCloud(y, y, **kwargs)
       geom_xy = pointcloud.PointCloud(x, y, **kwargs)
