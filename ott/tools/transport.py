@@ -81,14 +81,10 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
   problem. The solver is passed via kwargs.
 
   Args:
-    *args: several cases are possible:
-    - if one wishes to use the linear problem, then *args can be
-      either a single argument, the geometry.Geometry instance, or for 
-      convenience only two jnp.ndarray<float> corresponding to two point
-      clouds. In that case the regularization parameter epsilon must be set
-      in the kwargs.
-    - if one wishes to use the quadratic problem, then *args can be two 
-      jnp.ndarray<float> corresponding to two point clouds.
+    *args: can be either a single argument, the geometry.Geometry instance, or
+      for convenience only two jnp.ndarray<float> corresponding to two point
+      clouds. In that case the regularization parameter epsilon must be set in
+      the kwargs.
     a: the weights of the source. Uniform by default.
     b: the weights of the target. Uniform by default.
     objective: Optional[str], 'linear', 'quadratic', 'fused' or None. None
