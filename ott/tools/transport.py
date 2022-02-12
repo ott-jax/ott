@@ -87,8 +87,9 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
       the kwargs.
     a: the weights of the source. Uniform by default.
     b: the weights of the target. Uniform by default.
-    objective: Optional[str], 'linear', 'quadratic' or None. None means that the
-      objective will be chosen based on the dimensionalities of the arrays.
+    objective: Optional[str], 'linear', 'quadratic', 'fused' or None. None
+      means that the objective will be chosen based on the dimensionalities
+      of the arrays.
     **kwargs: the keyword arguments passed to the point clouds and/or the
       solvers.
 
@@ -96,8 +97,8 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
     A Transport object.
   """
   tau_a, tau_b = kwargs.get('tau_a', 1.0), kwargs.get('tau_b', 1.0)
-  gw_unbalanced_correction = kwargs.get('gw_unbalanced_correction', True)
-  fused_penalty = kwargs.get('fused_penalty', None)
+  gw_unbalanced_correction = kwargs.pop('gw_unbalanced_correction', True)
+  fused_penalty = kwargs.pop('fused_penalty', None)
   eps_keys = ['epsilon', 'init', 'target', 'decay']
   pb_kwargs = {k: v for k, v in kwargs.items() if k in eps_keys}
   pb = quad_problems.make(
@@ -113,8 +114,7 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
   linear = isinstance(pb, problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
-  quad_pb_keys = ['gw_unbalanced_correction', 'fused_penalty']
-  remove_keys = geom_keys + eps_keys if linear else geom_keys + quad_pb_keys
+  remove_keys = geom_keys + eps_keys if linear else geom_keys
   for key in remove_keys:
     kwargs.pop(key, None)
   solver = solver_fn(**kwargs)
