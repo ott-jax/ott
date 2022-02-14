@@ -122,8 +122,7 @@ class GromovWasserstein:
   """A Gromov Wasserstein solver."""
 
   def __init__(self,
-               epsilon: Optional[Union[epsilon_scheduler.Epsilon,
-                                       float]] = None,
+               epsilon: Optional[float] = None,
                rank: int = -1,
                linear_ot_solver: Any = None,
                min_iterations: int = 5,
@@ -132,24 +131,32 @@ class GromovWasserstein:
                jit: bool = True,
                store_inner_errors: bool = False,
                **kwargs):
-    self.epsilon = epsilon
-    self.rank = rank
     default_epsilon = 1.0
-    if epsilon is None and rank is None:
-      self.epsilon = default_epsilon
+    self.epsilon = epsilon if epsilon is not None else default_epsilon
+    self.rank = rank
     self.linear_ot_solver = linear_ot_solver
+    if self.linear_ot_solver is None:
+      if self.is_low_rank:
+        if epsilon is None:
+          # Use default entropic regularization in LRSinkhorn if none was passed
+          self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
+            rank=self.rank, **kwargs)
+        else:
+          # If epsilon is passed, use it to replace the default LRSinkhorn value
+          self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
+            rank=self.rank,
+            epsilon=self.epsilon, **kwargs)
+      else:
+        # When using Entropic GW, epsilon will be passed with geometry
+        # reinstantiated at each iteration.
+        self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
+
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
     self.jit = jit
     self.store_inner_errors = store_inner_errors
     self._kwargs = kwargs
-
-    if self.linear_ot_solver is None:
-      if self.is_low_rank:
-        self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(rank=rank, **kwargs)
-      else:
-        self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
 
   @property
   def is_low_rank(self):
@@ -303,11 +310,12 @@ def iterations(solver: GromovWasserstein,
 
 def make(
     epsilon: Union[epsilon_scheduler.Epsilon, float] = 1.,
+    rank: int = -1,
     max_iterations: int = 50,
     jit: bool = False,
     warm_start: bool = True,
     store_inner_errors: bool = False,
-    sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+    linear_solver_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
     **kwargs) -> GromovWasserstein:
@@ -315,13 +323,14 @@ def make(
 
   Args:
     epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
+    rank: integer used to constrain the rank of GW solutions if >0.
     max_iterations: int32, the maximum number of outer iterations for
       Gromov Wasserstein.
     jit: bool, if True, jits the function.
     warm_start: deprecated.
     store_inner_errors: whether or not to return all the errors of the inner
       Sinkhorn iterations.
-    sinkhorn_kwargs: Optionally a dictionary containing the keywords arguments
+    linear_solver_kwargs: Optionally a dictionary containing the keywords arguments
      for calls to the sinkhorn function.
     threshold: threshold (progress between two iterate costs) used to stop GW.
     min_iterations: see fixed_point_loop.
@@ -331,10 +340,17 @@ def make(
     A GromovWasserstein solver.
   """
   del warm_start
-  sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
-  sink = sinkhorn.make(**sinkhorn_kwargs)
+
+  if linear_solver_kwargs is None:
+    linear_solver_kwargs = {}
+
+  if rank == -1:
+    sink = sinkhorn.make(**linear_solver_kwargs)
+  elif rank > 0:
+    sink = sinkhorn_lr.make(**linear_solver_kwargs)
+
   return GromovWasserstein(
-      epsilon, max_iterations=max_iterations,
+      epsilon, rank, max_iterations=max_iterations,
       jit=jit, linear_ot_solver=sink, threshold=threshold,
       store_inner_errors=store_inner_errors,
       min_iterations=min_iterations, **kwargs)
@@ -352,7 +368,10 @@ def gromov_wasserstein(
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
     **kwargs) -> GWOutput:
-  """Fits Gromov Wasserstein.
+  """Wrapper to solve a Gromov Wasserstein problem.
+
+  Wrapper that instantiates a quadratic problem (possibly with linear term
+  if the problem is fused) and calls a solver to output a solution.
 
   Args:
     geom_xx: a Geometry object for the first view.
