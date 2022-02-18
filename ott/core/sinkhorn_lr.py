@@ -271,7 +271,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
                      min_value=1e-6, tolerance=1e-4,
                      min_iter=0, inner_iter=10, max_iter=200):
-
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
