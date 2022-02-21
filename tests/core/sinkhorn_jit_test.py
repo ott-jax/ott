@@ -35,6 +35,7 @@ def assert_output_close(x, y):
   return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornTest(jax.test_util.JaxTestCase):
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 

@@ -31,7 +31,7 @@ from ott.geometry import geometry
 SinkhornBarycenterOutput = collections.namedtuple(
     'Barycenter', ['f', 'g', 'histogram', 'errors'])
 
-
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 def discrete_barycenter(geom: geometry.Geometry,
                         a: jnp.ndarray,
                         weights: jnp.ndarray = None,

@@ -25,6 +25,7 @@ from ott.tools.gaussian_mixture import fit_gmm
 from ott.tools.gaussian_mixture import gaussian_mixture
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class FitGmmTest(jax.test_util.JaxTestCase):
 
   def setUp(self):

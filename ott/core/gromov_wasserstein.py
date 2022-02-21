@@ -30,7 +30,7 @@ from ott.geometry import geometry
 from ott.geometry import low_rank
 from ott.geometry import pointcloud
 
-
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 

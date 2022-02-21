@@ -24,6 +24,7 @@ import jax.test_util
 from ott.tools.gaussian_mixture import linalg
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class LinalgTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
