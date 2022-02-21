@@ -26,6 +26,7 @@ from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
 
   def setUp(self):
