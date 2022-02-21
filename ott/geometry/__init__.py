@@ -16,6 +16,7 @@
 """OTT ground geometries: Classes and cost functions to instantiate them."""
 from . import costs
 from . import ops
+# from . import low_rank
 
 from .epsilon_scheduler import Epsilon
 from .geometry import Geometry

@@ -19,3 +19,4 @@
 from . import sinkhorn_divergence
 from . import soft_sort
 from . import transport
+from . import gaussian_mixture
