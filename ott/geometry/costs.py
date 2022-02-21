@@ -18,17 +18,8 @@
 import abc
 
 import jax
-from jax.lib import xla_bridge
 import jax.numpy as jnp
 from ott.geometry import matrix_square_root
-
-
-def dot(x: jnp.ndarray, y: jnp.ndarray):
-  """Accelerator dependent dot. Implemented to avoid OOMs with online mode."""
-  platform = xla_bridge.get_backend().platform
-  return jnp.where(platform == 'gpu',
-                   jnp.sum(x * y),
-                   jnp.vdot(x, y))
 
 
 @jax.tree_util.register_pytree_node_class
@@ -93,7 +84,7 @@ class Euclidean(CostFn):
     return jnp.sum(x ** 2, axis=-1)
 
   def pairwise(self, x, y):
-    return -2 * dot(x, y)
+    return -2 * jnp.vdot(x, y)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -108,7 +99,7 @@ class Cosine(CostFn):
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
-    cosine_similarity = dot(x, y) / (x_norm * y_norm + ridge)
+    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
     return cosine_distance
 
@@ -131,7 +122,7 @@ class Bures(CostFn):
     return norm
 
   def pairwise(self, x, y):
-    mean_dot_prod = dot(x[0:self._dimension], y[0:self._dimension])
+    mean_dot_prod = jnp.vdot(x[0:self._dimension], y[0:self._dimension])
     x_mat = jnp.reshape(x[self._dimension:],
                         (self._dimension, self._dimension))
     y_mat = jnp.reshape(y[self._dimension:],
