@@ -24,6 +24,7 @@ import jax.test_util
 from ott.tools.gaussian_mixture import probabilities
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class ProbabilitiesTest(jax.test_util.JaxTestCase):
 
   def test_probs(self):

@@ -36,6 +36,7 @@ def get_w2_dist(scale0: scale_tril.ScaleTriL,
   return jnp.trace(sigma0 + sigma1 - 2. * m, axis1=-2, axis2=-1)
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class ScaleTriLTest(jax.test_util.JaxTestCase):
 
   def setUp(self):

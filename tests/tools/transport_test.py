@@ -26,6 +26,7 @@ from ott.geometry import pointcloud
 from ott.tools import transport
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class TransportTest(jax.test_util.JaxTestCase):
   """Tests for the Transport class."""
 

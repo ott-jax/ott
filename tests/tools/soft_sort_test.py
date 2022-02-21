@@ -26,6 +26,7 @@ import numpy as np
 from ott.tools import soft_sort
 
 
+@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
 class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
 
   def setUp(self):
