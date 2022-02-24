@@ -132,17 +132,26 @@ class GromovWasserstein:
                store_inner_errors: bool = False,
                **kwargs):
     default_epsilon = 1.0
+<<<<<<< HEAD
     # Set epsilon value to default if needed, but keep track of whether None was
     # passed to handle the case where a linear_ot_solver is passed or not.
+=======
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
     self.epsilon = epsilon if epsilon is not None else default_epsilon
     self.rank = rank
     self.linear_ot_solver = linear_ot_solver
     if self.linear_ot_solver is None:
+<<<<<<< HEAD
       # Detect if user requests low-rank solver. In that case the
       # default_epsilon makes little sense, since it was designed for GW.
       if self.is_low_rank:
         if epsilon is None:
           # Use default entropic regularization in LRSinkhorn if None was passed
+=======
+      if self.is_low_rank:
+        if epsilon is None:
+          # Use default entropic regularization in LRSinkhorn if none was passed
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
             rank=self.rank, **kwargs)
         else:
@@ -151,9 +160,14 @@ class GromovWasserstein:
             rank=self.rank,
             epsilon=self.epsilon, **kwargs)
       else:
+<<<<<<< HEAD
         # When using Entropic GW, epsilon is not handled inside Sinkhorn, 
         # but rather added back to the Geometry object reinstantiated 
         # when linearizing the problem. Therefore no need to pass it to solver.
+=======
+        # When using Entropic GW, epsilon will be passed with geometry
+        # reinstantiated at each iteration.
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
         self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
 
     self.min_iterations = min_iterations
@@ -320,7 +334,11 @@ def make(
     jit: bool = False,
     warm_start: bool = True,
     store_inner_errors: bool = False,
+<<<<<<< HEAD
     linear_ot_solver_kwargs: Optional[Dict[str, Any]] = None,
+=======
+    linear_solver_kwargs: Optional[Dict[str, Any]] = None,
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
     threshold: float = 1e-2,
     min_iterations: int = 1,
     **kwargs) -> GromovWasserstein:
@@ -335,8 +353,13 @@ def make(
     warm_start: deprecated.
     store_inner_errors: whether or not to return all the errors of the inner
       Sinkhorn iterations.
+<<<<<<< HEAD
     linear_ot_solver_kwargs: Optionally a dictionary containing the keywords 
       arguments for the linear OT solver (e.g. sinkhorn)
+=======
+    linear_solver_kwargs: Optionally a dictionary containing the keywords arguments
+     for calls to the sinkhorn function.
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
     threshold: threshold (progress between two iterate costs) used to stop GW.
     min_iterations: see fixed_point_loop.
     **kwargs: additional kwargs for epsilon.
@@ -345,6 +368,7 @@ def make(
     A GromovWasserstein solver.
   """
   del warm_start
+<<<<<<< HEAD
   if linear_ot_solver_kwargs is None:
     linear_ot_solver_kwargs = {}
 
@@ -352,6 +376,16 @@ def make(
     sink = sinkhorn.make(**linear_ot_solver_kwargs)
   elif rank > 0:
     sink = sinkhorn_lr.make(**linear_ot_solver_kwargs)
+=======
+
+  if linear_solver_kwargs is None:
+    linear_solver_kwargs = {}
+
+  if rank == -1:
+    sink = sinkhorn.make(**linear_solver_kwargs)
+  elif rank > 0:
+    sink = sinkhorn_lr.make(**linear_solver_kwargs)
+>>>>>>> f4a2be8baf609e570410f4367a46cbdd1587dc83
 
   return GromovWasserstein(
       epsilon, rank, max_iterations=max_iterations,
