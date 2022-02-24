@@ -27,7 +27,7 @@ from ott.core import sinkhorn
 from ott.core import sinkhorn_lr
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
-from ott.geometry import geometry_lr
+from ott.geometry import low_rank
 from ott.geometry import pointcloud
 
 
@@ -194,7 +194,7 @@ class GromovWasserstein:
       # Consider converting
       if convert:
         if not prob.is_fused or isinstance(prob.geom_xy,
-                                           geometry_lr.LRCGeometry):
+                                           low_rank.LRCGeometry):
           prob.geom_xx = prob.geom_xx.to_LRCGeometry()
           prob.geom_yy = prob.geom_yy.to_LRCGeometry()
         else:
@@ -240,7 +240,7 @@ class GromovWasserstein:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
-    return GWState(jnp.zeros((num_iter,)), jnp.zeros((num_iter,)),
+    return GWState(-jnp.ones((num_iter,)), -jnp.ones((num_iter,)),
                    errors, linear_state, linearization, transport_mass)
 
   def output_from_state(self, state):

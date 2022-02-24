@@ -40,6 +40,8 @@ Geometries
     geometry.Geometry
     pointcloud.PointCloud
     grid.Grid
+    geometry_lr.LRGeometry
+    epsilon_scheduler.Epsilon
 
 
 Cost Functions
@@ -53,13 +55,6 @@ Cost Functions
     costs.Bures
     costs.UnbalancedBures
 
-
-Regularization Parameter
-------------------------
-.. autosummary::
-  :toctree: _autosummary
-
-    epsilon_scheduler.Epsilon
 
 References
 ----------
