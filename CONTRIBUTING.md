@@ -1,20 +1,8 @@
-# How to Contribute
+# Contributing to OTT
 
-We'd love to accept your patches and contributions to this project. There are
-just a few small guidelines you need to follow.
+We'd love to accept your contributions to this project. 
 
-## Contributor License Agreement
-
-Contributions to this project must be accompanied by a Contributor License
-Agreement (CLA). You (or your employer) retain the copyright to your
-contribution; this simply gives us permission to use and redistribute your
-contributions as part of the project. Head over to
-<https://cla.developers.google.com/> to see your current agreements on file or
-to sign a new one.
-
-You generally only need to submit a CLA once, so if you've already submitted one
-(even if it was for a different project), you probably don't need to do it
-again.
+There are many ways to contribute to OTT, with the most common ones being contribution of code, documentation to the project, participating in discussions or raising issues.
 
 ## Code reviews
 
@@ -24,6 +12,4 @@ use GitHub pull requests for this purpose. Consult
 information on using pull requests.
 
 ## Community Guidelines
-
-This project follows
-[Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+We abide by the principles of openness, respect, and consideration of others of the Python Software Foundation: https://www.python.org/psf/codeofconduct/

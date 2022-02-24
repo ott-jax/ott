@@ -13,6 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Current ott version."""
-
-__version__ = "0.2.2"
+"""OTT tools: A set of tools to use OT in differentiable ML pipelines."""
