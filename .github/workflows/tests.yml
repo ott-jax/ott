@@ -37,5 +37,5 @@ jobs:
           python -VV
           python -c "import jax; print('jax', jax.__version__)"
           python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
-          pytest tests
+          pytest tests -n 8
         shell: bash

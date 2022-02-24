@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 from ott.geometry import costs
 from ott.geometry import geometry
-from ott.geometry import geometry_lr
+from ott.geometry import low_rank
 from ott.geometry import ops
 
 
@@ -294,7 +294,7 @@ class PointCloud(geometry.Geometry):
         cost_1 *= jnp.sqrt(scale)
         cost_2 *= jnp.sqrt(scale)
 
-        return geometry_lr.LRCGeometry(
+        return low_rank.LRCGeometry(
             cost_1=cost_1,
             cost_2=cost_2,
             epsilon=self._epsilon_init,

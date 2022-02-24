@@ -20,7 +20,6 @@ from . import anderson
 from . import dataclasses
 from . import discrete_barycenter
 from . import gromov_wasserstein
-from . import icnn
 from . import implicit_differentiation
 from . import momentum
 from . import problems

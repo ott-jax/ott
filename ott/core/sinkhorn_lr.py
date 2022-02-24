@@ -179,6 +179,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   Attributes:
     rank: the rank constraint on the coupling to minimize the linear OT problem
     gamma: the (inverse of) gradient stepsize used by mirror descent.
+    epsilon: entropic regularization added on top of low-rank problem.
     lse_mode: whether to run computations in lse or kernel mode. At this moment,
       only ``lse_mode=True`` is implemented.
     threshold: convergence threshold, used to quantify whether two successive
@@ -200,6 +201,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __init__(self,
                rank: int = 10,
                gamma: float = 1.0,
+               epsilon: float = 1e-4,
                lse_mode: bool = True,
                threshold: float = 1e-3,
                norm_error: int = 1,
@@ -213,6 +215,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
                kwargs_dys: Any = None):
     self.rank = rank
     self.gamma = gamma
+    self.epsilon = epsilon
     self.lse_mode = lse_mode
     self.threshold = threshold
     self.inner_iterations = inner_iterations
@@ -260,17 +263,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def lr_costs(self, ot_prob, state, iteration):
     c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    c_q -= jnp.log(state.q) / self.gamma
+    c_q += (self.epsilon - 1 / self.gamma) * jnp.log(state.q)
     c_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    c_r -= jnp.log(state.r) / self.gamma
+    c_r += (self.epsilon - 1 / self.gamma) *  jnp.log(state.r)
     diag_qcr = jnp.sum(state.q * ot_prob.geom.apply_cost(state.r, axis=1),
                        axis=0)
-    h = diag_qcr / state.g ** 2 + jnp.log(state.g) / self.gamma
+    h = diag_qcr / state.g ** 2 - (
+      self.epsilon - 1 / self.gamma) * jnp.log(state.g)
     return c_q, c_r, h
 
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
                      min_value=1e-6, tolerance=1e-4,
                      min_iter=0, inner_iter=10, max_iter=200):
+
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
