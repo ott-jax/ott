@@ -28,14 +28,13 @@ from ott.geometry import ops
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 pointclouds (possibly 1 vs itself) using CostFn."""
-  BATCH_SIZE = 8192  # TODO(michalk8): could be passed as online: Optional[int] = None
 
   def __init__(self,
                x: jnp.ndarray,
                y: Optional[jnp.ndarray] = None,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
-               online: bool = False,
+               online: Optional[int] = None,
                **kwargs):
     """Creates a geometry from two point clouds, using CostFn.
 
@@ -64,16 +63,16 @@ class PointCloud(geometry.Geometry):
     self._axis_norm = 0 if callable(self._cost_fn.norm) else None
 
     self.x = x
-    self._x_nsplits = jnp.ceil(x.shape[0] / self.BATCH_SIZE).astype(int)
-    if y is None:
-      self.y, self._y_nsplits = self.x, self._x_nsplits
+    self.y = self.x if y is None else y
+
+    if online is not None:
+      assert isinstance(online, int)
+      self._bs = min(x.shape[0], y.shape[0], online)
     else:
-      self.y = y
-      self._y_nsplits = jnp.ceil(y.shape[0] / self.BATCH_SIZE).astype(int)
+      self._bs = None
 
-    self.power = power
     self._online = online
-
+    self.power = power
     super().__init__(**kwargs)
 
   @property
@@ -121,7 +120,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    return self._online
+    return self._online is not None
 
   def apply_lse_kernel(self,
                        f: jnp.ndarray,
@@ -129,44 +128,51 @@ class PointCloud(geometry.Geometry):
                        eps: float,
                        vec: jnp.ndarray = None,
                        axis: int = 0) -> jnp.ndarray:
+    # TODO(michalk8): there's a bug somewhere
+    def body0(carry, i: int):
+      f, g, eps, vec = carry
+      y = jax.lax.dynamic_slice(self.y, (i, 0), (self._bs, self.y.shape[1]))
+      g_ = jax.lax.dynamic_slice(g, (i,), (self._bs,))
+      if self._axis_norm is None:
+        norm_y = self._norm_y
+      else:
+        norm_y = jax.lax.dynamic_slice(self._norm_y, (i,), (self._bs,))
+      h_res, h_sgn = app(self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self._cost_fn, self.power)
+      return carry, (h_res, h_sgn)
+
+    def body1(carry, i: int):
+      f, g, eps, vec = carry
+      x = jax.lax.dynamic_slice(self.x, (i, 0), (self._bs, self.x.shape[1]))
+      f_ = jax.lax.dynamic_slice(f, (i,), (self._bs,))
+      if self._axis_norm is None:
+        norm_x = self._norm_x
+      else:
+        norm_x = jax.lax.dynamic_slice(self._norm_x, (i,), (self._bs,))
+      h_res, h_sgn = app(self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn, self.power)
+      return carry, (h_res, h_sgn)
+
     if not self._online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
     app = jax.vmap(
         _apply_lse_kernel_xy,
-        in_axes=[
-            None, 0, None, self._axis_norm, None, 0, None, None, None, None
-        ])
+        in_axes=[None, 0, None, self._axis_norm, None, 0, None, None, None, None]
+    )
 
-    h_ress, h_sgns = [], []
     if axis == 0:
-      v = g
-      ys = jnp.array_split(self.y, self._y_nsplits)
-      norm_ys = [None] * self._y_nsplits if self._axis_norm is None else jnp.array_split(self._norm_y, self._y_nsplits)
-      gs = jnp.array_split(v, self._y_nsplits)
-      for y, norm_y, g_ in zip(ys, norm_ys, gs):
-        h_res, h_sgn = app(self.x, y, self._norm_x, self._norm_y if norm_y is None else norm_y,
-                           f, g_, eps, vec, self._cost_fn, self.power)
-        h_ress.append(h_res)
-        h_sgns.append(h_sgn)
+      fun, size = body0, self.shape[1]
+      v, n = g, int(jnp.ceil(size / self._bs))
     elif axis == 1:
-      v = f
-      xs = jnp.array_split(self.x, self._x_nsplits)
-      norm_xs = [None] * self._x_nsplits if self._axis_norm is None else jnp.array_split(self._norm_x, self._x_nsplits)
-      fs = jnp.array_split(v, self._x_nsplits)
-      for x, norm_x, f_ in zip(xs, norm_xs, fs):
-        h_res, h_sgn = app(self.y, x, self._norm_y, self._norm_x if norm_x is None else norm_x,
-                           g, f_, eps, vec, self._cost_fn, self.power)
-        h_ress.append(h_res)
-        h_sgns.append(h_sgn)
+      fun, size = body1, self.shape[0]
+      v, n = f, int(jnp.ceil(size / self._bs))
     else:
       raise ValueError(axis)
 
-    h_res = jnp.concatenate(h_ress)
-    h_sgn = jnp.concatenate(h_sgns)
-    h_res = eps * h_res - jnp.where(jnp.isfinite(v), v, 0)
+    _, (h_res, h_sign) = jax.lax.scan(fun, init=(f, g, eps, vec), xs=jnp.arange(n))
+    # truncate by `size` because of uneven batches + jax ignores out-of-bounds errors
+    h_res, h_sign = jnp.concatenate(h_res)[:size], jnp.concatenate(h_sign)[:size]
 
-    return h_res, h_sgn
+    return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
 
   def apply_kernel(self,
                    scaling: jnp.ndarray,
