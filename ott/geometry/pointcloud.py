@@ -65,10 +65,11 @@ class PointCloud(geometry.Geometry):
     self.x = x
     self.y = self.x if y is None else y
 
-    if online is not None:
-      assert isinstance(online, int)
-      n, m = self.shape
-      self._bs = min(n, m, online)
+    if online is not None and online:
+      assert isinstance(online, int), type(online)
+      # TODO(michalk8): check if > 0
+      n, m = self.shape  # both can be zero
+      self._bs = min(online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
       self._x_nsplit = jnp.ceil(n / self._bs).astype(int)
       self._y_nsplit = jnp.ceil(m / self._bs).astype(int)
     else:
