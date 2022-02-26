@@ -130,26 +130,25 @@ class PointCloud(geometry.Geometry):
                        eps: float,
                        vec: jnp.ndarray = None,
                        axis: int = 0) -> jnp.ndarray:
-    # TODO(michalk8): there's a bug somewhere
     def body0(carry, i: int):
       f, g, eps, vec = carry
-      y = jax.lax.dynamic_slice(self.y, (i, 0), (self._bs, self.y.shape[1]))
-      g_ = jax.lax.dynamic_slice(g, (i,), (self._bs,))
+      y = jax.lax.dynamic_slice(self.y, (i * self._bs, 0), (self._bs, self.y.shape[1]))
+      g_ = jax.lax.dynamic_slice(g, (i * self._bs,), (self._bs,))
       if self._axis_norm is None:
         norm_y = self._norm_y
       else:
-        norm_y = jax.lax.dynamic_slice(self._norm_y, (i,), (self._bs,))
+        norm_y = jax.lax.dynamic_slice(self._norm_y, (i * self._bs,), (self._bs,))
       h_res, h_sgn = app(self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self._cost_fn, self.power)
       return carry, (h_res, h_sgn)
 
     def body1(carry, i: int):
       f, g, eps, vec = carry
-      x = jax.lax.dynamic_slice(self.x, (i, 0), (self._bs, self.x.shape[1]))
-      f_ = jax.lax.dynamic_slice(f, (i,), (self._bs,))
+      x = jax.lax.dynamic_slice(self.x, (i * self._bs, 0), (self._bs, self.x.shape[1]))
+      f_ = jax.lax.dynamic_slice(f, (i * self._bs,), (self._bs,))
       if self._axis_norm is None:
         norm_x = self._norm_x
       else:
-        norm_x = jax.lax.dynamic_slice(self._norm_x, (i,), (self._bs,))
+        norm_x = jax.lax.dynamic_slice(self._norm_x, (i * self._bs,), (self._bs,))
       h_res, h_sgn = app(self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn, self.power)
       return carry, (h_res, h_sgn)
 
