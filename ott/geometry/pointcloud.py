@@ -17,6 +17,8 @@
 """A geometry defined using 2 point clouds and a cost function between them."""
 from typing import Optional
 
+import math
+
 import jax
 import jax.numpy as jnp
 from ott.geometry import costs
@@ -70,8 +72,8 @@ class PointCloud(geometry.Geometry):
       # TODO(michalk8): check if > 0
       n, m = self.shape  # both can be zero
       self._bs = min(online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
-      self._x_nsplit = jnp.ceil(n / self._bs).astype(int)
-      self._y_nsplit = jnp.ceil(m / self._bs).astype(int)
+      self._x_nsplit = int(math.ceil(n / self._bs))
+      self._y_nsplit = int(math.ceil(m / self._bs))
     else:
       self._bs = self._x_nsplit = self._y_nsplit = None
 
