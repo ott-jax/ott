@@ -69,8 +69,7 @@ class PointCloud(geometry.Geometry):
 
     if online is not None and online:
       assert isinstance(online, int), type(online)
-      # TODO(michalk8): check if > 0
-      n, m = self.shape  # both can be zero
+      n, m = self.shape
       self._bs = min(online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
       self._x_nsplit = int(math.ceil(n / self._bs))
       self._y_nsplit = int(math.ceil(m / self._bs))
@@ -112,8 +111,13 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self):
-    return (self.x.shape[0] if self.x is not None else 0,
-            self.y.shape[0] if self.y is not None else 0)
+    # in the process of flattening/unflattening in vmap, `__init__` can be called with dummy objects
+    # we optionally access `shape` in order to get the batch size
+    try:
+      return (self.x.shape[0] if self.x is not None else 0,
+              self.y.shape[0] if self.y is not None else 0)
+    except AttributeError:
+      return 0, 0
 
   @property
   def is_symmetric(self):
