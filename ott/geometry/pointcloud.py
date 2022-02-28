@@ -67,10 +67,11 @@ class PointCloud(geometry.Geometry):
     self.x = x
     self.y = self.x if y is None else y
 
+    # TODO(michalk8): retain bwd compat (online=True == guess)?
     if online is not None and online:
       assert isinstance(online, int), type(online)
       n, m = self.shape
-      self._bs = min(online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
+      self._bs = min(online, online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
       self._x_nsplit = int(math.ceil(n / self._bs))
       self._y_nsplit = int(math.ceil(m / self._bs))
     else:
