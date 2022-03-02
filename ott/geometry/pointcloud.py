@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A geometry defined using 2 point clouds and a cost function between them."""
-from typing import Optional
+from typing import Optional, Union
 
 import math
 
@@ -36,7 +36,7 @@ class PointCloud(geometry.Geometry):
                y: Optional[jnp.ndarray] = None,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
-               online: Optional[int] = None,
+               online: Optional[Union[bool, int]] = None,
                **kwargs):
     """Creates a geometry from two point clouds, using CostFn.
 
@@ -56,7 +56,8 @@ class PointCloud(geometry.Geometry):
       power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
       online: whether to run the online version of the computation or not. The
         online computation is particularly useful for big point clouds such that
-        their cost matrix does not fit in memory.
+        their cost matrix does not fit in memory. This is done by batching
+        :meth:`apply_lse_kernel`. If `True`, batch size of 1024 is used.
       **kwargs: other optional parameters to be passed on to superclass
       initializer, notably those related to epsilon regularization.
     """
@@ -67,9 +68,10 @@ class PointCloud(geometry.Geometry):
     self.x = x
     self.y = self.x if y is None else y
 
-    # TODO(michalk8): retain bwd compat (online=True == guess)?
-    if online is not None and online:
-      assert isinstance(online, int), type(online)
+    if online is True:
+      online = 1024
+    if online:
+      assert online > 1, f"`online={online}` must be positive."
       n, m = self.shape
       self._bs = min(online, online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
       # use `floor` instead of `ceil` and handle the rest seperately
