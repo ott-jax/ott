@@ -72,8 +72,9 @@ class PointCloud(geometry.Geometry):
       assert isinstance(online, int), type(online)
       n, m = self.shape
       self._bs = min(online, online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
-      self._x_nsplit = int(math.ceil(n / self._bs))
-      self._y_nsplit = int(math.ceil(m / self._bs))
+      # use `floor` instead of `ceil` and handle the rest seperately
+      self._x_nsplit = int(math.floor(n / self._bs))
+      self._y_nsplit = int(math.floor(m / self._bs))
     else:
       self._bs = self._x_nsplit = self._y_nsplit = None
 
@@ -161,6 +162,13 @@ class PointCloud(geometry.Geometry):
       h_res, h_sgn = app(self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn, self.power)
       return carry, (h_res, h_sgn)
 
+    def finalize(i: int):
+      if axis == 0:
+        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
+        return app(self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec, self._cost_fn, self.power)
+      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
+      return app(self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec, self._cost_fn, self.power)
+
     if not self._online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
@@ -179,8 +187,10 @@ class PointCloud(geometry.Geometry):
       raise ValueError(axis)
 
     _, (h_res, h_sign) = jax.lax.scan(fun, init=(f, g, eps, vec), xs=jnp.arange(n))
-    # truncate by `size` because of uneven batches + jax ignores out-of-bounds errors
-    h_res, h_sign = jnp.concatenate(h_res)[:size], jnp.concatenate(h_sign)[:size]
+    h_res, h_sign = jnp.concatenate(h_res), jnp.concatenate(h_sign)
+    h_res_rest, h_sign_rest = finalize(n * self._bs)
+    h_res = jnp.concatenate([h_res, h_res_rest])
+    h_sign = jnp.concatenate([h_sign, h_sign_rest])
 
     return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
 
