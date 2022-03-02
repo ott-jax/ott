@@ -71,7 +71,7 @@ class PointCloud(geometry.Geometry):
     if online is True:
       online = 1024
     if online:
-      assert online > 1, f"`online={online}` must be positive."
+      assert online > 0, f"`online={online}` must be positive."
       n, m = self.shape
       self._bs = min(online, online, *(() + ((n,) if n else ()) + ((m,) if m else ())))
       # use `floor` instead of `ceil` and handle the rest seperately
