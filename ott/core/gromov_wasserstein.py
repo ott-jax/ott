@@ -335,7 +335,7 @@ def make(
     warm_start: deprecated.
     store_inner_errors: whether or not to return all the errors of the inner
       Sinkhorn iterations.
-    linear_ot_solver_kwargs: Optionally a dictionary containing the keywords 
+    linear_ot_solver_kwargs: Optionally a dictionary containing the keywords
       arguments for the linear OT solver (e.g. sinkhorn)
     threshold: threshold (progress between two iterate costs) used to stop GW.
     min_iterations: see fixed_point_loop.
@@ -351,7 +351,14 @@ def make(
   if rank == -1:
     sink = sinkhorn.make(**linear_ot_solver_kwargs)
   elif rank > 0:
-    sink = sinkhorn_lr.make(**linear_ot_solver_kwargs)
+    # `rank` and `epsilon` are arguments of the `sinkhorn_lr` solver. As we are
+    # passing them to make, we should not pass them in `linear_ot_solver_kwargs`
+    # Therefore, the `rank` or `epsilon` passed to `linear_ot_solver_kwargs` are
+    # deleted.
+    linear_ot_solver_kwargs.pop('rank', None)
+    linear_ot_solver_kwargs.pop('epsilon', None)
+    sink = sinkhorn_lr.make(
+        rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs)
 
   return GromovWasserstein(
       epsilon, rank, max_iterations=max_iterations,
