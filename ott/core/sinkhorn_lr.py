@@ -217,6 +217,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.epsilon = epsilon
     self.lse_mode = lse_mode
+    assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
     self.threshold = threshold
     self.inner_iterations = inner_iterations
     self.min_iterations = min_iterations
@@ -225,6 +226,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.jit = jit
     self.use_danskin = use_danskin
     self.implicit_diff = implicit_diff
+    assert not implicit_diff, "Implicit diff. not yet implemented for LRSink."
     self.rng_key = rng_key
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
 
@@ -273,7 +275,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return c_q, c_r, h
 
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
-                     min_value=1e-6, tolerance=1e-4,
+                     min_entry_value=1e-6, tolerance=1e-4,
                      min_iter=0, inner_iter=10, max_iter=200):
 
     # shortcuts for problem's definition.
@@ -309,7 +311,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       f2 = (jnp.log(b) - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2
 
       h = h_old + w_gi
-      h = jnp.maximum(jnp.log(min_value) / self.gamma, h)
+      h = jnp.maximum(jnp.log(min_entry_value) / self.gamma, h)
       w_gi += h_old - h
       h_old = h
 
@@ -420,3 +422,35 @@ def run(ot_prob, solver, init) -> LRSinkhornOutput:
   out = sinkhorn.iterations(ot_prob, solver, init)
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
   return out.set(ot_prob=ot_prob)
+
+def make(
+  rank: int = 10,
+  gamma: float = 1.0,
+  epsilon: float = 1e-4,
+  lse_mode: bool = True,
+  threshold: float = 1e-3,
+  norm_error: int = 1,
+  inner_iterations: int = 1,
+  min_iterations: int = 0,
+  max_iterations: int = 2000,
+  use_danskin: bool = True,
+  implicit_diff: bool = False,
+  jit: bool = True,
+  rng_key: int = 0,
+  kwargs_dys: Any = None) -> LRSinkhorn:
+  
+  return LRSinkhorn(
+    rank=rank,
+    gamma=gamma,
+    epsilon=epsilon,
+    lse_mode=lse_mode,
+    threshold=threshold,
+    norm_error=norm_error,
+    inner_iterations=inner_iterations,
+    min_iterations=min_iterations,
+    max_iterations=max_iterations,
+    use_danskin=use_danskin,
+    implicit_diff=implicit_diff,
+    jit=jit,
+    rng_key=rng_key,
+    kwargs_dys=kwargs_dys)
