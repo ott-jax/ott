@@ -151,7 +151,6 @@ class Plot:
               frame_rate: float = 10.0) -> animation.FuncAnimation:
     """Makes an animation from several transport.Transport."""
     self(transports[0])
-    # TODO(oliviert): consider blit=False
     return animation.FuncAnimation(
         self.fig,
         lambda i: self.update(transports[i]),
