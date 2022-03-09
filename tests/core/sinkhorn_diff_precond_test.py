@@ -1,18 +1,4 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # Lint as: python3
 """Tests for the Jacobian of optimal potential."""
 import functools
@@ -21,12 +7,11 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.tools import transport
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianPreconditioningTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -106,16 +91,16 @@ class SinkhornJacobianPreconditioningTest(jax.test_util.JaxTestCase):
     val_p, _ = loss_imp_no_precond(a_p, x_p)
     val_m, _ = loss_imp_no_precond(a_m, x_m)
     fin_dif = (val_p - val_m) / (2 * perturb_scale)
-    self.assertAllClose(fin_dif, imp_dif_lp, atol=1e-2, rtol=1e-2)
-    self.assertAllClose(fin_dif, imp_dif_np, atol=1e-2, rtol=1e-2)
-    self.assertAllClose(imp_dif_np, imp_dif_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif_np, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(imp_dif_np, imp_dif_lp, atol=1e-2, rtol=1e-2)
 
     # center both if balanced problem testing gradient w.r.t weights
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       g_imp_np = g_imp_np - jnp.mean(g_imp_np)
       g_imp_lp = g_imp_lp - jnp.mean(g_imp_lp)
 
-    self.assertAllClose(g_imp_np, g_imp_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(g_imp_np, g_imp_lp, atol=1e-2, rtol=1e-2)
 
 if __name__ == '__main__':
   absltest.main()

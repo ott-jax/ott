@@ -1,26 +1,11 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Tests for google3.experimental.users.geoffd.contour.clustering.ot.parameters.scale_tril_params."""
 
 from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
-import jax.test_util
-
+import numpy as np
 from ott.geometry import matrix_square_root
 from ott.tools.gaussian_mixture import scale_tril
 
@@ -36,8 +21,7 @@ def get_w2_dist(scale0: scale_tril.ScaleTriL,
   return jnp.trace(sigma0 + sigma1 - 2. * m, axis1=-2, axis2=-1)
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class ScaleTriLTest(jax.test_util.JaxTestCase):
+class ScaleTriLTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -50,17 +34,16 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     self.key = jax.random.PRNGKey(seed=0)
 
   def test_cholesky(self):
-    self.assertArraysAllClose(
+    np.testing.assert_allclose(
         self.m_chol, self.chol.cholesky(), atol=1e-4, rtol=1e-4)
 
   def test_covariance(self):
-    self.assertArraysAllClose(
-        self.m_cov, self.chol.covariance())
+    np.testing.assert_allclose(self.m_cov, self.chol.covariance())
 
   def test_covariance_sqrt(self):
     actual = self.chol.covariance_sqrt()
     expected = matrix_square_root.sqrtm_only(self.chol.covariance())
-    self.assertArraysAllClose(expected, actual, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
   def test_log_det_covariance(self):
     expected = jnp.log(jnp.linalg.det(self.chol.covariance()))
@@ -78,7 +61,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     cholesky = scale_tril.ScaleTriL.from_random(
         key=self.key, n_dimensions=n_dimensions, stdev=1.).cholesky()
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
-    self.assertArraysAllClose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
 
   def test_w2_dist(self):
     # make sure distance between a random normal and itself is 0
@@ -86,7 +69,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     s = scale_tril.ScaleTriL.from_random(key=subkey, n_dimensions=3)
     w2 = s.w2_dist(s)
     expected = 0.
-    self.assertAllClose(expected, w2, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(expected, w2, atol=1e-4, rtol=1e-4)
 
     # When covariances commute (e.g. if covariance is diagonal), have
     # distance between covariances = Frobenius norm^2 of (delta sqrt(cov))
@@ -99,7 +82,7 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1))**2.)
-    self.assertArraysAllClose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
   def test_transport(self):
     size = 4
@@ -113,19 +96,19 @@ class ScaleTriLTest(jax.test_util.JaxTestCase):
     x = jax.random.normal(key=subkey, shape=(100, size))
     transported = s0.transport(s1, points=x)
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
-    self.assertAllClose(expected, transported, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(expected, transported, atol=1e-4, rtol=1e-4)
 
   def test_flatten_unflatten(self):
     scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
     children, aux_data = jax.tree_util.tree_flatten(scale)
     scale_new = jax.tree_util.tree_unflatten(aux_data, children)
-    self.assertArraysEqual(scale.params, scale_new.params)
+    np.testing.assert_array_equal(scale.params, scale_new.params)
     self.assertEqual(scale, scale_new)
 
   def test_pytree_mapping(self):
     scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
     scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
-    self.assertArraysAllClose(2. * scale.params, scale_x_2.params)
+    np.testing.assert_allclose(2. * scale.params, scale_x_2.params)
 
 if __name__ == '__main__':
   absltest.main()

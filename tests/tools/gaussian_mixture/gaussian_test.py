@@ -1,30 +1,15 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Tests for gaussian."""
 
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.tools.gaussian_mixture import gaussian
 from ott.tools.gaussian_mixture import scale_tril
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class GaussianTest(jax.test_util.JaxTestCase):
+class GaussianTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -39,8 +24,8 @@ class GaussianTest(jax.test_util.JaxTestCase):
     mean = jnp.array([1., 2., 3.])
     cov = jnp.diag(jnp.array([4., 5., 6.]))
     g = gaussian.Gaussian.from_mean_and_cov(mean=mean, cov=cov)
-    self.assertArraysEqual(mean, g.loc)
-    self.assertArraysAllClose(cov, g.covariance(), atol=1e-4, rtol=1e-4)
+    np.testing.assert_array_equal(mean, g.loc)
+    np.testing.assert_allclose(cov, g.covariance(), atol=1e-4, rtol=1e-4)
 
   def test_to_z(self):
     g = gaussian.Gaussian(
@@ -52,9 +37,9 @@ class GaussianTest(jax.test_util.JaxTestCase):
     z = g.to_z(samples)
     self.assertEqual((1000, 2), z.shape)
     sample_mean = jnp.mean(z, axis=0)
-    self.assertArraysAllClose(sample_mean, jnp.zeros(2), atol=0.1)
+    np.testing.assert_allclose(sample_mean, jnp.zeros(2), atol=0.1)
     sample_cov = jnp.cov(z, rowvar=False)
-    self.assertArraysAllClose(sample_cov, jnp.eye(2), atol=0.1)
+    np.testing.assert_allclose(sample_cov, jnp.eye(2), atol=0.1)
 
   def test_from_z(self):
     g = gaussian.Gaussian(
@@ -65,7 +50,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     x = g.sample(key=self.key, size=100)
     z = g.to_z(x)
     xnew = g.from_z(z)
-    self.assertArraysAllClose(x, xnew, atol=1e-4, rtol=1e-4)
+    np.testing.assert_allclose(x, xnew, atol=1e-4, rtol=1e-4)
 
   def test_log_prob(self):
     g = gaussian.Gaussian(
@@ -77,7 +62,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     actual = g.log_prob(x)
     expected = jnp.log(jax.scipy.stats.multivariate_normal.pdf(
         x, g.loc, g.covariance()))
-    self.assertArraysAllClose(expected, actual)
+    np.testing.assert_allclose(expected, actual, atol=1E-5, rtol=1E-5)
 
   def test_sample(self):
     mean = jnp.array([1., 2.])
@@ -86,8 +71,8 @@ class GaussianTest(jax.test_util.JaxTestCase):
     samples = g.sample(key=self.key, size=10000)
     sample_mean = jnp.mean(samples, axis=0)
     sample_cov = jnp.cov(samples, rowvar=False)
-    self.assertAllClose(sample_mean, mean, atol=3. * 2. / 100.)
-    self.assertAllClose(sample_cov, cov, atol=2.e-1)
+    np.testing.assert_allclose(sample_mean, mean, atol=3. * 2. / 100.)
+    np.testing.assert_allclose(sample_cov, cov, atol=2.e-1)
 
   def test_w2_dist(self):
     # make sure distance between a random normal and itself is 0
@@ -117,7 +102,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     delta_mean = jnp.sum((loc1 - loc0)**2., axis=-1)
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1))**2.)
     expected = delta_mean + delta_sigma
-    self.assertArraysAllClose(expected, w2)
+    np.testing.assert_allclose(expected, w2)
 
   def test_transport(self):
     diag0 = jnp.array([1.])
@@ -131,7 +116,7 @@ class GaussianTest(jax.test_util.JaxTestCase):
     points = jax.random.normal(key=self.key, shape=(10, 1))
     actual = g0.transport(dest=g1, points=points)
     expected = 2. * points + 1.
-    self.assertArraysAllClose(expected, actual)
+    np.testing.assert_allclose(expected, actual, atol=1E-5, rtol=1E-5)
 
   def test_flatten_unflatten(self):
     g = gaussian.Gaussian.from_random(self.key, n_dimensions=3)
@@ -142,8 +127,8 @@ class GaussianTest(jax.test_util.JaxTestCase):
   def test_pytree_mapping(self):
     g = gaussian.Gaussian.from_random(self.key, n_dimensions=3)
     g_x_2 = jax.tree_map(lambda x: 2 * x, g)
-    self.assertArraysAllClose(2. * g.loc, g_x_2.loc)
-    self.assertArraysAllClose(2. * g.scale.params, g_x_2.scale.params)
+    np.testing.assert_allclose(2. * g.loc, g_x_2.loc)
+    np.testing.assert_allclose(2. * g.scale.params, g_x_2.scale.params)
 
 if __name__ == '__main__':
   absltest.main()

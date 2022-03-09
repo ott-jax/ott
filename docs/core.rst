@@ -43,13 +43,6 @@ Neural Potentials
 
     icnn.ICNN
 
-Neural Potentials
------------------
-.. autosummary::
-  :toctree: _autosummary
-
-    neuraldual.NeuralDualSolver
-    neuraldual.NeuralDual
 
 References
 ----------

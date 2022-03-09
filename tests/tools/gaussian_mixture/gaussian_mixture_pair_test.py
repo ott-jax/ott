@@ -1,18 +1,4 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # Lint as: python 3
 """Tests for gaussian_mixture_pair."""
 
@@ -21,14 +7,12 @@ from absl.testing import parameterized
 
 import jax
 import jax.numpy as jnp
-import jax.test_util
-
+import numpy as np
 from ott.tools.gaussian_mixture import gaussian_mixture
 from ott.tools.gaussian_mixture import gaussian_mixture_pair
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class GaussianMixturePairTest(jax.test_util.JaxTestCase):
+class GaussianMixturePairTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -108,7 +92,7 @@ class GaussianMixturePairTest(jax.test_util.JaxTestCase):
     coupling = pair.get_normalized_sinkhorn_coupling(
         sinkhorn_output=sinkhorn_output)
     expected = jnp.diag(self.gmm0.component_weights)
-    self.assertArraysAllClose(expected, coupling, atol=1.e-6)
+    np.testing.assert_allclose(expected, coupling, atol=1.e-6)
 
   def test_get_coupling_to_shifted(self):
     loc_shift = jnp.stack(
@@ -128,7 +112,7 @@ class GaussianMixturePairTest(jax.test_util.JaxTestCase):
     coupling = pair.get_normalized_sinkhorn_coupling(
         sinkhorn_output=sinkhorn_output)
     expected = jnp.diag(self.gmm0.component_weights)
-    self.assertArraysAllClose(expected, coupling, atol=1.e-3)
+    np.testing.assert_allclose(expected, coupling, atol=1.e-3)
 
   @parameterized.named_parameters(
       ('balanced_unlocked', 0.01, 1., False),
@@ -161,8 +145,8 @@ class GaussianMixturePairTest(jax.test_util.JaxTestCase):
 
     pair_x_2 = jax.tree_map(lambda x: 2 * x, pair)
     # gmm parameters should be doubled
-    self.assertArraysAllClose(2. * pair.gmm0.loc, pair_x_2.gmm0.loc)
-    self.assertArraysAllClose(expected_gmm1_loc, pair_x_2.gmm1.loc)
+    np.testing.assert_allclose(2. * pair.gmm0.loc, pair_x_2.gmm0.loc)
+    np.testing.assert_allclose(expected_gmm1_loc, pair_x_2.gmm1.loc)
     # epsilon and tau should not
     self.assertEqual(pair.epsilon, pair_x_2.epsilon)
     self.assertEqual(pair.tau, pair_x_2.tau)

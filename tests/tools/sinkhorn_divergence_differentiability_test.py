@@ -1,31 +1,16 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # Lint as: python3
 """Tests for the Sinkhorn divergence."""
 
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
+class SinkhornDivergenceGradTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -68,7 +53,8 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
     loss_delta_minus = loss_fn(x - eps * delta, y)
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
-    self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
 
 if __name__ == '__main__':
   absltest.main()
