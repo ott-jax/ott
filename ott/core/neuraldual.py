@@ -41,10 +41,10 @@ class NeuralDualSolver:
                seed: int = 0,
                dim_hidden: Sequence[int] = [64, 64, 64, 64],
                optimizer: str = 'Adam',
-               lr: float = 0.001,
-               b1: float = 0.95,
-               b2: float = 0.99,
-               eps: float = 0.00001,
+               lr: float = 0.0001,
+               b1: float = 0.5,
+               b2: float = 0.9,
+               eps: float = 0.00000001,
                pos_weights=True,
                beta=1.0):
 
