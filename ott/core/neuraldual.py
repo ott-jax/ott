@@ -130,15 +130,15 @@ class NeuralDualSolver:
       # execute training steps
       for _ in range(self.num_inner_iters):
         # get train batch for potential g
-        batch_g['source'] = next(trainloader_source).numpy()
-        batch_g['target'] = next(trainloader_target).numpy()
+        batch_g['source'] = jnp.array(next(trainloader_source))
+        batch_g['target'] = jnp.array(next(trainloader_target))
 
         self.state_g, loss_g, _ = self.train_step_g(
           self.state_f, self.state_g, batch_g)
 
       # get train batch for potential f
-      batch_f['source'] = next(trainloader_source).numpy()
-      batch_f['target'] = next(trainloader_target).numpy()
+      batch_f['source'] = jnp.array(next(trainloader_source))
+      batch_f['target'] = jnp.array(next(trainloader_target))
 
       self.state_f, loss_f, wdist = self.train_step_f(
         self.state_f, self.state_g, batch_f)
@@ -193,8 +193,8 @@ class NeuralDualSolver:
       t_sq = jnp.sum(target * target, axis=1)
 
       # compute final wasserstein distance
-      dist = jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
-                      + 0.5 * t_sq + 0.5 * s_sq)
+      dist = 0.5 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
+                            + 0.5 * t_sq + 0.5 * s_sq)
 
       loss_f = jnp.mean(f_t - f_grad_g_s)
       loss_g = jnp.mean(f_grad_g_s - s_dot_grad_g_s)
@@ -278,6 +278,7 @@ class NeuralDualSolver:
     return penalty
 
 
+@jax.tree_util.register_pytree_node_class
 class NeuralDual:
   """Neural Kantorovich dual.
   """
@@ -285,6 +286,13 @@ class NeuralDual:
   def __init__(self, state_f, state_g):
     self.state_f = state_f
     self.state_g = state_g
+
+  def tree_flatten(self):
+    return ((self.state_f, self.state_g), None)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    return cls(*children, **aux_data)
 
   @property
   def f(self):
@@ -337,6 +345,6 @@ class NeuralDual:
     t_sq = jnp.sum(target * target, axis=1)
 
     # compute final wasserstein distance
-    dist = jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
-                    + 0.5 * t_sq + 0.5 * s_sq)
+    dist = 0.5 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
+                          + 0.5 * t_sq + 0.5 * s_sq)
     return dist

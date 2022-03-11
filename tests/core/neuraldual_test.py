@@ -21,13 +21,11 @@ from absl.testing import parameterized
 import jax
 import jax.test_util
 import numpy as np
-from torch.utils.data import IterableDataset
-from torch.utils.data import DataLoader
 from ott.core.neuraldual import NeuralDualSolver
 from ott.core import icnn
 
 
-class ToyDataset(IterableDataset):
+class ToyDataset():
     def __init__(self, name):
         self.name = name
 
@@ -68,57 +66,90 @@ class ToyDataset(IterableDataset):
             center = centers[np.random.choice(len(centers))]
             point = center + variance**2 * np.random.randn(2)
 
-            yield point
+            yield np.expand_dims(point, 0)
 
 
 def load_toy_data(name_source: str,
-                  name_target: str,
-                  batch_size: int = 256,
-                  valid_batch_size: int = 1024):
+                  name_target: str):
     dataloaders = (
-      iter(DataLoader(ToyDataset(name_source), batch_size=batch_size)),
-      iter(DataLoader(ToyDataset(name_target), batch_size=batch_size)),
-      iter(DataLoader(ToyDataset(name_source), batch_size=valid_batch_size)),
-      iter(DataLoader(ToyDataset(name_target), batch_size=valid_batch_size)),
+      iter(ToyDataset(name_source)),
+      iter(ToyDataset(name_target)),
+      iter(ToyDataset(name_source)),
+      iter(ToyDataset(name_target)),
     )
     input_dim = 2
     return dataloaders, input_dim
 
 
 class NeuralDualTest(jax.test_util.JaxTestCase):
-    def setUp(self):
-      super().setUp()
-      self.rng = jax.random.PRNGKey(0)
+  def setUp(self):
+    super().setUp()
+    self.rng = jax.random.PRNGKey(0)
 
-    @parameterized.parameters({"num_train_iters": 100, "log_freq": 50})
-    def test_neural_dual_convergence(self, num_train_iters, log_freq):
-      """Tests convergence of learning the Kantorovich dual using ICNNs."""
-      def increasing(losses):
-          return all(x <= y for x, y in zip(losses, losses[1:]))
+  @parameterized.parameters({"num_train_iters": 100, "log_freq": 50})
+  def test_neural_dual_convergence(self, num_train_iters, log_freq):
+    """Tests convergence of learning the Kantorovich dual using ICNNs."""
+    def increasing(losses):
+        return all(x <= y for x, y in zip(losses, losses[1:]))
 
-      def decreasing(losses):
-          return all(x >= y for x, y in zip(losses, losses[1:]))
+    def decreasing(losses):
+        return all(x >= y for x, y in zip(losses, losses[1:]))
 
-      # initialize dataloaders
-      (dataloader_source, dataloader_target, _, _
-       ), input_dim = load_toy_data('simple', 'circle')
+    # initialize dataloaders
+    (dataloader_source, dataloader_target, _, _), input_dim = load_toy_data(
+      'simple', 'circle')
 
-      # setup icnn models
-      icnn_f = icnn.ICNN(dim_hidden=[64, 64])
-      icnn_g = icnn.ICNN(dim_hidden=[64, 64])
+    # setup icnn models
+    icnn_f = icnn.ICNN(dim_hidden=[64, 64])
+    icnn_g = icnn.ICNN(dim_hidden=[64, 64])
 
-      # inizialize neural dual
-      neural_dual_solver = NeuralDualSolver(
-          icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters,
-          logging=True, log_freq=log_freq)
-      neural_dual, logs = neural_dual_solver(
-          dataloader_source, dataloader_target,
-          dataloader_source, dataloader_target)
+    # inizialize neural dual
+    neural_dual_solver = NeuralDualSolver(
+        icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters,
+        logging=True, log_freq=log_freq)
+    neural_dual, logs = neural_dual_solver(
+        dataloader_source, dataloader_target,
+        dataloader_source, dataloader_target)
 
-      # check if training loss of f is increasing and g is decreasing
-      self.assertTrue(
-        increasing(logs['train_logs']['train_loss_f'])
-        and decreasing(logs['train_logs']['train_loss_g']))
+    # check if training loss of f is increasing and g is decreasing
+    self.assertTrue(
+      increasing(logs['train_logs']['train_loss_f'])
+      and decreasing(logs['train_logs']['train_loss_g']))
+
+  @parameterized.parameters({"num_train_iters": 10})
+  def test_neural_dual_jit(self, num_train_iters):
+
+    # initialize dataloaders
+    (dataloader_source, dataloader_target, _, _), input_dim = load_toy_data(
+      'simple', 'circle')
+
+    # setup icnn models
+    icnn_f = icnn.ICNN(dim_hidden=[64, 64])
+    icnn_g = icnn.ICNN(dim_hidden=[64, 64])
+
+    # inizialize neural dual
+    neural_dual_solver = NeuralDualSolver(
+        icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters)
+    neural_dual = neural_dual_solver(
+        dataloader_source, dataloader_target,
+        dataloader_source, dataloader_target)
+
+    data_source = next(dataloader_source)
+    pred_target = neural_dual.transport(data_source, 'g')
+
+    # compute_neural_dual = jax.jit(
+    #   lambda dataloader_source, dataloader_target: neural_dual_solver(
+    #     dataloader_source, dataloader_target,
+    #     dataloader_source, dataloader_target))
+    # neural_dual_jit = compute_neural_dual(dataloader_source, dataloader_target)
+
+    compute_transport = jax.jit(lambda data_source: neural_dual.transport(
+      data_source, 'g'))
+    pred_target_jit = compute_transport(data_source)
+
+    # ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
+    self.assertAllClose(pred_target, pred_target_jit,
+                        rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
