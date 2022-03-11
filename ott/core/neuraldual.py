@@ -140,7 +140,7 @@ class NeuralDualSolver:
       batch_f['source'] = jnp.array(next(trainloader_source))
       batch_f['target'] = jnp.array(next(trainloader_target))
 
-      self.state_f, loss_f, wdist = self.train_step_f(
+      self.state_f, loss_f, w_dist = self.train_step_f(
         self.state_f, self.state_g, batch_f)
       if not self.pos_weights:
         self.state_f = self.state_f.replace(
@@ -150,24 +150,24 @@ class NeuralDualSolver:
       if self.logging and step % self.log_freq == 0:
         train_logs['train_loss_f'].append(float(loss_f))
         train_logs['train_loss_g'].append(float(loss_g))
-        train_logs['train_w_dist'].append(float(wdist))
+        train_logs['train_w_dist'].append(float(w_dist))
 
       # report the loss on an validuation dataset periodically
       if (step != 0 and step % self.valid_freq == 0):
           # get batch
-          valid_batch['source'] = next(validloader_source).numpy()
-          valid_batch['target'] = next(validloader_target).numpy()
+          valid_batch['source'] = jnp.array(next(validloader_source))
+          valid_batch['target'] = jnp.array(next(validloader_target))
 
           valid_loss_f, _ = self.valid_step_f(
             self.state_f, self.state_g, valid_batch)
-          valid_loss_g, valid_w = self.valid_step_g(
+          valid_loss_g, valid_w_dist = self.valid_step_g(
             self.state_f, self.state_g, valid_batch)
 
           if self.logging:
             # log training progress
             valid_logs['valid_loss_f'].append(float(valid_loss_f))
             valid_logs['valid_loss_g'].append(float(valid_loss_g))
-            valid_logs['valid_w_dist'].append(float(valid_w))
+            valid_logs['valid_w_dist'].append(float(valid_w_dist))
 
     return {'train_logs': train_logs, 'valid_logs': valid_logs}
 
@@ -193,8 +193,8 @@ class NeuralDualSolver:
       t_sq = jnp.sum(target * target, axis=1)
 
       # compute final wasserstein distance
-      dist = 0.5 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
-                            + 0.5 * t_sq + 0.5 * s_sq)
+      dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
+                          + 0.5 * t_sq + 0.5 * s_sq)
 
       loss_f = jnp.mean(f_t - f_grad_g_s)
       loss_g = jnp.mean(f_grad_g_s - s_dot_grad_g_s)
@@ -345,6 +345,6 @@ class NeuralDual:
     t_sq = jnp.sum(target * target, axis=1)
 
     # compute final wasserstein distance
-    dist = 0.5 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
-                          + 0.5 * t_sq + 0.5 * s_sq)
+    dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s
+                        + 0.5 * t_sq + 0.5 * s_sq)
     return dist
