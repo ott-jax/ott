@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """A Jax implementation of the ICNN based Kantorovich dual."""
-from typing import Sequence, Iterator
+from typing import Iterator
 
 import jax
 import jax.numpy as jnp
@@ -32,6 +32,8 @@ class NeuralDualSolver:
   """
 
   def __init__(self,
+               icnn_f: icnn.ICNN,
+               icnn_g: icnn.ICNN,
                input_dim: int,
                num_train_iters: int,
                num_inner_iters: int = 10,
@@ -39,14 +41,13 @@ class NeuralDualSolver:
                log_freq: int = 100,
                logging: bool = False,
                seed: int = 0,
-               dim_hidden: Sequence[int] = [64, 64, 64, 64],
                optimizer: str = 'Adam',
                lr: float = 0.0001,
                b1: float = 0.5,
                b2: float = 0.9,
                eps: float = 0.00000001,
-               pos_weights=True,
-               beta=1.0):
+               pos_weights: bool = True,
+               beta: int = 1.0):
 
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -60,26 +61,30 @@ class NeuralDualSolver:
     rng = jax.random.PRNGKey(seed)
 
     # set optimizer and networks
-    self.setup(rng, input_dim, dim_hidden, optimizer, lr, b1, b2, eps)
+    self.setup(rng, icnn_f, icnn_g, input_dim, optimizer, lr, b1, b2, eps)
 
-  def setup(self, rng, input_dim, dim_hidden, optimizer, lr, b1, b2, eps):
+  def setup(self, rng, icnn_f, icnn_g, input_dim, optimizer, lr, b1, b2, eps):
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
-    # define network architectures
-    self.model_g = icnn.ICNN(dim_hidden=dim_hidden,
-                             pos_weights=self.pos_weights)
-    self.model_f = icnn.ICNN(dim_hidden=dim_hidden,
-                             pos_weights=self.pos_weights)
+    # check setting of network architectures
+    if (icnn_f.pos_weights != self.pos_weights
+       or icnn_g.pos_weights != self.pos_weights):
+      warnings.warn(f"Setting of ICNN and the positive weights setting of the \
+                      `NeuralDualSolver` are not consistent. Proceeding with \
+                      the `NeuralDualSolver` setting, with positive weigths \
+                      being {self.positive_weights}.")
+      icnn_f.pos_weights = self.pos_weights
+      icnn_g.pos_weights = self.pos_weights
 
     # initialize models and optimizers
-    self.optimizer_f = self.get_optimizer(optimizer, lr, b1, b2, eps)
-    self.optimizer_g = self.get_optimizer(optimizer, lr, b1, b2, eps)
+    optimizer_f = self.get_optimizer(optimizer, lr, b1, b2, eps)
+    optimizer_g = self.get_optimizer(optimizer, lr, b1, b2, eps)
 
     self.state_f = self.create_train_state(
-        rng_f, self.model_f, self.optimizer_f, input_dim)
+        rng_f, icnn_f, optimizer_f, input_dim)
     self.state_g = self.create_train_state(
-        rng_g, self.model_g, self.optimizer_g, input_dim)
+        rng_g, icnn_g, optimizer_g, input_dim)
 
     # define train and valid step functions
     self.train_step_f = self.get_step_fn(train=True, to_optimize='f')

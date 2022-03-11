@@ -24,6 +24,7 @@ import numpy as np
 from torch.utils.data import IterableDataset
 from torch.utils.data import DataLoader
 from ott.core.neuraldual import NeuralDualSolver
+from ott.core import icnn
 
 
 class ToyDataset(IterableDataset):
@@ -102,9 +103,13 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
       (dataloader_source, dataloader_target, _, _
        ), input_dim = load_toy_data('simple', 'circle')
 
+      # setup icnn models
+      icnn_f = icnn.ICNN(dim_hidden=[64, 64])
+      icnn_g = icnn.ICNN(dim_hidden=[64, 64])
+
       # inizialize neural dual
       neural_dual_solver = NeuralDualSolver(
-          input_dim=input_dim, num_train_iters=num_train_iters,
+          icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters,
           logging=True, log_freq=log_freq)
       neural_dual, logs = neural_dual_solver(
           dataloader_source, dataloader_target,
