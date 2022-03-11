@@ -265,7 +265,7 @@ class NeuralDualSolver:
   def clip_weights_icnn(params):
     params = params.unfreeze()
     for k in params.keys():
-        if (k.startswith('Wz')):
+        if (k.startswith('w_z')):
             params[k]['kernel'] = jnp.clip(params[k]['kernel'], a_min=0)
 
     return freeze(params)
@@ -273,7 +273,7 @@ class NeuralDualSolver:
   def penalize_weights_icnn(self, params):
     penalty = 0
     for k in params.keys():
-        if (k.startswith('Wz')):
+        if (k.startswith('w_z')):
             penalty += jnp.linalg.norm(jax.nn.relu(-params[k]['kernel']))
     return penalty
 
