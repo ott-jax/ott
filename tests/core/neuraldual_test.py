@@ -19,10 +19,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.test_util
-import optax
 import numpy as np
 from ott.core.neuraldual import NeuralDualSolver
-from ott.core import icnn
 
 
 class ToyDataset():
@@ -81,20 +79,6 @@ def load_toy_data(name_source: str,
     return dataloaders, input_dim
 
 
-def get_optimizer(optimizer, lr, b1, b2, eps):
-  """Returns a flax optimizer object based on `config`."""
-
-  if optimizer == 'Adam':
-      optimizer = optax.adam(learning_rate=lr, b1=b1, b2=b2, eps=eps)
-  elif optimizer == 'SGD':
-      optimizer = optax.sgd(learning_rate=lr, momentum=None, nesterov=False)
-  else:
-      raise NotImplementedError(
-          f'Optimizer {optimizer} not supported yet!')
-
-  return optimizer
-
-
 class NeuralDualTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
@@ -113,20 +97,10 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
     (dataloader_source, dataloader_target, _, _), input_dim = load_toy_data(
       'simple', 'circle')
 
-    # setup icnn models
-    neural_f = icnn.ICNN(dim_hidden=[64, 64])
-    neural_g = icnn.ICNN(dim_hidden=[64, 64])
-
-    # initialize optimizers
-    optimizer_f = get_optimizer(
-      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
-    optimizer_g = get_optimizer(
-      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
-
     # inizialize neural dual
     neural_dual_solver = NeuralDualSolver(
-        neural_f, neural_g, optimizer_f, optimizer_g, input_dim=input_dim,
-        num_train_iters=num_train_iters, logging=True, log_freq=log_freq)
+        input_dim=input_dim, num_train_iters=num_train_iters,
+        logging=True, log_freq=log_freq)
     neural_dual, logs = neural_dual_solver(
         dataloader_source, dataloader_target,
         dataloader_source, dataloader_target)
@@ -142,21 +116,9 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
     # initialize dataloaders
     (dataloader_source, dataloader_target, _, _), input_dim = load_toy_data(
       'simple', 'circle')
-
-    # setup icnn models
-    neural_f = icnn.ICNN(dim_hidden=[64, 64])
-    neural_g = icnn.ICNN(dim_hidden=[64, 64])
-
-    # initialize optimizers
-    optimizer_f = get_optimizer(
-      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
-    optimizer_g = get_optimizer(
-      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
-
     # inizialize neural dual
     neural_dual_solver = NeuralDualSolver(
-        neural_f, neural_g, optimizer_f, optimizer_g, input_dim=input_dim,
-        num_train_iters=num_train_iters)
+        input_dim=input_dim, num_train_iters=num_train_iters)
     neural_dual = neural_dual_solver(
         dataloader_source, dataloader_target,
         dataloader_source, dataloader_target)

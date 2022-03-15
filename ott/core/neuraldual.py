@@ -14,16 +14,18 @@
 
 # Lint as: python3
 """A Jax implementation of the ICNN based Kantorovich dual."""
-from typing import Iterator
 
+from typing import Iterator, Optional
 import jax
 import jax.numpy as jnp
+import optax
 import flax.linen as nn
 from flax.training import train_state
 from flax.core import freeze
 from optax._src import base
 import warnings
 from tqdm import tqdm
+from ott.core import icnn
 
 
 class NeuralDualSolver:
@@ -35,11 +37,11 @@ class NeuralDualSolver:
   http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf
 
   Args:
+    input_dim: input dimensionality of data required for network init
     neural_f: network architecture for potential f
     neural_g: network architecture for potential g
     optimizer_f: optimizer function for potential f
     optimizer_g: optimizer function for potential g
-    input_dim: input dimensionality of data required for network init
     num_train_iters: number of total training iterations
     num_inner_iters: number of training iterations of g per iteration of f
     valid_freq: frequency with which model is validated
@@ -54,12 +56,12 @@ class NeuralDualSolver:
   """
 
   def __init__(self,
-               neural_f: nn.Module,
-               neural_g: nn.Module,
-               optimizer_f: base.GradientTransformation,
-               optimizer_g: base.GradientTransformation,
                input_dim: int,
-               num_train_iters: int,
+               neural_f: Optional[nn.Module] = None,
+               neural_g: Optional[nn.Module] = None,
+               optimizer_f: Optional[base.GradientTransformation] = None,
+               optimizer_g: Optional[base.GradientTransformation] = None,
+               num_train_iters: int = 100,
                num_inner_iters: int = 10,
                valid_freq: int = 100,
                log_freq: int = 100,
@@ -67,7 +69,6 @@ class NeuralDualSolver:
                seed: int = 0,
                pos_weights: bool = True,
                beta: int = 1.0):
-
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
     self.valid_freq = valid_freq
@@ -78,6 +79,18 @@ class NeuralDualSolver:
 
     # set random key
     rng = jax.random.PRNGKey(seed)
+
+    # set default optimizers
+    if optimizer_f is None:
+      optimizer_f = optax.adam(learning_rate=0.0001, b1=0.5, b2=0.9, eps=1e-8)
+    if optimizer_g is None:
+      optimizer_g = optax.adam(learning_rate=0.0001, b1=0.5, b2=0.9, eps=1e-8)
+
+    # set default neural architectures
+    if neural_f is None:
+      neural_f = icnn.ICNN(dim_hidden=[64, 64, 64, 64])
+    if neural_g is None:
+      neural_g = icnn.ICNN(dim_hidden=[64, 64, 64, 64])
 
     # set optimizer and networks
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
