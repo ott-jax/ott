@@ -1,5 +1,4 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,21 +18,46 @@ from typing import Iterator
 
 import jax
 import jax.numpy as jnp
+import flax.linen as nn
 from flax.training import train_state
 from flax.core import freeze
-import optax
+from optax._src import base
 import warnings
 from tqdm import tqdm
-from ott.core import icnn
 
 
 class NeuralDualSolver:
-  """Solver of the ICNN-based Kantorovich dual.
+  r"""Solver of the ICNN-based Kantorovich dual.
+
+  The algorithm is described in:
+  Optimal transport mapping via input convex neural networks,
+  Makkuva-Taghvaei-Lee-Oh, ICML'20.
+  http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf
+
+  Args:
+    neural_f: network architecture for potential f
+    neural_g: network architecture for potential g
+    optimizer_f: optimizer function for potential f
+    optimizer_g: optimizer function for potential g
+    input_dim: input dimensionality of data required for network init
+    num_train_iters: number of total training iterations
+    num_inner_iters: number of training iterations of g per iteration of f
+    valid_freq: frequency with which model is validated
+    log_freq: frequency with training and validation are logged
+    logging: option to return logs
+    seed: random seed for network initialiations
+    pos_weights: option to train networks with potitive weights or regularizer
+    beta: regularization parameter when not training with positive weights
+
+  Returns:
+    the `NeuralDual` containing the optimal dual potentials f and g
   """
 
   def __init__(self,
-               icnn_f: icnn.ICNN,
-               icnn_g: icnn.ICNN,
+               neural_f: nn.Module,
+               neural_g: nn.Module,
+               optimizer_f: base.GradientTransformation,
+               optimizer_g: base.GradientTransformation,
                input_dim: int,
                num_train_iters: int,
                num_inner_iters: int = 10,
@@ -41,11 +65,6 @@ class NeuralDualSolver:
                log_freq: int = 100,
                logging: bool = False,
                seed: int = 0,
-               optimizer: str = 'Adam',
-               lr: float = 0.0001,
-               b1: float = 0.5,
-               b2: float = 0.9,
-               eps: float = 0.00000001,
                pos_weights: bool = True,
                beta: int = 1.0):
 
@@ -61,30 +80,27 @@ class NeuralDualSolver:
     rng = jax.random.PRNGKey(seed)
 
     # set optimizer and networks
-    self.setup(rng, icnn_f, icnn_g, input_dim, optimizer, lr, b1, b2, eps)
+    self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
-  def setup(self, rng, icnn_f, icnn_g, input_dim, optimizer, lr, b1, b2, eps):
+  def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
+    """Setup all components required to train the `NeuralDual`."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
     # check setting of network architectures
-    if (icnn_f.pos_weights != self.pos_weights
-       or icnn_g.pos_weights != self.pos_weights):
+    if (neural_f.pos_weights != self.pos_weights
+       or neural_g.pos_weights != self.pos_weights):
       warnings.warn(f"Setting of ICNN and the positive weights setting of the \
                       `NeuralDualSolver` are not consistent. Proceeding with \
                       the `NeuralDualSolver` setting, with positive weigths \
                       being {self.positive_weights}.")
-      icnn_f.pos_weights = self.pos_weights
-      icnn_g.pos_weights = self.pos_weights
-
-    # initialize models and optimizers
-    optimizer_f = self.get_optimizer(optimizer, lr, b1, b2, eps)
-    optimizer_g = self.get_optimizer(optimizer, lr, b1, b2, eps)
+      neural_f.pos_weights = self.pos_weights
+      neural_g.pos_weights = self.pos_weights
 
     self.state_f = self.create_train_state(
-        rng_f, icnn_f, optimizer_f, input_dim)
+        rng_f, neural_f, optimizer_f, input_dim)
     self.state_g = self.create_train_state(
-        rng_g, icnn_g, optimizer_g, input_dim)
+        rng_g, neural_g, optimizer_g, input_dim)
 
     # define train and valid step functions
     self.train_step_f = self.get_step_fn(train=True, to_optimize='f')
@@ -109,6 +125,8 @@ class NeuralDualSolver:
 
   def train_neuraldual(self, trainloader_source, trainloader_target,
                        validloader_source, validloader_target):
+    """Implementation of the training and validation script."""
+
     # define dict to contain source and target batch
     batch_g = {}
     batch_f = {}
@@ -211,7 +229,7 @@ class NeuralDualSolver:
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
-      """Running one step of training or evaluation."""
+      """Step function of either training or validation."""
 
       if to_optimize == 'f':
         grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
@@ -242,19 +260,6 @@ class NeuralDualSolver:
 
     return step_fn
 
-  def get_optimizer(self, optimizer, lr, b1, b2, eps):
-    """Returns a flax optimizer object based on `config`."""
-
-    if optimizer == 'Adam':
-        optimizer = optax.adam(learning_rate=lr, b1=b1, b2=b2, eps=eps)
-    elif optimizer == 'SGD':
-        optimizer = optax.sgd(learning_rate=lr, momentum=None, nesterov=False)
-    else:
-        raise NotImplementedError(
-            f'Optimizer {optimizer} not supported yet!')
-
-    return optimizer
-
   def create_train_state(self, rng, model, optimizer, input):
     """Creates initial `TrainState`."""
 
@@ -280,7 +285,11 @@ class NeuralDualSolver:
 
 @jax.tree_util.register_pytree_node_class
 class NeuralDual:
-  """Neural Kantorovich dual.
+  r"""Neural Kantorovich dual.
+
+  Attributes:
+    state_f: optimal potential f
+    state_g: optimal potential g
   """
 
   def __init__(self, state_f, state_g):
@@ -302,30 +311,17 @@ class NeuralDual:
   def g(self):
     return self.state_g
 
-  @f.setter
-  def set_f(self, state_f):
-    warnings.warn("You are overwriting the optimal couplings!")
-    self.state_g = state_f
+  def transport(self, data: jnp.ndarray) -> jnp.ndarray:
+    """Transport source data samples with potential g."""
 
-  @g.setter
-  def set_g(self, state_g):
-    warnings.warn("You are overwriting the optimal couplings!")
-    self.state_g = state_g
+    return jax.vmap(lambda x: jax.grad(self.g.apply_fn, argnums=1)(
+      {'params': self.g.params}, x))(data)
 
-  def transport(self,
-                data: jnp.ndarray,
-                potential: str = 'g') -> jnp.ndarray:
-    """Transport data samples with respective potential."""
+  def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
+    """Transport source data samples with potential g."""
 
-    if potential == 'f':
-      state = self.f
-    elif potential == 'g':
-      state = self.g
-    else:
-      raise ValueError('Potential is not specified correctly.')
-
-    return jax.vmap(lambda x: jax.grad(state.apply_fn, argnums=1)(
-      {'params': state.params}, x))(data)
+    return jax.vmap(lambda x: jax.grad(self.f.apply_fn, argnums=1)(
+      {'params': self.f.params}, x))(data)
 
   def distance(self,
                source: jnp.ndarray,

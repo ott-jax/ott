@@ -1,5 +1,4 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +19,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.test_util
+import optax
 import numpy as np
 from ott.core.neuraldual import NeuralDualSolver
 from ott.core import icnn
@@ -81,12 +81,26 @@ def load_toy_data(name_source: str,
     return dataloaders, input_dim
 
 
+def get_optimizer(optimizer, lr, b1, b2, eps):
+  """Returns a flax optimizer object based on `config`."""
+
+  if optimizer == 'Adam':
+      optimizer = optax.adam(learning_rate=lr, b1=b1, b2=b2, eps=eps)
+  elif optimizer == 'SGD':
+      optimizer = optax.sgd(learning_rate=lr, momentum=None, nesterov=False)
+  else:
+      raise NotImplementedError(
+          f'Optimizer {optimizer} not supported yet!')
+
+  return optimizer
+
+
 class NeuralDualTest(jax.test_util.JaxTestCase):
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
 
-  @parameterized.parameters({"num_train_iters": 100, "log_freq": 50})
+  @parameterized.parameters({"num_train_iters": 100, "log_freq": 100})
   def test_neural_dual_convergence(self, num_train_iters, log_freq):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
     def increasing(losses):
@@ -100,13 +114,19 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
       'simple', 'circle')
 
     # setup icnn models
-    icnn_f = icnn.ICNN(dim_hidden=[64, 64])
-    icnn_g = icnn.ICNN(dim_hidden=[64, 64])
+    neural_f = icnn.ICNN(dim_hidden=[64, 64])
+    neural_g = icnn.ICNN(dim_hidden=[64, 64])
+
+    # initialize optimizers
+    optimizer_f = get_optimizer(
+      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
+    optimizer_g = get_optimizer(
+      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
 
     # inizialize neural dual
     neural_dual_solver = NeuralDualSolver(
-        icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters,
-        logging=True, log_freq=log_freq)
+        neural_f, neural_g, optimizer_f, optimizer_g, input_dim=input_dim,
+        num_train_iters=num_train_iters, logging=True, log_freq=log_freq)
     neural_dual, logs = neural_dual_solver(
         dataloader_source, dataloader_target,
         dataloader_source, dataloader_target)
@@ -124,27 +144,28 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
       'simple', 'circle')
 
     # setup icnn models
-    icnn_f = icnn.ICNN(dim_hidden=[64, 64])
-    icnn_g = icnn.ICNN(dim_hidden=[64, 64])
+    neural_f = icnn.ICNN(dim_hidden=[64, 64])
+    neural_g = icnn.ICNN(dim_hidden=[64, 64])
+
+    # initialize optimizers
+    optimizer_f = get_optimizer(
+      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
+    optimizer_g = get_optimizer(
+      'Adam', lr=0.0001, b1=0.5, b2=0.9, eps=0.00000001)
 
     # inizialize neural dual
     neural_dual_solver = NeuralDualSolver(
-        icnn_f, icnn_g, input_dim=input_dim, num_train_iters=num_train_iters)
+        neural_f, neural_g, optimizer_f, optimizer_g, input_dim=input_dim,
+        num_train_iters=num_train_iters)
     neural_dual = neural_dual_solver(
         dataloader_source, dataloader_target,
         dataloader_source, dataloader_target)
 
     data_source = next(dataloader_source)
-    pred_target = neural_dual.transport(data_source, 'g')
-
-    # compute_neural_dual = jax.jit(
-    #   lambda dataloader_source, dataloader_target: neural_dual_solver(
-    #     dataloader_source, dataloader_target,
-    #     dataloader_source, dataloader_target))
-    # neural_dual_jit = compute_neural_dual(dataloader_source, dataloader_target)
+    pred_target = neural_dual.transport(data_source)
 
     compute_transport = jax.jit(lambda data_source: neural_dual.transport(
-      data_source, 'g'))
+      data_source))
     pred_target_jit = compute_transport(data_source)
 
     # ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
