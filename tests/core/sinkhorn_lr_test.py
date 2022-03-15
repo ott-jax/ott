@@ -15,7 +15,6 @@
 
 # Lint as: python3
 """Tests for the Policy."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -55,12 +54,12 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     if use_lrcgeom:
       geom = geom.to_LRCGeometry()
     ot_prob = problems.LinearProblem(geom, self.a, self.b)
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10)
+    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=2, init_type='rank_2')
     costs = solver(ot_prob).costs
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
     cost_1 = costs[costs > -1][-1]
 
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20, epsilon=0.0)
+    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=0.0, init_type='rank_2')
     out = solver(ot_prob)
     costs = out.costs
     cost_2 = costs[costs > -1][-1]
@@ -70,7 +69,7 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     cost_other = out.cost_at_geom(other_geom)
     self.assertGreater(cost_other, 0.0)
 
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20, epsilon=1e-2)
+    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=1e-2, init_type='rank_2')
     out = solver(ot_prob)
     costs = out.costs
     cost_3 = costs[costs > -1][-1]
