@@ -49,31 +49,33 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
   @parameterized.parameters([True], [False])
   def test_euclidean_point_cloud(self, use_lrcgeom):
     """Two point clouds, tested with various parameters."""
-    threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y)
-    if use_lrcgeom:
-      geom = geom.to_LRCGeometry()
-    ot_prob = problems.LinearProblem(geom, self.a, self.b)
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=2, init_type='rank_2')
-    costs = solver(ot_prob).costs
-    self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
-    cost_1 = costs[costs > -1][-1]
+    init_type_list = ['random', 'rank_2']
+    for init_type in init_type_list:
+        threshold = 1e-3
+        geom = pointcloud.PointCloud(self.x, self.y)
+        if use_lrcgeom:
+          geom = geom.to_LRCGeometry()
+        ot_prob = problems.LinearProblem(geom, self.a, self.b)
+        solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=2, init_type=init_type)
+        costs = solver(ot_prob).costs
+        self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
+        cost_1 = costs[costs > -1][-1]
 
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=0.0, init_type='rank_2')
-    out = solver(ot_prob)
-    costs = out.costs
-    cost_2 = costs[costs > -1][-1]
-    self.assertGreater(cost_1, cost_2)
+        solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=0.0, init_type=init_type)
+        out = solver(ot_prob)
+        costs = out.costs
+        cost_2 = costs[costs > -1][-1]
+        self.assertGreater(cost_1, cost_2)
 
-    other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
-    cost_other = out.cost_at_geom(other_geom)
-    self.assertGreater(cost_other, 0.0)
+        other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
+        cost_other = out.cost_at_geom(other_geom)
+        self.assertGreater(cost_other, 0.0)
 
-    solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=1e-2, init_type='rank_2')
-    out = solver(ot_prob)
-    costs = out.costs
-    cost_3 = costs[costs > -1][-1]
-    self.assertGreater(cost_3, cost_2)
+        solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10, epsilon=1e-2, init_type=init_type)
+        out = solver(ot_prob)
+        costs = out.costs
+        cost_3 = costs[costs > -1][-1]
+        self.assertGreater(cost_3, cost_2)
 
 
 if __name__ == '__main__':
