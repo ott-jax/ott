@@ -195,7 +195,7 @@ class GromovWasserstein:
             jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
-    # Consider converting problem first is using low-rank solver
+    # Consider converting problem first if using low-rank solver
     if self.is_low_rank:
       convert = (
           isinstance(prob.geom_xx, pointcloud.PointCloud) and

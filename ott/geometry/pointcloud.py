@@ -313,6 +313,11 @@ class PointCloud(geometry.Geometry):
     applied_cost += cross_term[:, None] if rank == 1 else cross_term
     return fn(applied_cost) if fn else applied_cost
 
+  def barycenter(self, weights):
+    """Compute barycenter of points in self.x using weights, valid for p=2.0 """
+    assert self.power == 2.0
+    return self.cost_fn.barycenter(self.x, weights)
+
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
     """Instantiates the geometries used for a divergence computation."""

@@ -18,11 +18,14 @@
 # pytype: disable=import-error  # kwargs-checking
 from . import anderson
 from . import dataclasses
+from . import problems
+from . import quad_problems
+from . import bar_problems
 from . import discrete_barycenter
+from . import continuous_barycenter
 from . import gromov_wasserstein
 from . import implicit_differentiation
 from . import momentum
-from . import problems
 from . import sinkhorn
 from . import sinkhorn_lr
 from .implicit_differentiation import ImplicitDiff

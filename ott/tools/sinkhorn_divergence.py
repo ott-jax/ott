@@ -21,6 +21,7 @@ from typing import Any, Dict, Mapping, Optional, Type
 import jax
 from jax import numpy as jnp
 from ott.core import sinkhorn
+from ott.core import segment
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
@@ -155,17 +156,13 @@ def segment_sinkhorn_divergence(
     share_epsilon: bool = True,
     **kwargs) -> jnp.ndarray:
   """Computes Sinkhorn divergence between subsets of data with pointcloud.
-
-  There are two interfaces: either use `segment_ids_x`, `segment_ids_y`, and
-  optionally `num_segments` and `indices_are_sorted`, OR use `num_per_segment_x`
-  and `num_per_segment_y`. If using the first interface, `num_segments` is
-  required for JIT compilation. Assumes range(0, `num_segments`) are the segment
-  ids. The second interface assumes `x` and `y` are segmented contiguously.
+  
+  The second interface assumes `x` and `y` are segmented contiguously.
 
   In all cases, both `x` and `y` should contain the same number of segments.
   Each segment will be separately run through the sinkhorn divergence using
   array padding.
-
+  
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
@@ -203,62 +200,28 @@ def segment_sinkhorn_divergence(
   Returns:
     An array of sinkhorn divergence values for each segment.
   """
-
   use_segment_ids = segment_ids_x is not None
-
   if use_segment_ids:
     assert segment_ids_y is not None
   else:
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  if use_segment_ids:
-    if num_segments is None:
-      num_segments = jnp.max(segment_ids_x) + 1
-      assert num_segments == jnp.max(segment_ids_y) + 1
-
-    if indices_are_sorted is None:
-      indices_are_sorted = False
-
-    num_per_segment_x = jax.ops.segment_sum(
-        jnp.ones_like(segment_ids_x),
-        segment_ids_x,
-        num_segments=num_segments,
-        indices_are_sorted=indices_are_sorted)
-    num_per_segment_y = jax.ops.segment_sum(
-        jnp.ones_like(segment_ids_y),
-        segment_ids_y,
-        num_segments=num_segments,
-        indices_are_sorted=indices_are_sorted)
-  else:
-    assert num_segments is None
-    assert num_per_segment_x is not None
-    num_segments = num_per_segment_x.shape[0]
-    segment_ids_x = jnp.arange(num_segments).repeat(num_per_segment_x)
-    segment_ids_y = jnp.arange(num_segments).repeat(num_per_segment_y)
-
-  num_x = x.shape[0]
-  num_y = y.shape[0]
-
-  if weights_x is None:
-    weights_x = (1 / num_per_segment_x).repeat(
-        num_per_segment_x, total_repeat_length=num_x)
-
-  if weights_y is None:
-    weights_y = (1 / num_per_segment_y).repeat(
-        num_per_segment_y, total_repeat_length=num_y)
-
-  segmented_x = jnp.stack(
-      [x * (segment_ids_x == i)[:, None] for i in range(num_segments)])
-
-  segmented_y = jnp.stack(
-      [y * (segment_ids_y == i)[:, None] for i in range(num_segments)])
-
-  segmented_weights_x = jnp.stack(
-      [weights_x * (segment_ids_x == i) for i in range(num_segments)])
-
-  segmented_weights_y = jnp.stack(
-      [weights_y * (segment_ids_y == i) for i in range(num_segments)])
+  segmented_x, num_segments_x = segment.segment_point_cloud(
+    x, segment_ids_x, num_segments, indices_are_sorted,
+    num_per_segment_x)
+  segmented_weights_x,  _ = segment.segment_point_cloud(
+    weights_x, segment_ids_x, num_segments, indices_are_sorted,
+    num_per_segment_x)
+  
+  segmented_y, num_segments_y = segment.segment_point_cloud(
+    x, segment_ids_y, num_segments, indices_are_sorted,
+    num_per_segment_y)
+  segmented_weights_y,  _ = segment.segment_point_cloud(
+    weights_y, segment_ids_y, num_segments, indices_are_sorted,
+    num_per_segment_y)
+  
+  assert num_segments_x == num_segments_y
 
   def single_segment_sink_div(padded_x, padded_y, padded_weight_x,
                               padded_weight_y):
