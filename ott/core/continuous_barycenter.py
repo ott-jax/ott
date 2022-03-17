@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
+# Copyright 2022 Apple.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 # Lint as: python3
 """A Jax version of the W barycenter algorithm (Cuturi Doucet 2014)."""
 import functools
-from typing import Any, Dict, NamedTuple, Optional, Union, Int
+from typing import Any, Dict, NamedTuple, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -93,43 +93,47 @@ class BarycenterState(NamedTuple):
     """Returns a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
   
-  def update(self, iteration: int, 
+  def update(self,
+            iteration: int, 
             bar_prob: bar_problems.BarycenterProblem, 
             linear_ot_solver: Any, 
             store_errors: bool):
-    
-    out = solve_linear_ot(self.a, self.x,
-      bar_prob.segmented_b, bar_prob.segmented_y, bar_prob.cost_fn, bar_prob.epsilon, linear_ot_solver,store_errors)
-    cost = jnp.average(out[0], weights= bar_prob.weights)
+    segmented_y, segmented_b = bar_prob.segmented_y_b
+
+    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
+    def solve_linear_ot(a, x, b, y):
+      out = linear_ot_solver(
+        problems.LinearProblem(
+        pointcloud.PointCloud(
+          x, y, cost_fn = bar_prob.cost_fn, epsilon= bar_prob.epsilon),
+        a, b))
+      return (out.reg_ot_cost, out.converged, out.matrix,
+            out.errors if store_errors else None)
+
+    reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
+      self.a, self.x, segmented_b, segmented_y)
+    cost = jnp.average(reg_ot_costs, weights= bar_prob.weights)
     costs = self.costs.at[iteration].set(cost)
-    errors = None
-    linear_convergence = jnp.all(out[1])
+    converged = jnp.all(convergeds)
+    linear_convergence = self.linear_convergence.at[iteration].set(converged)
+    
     if store_errors and self.errors is not None:
       errors = self.errors.at[iteration, :, :].set(out.errors)
-
+    else:
+      errors = None
+    
+    convex_weights = matrices * (1.0 / self.a)[None, :, None]
     x_new = jnp.average(
-      barycentric_projection(out[2], bar_prob.segmented_y, bar_prob.cost_fn),
+      barycentric_projection(convex_weights, segmented_y, bar_prob.cost_fn),
       weights = bar_prob.weights, axis=0)
     return self.set(costs=costs,
                     linear_convergence=linear_convergence,
                     errors=errors,
                     x=x_new)
 
-@functools.partial(jax.vmap, in_axes=[2,3])
+@functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(matrix, y, cost_fn):
-  return jax.vmap(cost_fn.barycenter, in_axes=[0,0, None])(matrix, y, cost_fn)
-
-
-@functools.partial(jax.vmap, in_axes=[2,3])
-def solve_linear_ot(a, x, b, y, cost_fn, epsilon, solver, return_errors):
-  out = solver(
-      problems.LinearProblem(
-        pointcloud.PointCloud(x, y, cost_fn = cost_fn, epsilon= epsilon),
-        a, b))
-  
-  return (out.reg_ot_cost, out.converged, 
-  out.matrix, out.errors if return_errors else None)
-
+  return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
 
 @jax.tree_util.register_pytree_node_class
 class WassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
@@ -141,10 +145,9 @@ class WassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
       bar_size: int = 100,
       x_init: jnp.ndarray = None,
       debiased : bool = False,
-      rng: Int = 0
+      rng: int = 0
       ) -> BarycenterState:    
-    iterations_fn = functools.partial(iterations, rank=self.rank)
-    bar_fn = jax.jit(iterations_fn) if self.jit else iterations_fn
+    bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
     out = bar_fn(self, bar_size, bar_prob, x_init, debiased, rng) 
     iteration = jnp.sum(out.costs != 0)
     convergence = jnp.logical_not(self.not_converged(out, iteration))
@@ -160,7 +163,7 @@ class WassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
       # sample randomly points in the support of the y measures
       indices_subset = jax.random.choice(jax.random.PRNGKey(rng), 
         a=bar_prob.flattened_y.shape[0],
-        shape=bar_size,
+        shape=(bar_size,),
         replace=False,
         p=bar_prob.flattened_b)
       x = bar_prob.flattened_y[indices_subset,:]
@@ -182,20 +185,21 @@ class WassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
 
 
 def iterations(solver: WassersteinBarycenter,
-               bar_size, bar_prob, x_init, rng, debiased
+               bar_size, bar_prob, x_init, debiased, rng
                ) -> WassersteinBarycenter:
   """A jittable Wasserstein barycenter outer loop."""
 
   def cond_fn(iteration, constants, state):
-    solver = constants
+    solver, _, _ = constants
     return solver.not_converged(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True
-    solver, debiased = constants    
+    solver, debiased, bar_prob = constants    
     return state.update(
         iteration,
-        
+        bar_prob, 
+        solver.linear_ot_solver,
         solver.store_inner_errors)
 
   state = fixed_point_loop.fixpoint_iter(
@@ -204,7 +208,7 @@ def iterations(solver: WassersteinBarycenter,
       min_iterations=solver.min_iterations,
       max_iterations=solver.max_iterations,
       inner_iterations=1,
-      constants=(solver, debiased),
+      constants=(solver, debiased, bar_prob),
       state=solver.init_state(bar_prob, bar_size, x_init, rng))
 
   return solver.output_from_state(state)

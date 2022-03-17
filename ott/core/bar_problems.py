@@ -30,85 +30,108 @@ class BarycenterProblem:
   def __init__(self,
     y: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
+    weights: Optional[jnp.ndarray] = None,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[jnp.ndarray] = None,
     segment_ids: Optional[jnp.ndarray] = None,
     num_segments: Optional[jnp.ndarray] = None,
     indices_are_sorted: Optional[bool] = None,
     num_per_segment: Optional[jnp.ndarray] = None,
-    weights: Optional[jnp.ndarray] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[jnp.ndarray] = None):
+    max_measure_size: Optional[int] = None):
     """Initializes a discrete BarycenterProblem 
 
     Args:
       y: a matrix merging the points of all measures.
       b: a vector containing the weights (within each masure) of all the points
+      weights: weights of the barycenter problem (size num_segments)
+      cost_fn: cost function used.
+      epsilon: epsilon regularization used to solve reg-OT problems.
       segment_ids: describe for each point to which measure it belongs.
       num_segments: total number of measures
       indices_are_sorted: flag indicating indices in segment_ids are sorted.
       num_per_segment: number of points in each segment, if contiguous.
-      weights: weights of the barycenter problem (size num_segments)
-      cost_fn: cost function used.
-      epsilon: epsilon regularization used to solve reg-OT problems.
+      max_measure_size: max number of points in each segment (for efficient jit)
     """
     self._y = y
     self._b = b
+    self._weights = weights
+    self.cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
+    self._epsilon = epsilon
     self._segment_ids = segment_ids
     self._num_segments = num_segments
     self._indices_are_sorted = indices_are_sorted
     self._num_per_segment = num_per_segment
-    self._weights = weights
-    self.cost_fn = cost_fn
-    self._epsilon = epsilon
+    self._max_measure_size = max_measure_size
     
   def tree_flatten(self):
-    return ([self.segment_y, self.segment_b, self.weights, self.cost_fn],
-            None)
+    return ([self._y, self._b, self._weights, self.cost_fn, self._epsilon],
+            {'segment_ids' : self._segment_ids, 
+            'num_segments' : self._num_segments,
+            'indices_are_sorted' : self._indices_are_sorted,
+            'num_per_segment' : self._num_per_segment,
+            'max_measure_size' : self._max_measure_size})
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     return cls(*children, **aux_data)
 
   @property
-  def segmented_y(self):
-    if self._y.ndim == 3:
-      return self._y
+  def segmented_y_b(self):
+    if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
+      return self._y, self._b
     else:  
-      segmented_y, _ = segment.segment_point_cloud(
-        self._y, self._segment_ids, self._num_segments,
-        self._indices_are_sorted, self._num_per_segment)
-    return segmented_y
+      segmented_y, segmented_b, _ = segment.segment_point_cloud(
+        self._y, self._b, self._segment_ids, self._num_segments,
+        self._indices_are_sorted, self._num_per_segment,
+        self.max_measure_size)
+    return segmented_y, segmented_b
   
   @property
-  def segmented_b(self):
-    if self._b.ndim == 2:
-      return self._b
-    else:
-      segmented_b, _ = segment.segment_point_cloud(
-      self.b, self._segment_ids, self._num_segments,
-      self._indices_are_sorted, self._num_per_segment)
-    return segmented_b
-
-  @property
   def flattened_y(self):
-    if self._y.ndim == 3:
+    if self._y is not None and self._y.ndim == 3:
       return self._y.reshape((-1,self._y.shape[-1]))
     else:  
       return self._y
   
   @property
+  def max_measure_size(self):
+    if self._max_measure_size is not None:
+      return self._max_measure_size
+    if self._y is not None and self._y.ndim == 3:
+      return self._y.shape[1]
+    else:
+      if self._num_per_segment is None:
+        if num_segments is None:
+          num_segments = jnp.max(self._segment_ids) + 1
+        if indices_are_sorted is None:
+          indices_are_sorted = False
+        num_per_segment = jax.ops.segment_sum(
+          jnp.ones_like(self._segment_ids), self._segment_ids,
+          num_segments=num_segments, indices_are_sorted=indices_are_sorted)
+        return jnp.max(num_per_segment)  
+      else:
+        return jnp.max(self._num_per_segment)
+
+  @property
   def flattened_b(self):
-    return self._b.ravel() if self._b.ndim == 2 else self._b
+    if self._b is not None and self._b.ndim == 2:
+      return self._b.ravel()
+    else:
+      return self._b
     
   @property
   def num_segments(self):
+    if self._y is None:
+      return 0
     if self._y.ndim == 3:
       if self._b is not None:
         assert self._y.shape[0] == self._b.shape[0]
       return self._y.shape[0]
     else:
-      _ , num_segments = segment.segment_point_cloud(
-        self.b, self._segment_ids, self._num_segments,
-        self._indices_are_sorted, self._num_per_segment)
+      _ , _, num_segments = segment.segment_point_cloud(
+        self._y, self._b, self._segment_ids, self._num_segments,
+        self._indices_are_sorted, self._num_per_segment,
+        self.max_measure_size)
     return num_segments
 
 

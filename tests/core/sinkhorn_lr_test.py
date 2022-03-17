@@ -57,8 +57,9 @@ class SinkhornLRTest(jax.test_util.JaxTestCase):
     ot_prob = problems.LinearProblem(geom, self.a, self.b)
     solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=10)
     costs = solver(ot_prob).costs
+    costs = costs[costs > -1]
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
-    cost_1 = costs[costs > -1][-1]
+    cost_1 = costs[-1]
 
     solver = sinkhorn_lr.LRSinkhorn(threshold=threshold, rank=20, epsilon=0.0)
     out = solver(ot_prob)

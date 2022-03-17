@@ -207,18 +207,14 @@ def segment_sinkhorn_divergence(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, num_segments_x = segment.segment_point_cloud(
-    x, segment_ids_x, num_segments, indices_are_sorted,
-    num_per_segment_x)
-  segmented_weights_x,  _ = segment.segment_point_cloud(
-    weights_x, segment_ids_x, num_segments, indices_are_sorted,
+  segmented_x, segmented_weights_x, num_segments_x = segment.segment_point_cloud(
+    x, weights_x,
+    segment_ids_x, num_segments, indices_are_sorted,
     num_per_segment_x)
   
-  segmented_y, num_segments_y = segment.segment_point_cloud(
-    x, segment_ids_y, num_segments, indices_are_sorted,
-    num_per_segment_y)
-  segmented_weights_y,  _ = segment.segment_point_cloud(
-    weights_y, segment_ids_y, num_segments, indices_are_sorted,
+  segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
+    y, weights_y,
+    segment_ids_y, num_segments, indices_are_sorted,
     num_per_segment_y)
   
   assert num_segments_x == num_segments_y
