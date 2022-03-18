@@ -19,13 +19,13 @@
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import geometry
 from ott.geometry import low_rank
 from ott.geometry import pointcloud
 
 
-class LRGeometryTest(jax.test_util.JaxTestCase):
+class LRGeometryTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -44,7 +44,7 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(keys[2], mat_shape)
-        self.assertAllClose(
+        np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
             rtol=1e-4)
@@ -61,7 +61,7 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(keys[2], mat_shape)
-        self.assertAllClose(
+        np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
             rtol=1e-4)
@@ -81,11 +81,11 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
         for mat_shape in ((dim, 2), (dim,)):
           mat = jax.random.normal(keys[2], mat_shape)
           out_lr = geom_lr.apply_square_cost(mat, axis=axis)
-          self.assertAllClose(
+          np.testing.assert_allclose(
               geom.apply_square_cost(mat, axis=axis),
               out_lr,
               rtol=1e-4)
-          self.assertAllClose(
+          np.testing.assert_allclose(
               geom2.apply_cost(mat, axis=axis),
               out_lr,
               rtol=1e-4)
@@ -109,12 +109,12 @@ class LRGeometryTest(jax.test_util.JaxTestCase):
 
     for dim, axis in ((m, 1), (n, 0)):
       mat = jax.random.normal(keys[1], (dim, 2))
-      self.assertAllClose(
+      np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
           rtol=1e-4)
       vec = jax.random.normal(keys[1], (dim,))
-      self.assertAllClose(
+      np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
           rtol=1e-4)

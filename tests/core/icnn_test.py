@@ -20,11 +20,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
 from ott.core.icnn import ICNN
 
 
-class ICNNTest(jax.test_util.JaxTestCase):
+class ICNNTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()

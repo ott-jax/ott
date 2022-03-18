@@ -20,14 +20,13 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import sinkhorn
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornJacobianTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -65,9 +64,10 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
     delta_dot_grad = jnp.nansum(delta * grad_reg_ot)
     self.assertIsNot(jnp.any(jnp.isnan(delta_dot_grad)), True)
-    self.assertAllClose(delta_dot_grad,
-                        (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-                        rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(
+        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+        rtol=1e-03,
+        atol=1e-02)
 
   @parameterized.parameters([True, (7, 9)], [False, (11, 5)])
   def test_gradient_sinkhorn_geometry(self, lse_mode, shape_data):
@@ -105,9 +105,11 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     loss_delta_minus, _ = loss_fn(cost_matrix - eps * delta)
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
-    self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
-    self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
-    self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
   @parameterized.named_parameters(
@@ -191,9 +193,11 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     loss_delta_minus, _ = loss_fn(x - eps * delta, y)
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
-    self.assertAllClose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
-    self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
-    self.assertAllClose(other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
     self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
   def test_autoepsilon_differentiability(self):

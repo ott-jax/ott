@@ -20,12 +20,11 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.tools import transport
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornJacobianTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -93,14 +92,14 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     val_m, _ = loss_imp(a_m, x_m)
     fin_dif = (val_p - val_m) / (2 * perturb_scale)
 
-    self.assertAllClose(fin_dif, back_dif, atol=1e-2, rtol=1e-2)
-    self.assertAllClose(fin_dif, imp_dif, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, back_dif, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif, atol=1e-2, rtol=1e-2)
 
     # center g_imp, g_back if balanced problem testing gradient w.r.t weights
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       g_imp = g_imp - jnp.mean(g_imp)
       g_back = g_back - jnp.mean(g_back)
-    self.assertAllClose(g_imp, g_back, atol=5e-2, rtol=1e-2)
+    np.testing.assert_allclose(g_imp, g_back, atol=5e-2, rtol=1e-2)
 
 
 if __name__ == '__main__':

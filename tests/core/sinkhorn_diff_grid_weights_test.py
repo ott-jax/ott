@@ -20,13 +20,12 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import sinkhorn
 from ott.geometry import grid
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornGradGridTest(jax.test_util.JaxTestCase):
+class SinkhornGradGridTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -60,9 +59,10 @@ class SinkhornGradGridTest(jax.test_util.JaxTestCase):
     reg_ot_delta_plus = reg_ot(a + eps * delta, b)
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
     delta_dot_grad = jnp.sum(delta * grad_reg_ot)
-    self.assertAllClose(delta_dot_grad,
-                        (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-                        rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(
+        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+        rtol=1e-03,
+        atol=1e-02)
 
 
 if __name__ == '__main__':

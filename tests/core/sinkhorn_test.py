@@ -20,15 +20,14 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import sinkhorn
 from ott.geometry import costs
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornTest(jax.test_util.JaxTestCase):
+class SinkhornTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -119,14 +118,16 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     f_2 = compute_f(geom_2, self.a, self.b)
 
     # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
-    self.assertAllClose(geom_1.epsilon * scale**2, geom_2.epsilon,
-                        rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(
+        geom_1.epsilon * scale**2, geom_2.epsilon, rtol=1e-3, atol=1e-3)
 
-    self.assertAllClose(geom_1._epsilon.at(2) * scale**2,
-                        geom_2._epsilon.at(2),
-                        rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(
+        geom_1._epsilon.at(2) * scale**2,
+        geom_2._epsilon.at(2),
+        rtol=1e-3,
+        atol=1e-3)
 
-    self.assertAllClose(f_1 * scale**2, f_2, rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(f_1 * scale**2, f_2, rtol=1e-3, atol=1e-3)
 
   @parameterized.product(
       lse_mode=[True, False],
@@ -148,10 +149,11 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     # recenter if problem is balanced, since in that case solution is only
     # valid up to additive constant.
     unb = (tau_a < 1.0 or tau_b < 1.0)
-    self.assertAllClose(
+    np.testing.assert_allclose(
         out_1.f if unb else out_1.f - jnp.mean(out_1.f[jnp.isfinite(out_1.f)]),
         out_2.f if unb else out_2.f - jnp.mean(out_2.f[jnp.isfinite(out_2.f)]),
-        rtol=1e-4, atol=1e-4)
+        rtol=1e-4,
+        atol=1e-4)
 
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
@@ -178,7 +180,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
     f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
 
-    self.assertAllClose(f_1, f_2)
+    np.testing.assert_allclose(f_1, f_2, rtol=1E-5, atol=1E-5)
 
   @parameterized.parameters([True], [False])
   def test_euclidean_point_cloud_parallel_weights(self, lse_mode):
@@ -247,22 +249,28 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         lse_mode=lse_mode)
 
     # Checks regularized transport costs match.
-    self.assertAllClose(out_online.reg_ot_cost, out_batch.reg_ot_cost)
+    np.testing.assert_allclose(out_online.reg_ot_cost, out_batch.reg_ot_cost)
     # check regularized transport matrices match
-    self.assertAllClose(
+    np.testing.assert_allclose(
         online_geom.transport_from_potentials(out_online.f, out_online.g),
-        batch_geom.transport_from_potentials(out_batch.f, out_batch.g))
+        batch_geom.transport_from_potentials(out_batch.f, out_batch.g),
+        rtol=1E-5,
+        atol=1E-5)
 
-    self.assertAllClose(
+    np.testing.assert_allclose(
         online_geom_euc.transport_from_potentials(out_online_euc.f,
                                                   out_online_euc.g),
         batch_geom_euc.transport_from_potentials(out_batch_euc.f,
-                                                 out_batch_euc.g))
+                                                 out_batch_euc.g),
+        rtol=1E-5,
+        atol=1E-5)
 
-    self.assertAllClose(
+    np.testing.assert_allclose(
         batch_geom.transport_from_potentials(out_batch.f, out_batch.g),
         batch_geom_euc.transport_from_potentials(out_batch_euc.f,
-                                                 out_batch_euc.g))
+                                                 out_batch_euc.g),
+        rtol=1E-5,
+        atol=1E-5)
 
   def test_apply_transport_geometry_from_potentials(self):
     """Applying transport matrix P on vector without instantiating P."""
@@ -295,21 +303,21 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
         transport = geom.transport_from_potentials(sink.f, sink.g)
 
-        self.assertAllClose(
+        np.testing.assert_allclose(
             transport_t_vec_a[i + 2 * j],
             jnp.dot(transport.T, vec_a).T,
             rtol=1e-3,
             atol=1e-3)
-        self.assertAllClose(
+        np.testing.assert_allclose(
             transport_vec_b[i + 2 * j],
             jnp.dot(transport, vec_b.T).T,
             rtol=1e-3,
             atol=1e-3)
 
     for i in range(4):
-      self.assertAllClose(
+      np.testing.assert_allclose(
           transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3)
-      self.assertAllClose(
+      np.testing.assert_allclose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
 
   def test_apply_transport_geometry_from_scalings(self):
@@ -346,12 +354,12 @@ class SinkhornTest(jax.test_util.JaxTestCase):
 
         transport = geom.transport_from_scalings(u, v)
 
-        self.assertAllClose(
+        np.testing.assert_allclose(
             transport_t_vec_a[i + 2 * j],
             jnp.dot(transport.T, vec_a).T,
             rtol=1e-3,
             atol=1e-3)
-        self.assertAllClose(
+        np.testing.assert_allclose(
             transport_vec_b[i + 2 * j],
             jnp.dot(transport, vec_b.T).T,
             rtol=1e-3,
@@ -359,9 +367,9 @@ class SinkhornTest(jax.test_util.JaxTestCase):
         self.assertIsNot(jnp.any(jnp.isnan(transport_t_vec_a[i + 2 * j])),
                          True)
     for i in range(4):
-      self.assertAllClose(
+      np.testing.assert_allclose(
           transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3)
-      self.assertAllClose(
+      np.testing.assert_allclose(
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3)
 
   @parameterized.parameters([True], [False])

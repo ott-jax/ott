@@ -22,15 +22,14 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import problems
 from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornHessianTest(jax.test_util.JaxTestCase):
+class SinkhornHessianTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -119,7 +118,7 @@ class SinkhornHessianTest(jax.test_util.JaxTestCase):
         grad_dif -= jnp.mean(grad_dif)
 
       # No rtol here because many of these values can be close to 0.
-      self.assertAllClose(grad_dif, hess_delta, atol=0.1, rtol=0)
+      np.testing.assert_allclose(grad_dif, hess_delta, atol=0.1, rtol=0)
 
 
 if __name__ == '__main__':
