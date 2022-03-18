@@ -20,15 +20,13 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
-
+import numpy as np
 from ott.core import sinkhorn
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornTest(jax.test_util.JaxTestCase):
+class SinkhornTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -86,7 +84,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       loss_value_imp, grad_loss_imp = loss_and_grad_imp(self.a, self.x)
       loss_value_auto, grad_loss_auto = loss_and_grad_auto(self.a, self.x)
 
-      self.assertAllClose(loss_value_imp, loss_value_auto)
+      np.testing.assert_allclose(loss_value_imp, loss_value_auto)
       eps = 1e-3
 
       # test gradient w.r.t. a works and gradient implicit ~= gradient autodiff
@@ -95,14 +93,14 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       reg_ot_delta_plus = loss(self.a + eps * delta, self.x)
       reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
       delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
-      self.assertAllClose(
+      np.testing.assert_allclose(
           delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
           atol=1e-02)
       # note how we removed gradients below. This is because gradients are only
       # determined up to additive constant here (the primal variable is in the
       # simplex).
-      self.assertAllClose(
+      np.testing.assert_allclose(
           grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
           grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
           rtol=1e-02,
@@ -113,11 +111,11 @@ class SinkhornTest(jax.test_util.JaxTestCase):
       reg_ot_delta_plus = loss(self.a, self.x + eps * delta)
       reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
       delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
-      self.assertAllClose(
+      np.testing.assert_allclose(
           delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
           rtol=1e-02,
           atol=1e-02)
-      self.assertAllClose(
+      np.testing.assert_allclose(
           grad_loss_imp[1], grad_loss_auto[1], rtol=1e-02, atol=1e-02)
 
 

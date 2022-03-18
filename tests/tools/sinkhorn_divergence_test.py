@@ -20,14 +20,13 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
+class SinkhornDivergenceTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -62,7 +61,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud, x, x, epsilon=1e-1,
         sinkhorn_kwargs={'inner_iterations': 1})
-    self.assertAllClose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
     iters_xx = jnp.sum(div.errors[0] > 0)
     iters_xx_sym = jnp.sum(div.errors[1] > 0)
     self.assertGreater(iters_xx, iters_xx_sym)
@@ -79,7 +78,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
     self.assertGreater(div.divergence, 0.0)
     self.assertLen(div.potentials, 3)
     self.assertLen(div.geoms, 3)
-    self.assertAllClose(div.geoms[0].epsilon, div.geoms[1].epsilon)
+    np.testing.assert_allclose(div.geoms[0].epsilon, div.geoms[1].epsilon)
 
   def test_euclidean_autoepsilon_not_share_epsilon(self):
     rngs = jax.random.split(self.rng, 2)
@@ -214,8 +213,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
         sinkhorn_kwargs=sinkhorn_kwargs,
         **geom_kwargs)
 
-    self.assertArraysAllClose(
-        true_divergence.repeat(2), segmented_divergences)
+    np.testing.assert_allclose(true_divergence.repeat(2), segmented_divergences)
 
   def test_segment_sinkhorn_different_segment_sizes(self):
 
@@ -242,7 +240,7 @@ class SinkhornDivergenceTest(jax.test_util.JaxTestCase):
             pointcloud.PointCloud, x, y, epsilon=0.01).divergence
         for x, y in zip((x1, x2), (y1, y2))
     ])
-    self.assertArraysAllClose(segmented_divergences, true_divergences)
+    np.testing.assert_allclose(segmented_divergences, true_divergences)
 
   @parameterized.parameters(
       [dict(anderson_acceleration=3), 1e-2],

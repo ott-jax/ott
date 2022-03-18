@@ -20,7 +20,6 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
 import numpy as np
 
 from ott.core import sinkhorn
@@ -28,8 +27,7 @@ from ott.geometry import grid
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornGridTest(jax.test_util.JaxTestCase):
+class SinkhornGridTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -76,7 +74,8 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode,
                                 jit=False)
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
-    self.assertAllClose(out_mat.reg_ot_cost, out_grid.reg_ot_cost)
+    np.testing.assert_allclose(
+        out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1E-5, atol=1E-5)
 
   @parameterized.parameters([True], [False])
   def test_apply_transport_grid(self, lse_mode):
@@ -117,8 +116,10 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     grid_transport_vec_b = geom_grid.apply_transport_from_potentials(
         sink_grid.f, sink_grid.g, vec_b, axis=1)
 
-    self.assertAllClose(mat_transport_t_vec_a, grid_transport_t_vec_a)
-    self.assertAllClose(mat_transport_vec_b, grid_transport_vec_b)
+    np.testing.assert_allclose(
+        mat_transport_t_vec_a, grid_transport_t_vec_a, rtol=1E-5, atol=1E-5)
+    np.testing.assert_allclose(
+        mat_transport_vec_b, grid_transport_vec_b, rtol=1E-5, atol=1E-5)
     self.assertIsNot(jnp.any(jnp.isnan(mat_transport_t_vec_a)), True)
 
   def test_apply_cost(self):
@@ -134,11 +135,17 @@ class SinkhornGridTest(jax.test_util.JaxTestCase):
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
 
     vec = jax.random.uniform(self.rng, grid_size).ravel()
-    self.assertAllClose(geom_mat.apply_cost(vec),
-                        geom_grid.apply_cost(vec), rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(
+        geom_mat.apply_cost(vec),
+        geom_grid.apply_cost(vec),
+        rtol=1e-4,
+        atol=1e-4)
 
-    self.assertAllClose(
-        geom_grid.apply_cost(vec)[:, 0], np.dot(geom_mat.cost_matrix.T, vec))
+    np.testing.assert_allclose(
+        geom_grid.apply_cost(vec)[:, 0],
+        np.dot(geom_mat.cost_matrix.T, vec),
+        rtol=1e-4,
+        atol=1e-4)
 
 
 if __name__ == '__main__':

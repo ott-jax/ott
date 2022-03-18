@@ -20,14 +20,12 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
 from ott.core import problems
 from ott.core import sinkhorn_lr
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornLRTest(jax.test_util.JaxTestCase):
+class SinkhornLRTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()

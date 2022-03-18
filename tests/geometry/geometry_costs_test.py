@@ -19,11 +19,11 @@
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import costs
 
 
-class CostFnTest(jax.test_util.JaxTestCase):
+class CostFnTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -35,17 +35,17 @@ class CostFnTest(jax.test_util.JaxTestCase):
     x = jnp.array([0, 0], dtype=jnp.float32)
     y = jnp.array([0, 0], dtype=jnp.float32)
     dist_x_y = costs.Cosine().pairwise(x, y)
-    self.assertAllClose(dist_x_y, 1.0 - 0.0)
+    np.testing.assert_allclose(dist_x_y, 1.0 - 0.0, rtol=1E-5, atol=1E-5)
 
     x = jnp.array([1.0, 0], dtype=jnp.float32)
     y = jnp.array([1.0, 0], dtype=jnp.float32)
     dist_x_y = costs.Cosine().pairwise(x, y)
-    self.assertAllClose(dist_x_y, 1.0 - 1.0)
+    np.testing.assert_allclose(dist_x_y, 1.0 - 1.0, rtol=1E-5, atol=1E-5)
 
     x = jnp.array([1.0, 0], dtype=jnp.float32)
     y = jnp.array([-1.0, 0], dtype=jnp.float32)
     dist_x_y = costs.Cosine().pairwise(x, y)
-    self.assertAllClose(dist_x_y, 1.0 - -1.0)
+    np.testing.assert_allclose(dist_x_y, 1.0 - -1.0, rtol=1E-5, atol=1E-5)
 
     n, m, d = 10, 12, 7
     keys = jax.random.split(self.rng, 2)
@@ -58,7 +58,11 @@ class CostFnTest(jax.test_util.JaxTestCase):
       for j in range(m):
         exp_sim_xi_yj = jnp.sum(normalize(x[i]) * normalize(y[j]))
         exp_dist_xi_yj = 1.0 - exp_sim_xi_yj
-        self.assertAllClose(cosine_fn.pairwise(x[i], y[j]), exp_dist_xi_yj)
+        np.testing.assert_allclose(
+            cosine_fn.pairwise(x[i], y[j]),
+            exp_dist_xi_yj,
+            rtol=1E-5,
+            atol=1E-5)
 
     all_pairs = cosine_fn.all_pairs(x, y)
     for i in range(n):

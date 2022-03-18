@@ -19,13 +19,12 @@
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
+class SinkhornDivergenceGradTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -68,7 +67,8 @@ class SinkhornDivergenceGradTest(jax.test_util.JaxTestCase):
     loss_delta_minus = loss_fn(x - eps * delta, y)
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
-    self.assertAllClose(custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
 
 if __name__ == '__main__':
   absltest.main()
