@@ -1,4 +1,18 @@
 # coding=utf-8
+# Copyright 2022 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Lint as: python3
 """Implementation of Amos+(2017) input convex neural networks (ICNN)."""
 
@@ -77,17 +91,23 @@ class ICNN(nn.Module):
   init_std: float = 0.1
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable = nn.leaky_relu
+  pos_weights: bool = True
 
   def setup(self):
     num_hidden = len(self.dim_hidden)
 
     w_zs = list()
 
+    if self.pos_weights:
+      Dense = PositiveDense
+    else:
+      Dense = nn.Dense
+
     for i in range(1, num_hidden):
-      w_zs.append(PositiveDense(
+      w_zs.append(Dense(
         self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
         use_bias=False))
-    w_zs.append(PositiveDense(
+    w_zs.append(Dense(
       1, kernel_init=self.init_fn(self.init_std), use_bias=False))
     self.w_zs = w_zs
 
