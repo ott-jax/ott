@@ -20,15 +20,14 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import gromov_wasserstein
 from ott.core import quad_problems
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class GromovWassersteinTest(jax.test_util.JaxTestCase):
+class GromovWassersteinTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -98,12 +97,14 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_manual_b = aux[1] - jnp.log(self.b)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-      self.assertAllClose(grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
-      self.assertAllClose(grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
+      np.testing.assert_allclose(
+          grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
+      np.testing.assert_allclose(
+          grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
 
   def test_gromov_wasserstein_pointcloud(self):
     """Test basic computations pointclouds."""
@@ -136,10 +137,10 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
 
   @parameterized.parameters([True], [False])
   def test_gradient_gromov_wasserstein_geometry(self, lse_mode):
@@ -161,10 +162,10 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
 
   def test_adaptive_threshold(self):
     """Checking solution is improved with smaller threshold for convergence."""
@@ -196,7 +197,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
-    self.assertAllClose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
+    np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
 
   def test_gw_lr_fused(self):
     """Checking LR and Entropic have similar outputs on same fused problem."""
@@ -223,7 +224,7 @@ class GromovWassersteinTest(jax.test_util.JaxTestCase):
     solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
     ot_gw = solver(prob)
 
-    # Test solutions look alike 
+    # Test solutions look alike
     self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix))
     self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix))
     # Test at least some difference when adding bigger entropic regularization

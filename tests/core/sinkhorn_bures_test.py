@@ -20,14 +20,13 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import sinkhorn
 from ott.geometry import costs
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornTest(jax.test_util.JaxTestCase):
+class SinkhornTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -83,7 +82,7 @@ class SinkhornTest(jax.test_util.JaxTestCase):
     rub = costs.UnbalancedBures(self.dim, 1, 0.8)
     self.assertIsNot(jnp.any(jnp.isnan(rub(x, y))), True)
     self.assertIsNot(jnp.any(jnp.isnan(rub(y, x))), True)
-    self.assertAllClose(rub(x, y), rub(y, x), rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=1e-3, atol=1e-3)
 
 
 if __name__ == '__main__':

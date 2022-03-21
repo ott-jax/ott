@@ -22,8 +22,7 @@ from absl.testing import parameterized
 import jax
 from jax.config import config
 import jax.numpy as jnp
-import jax.test_util
-
+import numpy as np
 from ott.geometry import matrix_square_root
 
 
@@ -74,7 +73,7 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
   return sqrtm[0] + sqrtm[1]
 
 
-class MatrixSquareRootTest(jax.test_util.JaxTestCase):
+class MatrixSquareRootTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -109,14 +108,14 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
           x, min_iterations=self.dim, threshold=threshold)
       err = errors[errors > -1][-1]
       self.assertGreater(threshold, err)
-      self.assertAllClose(x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3)
+      np.testing.assert_allclose(
+          x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3)
       ids = jnp.eye(self.dim)
       if jnp.ndim(x) == 3:
         ids = ids[jnp.newaxis, :, :]
-      self.assertAllClose(
+      np.testing.assert_allclose(
           jnp.zeros_like(x),
-          jnp.matmul(x, jnp.matmul(inv_sqrt_x, inv_sqrt_x)) - ids,
-          atol=1e-2)
+          jnp.matmul(x, jnp.matmul(inv_sqrt_x, inv_sqrt_x)) - ids, atol=1e-2)
 
   def test_sqrtm_batch(self):
     """Check sqrtm on larger of matrices."""
@@ -136,10 +135,12 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
     eye = jnp.eye(self.dim)
     for i in range(batch_dim0):
       for j in range(batch_dim1):
-        self.assertAllClose(
-            x[i, j], jnp.matmul(sqrt_x[i, j], sqrt_x[i, j]),
-            rtol=1e-3, atol=1e-3)
-        self.assertAllClose(
+        np.testing.assert_allclose(
+            x[i, j],
+            jnp.matmul(sqrt_x[i, j], sqrt_x[i, j]),
+            rtol=1e-3,
+            atol=1e-3)
+        np.testing.assert_allclose(
             eye,
             jnp.matmul(x[i, j], jnp.matmul(inv_sqrt_x[i, j], inv_sqrt_x[i, j])),
             atol=1e-2)
@@ -147,18 +148,18 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
   def test_solve_bartels_stewart(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[0], b=self.b[0], c=self.c[0])
-    self.assertAllClose(self.x[0], x, atol=1.e-5)
+    np.testing.assert_allclose(self.x[0], x, atol=1.e-5)
 
   def test_solve_bartels_stewart_batch(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a, b=self.b, c=self.c)
-    self.assertAllClose(self.x, x, atol=1.e-5)
+    np.testing.assert_allclose(self.x, x, atol=1.e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None], b=self.b[None], c=self.c[None])
-    self.assertAllClose(self.x, x[0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0], atol=1.e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None, None], b=self.b[None, None], c=self.c[None, None])
-    self.assertAllClose(self.x, x[0, 0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
 
   @parameterized.named_parameters(
       dict(
@@ -215,7 +216,7 @@ class MatrixSquareRootTest(jax.test_util.JaxTestCase):
       test_fn = _get_test_fn(fn, dim=dim, key=subkey)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
       actual = jax.grad(test_fn)(0.)
-      self.assertAllClose(expected, actual, atol=atol, rtol=rtol)
+      np.testing.assert_allclose(expected, actual, atol=atol, rtol=rtol)
 
 if __name__ == '__main__':
   absltest.main()

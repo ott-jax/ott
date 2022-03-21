@@ -91,17 +91,23 @@ class ICNN(nn.Module):
   init_std: float = 0.1
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable = nn.leaky_relu
+  pos_weights: bool = True
 
   def setup(self):
     num_hidden = len(self.dim_hidden)
 
     w_zs = list()
 
+    if self.pos_weights:
+      Dense = PositiveDense
+    else:
+      Dense = nn.Dense
+
     for i in range(1, num_hidden):
-      w_zs.append(PositiveDense(
+      w_zs.append(Dense(
         self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
         use_bias=False))
-    w_zs.append(PositiveDense(
+    w_zs.append(Dense(
       1, kernel_init=self.init_fn(self.init_std), use_bias=False))
     self.w_zs = w_zs
 

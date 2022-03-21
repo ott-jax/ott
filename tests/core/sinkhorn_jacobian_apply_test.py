@@ -20,12 +20,11 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.tools import transport
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornJacobianTest(jax.test_util.JaxTestCase):
+class SinkhornJacobianTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -114,11 +113,11 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
     # Set tolerance depending on lse_mode (False is more loose)
     atol = 1e-2 if lse_mode else 1e-1
     # Check finite differences match with application of (implicit) Jacobian.
-    self.assertAllClose(fin_dif, imp_dif, atol=atol, rtol=1e-1)
+    np.testing.assert_allclose(fin_dif, imp_dif, atol=atol, rtol=1e-1)
 
     # Check unrolling jacobian when using lse_mode.
     if lse_mode:
-      self.assertAllClose(fin_dif, back_dif, atol=atol, rtol=1e-1)
+      np.testing.assert_allclose(fin_dif, back_dif, atol=atol, rtol=1e-1)
 
       # Check Jacobian matrices match loosely.
       # Orthogonalize j_imp, j_back w.r.t. 1 if balanced problem,
@@ -126,7 +125,7 @@ class SinkhornJacobianTest(jax.test_util.JaxTestCase):
       if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
         j_imp = j_imp - jnp.mean(j_imp, axis=1)[:, None]
         j_back = j_back - jnp.mean(j_imp, axis=1)[:, None]
-      self.assertAllClose(j_imp, j_back, atol=atol, rtol=1e-1)
+      np.testing.assert_allclose(j_imp, j_back, atol=atol, rtol=1e-1)
 
 
 if __name__ == '__main__':

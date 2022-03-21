@@ -20,7 +20,6 @@ from absl.testing import parameterized
 
 import jax
 import jax.numpy as jnp
-import jax.test_util
 
 from ott.tools.gaussian_mixture import fit_gmm
 from ott.tools.gaussian_mixture import fit_gmm_pair
@@ -29,8 +28,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture_pair
 from ott.tools.gaussian_mixture import probabilities
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class FitGmmPairTest(jax.test_util.JaxTestCase):
+class FitGmmPairTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()

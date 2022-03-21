@@ -20,12 +20,11 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
 from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SinkhornAndersonTest(jax.test_util.JaxTestCase):
+
+class SinkhornAndersonTest(parameterized.TestCase):
   """Tests for Anderson acceleration."""
 
   def setUp(self):

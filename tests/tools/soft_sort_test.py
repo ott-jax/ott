@@ -20,14 +20,12 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
 import numpy as np
 
 from ott.tools import soft_sort
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
+class SoftSortTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -57,7 +55,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     # different squashing functions, but they should be similar.
     # One can recover "similar" looking outputs by tuning the regularization
     # parameter slightly higher for 'lin'
-    self.assertAllClose(xs_sig, xs_lin, rtol=0.05, atol=0.01)
+    np.testing.assert_allclose(xs_sig, xs_lin, rtol=0.05, atol=0.01)
     self.assertTrue(jnp.alltrue(jnp.diff(xs_lin, axis=0) >= -1e-8))
     self.assertTrue(jnp.alltrue(jnp.diff(xs_sig, axis=0) >= -1e-8))
 
@@ -71,7 +69,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     outsize = k if 0 < k < n else n
     self.assertEqual(xs.shape, (outsize,))
     self.assertTrue(jnp.alltrue(jnp.diff(xs, axis=axis) >= 0.0))
-    self.assertAllClose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
+    np.testing.assert_allclose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
 
   @parameterized.parameters([-1, 2, 5, 11])
   def test_sort_batch(self, topk):
@@ -88,7 +86,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     ranks = soft_sort.ranks(x, epsilon=0.001)
     self.assertEqual(x.shape, ranks.shape)
     expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
-    self.assertAllClose(ranks, expected_ranks, atol=0.9, rtol=0.1)
+    np.testing.assert_allclose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
   @parameterized.parameters([0.2, 0.9])
   def test_quantile(self, level):
@@ -103,7 +101,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     q = soft_sort.quantile(
         x, axis=(1, 2), level=0.5, weight=0.05, epsilon=1e-3, lse_mode=True)
     self.assertEqual(q.shape, (batch, 1, channels))
-    self.assertAllClose(q, 0.5 * np.ones((batch, 1, channels)), atol=3e-2)
+    np.testing.assert_allclose(q, 0.5 * np.ones((batch, 1, channels)), atol=3e-2)
 
   def test_soft_quantile_normalization(self):
     rngs = jax.random.split(self.rng, 2)
@@ -113,7 +111,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     mu_target, sigma_target = y.mean(), y.std()
     qn = soft_sort.quantile_normalization(x, jnp.sort(y), epsilon=1e-4)
     mu_transform, sigma_transform = qn.mean(), qn.std()
-    self.assertAllClose([mu_transform, sigma_transform],
+    np.testing.assert_allclose([mu_transform, sigma_transform],
                         [mu_target, sigma_target],
                         rtol=0.05)
 
@@ -123,13 +121,13 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     criterion = jnp.linspace(0.1, 1.2, n)
     output = soft_sort.sort_with(inputs, criterion, epsilon=1e-4)
     self.assertEqual(output.shape, inputs.shape)
-    self.assertAllClose(output, inputs, atol=0.05)
+    np.testing.assert_allclose(output, inputs, atol=0.05)
 
     k = 4
     # investigate why epsilon=1e-4 fails
     output = soft_sort.sort_with(inputs, criterion, topk=k, epsilon=1e-3)
     self.assertEqual(output.shape, (k, d))
-    self.assertAllClose(output, inputs[-k:], atol=0.05)
+    np.testing.assert_allclose(output, inputs[-k:], atol=0.05)
 
   def test_quantize(self):
     n = 100
@@ -137,7 +135,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     q = soft_sort.quantize(inputs, num_levels=4, axis=0, epsilon=1e-4)
     delta = jnp.abs(q - jnp.array([0.12, 0.34, 0.64, 0.86]))
     min_distances = jnp.min(delta, axis=1)
-    self.assertAllClose(min_distances, jnp.zeros_like(min_distances), atol=0.05)
+    np.testing.assert_allclose(min_distances, jnp.zeros_like(min_distances), atol=0.05)
 
   @parameterized.parameters([True, False])
   def test_soft_sort_jacobian(self, implicit: bool):
@@ -161,7 +159,7 @@ class SoftSortTest(jax.test_util.JaxTestCase, parameterized.TestCase):
     eps = 1e-3
     val_peps = loss_fn(z + eps * delta)
     val_meps = loss_fn(z - eps * delta)
-    self.assertAllClose((val_peps - val_meps) / (2 * eps),
+    np.testing.assert_allclose((val_peps - val_meps) / (2 * eps),
                         jnp.sum(grad * delta),
                         atol=0.01, rtol=0.1)
 

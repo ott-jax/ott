@@ -20,14 +20,13 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.core import gromov_wasserstein
 from ott.geometry import geometry
 from ott.geometry import pointcloud
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
+class FusedGromovWassersteinTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -120,12 +119,14 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_manual_b = aux[1] - jnp.log(self.b)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-      self.assertAllClose(grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
-      self.assertAllClose(grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
+      np.testing.assert_allclose(
+          grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
+      np.testing.assert_allclose(
+          grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
 
   @parameterized.parameters([True], [False])
   def test_fused_gromov_wasserstein_pointcloud(self, lse_mode):
@@ -184,10 +185,10 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
 
   @parameterized.parameters([True], [False])
   def test_gradient_fused_gromov_wasserstein_geometry(self, lse_mode):
@@ -223,12 +224,12 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][1], grad_matrices[1][1],
-                        rtol=1e-02, atol=1e-02)
-    self.assertAllClose(grad_matrices[0][2], grad_matrices[1][2],
-                        rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][2], grad_matrices[1][2], rtol=1e-02, atol=1e-02)
 
   def test_adaptive_threshold_fused(self):
     """Checking solution is improved with smaller threshold for convergence."""
@@ -282,8 +283,8 @@ class FusedGromovWassersteinTest(jax.test_util.JaxTestCase):
                                        implicit)
       grad_matrices[i] = grad_reg_gw
       self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-    self.assertAllClose(grad_matrices[0][0], grad_matrices[1][0],
-                        rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
 
   def test_effect_fused_penalty(self):
 

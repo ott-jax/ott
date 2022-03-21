@@ -4,4 +4,5 @@ jaxlib>=0.1.47
 numpy>=1.18.4
 matplotlib>=2.0.1
 flax>=0.3.6
-optax>=0.0.9
+optax>=0.1.1
+tqdm>=4.63.0

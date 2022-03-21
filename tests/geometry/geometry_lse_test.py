@@ -19,12 +19,11 @@
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-import jax.test_util
+import numpy as np
 from ott.geometry import ops
 
 
-@jax.test_util.with_config(jax_numpy_rank_promotion='allow')
-class GeometryLseTest(jax.test_util.JaxTestCase):
+class GeometryLseTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -50,9 +49,11 @@ class GeometryLseTest(jax.test_util.JaxTestCase):
       eps = 1e-3
       val_peps = lse(mat + eps*delta_mat, axis, None, False)[0]
       val_meps = lse(mat - eps*delta_mat, axis, None, False)[0]
-      self.assertAllClose((val_peps-val_meps)/ (2*eps),
-                          jnp.sum(delta_mat * g[0]),
-                          rtol=1e-03, atol=1e-02)
+      np.testing.assert_allclose(
+          (val_peps - val_meps) / (2 * eps),
+          jnp.sum(delta_mat * g[0]),
+          rtol=1e-03,
+          atol=1e-02)
     for b, dim, axis in zip((b_0, b_1), (m, n), (1, 0)):
       print(mat.shape, b.shape, axis)
       delta_b = jax.random.normal(keys[4], (dim,)).reshape(b.shape)
@@ -60,9 +61,11 @@ class GeometryLseTest(jax.test_util.JaxTestCase):
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, b + eps * delta_b, True)[0]
       val_meps = lse(mat - eps * delta_mat, axis, b - eps * delta_b, True)[0]
-      self.assertAllClose((val_peps-val_meps)/ (2*eps),
-                          jnp.sum(delta_mat * g[0]) + jnp.sum(delta_b * g[1]),
-                          rtol=1e-03, atol=1e-02)
+      np.testing.assert_allclose(
+          (val_peps - val_meps) / (2 * eps),
+          jnp.sum(delta_mat * g[0]) + jnp.sum(delta_b * g[1]),
+          rtol=1e-03,
+          atol=1e-02)
 
 if __name__ == '__main__':
   absltest.main()
