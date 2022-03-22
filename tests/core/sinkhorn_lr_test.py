@@ -66,8 +66,6 @@ class SinkhornLRTest(parameterized.TestCase):
         costs = out.costs
         cost_2 = costs[costs > -1][-1]
         self.assertGreater(cost_1, cost_2)
-        print('cost_1: ' + str(cost_1))
-        print('cost_2: ' + str(cost_2))
 
         other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
         cost_other = out.cost_at_geom(other_geom)
@@ -78,7 +76,6 @@ class SinkhornLRTest(parameterized.TestCase):
         costs = out.costs
         cost_3 = costs[costs > -1][-1]
         self.assertGreater(cost_3, cost_2)
-        print('cost_3: ' + str(cost_3))
 
 
 if __name__ == '__main__':
