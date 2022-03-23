@@ -148,14 +148,12 @@ class PointCloud(geometry.Geometry):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
       if self.is_online:
-        # TODO(lpapaxanthos): implement memory efficient max.
-        return 1.0
+        return self.compute_summary_online(self._scale_cost)
       else:
         return jax.lax.stop_gradient(1.0 / jnp.max(self.compute_cost_matrix()))
     elif self._scale_cost == 'mean':
       if self.is_online:
-        # TODO(lpapaxanthos): implement memory efficient mean.
-        return 1.0
+        return self.compute_summary_online(self._scale_cost)
       else:
         if isinstance(self.shape[0], int) and (self.shape[0] > 0):
           return jax.lax.stop_gradient(
@@ -184,6 +182,8 @@ class PointCloud(geometry.Geometry):
         return jax.lax.stop_gradient(1.0 / max_bound)
       else:
         return 1.0
+    elif isinstance(self._scale_cost, str):
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     else:
       return 1.0
 
@@ -246,10 +246,10 @@ class PointCloud(geometry.Geometry):
     )
 
     if axis == 0:
-      fun, size = body0, self.shape[1]
+      fun = body0
       v, n = g, self._y_nsplit
     elif axis == 1:
-      fun, size = body1, self.shape[0]
+      fun = body1
       v, n = f, self._x_nsplit
     else:
       raise ValueError(axis)
@@ -381,6 +381,93 @@ class PointCloud(geometry.Geometry):
     return (fn(applied_cost) * self.scale_cost if fn
             else applied_cost * self.scale_cost)
 
+  def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
+    start_indices = [i * self._bs] + (t.ndim - 1) * [0]
+    slice_sizes = [self._bs] + list(t.shape[1:])
+    return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
+
+  def compute_summary_online(self, summary: str) -> float:
+    """Compute mean or max of cost matrix online, i.e. without instantiating it.
+
+    Args:
+      summary: str, can be 'mean' or 'max_cost'
+
+    Returns:
+      summary statistics
+    """
+    scale_cost = 1.0
+
+    def body0(carry, i: int):
+      vec, = carry
+      y = self.leading_slice(self.y, i)
+      if self._axis_norm is None:
+        norm_y = self._norm_y
+      else:
+        norm_y = self.leading_slice(self._norm_y, i)
+      h_res = app(
+          self.x, y, self._norm_x, norm_y, vec,
+          self._cost_fn, self.power, scale_cost)
+      return carry, (h_res,)
+
+    def body1(carry, i: int):
+      vec, = carry
+      x = self.leading_slice(self.x, i)
+      if self._axis_norm is None:
+        norm_x = self._norm_x
+      else:
+        norm_x = self.leading_slice(self._norm_x, i)
+      h_res = app(
+          self.y, x, self._norm_y, norm_x, vec,
+          self._cost_fn, self.power, scale_cost)
+      return carry, (h_res,)
+
+    def finalize(i: int):
+      if batch_for_y:
+        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
+        return app(
+            self.x, self.y[i:], self._norm_x, norm_y, vec,
+            self._cost_fn, self.power, scale_cost)
+      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
+      return app(
+          self.y, self.x[i:], self._norm_y, norm_x, vec,
+          self._cost_fn, self.power, scale_cost)
+
+    if summary == 'mean':
+      fn = _apply_cost_xy
+    elif summary == 'max_cost':
+      fn = _apply_max_xy
+    else:
+      raise ValueError(
+          f'Scaling method {summary} does not exist for online mode.')
+    app = jax.vmap(
+        fn,
+        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
+    )
+
+    batch_for_y = self.shape[0] < self.shape[1]
+    if batch_for_y:
+      fun = body0
+      n = self._y_nsplit
+      vec = jnp.ones(self.shape[0]) / (self.shape[1] * self.shape[0])
+    else:
+      fun = body1
+      n = self._x_nsplit
+      vec = jnp.ones(self.shape[1]) / (self.shape[1] * self.shape[0])
+
+    _, val = jax.lax.scan(
+        fun, init=(vec,), xs=jnp.arange(n))
+    val = jnp.concatenate(val).squeeze()
+    val_rest = finalize(n * self._bs)
+    val_res = jnp.concatenate([val, val_rest])
+
+    if summary == 'mean':
+      return 1.0 / jnp.sum(val_res)
+    elif summary == 'max_cost':
+      return 1.0 / jnp.max(val_res)
+    else:
+      raise ValueError(
+          f'Scaling method {summary} does not exist for online mode.')
+
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
     """Instantiates the geometries used for a divergence computation."""
@@ -488,3 +575,8 @@ def _apply_cost_xy(
   return jnp.dot(c, vec) if fn is None else jnp.dot(fn(c), vec)
 
 
+def _apply_max_xy(
+    x, y, norm_x, norm_y, vec, cost_fn, cost_pow, scale_cost):
+  del vec
+  c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost)
+  return jnp.max(jnp.abs(c))

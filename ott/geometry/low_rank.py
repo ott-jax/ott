@@ -48,10 +48,10 @@ class LRCGeometry(geometry.Geometry):
     self._cost_1 = cost_1
     self._cost_2 = cost_2
     self._bias = bias
-    self._scale_cost = scale_cost
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
+    self._scale_cost = scale_cost
 
   @property
   def cost_1(self):
@@ -67,22 +67,21 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def cost_rank(self):
-    return self.cost_1.shape[1]
+    return self._cost_1.shape[1]
 
   @property
   def cost_matrix(self):
     """Returns cost matrix if requested."""
-    return (
-        jnp.matmul(self.cost_1, self.cost_2.T) + self.bias) * self.scale_cost
+    return (jnp.matmul(self.cost_1, self.cost_2.T) + self.bias)
 
   @property
   def shape(self):
-    return (self.cost_1.shape[0], self.cost_2.shape[0])
+    return (self._cost_1.shape[0], self._cost_2.shape[0])
 
   @property
   def is_symmetric(self):
-    return (self.cost_1.shape[0] == self.cost_2.shape[0] and
-            jnp.all(self.cost_1 == self.cost_2))
+    return (self._cost_1.shape[0] == self._cost_2.shape[0] and
+            jnp.all(self._cost_1 == self._cost_2))
 
   @property
   def scale_cost(self):
@@ -90,15 +89,20 @@ class LRCGeometry(geometry.Geometry):
       return self._scale_cost
     elif self._scale_cost == 'max_bound':
       return jax.lax.stop_gradient(
-          1.0 / (jnp.max(jnp.abs(self.cost_1))
-                 * jnp.max(jnp.abs(self.cost_2))
-                 + jnp.abs(self.bias)))
+          1.0 / (jnp.max(jnp.abs(self._cost_1))
+                 * jnp.max(jnp.abs(self._cost_2))
+                 + jnp.abs(self._bias)))
     elif self._scale_cost == 'mean':
-      # TODO(lpapaxanthos): implement memory efficient mean.
-      return 1.0
+      factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
+      factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
+      mean = (jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1])
+              + self._bias)
+      return 1.0 / mean
     elif self._scale_cost == 'max_cost':
       # TODO(lpapaxanthos): implement memory efficient max.
-      return 1.0
+      raise NotImplementedError(f'Scaling {self._scale_cost} not implemented.')
+    elif isinstance(self._scale_cost, str):
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     else:
       return 1.0
 

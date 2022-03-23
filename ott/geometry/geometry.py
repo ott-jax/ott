@@ -180,6 +180,8 @@ class Geometry:
       return jax.lax.stop_gradient(1.0 / jnp.mean(self._cost_matrix))
     elif self._scale_cost == 'median':
       return jax.lax.stop_gradient(1.0 / jnp.median(self._cost_matrix))
+    elif isinstance(self._scale_cost, str):
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     else:
       return 1.0
 

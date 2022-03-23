@@ -45,6 +45,7 @@ class ScaleCostTest(parameterized.TestCase):
     self.vec = jax.random.uniform(rngs[4], (self.m,))
     self.cost1 = jax.random.uniform(rngs[5], (self.n, 2))
     self.cost2 = jax.random.uniform(rngs[6], (self.m, 2))
+    self.eps = 5e-2
 
   @parameterized.parameters(
       ['median', 'mean', 'max_cost', 'max_norm', 'max_bound', 100.])
@@ -53,7 +54,7 @@ class ScaleCostTest(parameterized.TestCase):
 
     def apply_sinkhorn(x, y, a, b, scale_cost):
       geom = pointcloud.PointCloud(
-          x, y, epsilon=1e-2, scale_cost=scale_cost)
+          x, y, epsilon=self.eps, scale_cost=scale_cost)
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
@@ -61,7 +62,7 @@ class ScaleCostTest(parameterized.TestCase):
     geom0, _, _ = apply_sinkhorn(
         self.x, self.y, self.a, self.b, scale_cost=1.0)
 
-    geom, out, transport = apply_sinkhorn(
+    geom, out, transport = jax.jit(apply_sinkhorn, static_argnums=4)(
         self.x, self.y, self.a, self.b, scale_cost=scale)
 
     apply_cost_vec = geom.apply_cost(self.vec, axis=1)
@@ -74,19 +75,19 @@ class ScaleCostTest(parameterized.TestCase):
         geom0.apply_cost(self.vec, axis=1) * geom.scale_cost,
         apply_cost_vec, rtol=1e-4)
 
-  @parameterized.parameters(['max_norm', 'max_bound', 100.])
+  @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
   def test_scale_cost_pointcloud_online(self, scale):
     """Test various scale cost options for point cloud with online option."""
 
     def apply_sinkhorn(x, y, a, b, scale_cost):
       geom = pointcloud.PointCloud(
-          x, y, epsilon=1e-2, scale_cost=scale_cost, online=True)
+          x, y, epsilon=self.eps, scale_cost=scale_cost, online=True)
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=1e-2, scale_cost=1.0, online=True)
+        self.x, self.y, epsilon=self.eps, scale_cost=1.0, online=True)
 
     geom, out, transport = apply_sinkhorn(
         self.x, self.y, self.a, self.b, scale_cost=scale)
@@ -100,13 +101,28 @@ class ScaleCostTest(parameterized.TestCase):
     np.testing.assert_allclose(
         geom0.apply_cost(self.vec, axis=1) * geom.scale_cost,
         apply_cost_vec, rtol=1e-4)
+
+  @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
+  def test_online_matches_notonline_pointcloud(self, scale):
+    """Tests that the scale factors for online matches the ones without."""
+    geom0 = pointcloud.PointCloud(
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True)
+    geom1 = pointcloud.PointCloud(
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=None)
+    np.testing.assert_allclose(geom0.scale_cost, geom1.scale_cost, rtol=1e-4)
+    if scale == 'mean':
+      np.testing.assert_allclose(
+          1.0, geom1.cost_matrix.mean(), rtol=1e-4)
+    elif scale == 'max_cost':
+      np.testing.assert_allclose(
+          1.0, geom1.cost_matrix.max(), rtol=1e-4)
 
   @parameterized.parameters(['median', 'mean', 'max_cost', 100.])
   def test_scale_cost_geometry(self, scale):
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(cost, a, b, scale_cost):
-      geom = geometry.Geometry(cost, epsilon=1e-2, scale_cost=scale_cost)
+      geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
@@ -126,7 +142,7 @@ class ScaleCostTest(parameterized.TestCase):
         geom0.apply_cost(self.vec, axis=1) * geom.scale_cost,
         apply_cost_vec, rtol=1e-4)
 
-  @parameterized.parameters(['max_bound', 100.])
+  @parameterized.parameters(['mean', 'max_bound', 100.])
   def test_scale_cost_low_rank(self, scale):
     """Test various scale cost options for low rank."""
 
@@ -139,8 +155,7 @@ class ScaleCostTest(parameterized.TestCase):
 
     geom0 = low_rank.LRCGeometry(self.cost1, self.cost2, scale_cost=1.0)
 
-    geom, out = apply_sinkhorn(
-        self.cost1, self.cost2, scale_cost=scale)
+    geom, out = apply_sinkhorn(self.cost1, self.cost2, scale_cost=scale)
 
     apply_cost_vec = geom._apply_cost_to_vec(self.vec, axis=1)
     apply_transport_vec = out.apply(self.vec, axis=1)
@@ -151,6 +166,10 @@ class ScaleCostTest(parameterized.TestCase):
     np.testing.assert_allclose(
         geom0._apply_cost_to_vec(self.vec, axis=1) * geom.scale_cost,
         apply_cost_vec, rtol=1e-4)
+
+    if scale == 'mean':
+      np.testing.assert_allclose(
+          1.0, geom.cost_matrix.mean(), rtol=1e-4)
 
 
 if __name__ == '__main__':
