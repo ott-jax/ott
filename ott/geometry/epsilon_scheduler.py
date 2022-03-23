@@ -27,7 +27,7 @@ class Epsilon:
 
   def __init__(self,
                target: Optional[float] = None,
-               scale: Optional[float] = None,
+               scale_epsilon: Optional[float] = None,
                init: Optional[float] = None,
                decay: Optional[float] = None):
     r"""Initializes a scheduler using possibly geometric decay.
@@ -38,26 +38,26 @@ class Epsilon:
     geometric decay of an initial value that is larger than the intended target.
     Concretely, the value returned by such a scheduler will consider first
     the max between ``target`` and ``init * target * decay ** iteration``.
-    If the ``scale`` parameter is provided, that value is used to multiply the
-    max computed previously by ``scale``.
+    If the ``scale_epsilon`` parameter is provided, that value is used to multiply the
+    max computed previously by ``scale_epsilon``.
 
     Args:
       target: the epsilon regularizer that is targeted.
-      scale: if passed, used to multiply the regularizer, to rescale it.
+      scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
       init: initial value when using epsilon scheduling, understood as multiple
         of target value. if passed, ``int * decay ** iteration`` will be used
         to rescale target.
       decay: geometric decay factor, smaller than 1.
     """
     self._target_init = .01 if target is None else target
-    self._scale = 1.0 if scale is None else scale
+    self._scale_epsilon = 1.0 if scale_epsilon is None else scale_epsilon
     self._init = 1.0 if init is None else init
     self._decay = 1.0 if decay is None else decay
 
   @property
   def target(self):
     """Returns final regularizer value of scheduler."""
-    return self._target_init * self._scale
+    return self._target_init * self._scale_epsilon
 
   def at(self, iteration: Optional[int] = 1) -> float:
     """Returns (intermediate) regularizer value at a given iteration."""
@@ -76,7 +76,8 @@ class Epsilon:
     return self.done(self.at(iteration))
 
   def tree_flatten(self):
-    return (self._target_init, self._scale, self._init, self._decay), None
+    return (self._target_init, self._scale_epsilon,
+            self._init, self._decay), None
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

@@ -15,6 +15,7 @@
 
 # Lint as: python3
 """A class describing low-rank geometries."""
+from typing import Union, Optional
 import jax
 import jax.numpy as jnp
 from ott.geometry import geometry
@@ -29,6 +30,7 @@ class LRCGeometry(geometry.Geometry):
                cost_1: jnp.ndarray,
                cost_2: jnp.ndarray,
                bias: float = 0.0,
+               scale_cost: Optional[Union[float, str]] = None,
                **kwargs
                ):
     r"""Initializes a geometry by passing it low-rank factors.
@@ -37,15 +39,31 @@ class LRCGeometry(geometry.Geometry):
       cost_1: jnp.ndarray<float>[num_a, r]
       cost_2: jnp.ndarray<float>[num_b, r]
       bias: constant added to entire cost matrix.
+      scale_cost: option to rescale the cost matrix. Implemented scalings are
+        'max_bound'. Alternatively, a float factor can be
+        given to rescale the cost such that ``cost_matrix /= factor``.
       **kwargs: additional kwargs to Geometry
     """
     assert cost_1.shape[1] == cost_2.shape[1]
-    self.cost_1 = cost_1
-    self.cost_2 = cost_2
-    self.bias = bias
+    self._cost_1 = cost_1
+    self._cost_2 = cost_2
+    self._bias = bias
+    self._scale_cost = scale_cost
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
+
+  @property
+  def cost_1(self):
+    return self._cost_1 * jnp.sqrt(self.scale_cost)
+
+  @property
+  def cost_2(self):
+    return self._cost_2 * jnp.sqrt(self.scale_cost)
+
+  @property
+  def bias(self):
+    return self._bias * self.scale_cost
 
   @property
   def cost_rank(self):
@@ -54,7 +72,8 @@ class LRCGeometry(geometry.Geometry):
   @property
   def cost_matrix(self):
     """Returns cost matrix if requested."""
-    return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
+    return (
+        jnp.matmul(self.cost_1, self.cost_2.T) + self.bias) * self.scale_cost
 
   @property
   def shape(self):
@@ -64,6 +83,24 @@ class LRCGeometry(geometry.Geometry):
   def is_symmetric(self):
     return (self.cost_1.shape[0] == self.cost_2.shape[0] and
             jnp.all(self.cost_1 == self.cost_2))
+
+  @property
+  def scale_cost(self):
+    if isinstance(self._scale_cost, float):
+      return self._scale_cost
+    elif self._scale_cost == 'max_bound':
+      return jax.lax.stop_gradient(
+          1.0 / (jnp.max(jnp.abs(self.cost_1))
+                 * jnp.max(jnp.abs(self.cost_2))
+                 + jnp.abs(self.bias)))
+    elif self._scale_cost == 'mean':
+      # TODO(lpapaxanthos): implement memory efficient mean.
+      return 1.0
+    elif self._scale_cost == 'max_cost':
+      # TODO(lpapaxanthos): implement memory efficient max.
+      return 1.0
+    else:
+      return 1.0
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Applies elementwise-square of cost matrix to array (vector or matrix)."""
@@ -114,12 +151,12 @@ class LRCGeometry(geometry.Geometry):
     return jnp.dot(self.cost_2 if axis == 0 else self.cost_2.T, vec)
 
   def tree_flatten(self):
-    return (self.cost_1, self.cost_2, self._kwargs), None
+    return (self._cost_1, self._cost_2, self._kwargs), {
+        'bias': self._bias, 'scale_cost': self._scale_cost}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    del aux_data
-    return cls(*children[:-1], **children[-1])
+    return cls(*children[:-1], **children[-1], **aux_data)
 
 
 def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry):
