@@ -97,12 +97,12 @@ class LRCGeometry(geometry.Geometry):
       factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
       mean = (jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1])
               + self._bias)
-      return 1.0 / mean
+      return jax.lax.stop_gradient(1.0 / mean)
     elif self._scale_cost == 'max_cost':
       # TODO(lpapaxanthos): implement memory efficient max.
       raise NotImplementedError(f'Scaling {self._scale_cost} not implemented.')
     elif isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+      raise ValueError(f'Scaling {self._scale_cost} not provided.')
     else:
       return 1.0
 

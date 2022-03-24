@@ -407,7 +407,7 @@ class PointCloud(geometry.Geometry):
       h_res = app(
           self.x, y, self._norm_x, norm_y, vec,
           self._cost_fn, self.power, scale_cost)
-      return carry, (h_res,)
+      return carry, h_res
 
     def body1(carry, i: int):
       vec, = carry
@@ -419,7 +419,7 @@ class PointCloud(geometry.Geometry):
       h_res = app(
           self.y, x, self._norm_y, norm_x, vec,
           self._cost_fn, self.power, scale_cost)
-      return carry, (h_res,)
+      return carry, h_res
 
     def finalize(i: int):
       if batch_for_y:

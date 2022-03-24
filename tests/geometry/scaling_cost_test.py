@@ -62,7 +62,7 @@ class ScaleCostTest(parameterized.TestCase):
     geom0, _, _ = apply_sinkhorn(
         self.x, self.y, self.a, self.b, scale_cost=1.0)
 
-    geom, out, transport = jax.jit(apply_sinkhorn, static_argnums=4)(
+    geom, out, transport = apply_sinkhorn(
         self.x, self.y, self.a, self.b, scale_cost=scale)
 
     apply_cost_vec = geom.apply_cost(self.vec, axis=1)
@@ -81,15 +81,15 @@ class ScaleCostTest(parameterized.TestCase):
 
     def apply_sinkhorn(x, y, a, b, scale_cost):
       geom = pointcloud.PointCloud(
-          x, y, epsilon=self.eps, scale_cost=scale_cost, online=True)
+          x, y, epsilon=self.eps, scale_cost=scale_cost, online=4)
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=1.0, online=True)
+        self.x, self.y, epsilon=self.eps, scale_cost=1.0, online=4)
 
-    geom, out, transport = apply_sinkhorn(
+    geom, out, transport = jax.jit(apply_sinkhorn, static_argnums=4)(
         self.x, self.y, self.a, self.b, scale_cost=scale)
 
     apply_cost_vec = geom.apply_cost(self.vec, axis=1)
@@ -106,10 +106,13 @@ class ScaleCostTest(parameterized.TestCase):
   def test_online_matches_notonline_pointcloud(self, scale):
     """Tests that the scale factors for online matches the ones without."""
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True)
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=4)
     geom1 = pointcloud.PointCloud(
         self.x, self.y, epsilon=self.eps, scale_cost=scale, online=None)
+    geom2 = pointcloud.PointCloud(
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True)
     np.testing.assert_allclose(geom0.scale_cost, geom1.scale_cost, rtol=1e-4)
+    np.testing.assert_allclose(geom2.scale_cost, geom1.scale_cost, rtol=1e-4)
     if scale == 'mean':
       np.testing.assert_allclose(
           1.0, geom1.cost_matrix.mean(), rtol=1e-4)
