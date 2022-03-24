@@ -271,7 +271,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     diag_qcr = jnp.sum(state.q * ot_prob.geom.apply_cost(state.r, axis=1),
                        axis=0)
     h = diag_qcr / state.g ** 2 - (
-      self.epsilon - 1 / self.gamma) * jnp.log(state.g)
+        self.epsilon - 1 / self.gamma) * jnp.log(state.g)
     return c_q, c_r, h
 
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
@@ -423,34 +423,35 @@ def run(ot_prob, solver, init) -> LRSinkhornOutput:
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
   return out.set(ot_prob=ot_prob)
 
+
 def make(
-  rank: int = 10,
-  gamma: float = 1.0,
-  epsilon: float = 1e-4,
-  lse_mode: bool = True,
-  threshold: float = 1e-3,
-  norm_error: int = 1,
-  inner_iterations: int = 1,
-  min_iterations: int = 0,
-  max_iterations: int = 2000,
-  use_danskin: bool = True,
-  implicit_diff: bool = False,
-  jit: bool = True,
-  rng_key: int = 0,
-  kwargs_dys: Any = None) -> LRSinkhorn:
-  
+    rank: int = 10,
+    gamma: float = 1.0,
+    epsilon: float = 1e-4,
+    lse_mode: bool = True,
+    threshold: float = 1e-3,
+    norm_error: int = 1,
+    inner_iterations: int = 1,
+    min_iterations: int = 0,
+    max_iterations: int = 2000,
+    use_danskin: bool = True,
+    implicit_diff: bool = False,
+    jit: bool = True,
+    rng_key: int = 0,
+    kwargs_dys: Any = None) -> LRSinkhorn:
+
   return LRSinkhorn(
-    rank=rank,
-    gamma=gamma,
-    epsilon=epsilon,
-    lse_mode=lse_mode,
-    threshold=threshold,
-    norm_error=norm_error,
-    inner_iterations=inner_iterations,
-    min_iterations=min_iterations,
-    max_iterations=max_iterations,
-    use_danskin=use_danskin,
-    implicit_diff=implicit_diff,
-    jit=jit,
-    rng_key=rng_key,
-    kwargs_dys=kwargs_dys)
+      rank=rank,
+      gamma=gamma,
+      epsilon=epsilon,
+      lse_mode=lse_mode,
+      threshold=threshold,
+      norm_error=norm_error,
+      inner_iterations=inner_iterations,
+      min_iterations=min_iterations,
+      max_iterations=max_iterations,
+      use_danskin=use_danskin,
+      implicit_diff=implicit_diff,
+      jit=jit,
+      rng_key=rng_key,
+      kwargs_dys=kwargs_dys)
