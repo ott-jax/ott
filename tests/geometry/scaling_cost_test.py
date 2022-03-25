@@ -159,7 +159,8 @@ class ScaleCostTest(parameterized.TestCase):
 
     geom0 = low_rank.LRCGeometry(self.cost1, self.cost2, scale_cost=1.0)
 
-    geom, out = apply_sinkhorn(self.cost1, self.cost2, scale_cost=scale)
+    geom, out = jax.jit(apply_sinkhorn, static_argnums=2)(
+        self.cost1, self.cost2, scale_cost=scale)
 
     apply_cost_vec = geom._apply_cost_to_vec(self.vec, axis=1)
     apply_transport_vec = out.apply(self.vec, axis=1)
