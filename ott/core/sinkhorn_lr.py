@@ -202,6 +202,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
                rank: int = 10,
                gamma: float = 1.0,
                epsilon: float = 1e-4,
+               init_type: str = 'random',
                lse_mode: bool = True,
                threshold: float = 1e-3,
                norm_error: int = 1,
@@ -216,6 +217,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.rank = rank
     self.gamma = gamma
     self.epsilon = epsilon
+    self.init_type = init_type
     self.lse_mode = lse_mode
     assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
     self.threshold = threshold
@@ -239,15 +241,36 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # Random initialization for q, r, g using rng_key
     rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 3)
     a, b = ot_prob.a, ot_prob.b
-    if init_g is None:
-      init_g = jnp.abs(jax.random.uniform(rng[0], (self.rank,))) + 1
-      init_g = init_g / jnp.sum(init_g)
-    if init_q is None:
-      init_q = jnp.abs(jax.random.normal(rng[1], (a.shape[0], self.rank)))
-      init_q = init_q * (a / jnp.sum(init_q, axis=1))[:, None]
-    if init_r is None:
-      init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
-      init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
+    if self.init_type == 'random':
+        if init_g is None:
+          init_g = jnp.abs(jax.random.uniform(rng[0], (self.rank,))) + 1
+          init_g = init_g / jnp.sum(init_g)
+        if init_q is None:
+          init_q = jnp.abs(jax.random.normal(rng[1], (a.shape[0], self.rank)))
+          init_q = init_q * (a / jnp.sum(init_q, axis=1))[:, None]
+        if init_r is None:
+          init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
+          init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
+    if self.init_type == 'rank_2':
+        if init_g is None:
+          init_g = jnp.ones((self.rank,)) / self.rank
+          lambda_1 = min(jnp.min(a), jnp.min(init_g), jnp.min(b)) / 2
+          a1 = jnp.arange(1, a.shape[0] + 1)
+          a1 = a1 / jnp.sum(a1)
+          a2 = (a - lambda_1 * a1) / (1 - lambda_1)
+          b1 = jnp.arange(1, b.shape[0] + 1)
+          b1 = b1 / jnp.sum(b1)
+          b2 = (b - lambda_1 * b1) / (1 - lambda_1)
+          g1 = jnp.arange(1, self.rank + 1)
+          g1 = g1 / jnp.sum(g1)
+          g2 = (init_g - lambda_1 * g1) / (1 - lambda_1)
+        if init_q is None:
+           init_q = lambda_1 * jnp.dot(a1[:, None], g1.reshape(1, -1))
+           init_q += (1 - lambda_1) * jnp.dot(a2[:, None], g2.reshape(1, -1))
+        if init_r is None:
+          init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
+          init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
+
     run_fn = run if not self.jit else jax.jit(run)
     return run_fn(ot_prob, self, (init_q, init_r, init_g))
 
@@ -271,7 +294,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     diag_qcr = jnp.sum(state.q * ot_prob.geom.apply_cost(state.r, axis=1),
                        axis=0)
     h = diag_qcr / state.g ** 2 - (
-        self.epsilon - 1 / self.gamma) * jnp.log(state.g)
+      self.epsilon - 1 / self.gamma) * jnp.log(state.g)
     return c_q, c_r, h
 
   def dysktra_update(self, c_q, c_r, h, ot_prob, state, iteration,
@@ -423,35 +446,34 @@ def run(ot_prob, solver, init) -> LRSinkhornOutput:
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
   return out.set(ot_prob=ot_prob)
 
-
 def make(
-    rank: int = 10,
-    gamma: float = 1.0,
-    epsilon: float = 1e-4,
-    lse_mode: bool = True,
-    threshold: float = 1e-3,
-    norm_error: int = 1,
-    inner_iterations: int = 1,
-    min_iterations: int = 0,
-    max_iterations: int = 2000,
-    use_danskin: bool = True,
-    implicit_diff: bool = False,
-    jit: bool = True,
-    rng_key: int = 0,
-    kwargs_dys: Any = None) -> LRSinkhorn:
+  rank: int = 10,
+  gamma: float = 1.0,
+  epsilon: float = 1e-4,
+  lse_mode: bool = True,
+  threshold: float = 1e-3,
+  norm_error: int = 1,
+  inner_iterations: int = 1,
+  min_iterations: int = 0,
+  max_iterations: int = 2000,
+  use_danskin: bool = True,
+  implicit_diff: bool = False,
+  jit: bool = True,
+  rng_key: int = 0,
+  kwargs_dys: Any = None) -> LRSinkhorn:
 
   return LRSinkhorn(
-      rank=rank,
-      gamma=gamma,
-      epsilon=epsilon,
-      lse_mode=lse_mode,
-      threshold=threshold,
-      norm_error=norm_error,
-      inner_iterations=inner_iterations,
-      min_iterations=min_iterations,
-      max_iterations=max_iterations,
-      use_danskin=use_danskin,
-      implicit_diff=implicit_diff,
-      jit=jit,
-      rng_key=rng_key,
-      kwargs_dys=kwargs_dys)
+    rank=rank,
+    gamma=gamma,
+    epsilon=epsilon,
+    lse_mode=lse_mode,
+    threshold=threshold,
+    norm_error=norm_error,
+    inner_iterations=inner_iterations,
+    min_iterations=min_iterations,
+    max_iterations=max_iterations,
+    use_danskin=use_danskin,
+    implicit_diff=implicit_diff,
+    jit=jit,
+    rng_key=rng_key,
+    kwargs_dys=kwargs_dys)
