@@ -47,7 +47,8 @@ class LRCGeometry(geometry.Geometry):
       batch_size: optional size of the batch to compute online (without
         instanciating the matrix) the scale factor ``scale_cost`` of the
         ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
-        batch size is automatically calculated.
+        batch size is set to 1024 or to the largest number of samples between
+        ``cost_1`` and ``cost_2`` if smaller than 1024.
       **kwargs: additional kwargs to Geometry
     """
     assert cost_1.shape[1] == cost_2.shape[1]
@@ -163,23 +164,21 @@ class LRCGeometry(geometry.Geometry):
   def compute_max_cost(self) -> float:
     """Computes the maximum of the cost matrix.
 
-    Several cases are taken into account:
-    - If the ``cost_matrix`` fits in less than 1Gb (approximately 1e8 entries)
-    and if ``self.batch_size`` is ``None``, the ``cost_matrix`` is computed to
-    obtain its maximum entry.
-    - If ``self.batch_size`` is a float, then the maximum is calculated on
-    batches of the ``cost_matrix``. The batches are created on the longest
-    axis of the cost matrix and their size if fixed by ``self.batch_size``.
-    - If the ``cost_matrix`` fits in less than 1Gb (approximately 1e8 entries)
-    and if ``self.batch_size`` is ``None``, then the maximum is calculated on
-    batches of the ``cost_matrix``. The batches are created on the longest
-    axis of the cost matrix and their size if calculated automatically.
+    Three cases are taken into account:
+    - If the number of samples of ``cost_1`` and ``cost_2`` are both smaller
+    than 1024 and if ``batch_size`` is ``None``, the ``cost_matrix`` is
+    computed to obtain its maximum entry.
+    - If one of the number of samples of ``cost_1`` or ``cost_2`` is larger
+    than 1024 and if ``batch_size`` is ``None``, then the maximum of the
+    cost matrix is calculated by batch. The batches are created on the longest
+    axis of the cost matrix and their size is fixed to 1024.
+    - If ``batch_size`` is provided as a float, then the maximum of the cost
+    matrix is calculated by batch. The batches are created on the longest axis
+    of the cost matrix and their size if fixed by ``batch_size``.
 
     Returns:
       Maximum of the cost matrix.
     """
-    max_entries = 1e8
-    need_batch = self.shape[0] * self.shape[1] > max_entries
     batch_for_y = self.shape[1] > self.shape[0]
 
     n = self.shape[1] if batch_for_y else self.shape[0]
@@ -189,13 +188,11 @@ class LRCGeometry(geometry.Geometry):
 
     if self.batch_size:
       batch_size = min(self.batch_size, n)
-    elif need_batch:
-      batch_size = int(max_entries / self.shape[0] if batch_for_y
-                       else max_entries / self.shape[1])
     else:
-      batch_size = n
-    # Note: the last batch might not be of batch_size size and dynamic_slice
-    # changes the starting index. However, this results in the same max value.
+      batch_size = min(1024, max(self.shape[0], self.shape[1]))
+    # Note: the last batch might not be of size ``batch_size``, in which case
+    # ``dynamic_slice`` changes the starting index. However, this results in
+    # the same max value.
     n_batch = np.ceil(n / batch_size).astype(int)
 
     def body(carry, slice_idx):
