@@ -45,6 +45,7 @@ class ScaleCostTest(parameterized.TestCase):
     self.vec = jax.random.uniform(rngs[4], (self.m,))
     self.cost1 = jax.random.uniform(rngs[5], (self.n, 2))
     self.cost2 = jax.random.uniform(rngs[6], (self.m, 2))
+    self.cost_lr = jnp.max(jnp.dot(self.cost1, self.cost2.T))
     self.eps = 5e-2
 
   @parameterized.parameters(
@@ -145,7 +146,7 @@ class ScaleCostTest(parameterized.TestCase):
         geom0.apply_cost(self.vec, axis=1) * geom.scale_cost,
         apply_cost_vec, rtol=1e-4)
 
-  @parameterized.parameters(['mean', 'max_bound', 100.])
+  @parameterized.parameters(['mean', 'max_bound', 'max_cost', 100.])
   def test_scale_cost_low_rank(self, scale):
     """Test various scale cost options for low rank."""
 
@@ -173,7 +174,33 @@ class ScaleCostTest(parameterized.TestCase):
     if scale == 'mean':
       np.testing.assert_allclose(
           1.0, geom.cost_matrix.mean(), rtol=1e-4)
+    if scale == 'max_cost':
+      np.testing.assert_allclose(
+          1.0, geom.cost_matrix.max(), rtol=1e-4)
 
+  @parameterized.parameters([5, 12])
+  def test_max_scale_cost_low_rank_with_batch(self, batch_size):
+    """Test max_cost options for low rank with batch_size fixed."""
+
+    geom0 = low_rank.LRCGeometry(self.cost1, self.cost2,
+                                 scale_cost='max_cost', batch_size=batch_size)
+
+    np.testing.assert_allclose(
+        geom0.scale_cost, 1.0 / jnp.max(self.cost_lr), rtol=1e-4)
+
+  def test_max_scale_cost_low_rank_large_array(self):
+    """Test max_cost options for large matrices."""
+
+    _, *keys = jax.random.split(self.rng, 3)
+    cost1 = jax.random.uniform(keys[0], (10000, 2))
+    cost2 = jax.random.uniform(keys[1], (11000, 2))
+    max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
+
+    geom0 = low_rank.LRCGeometry(cost1, cost2,
+                                 scale_cost='max_cost')
+
+    np.testing.assert_allclose(
+        geom0.scale_cost, 1.0 / max_cost_lr, rtol=1e-4)
 
 if __name__ == '__main__':
   absltest.main()
