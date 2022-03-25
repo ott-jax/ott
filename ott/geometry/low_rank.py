@@ -18,6 +18,7 @@
 from typing import Union, Optional
 import jax
 import jax.numpy as jnp
+import numpy as np
 from ott.geometry import geometry
 
 
@@ -31,6 +32,7 @@ class LRCGeometry(geometry.Geometry):
                cost_2: jnp.ndarray,
                bias: float = 0.0,
                scale_cost: Optional[Union[float, str]] = None,
+               batch_size: Optional[float] = None,
                **kwargs
                ):
     r"""Initializes a geometry by passing it low-rank factors.
@@ -40,8 +42,12 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray<float>[num_b, r]
       bias: constant added to entire cost matrix.
       scale_cost: option to rescale the cost matrix. Implemented scalings are
-        'max_bound'. Alternatively, a float factor can be
-        given to rescale the cost such that ``cost_matrix /= factor``.
+        'max_bound', 'mean' and 'max_cost'. Alternatively, a float factor can be
+        given to rescale the cost such that ``cost_matrix /= scale_cost``.
+      batch_size: optional size of the batch to compute online (without
+        instanciating the matrix) the scale factor ``scale_cost`` of the
+        ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
+        batch size is automatically calculated.
       **kwargs: additional kwargs to Geometry
     """
     assert cost_1.shape[1] == cost_2.shape[1]
@@ -52,6 +58,7 @@ class LRCGeometry(geometry.Geometry):
 
     super().__init__(**kwargs)
     self._scale_cost = scale_cost
+    self.batch_size = batch_size
 
   @property
   def cost_1(self):
@@ -72,7 +79,7 @@ class LRCGeometry(geometry.Geometry):
   @property
   def cost_matrix(self):
     """Returns cost matrix if requested."""
-    return (jnp.matmul(self.cost_1, self.cost_2.T) + self.bias)
+    return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
   def shape(self):
@@ -91,7 +98,7 @@ class LRCGeometry(geometry.Geometry):
       return jax.lax.stop_gradient(
           1.0 / (jnp.max(jnp.abs(self._cost_1))
                  * jnp.max(jnp.abs(self._cost_2))
-                 + jnp.abs(self._bias)))
+                 + self._bias))
     elif self._scale_cost == 'mean':
       factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
       factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
@@ -99,8 +106,7 @@ class LRCGeometry(geometry.Geometry):
               + self._bias)
       return jax.lax.stop_gradient(1.0 / mean)
     elif self._scale_cost == 'max_cost':
-      # TODO(lpapaxanthos): implement memory efficient max.
-      raise NotImplementedError(f'Scaling {self._scale_cost} not implemented.')
+      return jax.lax.stop_gradient(1.0 / self.compute_max_cost())
     elif isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not provided.')
     else:
@@ -154,9 +160,59 @@ class LRCGeometry(geometry.Geometry):
   def apply_cost_2(self, vec, axis=0):
     return jnp.dot(self.cost_2 if axis == 0 else self.cost_2.T, vec)
 
+  def compute_max_cost(self) -> float:
+    """Computes the maximum of the cost matrix.
+
+    Several cases are taken into account:
+    - If the ``cost_matrix`` fits in less than 1Gb (approximately 1e8 entries)
+    and if ``self.batch_size`` is ``None``, the ``cost_matrix`` is computed to
+    obtain its maximum entry.
+    - If ``self.batch_size`` is a float, then the maximum is calculated on
+    batches of the ``cost_matrix``. The batches are created on the longest
+    axis of the cost matrix and their size if fixed by ``self.batch_size``.
+    - If the ``cost_matrix`` fits in less than 1Gb (approximately 1e8 entries)
+    and if ``self.batch_size`` is ``None``, then the maximum is calculated on
+    batches of the ``cost_matrix``. The batches are created on the longest
+    axis of the cost matrix and their size if calculated automatically.
+
+    Returns:
+      Maximum of the cost matrix.
+    """
+    max_entries = 1e8
+    need_batch = self.shape[0] * self.shape[1] > max_entries
+    batch_for_y = self.shape[1] > self.shape[0]
+
+    n = self.shape[1] if batch_for_y else self.shape[0]
+    p = self._cost_2.shape[1] if batch_for_y else self._cost_1.shape[1]
+    carry = ((self._cost_1, self._cost_2) if batch_for_y
+             else (self._cost_2, self._cost_1))
+
+    if self.batch_size:
+      batch_size = min(self.batch_size, n)
+    elif need_batch:
+      batch_size = int(max_entries / self.shape[0] if batch_for_y
+                       else max_entries / self.shape[1])
+    else:
+      batch_size = n
+    # Note: the last batch might not be of batch_size size and dynamic_slice
+    # changes the starting index. However, this results in the same max value.
+    n_batch = np.ceil(n / batch_size).astype(int)
+
+    def body(carry, slice_idx):
+      cost1, cost2 = carry
+      cost2_slice = jax.lax.dynamic_slice(
+          cost2, (slice_idx * batch_size, 0), (batch_size, p))
+      out_slice = jnp.max(jnp.dot(cost2_slice, cost1.T))
+      return carry, out_slice
+
+    _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
+
+    return jnp.max(out) + self._bias
+
   def tree_flatten(self):
     return (self._cost_1, self._cost_2, self._kwargs), {
-        'bias': self._bias, 'scale_cost': self._scale_cost}
+        'bias': self._bias, 'scale_cost': self._scale_cost,
+        'batch_size': self.batch_size}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
