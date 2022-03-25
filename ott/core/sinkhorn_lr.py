@@ -242,35 +242,34 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 3)
     a, b = ot_prob.a, ot_prob.b
     if self.init_type == 'random':
-        if init_g is None:
-          init_g = jnp.abs(jax.random.uniform(rng[0], (self.rank,))) + 1
-          init_g = init_g / jnp.sum(init_g)
-        if init_q is None:
-          init_q = jnp.abs(jax.random.normal(rng[1], (a.shape[0], self.rank)))
-          init_q = init_q * (a / jnp.sum(init_q, axis=1))[:, None]
-        if init_r is None:
-          init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
-          init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
+      if init_g is None:
+        init_g = jnp.abs(jax.random.uniform(rng[0], (self.rank,))) + 1
+        init_g = init_g / jnp.sum(init_g)
+      if init_q is None:
+        init_q = jnp.abs(jax.random.normal(rng[1], (a.shape[0], self.rank)))
+        init_q = init_q * (a / jnp.sum(init_q, axis=1))[:, None]
+      if init_r is None:
+        init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
+        init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
     if self.init_type == 'rank_2':
-        if init_g is None:
-          init_g = jnp.ones((self.rank,)) / self.rank
-          lambda_1 = min(jnp.min(a), jnp.min(init_g), jnp.min(b)) / 2
-          a1 = jnp.arange(1, a.shape[0] + 1)
-          a1 = a1 / jnp.sum(a1)
-          a2 = (a - lambda_1 * a1) / (1 - lambda_1)
-          b1 = jnp.arange(1, b.shape[0] + 1)
-          b1 = b1 / jnp.sum(b1)
-          b2 = (b - lambda_1 * b1) / (1 - lambda_1)
-          g1 = jnp.arange(1, self.rank + 1)
-          g1 = g1 / jnp.sum(g1)
-          g2 = (init_g - lambda_1 * g1) / (1 - lambda_1)
-        if init_q is None:
-           init_q = lambda_1 * jnp.dot(a1[:, None], g1.reshape(1, -1))
-           init_q += (1 - lambda_1) * jnp.dot(a2[:, None], g2.reshape(1, -1))
-        if init_r is None:
-          init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
-          init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
-
+      if init_g is None:
+        init_g = jnp.ones((self.rank,)) / self.rank
+        lambda_1 = min(jnp.min(a), jnp.min(init_g), jnp.min(b)) / 2
+        a1 = jnp.arange(1, a.shape[0] + 1)
+        a1 = a1 / jnp.sum(a1)
+        a2 = (a - lambda_1 * a1) / (1 - lambda_1)
+        b1 = jnp.arange(1, b.shape[0] + 1)
+        b1 = b1 / jnp.sum(b1)
+        b2 = (b - lambda_1 * b1) / (1 - lambda_1)
+        g1 = jnp.arange(1, self.rank + 1)
+        g1 = g1 / jnp.sum(g1)
+        g2 = (init_g - lambda_1 * g1) / (1 - lambda_1)
+      if init_q is None:
+        init_q = lambda_1 * jnp.dot(a1[:, None], g1.reshape(1, -1))
+        init_q += (1 - lambda_1) * jnp.dot(a2[:, None], g2.reshape(1, -1))
+      if init_r is None:
+        init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
+        init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
     run_fn = run if not self.jit else jax.jit(run)
     return run_fn(ot_prob, self, (init_q, init_r, init_g))
 
@@ -450,6 +449,7 @@ def make(
   rank: int = 10,
   gamma: float = 1.0,
   epsilon: float = 1e-4,
+  init_type: str = 'random',
   lse_mode: bool = True,
   threshold: float = 1e-3,
   norm_error: int = 1,
@@ -466,6 +466,7 @@ def make(
     rank=rank,
     gamma=gamma,
     epsilon=epsilon,
+    init_type=init_type,
     lse_mode=lse_mode,
     threshold=threshold,
     norm_error=norm_error,
