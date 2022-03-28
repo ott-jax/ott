@@ -20,6 +20,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+import numpy as np
 from ott.core import problems
 from ott.core import sinkhorn_lr
 from ott.geometry import pointcloud

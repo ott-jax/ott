@@ -23,9 +23,7 @@ import jax.numpy as jnp
 from ott.core import fixed_point_loop
 from ott.core import problems
 from ott.core import bar_problems
-from ott.core import sinkhorn
-from ott.core import sinkhorn_lr
-from ott.core import gromov_wasserstein
+from ott.core import was_solver
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import costs
@@ -112,6 +110,7 @@ class BarycenterState(NamedTuple):
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
       self.a, self.x, segmented_b, segmented_y)
+    print('REG', reg_ot_costs)
     cost = jnp.average(reg_ot_costs, weights= bar_prob.weights)
     costs = self.costs.at[iteration].set(cost)
     converged = jnp.all(convergeds)
@@ -136,8 +135,8 @@ def barycentric_projection(matrix, y, cost_fn):
   return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
 
 @jax.tree_util.register_pytree_node_class
-class WassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
-  """A Continuous Wasserstein barycenter solver. Uses similar loop as GW."""
+class WassersteinBarycenter(was_solver.WassersteinSolver):
+  """A Continuous Wasserstein barycenter solver, built on generic template."""
 
   def __call__(
       self,

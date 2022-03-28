@@ -17,12 +17,17 @@ def segment_point_cloud(
   num_per_segment: Optional[jnp.ndarray] = None,
   max_measure_size: Optional[int] = None
   ) -> jnp.ndarray:
-  """ Segment and pad as needed the entries of a.
+  """ Segment and pad as needed the entries of a point cloud.
   There are two interfaces: either use `segment_ids`, and optionally 
-  `num_segments` and `indices_are_sorted`, OR use `num_per_segment`. 
+  `num_segments` and `indices_are_sorted`, to describe for each 
+  data point in the matrix to which segment each point corresponds to,
+  OR use `num_per_segment`, which describes contiguous segments.
   
   If using the first interface, `num_segments` is required for JIT compilation.
-  Assumes range(0, `num_segments`) are the segment ids.  
+  Assumes range(0, `num_segments`) are the segment ids.
+
+  In both cases, jitting requires defining a max_measure_size, the
+  upper bound on the maximal size of measures, which will be used for padding.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -43,17 +48,12 @@ def segment_point_cloud(
     num_segments = num_per_segment.shape[0]
     segment_ids = jnp.arange(num_segments).repeat(
       num_per_segment, total_repeat_length=num)
-
   
-  print(dim)
   if a is None:
     a = (1 / num_per_segment).repeat(num_per_segment)
-  print('MAX BATCH bef', max_measure_size)
   
   if max_measure_size is None:
     max_measure_size = jnp.max(num_per_segment)
-  print('MAX BATCH', max_measure_size)
-  print('SHAPE', x.shape, x.shape[1])
   
   segmented_a = []
   segmented_x = []
