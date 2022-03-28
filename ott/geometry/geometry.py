@@ -51,7 +51,8 @@ class Geometry:
                kernel_matrix: Optional[jnp.ndarray] = None,
                epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
                relative_epsilon: Optional[bool] = None,
-               scale: Optional[float] = None,
+               scale_epsilon: Optional[float] = None,
+               scale_cost: Optional[Union[float, str]] = None,
                **kwargs):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
@@ -68,14 +69,18 @@ class Geometry:
         the mean value of the ``cost_matrix``.
       relative_epsilon: whether epsilon is passed relative to scale of problem,
         here understood as mean value of ``cost_matrix``.
-      scale: the scale multiplier for epsilon.
+      scale_epsilon: the scale multiplier for epsilon.
+      scale_cost: option to rescale the cost matrix. Implemented scalings are
+        'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+        given to rescale the cost such that ``cost_matrix /= factor``.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
     self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
-    self._scale = scale
+    self._scale_epsilon = scale_epsilon
+    self._scale_cost = scale_cost
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -84,20 +89,20 @@ class Geometry:
     return None
 
   @property
-  def scale(self) -> float:
+  def scale_epsilon(self) -> float:
     """Computes the scale of the epsilon, potentially based on data."""
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return 1.0
 
     rel = self._relative_epsilon
-    trigger = ((self._scale is None) and
+    trigger = ((self._scale_epsilon is None) and
                (rel or rel is None) and
                (self._epsilon_init is None or rel))
-    if (self._scale is None) and (trigger is not None):  # for dry run
+    if (self._scale_epsilon is None) and (trigger is not None):  # for dry run
       return jnp.where(
           trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
     else:
-      return self._scale
+      return self._scale_epsilon
 
   @property
   def _epsilon(self):
@@ -105,7 +110,8 @@ class Geometry:
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return self._epsilon_init
     eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
-    return epsilon_scheduler.Epsilon.make(eps, scale=self.scale, **self._kwargs)
+    return epsilon_scheduler.Epsilon.make(
+        eps, scale_epsilon=self.scale_epsilon, **self._kwargs)
 
   @property
   def cost_matrix(self):
@@ -114,8 +120,9 @@ class Geometry:
       # If no epsilon was passed on to the geometry, then assume it is one by
       # default.
       cost = -jnp.log(self._kernel_matrix)
+      cost *= self.scale_cost
       return cost if self._epsilon_init is None else self.epsilon * cost
-    return self._cost_matrix
+    return self._cost_matrix * self.scale_cost
 
   @property
   def median_cost_matrix(self):
@@ -132,7 +139,8 @@ class Geometry:
   @property
   def kernel_matrix(self):
     if self._kernel_matrix is None:
-      return jnp.exp(-(self._cost_matrix / self.epsilon))
+      return jnp.exp(
+          -(self._cost_matrix / self.epsilon))**(1.0 / self.scale_cost)
     return self._kernel_matrix
 
   @property
@@ -141,7 +149,8 @@ class Geometry:
 
   @property
   def shape(self):
-    mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
+    mat = (self._kernel_matrix if self._cost_matrix is None
+           else self._cost_matrix)
     if mat is not None:
       return mat.shape
     return (0, 0)
@@ -160,12 +169,28 @@ class Geometry:
     return (mat.shape[0] == mat.shape[1] and
             jnp.all(mat == mat.T)) if mat is not None else False
 
+  @property
+  def scale_cost(self):
+    """Computes the factor to scale the cost matrix."""
+    if isinstance(self._scale_cost, float):
+      return 1.0 / self._scale_cost
+    elif self._scale_cost == 'max_cost':
+      return jax.lax.stop_gradient(1.0 / jnp.max(self._cost_matrix))
+    elif self._scale_cost == 'mean':
+      return jax.lax.stop_gradient(1.0 / jnp.mean(self._cost_matrix))
+    elif self._scale_cost == 'median':
+      return jax.lax.stop_gradient(1.0 / jnp.median(self._cost_matrix))
+    elif isinstance(self._scale_cost, str):
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    else:
+      return 1.0
+
   def copy_epsilon(self, other):
     """Copies the epsilon parameters from another geometry."""
     scheduler = other._epsilon
     self._epsilon_init = scheduler._target_init
     self._relative_epsilon = False
-    self._scale = other.scale
+    self._scale_epsilon = other.scale_epsilon
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
@@ -441,7 +466,7 @@ class Geometry:
     )(
         arr)
 
-  def rescale_cost(self, factor: float):
+  def rescale_cost_fn(self, factor: float):
     if self._cost_matrix is not None:
       self._cost_matrix *= factor
     if self._kernel_matrix is not None:
@@ -486,12 +511,12 @@ class Geometry:
 
   def tree_flatten(self):
     return (self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-            self._relative_epsilon, self._kwargs), None
+            self._relative_epsilon,
+            self._kwargs), {'scale_cost': self._scale_cost}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    del aux_data
-    return cls(*children[:-1], **children[-1])
+    return cls(*children[:-1], **children[-1], **aux_data)
 
 
 def is_affine(fn) -> bool:

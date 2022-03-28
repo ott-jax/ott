@@ -488,7 +488,8 @@ class QuadraticProblem:
 
 def update_epsilon_unbalanced(epsilon, transport_mass):
   updated_epsilon = epsilon_scheduler.Epsilon.make(epsilon)
-  updated_epsilon._scale = updated_epsilon._scale * transport_mass
+  updated_epsilon._scale_epsilon = (
+      updated_epsilon._scale_epsilon * transport_mass)
   return updated_epsilon
 
 
