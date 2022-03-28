@@ -18,7 +18,6 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-import jax.test_util
 import numpy as np
 from ott.core.neuraldual import NeuralDualSolver
 
@@ -79,7 +78,7 @@ def load_toy_data(name_source: str,
     return dataloaders, input_dim
 
 
-class NeuralDualTest(jax.test_util.JaxTestCase):
+class NeuralDualTest(parameterized.TestCase):
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
@@ -131,8 +130,8 @@ class NeuralDualTest(jax.test_util.JaxTestCase):
     pred_target_jit = compute_transport(data_source)
 
     # ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
-    self.assertAllClose(pred_target, pred_target_jit,
-                        rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(pred_target, pred_target_jit,
+                               rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
