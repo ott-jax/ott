@@ -72,7 +72,7 @@ class Geometry:
       scale_epsilon: the scale multiplier for epsilon.
       scale_cost: option to rescale the cost matrix. Implemented scalings are
         'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
-        given to rescale the cost such that ``cost_matrix /= factor``.
+        given to rescale the cost such that ``cost_matrix /= scale_cost``.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
