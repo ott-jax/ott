@@ -32,7 +32,7 @@ class LRCGeometry(geometry.Geometry):
                cost_2: jnp.ndarray,
                bias: float = 0.0,
                scale_cost: Optional[Union[float, str]] = None,
-               batch_size: Optional[float] = None,
+               batch_size: Optional[int] = None,
                **kwargs
                ):
     r"""Initializes a geometry by passing it low-rank factors.
@@ -42,8 +42,9 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray<float>[num_b, r]
       bias: constant added to entire cost matrix.
       scale_cost: option to rescale the cost matrix. Implemented scalings are
-        'max_bound', 'mean' and 'max_cost'. Alternatively, a float factor can be
-        given to rescale the cost such that ``cost_matrix /= scale_cost``.
+        'max_bound', 'mean' and 'max_cost'. Alternatively, a float
+        factor can be given to rescale the cost such that
+        ``cost_matrix /= scale_cost``.
       batch_size: optional size of the batch to compute online (without
         instanciating the matrix) the scale factor ``scale_cost`` of the
         ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
@@ -190,10 +191,7 @@ class LRCGeometry(geometry.Geometry):
       batch_size = min(self.batch_size, n)
     else:
       batch_size = min(1024, max(self.shape[0], self.shape[1]))
-    # Note: the last batch might not be of size ``batch_size``, in which case
-    # ``dynamic_slice`` changes the starting index. However, this results in
-    # the same max value.
-    n_batch = np.ceil(n / batch_size).astype(int)
+    n_batch = n // batch_size
 
     def body(carry, slice_idx):
       cost1, cost2 = carry
@@ -202,9 +200,15 @@ class LRCGeometry(geometry.Geometry):
       out_slice = jnp.max(jnp.dot(cost2_slice, cost1.T))
       return carry, out_slice
 
-    _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
+    def finalize(carry):
+      cost1, cost2 = carry
+      out_slice = jnp.dot(cost2[n_batch * batch_size:], cost1.T)
+      return out_slice
 
-    return jnp.max(out) + self._bias
+    _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
+    last_slice = finalize(carry)
+    max_value = jnp.max(jnp.concatenate((out, last_slice.reshape(-1))))
+    return max_value + self._bias
 
   def tree_flatten(self):
     return (self._cost_1, self._cost_2, self._kwargs), {
