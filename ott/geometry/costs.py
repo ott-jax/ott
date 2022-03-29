@@ -41,7 +41,6 @@ class CostFn(abc.ABC):
   def pairwise(self, x, y):
     pass
 
-  @abc.abstractmethod
   def barycenter(self, weights, xs):
     pass
 
