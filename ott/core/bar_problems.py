@@ -33,6 +33,7 @@ class BarycenterProblem:
     weights: Optional[jnp.ndarray] = None,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[jnp.ndarray] = None,
+    debiased: bool = False,
     segment_ids: Optional[jnp.ndarray] = None,
     num_segments: Optional[jnp.ndarray] = None,
     indices_are_sorted: Optional[bool] = None,
@@ -46,6 +47,9 @@ class BarycenterProblem:
       weights: weights of the barycenter problem (size num_segments)
       cost_fn: cost function used.
       epsilon: epsilon regularization used to solve reg-OT problems.
+      debiased: whether the problem is debiased, in the sense that
+        the regularized transportation cost of barycenter to itself will
+        be considered when computing gradient.
       segment_ids: describe for each point to which measure it belongs.
       num_segments: total number of measures
       indices_are_sorted: flag indicating indices in segment_ids are sorted.
@@ -56,7 +60,8 @@ class BarycenterProblem:
     self._b = b
     self._weights = weights
     self.cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
-    self._epsilon = epsilon
+    self.epsilon = epsilon
+    self.debiased = debiased
     self._segment_ids = segment_ids
     self._num_segments = num_segments
     self._indices_are_sorted = indices_are_sorted
@@ -64,8 +69,12 @@ class BarycenterProblem:
     self._max_measure_size = max_measure_size
     
   def tree_flatten(self):
-    return ([self._y, self._b, self._weights, self.cost_fn, self._epsilon],
-            {'segment_ids' : self._segment_ids, 
+    return ([self._y, self._b, self._weights],
+            {
+            'cost_fn' : self.cost_fn, 
+            'epsilon' : self.epsilon,
+            'debiased': self.debiased, 
+            'segment_ids' : self._segment_ids, 
             'num_segments' : self._num_segments,
             'indices_are_sorted' : self._indices_are_sorted,
             'num_per_segment' : self._num_per_segment,
@@ -77,15 +86,24 @@ class BarycenterProblem:
 
   @property
   def segmented_y_b(self):
-    if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
-      return self._y, self._b
+    if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):      
+      return self.add_slice_for_debiased(self._y, self._b)
     else:  
       segmented_y, segmented_b, _ = segment.segment_point_cloud(
         self._y, self._b, self._segment_ids, self._num_segments,
         self._indices_are_sorted, self._num_per_segment,
         self.max_measure_size)
-    return segmented_y, segmented_b
+    return self.add_slice_for_debiased(segmented_y, segmented_b)
   
+  def add_slice_for_debiased(self, y, b):
+    if y is None or b is None:
+      return y, b    
+    if self.debiased:  
+      n, dim = y.shape[1], y.shape[2]
+      y = jnp.concatenate((y, jnp.zeros((1, n, dim))), axis=0)
+      b = jnp.concatenate((b, jnp.zeros((1, n,))), axis=0)    
+    return y, b
+
   @property
   def flattened_y(self):
     if self._y is not None and self._y.ndim == 3:
@@ -93,6 +111,13 @@ class BarycenterProblem:
     else:  
       return self._y
   
+  @property
+  def flattened_b(self):
+    if self._b is not None and self._b.ndim == 2:
+      return self._b.ravel()
+    else:
+      return self._b
+    
   @property
   def max_measure_size(self):
     if self._max_measure_size is not None:
@@ -113,13 +138,6 @@ class BarycenterProblem:
         return jnp.max(self._num_per_segment)
 
   @property
-  def flattened_b(self):
-    if self._b is not None and self._b.ndim == 2:
-      return self._b.ravel()
-    else:
-      return self._b
-    
-  @property
   def num_segments(self):
     if self._y is None:
       return 0
@@ -138,11 +156,12 @@ class BarycenterProblem:
   @property
   def weights(self):
     if self._weights is None:
-      return jnp.ones((self.num_segments,)) / self.num_segments
+      weights = jnp.ones((self.num_segments,)) / self.num_segments
     else:
       assert self.weights.shape[0] == self.num_segments
-      return self.weights
-
-  @property
-  def epsilon(self):
-    return self._epsilon
+      assert jnp.isclose(jnp.sum(self.weights), 1.0)
+      weights = self.weights
+    if self.debiased:
+      weights = jnp.concatenate((weights, jnp.array([-0.5])))
+    print('WEIGHTS', weights)
+    return weights

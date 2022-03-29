@@ -93,7 +93,7 @@ class BarycenterState(NamedTuple):
   
   def update(self,
             iteration: int, 
-            bar_prob: bar_problems.BarycenterProblem, 
+            bar_prob: bar_problems.BarycenterProblem,
             linear_ot_solver: Any, 
             store_errors: bool):
     segmented_y, segmented_b = bar_prob.segmented_y_b
@@ -101,31 +101,39 @@ class BarycenterState(NamedTuple):
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(a, x, b, y):
       out = linear_ot_solver(
-        problems.LinearProblem(
-        pointcloud.PointCloud(
+        problems.LinearProblem(pointcloud.PointCloud(
           x, y, cost_fn = bar_prob.cost_fn, epsilon= bar_prob.epsilon),
         a, b))
       return (out.reg_ot_cost, out.converged, out.matrix,
             out.errors if store_errors else None)
+    
+    if bar_prob.debiased:
+      # Check max size (used to pad) is bigger than barycenter size
+      n, dim = self.x.shape
+      max_size = bar_prob.max_measure_size
+      assert max_size > n
+      segmented_y = segmented_y.at[-1,:n,:].set(self.x)
+      segmented_b = segmented_b.at[-1,:n].set(self.a)
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-      self.a, self.x, segmented_b, segmented_y)
-    print('REG', reg_ot_costs)
-    cost = jnp.average(reg_ot_costs, weights= bar_prob.weights)
-    costs = self.costs.at[iteration].set(cost)
+      self.a, self.x, segmented_b, segmented_y)    
+    
+    cost = jnp.sum(reg_ot_costs * bar_prob.weights)
+    updated_costs = self.costs.at[iteration].set(cost)
     converged = jnp.all(convergeds)
     linear_convergence = self.linear_convergence.at[iteration].set(converged)
     
     if store_errors and self.errors is not None:
-      errors = self.errors.at[iteration, :, :].set(out.errors)
+      errors = self.errors.at[iteration, :, :].set(errors)
     else:
       errors = None
     
-    convex_weights = matrices * (1.0 / self.a)[None, :, None]
-    x_new = jnp.average(
-      barycentric_projection(convex_weights, segmented_y, bar_prob.cost_fn),
-      weights = bar_prob.weights, axis=0)
-    return self.set(costs=costs,
+    divide_a = jnp.where(self.a > 0, 1.0 / self.a, 1.0)
+    convex_weights = matrices * divide_a[None, :, None]
+    x_new = jnp.sum(
+      barycentric_projection(convex_weights, segmented_y, bar_prob.cost_fn)
+      * bar_prob.weights[:, None, None], axis=0)
+    return self.set(costs=updated_costs,
                     linear_convergence=linear_convergence,
                     errors=errors,
                     x=x_new)
@@ -142,12 +150,11 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: bar_problems.BarycenterProblem,
       bar_size: int = 100,
-      x_init: jnp.ndarray = None,
-      debiased : bool = False,
+      x_init: jnp.ndarray = None,      
       rng: int = 0
       ) -> BarycenterState:    
     bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
-    out = bar_fn(self, bar_size, bar_prob, x_init, debiased, rng) 
+    out = bar_fn(self, bar_size, bar_prob, x_init, rng) 
     iteration = jnp.sum(out.costs != 0)
     convergence = jnp.logical_not(self.not_converged(out, iteration))
     return out
@@ -167,7 +174,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
         p=bar_prob.flattened_b)
       x = bar_prob.flattened_y[indices_subset,:]
     
-    # Only handle uniform weights for barycenter for now.
+    # TODO(cuturi) expand to non-uniform weights for barycenter.
     a = jnp.ones((bar_size,))/ bar_size
     num_iter = self.max_iterations
     if self.store_inner_errors:
@@ -182,22 +189,19 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
   def output_from_state(self, state):    
     return state
 
-
 def iterations(solver: WassersteinBarycenter,
-               bar_size, bar_prob, x_init, debiased, rng
-               ) -> WassersteinBarycenter:
-  """A jittable Wasserstein barycenter outer loop."""
-
+               bar_size, bar_prob, x_init, rng) -> WassersteinBarycenter:
+  """A jittable Wasserstein barycenter outer loop."""  
   def cond_fn(iteration, constants, state):
-    solver, _, _ = constants
+    solver, _ = constants
     return solver.not_converged(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True
-    solver, debiased, bar_prob = constants    
+    solver, bar_prob = constants    
     return state.update(
         iteration,
-        bar_prob, 
+        bar_prob,
         solver.linear_ot_solver,
         solver.store_inner_errors)
 
@@ -207,7 +211,7 @@ def iterations(solver: WassersteinBarycenter,
       min_iterations=solver.min_iterations,
       max_iterations=solver.max_iterations,
       inner_iterations=1,
-      constants=(solver, debiased, bar_prob),
+      constants=(solver, bar_prob),
       state=solver.init_state(bar_prob, bar_size, x_init, rng))
-
+  
   return solver.output_from_state(state)

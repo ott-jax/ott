@@ -49,7 +49,7 @@ class WassersteinSolver:
         if epsilon is None:
           # Use default entropic regularization in LRSinkhorn if None was passed
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-            rank=self.rank, **kwargs)
+            rank=self.rank, jit=False, **kwargs)
         else:
           # If epsilon is passed, use it to replace the default LRSinkhorn value
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(

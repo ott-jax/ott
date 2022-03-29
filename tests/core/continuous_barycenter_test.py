@@ -23,23 +23,26 @@ from ott.geometry import pointcloud
 from ott.core import bar_problems
 from ott.core import continuous_barycenter
 
-
+# from jax.config import config
+# config.update('jax_disable_jit', True)
 class Barycenter(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
-    self._dim = 2
+    self._dim = 4
     self._num_points = 113
     self.rng, *rngs = jax.random.split(self.rng, 3)
     b = jax.random.uniform(rngs[1], (self._num_points,))
     self._b = b / jnp.sum(b)
   
   @parameterized.product(
-      rank=[-1, 13],
-      epsilon=[1e-2])
-  def test_euclidean_barycenter(self, rank, epsilon):
-    print('Rank: ', rank, 'Epsilon: ', epsilon)
+      rank=[-1, 6],
+      epsilon=[1e-1, 1e-2],
+      debiased=[True, False],
+      jit=[True, False])
+  def test_euclidean_barycenter(self, rank, epsilon, debiased, jit):
+    print('Rank: ', rank, 'Epsilon: ', epsilon, 'Debiased', debiased)
     rngs = jax.random.split(self.rng, 2)    
     y1 = jax.random.uniform(rngs[0], (self._num_points, self._dim))
     y2 = jax.random.uniform(rngs[1], (self._num_points, self._dim)) + 2
@@ -47,23 +50,24 @@ class Barycenter(parameterized.TestCase):
     bar_prob = bar_problems.BarycenterProblem(
       y, num_per_segment=jnp.array([32, 29, 23, 29, 25, 29, 27, 22]),
       num_segments=8,
-      max_measure_size=40)
+      max_measure_size=40,
+      debiased=debiased)
     threshold = 1e-3
-    kwargs = {'gamma' : 1, 'jit': False} if rank > 0 else {}
+    kwargs = {'gamma' : 1} if rank > 0 else {}
     solver = continuous_barycenter.WassersteinBarycenter(
       epsilon=epsilon,
       rank=rank,
-      threshold = threshold,
+      threshold = threshold, jit=jit,
       **kwargs)
     out = solver(bar_prob, bar_size=31)
     costs = out.costs
-    print('COSTS', costs)
     costs = costs[costs > -1]
-    print('COSTS', costs)
+    # Check convergence
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
-    self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
-    self.assertTrue(jnp.all(out.x.ravel()<2))
-    self.assertTrue(jnp.all(out.x.ravel()>1))
+    # Check barycenter has points roughly in [1,2]^4.
+    # (Note sampled points where either in [0,1]^4 or [2,3]^4)
+    self.assertTrue(jnp.all(out.x.ravel()<2.1))
+    self.assertTrue(jnp.all(out.x.ravel()>.9))
 
 if __name__ == '__main__':
   absltest.main()
