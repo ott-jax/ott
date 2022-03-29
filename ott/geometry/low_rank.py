@@ -18,7 +18,6 @@
 from typing import Union, Optional
 import jax
 import jax.numpy as jnp
-import numpy as np
 from ott.geometry import geometry
 
 
