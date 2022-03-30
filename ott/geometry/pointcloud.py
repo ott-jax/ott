@@ -468,6 +468,11 @@ class PointCloud(geometry.Geometry):
       raise ValueError(
           f'Scaling method {summary} does not exist for online mode.')
 
+  def barycenter(self, weights):
+    """Compute barycenter of points in self.x using weights, valid for p=2.0 """
+    assert self.power == 2.0
+    return self.cost_fn.barycenter(self.x, weights)
+
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
     """Instantiates the geometries used for a divergence computation."""

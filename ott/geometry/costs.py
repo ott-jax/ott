@@ -41,6 +41,9 @@ class CostFn(abc.ABC):
   def pairwise(self, x, y):
     pass
 
+  def barycenter(self, weights, xs):
+    pass
+
   def __call__(self, x, y):
     return self.pairwise(x, y) + (
         0 if self.norm is None else self.norm(x) + self.norm(y))  # pylint: disable=not-callable
@@ -85,6 +88,10 @@ class Euclidean(CostFn):
 
   def pairwise(self, x, y):
     return -2 * jnp.vdot(x, y)
+  
+  def barycenter(self, weights, xs):
+    return jnp.average(xs, weights=weights, axis=0)
+
 
 
 @jax.tree_util.register_pytree_node_class

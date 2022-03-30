@@ -303,8 +303,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
-    a, b = ot_prob.a, ot_prob.b
-
+    loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
+    
     h_old = h
     g1_old, g2_old = jnp.zeros(r), jnp.zeros(r)
     f1, f2 = jnp.zeros(n), jnp.zeros(m)
@@ -313,7 +313,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     w_q, w_r = jnp.zeros(r), jnp.zeros(r)
     err = jnp.inf
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-    constants = c_q, c_r, a, b
+    constants = c_q, c_r, loga, logb
 
     def cond_fn(iteration, constants, state_inner):
       del iteration, constants
@@ -326,11 +326,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     def body_fn(iteration, constants, state_inner, compute_error):
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
-      c_q, c_r, a, b = constants
+      c_q, c_r, loga, logb = constants
 
       # First Projection
-      f1 = (jnp.log(a) - _softm(f1, g1_old, c_q, 1)) / self.gamma + f1
-      f2 = (jnp.log(b) - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2
+      f1 = jnp.where(
+        jnp.isfinite(loga),
+        (loga - _softm(f1, g1_old, c_q, 1)) / self.gamma + f1, loga)
+      f2 = jnp.where(
+        jnp.isfinite(logb),
+        (logb - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2, logb)
 
       h = h_old + w_gi
       h = jnp.maximum(jnp.log(min_entry_value) / self.gamma, h)
