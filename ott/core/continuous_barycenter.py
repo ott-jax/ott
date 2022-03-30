@@ -110,8 +110,7 @@ class BarycenterState(NamedTuple):
     if bar_prob.debiased:
       # Check max size (used to pad) is bigger than barycenter size
       n, dim = self.x.shape
-      max_size = bar_prob.max_measure_size
-      assert max_size > n
+      max_size = bar_prob.max_measure_size      
       segmented_y = segmented_y.at[-1,:n,:].set(self.x)
       segmented_b = segmented_b.at[-1,:n].set(self.a)
 

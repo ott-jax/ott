@@ -23,8 +23,6 @@ from ott.geometry import pointcloud
 from ott.core import bar_problems
 from ott.core import continuous_barycenter
 
-# from jax.config import config
-# config.update('jax_disable_jit', True)
 class Barycenter(parameterized.TestCase):
 
   def setUp(self):
@@ -32,42 +30,71 @@ class Barycenter(parameterized.TestCase):
     self.rng = jax.random.PRNGKey(0)
     self._dim = 4
     self._num_points = 113
-    self.rng, *rngs = jax.random.split(self.rng, 3)
-    b = jax.random.uniform(rngs[1], (self._num_points,))
-    self._b = b / jnp.sum(b)
-  
+    
   @parameterized.product(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
       debiased=[True, False],
-      jit=[True, False])
-  def test_euclidean_barycenter(self, rank, epsilon, debiased, jit):
+      jit=[True, False],
+      init_random=[True, False])
+  def test_euclidean_barycenter(self, rank, epsilon, debiased, jit, init_random):
     print('Rank: ', rank, 'Epsilon: ', epsilon, 'Debiased', debiased)
-    rngs = jax.random.split(self.rng, 2)    
+    rngs = jax.random.split(self.rng, 20)
+    # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
+    # Second around [2,3]^4.
     y1 = jax.random.uniform(rngs[0], (self._num_points, self._dim))
     y2 = jax.random.uniform(rngs[1], (self._num_points, self._dim)) + 2
+    # Merge them
     y = jnp.concatenate((y1, y2))
+    
+    # Define segments
+    num_per_segment = jnp.array([33, 29, 24, 27, 27, 31, 30, 25])
+    # Set weights for each segment that sum to 1.
+    b = []
+    for i in range(num_per_segment.shape[0]):
+      c = jax.random.uniform(rngs[i], (num_per_segment[i],))
+      b.append(c / jnp.sum(c))
+    b = jnp.concatenate(b, axis=0)
+    print(b.shape)
+    # Set a barycenter problem with 8 measures, of irregular sizes.
+
     bar_prob = bar_problems.BarycenterProblem(
-      y, num_per_segment=jnp.array([32, 29, 23, 29, 25, 29, 27, 22]),
-      num_segments=8,
-      max_measure_size=40,
+      y, b, 
+      num_per_segment=num_per_segment,
+      num_segments=num_per_segment.shape[0],
+      max_measure_size=jnp.max(num_per_segment)+3, # +3 set with no purpose.
       debiased=debiased)
+    
+    # Define solver
     threshold = 1e-3
-    kwargs = {'gamma' : 1} if rank > 0 else {}
     solver = continuous_barycenter.WassersteinBarycenter(
       epsilon=epsilon,
       rank=rank,
-      threshold = threshold, jit=jit,
-      **kwargs)
-    out = solver(bar_prob, bar_size=31)
+      threshold = threshold, jit=jit)
+    
+    # Run it, requesting a barycenter of size 31, with or without initializing
+    # to 0s (when init_zero is False, initialization is taken randomly in
+    # points constituting the y's).
+    bar_size=31
+    if init_random:
+      # choose points randomly in entire support.
+      x_init= 3 * jax.random.uniform(rngs[-1], (bar_size, self._dim))
+      out = solver(
+        bar_prob, bar_size=bar_size, x_init=x_init)
+    else:      
+      out = solver(bar_prob, bar_size=bar_size)
+    
     costs = out.costs
     costs = costs[costs > -1]
-    # Check convergence
+    # Check shape
+    self.assertTrue(out.x.shape==(bar_size,self._dim))
+    # Check converged
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
+    
     # Check barycenter has points roughly in [1,2]^4.
     # (Note sampled points where either in [0,1]^4 or [2,3]^4)
-    self.assertTrue(jnp.all(out.x.ravel()<2.1))
-    self.assertTrue(jnp.all(out.x.ravel()>.9))
+    self.assertTrue(jnp.all(out.x.ravel()<2.3))
+    self.assertTrue(jnp.all(out.x.ravel()>.7))
 
 if __name__ == '__main__':
   absltest.main()

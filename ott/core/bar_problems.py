@@ -49,7 +49,10 @@ class BarycenterProblem:
       epsilon: epsilon regularization used to solve reg-OT problems.
       debiased: whether the problem is debiased, in the sense that
         the regularized transportation cost of barycenter to itself will
-        be considered when computing gradient.
+        be considered when computing gradient. Note that if the debiased option
+        is used, the barycenter size (used in call function) needs to be smaller
+        than the max_measure_size parameter below, for parallelization to
+        operate efficiently.
       segment_ids: describe for each point to which measure it belongs.
       num_segments: total number of measures
       indices_are_sorted: flag indicating indices in segment_ids are sorted.
@@ -162,6 +165,5 @@ class BarycenterProblem:
       assert jnp.isclose(jnp.sum(self.weights), 1.0)
       weights = self.weights
     if self.debiased:
-      weights = jnp.concatenate((weights, jnp.array([-0.5])))
-    print('WEIGHTS', weights)
+      weights = jnp.concatenate((weights, jnp.array([-0.5])))    
     return weights
