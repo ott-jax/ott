@@ -7,7 +7,6 @@ from typing import Any, Dict, Mapping, Optional, Type
 import jax
 from jax import numpy as jnp
 
-functools.partial(jax.jit, static_argnums=[3,4,6])
 def segment_point_cloud(
   x: jnp.ndarray,
   a: Optional[jnp.ndarray] = None,
