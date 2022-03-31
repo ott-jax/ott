@@ -464,7 +464,7 @@ class Sinkhorn:
     err = state.errors[iteration // self.inner_iterations - 1, 0]
     return jnp.logical_or(
         iteration == 0,
-        jnp.logical_and(jnp.isfinite(err), err > self.threshold))
+        jnp.logical_or(jnp.logical_not(jnp.isfinite(err)), err > self.threshold))
 
   @property
   def outer_iterations(self):
