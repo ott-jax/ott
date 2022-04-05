@@ -78,7 +78,7 @@ class Barycenter(parameterized.TestCase):
     # initialization consists in selecting randomly points in the y's.
     bar_size = 31
     if init_random:
-      # choose points randomly in entire support.
+      # choose points randomly in area relevant to the problem.
       x_init= 3 * jax.random.uniform(rngs[-1], (bar_size, self._dim))
       out = solver(
         bar_prob, bar_size=bar_size, x_init=x_init)
