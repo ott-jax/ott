@@ -72,10 +72,11 @@ class Barycenter(parameterized.TestCase):
       rank=rank,
       threshold = threshold, jit=jit)
     
-    # Run it, requesting a barycenter of size 31, with or without initializing
-    # to 0s (when init_zero is False, initialization is taken randomly in
-    # points constituting the y's).
-    bar_size=31
+    # Run it, requesting a barycenter of size 31. 
+    # We consider either a random initialization, with points chosen
+    # in [0,1]^4, or the default (init_random is False) where the 
+    # initialization consists in selecting randomly points in the y's.
+    bar_size = 31
     if init_random:
       # choose points randomly in entire support.
       x_init= 3 * jax.random.uniform(rngs[-1], (bar_size, self._dim))
