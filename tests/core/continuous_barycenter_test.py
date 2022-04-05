@@ -63,12 +63,12 @@ class Barycenter(parameterized.TestCase):
       num_per_segment=num_per_segment,
       num_segments=num_per_segment.shape[0],
       max_measure_size=jnp.max(num_per_segment)+3, # +3 set with no purpose.
-      debiased=debiased)
+      debiased=debiased,
+      epsilon=epsilon)
     
     # Define solver
     threshold = 1e-3
     solver = continuous_barycenter.WassersteinBarycenter(
-      epsilon=epsilon,
       rank=rank,
       threshold = threshold, jit=jit)
     
