@@ -70,8 +70,8 @@ def sinkhorn_divergence(
 
   geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
   if share_epsilon:
-    for geom in filter(None, geometries[1:(2 if static_b else 3)]):
-      geom.copy_epsilon(geometries[0])
+    geometries = (geometries[0],) + tuple(geom.copy_epsilon(geometries[0]) for geom in filter(None, geometries[1:(2 if static_b else 3)]))
+      
 
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b

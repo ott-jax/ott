@@ -96,8 +96,9 @@ class Geometry:
 
     rel = self._relative_epsilon
     trigger = ((self._scale_epsilon is None) and
-               (rel or rel is None) and
+               (rel is None) and
                (self._epsilon_init is None or rel))
+
     if (self._scale_epsilon is None) and (trigger is not None):  # for dry run
       return jnp.where(
           trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
@@ -191,6 +192,7 @@ class Geometry:
     self._epsilon_init = scheduler._target_init
     self._relative_epsilon = False
     self._scale_epsilon = other.scale_epsilon
+    return self
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
