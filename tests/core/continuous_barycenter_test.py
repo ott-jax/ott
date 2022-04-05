@@ -72,11 +72,12 @@ class Barycenter(parameterized.TestCase):
       rank=rank,
       threshold = threshold, jit=jit)
     
-    # Run it, requesting a barycenter of size 31. 
+    # Set barycenter size to 31. 
+    bar_size = 31
+
     # We consider either a random initialization, with points chosen
     # in [0,1]^4, or the default (init_random is False) where the 
-    # initialization consists in selecting randomly points in the y's.
-    bar_size = 31
+    # initialization consists in selecting randomly points in the y's.    
     if init_random:
       # choose points randomly in area relevant to the problem.
       x_init= 3 * jax.random.uniform(rngs[-1], (bar_size, self._dim))
@@ -84,16 +85,18 @@ class Barycenter(parameterized.TestCase):
         bar_prob, bar_size=bar_size, x_init=x_init)
     else:      
       out = solver(bar_prob, bar_size=bar_size)
-    
+
+    # Check shape is as expected
+    self.assertTrue(out.x.shape==(bar_size,self._dim))
+
+    # Check convergence by looking at cost evolution.
     costs = out.costs
     costs = costs[costs > -1]
-    # Check shape
-    self.assertTrue(out.x.shape==(bar_size,self._dim))
-    # Check converged
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
     
-    # Check barycenter has points roughly in [1,2]^4.
-    # (Note sampled points where either in [0,1]^4 or [2,3]^4)
+    # Check barycenter has all points roughly in [1,2]^4.
+    # (this is because sampled points where equally set in either [0,1]^4
+    # or [2,3]^4)
     self.assertTrue(jnp.all(out.x.ravel()<2.3))
     self.assertTrue(jnp.all(out.x.ravel()>.7))
 
