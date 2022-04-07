@@ -109,7 +109,7 @@ class ScaleCostTest(parameterized.TestCase):
     geom0 = pointcloud.PointCloud(
         self.x, self.y, epsilon=self.eps, scale_cost=scale, online=4)
     geom1 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=None)
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=False)
     geom2 = pointcloud.PointCloud(
         self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True)
     np.testing.assert_allclose(geom0.scale_cost, geom1.scale_cost, rtol=1e-4)
