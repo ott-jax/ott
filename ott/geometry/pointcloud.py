@@ -139,7 +139,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    return self._online > 0
+    return self._online is not None and self._online # for backward compatibility
 
   @property
   def scale_cost(self):
