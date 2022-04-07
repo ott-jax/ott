@@ -56,7 +56,6 @@ extensions = [
     'nbsphinx',
     'sphinx_autodoc_typehints',
     'recommonmark',
-    'sphinx_press_theme',
 ]
 
 source_suffix = ['.rst', '.md']
