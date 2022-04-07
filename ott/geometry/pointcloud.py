@@ -36,7 +36,7 @@ class PointCloud(geometry.Geometry):
                y: Optional[jnp.ndarray] = None,
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
-               online: Optional[Union[bool, int]] = None,
+               online: Union[bool, int] = False,
                scale_cost: Optional[Union[float, str]] = None,
                **kwargs):
     """Creates a geometry from two point clouds, using CostFn.
@@ -139,7 +139,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    return self._online is not None
+    return self._online > 0
 
   @property
   def scale_cost(self):
