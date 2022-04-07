@@ -83,7 +83,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-html_theme = 'press'
+html_theme = 'sphinx_book_theme'
 html_logo = 'logoOTT.png'
 html_favicon = 'logoOTT.ico'
 
