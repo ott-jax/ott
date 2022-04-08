@@ -56,7 +56,6 @@ extensions = [
     'nbsphinx',
     'sphinx_autodoc_typehints',
     'recommonmark',
-    'sphinx_rtd_theme',
 ]
 
 source_suffix = ['.rst', '.md']
@@ -83,7 +82,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_book_theme'
 html_logo = 'logoOTT.png'
 html_favicon = 'logoOTT.ico'
 
