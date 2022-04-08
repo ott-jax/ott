@@ -1,7 +1,7 @@
 ![Tests](https://github.com/ott-jax/ott/actions/workflows/tests.yml/badge.svg)
 
 <div align="center">
-<img src="https://github.com/ott-jax/ott/blob/master/docs/logoOTT.png" alt="logo"  width="150"></img>
+<img src="https://github.com/ott-jax/ott/blob/main/docs/logoOTT.png" alt="logo"  width="150"></img>
 </div>
 
 # Optimal Transport Tools (OTT), A toolbox for all things Wasserstein.
