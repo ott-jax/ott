@@ -1,16 +1,19 @@
-![Tests](https://github.com/ott-jax/ott/actions/workflows/tests.yml/badge.svg)
-
 <div align="center">
-<img src="https://github.com/ott-jax/ott/blob/main/docs/logoOTT.png" alt="logo"  width="150"></img>
+<img src="https://github.com/ott-jax/ott/blob/main/docs/logoOTT.png" alt="logo"  width="100"></img>
 </div>
 
-# Optimal Transport Tools (OTT), A toolbox for all things Wasserstein.
+# Optimal Transport Tools (OTT).
 
-**See [full documentation](https://ott-jax.readthedocs.io/en/latest/) for detailed info on the toolbox.**
-=======
-The goal of OTT is to provide sturdy, versatile and efficient optimal transport solvers, taking advantage of JAX features, such as [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html).
+![Tests](https://github.com/ott-jax/ott/actions/workflows/tests.yml/badge.svg)
 
-A typical OT problem has two ingredients: a pair of weight vectors `a` and `b` (one for each measure), with a ground cost matrix that is either directly given, or derived as the pairwise evaluation of a cost function on pairs of points taken from two measures. The main design choice in OTT comes from encapsulating the cost in a `Geometry` object, and bundle it with a few useful operations (notably kernel applications). The most common geometry is that of two clouds of vectors compared with the squared Euclidean distance, as illustrated in the example below:
+**See [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
+
+## What is OTT-JAX?
+Optimal transport theory can be described as a field that studies matching problems: given two sets of seemingly associated things, how to find (given some prior information, typically a cost function) a way to associate bijectively every point in the point with another in the second. A typical matching problem is, for instance, that of associating to a bunch of numbers their relative ranks. Optimal transport theory generalizes this intutitive idea in various ways.
+
+OTT-JAX is a toolbox providing sturdy, scalable and efficient optimal transport solvers, taking advantage of JAX features, such as [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html).
+
+The typical ingredient in OT problem consists in two probability measures (an efficient way to encode weighted sets of points), and a cost function comparing points. The main design choice in OTT comes from the idea of encapsulating these two in a `Geometry` object (to be selected among a few of them that are pre-implemented, the most common being that comparing two points-clouds of vectors, with a cost that is the squared Euclidean distance, as illustrated in the example below:
 
 ## Example
 
