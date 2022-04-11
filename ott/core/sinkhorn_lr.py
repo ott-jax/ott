@@ -251,7 +251,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       if init_r is None:
         init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
         init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
-    if self.init_type == 'rank_2':
+    elif self.init_type == 'rank_2':
       if init_g is None:
         init_g = jnp.ones((self.rank,)) / self.rank
         lambda_1 = min(jnp.min(a), jnp.min(init_g), jnp.min(b)) / 2
@@ -270,6 +270,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       if init_r is None:
         init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
         init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
+    else:
+      raise NotImplementedError
     run_fn = run if not self.jit else jax.jit(run)
     return run_fn(ot_prob, self, (init_q, init_r, init_g))
 
