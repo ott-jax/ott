@@ -92,3 +92,15 @@ Currently implements the following classes and functions:
     -   The `Transport` class in [sinkhorn_divergence.py](ott/tools/transport.py), provides a simple wrapper to the `sinkhorn` function defined above when the user is primarily interested in computing and storing an OT matrix.
 
     -   The [gaussian_mixture](ott/tools/gaussian_mixture) folder provides novel tools to compare and estimate GMMs with an OT perspective.
+
+## Citation
+
+If you have found this work useful, please consider citing us:
+
+@article{cuturi2022optimal,
+  title={Optimal Transport Tools (OTT): A JAX Toolbox for all things Wasserstein},
+  author={Cuturi, Marco and Meng-Papaxanthos, Laetitia and Tian, Yingtao and Bunne, Charlotte and Davis, Geoff and Teboul, Olivier},
+  journal={arXiv preprint arXiv:2201.12324},
+  year={2022}
+}
+
