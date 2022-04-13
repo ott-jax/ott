@@ -15,7 +15,7 @@ These problems are easy to describe yet quite hard to solve. For instance, match
 
 OTT-JAX is a toolbox providing sturdy, scalable and efficient solvers for those problems. OTT builds upon the [JAX](https://jax.readthedocs.io/en) framework. Some of JAX features include [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html).
 
-The typical ingredient in OT problem consists in two probability measures (an efficient way to encode weighted sets of points), and a cost function comparing points. The main design choice in OTT comes from the idea of encapsulating these two in a `Geometry` object (to be selected among a few of them that are pre-implemented, the most common being that comparing two points-clouds of vectors, with a cost that is the squared Euclidean distance, as illustrated in the example below:
+The typical ingredient in OT problems consists of two discrete measures (an efficient way to encode weighted sets of points), and a cost function comparing points. By default, OTT assumes that the measures are supported on vectors, and that these vectors are compared with a squared Euclidean distance, as given below:
 
 ## Example
 
@@ -36,22 +36,19 @@ ot = transport.solve(x, y, a=a, b=b)
 P = ot.matrix
 ```
 
-The call to `sinkhorn` above works out the optimal transport solution by storing its output. The transport matrix can be instantiated using those optimal solutions and the `Geometry` again. That transoprt matrix links each point from the first point cloud to one or more points from the second, as illustrated below.
+The call to `sinkhorn` above works out the optimal transport solution by storing its output. That transoprt matrix links each point from the first point cloud to one or more points from the second, as illustrated below.
 
 ![obtained coupling](./images/couplings.png)
-
-To be more precise, the `sinkhorn` algorithm operates on the `Geometry`,
-taking into account weights `a` and `b`, to solve the OT problem, produce a named tuple that contains two optimal dual potentials `f` and `g` (vectors of the same size as `a` and `b`), the objective `reg_ot_cost` and a log of the `errors` of the algorithm as it converges, and a `converged` flag.
 
 ## Overall description of source code
 
 Currently implements the following classes and functions:
 
--   In the [geometry](ott/geometry) folder,
+-   The [geometry](ott/geometry) folder describes tools that to encapsulate the essential ingredients of OT problems: measures and cost functions.
 
-    -   The `CostFn` class in [costs.py](ott/geometry/costs.py) and its descendants define cost functions between points. Two simple costs are currently provided, `Euclidean` between vectors, and `Bures`, between a pair of mean vector and covariance (p.d.) matrix.
+    -   The `CostFn` class in [costs.py](ott/geometry/costs.py) and its descendants define cost functions between points. A few simple costs are considered, `Euclidean` between vectors, and `Bures`, between a pair of mean vector and covariance (p.d.) matrix.
 
-    -   The `Geometry` class in [geometry.py](ott/geometry/geometry.py) and its descendants describe a cost structure between two measures. That cost structure is accessed through various member functions, either used when running the Sinkhorn algorithm (typically kernel multiplications, or log-sum-exp row/column-wise application) or after (to apply the OT matrix to a vector).
+    -   The `Geometry` class in [geometry.py](ott/geometry/geometry.py) describes a cost structure between two measures. That cost structure is accessed through various member functions, either used when running the Sinkhorn algorithm (typically kernel multiplications, or log-sum-exp row/column-wise application) or after (to apply the OT matrix to a vector).
 
         -   In its generic `Geometry` implementation, as in [geometry.py](ott/geometry/geometry.py), an object can be initialized with either a `cost_matrix` along with an `epsilon` regularization parameter (or scheduler), or with a `kernel_matrix`.
 
