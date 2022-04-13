@@ -178,7 +178,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     num_iter = self.max_iterations
     if self.store_inner_errors:
       errors = -jnp.ones(
-        (self.num_iter, bar_prob.num_segments,
+        (num_iter, bar_prob.num_segments,
         self.linear_ot_solver.outer_iterations))
     else:
       errors = None
@@ -189,7 +189,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     return state
 
 def iterations(solver: WassersteinBarycenter,
-               bar_size, bar_prob, x_init, rng) -> WassersteinBarycenter:
+               bar_size, bar_prob, x_init, rng) -> BarycenterState:
   """A jittable Wasserstein barycenter outer loop."""  
   def cond_fn(iteration, constants, state):
     solver, _ = constants

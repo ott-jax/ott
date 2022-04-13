@@ -120,7 +120,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self):
-    # in the process of flattening/unflattening in vmap, `__init__` can be called with dummy objects
+    # in the process of flattening/unflattening in vmap, `__init__`
+    # can be called with dummy objects
     # we optionally access `shape` in order to get the batch size
     try:
       return (self.x.shape[0] if self.x is not None else 0,
@@ -138,7 +139,7 @@ class PointCloud(geometry.Geometry):
     return isinstance(self._cost_fn, costs.Euclidean) and self.power == 2.0
 
   @property
-  def is_online(self) -> bool:
+  def is_online(self) -> Union[bool, int]:
     return self._online is not None and self._online # for backward compatibility
 
   @property
@@ -471,7 +472,7 @@ class PointCloud(geometry.Geometry):
   def barycenter(self, weights):
     """Compute barycenter of points in self.x using weights, valid for p=2.0 """
     assert self.power == 2.0
-    return self.cost_fn.barycenter(self.x, weights)
+    return self._cost_fn.barycenter(self.x, weights)
 
   @classmethod
   def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
