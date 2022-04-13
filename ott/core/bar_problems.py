@@ -129,9 +129,9 @@ class BarycenterProblem:
       return self._y.shape[1]
     else:
       if self._num_per_segment is None:
-        if num_segments is None:
+        if self._num_segments is None:
           num_segments = jnp.max(self._segment_ids) + 1
-        if indices_are_sorted is None:
+        if self._indices_are_sorted is None:
           indices_are_sorted = False
         num_per_segment = jax.ops.segment_sum(
           jnp.ones_like(self._segment_ids), self._segment_ids,
