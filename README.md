@@ -97,10 +97,12 @@ Currently implements the following classes and functions:
 
 If you have found this work useful, please consider citing us:
 
+```
 @article{cuturi2022optimal,
   title={Optimal Transport Tools (OTT): A JAX Toolbox for all things Wasserstein},
   author={Cuturi, Marco and Meng-Papaxanthos, Laetitia and Tian, Yingtao and Bunne, Charlotte and Davis, Geoff and Teboul, Olivier},
   journal={arXiv preprint arXiv:2201.12324},
   year={2022}
 }
+```
 
