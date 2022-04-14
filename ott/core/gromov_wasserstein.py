@@ -162,8 +162,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
           self.epsilon,
           jax.lax.stop_gradient(out.old_transport_mass))
     linear_state = out.linear_state.set_cost(linearization, True, True)
-    iteration = jnp.sum(out.costs != 0)
-    convergence = jnp.logical_not(self.not_converged(out, iteration))
+    iteration = jnp.sum(out.costs != -1)
+    convergence = self.converged(out, iteration)
     return out.set(linear_state=linear_state,
                    convergence=convergence)
 

@@ -92,9 +92,16 @@ class WassersteinSolver:
         **aux_data)
 
   def not_converged(self, state, iteration):
+    """ logic: break loop if costs converged or are infinite"""
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_or(
         i <= 2,
-        jnp.logical_or(
-            jnp.logical_not(jnp.isfinite(costs[i - 1])),
+        jnp.logical_and(
+            jnp.isfinite(costs[i - 1]),
             jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
+
+  def converged(self, state, iteration):
+    costs, i, tol = state.costs, iteration, self.threshold
+    if jnp.logical_not(jnp.isfinite(costs[i - 1])):
+        return False
+    return jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
