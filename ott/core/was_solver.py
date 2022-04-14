@@ -102,6 +102,6 @@ class WassersteinSolver:
 
   def converged(self, state, iteration):
     costs, i, tol = state.costs, iteration, self.threshold
-    if jnp.logical_not(jnp.isfinite(costs[i - 1])):
-        return False
-    return jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
+    return jnp.logical_and(
+            jnp.isfinite(costs[i - 1]),
+            jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))
