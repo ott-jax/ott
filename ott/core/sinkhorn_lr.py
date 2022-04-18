@@ -279,7 +279,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def norm_error(self):
     return (self._norm_error,)
 
-  def not_converged(self, state, iteration):
+  def _continue(self, state, iteration):
     """ logic: break loop if costs converged or are infinite"""
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_or(

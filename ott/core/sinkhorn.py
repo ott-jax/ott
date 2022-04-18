@@ -460,7 +460,7 @@ class Sinkhorn:
         state.errors.at[iteration // self.inner_iterations, :].set(err))
     return state.set(errors=errors)
 
-  def not_converged(self, state, iteration):
+  def _continue(self, state, iteration):
     """ logic: break loop if costs converged or are infinite"""
     err = state.errors[iteration // self.inner_iterations - 1, 0]
     return jnp.logical_or(
@@ -531,7 +531,7 @@ def iterations(ot_prob, solver, init):
 
   def cond_fn(iteration, const, state):
     _, solver = const
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, const, state, compute_error):
     ot_prob, solver = const

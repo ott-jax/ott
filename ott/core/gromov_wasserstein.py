@@ -25,7 +25,6 @@ from ott.core import problems
 from ott.core import quad_problems
 from ott.core import sinkhorn
 from ott.core import sinkhorn_lr
-from ott.core import was_solver
 
 from ott.core.was_solver import WassersteinSolver
 from ott.geometry import epsilon_scheduler
@@ -121,7 +120,7 @@ class GWState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWasserstein(was_solver.WassersteinSolver):
+class GromovWasserstein(WassersteinSolver):
   """A Gromov Wasserstein solver, built on generic template."""
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
@@ -163,7 +162,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
           jax.lax.stop_gradient(out.old_transport_mass))
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
-    convergence = self.converged(out, iteration)
+    # note(zoe.piran): slicing `linear_convergence[:iteration]` can be removed as `-1` also evaluates to true.
+    convergence = jnp.all(out.linear_convergence[:iteration])
     return out.set(linear_state=linear_state,
                    convergence=convergence)
 
@@ -210,7 +210,7 @@ def iterations(solver: GromovWasserstein,
 
   def cond_fn(iteration, constants, state):
     solver = constants
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True for outer loop of GW.
