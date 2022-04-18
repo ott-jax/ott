@@ -96,14 +96,14 @@ class PointCloud(geometry.Geometry):
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.x)
     elif self._axis_norm is None:
-      return 0
+      return jnp.zeros(self.x.shape[0])
 
   @property
   def _norm_y(self):
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.y)
     elif self._axis_norm is None:
-      return 0
+      return jnp.zeros(self.y.shape[0])
 
   @property
   def cost_matrix(self):
