@@ -96,14 +96,14 @@ class PointCloud(geometry.Geometry):
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.x)
     elif self._axis_norm is None:
-      return 0
+      return jnp.zeros(self.x.shape[0])
 
   @property
   def _norm_y(self):
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.y)
     elif self._axis_norm is None:
-      return 0
+      return jnp.zeros(self.y.shape[0])
 
   @property
   def cost_matrix(self):
@@ -322,7 +322,7 @@ class PointCloud(geometry.Geometry):
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
     if fn is None:
-      return self.vec_apply_cost(arr, axis, fn=fn)
+      return self._apply_cost(arr, axis, fn=fn)
     # Switch to efficient computation for the squared euclidean case.
     return jnp.where(jnp.logical_and(self.is_squared_euclidean,
                                      geometry.is_affine(fn)),
