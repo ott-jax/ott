@@ -322,7 +322,7 @@ class PointCloud(geometry.Geometry):
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
     if fn is None:
-      return self.vec_apply_cost(arr, axis, fn=fn)
+      return self._apply_cost(arr, axis, fn=fn)
     # Switch to efficient computation for the squared euclidean case.
     return jnp.where(jnp.logical_and(self.is_squared_euclidean,
                                      geometry.is_affine(fn)),
