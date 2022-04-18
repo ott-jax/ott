@@ -1,5 +1,4 @@
 # coding=utf-8
-# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +13,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for apply_cost and apply_kernel."""
+"""Tests for general geometry."""
 
 from absl.testing import absltest
 import jax
@@ -22,7 +21,7 @@ import jax.numpy as jnp
 import numpy as np
 from ott.geometry import geometry
 from ott.geometry import pointcloud
-from ott.geometry.costs import Cosine
+from ott.geometry import costs
 
 class ApplyTest(absltest.TestCase):
 
@@ -39,7 +38,7 @@ class ApplyTest(absltest.TestCase):
     vec0 = jax.random.normal(keys[2], (n, b))
     vec1 = jax.random.normal(keys[3], (m, b))
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=Cosine(), online=False)
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), online=False)
     cost = geom.cost_matrix
     prod0 = geom.apply_cost(vec0, axis=0)
     prod1 = geom.apply_cost(vec1, axis=1)
