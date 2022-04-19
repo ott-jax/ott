@@ -25,9 +25,8 @@ from ott.core import problems
 from ott.core import quad_problems
 from ott.core import sinkhorn
 from ott.core import sinkhorn_lr
-from ott.core import was_solver
 
-from ott.core.was_solver import WassersteinSolver
+from ott.core import was_solver
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import low_rank
@@ -162,8 +161,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
           self.epsilon,
           jax.lax.stop_gradient(out.old_transport_mass))
     linear_state = out.linear_state.set_cost(linearization, True, True)
-    iteration = jnp.sum(out.costs != 0)
-    convergence = jnp.logical_not(self.not_converged(out, iteration))
+    iteration = jnp.sum(out.costs != -1)
+    convergence = jnp.logical_and(iteration < self.max_iterations,
+                                  jnp.all(out.linear_convergence))
     return out.set(linear_state=linear_state,
                    convergence=convergence)
 
@@ -210,7 +210,7 @@ def iterations(solver: GromovWasserstein,
 
   def cond_fn(iteration, constants, state):
     solver = constants
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True for outer loop of GW.
