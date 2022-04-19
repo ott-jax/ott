@@ -26,7 +26,7 @@ from ott.core import quad_problems
 from ott.core import sinkhorn
 from ott.core import sinkhorn_lr
 
-from ott.core.was_solver import WassersteinSolver
+from ott.core import was_solver
 from ott.geometry import epsilon_scheduler
 from ott.geometry import geometry
 from ott.geometry import low_rank
@@ -120,7 +120,7 @@ class GWState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWasserstein(WassersteinSolver):
+class GromovWasserstein(was_solver.WassersteinSolver):
   """A Gromov Wasserstein solver, built on generic template."""
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
