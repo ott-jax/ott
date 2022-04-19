@@ -163,7 +163,8 @@ class GromovWasserstein(WassersteinSolver):
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
     # note(zoe.piran): slicing `linear_convergence[:iteration]` can be removed as `-1` also evaluates to true.
-    convergence = jnp.all(out.linear_convergence[:iteration])
+    convergence = jnp.logical_and(iteration < self.max_iterations,
+                                  jnp.all(out.linear_convergence[:iteration]))
     return out.set(linear_state=linear_state,
                    convergence=convergence)
 
