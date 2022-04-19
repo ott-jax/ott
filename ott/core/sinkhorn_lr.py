@@ -279,14 +279,25 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def norm_error(self):
     return (self._norm_error,)
 
-  def not_converged(self, state, iteration):
+  def _converged(self, state, iteration):
+    costs, i, tol = state.costs, iteration, self.threshold
+    return jnp.logical_and(
+        i >= 2,
+        jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))
+
+  def _diverged(self, state, iteration):
     """ continue while not_converged (where infinity implies `convergence` here)"""
+    costs, i, tol = state.costs, iteration, self.threshold
+    return jnp.logical_not(jnp.isfinite(costs[i - 1]))
+
+  def _continue(self, state, iteration):
+    """ continue while not(converged) and not(diverged)"""
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_or(
         i <= 2,
         jnp.logical_and(
-            jnp.isfinite(costs[i - 1]),
-            jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
+            jnp.logical_not(self._diverged(state, iteration)),
+            jnp.logical_not(self._converged(state, iteration))))
 
   def lr_costs(self, ot_prob, state, iteration):
     c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]

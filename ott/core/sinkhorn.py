@@ -460,12 +460,20 @@ class Sinkhorn:
         state.errors.at[iteration // self.inner_iterations, :].set(err))
     return state.set(errors=errors)
 
-  def not_converged(self, state, iteration):
-    """ continue while not_converged (where infinity implies `convergence` here)"""
+  def _converged(self, state, iteration):
     err = state.errors[iteration // self.inner_iterations - 1, 0]
-    return jnp.logical_or(
-        iteration == 0,
-        jnp.logical_and(jnp.isfinite(err), err > self.threshold))
+    return jnp.logical_and(iteration > 0,
+                           err < self.threshold)
+
+  def _diverged(self, state, iteration):
+    err = state.errors[iteration // self.inner_iterations - 1, 0]
+    return jnp.logical_not(jnp.isfinite(err))
+
+  def _continue(self, state, iteration):
+    """ continue while not(converged) and not(diverged)"""
+    return jnp.logical_and(
+        jnp.logical_not(self._diverged(state, iteration)),
+        jnp.logical_not(self._converged(state, iteration)))
 
   @property
   def outer_iterations(self):
@@ -531,7 +539,7 @@ def iterations(ot_prob, solver, init):
 
   def cond_fn(iteration, const, state):
     _, solver = const
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, const, state, compute_error):
     ot_prob, solver = const

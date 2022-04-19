@@ -210,7 +210,7 @@ def iterations(solver: GromovWasserstein,
 
   def cond_fn(iteration, constants, state):
     solver = constants
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True for outer loop of GW.

@@ -24,10 +24,6 @@ from ott.core import fixed_point_loop
 from ott.core import problems
 from ott.core import bar_problems
 from ott.core import was_solver
-from ott.geometry import epsilon_scheduler
-from ott.geometry import geometry
-from ott.geometry import costs
-from ott.geometry import low_rank
 from ott.geometry import pointcloud
 
 
@@ -191,7 +187,7 @@ def iterations(solver: WassersteinBarycenter,
   """A jittable Wasserstein barycenter outer loop."""  
   def cond_fn(iteration, constants, state):
     solver, _ = constants
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True
