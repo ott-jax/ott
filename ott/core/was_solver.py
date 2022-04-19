@@ -98,7 +98,6 @@ class WassersteinSolver:
         jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))
 
   def _diverged(self, state, iteration):
-    """ continue while not_converged (where infinity implies `convergence` here)"""
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_not(jnp.isfinite(costs[i - 1]))
 
