@@ -162,9 +162,8 @@ class GromovWasserstein(WassersteinSolver):
           jax.lax.stop_gradient(out.old_transport_mass))
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
-    # note(zoe.piran): slicing `linear_convergence[:iteration]` can be removed as `-1` also evaluates to true.
     convergence = jnp.logical_and(iteration < self.max_iterations,
-                                  jnp.all(out.linear_convergence[:iteration]))
+                                  jnp.all(out.linear_convergence))
     return out.set(linear_state=linear_state,
                    convergence=convergence)
 
@@ -211,7 +210,7 @@ def iterations(solver: GromovWasserstein,
 
   def cond_fn(iteration, constants, state):
     solver = constants
-    return solver._continue(state, iteration)
+    return solver.not_converged(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True for outer loop of GW.

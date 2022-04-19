@@ -191,7 +191,7 @@ def iterations(solver: WassersteinBarycenter,
   """A jittable Wasserstein barycenter outer loop."""  
   def cond_fn(iteration, constants, state):
     solver, _ = constants
-    return solver._continue(state, iteration)
+    return solver.not_converged(state, iteration)
 
   def body_fn(iteration, constants, state, compute_error):
     del compute_error  # Always assumed True
