@@ -323,8 +323,9 @@ def gromov_wasserstein(
       i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
       None fused_penalty will be ignored, i.e. fused_penalty = 0
     scale_cost
-      option to rescale the cost matrix. If `False`, retain the original
-      scaling in the geometries.
+      option to rescale the cost matrices. If `True`, use the default for
+      each geometry. If `False`, keep the original scaling in geometries.
+      If `None`, do not scale the cost matrices.
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     loss: str, None defaults to the square Euclidean distance, can also

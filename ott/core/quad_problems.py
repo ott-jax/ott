@@ -108,8 +108,9 @@ class QuadraticProblem:
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
       scale_cost
-        option to rescale the cost matrix. If `False`, retain the original
-        scaling in the geometries.
+        option to rescale the cost matrices. If `True`, use the default for
+        each geometry. If `False`, keep the original scaling in geometries.
+        If `None`, do not scale the cost matrices.
       a: jnp.ndarray[n] representing the probability weights of the samples
         from geom_xx. If None, it will be uniform.
       b: jnp.ndarray[n] representing the probability weights of the samples
