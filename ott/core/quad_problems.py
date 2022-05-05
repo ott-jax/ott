@@ -86,6 +86,7 @@ class QuadraticProblem:
                geom_yy: geometry.Geometry,
                geom_xy: Optional[geometry.Geometry] = None,
                fused_penalty: Optional[float] = None,
+               scale_cost: Optional[Union[float, str]] = None,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
                loss: Optional[Loss] = None,
@@ -125,9 +126,9 @@ class QuadraticProblem:
         Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
         only affect the inner Sinhkorn loop.
     """
-    self.geom_xx = geom_xx
-    self.geom_yy = geom_yy
-    self.geom_xy = geom_xy
+    self.geom_xx = update_geom_scale_cost(geom_xx, scale_cost)
+    self.geom_yy = update_geom_scale_cost(geom_yy, scale_cost)
+    self.geom_xy = update_geom_scale_cost(geom_xy, scale_cost)
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
@@ -493,6 +494,14 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   return updated_epsilon
 
 
+def update_geom_scale_cost(geom: geometry.Geometry, scale_cost: Optional[Union[float, str]]) -> geometry.Geometry:
+  if scale_cost == geom._scale_cost:
+    return geometry
+  children, aux_data = geom.tree_flatten()
+  aux_data["scale_cost"] = scale_cost
+  return type(geom).tree_unflatten(aux_data, children)
+
+
 def make(*args,
          a: Optional[jnp.ndarray] = None,
          b: Optional[jnp.ndarray] = None,
@@ -501,6 +510,7 @@ def make(*args,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
          fused_penalty: Optional[float] = None,
+         scale_cost: Optional[Union[float, str]] = None,
          **kwargs):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
@@ -516,6 +526,7 @@ def make(*args,
       geom_yy = pointcloud.PointCloud(y, y, **kwargs)
       return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy,
                               geom_xy=None,
+                              scale_cost=scale_cost,
                               a=a, b=b, tau_a=tau_a, tau_b=tau_b,
                               gw_unbalanced_correction=gw_unbalanced_correction)
     elif objective == 'fused':
@@ -524,13 +535,15 @@ def make(*args,
       geom_xy = pointcloud.PointCloud(x, y, **kwargs)
       return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy, geom_xy=geom_xy,
                               fused_penalty=fused_penalty,
+                              scale_cost=scale_cost,
                               a=a, b=b, tau_a=tau_a, tau_b=tau_b,
                               gw_unbalanced_correction=gw_unbalanced_correction)
     else:
       raise ValueError(f'Unknown transport problem `{objective}`')
   elif isinstance(args[0], geometry.Geometry):
-    cls = problems.LinearProblem if len(args) == 1 else QuadraticProblem
-    return cls(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    if len(args) == 1:
+      return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    return QuadraticProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost)
   elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
     return args[0]
   else:
