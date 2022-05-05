@@ -83,8 +83,8 @@ exclude_patterns = []
 #
 
 html_theme = 'sphinx_book_theme'
-html_logo = 'logoOTT.png'
-html_favicon = 'logoOTT.ico'
+html_logo = '_static/logoOTT.png'
+html_favicon = '_static/logoOTT.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

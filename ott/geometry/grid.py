@@ -36,6 +36,7 @@ class Grid(geometry.Geometry):
 
   The transportation cost between points in the grid is assumed to be separable,
   namely a sum of coordinate-wise cost functions, as in
+
     :math:`cost(x,y) = \sum_{i=1}^d cost_i(x_i, y_i)` where :math:`cost_i`: R x R → R.
 
   In such a regime, and despite the fact that the total number :math:`n_{total}`

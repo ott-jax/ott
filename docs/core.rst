@@ -18,6 +18,7 @@ OT Problems
 -----------
 .. autosummary::
   :toctree: _autosummary
+
     problems.LinearProblem
     quad_problems.QuadraticProblem
     bar_problems.BarycenterProblem
@@ -43,8 +44,6 @@ Barycenters (Entropic and LR)
   :toctree: _autosummary
     
     discrete_barycenter.discrete_barycenter
-    continuous_barycenter.discrete_barycenter
-
 
 Gromov-Wasserstein (Entropic and LR)
 ------------------------------------
