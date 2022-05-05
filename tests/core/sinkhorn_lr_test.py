@@ -19,6 +19,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+import numpy as np
 from ott.core import problems
 from ott.core import sinkhorn_lr
 from ott.geometry import pointcloud
@@ -57,7 +58,7 @@ class SinkhornLRTest(parameterized.TestCase):
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
-      threshold=threshold,   
+      threshold=threshold,
       rank=10,
       epsilon=0.0,
       init_type=init_type,
@@ -104,6 +105,28 @@ class SinkhornLRTest(parameterized.TestCase):
     costs = out.costs
     cost_3 = costs[costs > -1][-1]
     self.assertGreater(cost_3, cost_2)
+
+  @parameterized.parameters([0, 1])
+  def test_output_apply_batch_size(self, axis: int):
+    n_stack = 3
+    threshold = 1e-6
+    data = self.a if axis == 0 else self.b
+
+    geom = pointcloud.PointCloud(self.x, self.y)
+    ot_prob = problems.LinearProblem(geom, self.a, self.b)
+    solver = sinkhorn_lr.LRSinkhorn(
+      threshold=threshold,
+      rank=10,
+      epsilon=0.0,
+    )
+    out = solver(ot_prob)
+
+    gt = out.apply(data, axis=axis)
+    pred = out.apply(jnp.stack([data] * n_stack), axis=axis)
+
+    self.assertEquals(gt.shape, (geom.shape[1 - axis],))
+    self.assertEquals(pred.shape, (n_stack, geom.shape[1 - axis]))
+    np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack))
 
 if __name__ == '__main__':
   absltest.main()
