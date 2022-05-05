@@ -84,11 +84,11 @@ class LRGeometryTest(absltest.TestCase):
           np.testing.assert_allclose(
               geom.apply_square_cost(mat, axis=axis),
               out_lr,
-              rtol=1e-4)
+              rtol=5e-4)
           np.testing.assert_allclose(
               geom2.apply_cost(mat, axis=axis),
               out_lr,
-              rtol=1e-4)
+              rtol=5e-4)
 
   def test_add_lr_geoms(self):
     """Test application of cost to vec or matrix."""
