@@ -132,6 +132,7 @@ class QuadraticProblem:
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
+    self.scale_cost = scale_cost
     self._a = a
     self._b = b
     self.tau_a = tau_a
@@ -173,17 +174,16 @@ class QuadraticProblem:
             or (self.tau_a == 1.0 and self.tau_b == 1.0))
 
   def tree_flatten(self):
-    return ([
-        self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a,
-        self._b
-    ],
+    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b],
             {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss,
+             'fused_penalty': self.fused_penalty, 'scale_cost': self.scale_cost,
              'gw_unbalanced_correction': self.gw_unbalanced_correction}
             )
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children, **aux_data)
+    geoms, (a, b) = children[:3], children[3:]
+    return cls(*geoms, a=a, b=b, **aux_data)
 
   @property
   def a(self):
