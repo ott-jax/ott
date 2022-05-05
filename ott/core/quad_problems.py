@@ -149,14 +149,9 @@ class QuadraticProblem:
 
   @property
   def is_all_geoms_lr(self):
-    lr_geoms = (
-        isinstance(self.geom_xx, low_rank.LRCGeometry) and
-        isinstance(self.geom_yy, low_rank.LRCGeometry))
-    lr_geoms = lr_geoms and (
-        isinstance(self.geom_xy, low_rank.LRCGeometry)
-        or
-        not self.is_fused
-        )
+    return (isinstance(self.geom_xx, low_rank.LRCGeometry) and
+            isinstance(self.geom_yy, low_rank.LRCGeometry) and
+            (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry)))
 
   @property
   def linear_loss(self):
