@@ -107,7 +107,8 @@ class SinkhornLRTest(parameterized.TestCase):
     self.assertGreater(cost_3, cost_2)
 
   @parameterized.parameters([0, 1])
-  def test_output_apply_multiple_sources(self, axis: int):
+  def test_output_apply_batch_size(self, axis: int):
+    n_stack = 3
     threshold = 1e-6
     data = self.a if axis == 0 else self.b
 
@@ -120,13 +121,12 @@ class SinkhornLRTest(parameterized.TestCase):
     )
     out = solver(ot_prob)
 
-    print(data.shape, axis, geom.shape, out.q.shape)
     gt = out.apply(data, axis=axis)
-    pred = out.apply(jnp.c_[data, data], axis=axis)
+    pred = out.apply(jnp.stack([data] * n_stack), axis=axis)
 
     self.assertEquals(gt.shape, (geom.shape[1 - axis],))
-    self.assertEquals(pred.shape, (geom.shape[1 - axis], 2))
-    np.testing.assert_allclose(pred, jnp.c_[gt, gt])
+    self.assertEquals(pred.shape, (n_stack, geom.shape[1 - axis]))
+    np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack))
 
 if __name__ == '__main__':
   absltest.main()
