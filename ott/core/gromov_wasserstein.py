@@ -302,7 +302,7 @@ def gromov_wasserstein(
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
     fused_penalty: Optional[float] = None,
-    scale_cost: Optional[Union[float, str]] = None,
+    scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     loss: Optional[str] = None,
@@ -322,6 +322,9 @@ def gromov_wasserstein(
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
       i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
       None fused_penalty will be ignored, i.e. fused_penalty = 0
+    scale_cost
+      option to rescale the cost matrix. If `False`, retain the original
+      scaling in the geometries.
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     loss: str, None defaults to the square Euclidean distance, can also

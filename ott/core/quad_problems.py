@@ -86,7 +86,7 @@ class QuadraticProblem:
                geom_yy: geometry.Geometry,
                geom_xy: Optional[geometry.Geometry] = None,
                fused_penalty: Optional[float] = None,
-               scale_cost: Optional[Union[bool, float, str]] = None,
+               scale_cost: Optional[Union[bool, float, str]] = False,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
                loss: Optional[Loss] = None,
@@ -107,6 +107,9 @@ class QuadraticProblem:
         i.e. problem = purely quadratic + fused_penalty * linear problem. If
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
+      scale_cost
+        option to rescale the cost matrix. If `False`, retain the original
+        scaling in the geometries.
       a: jnp.ndarray[n] representing the probability weights of the samples
         from geom_xx. If None, it will be uniform.
       b: jnp.ndarray[n] representing the probability weights of the samples
@@ -128,7 +131,7 @@ class QuadraticProblem:
     """
     self.geom_xx = update_geom_scale_cost(geom_xx, scale_cost)
     self.geom_yy = update_geom_scale_cost(geom_yy, scale_cost)
-    self.geom_xy = geom_xy if geom_xy is None else update_geom_scale_cost(geom_xy, scale_cost)
+    self.geom_xy = update_geom_scale_cost(geom_xy, scale_cost)
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
@@ -494,9 +497,11 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   return updated_epsilon
 
 
-def update_geom_scale_cost(geom: geometry.Geometry, scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
+def update_geom_scale_cost(geom: Optional[geometry.Geometry],
+                           scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
   # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
-  if scale_cost == getattr(geom, "_scale_cost", scale_cost):
+  # `False` retains the original scale
+  if scale_cost is False or scale_cost == getattr(geom, "_scale_cost", scale_cost):
     return geom
   children, aux_data = geom.tree_flatten()
   aux_data["scale_cost"] = scale_cost
@@ -511,7 +516,7 @@ def make(*args,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
          fused_penalty: Optional[float] = None,
-         scale_cost: Optional[Union[bool, float, str]] = None,
+         scale_cost: Optional[Union[bool, float, str]] = False,
          **kwargs):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
