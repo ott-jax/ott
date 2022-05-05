@@ -128,7 +128,7 @@ class QuadraticProblem:
     """
     self.geom_xx = update_geom_scale_cost(geom_xx, scale_cost)
     self.geom_yy = update_geom_scale_cost(geom_yy, scale_cost)
-    self.geom_xy = update_geom_scale_cost(geom_xy, scale_cost)
+    self.geom_xy = geom_xy if geom_xy is None else update_geom_scale_cost(geom_xy, scale_cost)
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
@@ -496,7 +496,7 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
 
 def update_geom_scale_cost(geom: geometry.Geometry, scale_cost: Optional[Union[float, str]]) -> geometry.Geometry:
   if scale_cost == geom._scale_cost:
-    return geometry
+    return geom
   children, aux_data = geom.tree_flatten()
   aux_data["scale_cost"] = scale_cost
   return type(geom).tree_unflatten(aux_data, children)
