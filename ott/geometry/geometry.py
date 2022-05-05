@@ -52,7 +52,7 @@ class Geometry:
                epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
                relative_epsilon: Optional[bool] = None,
                scale_epsilon: Optional[float] = None,
-               scale_cost: Optional[Union[float, str]] = None,
+               scale_cost: Optional[Union[bool, float, str]] = None,
                **kwargs):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
@@ -73,6 +73,7 @@ class Geometry:
       scale_cost: option to rescale the cost matrix. Implemented scalings are
         'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
         given to rescale the cost such that ``cost_matrix /= scale_cost``.
+        If `True`, use 'max_cost'.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
@@ -80,7 +81,7 @@ class Geometry:
     self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
-    self._scale_cost = scale_cost
+    self._scale_cost = "max_cost" if scale_cost is True else scale_cost
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 

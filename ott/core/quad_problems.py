@@ -86,7 +86,7 @@ class QuadraticProblem:
                geom_yy: geometry.Geometry,
                geom_xy: Optional[geometry.Geometry] = None,
                fused_penalty: Optional[float] = None,
-               scale_cost: Optional[Union[float, str]] = None,
+               scale_cost: Optional[Union[bool, float, str]] = None,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
                loss: Optional[Loss] = None,
@@ -494,8 +494,9 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   return updated_epsilon
 
 
-def update_geom_scale_cost(geom: geometry.Geometry, scale_cost: Optional[Union[float, str]]) -> geometry.Geometry:
-  if scale_cost == geom._scale_cost:
+def update_geom_scale_cost(geom: geometry.Geometry, scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
+  # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
+  if scale_cost == getattr(geom, "_scale_cost", scale_cost):
     return geom
   children, aux_data = geom.tree_flatten()
   aux_data["scale_cost"] = scale_cost
@@ -510,7 +511,7 @@ def make(*args,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
          fused_penalty: Optional[float] = None,
-         scale_cost: Optional[Union[float, str]] = None,
+         scale_cost: Optional[Union[bool, float, str]] = None,
          **kwargs):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
