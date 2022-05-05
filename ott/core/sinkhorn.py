@@ -496,19 +496,21 @@ class Sinkhorn:
     """Creates an output from a loop state.
 
     Note:
-    When differentiating the regularized OT cost, and assuming Sinkhorn has
-    run to convergence, Danskin's (or the enveloppe) theorem
-    https://en.wikipedia.org/wiki/Danskin%27s_theorem
-    states that the resulting OT cost as a function of any of the inputs
-    (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
-    potentials were frozen and did not vary with those inputs.
+      When differentiating the regularized OT cost, and assuming Sinkhorn has
+      run to convergence, Danskin's (or the enveloppe) theorem
+      https://en.wikipedia.org/wiki/Danskin%27s_theorem
+      states that the resulting OT cost as a function of any of the inputs
+      (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
+      potentials were frozen and did not vary with those inputs.
+
       Notice this is only valid, as when using ``implicit_differentiation``
-    mode, if the Sinkhorn algorithm outputs potentials that are near optimal.
-    namely when the threshold value is set to a small tolerance.
+      mode, if the Sinkhorn algorithm outputs potentials that are near optimal.
+      namely when the threshold value is set to a small tolerance.
+
       The flag ``use_danskin`` controls whether that assumption is made. By
-    default, that flag is set to the value of ``implicit_differentiation`` if
-    not specified. If you wish to compute derivatives of order 2 and above,
-    set ``use_danskin`` to ``False``.
+      default, that flag is set to the value of ``implicit_differentiation`` if
+      not specified. If you wish to compute derivatives of order 2 and above,
+      set ``use_danskin`` to ``False``.
 
     Args:
       ot_prob: the transport problem.

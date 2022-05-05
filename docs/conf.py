@@ -58,6 +58,11 @@ extensions = [
     'recommonmark',
 ]
 
+intersphinx_mapping = {
+    "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "flax": ("https://flax.readthedocs.io/en/latest/", None),
+}
+
 source_suffix = ['.rst', '.md']
 
 autosummary_generate = True

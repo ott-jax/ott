@@ -204,19 +204,18 @@ class Geometry:
                        eps: float,
                        vec: jnp.ndarray = None,
                        axis: int = 0) -> jnp.ndarray:
-    """Applies kernel in log domain on pair of dual potential variables.
+    r"""Applies kernel in log domain on pair of dual potential variables.
 
     This function applies the ground geometry's kernel in log domain, using
-    a stabilized formulation. At a high level, this iteration performs either
+    a stabilized formulation. At a high level, this iteration performs either:
 
-    output = eps * log (K (exp(g / eps) * vec) )    (1)
-    or
-    output = eps * log (K'(exp(f / eps) * vec))   (2)
+    - output = eps * log (K (exp(g / eps) * vec))  (1)
+    - output = eps * log (K'(exp(f / eps) * vec))  (2)
 
     K is implicitly exp(-cost_matrix/eps).
 
     To carry this out in a stabilized way, we take advantage of the fact that
-    the entries of the matrix f[:,*] + g[*,:] - C are all negative, and
+    the entries of the matrix ``f[:,*] + g[*,:] - C`` are all negative, and
     therefore their exponential never overflows, to add (and subtract after)
     f and g in iterations 1 & 2 respectively.
 
@@ -226,7 +225,7 @@ class Geometry:
       eps: float, regularization strength
       vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g /eps) by a vector. This is carried out by adding
+        multiplication of exp(g / eps) by a vector. This is carried out by adding
         weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
