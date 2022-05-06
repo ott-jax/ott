@@ -73,7 +73,7 @@ class Geometry:
       scale_cost: option to rescale the cost matrix. Implemented scalings are
         'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
         given to rescale the cost such that ``cost_matrix /= scale_cost``.
-        If `True`, use 'max_cost'.
+        If `True`, use 'mean'.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
@@ -81,7 +81,7 @@ class Geometry:
     self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
-    self._scale_cost = "max_cost" if scale_cost is True else scale_cost
+    self._scale_cost = "mean" if scale_cost is True else scale_cost
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 

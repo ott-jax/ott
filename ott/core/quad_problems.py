@@ -107,10 +107,15 @@ class QuadraticProblem:
         i.e. problem = purely quadratic + fused_penalty * linear problem. If
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
-      scale_cost
-        option to rescale the cost matrices. If `True`, use the default for
-        each geometry. If `False`, keep the original scaling in geometries.
-        If `None`, do not scale the cost matrices.
+      scale_cost: option to rescale the cost matrices:
+
+        - if `True`, use the default for each geometry.
+        - if `False`, keep the original scaling in geometries.
+        - if :class:`str`, use a specific method available in
+          :meth:`ott.geometry.geometry.Geometry.__init__` or
+          :meth:`ott.geometry.pointcloud.PointCloud.__init__`.
+        - if `None`, do not scale the cost matrices.
+
       a: jnp.ndarray[n] representing the probability weights of the samples
         from geom_xx. If None, it will be uniform.
       b: jnp.ndarray[n] representing the probability weights of the samples
@@ -498,11 +503,13 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   return updated_epsilon
 
 
-def update_geom_scale_cost(geom: Optional[geometry.Geometry],
-                           scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
+def update_geom_scale_cost(
+    geom: Optional[geometry.Geometry],
+    scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
   # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
   # `False` retains the original scale
-  if scale_cost is False or scale_cost == getattr(geom, "_scale_cost", scale_cost):
+  if (scale_cost is False or
+     scale_cost == getattr(geom, "_scale_cost", scale_cost)):
     return geom
   children, aux_data = geom.tree_flatten()
   aux_data["scale_cost"] = scale_cost
@@ -550,7 +557,8 @@ def make(*args,
   elif isinstance(args[0], geometry.Geometry):
     if len(args) == 1:
       return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    return QuadraticProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost)
+    return QuadraticProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
+                            scale_cost=scale_cost)
   elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
     return args[0]
   else:

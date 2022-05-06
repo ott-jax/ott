@@ -242,12 +242,15 @@ class GromovWassersteinTest(parameterized.TestCase):
     geom_xy = pointcloud.PointCloud(self.xx, self.yy, scale_cost=None)
     geom_x_scaled = pointcloud.PointCloud(self.x, scale_cost=scale_cost)
     geom_y_scaled = pointcloud.PointCloud(self.y, scale_cost=scale_cost)
-    geom_xy_scaled = pointcloud.PointCloud(self.xx, self.yy, scale_cost=scale_cost)
+    geom_xy_scaled = pointcloud.PointCloud(self.xx, self.yy,
+                                           scale_cost=scale_cost)
 
-    gt = gromov_wasserstein.gromov_wasserstein(geom_xx=geom_x_scaled, geom_yy=geom_y_scaled, geom_xy=geom_xy_scaled,
-                                               fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=False)
-    pred = gromov_wasserstein.gromov_wasserstein(geom_xx=geom_x, geom_yy=geom_y, geom_xy=geom_xy,
-                                                 fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=scale_cost)
+    gt = gromov_wasserstein.gromov_wasserstein(
+      geom_xx=geom_x_scaled, geom_yy=geom_y_scaled, geom_xy=geom_xy_scaled,
+      fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=False)
+    pred = gromov_wasserstein.gromov_wasserstein(
+      geom_xx=geom_x, geom_yy=geom_y, geom_xy=geom_xy,
+      fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=scale_cost)
 
     np.testing.assert_allclose(pred.matrix, gt.matrix)
     np.testing.assert_allclose(pred.costs, gt.costs)
