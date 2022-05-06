@@ -135,9 +135,10 @@ class QuadraticProblem:
         Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
         only affect the inner Sinhkorn loop.
     """
-    self.geom_xx = update_geom_scale_cost(geom_xx, scale_cost)
-    self.geom_yy = update_geom_scale_cost(geom_yy, scale_cost)
-    self.geom_xy = update_geom_scale_cost(geom_xy, scale_cost)
+    self.geom_xx = geom_xx._set_scale_cost(scale_cost)
+    self.geom_yy = geom_yy._set_scale_cost(scale_cost)
+    self.geom_xy = (None if geom_xy is None else
+                    geom_xy._set_scale_cost(scale_cost))
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
@@ -501,19 +502,6 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   updated_epsilon._scale_epsilon = (
       updated_epsilon._scale_epsilon * transport_mass)
   return updated_epsilon
-
-
-def update_geom_scale_cost(
-    geom: Optional[geometry.Geometry],
-    scale_cost: Optional[Union[bool, float, str]]) -> geometry.Geometry:
-  # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
-  # `False` retains the original scale
-  if (scale_cost is False or
-     scale_cost == getattr(geom, "_scale_cost", scale_cost)):
-    return geom
-  children, aux_data = geom.tree_flatten()
-  aux_data["scale_cost"] = scale_cost
-  return type(geom).tree_unflatten(aux_data, children)
 
 
 def make(*args,

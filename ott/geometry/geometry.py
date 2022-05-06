@@ -186,6 +186,16 @@ class Geometry:
     else:
       return 1.0
 
+  def _set_scale_cost(
+    self, scale_cost: Optional[Union[bool, float, str]]) -> "Geometry":
+    # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
+    # `False` retains the original scale
+    if scale_cost is False or scale_cost == self._scale_cost:
+      return self
+    children, aux_data = self.tree_flatten()
+    aux_data["scale_cost"] = scale_cost
+    return type(self).tree_unflatten(aux_data, children)
+
   def copy_epsilon(self, other):
     """Copies the epsilon parameters from another geometry."""
     scheduler = other._epsilon
