@@ -36,7 +36,12 @@ class Grid(geometry.Geometry):
 
   The transportation cost between points in the grid is assumed to be separable,
   namely a sum of coordinate-wise cost functions, as in
-    :math:`cost(x,y) = \sum_{i=1}^d cost_i(x_i, y_i)` where :math:`cost_i`: R x R → R.
+
+  .. math::
+
+    cost(x,y) = \sum_{i=1}^d cost_i(x_i, y_i)
+
+  where :math:`cost_i`: R x R → R.
 
   In such a regime, and despite the fact that the total number :math:`n_{total}`
   of points in the grid is exponential :math:`d` (namely :math:`\prod_i n_i`),
@@ -63,7 +68,7 @@ class Grid(geometry.Geometry):
         Locations are provided as a list of jnp.ndarrays, that is :math:`d`
         vectors of (possibly varying) size :math:`n_i`. The resulting grid
         is the Cartesian product of these vectors.
-      grid_size: t-uple of integers describing grid sizes, namely
+      grid_size: tuple of integers describing grid sizes, namely
         :math:`(n_1,...,n_d)`. This will only be used if x is None.
         In that case the grid will be assumed to lie in the hypercube
         :math:`[0,1]^d`, with the :math:`d` dimensions, described as points

@@ -15,3 +15,4 @@ sphinx-book-theme
 sphinx_autodoc_typehints>=1.11.1
 ipython>=7.20.0
 ipykernel>=5.5.0
+Jinja2<3.1.0  # https://github.com/spatialaudio/nbsphinx/issues/641

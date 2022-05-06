@@ -52,7 +52,7 @@ class Geometry:
                epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
                relative_epsilon: Optional[bool] = None,
                scale_epsilon: Optional[float] = None,
-               scale_cost: Optional[Union[float, str]] = None,
+               scale_cost: Optional[Union[bool, float, str]] = None,
                **kwargs):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
@@ -73,6 +73,7 @@ class Geometry:
       scale_cost: option to rescale the cost matrix. Implemented scalings are
         'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
         given to rescale the cost such that ``cost_matrix /= scale_cost``.
+        If `True`, use 'mean'.
       **kwargs: additional kwargs to epsilon.
     """
     self._cost_matrix = cost_matrix
@@ -80,7 +81,7 @@ class Geometry:
     self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
-    self._scale_cost = scale_cost
+    self._scale_cost = "mean" if scale_cost is True else scale_cost
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -185,6 +186,16 @@ class Geometry:
     else:
       return 1.0
 
+  def _set_scale_cost(
+    self, scale_cost: Optional[Union[bool, float, str]]) -> "Geometry":
+    # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
+    # `False` retains the original scale
+    if scale_cost is False or scale_cost == self._scale_cost:
+      return self
+    children, aux_data = self.tree_flatten()
+    aux_data["scale_cost"] = scale_cost
+    return type(self).tree_unflatten(aux_data, children)
+
   def copy_epsilon(self, other):
     """Copies the epsilon parameters from another geometry."""
     scheduler = other._epsilon
@@ -203,19 +214,18 @@ class Geometry:
                        eps: float,
                        vec: jnp.ndarray = None,
                        axis: int = 0) -> jnp.ndarray:
-    """Applies kernel in log domain on pair of dual potential variables.
+    r"""Applies kernel in log domain on pair of dual potential variables.
 
     This function applies the ground geometry's kernel in log domain, using
-    a stabilized formulation. At a high level, this iteration performs either
+    a stabilized formulation. At a high level, this iteration performs either:
 
-    output = eps * log (K (exp(g / eps) * vec) )    (1)
-    or
-    output = eps * log (K'(exp(f / eps) * vec))   (2)
+    - output = eps * log (K (exp(g / eps) * vec))  (1)
+    - output = eps * log (K'(exp(f / eps) * vec))  (2)
 
     K is implicitly exp(-cost_matrix/eps).
 
     To carry this out in a stabilized way, we take advantage of the fact that
-    the entries of the matrix f[:,*] + g[*,:] - C are all negative, and
+    the entries of the matrix ``f[:,*] + g[*,:] - C`` are all negative, and
     therefore their exponential never overflows, to add (and subtract after)
     f and g in iterations 1 & 2 respectively.
 
@@ -225,7 +235,7 @@ class Geometry:
       eps: float, regularization strength
       vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g /eps) by a vector. This is carried out by adding
+        multiplication of exp(g / eps) by a vector. This is carried out by adding
         weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)

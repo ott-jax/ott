@@ -37,7 +37,7 @@ class PointCloud(geometry.Geometry):
                cost_fn: Optional[costs.CostFn] = None,
                power: float = 2.0,
                online: Union[bool, int] = False,
-               scale_cost: Optional[Union[float, str]] = None,
+               scale_cost: Optional[Union[bool, float, str]] = None,
                **kwargs):
     """Creates a geometry from two point clouds, using CostFn.
 
@@ -62,7 +62,7 @@ class PointCloud(geometry.Geometry):
       scale_cost: option to rescale the cost matrix. Implemented scalings are
         'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
         Alternatively, a float factor can be given to rescale the cost such
-        that ``cost_matrix /= scale_cost``.
+        that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
       **kwargs: other optional parameters to be passed on to superclass
       initializer, notably those related to epsilon regularization.
     """
@@ -89,7 +89,7 @@ class PointCloud(geometry.Geometry):
     self._online = online
     self.power = power
     super().__init__(**kwargs)
-    self._scale_cost = scale_cost
+    self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
   def _norm_x(self):

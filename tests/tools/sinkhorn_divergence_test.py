@@ -187,8 +187,8 @@ class SinkhornDivergenceTest(parameterized.TestCase):
     if shuffle:
       # Now, shuffle the order of both arrays, but
       # still maintain the segment assignments:
-      idx_x = jax.random.shuffle(rngs[2], jnp.arange(x.shape[0] * 2))
-      idx_y = jax.random.shuffle(rngs[3], jnp.arange(y.shape[0] * 2))
+      idx_x = jax.random.permutation(rngs[2], jnp.arange(x.shape[0] * 2), independent=True)
+      idx_y = jax.random.permutation(rngs[3], jnp.arange(y.shape[0] * 2), independent=True)
     else:
       idx_x = jnp.arange(x.shape[0] * 2)
       idx_y = jnp.arange(y.shape[0] * 2)

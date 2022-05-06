@@ -35,7 +35,7 @@ class GromovWassersteinTest(parameterized.TestCase):
     d_x = 2
     d_y = 3
     self.n, self.m = 5, 6
-    keys = jax.random.split(self.rng, 7)
+    keys = jax.random.split(self.rng, 8)
     self.x = jax.random.uniform(keys[0], (self.n, d_x))
     self.y = jax.random.uniform(keys[1], (self.m, d_y))
     a = jax.random.uniform(keys[2], (self.n,)) + 0.1
@@ -44,6 +44,8 @@ class GromovWassersteinTest(parameterized.TestCase):
     self.b = b / jnp.sum(b)
     self.cx = jax.random.uniform(keys[4], (self.n, self.n))
     self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+    self.xx = jax.random.uniform(keys[6], (self.n, d_x))
+    self.yy = jax.random.uniform(keys[7], (self.m, d_x))
 
   def test_flag_store_errors(self):
     """Tests whether errors are properly stored if requested."""
@@ -230,6 +232,28 @@ class GromovWassersteinTest(parameterized.TestCase):
     # Test at least some difference when adding bigger entropic regularization
     self.assertGreater(
       jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix), 1e-3)
+
+  @parameterized.parameters([True, "mean", "max_cost"])
+  def test_gw_fused_scale_cost(self, scale_cost):
+    epsilon = 0.1
+    fused_penalty = 1
+    geom_x = pointcloud.PointCloud(self.x, scale_cost=None)
+    geom_y = pointcloud.PointCloud(self.y, scale_cost=None)
+    geom_xy = pointcloud.PointCloud(self.xx, self.yy, scale_cost=None)
+    geom_x_scaled = pointcloud.PointCloud(self.x, scale_cost=scale_cost)
+    geom_y_scaled = pointcloud.PointCloud(self.y, scale_cost=scale_cost)
+    geom_xy_scaled = pointcloud.PointCloud(self.xx, self.yy,
+                                           scale_cost=scale_cost)
+
+    gt = gromov_wasserstein.gromov_wasserstein(
+      geom_xx=geom_x_scaled, geom_yy=geom_y_scaled, geom_xy=geom_xy_scaled,
+      fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=False)
+    pred = gromov_wasserstein.gromov_wasserstein(
+      geom_xx=geom_x, geom_yy=geom_y, geom_xy=geom_xy,
+      fused_penalty=fused_penalty, epsilon=epsilon, scale_cost=scale_cost)
+
+    np.testing.assert_allclose(pred.matrix, gt.matrix)
+    np.testing.assert_allclose(pred.costs, gt.costs)
 
 
 if __name__ == '__main__':

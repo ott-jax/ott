@@ -86,6 +86,7 @@ class QuadraticProblem:
                geom_yy: geometry.Geometry,
                geom_xy: Optional[geometry.Geometry] = None,
                fused_penalty: Optional[float] = None,
+               scale_cost: Optional[Union[bool, float, str]] = False,
                a: Optional[jnp.ndarray] = None,
                b: Optional[jnp.ndarray] = None,
                loss: Optional[Loss] = None,
@@ -106,6 +107,15 @@ class QuadraticProblem:
         i.e. problem = purely quadratic + fused_penalty * linear problem. If
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
+      scale_cost: option to rescale the cost matrices:
+
+        - if `True`, use the default for each geometry.
+        - if `False`, keep the original scaling in geometries.
+        - if :class:`str`, use a specific method available in
+          :meth:`ott.geometry.geometry.Geometry.__init__` or
+          :meth:`ott.geometry.pointcloud.PointCloud.__init__`.
+        - if `None`, do not scale the cost matrices.
+
       a: jnp.ndarray[n] representing the probability weights of the samples
         from geom_xx. If None, it will be uniform.
       b: jnp.ndarray[n] representing the probability weights of the samples
@@ -125,12 +135,14 @@ class QuadraticProblem:
         Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
         only affect the inner Sinhkorn loop.
     """
-    self.geom_xx = geom_xx
-    self.geom_yy = geom_yy
-    self.geom_xy = geom_xy
+    self.geom_xx = geom_xx._set_scale_cost(scale_cost)
+    self.geom_yy = geom_yy._set_scale_cost(scale_cost)
+    self.geom_xy = (None if geom_xy is None else
+                    geom_xy._set_scale_cost(scale_cost))
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
+    self.scale_cost = scale_cost
     self._a = a
     self._b = b
     self.tau_a = tau_a
@@ -167,17 +179,16 @@ class QuadraticProblem:
             or (self.tau_a == 1.0 and self.tau_b == 1.0))
 
   def tree_flatten(self):
-    return ([
-        self.geom_xx, self.geom_yy, self.geom_xy, self.fused_penalty, self._a,
-        self._b
-    ],
+    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b],
             {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss,
+             'fused_penalty': self.fused_penalty, 'scale_cost': self.scale_cost,
              'gw_unbalanced_correction': self.gw_unbalanced_correction}
             )
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children, **aux_data)
+    geoms, (a, b) = children[:3], children[3:]
+    return cls(*geoms, a=a, b=b, **aux_data)
 
   @property
   def a(self):
@@ -496,6 +507,7 @@ def make(*args,
          objective: Optional[str] = None,
          gw_unbalanced_correction: Optional[bool] = True,
          fused_penalty: Optional[float] = None,
+         scale_cost: Optional[Union[bool, float, str]] = False,
          **kwargs):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
@@ -511,6 +523,7 @@ def make(*args,
       geom_yy = pointcloud.PointCloud(y, y, **kwargs)
       return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy,
                               geom_xy=None,
+                              scale_cost=scale_cost,
                               a=a, b=b, tau_a=tau_a, tau_b=tau_b,
                               gw_unbalanced_correction=gw_unbalanced_correction)
     elif objective == 'fused':
@@ -519,13 +532,16 @@ def make(*args,
       geom_xy = pointcloud.PointCloud(x, y, **kwargs)
       return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy, geom_xy=geom_xy,
                               fused_penalty=fused_penalty,
+                              scale_cost=scale_cost,
                               a=a, b=b, tau_a=tau_a, tau_b=tau_b,
                               gw_unbalanced_correction=gw_unbalanced_correction)
     else:
       raise ValueError(f'Unknown transport problem `{objective}`')
   elif isinstance(args[0], geometry.Geometry):
-    cls = problems.LinearProblem if len(args) == 1 else QuadraticProblem
-    return cls(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    if len(args) == 1:
+      return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+    return QuadraticProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
+                            scale_cost=scale_cost)
   elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
     return args[0]
   else:

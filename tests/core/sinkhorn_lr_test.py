@@ -124,8 +124,8 @@ class SinkhornLRTest(parameterized.TestCase):
     gt = out.apply(data, axis=axis)
     pred = out.apply(jnp.stack([data] * n_stack), axis=axis)
 
-    self.assertEquals(gt.shape, (geom.shape[1 - axis],))
-    self.assertEquals(pred.shape, (n_stack, geom.shape[1 - axis]))
+    self.assertEqual(gt.shape, (geom.shape[1 - axis],))
+    self.assertEqual(pred.shape, (n_stack, geom.shape[1 - axis]))
     np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack))
 
 if __name__ == '__main__':

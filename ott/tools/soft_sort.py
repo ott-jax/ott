@@ -141,7 +141,7 @@ def sort(inputs: jnp.ndarray,
       order). If not specified, ``num_targets`` is set by default to be the size
       of the slices of the input that are sorted, i.e. the number of composite
       sorted values is equal to that of the inputs that are sorted.
-   **kwargs: keyword arguments passed on to lower level functions. Of interest
+    **kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -183,7 +183,7 @@ def ranks(inputs: jnp.ndarray,
       specified by the optimal transport between values in ``inputs`` towards
       those values. If not specified, ``num_targets`` is set by default to be
       the size of the slices of the input that are sorted.
-   **kwargs: keyword arguments passed on to lower level functions. Of interest
+    **kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
