@@ -483,12 +483,6 @@ class Geometry:
     if self._kernel_matrix is not None:
       self._kernel_matrix **= 1/factor
 
-  def apply_cost_1(self, vec, axis=0):
-    pass
-
-  def apply_cost_2(self, vec, axis=0):
-    pass
-
   def _apply_cost_to_vec(self,
                          vec: jnp.ndarray,
                          axis: int = 0,

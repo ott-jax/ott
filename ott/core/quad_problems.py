@@ -157,7 +157,7 @@ class QuadraticProblem:
 
   @property
   def is_fused(self):
-    return self.geom_xy is not None and jnp.all(self.fused_penalty > 0.0)
+    return self.geom_xy is not None and self.fused_penalty > 0.0
 
   @property
   def is_all_geoms_lr(self):
@@ -402,20 +402,15 @@ class QuadraticProblem:
     q, r = q * inv_sqg[None, :], r * inv_sqg[None, :]
 
     # Handle LRC Geometry case.
+    tmp1 = self.geom_xx.apply_cost(q, axis=1, fn=self.quad_loss[0])
+    tmp2 = self.geom_yy.apply_cost(r, axis=1, fn=self.quad_loss[1])
     if self.is_all_geoms_lr:
-      tmp1r = self.geom_xx.apply_cost_2(q)
-      tmp2l = jnp.transpose(self.geom_yy.apply_cost_1(r, 1))
-      geom = low_rank.LRCGeometry(cost_1=tmp1r, cost_2=-tmp2l)
+      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2)
       geom = low_rank.add_lrc_geom(geom, marginal_cost)
       if self.is_fused:
-        geom = low_rank.add_lrc_geom(
-            geom, self.geom_xy)
-
+        geom = low_rank.add_lrc_geom(geom, self.geom_xy)
     else:
-      tmp1 = self.geom_xx.apply_cost(q, axis=1, fn=self.quad_loss[0])
-      tmp2 = self.geom_yy.apply_cost(r, axis=1, fn=self.quad_loss[1])
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
-
       cost_matrix += self.fused_penalty * jnp.where(
           self.is_fused,
           0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0)

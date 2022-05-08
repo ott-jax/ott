@@ -75,10 +75,10 @@ class TransportTest(absltest.TestCase):
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
     geom = pointcloud.PointCloud(x, y, epsilon=1e-2, online=True)
-    with self.assertRaises(TypeError):
+    with self.assertRaisesRegex(AttributeError, r".*has no attribute.*'"):
       transport.solve(geom, x, threshold=1e-3)
 
-    with self.assertRaises(ValueError):
+    with self.assertRaisesRegex(ValueError, "Cannot instantiate a transport"):
       transport.solve('pointcloud', threshold=1e-3)
 
 
