@@ -441,7 +441,6 @@ class QuadraticProblem:
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
     """
-    transport_mass = 1.0
     rescale_factor = 1.0
     unbalanced_correction = 0.0
 
