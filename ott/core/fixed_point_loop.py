@@ -122,7 +122,7 @@ def fixpoint_iter_fwd(cond_fn, body_fn, min_iterations, max_iterations,
                                           cond_fn(iteration, constants, state)))
   def unrolled_body_fn(iteration_states_state):
     iteration, states, state = iteration_states_state
-    states = jax.tree_multimap(
+    states = jax.tree_util.tree_map(
         lambda states, state: jax.lax.dynamic_update_index_in_dim(
             states, state, iteration // inner_iterations, 0), states, state)
 
@@ -185,8 +185,8 @@ def fixpoint_iter_bwd(
     _, pullback = jax.vjp(unrolled_body_fn_no_errors, iteration, constants,
                           state)
     _, gi_constants, g_state = pullback(g)
-    g_constants = jax.tree_multimap(lambda x, y: x + y, g_constants,
-                                    gi_constants)
+    g_constants = jax.tree_util.tree_map(lambda x, y: x + y, g_constants,
+                                         gi_constants)
     out = (iteration - inner_iterations, g_state, g_constants)
     return (out, None) if force_scan else out
 
