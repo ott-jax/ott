@@ -61,6 +61,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
    notebooks/Hessians.ipynb
    notebooks/soft_sort.ipynb
    notebooks/application_biology.ipynb
+   notebooks/gromov_wasserstein_multiomics.ipynb
    notebooks/fairness.ipynb
    notebooks/neural_dual.ipynb
 
