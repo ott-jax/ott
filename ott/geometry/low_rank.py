@@ -155,12 +155,6 @@ class LRCGeometry(geometry.Geometry):
                      efficient_apply(vec, axis, fn),
                      super()._apply_cost_to_vec(vec, axis, fn))
 
-  def apply_cost_1(self, vec, axis=0):
-    return jnp.dot(self.cost_1 if axis == 0 else self.cost_1.T, vec)
-
-  def apply_cost_2(self, vec, axis=0):
-    return jnp.dot(self.cost_2 if axis == 0 else self.cost_2.T, vec)
-
   def compute_max_cost(self) -> float:
     """Computes the maximum of the cost matrix.
 

@@ -46,8 +46,8 @@ class LinalgTest(absltest.TestCase):
     expected_var = jnp.var(points[:5], axis=0)
     actual_mean, actual_var = linalg.get_mean_and_var(
         points=points, weights=weights)
-    np.testing.assert_allclose(expected_mean, actual_mean)
-    np.testing.assert_allclose(expected_var, actual_var)
+    np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(expected_var, actual_var, rtol=1e-6, atol=1e-6)
 
   def test_get_mean_and_cov(self):
     points = jax.random.normal(key=self.key, shape=(10, 2))
@@ -66,8 +66,8 @@ class LinalgTest(absltest.TestCase):
     expected_cov = jnp.cov(points[:5], rowvar=False, bias=True)
     actual_mean, actual_cov = linalg.get_mean_and_cov(
         points=points, weights=weights)
-    np.testing.assert_allclose(expected_mean, actual_mean)
-    np.testing.assert_allclose(expected_cov, actual_cov)
+    np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(expected_cov, actual_cov, rtol=1e-6, atol=1e-6)
 
   def test_flat_to_tril(self):
     size = 3

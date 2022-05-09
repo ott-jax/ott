@@ -82,7 +82,7 @@ class SinkhornTest(parameterized.TestCase):
     rub = costs.UnbalancedBures(self.dim, 1, 0.8)
     self.assertIsNot(jnp.any(jnp.isnan(rub(x, y))), True)
     self.assertIsNot(jnp.any(jnp.isnan(rub(y, x))), True)
-    np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=5e-3, atol=5e-3)
 
 
 if __name__ == '__main__':

@@ -126,7 +126,8 @@ class SinkhornLRTest(parameterized.TestCase):
 
     self.assertEqual(gt.shape, (geom.shape[1 - axis],))
     self.assertEqual(pred.shape, (n_stack, geom.shape[1 - axis]))
-    np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack))
+    np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6)
+
 
 if __name__ == '__main__':
   absltest.main()
