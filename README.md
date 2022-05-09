@@ -1,4 +1,4 @@
-![logo](https://github.com/ott-jax/ott/blob/docs/_static/logoOTT.png)
+![logo](https://github.com/ott-jax/ott/blob/main/docs/_static/logoOTT.png)
 
 # Optimal Transport Tools (OTT).
 
