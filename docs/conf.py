@@ -33,11 +33,10 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'ott'
-copyright = '2021, the OTT authors'
-author = 'Marco Cuturi, Laetitia Papaxanthos, Olivier Teboul'
+copyright = '2021-2022, the OTT authors'
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.0'
+release = '0.2.5'
 
 
 # -- General configuration ---------------------------------------------------
