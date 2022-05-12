@@ -152,7 +152,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     gromov_fn = jax.jit(iterations_fn) if self.jit else iterations_fn
     out = gromov_fn(self, prob)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
-    if self.rank > 0:
+    if self.is_low_rank:
       linearization = prob.update_lr_linearization(
           jax.lax.stop_gradient(out.linear_state))
     else:

@@ -258,11 +258,12 @@ class GromovWassersteinTest(parameterized.TestCase):
 
 
 # currently works only with `pytest`
-@pytest.mark.limit_memory("500 MB")
+# and musn't be placed in the class
+@pytest.mark.limit_memory("1 GB")
 def test_gw_lr_memory():
-  # Total memory allocated: 443.0MiB (32-bit)
+  # Total memory allocated: 925.2MiB (32-bit)
   rngs = jax.random.split(jax.random.PRNGKey(0), 2)
-  n, m, d1, d2 = 10_000, 10_000, 2, 3
+  n, m, d1, d2 = 15_000, 10_000, 2, 3
   x = jax.random.uniform(rngs[0], (n, d1))
   y = jax.random.uniform(rngs[1], (m, d2))
   geom_x = pointcloud.PointCloud(x)
