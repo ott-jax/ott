@@ -468,14 +468,12 @@ class Geometry:
           lambda x: self._apply_cost_to_vec(x, axis, fn),
           1,
           1,
-      )(
-          arr.reshape(-1, 1))
+      )(arr.reshape(-1, 1))
     return jax.vmap(
         lambda x: self._apply_cost_to_vec(x, axis, fn),
         1,
         1,
-    )(
-        arr)
+    )(arr)
 
   def rescale_cost_fn(self, factor: float):
     if self._cost_matrix is not None:
