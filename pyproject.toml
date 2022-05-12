@@ -12,7 +12,7 @@ multi_line_output = 3
 skip_glob = ["docs/*"]
 
 [tool.black]
-line-length = 80
+line-length = 100
 target-version = ['py38']
 include = '\.pyi?$'
 exclude = '''
