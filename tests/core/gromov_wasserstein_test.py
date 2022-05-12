@@ -271,7 +271,9 @@ def test_gw_lr_memory():
   geom_x = pointcloud.PointCloud(x)
   geom_y = pointcloud.PointCloud(y)
 
-  ot_gwlr = gromov_wasserstein.gromov_wasserstein(geom_x, geom_y, rank=5, jit=False)
+  ot_gwlr = gromov_wasserstein.gromov_wasserstein(
+    geom_x, geom_y, rank=5, jit=False
+  )
 
   assert ot_gwlr.convergence
 
