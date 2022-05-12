@@ -154,7 +154,8 @@ class LRCGeometry(geometry.Geometry):
     return jax.lax.cond(
       fn is None or geometry.is_linear(fn),
       lambda _: efficient_apply(vec, axis, fn),
-      lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn), self
+      lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn),
+      self
     )
 
   def compute_max_cost(self) -> float:
