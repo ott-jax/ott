@@ -151,9 +151,11 @@ class LRCGeometry(geometry.Geometry):
       out = jnp.dot(c1, jnp.dot(c2.T, vec))
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
-    return jnp.where(fn is None or geometry.is_linear(fn),
-                     efficient_apply(vec, axis, fn),
-                     super()._apply_cost_to_vec(vec, axis, fn))
+    return jax.lax.cond(
+      fn is None or geometry.is_linear(fn),
+      lambda _: efficient_apply(vec, axis, fn),
+      lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn), self
+    )
 
   def compute_max_cost(self) -> float:
     """Computes the maximum of the cost matrix.
