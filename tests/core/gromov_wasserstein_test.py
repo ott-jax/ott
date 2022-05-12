@@ -258,7 +258,9 @@ class GromovWassersteinTest(parameterized.TestCase):
 
 
 # currently works only with `pytest`
-# and musn't be placed in the class
+# and mustn't be placed in the class
+# furthermore, can't be used atm with `pytest-xdist`
+# https://github.com/bloomberg/pytest-memray/issues/2
 @pytest.mark.limit_memory("1 GB")
 def test_gw_lr_memory():
   # Total memory allocated: 925.2MiB (32-bit)
