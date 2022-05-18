@@ -516,6 +516,7 @@ class PointCloud(geometry.Geometry):
             epsilon=self._epsilon_init,
             relative_epsilon=self._relative_epsilon,
             scale=self._scale_epsilon,
+            scale_cost=self._scale_cost,
             **self._kwargs)
       else:
         self.x *= jnp.sqrt(scale)
