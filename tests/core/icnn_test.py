@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,10 @@
 # Lint as: python3
 """Tests for ICNN network architecture."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+from absl.testing import absltest, parameterized
+
 from ott.core.icnn import ICNN
 
 
@@ -61,10 +60,10 @@ class ICNNTest(parameterized.TestCase):
     icnn = ICNN(dim_hidden)
 
     # initialize model
-    params = icnn.init(self.rng, jnp.ones(n_samples, ))['params']
+    params = icnn.init(self.rng, jnp.ones(n_samples,))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
-    data = jax.random.normal(self.rng, (n_samples, ))
+    data = jax.random.normal(self.rng, (n_samples,))
 
     # compute Hessian
     hessian = jax.jacfwd(jax.jacrev(icnn.apply, argnums=1), argnums=1)

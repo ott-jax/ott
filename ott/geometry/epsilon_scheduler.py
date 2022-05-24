@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,11 +24,13 @@ import jax.numpy as jnp
 class Epsilon:
   """Scheduler class for the regularization parameter epsilon."""
 
-  def __init__(self,
-               target: Optional[float] = None,
-               scale_epsilon: Optional[float] = None,
-               init: Optional[float] = None,
-               decay: Optional[float] = None):
+  def __init__(
+      self,
+      target: Optional[float] = None,
+      scale_epsilon: Optional[float] = None,
+      init: Optional[float] = None,
+      decay: Optional[float] = None
+  ):
     r"""Initializes a scheduler using possibly geometric decay.
 
     An epsilon scheduler outputs a regularization strength, to be used by in a
@@ -67,7 +68,7 @@ class Epsilon:
     decay = jnp.where(self._decay < 1.0, self._decay, 1.0)
     # the multiple is either 1.0 or a larger init value that is decayed.
     multiple = jnp.maximum(self._init * (decay ** iteration), 1.0)
-    return  multiple * self.target
+    return multiple * self.target
 
   def done(self, eps):
     return eps == self.target
@@ -76,8 +77,9 @@ class Epsilon:
     return self.done(self.at(iteration))
 
   def tree_flatten(self):
-    return (self._target_init, self._scale_epsilon,
-            self._init, self._decay), None
+    return (
+        self._target_init, self._scale_epsilon, self._init, self._decay
+    ), None
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

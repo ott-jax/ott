@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +79,8 @@ def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
   else:
     rho = epsilon * tau / (1 - tau)
     # here no minus sign because we are taking derivative w.r.t -h
-    return jnp.where(c > 0,
-                     c * second_derivative_phi_star(-h, rho) * derivative(
-                         c * derivative_phi_star(-h, rho)),
-                     0.0)
+    return jnp.where(
+        c > 0,
+        c * second_derivative_phi_star(-h, rho) *
+        derivative(c * derivative_phi_star(-h, rho)), 0.0
+    )

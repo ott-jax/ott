@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pytree for a vector of probabilities."""
 
 from typing import Optional
@@ -39,15 +37,16 @@ class Probabilities:
       key: jnp.ndarray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
-      dtype: Optional[jnp.dtype] = None) -> 'Probabilities':
+      dtype: Optional[jnp.dtype] = None
+  ) -> 'Probabilities':
     """Construct a random Probabilities."""
-    return cls(params=jax.random.normal(
-        key=key, shape=(n_dimensions - 1,), dtype=dtype) * stdev)
+    return cls(
+        params=jax.random
+        .normal(key=key, shape=(n_dimensions - 1,), dtype=dtype) * stdev
+    )
 
   @classmethod
-  def from_probs(
-      cls,
-      probs: jnp.ndarray) -> 'Probabilities':
+  def from_probs(cls, probs: jnp.ndarray) -> 'Probabilities':
     """Construct Probabilities from a vector of probabilities."""
     log_probs = jnp.log(probs)
     log_probs_normalized, norm = log_probs[:-1], log_probs[-1]
@@ -63,8 +62,9 @@ class Probabilities:
     return self._params.dtype
 
   def unnormalized_log_probs(self) -> jnp.ndarray:
-    return jnp.concatenate(
-        [self._params, jnp.zeros((1,), dtype=self.dtype)], axis=-1)
+    return jnp.concatenate([self._params,
+                            jnp.zeros((1,), dtype=self.dtype)],
+                           axis=-1)
 
   def log_probs(self) -> jnp.ndarray:
     return jax.nn.log_softmax(self.unnormalized_log_probs())
@@ -74,7 +74,8 @@ class Probabilities:
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
     return jax.random.categorical(
-        key=key, logits=self.unnormalized_log_probs(), shape=(size,))
+        key=key, logits=self.unnormalized_log_probs(), shape=(size,)
+    )
 
   def tree_flatten(self):
     children = (self.params,)
@@ -90,7 +91,8 @@ class Probabilities:
     children, aux = self.tree_flatten()
     return '{}({})'.format(
         class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
+                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    )
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

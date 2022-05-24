@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Low level functions used within the scope of Geometric processing."""
 
 import functools
-from typing import Sequence
 
 import jax
 import jax.numpy as jnp
@@ -25,7 +22,8 @@ import jax.numpy as jnp
 @functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))
 def logsumexp(mat, axis=None, keepdims=False, b=None, return_sign=False):
   return jax.scipy.special.logsumexp(
-      mat, axis=axis, keepdims=keepdims, b=b, return_sign=return_sign)
+      mat, axis=axis, keepdims=keepdims, b=b, return_sign=return_sign
+  )
 
 
 @logsumexp.defjvp

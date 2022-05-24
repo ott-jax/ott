@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,11 @@
 # Lint as: python3
 """Tests for the jvp of a custom implementation of lse."""
 
-from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.geometry import ops
 
 
@@ -47,13 +47,12 @@ class GeometryLseTest(absltest.TestCase):
       _, g = lse(mat, axis, None, False)
       delta_mat = jax.random.normal(keys[3], (n, m))
       eps = 1e-3
-      val_peps = lse(mat + eps*delta_mat, axis, None, False)[0]
-      val_meps = lse(mat - eps*delta_mat, axis, None, False)[0]
-      np.testing.assert_allclose(
-          (val_peps - val_meps) / (2 * eps),
-          jnp.sum(delta_mat * g[0]),
-          rtol=1e-03,
-          atol=1e-02)
+      val_peps = lse(mat + eps * delta_mat, axis, None, False)[0]
+      val_meps = lse(mat - eps * delta_mat, axis, None, False)[0]
+      np.testing.assert_allclose((val_peps - val_meps) / (2 * eps),
+                                 jnp.sum(delta_mat * g[0]),
+                                 rtol=1e-03,
+                                 atol=1e-02)
     for b, dim, axis in zip((b_0, b_1), (m, n), (1, 0)):
       print(mat.shape, b.shape, axis)
       delta_b = jax.random.normal(keys[4], (dim,)).reshape(b.shape)
@@ -61,11 +60,12 @@ class GeometryLseTest(absltest.TestCase):
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, b + eps * delta_b, True)[0]
       val_meps = lse(mat - eps * delta_mat, axis, b - eps * delta_b, True)[0]
-      np.testing.assert_allclose(
-          (val_peps - val_meps) / (2 * eps),
-          jnp.sum(delta_mat * g[0]) + jnp.sum(delta_b * g[1]),
-          rtol=1e-03,
-          atol=1e-02)
+      np.testing.assert_allclose((val_peps - val_meps) / (2 * eps),
+                                 jnp.sum(delta_mat * g[0]) +
+                                 jnp.sum(delta_b * g[1]),
+                                 rtol=1e-03,
+                                 atol=1e-02)
+
 
 if __name__ == '__main__':
   absltest.main()

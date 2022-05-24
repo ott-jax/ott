@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Some utility functions for transport computation.
 
 This module is primarily made for new users who are looking for one-liners.
@@ -30,11 +28,10 @@ ott.core.gromov_wasserstein) for better control over the parameters.
 """
 
 from typing import Any, NamedTuple
+
 import jax.numpy as jnp
-from ott.core import gromov_wasserstein
-from ott.core import problems
-from ott.core import quad_problems
-from ott.core import sinkhorn
+
+from ott.core import gromov_wasserstein, problems, quad_problems, sinkhorn
 
 
 class Transport(NamedTuple):
@@ -110,7 +107,8 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
       tau_b=tau_b,
       gw_unbalanced_correction=gw_unbalanced_correction,
       fused_penalty=fused_penalty,
-      **pb_kwargs)
+      **pb_kwargs
+  )
   linear = isinstance(pb, problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']

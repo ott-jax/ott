@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,11 @@
 # Lint as: python3
 """Tests for the Sinkhorn divergence."""
 
-from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
@@ -45,9 +45,13 @@ class SinkhornDivergenceGradTest(absltest.TestCase):
     def loss_fn(cloud_a, cloud_b):
       div = sinkhorn_divergence.sinkhorn_divergence(
           pointcloud.PointCloud,
-          cloud_a, cloud_b, epsilon=1.0,
-          a=self._a, b=self._b,
-          sinkhorn_kwargs=dict(threshold=0.05))
+          cloud_a,
+          cloud_b,
+          epsilon=1.0,
+          a=self._a,
+          b=self._b,
+          sinkhorn_kwargs=dict(threshold=0.05)
+      )
       return div.divergence
 
     delta = jax.random.normal(rngs[2], x.shape)
@@ -68,7 +72,9 @@ class SinkhornDivergenceGradTest(absltest.TestCase):
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

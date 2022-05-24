@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +14,11 @@
 
 # Lint as: python3
 """A class describing low-rank geometries."""
-from typing import Union, Optional
+from typing import Optional, Union
+
 import jax
 import jax.numpy as jnp
+
 from ott.geometry import geometry
 
 
@@ -26,14 +27,15 @@ class LRCGeometry(geometry.Geometry):
   r"""Low-rank Cost Geometry defined by two factors.
   """
 
-  def __init__(self,
-               cost_1: jnp.ndarray,
-               cost_2: jnp.ndarray,
-               bias: float = 0.0,
-               scale_cost: Optional[Union[bool, float, str]] = None,
-               batch_size: Optional[int] = None,
-               **kwargs
-               ):
+  def __init__(
+      self,
+      cost_1: jnp.ndarray,
+      cost_2: jnp.ndarray,
+      bias: float = 0.0,
+      scale_cost: Optional[Union[bool, float, str]] = None,
+      batch_size: Optional[int] = None,
+      **kwargs
+  ):
     r"""Initializes a geometry by passing it low-rank factors.
 
     Args:
@@ -88,8 +90,10 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def is_symmetric(self):
-    return (self._cost_1.shape[0] == self._cost_2.shape[0] and
-            jnp.all(self._cost_1 == self._cost_2))
+    return (
+        self._cost_1.shape[0] == self._cost_2.shape[0] and
+        jnp.all(self._cost_1 == self._cost_2)
+    )
 
   @property
   def scale_cost(self):
@@ -98,15 +102,15 @@ class LRCGeometry(geometry.Geometry):
     elif self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
-      max_bound = x_norm + y_norm + 2 * jnp.sqrt(
-        x_norm * y_norm
-      )
+      max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return jax.lax.stop_gradient(1.0 / (max_bound + self._bias))
     elif self._scale_cost == 'mean':
       factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
       factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
-      mean = (jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1])
-              + self._bias)
+      mean = (
+          jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1]) +
+          self._bias
+      )
       return jax.lax.stop_gradient(1.0 / mean)
     elif self._scale_cost == 'max_cost':
       return jax.lax.stop_gradient(1.0 / self.compute_max_cost())
@@ -121,19 +125,19 @@ class LRCGeometry(geometry.Geometry):
     # When applying square of a LRCgeometry, one can either elementwise square
     # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
     # and apply it. First is O(nm), the other is O((n+m)r^2).
-    if n * m < (n + m) * r**2:  #  better use regular apply
+    if n * m < (n + m) * r ** 2:  #  better use regular apply
       return super().apply_square_cost(arr, axis)
     else:
       new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
       new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
       return LRCGeometry(
-          cost_1=new_cost_1.reshape((n, r**2)),
-          cost_2=new_cost_2.reshape((m, r**2))).apply_cost(arr, axis)
+          cost_1=new_cost_1.reshape((n, r ** 2)),
+          cost_2=new_cost_2.reshape((m, r ** 2))
+      ).apply_cost(arr, axis)
 
-  def _apply_cost_to_vec(self,
-                         vec: jnp.ndarray,
-                         axis: int = 0,
-                         fn=None) -> jnp.ndarray:
+  def _apply_cost_to_vec(
+      self, vec: jnp.ndarray, axis: int = 0, fn=None
+  ) -> jnp.ndarray:
     """Applies [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
@@ -145,6 +149,7 @@ class LRCGeometry(geometry.Geometry):
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
+
     def efficient_apply(vec, axis, fn):
       c1 = self.cost_1 if axis == 1 else self.cost_2
       c2 = self.cost_2 if axis == 1 else self.cost_1
@@ -154,10 +159,10 @@ class LRCGeometry(geometry.Geometry):
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
     return jax.lax.cond(
-      fn is None or geometry.is_linear(fn),
-      lambda _: efficient_apply(vec, axis, fn),
-      lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn),
-      self
+        fn is None or geometry.is_linear(fn),
+        lambda _: efficient_apply(vec, axis, fn),
+        lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn),
+        self
     )
 
   def compute_max_cost(self) -> float:
@@ -182,8 +187,8 @@ class LRCGeometry(geometry.Geometry):
 
     n = self.shape[1] if batch_for_y else self.shape[0]
     p = self._cost_2.shape[1] if batch_for_y else self._cost_1.shape[1]
-    carry = ((self._cost_1, self._cost_2) if batch_for_y
-             else (self._cost_2, self._cost_1))
+    carry = ((self._cost_1, self._cost_2) if batch_for_y else
+             (self._cost_2, self._cost_1))
 
     if self.batch_size:
       batch_size = min(self.batch_size, n)
@@ -194,7 +199,8 @@ class LRCGeometry(geometry.Geometry):
     def body(carry, slice_idx):
       cost1, cost2 = carry
       cost2_slice = jax.lax.dynamic_slice(
-          cost2, (slice_idx * batch_size, 0), (batch_size, p))
+          cost2, (slice_idx * batch_size, 0), (batch_size, p)
+      )
       out_slice = jnp.max(jnp.dot(cost2_slice, cost1.T))
       return carry, out_slice
 
@@ -210,8 +216,10 @@ class LRCGeometry(geometry.Geometry):
 
   def tree_flatten(self):
     return (self._cost_1, self._cost_2, self._kwargs), {
-        'bias': self._bias, 'scale_cost': self._scale_cost,
-        'batch_size': self.batch_size}
+        'bias': self._bias,
+        'scale_cost': self._scale_cost,
+        'batch_size': self.batch_size
+    }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -223,4 +231,5 @@ def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry):
   return LRCGeometry(
       cost_1=jnp.concatenate((geom1.cost_1, geom2.cost_1), axis=1),
       cost_2=jnp.concatenate((geom1.cost_2, geom2.cost_2), axis=1),
-      **geom1._kwargs)
+      **geom1._kwargs
+  )

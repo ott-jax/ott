@@ -11,7 +11,7 @@ We follow with the classic ``sinkhorn`` routine (essentially a
 wrapper for the ``Sinkhorn`` solver class) [#]_, [#]_. We also provide an analogous
 low-rank Sinkhorn solver [#]_ to handle very large instances. Both are used
 within our Wasserstein barycenter solvers [#]_, [#]_ as well as our
-Gromov-Wasserstein solver [#]_, [#]_. We also provide an implementation of 
+Gromov-Wasserstein solver [#]_, [#]_. We also provide an implementation of
 input convex neural networks [#]_, a NN that can be used to estimate OT [#]_.
 
 OT Problems
@@ -42,7 +42,7 @@ Barycenters (Entropic and LR)
 -----------------------------
 .. autosummary::
   :toctree: _autosummary
-    
+
     discrete_barycenter.discrete_barycenter
 
 Gromov-Wasserstein (Entropic and LR)

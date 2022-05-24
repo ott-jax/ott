@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pytree containing parameters for a pair of coupled Gaussian mixture models.
 """
 import jax
 import jax.numpy as jnp
-from ott.core import sinkhorn
-from ott.geometry import costs
-from ott.geometry import geometry
-from ott.geometry import pointcloud
 
+from ott.core import sinkhorn
+from ott.geometry import costs, geometry, pointcloud
 from ott.tools.gaussian_mixture import gaussian_mixture
 
 
@@ -56,7 +52,7 @@ class GaussianMixturePair:
       epsilon: float = 1.e-2,
       tau: float = 1.,
       lock_gmm1: bool = False,
-    ):
+  ):
     """Constructor.
 
     When fitting a pair of coupled GMMs with *no* reweighting of components
@@ -125,9 +121,11 @@ class GaussianMixturePair:
     cov1 = cov1.reshape(cov1.shape[:-2] + (dimension * dimension,))
     y = jnp.concatenate([mean1, cov1], axis=-1)
     return pointcloud.PointCloud(
-        x=x, y=y,
+        x=x,
+        y=y,
         cost_fn=costs.Bures(dimension=dimension),
-        epsilon=self.epsilon)
+        epsilon=self.epsilon
+    )
 
   def get_cost_matrix(self) -> jnp.ndarray:
     """Get matrix of W2^2 costs between all pairs of (gmm0, gmm1) components."""
@@ -143,7 +141,9 @@ class GaussianMixturePair:
         geom,
         a=self.gmm0.component_weights,
         b=self.gmm1.component_weights,
-        tau_a=self.tau, tau_b=self.tau)
+        tau_a=self.tau,
+        tau_b=self.tau
+    )
 
   def get_normalized_sinkhorn_coupling(
       self,
@@ -171,9 +171,11 @@ class GaussianMixturePair:
       A tuple of child pytrees and a dict of auxiliary data.
     """
     children = [self.gmm0]
-    aux_data = {'epsilon': self.epsilon,
-                'tau': self.tau,
-                'lock_gmm1': self.lock_gmm1}
+    aux_data = {
+        'epsilon': self.epsilon,
+        'tau': self.tau,
+        'lock_gmm1': self.lock_gmm1
+    }
     if self.lock_gmm1:
       aux_data['gmm1'] = self.gmm1
     else:
@@ -205,7 +207,8 @@ class GaussianMixturePair:
     children, aux = self.tree_flatten()
     return '{}({})'.format(
         class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
+                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    )
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

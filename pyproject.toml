@@ -10,24 +10,3 @@ profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
 skip_glob = ["docs/*"]
-
-[tool.black]
-line-length = 100
-target-version = ['py38']
-include = '\.pyi?$'
-exclude = '''
-(
-  /(
-      \.eggs
-    | \.git
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-  )/
-)
-'''

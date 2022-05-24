@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Apple Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,27 +14,30 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-import functools
-from typing import Any, Dict, NamedTuple, Optional, Union
+from typing import Any, Optional
 
 import jax
 import jax.numpy as jnp
-from ott.core import sinkhorn
-from ott.core import sinkhorn_lr
+
+from ott.core import sinkhorn, sinkhorn_lr
+
 
 @jax.tree_util.register_pytree_node_class
 class WassersteinSolver:
   """A generic solver for problems that use a linear reg-OT pb in inner loop."""
-  def __init__(self,
-               epsilon: Optional[float] = None,
-               rank: int = -1,
-               linear_ot_solver: Any = None,
-               min_iterations: int = 5,
-               max_iterations: int = 50,
-               threshold: float = 1e-3,
-               jit: bool = True,
-               store_inner_errors: bool = False,
-               **kwargs):
+
+  def __init__(
+      self,
+      epsilon: Optional[float] = None,
+      rank: int = -1,
+      linear_ot_solver: Any = None,
+      min_iterations: int = 5,
+      max_iterations: int = 50,
+      threshold: float = 1e-3,
+      jit: bool = True,
+      store_inner_errors: bool = False,
+      **kwargs
+  ):
     default_epsilon = 1.0
     # Set epsilon value to default if needed, but keep track of whether None was
     # passed to handle the case where a linear_ot_solver is passed or not.
@@ -49,15 +51,16 @@ class WassersteinSolver:
         if epsilon is None:
           # Use default entropic regularization in LRSinkhorn if None was passed
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-            rank=self.rank, jit=False, **kwargs)
+              rank=self.rank, jit=False, **kwargs
+          )
         else:
           # If epsilon is passed, use it to replace the default LRSinkhorn value
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-            rank=self.rank,
-            epsilon=self.epsilon, **kwargs)
+              rank=self.rank, epsilon=self.epsilon, **kwargs
+          )
       else:
-        # When using Entropic GW, epsilon is not handled inside Sinkhorn, 
-        # but rather added back to the Geometry object reinstantiated 
+        # When using Entropic GW, epsilon is not handled inside Sinkhorn,
+        # but rather added back to the Geometry object reinstantiated
         # when linearizing the problem. Therefore no need to pass it to solver.
         self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
 
@@ -73,14 +76,14 @@ class WassersteinSolver:
     return self.rank > 0
 
   def tree_flatten(self):
-    return ([self.epsilon, self.rank,
-             self.linear_ot_solver, self.threshold],
+    return ([self.epsilon, self.rank, self.linear_ot_solver, self.threshold],
             dict(
                 min_iterations=self.min_iterations,
                 max_iterations=self.max_iterations,
                 jit=self.jit,
                 store_inner_errors=self.store_inner_errors,
-                **self._kwargs))
+                **self._kwargs
+            ))
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -89,13 +92,14 @@ class WassersteinSolver:
         rank=children[1],
         linear_ot_solver=children[2],
         threshold=children[3],
-        **aux_data)
+        **aux_data
+    )
 
   def _converged(self, state, iteration):
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_and(
-        i >= 2,
-        jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))
+        i >= 2, jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
+    )
 
   def _diverged(self, state, iteration):
     costs, i, tol = state.costs, iteration, self.threshold
@@ -108,4 +112,6 @@ class WassersteinSolver:
         i <= 2,
         jnp.logical_and(
             jnp.logical_not(self._diverged(state, iteration)),
-            jnp.logical_not(self._converged(state, iteration))))
+            jnp.logical_not(self._converged(state, iteration))
+        )
+    )

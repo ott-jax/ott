@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,17 +14,17 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Optional, Callable, NamedTuple, Sequence, Tuple
+from typing import Callable, NamedTuple, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+
 from ott.core import anderson as anderson_lib
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import momentum as momentum_lib
-from ott.core import problems
-from ott.core import unbalanced_functions
+from ott.core import problems, unbalanced_functions
 from ott.geometry import geometry
 
 
@@ -41,18 +40,17 @@ class SinkhornState(NamedTuple):
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def solution_error(self, ot_prob, norm_error, lse_mode)-> jnp.ndarray:
+  def solution_error(self, ot_prob, norm_error, lse_mode) -> jnp.ndarray:
     return solution_error(self.fu, self.gv, ot_prob, norm_error, lse_mode)
 
   def ent_reg_cost(self, ot_prob, lse_mode: bool) -> jnp.ndarray:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
 
-def solution_error(f_u: jnp.ndarray,
-                   g_v: jnp.ndarray,
-                   ot_prob,
-                   norm_error: Sequence[int],
-                   lse_mode: bool) -> jnp.ndarray:
+def solution_error(
+    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob, norm_error: Sequence[int],
+    lse_mode: bool
+) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
   When the ``ot_prob`` problem is balanced, this is simply deviation to the
@@ -71,7 +69,8 @@ def solution_error(f_u: jnp.ndarray,
   """
   if ot_prob.is_balanced:
     return marginal_error(
-        f_u, g_v, ot_prob.b, ot_prob.geom, 0, norm_error, lse_mode)
+        f_u, g_v, ot_prob.b, ot_prob.geom, 0, norm_error, lse_mode
+    )
 
   # In the unbalanced case, we compute the norm of the gradient.
   # the gradient is equal to the marginal of the current plan minus
@@ -80,16 +79,20 @@ def solution_error(f_u: jnp.ndarray,
   # is the case when tau_z → 1.0
   if lse_mode:
     grad_a = unbalanced_functions.grad_of_marginal_fit(
-        ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon)
+        ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon
+    )
     grad_b = unbalanced_functions.grad_of_marginal_fit(
-        ot_prob.b, g_v, ot_prob.tau_b, ot_prob.epsilon)
+        ot_prob.b, g_v, ot_prob.tau_b, ot_prob.epsilon
+    )
   else:
     u = ot_prob.geom.potential_from_scaling(f_u)
     v = ot_prob.geom.potential_from_scaling(g_v)
     grad_a = unbalanced_functions.grad_of_marginal_fit(
-        ot_prob.a, u, ot_prob.tau_a, ot_prob.epsilon)
+        ot_prob.a, u, ot_prob.tau_a, ot_prob.epsilon
+    )
     grad_b = unbalanced_functions.grad_of_marginal_fit(
-        ot_prob.b, v, ot_prob.tau_b, ot_prob.epsilon)
+        ot_prob.b, v, ot_prob.tau_b, ot_prob.epsilon
+    )
   err = marginal_error(f_u, g_v, grad_a, ot_prob.geom, 1, norm_error, lse_mode)
   err += marginal_error(f_u, g_v, grad_b, ot_prob.geom, 0, norm_error, lse_mode)
   return err
@@ -102,7 +105,8 @@ def marginal_error(
     geom: geometry.Geometry,
     axis: int = 0,
     norm_error: Sequence[int] = (1,),
-    lse_mode: bool = True):
+    lse_mode: bool = True
+):
   """Outputs how far  Sinkhorn solution is w.r.t target.
 
   Args:
@@ -123,13 +127,14 @@ def marginal_error(
     marginal = geom.marginal_from_scalings(f_u, g_v, axis=axis)
   norm_error = jnp.array(norm_error)
   error = jnp.sum(
-      jnp.abs(marginal - target)**norm_error[:, jnp.newaxis],
-      axis=1)**(1.0 / norm_error)
+      jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis], axis=1
+  ) ** (1.0 / norm_error)
   return error
 
 
 def ent_reg_cost(
-    f: jnp.ndarray, g: jnp.ndarray, ot_prob, lse_mode: bool) -> jnp.ndarray:
+    f: jnp.ndarray, g: jnp.ndarray, ot_prob, lse_mode: bool
+) -> jnp.ndarray:
   r"""Computes objective of Sinkhorn for OT problem given dual solutions.
 
   The objective is evaluated for dual solution ``f`` and ``g``, using
@@ -157,9 +162,11 @@ def ent_reg_cost(
   else:
     rho_a = ot_prob.epsilon * (ot_prob.tau_a / (1 - ot_prob.tau_a))
     div_a = -jnp.sum(
-        jnp.where(supp_a,
-                  ot_prob.a * unbalanced_functions.phi_star(-(f - fa), rho_a),
-                  0.0))
+        jnp.where(
+            supp_a, ot_prob.a * unbalanced_functions.phi_star(-(f - fa), rho_a),
+            0.0
+        )
+    )
 
   gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
   if ot_prob.tau_b == 1.0:
@@ -167,9 +174,11 @@ def ent_reg_cost(
   else:
     rho_b = ot_prob.epsilon * (ot_prob.tau_b / (1 - ot_prob.tau_b))
     div_b = -jnp.sum(
-        jnp.where(supp_b,
-                  ot_prob.b * unbalanced_functions.phi_star(-(g - gb), rho_b),
-                  0.0))
+        jnp.where(
+            supp_b, ot_prob.b * unbalanced_functions.phi_star(-(g - gb), rho_b),
+            0.0
+        )
+    )
 
   # Using https://arxiv.org/pdf/1910.12958.pdf (24)
   if lse_mode:
@@ -179,7 +188,8 @@ def ent_reg_cost(
     v = ot_prob.geom.scaling_from_potential(g)
     total_sum = jnp.sum(ot_prob.geom.marginal_from_scalings(u, v))
   return div_a + div_b + ot_prob.epsilon * (
-      jnp.sum(ot_prob.a) * jnp.sum(ot_prob.b) - total_sum)
+      jnp.sum(ot_prob.a) * jnp.sum(ot_prob.b) - total_sum
+  )
 
 
 class SinkhornOutput(NamedTuple):
@@ -224,8 +234,10 @@ class SinkhornOutput(NamedTuple):
   def converged(self):
     if self.errors is None:
       return False
-    return jnp.logical_and(jnp.sum(self.errors == -1) > 0,
-                           jnp.sum(jnp.isnan(self.errors)) == 0)
+    return jnp.logical_and(
+        jnp.sum(self.errors == -1) > 0,
+        jnp.sum(jnp.isnan(self.errors)) == 0
+    )
 
   @property
   def scalings(self):
@@ -245,11 +257,13 @@ class SinkhornOutput(NamedTuple):
     """Applies the transport to a ndarray; axis=1 for its transpose."""
     try:
       return self.ot_prob.geom.apply_transport_from_potentials(
-          self.f, self.g, inputs, axis=axis)
+          self.f, self.g, inputs, axis=axis
+      )
     except ValueError:
       u, v = self.scalings
       return self.ot_prob.geom.apply_transport_from_scalings(
-          u, v, inputs, axis=axis)
+          u, v, inputs, axis=axis
+      )
 
   def marginal(self, axis: int) -> jnp.ndarray:
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
@@ -257,8 +271,9 @@ class SinkhornOutput(NamedTuple):
   def cost_at_geom(self, other_geom: geometry.Geometry):
     """Returns reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
-        jnp.sum(self.matrix * other_geom.cost_matrix)
-        - self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix)))
+        jnp.sum(self.matrix * other_geom.cost_matrix) -
+        self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix))
+    )
 
   def transport_mass(self) -> float:
     """Sum of transport matrix."""
@@ -309,19 +324,21 @@ class Sinkhorn:
       should be jitted by the user)
   """
 
-  def __init__(self,
-               lse_mode: bool = True,
-               threshold: float = 1e-3,
-               norm_error: int = 1,
-               inner_iterations: int = 10,
-               min_iterations: int = 0,
-               max_iterations: int = 2000,
-               momentum=None,
-               anderson=None,
-               parallel_dual_updates: bool = False,
-               use_danskin: bool = None,
-               implicit_diff=implicit_lib.ImplicitDiff(),
-               jit: bool = True):
+  def __init__(
+      self,
+      lse_mode: bool = True,
+      threshold: float = 1e-3,
+      norm_error: int = 1,
+      inner_iterations: int = 10,
+      min_iterations: int = 0,
+      max_iterations: int = 2000,
+      momentum=None,
+      anderson=None,
+      parallel_dual_updates: bool = False,
+      use_danskin: bool = None,
+      implicit_diff=implicit_lib.ImplicitDiff(),
+      jit: bool = True
+  ):
     self.lse_mode = lse_mode
     self.threshold = threshold
     self.inner_iterations = inner_iterations
@@ -330,10 +347,12 @@ class Sinkhorn:
     self._norm_error = norm_error
     if momentum is not None:
       self.momentum = momentum_lib.Momentum(
-          momentum.start, momentum.value, self.inner_iterations)
+          momentum.start, momentum.value, self.inner_iterations
+      )
     else:
       self.momentum = momentum_lib.Momentum(
-          inner_iterations=self.inner_iterations)
+          inner_iterations=self.inner_iterations
+      )
     self.anderson = anderson
     self.implicit_diff = implicit_diff
     self.parallel_dual_updates = parallel_dual_updates
@@ -343,14 +362,15 @@ class Sinkhorn:
     # Reset all momentum parameters.
     if anderson:
       self.implicit_diff = (
-          implicit_lib.ImplicitDiff() if self.implicit_diff is None
-          else self.implicit_diff)
+          implicit_lib.ImplicitDiff()
+          if self.implicit_diff is None else self.implicit_diff
+      )
       self.momentum = momentum_lib.Momentum(start=0, value=1.0)
 
     # By default, use Danskin theorem to differentiate
     # the objective when using implicit_lib.
-    self.use_danskin = ((self.implicit_diff is not None) if use_danskin is None
-                        else use_danskin)
+    self.use_danskin = ((self.implicit_diff is not None)
+                        if use_danskin is None else use_danskin)
 
   @property
   def norm_error(self):
@@ -365,8 +385,8 @@ class Sinkhorn:
   def __call__(
       self,
       ot_prob: problems.LinearProblem,
-      init: Optional[Tuple[Optional[jnp.ndarray],
-                           ...]] = None) -> SinkhornOutput:
+      init: Optional[Tuple[Optional[jnp.ndarray], ...]] = None
+  ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
     a, b = ot_prob.a, ot_prob.b
@@ -376,9 +396,11 @@ class Sinkhorn:
       init_dual_b = jnp.zeros_like(b) if self.lse_mode else jnp.ones_like(b)
     # Cancel dual variables for zero weights.
     init_dual_a = jnp.where(
-        a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0)
+        a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0
+    )
     init_dual_b = jnp.where(
-        b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0)
+        b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
+    )
 
     run_fn = run if not self.jit else jax.jit(run)
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
@@ -399,11 +421,16 @@ class Sinkhorn:
     old_gv = state.gv
 
     new_gv = ot_prob.tau_b * ot_prob.geom.update_potential(
-        state.fu, state.gv, jnp.log(ot_prob.b), iteration, axis=0)
+        state.fu, state.gv, jnp.log(ot_prob.b), iteration, axis=0
+    )
     gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
     new_fu = ot_prob.tau_a * ot_prob.geom.update_potential(
-        state.fu, old_gv if self.parallel_dual_updates else gv,
-        jnp.log(ot_prob.a), iteration, axis=1)
+        state.fu,
+        old_gv if self.parallel_dual_updates else gv,
+        jnp.log(ot_prob.a),
+        iteration,
+        axis=1
+    )
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(fu=fu, gv=gv)
 
@@ -412,11 +439,15 @@ class Sinkhorn:
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
     new_gv = ot_prob.geom.update_scaling(
-        state.fu, ot_prob.b, iteration, axis=0) ** ot_prob.tau_b
+        state.fu, ot_prob.b, iteration, axis=0
+    ) ** ot_prob.tau_b
     gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
     new_fu = ot_prob.geom.update_scaling(
         old_gv if self.parallel_dual_updates else gv,
-        ot_prob.a, iteration, axis=1) ** ot_prob.tau_a
+        ot_prob.a,
+        iteration,
+        axis=1
+    ) ** ot_prob.tau_a
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(fu=fu, gv=gv)
 
@@ -453,17 +484,14 @@ class Sinkhorn:
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.solution_error(
-            ot_prob, self.norm_error, self.lse_mode),
-        jnp.inf)
-    errors = (
-        state.errors.at[iteration // self.inner_iterations, :].set(err))
+        state.solution_error(ot_prob, self.norm_error, self.lse_mode), jnp.inf
+    )
+    errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
     return state.set(errors=errors)
 
   def _converged(self, state, iteration):
     err = state.errors[iteration // self.inner_iterations - 1, 0]
-    return jnp.logical_and(iteration > 0,
-                           err < self.threshold)
+    return jnp.logical_and(iteration > 0, err < self.threshold)
 
   def _diverged(self, state, iteration):
     err = state.errors[iteration // self.inner_iterations - 1, 0]
@@ -473,7 +501,8 @@ class Sinkhorn:
     """ continue while not(converged) and not(diverged)"""
     return jnp.logical_and(
         jnp.logical_not(self._diverged(state, iteration)),
-        jnp.logical_not(self._converged(state, iteration)))
+        jnp.logical_not(self._converged(state, iteration))
+    )
 
   @property
   def outer_iterations(self):
@@ -558,15 +587,16 @@ def iterations(ot_prob, solver, init):
   const = ot_prob, solver
   state = solver.init_state(ot_prob, init)
   state = fix_point(
-      cond_fn, body_fn,
-      solver.min_iterations, solver.max_iterations, solver.inner_iterations,
-      const, state)
+      cond_fn, body_fn, solver.min_iterations, solver.max_iterations,
+      solver.inner_iterations, const, state
+  )
   return solver.output_from_state(ot_prob, state)
 
 
-def _iterations_taped(ot_prob: problems.LinearProblem,
-                      solver: Sinkhorn,
-                      init: Tuple[jnp.ndarray, jnp.ndarray]):
+def _iterations_taped(
+    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
+                                                                   jnp.ndarray]
+):
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
@@ -589,8 +619,9 @@ def _iterations_implicit_bwd(res, gr):
   f, g, ot_prob, solver = res
   gr = gr[:2]
   return (
-      *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr),
-      None, None)
+      *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr), None,
+      None
+  )
 
 
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
@@ -620,7 +651,8 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
-    jit: bool = False) -> Sinkhorn:
+    jit: bool = False
+) -> Sinkhorn:
   """For backward compatibility."""
   del tau_a, tau_b
   if not implicit_differentiation:
@@ -631,12 +663,13 @@ def make(
         ridge_kernel=implicit_solver_ridge_kernel,
         ridge_identity=implicit_solver_ridge_identity,
         symmetric=implicit_solver_symmetric,
-        precondition_fun=precondition_fun)
+        precondition_fun=precondition_fun
+    )
 
   if anderson_acceleration > 0:
     anderson = anderson_lib.AndersonAcceleration(
-        memory=anderson_acceleration,
-        refresh_every=refresh_anderson_frequency)
+        memory=anderson_acceleration, refresh_every=refresh_anderson_frequency
+    )
   else:
     anderson = None
 
@@ -647,23 +680,25 @@ def make(
       inner_iterations=inner_iterations,
       min_iterations=min_iterations,
       max_iterations=max_iterations,
-      momentum=momentum_lib.Momentum(
-          start=chg_momentum_from, value=momentum),
+      momentum=momentum_lib.Momentum(start=chg_momentum_from, value=momentum),
       anderson=anderson,
       implicit_diff=implicit_diff,
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
-      jit=jit)
+      jit=jit
+  )
 
 
-def sinkhorn(geom: geometry.Geometry,
-             a: Optional[jnp.ndarray] = None,
-             b: Optional[jnp.ndarray] = None,
-             tau_a: float = 1.0,
-             tau_b: float = 1.0,
-             init_dual_a: Optional[jnp.ndarray] = None,
-             init_dual_b: Optional[jnp.ndarray] = None,
-             **kwargs):
+def sinkhorn(
+    geom: geometry.Geometry,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    init_dual_a: Optional[jnp.ndarray] = None,
+    init_dual_b: Optional[jnp.ndarray] = None,
+    **kwargs
+):
   r"""A Jax version of Sinkhorn's algorithm.
 
   Solves regularized OT problem using Sinkhorn iterations.

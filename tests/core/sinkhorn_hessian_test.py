@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +17,13 @@
 
 import functools
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.core import implicit_differentiation as implicit_lib
-from ott.core import problems
-from ott.core import sinkhorn
+from ott.core import problems, sinkhorn
 from ott.geometry import pointcloud
 
 
@@ -40,7 +38,8 @@ class SinkhornHessianTest(parameterized.TestCase):
       tau_a=[1.0, .93],
       tau_b=[1.0, .91],
       shape=[(12, 15)],
-      arg=[0, 1])
+      arg=[0, 1]
+  )
   def test_hessian_sinkhorn(self, lse_mode, tau_a, tau_b, shape, arg):
     """Test hessian w.r.t. weights and locations."""
     n, m = shape
@@ -49,8 +48,8 @@ class SinkhornHessianTest(parameterized.TestCase):
     rngs = jax.random.split(self.rng, 6)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) +.1
-    b = jax.random.uniform(rngs[3], (m,)) +.1
+    a = jax.random.uniform(rngs[2], (n,)) + .1
+    b = jax.random.uniform(rngs[3], (m,)) + .1
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
@@ -61,10 +60,14 @@ class SinkhornHessianTest(parameterized.TestCase):
       prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
       implicit_diff = (
           None if not implicit else
-          implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge))
+          implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge)
+      )
       solver = sinkhorn.Sinkhorn(
-          lse_mode=lse_mode, threshold=1e-4, use_danskin=False,
-          implicit_diff=implicit_diff)
+          lse_mode=lse_mode,
+          threshold=1e-4,
+          use_danskin=False,
+          implicit_diff=implicit_diff
+      )
       return solver(prob).reg_ot_cost
 
     delta_a = jax.random.uniform(rngs[4], (n,))
@@ -73,10 +76,12 @@ class SinkhornHessianTest(parameterized.TestCase):
 
     # Test that Hessians produced with either backprop or implicit do match.
     hess_loss_imp = jax.jit(
-        jax.hessian(lambda a, x: loss(a, x, True), argnums=arg))
+        jax.hessian(lambda a, x: loss(a, x, True), argnums=arg)
+    )
     hess_imp = hess_loss_imp(a, x)
     hess_loss_back = jax.jit(
-        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg))
+        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+    )
     hess_back = hess_loss_back(a, x)
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
@@ -95,8 +100,9 @@ class SinkhornHessianTest(parameterized.TestCase):
 
     eps = 1e-3
     for impl in [True, False]:
-      grad_ = jax.jit(jax.grad(
-          functools.partial(loss, implicit=impl), argnums=arg))
+      grad_ = jax.jit(
+          jax.grad(functools.partial(loss, implicit=impl), argnums=arg)
+      )
       grad_init = grad_(a, x)
 
       # Depending on variable tested, perturb either a or x.
@@ -105,7 +111,7 @@ class SinkhornHessianTest(parameterized.TestCase):
 
       # Perturbed gradient.
       grad_pert = grad_(a_p, x_p)
-      grad_dif = (grad_pert-grad_init) / eps
+      grad_dif = (grad_pert - grad_init) / eps
       # Apply hessian to perturbation
       if arg == 0:
         hess_delta = jnp.matmul(hess_imp, delta_a)

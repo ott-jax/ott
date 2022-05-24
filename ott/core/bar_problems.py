@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Apple Inc
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,34 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Optional, Tuple
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
-from ott.geometry import geometry
-from ott.geometry import costs
+
 from ott.core import segment
+from ott.geometry import costs
 
 
 @jax.tree_util.register_pytree_node_class
 class BarycenterProblem:
   """Holds the definition of a linear regularized OT problem and some tools."""
 
-  def __init__(self,
-    y: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    weights: Optional[jnp.ndarray] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[jnp.ndarray] = None,
-    debiased: bool = False,
-    segment_ids: Optional[jnp.ndarray] = None,
-    num_segments: Optional[jnp.ndarray] = None,
-    indices_are_sorted: Optional[bool] = None,
-    num_per_segment: Optional[jnp.ndarray] = None,
-    max_measure_size: Optional[int] = None):
-    """Initializes a discrete BarycenterProblem 
+  def __init__(
+      self,
+      y: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None,
+      weights: Optional[jnp.ndarray] = None,
+      cost_fn: Optional[costs.CostFn] = None,
+      epsilon: Optional[jnp.ndarray] = None,
+      debiased: bool = False,
+      segment_ids: Optional[jnp.ndarray] = None,
+      num_segments: Optional[jnp.ndarray] = None,
+      indices_are_sorted: Optional[bool] = None,
+      num_per_segment: Optional[jnp.ndarray] = None,
+      max_measure_size: Optional[int] = None
+  ):
+    """Initializes a discrete BarycenterProblem
 
     Args:
       y: a matrix merging the points of all measures.
@@ -70,18 +71,18 @@ class BarycenterProblem:
     self._indices_are_sorted = indices_are_sorted
     self._num_per_segment = num_per_segment
     self._max_measure_size = max_measure_size
-    
+
   def tree_flatten(self):
-    return ([self._y, self._b, self._weights],
-            {
-            'cost_fn' : self.cost_fn, 
-            'epsilon' : self.epsilon,
-            'debiased': self.debiased, 
-            'segment_ids' : self._segment_ids, 
-            'num_segments' : self._num_segments,
-            'indices_are_sorted' : self._indices_are_sorted,
-            'num_per_segment' : self._num_per_segment,
-            'max_measure_size' : self._max_measure_size})
+    return ([self._y, self._b, self._weights], {
+        'cost_fn': self.cost_fn,
+        'epsilon': self.epsilon,
+        'debiased': self.debiased,
+        'segment_ids': self._segment_ids,
+        'num_segments': self._num_segments,
+        'indices_are_sorted': self._indices_are_sorted,
+        'num_per_segment': self._num_per_segment,
+        'max_measure_size': self._max_measure_size
+    })
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -89,38 +90,41 @@ class BarycenterProblem:
 
   @property
   def segmented_y_b(self):
-    if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):      
+    if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
       return self.add_slice_for_debiased(self._y, self._b)
-    else:  
+    else:
       segmented_y, segmented_b, _ = segment.segment_point_cloud(
-        self._y, self._b, self._segment_ids, self._num_segments,
-        self._indices_are_sorted, self._num_per_segment,
-        self.max_measure_size)
+          self._y, self._b, self._segment_ids, self._num_segments,
+          self._indices_are_sorted, self._num_per_segment, self.max_measure_size
+      )
     return self.add_slice_for_debiased(segmented_y, segmented_b)
-  
+
   def add_slice_for_debiased(self, y, b):
     if y is None or b is None:
-      return y, b    
-    if self.debiased:  
+      return y, b
+    if self.debiased:
       n, dim = y.shape[1], y.shape[2]
       y = jnp.concatenate((y, jnp.zeros((1, n, dim))), axis=0)
-      b = jnp.concatenate((b, jnp.zeros((1, n,))), axis=0)    
+      b = jnp.concatenate((b, jnp.zeros((
+          1,
+          n,
+      ))), axis=0)
     return y, b
 
   @property
   def flattened_y(self):
     if self._y is not None and self._y.ndim == 3:
-      return self._y.reshape((-1,self._y.shape[-1]))
-    else:  
+      return self._y.reshape((-1, self._y.shape[-1]))
+    else:
       return self._y
-  
+
   @property
   def flattened_b(self):
     if self._b is not None and self._b.ndim == 2:
       return self._b.ravel()
     else:
       return self._b
-    
+
   @property
   def max_measure_size(self):
     if self._max_measure_size is not None:
@@ -134,9 +138,12 @@ class BarycenterProblem:
         if self._indices_are_sorted is None:
           indices_are_sorted = False
         num_per_segment = jax.ops.segment_sum(
-          jnp.ones_like(self._segment_ids), self._segment_ids,
-          num_segments=num_segments, indices_are_sorted=indices_are_sorted)
-        return jnp.max(num_per_segment)  
+            jnp.ones_like(self._segment_ids),
+            self._segment_ids,
+            num_segments=num_segments,
+            indices_are_sorted=indices_are_sorted
+        )
+        return jnp.max(num_per_segment)
       else:
         return jnp.max(self._num_per_segment)
 
@@ -149,12 +156,11 @@ class BarycenterProblem:
         assert self._y.shape[0] == self._b.shape[0]
       return self._y.shape[0]
     else:
-      _ , _, num_segments = segment.segment_point_cloud(
-        self._y, self._b, self._segment_ids, self._num_segments,
-        self._indices_are_sorted, self._num_per_segment,
-        self.max_measure_size)
+      _, _, num_segments = segment.segment_point_cloud(
+          self._y, self._b, self._segment_ids, self._num_segments,
+          self._indices_are_sorted, self._num_per_segment, self.max_measure_size
+      )
     return num_segments
-
 
   @property
   def weights(self):
@@ -165,5 +171,5 @@ class BarycenterProblem:
       assert jnp.isclose(jnp.sum(self.weights), 1.0)
       weights = self.weights
     if self.debiased:
-      weights = jnp.concatenate((weights, jnp.array([-0.5])))    
+      weights = jnp.concatenate((weights, jnp.array([-0.5])))
     return weights

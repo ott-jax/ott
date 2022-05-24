@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Optional, Tuple
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
+
 from ott.geometry import geometry
 
 
@@ -25,12 +25,14 @@ from ott.geometry import geometry
 class LinearProblem:
   """Holds the definition of a linear regularized OT problem and some tools."""
 
-  def __init__(self,
-               geom: geometry.Geometry,
-               a: Optional[jnp.ndarray] = None,
-               b: Optional[jnp.ndarray] = None,
-               tau_a: float = 1.0,
-               tau_b: float = 1.0):
+  def __init__(
+      self,
+      geom: geometry.Geometry,
+      a: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0
+  ):
     """Initializes the LinearProblem.
 
     min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
@@ -54,8 +56,10 @@ class LinearProblem:
     self.tau_b = tau_b
 
   def tree_flatten(self):
-    return ([self.geom, self._a, self._b],
-            {'tau_a': self.tau_a, 'tau_b': self.tau_b})
+    return ([self.geom, self._a, self._b], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b
+    })
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -88,10 +92,13 @@ class LinearProblem:
       app_transport = geom.apply_transport_from_potentials
     else:
       marginal_a = lambda f, g: geom.marginal_from_scalings(
-          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 1)
+          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 1
+      )
       marginal_b = lambda f, g: geom.marginal_from_scalings(
-          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 0)
+          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 0
+      )
       app_transport = lambda f, g, z, axis: geom.apply_transport_from_scalings(
-          geom.scaling_from_potential(f),
-          geom.scaling_from_potential(g), z, axis)
+          geom.scaling_from_potential(f), geom.scaling_from_potential(g), z,
+          axis
+      )
     return marginal_a, marginal_b, app_transport

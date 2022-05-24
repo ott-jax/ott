@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +16,11 @@
 """Tests for the Jacobian of optimal potential."""
 import functools
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.tools import transport
 
 
@@ -36,9 +35,11 @@ class SinkhornJacobianPreconditioningTest(parameterized.TestCase):
       tau_a=[1.0, .94],
       tau_b=[1.0, .91],
       shape=[(18, 19), (27, 18), (275, 414)],
-      arg=[0, 1])
-  def test_potential_jacobian_sinkhorn(self, lse_mode, tau_a, tau_b, shape,
-                                       arg):
+      arg=[0, 1]
+  )
+  def test_potential_jacobian_sinkhorn(
+      self, lse_mode, tau_a, tau_b, shape, arg
+  ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     n, m = shape
     dim = 3
@@ -62,17 +63,23 @@ class SinkhornJacobianPreconditioningTest(parameterized.TestCase):
     # differentiating.
     epsilon = 0.01 if lse_mode else 0.1
 
-    def loss_from_potential(a,
-                            x,
-                            precondition_fun=None,
-                            linear_solve_kwargs=None):
+    def loss_from_potential(
+        a, x, precondition_fun=None, linear_solve_kwargs=None
+    ):
       if linear_solve_kwargs is None:
         linear_solve_kwargs = {}
       out = transport.solve(
-          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
           lse_mode=lse_mode,
           precondition_fun=precondition_fun,
-          **linear_solve_kwargs)
+          **linear_solve_kwargs
+      )
       return jnp.sum(random_dir * out.solver_output.f)
 
     # Compute implicit gradient
@@ -81,13 +88,15 @@ class SinkhornJacobianPreconditioningTest(parameterized.TestCase):
             functools.partial(
                 loss_from_potential,
                 precondition_fun=lambda x: x,
-                linear_solve_kwargs={
-                    'implicit_solver_symmetric': True
-                }),
-            argnums=arg))
+                linear_solve_kwargs={'implicit_solver_symmetric': True}
+            ),
+            argnums=arg
+        )
+    )
 
     loss_imp_log_precond = jax.jit(
-        jax.value_and_grad(loss_from_potential, argnums=arg))
+        jax.value_and_grad(loss_from_potential, argnums=arg)
+    )
 
     _, g_imp_np = loss_imp_no_precond(a, x)
     imp_dif_np = jnp.sum(g_imp_np * (delta_a if arg == 0 else delta_x))
@@ -115,6 +124,7 @@ class SinkhornJacobianPreconditioningTest(parameterized.TestCase):
       g_imp_lp = g_imp_lp - jnp.mean(g_imp_lp)
 
     np.testing.assert_allclose(g_imp_np, g_imp_lp, atol=1e-2, rtol=1e-2)
+
 
 if __name__ == '__main__':
   absltest.main()

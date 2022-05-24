@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """A model for to embed structured features."""
 
 from typing import Any, Tuple
@@ -31,7 +29,7 @@ class FeaturesEncoder(nn.Module):
     result = []
     index = 0
     for d in self.input_dims:
-      arr = x[..., index:index+d]
+      arr = x[..., index:index + d]
       result.append(arr if d == 1 else nn.Dense(self.embed_dim)(arr))
       index += d
     return jnp.concatenate(result, axis=-1)

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for gaussian."""
 
-from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.tools.gaussian_mixture import gaussian
-from ott.tools.gaussian_mixture import scale_tril
+from absl.testing import absltest
+
+from ott.tools.gaussian_mixture import gaussian, scale_tril
 
 
 class GaussianTest(absltest.TestCase):
@@ -45,8 +43,9 @@ class GaussianTest(absltest.TestCase):
     g = gaussian.Gaussian(
         loc=jnp.array([1., 2.]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([0., 0.25, jnp.log(0.5)]),
-            size=2))
+            params=jnp.array([0., 0.25, jnp.log(0.5)]), size=2
+        )
+    )
     samples = g.sample(key=self.key, size=1000)
     z = g.to_z(samples)
     self.assertEqual((1000, 2), z.shape)
@@ -59,8 +58,9 @@ class GaussianTest(absltest.TestCase):
     g = gaussian.Gaussian(
         loc=jnp.array([0., 0.]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([jnp.log(2.), 0., 0.]),
-            size=2))
+            params=jnp.array([jnp.log(2.), 0., 0.]), size=2
+        )
+    )
     x = g.sample(key=self.key, size=100)
     z = g.to_z(x)
     xnew = g.from_z(z)
@@ -70,12 +70,14 @@ class GaussianTest(absltest.TestCase):
     g = gaussian.Gaussian(
         loc=jnp.array([0., 0.]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([jnp.log(2.), 0., 0.]),
-            size=2))
+            params=jnp.array([jnp.log(2.), 0., 0.]), size=2
+        )
+    )
     x = g.sample(key=self.key, size=100)
     actual = g.log_prob(x)
-    expected = jnp.log(jax.scipy.stats.multivariate_normal.pdf(
-        x, g.loc, g.covariance()))
+    expected = jnp.log(
+        jax.scipy.stats.multivariate_normal.pdf(x, g.loc, g.covariance())
+    )
     np.testing.assert_allclose(expected, actual, atol=1E-5, rtol=1E-5)
 
   def test_sample(self):
@@ -107,14 +109,14 @@ class GaussianTest(absltest.TestCase):
     diag0 = jnp.exp(jax.random.normal(key=subkey0, shape=(size,)))
     diag1 = jnp.exp(jax.random.normal(key=subkey1, shape=(size,)))
     g0 = gaussian.Gaussian(
-        loc=loc0,
-        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0)))
+        loc=loc0, scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
+    )
     g1 = gaussian.Gaussian(
-        loc=loc1,
-        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1)))
+        loc=loc1, scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
+    )
     w2 = g0.w2_dist(g1)
-    delta_mean = jnp.sum((loc1 - loc0)**2., axis=-1)
-    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1))**2.)
+    delta_mean = jnp.sum((loc1 - loc0) ** 2., axis=-1)
+    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
     expected = delta_mean + delta_sigma
     np.testing.assert_allclose(expected, w2)
 
@@ -123,10 +125,12 @@ class GaussianTest(absltest.TestCase):
     diag1 = jnp.array([4.])
     g0 = gaussian.Gaussian(
         loc=jnp.array([0.]),
-        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0)))
+        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
+    )
     g1 = gaussian.Gaussian(
         loc=jnp.array([1.]),
-        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1)))
+        scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
+    )
     points = jax.random.normal(key=self.key, shape=(10, 1))
     actual = g0.transport(dest=g1, points=points)
     expected = 2. * points + 1.
@@ -143,6 +147,7 @@ class GaussianTest(absltest.TestCase):
     g_x_2 = jax.tree_map(lambda x: 2 * x, g)
     np.testing.assert_allclose(2. * g.loc, g_x_2.loc)
     np.testing.assert_allclose(2. * g.scale.params, g_x_2.scale.params)
+
 
 if __name__ == '__main__':
   absltest.main()

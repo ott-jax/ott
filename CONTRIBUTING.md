@@ -1,6 +1,6 @@
 # Contributing to OTT
 
-We'd love to accept your contributions to this project. 
+We'd love to accept your contributions to this project.
 
 There are many ways to contribute to OTT, with the most common ones being contribution of code, documentation to the project, participating in discussions or raising issues.
 

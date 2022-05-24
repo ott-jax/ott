@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +19,8 @@ from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
-from ott.geometry import epsilon_scheduler
-from ott.geometry import ops
+
+from ott.geometry import epsilon_scheduler, ops
 
 
 @jax.tree_util.register_pytree_node_class
@@ -46,14 +45,16 @@ class Geometry:
     a simple rule, using the mean cost value implied by the ``cost_matrix``.
   """
 
-  def __init__(self,
-               cost_matrix: Optional[jnp.ndarray] = None,
-               kernel_matrix: Optional[jnp.ndarray] = None,
-               epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
-               relative_epsilon: Optional[bool] = None,
-               scale_epsilon: Optional[float] = None,
-               scale_cost: Optional[Union[bool, float, str]] = None,
-               **kwargs):
+  def __init__(
+      self,
+      cost_matrix: Optional[jnp.ndarray] = None,
+      kernel_matrix: Optional[jnp.ndarray] = None,
+      epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
+      relative_epsilon: Optional[bool] = None,
+      scale_epsilon: Optional[float] = None,
+      scale_cost: Optional[Union[bool, float, str]] = None,
+      **kwargs
+  ):
     r"""Initializes a geometry by passing it a cost matrix or a kernel matrix.
 
     Args:
@@ -98,10 +99,11 @@ class Geometry:
     rel = self._relative_epsilon
     trigger = ((self._scale_epsilon is None) and
                ((rel is None and self._epsilon_init is None) or rel))
-               
+
     if (self._scale_epsilon is None) and (trigger is not None):  # for dry run
       return jnp.where(
-          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0)
+          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
+      )
     else:
       return self._scale_epsilon
 
@@ -112,7 +114,8 @@ class Geometry:
       return self._epsilon_init
     eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
     return epsilon_scheduler.Epsilon.make(
-        eps, scale_epsilon=self.scale_epsilon, **self._kwargs)
+        eps, scale_epsilon=self.scale_epsilon, **self._kwargs
+    )
 
   @property
   def cost_matrix(self):
@@ -133,15 +136,16 @@ class Geometry:
   def mean_cost_matrix(self):
     if isinstance(self.shape[0], int) and (self.shape[0] > 0):
       return jnp.sum(self.apply_cost(jnp.ones((self.shape[0],)))) / (
-          self.shape[0] * self.shape[1])
+          self.shape[0] * self.shape[1]
+      )
     else:
       return 1.0
 
   @property
   def kernel_matrix(self):
     if self._kernel_matrix is None:
-      return jnp.exp(
-          -(self._cost_matrix / self.epsilon))**(1.0 / self.scale_cost)
+      return jnp.exp(-(self._cost_matrix /
+                       self.epsilon)) ** (1.0 / self.scale_cost)
     return self._kernel_matrix
 
   @property
@@ -150,8 +154,9 @@ class Geometry:
 
   @property
   def shape(self):
-    mat = (self._kernel_matrix if self._cost_matrix is None
-           else self._cost_matrix)
+    mat = (
+        self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
+    )
     if mat is not None:
       return mat.shape
     return (0, 0)
@@ -167,8 +172,9 @@ class Geometry:
   @property
   def is_symmetric(self):
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return (mat.shape[0] == mat.shape[1] and
-            jnp.all(mat == mat.T)) if mat is not None else False
+    return (
+        mat.shape[0] == mat.shape[1] and jnp.all(mat == mat.T)
+    ) if mat is not None else False
 
   @property
   def scale_cost(self):
@@ -187,7 +193,8 @@ class Geometry:
       return 1.0
 
   def _set_scale_cost(
-    self, scale_cost: Optional[Union[bool, float, str]]) -> "Geometry":
+      self, scale_cost: Optional[Union[bool, float, str]]
+  ) -> "Geometry":
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
     if scale_cost is False or scale_cost == self._scale_cost:
@@ -208,12 +215,14 @@ class Geometry:
   # are implemented here in their default form, either in lse (using directly
   # cost matrices in stabilized form) or kernel mode (using kernel matrices).
 
-  def apply_lse_kernel(self,
-                       f: jnp.ndarray,
-                       g: jnp.ndarray,
-                       eps: float,
-                       vec: jnp.ndarray = None,
-                       axis: int = 0) -> jnp.ndarray:
+  def apply_lse_kernel(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      eps: float,
+      vec: jnp.ndarray = None,
+      axis: int = 0
+  ) -> jnp.ndarray:
     r"""Applies kernel in log domain on pair of dual potential variables.
 
     This function applies the ground geometry's kernel in log domain, using
@@ -267,15 +276,14 @@ class Geometry:
     if eps is None:
       kernel = self.kernel_matrix
     else:
-      kernel = self.kernel_matrix**(self.epsilon / eps)
+      kernel = self.kernel_matrix ** (self.epsilon / eps)
     kernel = kernel if axis == 1 else kernel.T
 
     return jnp.dot(kernel, scaling)
 
-  def marginal_from_potentials(self,
-                               f: jnp.ndarray,
-                               g: jnp.ndarray,
-                               axis: int = 0) -> jnp.ndarray:
+  def marginal_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+  ) -> jnp.ndarray:
     """Outputs marginal of transportation matrix from potentials.
 
     This applies first lse kernel in the standard way, removes the
@@ -356,27 +364,32 @@ class Geometry:
       if axis == 0:
         vec = vec.reshape((vec.size, 1))
       lse_output = ops.logsumexp(
-          self._center(f, g) / eps, b=vec, axis=axis, return_sign=True)
+          self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
+      )
       return eps * lse_output[0], lse_output[1]
     else:
       lse_output = ops.logsumexp(
-          self._center(f, g) / eps, axis=axis, return_sign=False)
+          self._center(f, g) / eps, axis=axis, return_sign=False
+      )
       return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(self, f, g, vec, axis):
     """Applies lse_kernel to arbitrary vector while keeping track of signs."""
     lse_res, lse_sgn = self.apply_lse_kernel(
-        f, g, self.epsilon, vec=vec, axis=axis)
+        f, g, self.epsilon, vec=vec, axis=axis
+    )
     lse_res += f if axis == 1 else g
     return lse_sgn * jnp.exp(lse_res / self.epsilon)
 
   # wrapper to allow default option for axis.
-  def apply_transport_from_potentials(self,
-                                      f: jnp.ndarray,
-                                      g: jnp.ndarray,
-                                      vec: jnp.ndarray,
-                                      axis: int = 0) -> jnp.ndarray:
+  def apply_transport_from_potentials(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      vec: jnp.ndarray,
+      axis: int = 0
+  ) -> jnp.ndarray:
     """Applies transport matrix computed from potentials to a (batched) vec.
 
     This approach does not instantiate the transport matrix itself, but uses
@@ -397,8 +410,9 @@ class Geometry:
       ndarray of the size of vec.
     """
     if vec.ndim == 1:
-      return self._apply_transport_from_potentials(f, g, vec[jnp.newaxis, :],
-                                                   axis)[0, :]
+      return self._apply_transport_from_potentials(
+          f, g, vec[jnp.newaxis, :], axis
+      )[0, :]
     return self._apply_transport_from_potentials(f, g, vec, axis)
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
@@ -407,11 +421,13 @@ class Geometry:
     return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
 
   # wrapper to allow default option for axis
-  def apply_transport_from_scalings(self,
-                                    u: jnp.ndarray,
-                                    v: jnp.ndarray,
-                                    vec: jnp.ndarray,
-                                    axis: int = 0) -> jnp.ndarray:
+  def apply_transport_from_scalings(
+      self,
+      u: jnp.ndarray,
+      v: jnp.ndarray,
+      vec: jnp.ndarray,
+      axis: int = 0
+  ) -> jnp.ndarray:
     """Applies transport matrix computed from scalings to a (batched) vec.
 
     This approach does not instantiate the transport matrix itself, but
@@ -428,8 +444,9 @@ class Geometry:
       ndarray of the size of vec.
     """
     if vec.ndim == 1:
-      return self._apply_transport_from_scalings(u, v, vec[jnp.newaxis, :],
-                                                 axis)[0, :]
+      return self._apply_transport_from_scalings(
+          u, v, vec[jnp.newaxis, :], axis
+      )[0, :]
     return self._apply_transport_from_scalings(u, v, vec, axis)
 
   def potential_from_scaling(self, scaling: jnp.ndarray) -> jnp.ndarray:
@@ -437,9 +454,9 @@ class Geometry:
 
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     finite = jnp.isfinite(potential)
-    return jnp.where(finite,
-                     jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)),
-                     0.0)
+    return jnp.where(
+        finite, jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)), 0.0
+    )
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Applies elementwise-square of cost matrix to array (vector or matrix)."""
@@ -468,23 +485,26 @@ class Geometry:
           lambda x: self._apply_cost_to_vec(x, axis, fn),
           1,
           1,
-      )(arr.reshape(-1, 1))
+      )(
+          arr.reshape(-1, 1)
+      )
     return jax.vmap(
         lambda x: self._apply_cost_to_vec(x, axis, fn),
         1,
         1,
-    )(arr)
+    )(
+        arr
+    )
 
   def rescale_cost_fn(self, factor: float):
     if self._cost_matrix is not None:
       self._cost_matrix *= factor
     if self._kernel_matrix is not None:
-      self._kernel_matrix **= 1/factor
+      self._kernel_matrix **= 1 / factor
 
-  def _apply_cost_to_vec(self,
-                         vec: jnp.ndarray,
-                         axis: int = 0,
-                         fn=None) -> jnp.ndarray:
+  def _apply_cost_to_vec(
+      self, vec: jnp.ndarray, axis: int = 0, fn=None
+  ) -> jnp.ndarray:
     """Applies [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
@@ -510,12 +530,16 @@ class Geometry:
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
-        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size)))
+        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
+    )
 
   def tree_flatten(self):
-    return (self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-            self._relative_epsilon,
-            self._kwargs), {'scale_cost': self._scale_cost}
+    return (
+        self._cost_matrix, self._kernel_matrix, self._epsilon_init,
+        self._relative_epsilon, self._kwargs
+    ), {
+        'scale_cost': self._scale_cost
+    }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

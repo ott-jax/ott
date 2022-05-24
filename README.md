@@ -54,7 +54,7 @@ Currently implements the following classes and functions:
             given cost function (e.g. Euclidean) $c$, the `PointCloud`
             class in [pointcloud.py](ott/geometry/grid.py) can be used to define the corresponding kernel
             $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When the number of these points grows very large, this geometry can be instantiated with an `online=True` parameter, to avoid storing the kernel matrix and choose instead to recompute the matrix on the fly at each application.
-            
+
         -   Simlarly, if all measures to be considered are supported on a
             separable grid (e.g. $\\{1, \ldots, n\\}^{d}$), and the cost is separable
             along all axis, i.e. the cost between two points on that
@@ -62,9 +62,9 @@ Currently implements the following classes and functions:
             functions evaluated on each of the $d$ pairs of coordinates, then
             the application of the kernel is much simplified, both in log space
             or on the histograms themselves. This particular case is exploited in the `Grid` geometry in [grid.py](ott/geometry/grid.py) which can be instantiated as a hypercube using a `grid_size` parameter, or directly through grid locations in `x`.
-            
+
         -  `LRCGeometry`, low-rank cost geometries, of which a `PointCloud` endowed with a squared-Euclidean distance is a particular example, can efficiently carry apply their cost to another matrix. This is leveraged in particular in the low-rank Sinkhorn (and Gromov-Wasserstein) solvers.
-    
+
 
 -   In the [core](ott/core) folder,
     -   The `sinkhorn` function in [sinkhorn.py](ott/core/sinkhorn.py) is a wrapper around the `Sinkhorn` solver class, running the Sinkhorn algorithm, with the aim of solving approximately one or various optimal transport problems in parallel. An OT problem is defined by a `Geometry` object, and a pair $\left(a, b\right)$ (or batch thereof) of histograms. The function's outputs are stored in a `SinkhornOutput` named t-uple, containing potentials, regularized OT cost, sequence of errors and a convergence flag. Such outputs (with the exception of errors and convergence flag) can be differentiated w.r.t. any of the three inputs `(Geometry, a, b)` either through backprop or implicit differentiation of the optimality conditions of the optimal potentials `f` and `g`.
@@ -99,4 +99,3 @@ If you have found this work useful, please consider citing us:
   year={2022}
 }
 ```
-

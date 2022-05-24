@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tools for Anderson acceleration."""
 from typing import Any
+
 import jax
 import jax.numpy as jnp
 
@@ -44,7 +43,8 @@ class AndersonAcceleration:
     # Solve linear system to obtain weights
     weights = jax.scipy.sparse.linalg.cg(
         gram_matrix + self.ridge_identity * jnp.eye(xs.shape[1]),
-        jnp.ones(xs.shape[1]))[0]
+        jnp.ones(xs.shape[1])
+    )[0]
     weights /= jnp.sum(weights)
 
     # Recover linear combination and return it with NaN (caused
@@ -53,10 +53,7 @@ class AndersonAcceleration:
     combination = jnp.sum(fxs * weights[None, :], axis=1)
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
-  def update(self,
-             state: SinkhornState,
-             iteration: int,
-             pb, lse_mode: bool):
+  def update(self, state: SinkhornState, iteration: int, pb, lse_mode: bool):
     """Anderson acceleration update.
 
     When using Anderson acceleration, first update the dual variable f_u with
@@ -77,28 +74,31 @@ class AndersonAcceleration:
       A potential variable.
     """
     geom = pb.geom
-    trigger_update = jnp.logical_and(iteration > self.memory,
-                                     iteration % self.refresh_every == 0)
-    fu = jnp.where(trigger_update,
-                   self.extrapolation(state.old_fus, state.old_mapped_fus),
-                   state.fu)
+    trigger_update = jnp.logical_and(
+        iteration > self.memory, iteration % self.refresh_every == 0
+    )
+    fu = jnp.where(
+        trigger_update, self.extrapolation(state.old_fus, state.old_mapped_fus),
+        state.fu
+    )
     # If the interpolation was triggered, we store it in memory
     # Otherwise we add the previous value (converting it to potential form if
     # it was initially stored in scaling form).
     old_fus = jnp.where(
         trigger_update,
         jnp.concatenate((state.old_fus[:, 1:], fu[:, None]), axis=1),
-        jnp.concatenate(
-            (state.old_fus[:, 1:],
-             (fu if lse_mode else geom.potential_from_scaling(fu))[:, None]),
-            axis=1))
+        jnp.concatenate((
+            state.old_fus[:, 1:],
+            (fu if lse_mode else geom.potential_from_scaling(fu))[:, None]
+        ),
+                        axis=1)
+    )
 
     # If update was triggered, ensure a scaling is returned, since the result
     # from the extrapolation was outputted in potential form.
     fu = jnp.where(
-        trigger_update,
-        fu if lse_mode else geom.scaling_from_potential(fu),
-        fu)
+        trigger_update, fu if lse_mode else geom.scaling_from_potential(fu), fu
+    )
     return state.set(fu=fu, old_fus=old_fus)
 
   def init_maps(self, pb, state):

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +15,12 @@
 # Lint as: python3
 """Test Low-Rank Geometry."""
 
-from absl.testing import absltest, parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.geometry import geometry
-from ott.geometry import low_rank
-from ott.geometry import pointcloud
+from absl.testing import absltest, parameterized
+
+from ott.geometry import geometry, low_rank, pointcloud
 
 
 class LRGeometryTest(parameterized.TestCase):
@@ -47,10 +45,10 @@ class LRGeometryTest(parameterized.TestCase):
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
-            rtol=1e-4)
+            rtol=1e-4
+        )
 
-  @parameterized.parameters(
-      ['mean', 'max_cost', 'max_bound', 42.])
+  @parameterized.parameters(['mean', 'max_cost', 'max_bound', 42.])
   def test_conversion_pointcloud(self, scale_cost):
     """Test conversion from PointCloud to LRCGeometry."""
     n, m, d = 17, 11, 3
@@ -63,8 +61,7 @@ class LRGeometryTest(parameterized.TestCase):
 
     self.assertEqual(geom._scale_cost, geom_lr._scale_cost)
     np.testing.assert_allclose(
-        geom.scale_cost, geom_lr.scale_cost,
-        rtol=1e-6, atol=1e-6
+        geom.scale_cost, geom_lr.scale_cost, rtol=1e-6, atol=1e-6
     )
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
@@ -72,7 +69,8 @@ class LRGeometryTest(parameterized.TestCase):
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
-            rtol=1e-4)
+            rtol=1e-4
+        )
 
   def test_apply_squared(self):
     """Test application of squared cost to vec or matrix."""
@@ -90,13 +88,11 @@ class LRGeometryTest(parameterized.TestCase):
           mat = jax.random.normal(keys[2], mat_shape)
           out_lr = geom_lr.apply_square_cost(mat, axis=axis)
           np.testing.assert_allclose(
-              geom.apply_square_cost(mat, axis=axis),
-              out_lr,
-              rtol=5e-4)
+              geom.apply_square_cost(mat, axis=axis), out_lr, rtol=5e-4
+          )
           np.testing.assert_allclose(
-              geom2.apply_cost(mat, axis=axis),
-              out_lr,
-              rtol=5e-4)
+              geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
+          )
 
   def test_add_lr_geoms(self):
     """Test application of cost to vec or matrix."""
@@ -120,12 +116,14 @@ class LRGeometryTest(parameterized.TestCase):
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
-          rtol=1e-4)
+          rtol=1e-4
+      )
       vec = jax.random.normal(keys[1], (dim,))
       np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
-          rtol=1e-4)
+          rtol=1e-4
+      )
 
 
 if __name__ == '__main__':

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,7 @@ import abc
 
 import jax
 import jax.numpy as jnp
+
 from ott.geometry import matrix_square_root
 
 
@@ -46,7 +46,8 @@ class CostFn(abc.ABC):
 
   def __call__(self, x, y):
     return self.pairwise(x, y) + (
-        0 if self.norm is None else self.norm(x) + self.norm(y))  # pylint: disable=not-callable
+        0 if self.norm is None else self.norm(x) + self.norm(y)
+    )  # pylint: disable=not-callable
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
     """Computes matrix of all costs (including norms) for vectors in x / y.
@@ -88,10 +89,9 @@ class Euclidean(CostFn):
 
   def pairwise(self, x, y):
     return -2 * jnp.vdot(x, y)
-  
+
   def barycenter(self, weights, xs):
     return jnp.average(xs, weights=weights, axis=0)
-
 
 
 @jax.tree_util.register_pytree_node_class
@@ -121,27 +121,25 @@ class Bures(CostFn):
     self._sqrtm_kw = kwargs
 
   def norm(self, x):
-    norm = jnp.sum(x[..., 0:self._dimension]**2, axis=-1)
-    x_mat = jnp.reshape(x[..., self._dimension:],
-                        (-1, self._dimension, self._dimension))
+    norm = jnp.sum(x[..., 0:self._dimension] ** 2, axis=-1)
+    x_mat = jnp.reshape(
+        x[..., self._dimension:], (-1, self._dimension, self._dimension)
+    )
 
     norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
     return norm
 
   def pairwise(self, x, y):
     mean_dot_prod = jnp.vdot(x[0:self._dimension], y[0:self._dimension])
-    x_mat = jnp.reshape(x[self._dimension:],
-                        (self._dimension, self._dimension))
-    y_mat = jnp.reshape(y[self._dimension:],
-                        (self._dimension, self._dimension))
+    x_mat = jnp.reshape(x[self._dimension:], (self._dimension, self._dimension))
+    y_mat = jnp.reshape(y[self._dimension:], (self._dimension, self._dimension))
 
-    sq_x = matrix_square_root.sqrtm(x_mat, self._dimension,
-                                    **self._sqrtm_kw)[0]
+    sq_x = matrix_square_root.sqrtm(x_mat, self._dimension, **self._sqrtm_kw)[0]
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(y_mat, sq_x))
-    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, self._dimension,
-                                               **self._sqrtm_kw)[0]
-    return -2 * (
-        mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
+        sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
+    )[0]
+    return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
@@ -161,11 +159,9 @@ class UnbalancedBures(CostFn):
   as triplets (mass, mean, covariance) raveled as vectors, in that order.
   """
 
-  def __init__(self,
-               dimension: int,
-               gamma: float = 1,
-               sigma: float = 1,
-               **kwargs):
+  def __init__(
+      self, dimension: int, gamma: float = 1, sigma: float = 1, **kwargs
+  ):
     super().__init__()
     self._dimension = dimension
     self._gamma = gamma
@@ -184,11 +180,13 @@ class UnbalancedBures(CostFn):
 
     # Extracts mass, mean vector, covariance matrices
     mass_x, mass_y = x[0], y[0]
-    diff_means = x[1:1+self._dimension] - y[1:1+self._dimension]
-    x_mat = jnp.reshape(x[1+self._dimension:],
-                        (self._dimension, self._dimension))
-    y_mat = jnp.reshape(y[1+self._dimension:],
-                        (self._dimension, self._dimension))
+    diff_means = x[1:1 + self._dimension] - y[1:1 + self._dimension]
+    x_mat = jnp.reshape(
+        x[1 + self._dimension:], (self._dimension, self._dimension)
+    )
+    y_mat = jnp.reshape(
+        y[1 + self._dimension:], (self._dimension, self._dimension)
+    )
 
     # Identity matrix of suitable size
     iden = jnp.eye(self._dimension, dtype=x.dtype)
@@ -199,7 +197,8 @@ class UnbalancedBures(CostFn):
 
     tilde_a_b = jnp.matmul(tilde_a, tilde_b)
     c_mat = matrix_square_root.sqrtm(
-        1 / tau * tilde_a_b + 0.25 * (sig2 ** 2) * iden, **self._sqrtm_kw)[0]
+        1 / tau * tilde_a_b + 0.25 * (sig2 ** 2) * iden, **self._sqrtm_kw
+    )[0]
     c_mat -= 0.5 * sig2 * iden
 
     # Computes log determinants (their sign should be >0).
@@ -211,19 +210,23 @@ class UnbalancedBures(CostFn):
     # Gathers all these results to compute log total mass of transport
     log_m_pi = (0.5 * self._dimension * sig2 / (gam + sig2)) * jnp.log(sig2)
 
-    log_m_pi += (1 / (tau + 1)) * (jnp.log(mass_x) + jnp.log(mass_y) + ldet_c
-                                   + 0.5 * (tau * ldet_t_ab - ldet_ab))
+    log_m_pi += (1 / (tau + 1)) * (
+        jnp.log(mass_x) + jnp.log(mass_y) + ldet_c + 0.5 *
+        (tau * ldet_t_ab - ldet_ab)
+    )
 
-    log_m_pi += -jnp.sum(diff_means * jnp.linalg.solve(
-        x_mat + y_mat + lam * iden, diff_means)) / (2 * (tau + 1))
+    log_m_pi += -jnp.sum(
+        diff_means * jnp.linalg.solve(x_mat + y_mat + lam * iden, diff_means)
+    ) / (2 * (tau + 1))
 
-    log_m_pi += - 0.5 * ldet_c_ab
+    log_m_pi += -0.5 * ldet_c_ab
 
     # If all logdet signs are 1, output value, nan otherwise.
     return jnp.where(
         sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
         2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
-        jnp.nan)
+        jnp.nan
+    )
 
   def tree_flatten(self):
     return (), (self._dimension, self._gamma, self._sigma2, self._sqrtm_kw)

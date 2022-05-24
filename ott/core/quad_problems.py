@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Classes defining OT problem(s) (objective function + utilities)."""
 
 from typing import Callable, Optional, Tuple, Union
@@ -20,14 +18,12 @@ from typing import Callable, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.core import problems
-from ott.core import sinkhorn_lr
-from ott.geometry import epsilon_scheduler
-from ott.geometry import geometry
-from ott.geometry import low_rank
-from ott.geometry import pointcloud
+
 # Because Protocol is not available in Python < 3.8
 from typing_extensions import Protocol
+
+from ott.core import problems, sinkhorn_lr
+from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 
 class Transport(Protocol):
@@ -53,16 +49,14 @@ Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
 
 
 def make_square_loss():
-  return ((lambda x: x**2, lambda y: y**2), (lambda x: x,
-                                             lambda y: 2.0 * y))
+  return ((lambda x: x ** 2, lambda y: y ** 2),
+          (lambda x: x, lambda y: 2.0 * y))
 
 
 def make_kl_loss(clipping_value: float = 1e-8):
 
-  return (
-      (lambda x: -jax.scipy.special.entr(x) - x, lambda y: y),
-      (lambda x: x, lambda y: jnp.log(jnp.clip(y, clipping_value)))
-  )
+  return ((lambda x: -jax.scipy.special.entr(x) - x, lambda y: y),
+          (lambda x: x, lambda y: jnp.log(jnp.clip(y, clipping_value))))
 
 
 @jax.tree_util.register_pytree_node_class
@@ -81,18 +75,20 @@ class QuadraticProblem:
   L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
   """
 
-  def __init__(self,
-               geom_xx: geometry.Geometry,
-               geom_yy: geometry.Geometry,
-               geom_xy: Optional[geometry.Geometry] = None,
-               fused_penalty: Optional[float] = None,
-               scale_cost: Optional[Union[bool, float, str]] = False,
-               a: Optional[jnp.ndarray] = None,
-               b: Optional[jnp.ndarray] = None,
-               loss: Optional[Loss] = None,
-               tau_a: Optional[float] = 1.0,
-               tau_b: Optional[float] = 1.0,
-               gw_unbalanced_correction: Optional[bool] = True):
+  def __init__(
+      self,
+      geom_xx: geometry.Geometry,
+      geom_yy: geometry.Geometry,
+      geom_xy: Optional[geometry.Geometry] = None,
+      fused_penalty: Optional[float] = None,
+      scale_cost: Optional[Union[bool, float, str]] = False,
+      a: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None,
+      loss: Optional[Loss] = None,
+      tau_a: Optional[float] = 1.0,
+      tau_b: Optional[float] = 1.0,
+      gw_unbalanced_correction: Optional[bool] = True
+  ):
     """Initializes the QuadraticProblem.
 
     Args:
@@ -137,8 +133,9 @@ class QuadraticProblem:
     """
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
     self.geom_yy = geom_yy._set_scale_cost(scale_cost)
-    self.geom_xy = (None if geom_xy is None else
-                    geom_xy._set_scale_cost(scale_cost))
+    self.geom_xy = (
+        None if geom_xy is None else geom_xy._set_scale_cost(scale_cost)
+    )
     if fused_penalty is None:
       fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
@@ -161,9 +158,11 @@ class QuadraticProblem:
 
   @property
   def is_all_geoms_lr(self):
-    return (isinstance(self.geom_xx, low_rank.LRCGeometry) and
-            isinstance(self.geom_yy, low_rank.LRCGeometry) and
-            (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry)))
+    return (
+        isinstance(self.geom_xx, low_rank.LRCGeometry) and
+        isinstance(self.geom_yy, low_rank.LRCGeometry) and
+        (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry))
+    )
 
   @property
   def linear_loss(self):
@@ -175,15 +174,18 @@ class QuadraticProblem:
 
   @property
   def is_balanced(self):
-    return ((not self.gw_unbalanced_correction)
-            or (self.tau_a == 1.0 and self.tau_b == 1.0))
+    return ((not self.gw_unbalanced_correction) or
+            (self.tau_a == 1.0 and self.tau_b == 1.0))
 
   def tree_flatten(self):
-    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b],
-            {'tau_a': self.tau_a, 'tau_b': self.tau_b, 'loss': self.loss,
-             'fused_penalty': self.fused_penalty, 'scale_cost': self.scale_cost,
-             'gw_unbalanced_correction': self.gw_unbalanced_correction}
-            )
+    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b,
+        'loss': self.loss,
+        'fused_penalty': self.fused_penalty,
+        'scale_cost': self.scale_cost,
+        'gw_unbalanced_correction': self.gw_unbalanced_correction
+    })
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -228,16 +230,21 @@ class QuadraticProblem:
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
     else:
-      tmp1 = self.geom_xx.apply_cost(marginal_1, axis=1,
-                                     fn=self.linear_loss[0])
-      tmp2 = self.geom_yy.apply_cost(marginal_2, axis=1,
-                                     fn=self.linear_loss[1])
+      tmp1 = self.geom_xx.apply_cost(marginal_1, axis=1, fn=self.linear_loss[0])
+      tmp2 = self.geom_yy.apply_cost(marginal_2, axis=1, fn=self.linear_loss[1])
     x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
     y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
     return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
 
-  def cost_unbalanced_correction(self, transport_matrix, marginal_1, marginal_2,
-                                 epsilon, rescale_factor, delta=1e-9) -> float:
+  def cost_unbalanced_correction(
+      self,
+      transport_matrix,
+      marginal_1,
+      marginal_2,
+      epsilon,
+      rescale_factor,
+      delta=1e-9
+  ) -> float:
     r"""Calculates cost term from the quadratic divergence when unbalanced.
 
     In the unbalanced setting (i.e. tau_a<1.0 or tau_b<1.0), the
@@ -269,27 +276,30 @@ class QuadraticProblem:
     Returns:
       float, cost term
     """
+
     def regulariser(tau):
       return tau / (1.0 - tau) if tau != 1.0 else 0
 
     cost = regulariser(self.tau_a) * jax.scipy.special.xlogy(
-        marginal_1,
-        rescale_factor * marginal_1 / jnp.clip(self.a, a_min=delta)).sum()
+        marginal_1, rescale_factor * marginal_1 / jnp.clip(self.a, a_min=delta)
+    ).sum()
     cost += regulariser(self.tau_b) * jax.scipy.special.xlogy(
-        marginal_2,
-        rescale_factor * marginal_2 / jnp.clip(self.b, a_min=delta)).sum()
+        marginal_2, rescale_factor * marginal_2 / jnp.clip(self.b, a_min=delta)
+    ).sum()
     cost += epsilon * jax.scipy.special.xlogy(
-        transport_matrix,
-        rescale_factor * transport_matrix
-        / jnp.clip(self.a[:, None] * self.b[None, :], a_min=delta)).sum()
+        transport_matrix, rescale_factor * transport_matrix /
+        jnp.clip(self.a[:, None] * self.b[None, :], a_min=delta)
+    ).sum()
     return cost
 
   def init_transport(self):
     # TODO(oliviert, cuturi): consider passing a custom initialization.
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
-    return (a[:, None] * b[None, :] if self.is_balanced else a[:, None] *
-            b[None, :] / jnp.sqrt(a.sum() * b.sum()))
+    return (
+        a[:, None] * b[None, :] if self.is_balanced else a[:, None] *
+        b[None, :] / jnp.sqrt(a.sum() * b.sum())
+    )
 
   def init_transport_mass(self) -> float:
     """Initialises the transport mass.
@@ -300,8 +310,10 @@ class QuadraticProblem:
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
     transport_mass = a.sum() * b.sum()
-    return (transport_mass if self.is_balanced
-            else transport_mass / jnp.sqrt(transport_mass))
+    return (
+        transport_mass if self.is_balanced else transport_mass /
+        jnp.sqrt(transport_mass)
+    )
 
   def init_linearization(
       self,
@@ -355,7 +367,8 @@ class QuadraticProblem:
 
     if not self.is_balanced:
       unbalanced_correction = self.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon, 1.0)
+          tmp, marginal_1, marginal_2, epsilon, 1.0
+      )
 
     tmp = self.geom_xx.apply_cost(tmp, axis=1, fn=self.quad_loss[0])
     tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
@@ -368,27 +381,33 @@ class QuadraticProblem:
 
     cost_matrix += self.fused_penalty * jnp.where(
         self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix,
-        0.0)
+        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
+    )
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return problems.LinearProblem(
-        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b)
+        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
+    )
 
   def init_lr_linearization(
-      self,
-      rank: int = 10,
-      **kwargs
+      self, rank: int = 10, **kwargs
   ) -> problems.LinearProblem:
     """Linearizes a Quad problem with a predefined initializer."""
     x_ = self.geom_xx.apply_square_cost(self.a)
     y_ = self.geom_yy.apply_square_cost(self.b)
     geom_ = pointcloud.PointCloud(x_, y_).to_LRCGeometry()
-    out = sinkhorn_lr.LRSinkhorn(rank=rank, **kwargs)(
-        problems.LinearProblem(geom_, self.a, self.b))
+    out = sinkhorn_lr.LRSinkhorn(
+        rank=rank, **kwargs
+    )(
+        problems.LinearProblem(geom_, self.a, self.b)
+    )
     return problems.LinearProblem(
         self.update_lr_geom(out),
-        self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b)
+        self.a,
+        self.b,
+        tau_a=self.tau_a,
+        tau_b=self.tau_b
+    )
 
   def update_lr_geom(self, lr_sink):
     """Using LR Sinkhorn output, recompute (possibly LRC) linearization."""
@@ -413,7 +432,8 @@ class QuadraticProblem:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * jnp.where(
           self.is_fused,
-          0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0)
+          0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
+      )
       geom = geometry.Geometry(cost_matrix=cost_matrix)
     return geom
 
@@ -421,7 +441,8 @@ class QuadraticProblem:
       self,
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
-      old_transport_mass: float = 1.0) -> problems.LinearProblem:
+      old_transport_mass: float = 1.0
+  ) -> problems.LinearProblem:
     """Updates linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
@@ -453,56 +474,63 @@ class QuadraticProblem:
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       rescale_factor = jnp.sqrt(old_transport_mass / transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
-          transport.matrix, marginal_1, marginal_2, epsilon, rescale_factor)
+          transport.matrix, marginal_1, marginal_2, epsilon, rescale_factor
+      )
       # Updates epsilon for Unbalanced GW.
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
     tmp = self.geom_xx.apply_cost(
-        transport.matrix, axis=1, fn=self.quad_loss[0])
+        transport.matrix, axis=1, fn=self.quad_loss[0]
+    )
     tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
     cost_matrix += self.fused_penalty * jnp.where(
         self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix,
-        0.0)
+        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
+    )
 
     cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return problems.LinearProblem(
-        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b)
+        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
+    )
 
   def update_lr_linearization(
-      self,
-      lr_sink: sinkhorn_lr.LRSinkhornOutput) -> problems.LinearProblem:
+      self, lr_sink: sinkhorn_lr.LRSinkhornOutput
+  ) -> problems.LinearProblem:
     """Updates a Quad problem linearization using a LR Sinkhorn."""
     return problems.LinearProblem(
         self.update_lr_geom(lr_sink),
         self.a,
         self.b,
         tau_a=self.tau_a,
-        tau_b=self.tau_b)
+        tau_b=self.tau_b
+    )
 
 
 def update_epsilon_unbalanced(epsilon, transport_mass):
   updated_epsilon = epsilon_scheduler.Epsilon.make(epsilon)
   updated_epsilon._scale_epsilon = (
-      updated_epsilon._scale_epsilon * transport_mass)
+      updated_epsilon._scale_epsilon * transport_mass
+  )
   return updated_epsilon
 
 
-def make(*args,
-         a: Optional[jnp.ndarray] = None,
-         b: Optional[jnp.ndarray] = None,
-         tau_a: float = 1.0,
-         tau_b: float = 1.0,
-         objective: Optional[str] = None,
-         gw_unbalanced_correction: Optional[bool] = True,
-         fused_penalty: Optional[float] = None,
-         scale_cost: Optional[Union[bool, float, str]] = False,
-         **kwargs):
+def make(
+    *args,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    objective: Optional[str] = None,
+    gw_unbalanced_correction: Optional[bool] = True,
+    fused_penalty: Optional[float] = None,
+    scale_cost: Optional[Union[bool, float, str]] = False,
+    **kwargs
+):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
     x = args[0]
@@ -515,27 +543,41 @@ def make(*args,
           (objective is None and x.shape[1] != y.shape[1])):
       geom_xx = pointcloud.PointCloud(x, x, **kwargs)
       geom_yy = pointcloud.PointCloud(y, y, **kwargs)
-      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy,
-                              geom_xy=None,
-                              scale_cost=scale_cost,
-                              a=a, b=b, tau_a=tau_a, tau_b=tau_b,
-                              gw_unbalanced_correction=gw_unbalanced_correction)
+      return QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=None,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
     elif objective == 'fused':
       geom_xx = pointcloud.PointCloud(x, x, **kwargs)
       geom_yy = pointcloud.PointCloud(y, y, **kwargs)
       geom_xy = pointcloud.PointCloud(x, y, **kwargs)
-      return QuadraticProblem(geom_xx=geom_xx, geom_yy=geom_yy, geom_xy=geom_xy,
-                              fused_penalty=fused_penalty,
-                              scale_cost=scale_cost,
-                              a=a, b=b, tau_a=tau_a, tau_b=tau_b,
-                              gw_unbalanced_correction=gw_unbalanced_correction)
+      return QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=geom_xy,
+          fused_penalty=fused_penalty,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
     else:
       raise ValueError(f'Unknown transport problem `{objective}`')
   elif isinstance(args[0], geometry.Geometry):
     if len(args) == 1:
       return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    return QuadraticProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
-                            scale_cost=scale_cost)
+    return QuadraticProblem(
+        *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost
+    )
   elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
     return args[0]
   else:

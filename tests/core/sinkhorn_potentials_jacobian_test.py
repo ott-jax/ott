@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +15,11 @@
 # Lint as: python3
 """Tests for the Jacobian of optimal potential."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.tools import transport
 
 
@@ -35,9 +34,11 @@ class SinkhornJacobianTest(parameterized.TestCase):
       tau_a=[1.0, .93],
       tau_b=[1.0, .91],
       shape=[(12, 15), (27, 18)],
-      arg=[0, 1])
-  def test_potential_jacobian_sinkhorn(self, lse_mode, tau_a, tau_b, shape,
-                                       arg):
+      arg=[0, 1]
+  )
+  def test_potential_jacobian_sinkhorn(
+      self, lse_mode, tau_a, tau_b, shape, arg
+  ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     n, m = shape
     dim = 3
@@ -63,21 +64,31 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     def loss_from_potential(a, x, implicit):
       out = transport.solve(
-          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
           lse_mode=lse_mode,
-          implicit_differentiation=implicit)
+          implicit_differentiation=implicit
+      )
       return jnp.sum(random_dir * out.solver_output.f)
 
     # Compute implicit gradient
     loss_imp = jax.jit(
         jax.value_and_grad(
-            lambda a, x: loss_from_potential(a, x, True), argnums=arg))
+            lambda a, x: loss_from_potential(a, x, True), argnums=arg
+        )
+    )
     _, g_imp = loss_imp(a, x)
     imp_dif = jnp.sum(g_imp * (delta_a if arg == 0 else delta_x))
     # Compute backprop (unrolling) gradient
 
     loss_back = jax.jit(
-        jax.grad(lambda a, x: loss_from_potential(a, x, False), argnums=arg))
+        jax.grad(lambda a, x: loss_from_potential(a, x, False), argnums=arg)
+    )
     g_back = loss_back(a, x)
     back_dif = jnp.sum(g_back * (delta_a if arg == 0 else delta_x))
 

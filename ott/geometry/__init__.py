@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,12 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """OTT ground geometries: Classes and cost functions to instantiate them."""
-from . import costs
-from . import low_rank
-from . import ops
-
+from . import costs, low_rank, ops
 from .epsilon_scheduler import Epsilon
 from .geometry import Geometry
 from .grid import Grid
