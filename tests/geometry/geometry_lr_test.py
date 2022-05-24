@@ -16,7 +16,7 @@
 # Lint as: python3
 """Test Low-Rank Geometry."""
 
-from absl.testing import absltest
+from absl.testing import absltest, parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -25,7 +25,7 @@ from ott.geometry import low_rank
 from ott.geometry import pointcloud
 
 
-class LRGeometryTest(absltest.TestCase):
+class LRGeometryTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -49,15 +49,23 @@ class LRGeometryTest(absltest.TestCase):
             geom_lr.apply_cost(mat, axis=axis),
             rtol=1e-4)
 
-  def test_conversion_pointcloud(self):
+  @parameterized.parameters(
+      ['mean', 'max_cost', 'max_bound', 42.])
+  def test_conversion_pointcloud(self, scale_cost):
     """Test conversion from PointCloud to LRCGeometry."""
     n, m, d = 17, 11, 3
-    keys = jax.random.split(self.rng, 5)
+    keys = jax.random.split(self.rng, 3)
     x = jax.random.normal(keys[0], (n, d))
     y = jax.random.normal(keys[1], (m, d))
 
-    geom = pointcloud.PointCloud(x, y)
+    geom = pointcloud.PointCloud(x, y, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
+
+    self.assertEqual(geom._scale_cost, geom_lr._scale_cost)
+    np.testing.assert_allclose(
+        geom.scale_cost, geom_lr.scale_cost,
+        rtol=1e-6, atol=1e-6
+    )
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(keys[2], mat_shape)
