@@ -63,7 +63,7 @@ class LRGeometryTest(parameterized.TestCase):
 
     self.assertEqual(geom._scale_cost, geom_lr._scale_cost)
     np.testing.assert_allclose(
-        geom.scale_cost, geom_lr.scale_cost,
+        geom.inv_scale_cost, geom_lr.inv_scale_cost,
         rtol=1e-6, atol=1e-6
     )
     for dim, axis in ((m, 1), (n, 0)):
