@@ -15,6 +15,7 @@
 # Lint as: python3
 """Several cost/norm functions for relevant vector types."""
 import abc
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -38,18 +39,18 @@ class CostFn(abc.ABC):
   norm = None  #  no norm function created by default.
 
   @abc.abstractmethod
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
-  def barycenter(self, weights, xs):
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
-  def __call__(self, x, y):
-    return self.pairwise(x, y) + (
-        0 if self.norm is None else self.norm(x) + self.norm(y)
-    )  # pylint: disable=not-callable
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    return self.pairwise(
+        x, y
+    ) + (0 if self.norm is None else self.norm(x) + self.norm(y))
 
-  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
+  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Computes matrix of all costs (including norms) for vectors in x / y.
 
     Args:
@@ -60,7 +61,7 @@ class CostFn(abc.ABC):
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray):
+  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Computes matrix of all pairwise-costs (no norms) for vectors in x / y.
 
     Args:
@@ -84,13 +85,13 @@ class CostFn(abc.ABC):
 class Euclidean(CostFn):
   """Squared Euclidean distance CostFn."""
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray) -> float:
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     return -2 * jnp.vdot(x, y)
 
-  def barycenter(self, weights, xs):
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     return jnp.average(xs, weights=weights, axis=0)
 
 
@@ -98,11 +99,11 @@ class Euclidean(CostFn):
 class Cosine(CostFn):
   """Cosine distance CostFn."""
 
-  def __init__(self, ridge=1e-8):
+  def __init__(self, ridge: float = 1e-8):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
@@ -115,12 +116,12 @@ class Cosine(CostFn):
 class Bures(CostFn):
   """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
 
-  def __init__(self, dimension, **kwargs):
+  def __init__(self, dimension: int, **kwargs: Any):
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray) -> float:
     norm = jnp.sum(x[..., 0:self._dimension] ** 2, axis=-1)
     x_mat = jnp.reshape(
         x[..., self._dimension:], (-1, self._dimension, self._dimension)
@@ -129,7 +130,7 @@ class Bures(CostFn):
     norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     mean_dot_prod = jnp.vdot(x[0:self._dimension], y[0:self._dimension])
     x_mat = jnp.reshape(x[self._dimension:], (self._dimension, self._dimension))
     y_mat = jnp.reshape(y[self._dimension:], (self._dimension, self._dimension))
@@ -160,7 +161,11 @@ class UnbalancedBures(CostFn):
   """
 
   def __init__(
-      self, dimension: int, gamma: float = 1, sigma: float = 1, **kwargs
+      self,
+      dimension: int,
+      gamma: float = 1.0,
+      sigma: float = 1.0,
+      **kwargs: Any,
   ):
     super().__init__()
     self._dimension = dimension
@@ -168,10 +173,10 @@ class UnbalancedBures(CostFn):
     self._sigma2 = sigma ** 2
     self._sqrtm_kw = kwargs
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray) -> float:
     return self._gamma * x[0]
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     # Sets a few constants
     gam = self._gamma
     sig2 = self._sigma2

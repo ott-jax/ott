@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A class to define a scheduler for the entropic regularization epsilon."""
-from typing import Optional
+from typing import Any, Optional
 
 import jax
 import jax.numpy as jnp
@@ -39,8 +39,8 @@ class Epsilon:
     geometric decay of an initial value that is larger than the intended target.
     Concretely, the value returned by such a scheduler will consider first
     the max between ``target`` and ``init * target * decay ** iteration``.
-    If the ``scale_epsilon`` parameter is provided, that value is used to multiply the
-    max computed previously by ``scale_epsilon``.
+    If the ``scale_epsilon`` parameter is provided, that value is used to
+    multiply the max computed previously by ``scale_epsilon``.
 
     Args:
       target: the epsilon regularizer that is targeted.
@@ -56,7 +56,7 @@ class Epsilon:
     self._decay = 1.0 if decay is None else decay
 
   @property
-  def target(self):
+  def target(self) -> float:
     """Returns final regularizer value of scheduler."""
     return self._target_init * self._scale_epsilon
 
@@ -70,10 +70,10 @@ class Epsilon:
     multiple = jnp.maximum(self._init * (decay ** iteration), 1.0)
     return multiple * self.target
 
-  def done(self, eps):
+  def done(self, eps: float) -> bool:
     return eps == self.target
 
-  def done_at(self, iteration):
+  def done_at(self, iteration: Optional[int]) -> bool:
     return self.done(self.at(iteration))
 
   def tree_flatten(self):
@@ -87,7 +87,7 @@ class Epsilon:
     return cls(*children)
 
   @classmethod
-  def make(cls, *args, **kwargs):
+  def make(cls, *args: Any, **kwargs: Any) -> "Epsilon":
     """Create or return an Epsilon instance."""
     if isinstance(args[0], cls):
       return args[0]
