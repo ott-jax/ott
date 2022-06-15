@@ -18,7 +18,7 @@ import dataclasses
 import jax
 
 
-def register_pytree_node(cls):
+def register_pytree_node(cls: type) -> type:
   """Decorator to register dataclasses as pytree_nodes."""
   cls = dataclasses.dataclass()(cls)
   flatten = lambda obj: jax.tree_flatten(dataclasses.asdict(obj))

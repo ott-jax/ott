@@ -17,7 +17,7 @@
 
 import collections
 import functools
-from typing import Sequence
+from typing import Optional, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -33,8 +33,8 @@ SinkhornBarycenterOutput = collections.namedtuple(
 def discrete_barycenter(
     geom: geometry.Geometry,
     a: jnp.ndarray,
-    weights: jnp.ndarray = None,
-    dual_initialization: jnp.ndarray = None,
+    weights: Optional[jnp.ndarray] = None,
+    dual_initialization: Optional[jnp.ndarray] = None,
     threshold: float = 1e-2,
     norm_error: int = 1,
     inner_iterations: float = 10,

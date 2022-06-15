@@ -30,6 +30,8 @@ from ott.core import (
 )
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
+LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+
 
 class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
@@ -53,17 +55,17 @@ class GWOutput(NamedTuple):
   linear_convergence: Optional[jnp.ndarray] = None
   convergence: bool = False
   errors: Optional[jnp.ndarray] = None
-  linear_state: Any = None
-  geom: geometry.Geometry = None
+  linear_state: Optional[LinearOutput] = None
+  geom: Optional[geometry.Geometry] = None
   # Intermediate values.
   old_transport_mass: Optional[float] = 1.0
 
-  def set(self, **kwargs) -> 'GWOutput':
+  def set(self, **kwargs: Any) -> 'GWOutput':
     """Returns a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   @property
-  def matrix(self):
+  def matrix(self) -> jnp.ndarray:
     """Transport matrix."""
     rescale_factor = jnp.sqrt(
         self.old_transport_mass / self.linear_state.transport_mass()
@@ -71,7 +73,7 @@ class GWOutput(NamedTuple):
     return self.linear_state.matrix * rescale_factor
 
   @property
-  def reg_gw_cost(self):
+  def reg_gw_cost(self) -> float:
     return self.linear_state.reg_ot_cost
 
 
@@ -93,19 +95,20 @@ class GWState(NamedTuple):
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
-  linear_state: Any = None
+  linear_state: Optional[LinearOutput] = None
   linear_pb: Optional[problems.LinearProblem] = None
   # Intermediate values.
   old_transport_mass: Optional[float] = 1.0
 
-  def set(self, **kwargs) -> 'GWState':
+  def set(self, **kwargs: Any) -> 'GWState':
     """Returns a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
-      self, iteration: int, linear_sol, linear_pb, store_errors: bool,
+      self, iteration: int, linear_sol: LinearOutput,
+      linear_pb: problems.LinearProblem, store_errors: bool,
       old_transport_mass: float
-  ):
+  ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
     errors = None
     if store_errors and self.errors is not None:
@@ -194,7 +197,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linearization, transport_mass
     )
 
-  def output_from_state(self, state):
+  def output_from_state(self, state: GWState) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
@@ -264,14 +267,14 @@ def make(
     linear_ot_solver_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
-    **kwargs
+    **kwargs: Any,
 ) -> GromovWasserstein:
   """Creates a GromovWasserstein solver.
 
   Args:
     epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
     rank: integer used to constrain the rank of GW solutions if >0.
-    max_iterations: int32, the maximum number of outer iterations for
+    max_iterations: the maximum number of outer iterations for
       Gromov Wasserstein.
     jit: bool, if True, jits the function.
     warm_start: deprecated.
@@ -328,7 +331,7 @@ def gromov_wasserstein(
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
-    **kwargs
+    **kwargs: Any,
 ) -> GWOutput:
   """Wrapper to solve a Gromov Wasserstein problem.
 
@@ -341,14 +344,14 @@ def gromov_wasserstein(
     geom_xy: a Geometry object representing the linear cost in FGW.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
       i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
-      None fused_penalty will be ignored, i.e. fused_penalty = 0
+      None fused_penalty will be ignored, i.e. fused_penalty = 0.
     scale_cost: option to rescale the cost matrices:
 
       - if `True`, use the default for each geometry.
       - if `False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
-        :meth:`ott.geometry.geometry.Geometry.__init__` or
-        :meth:`ott.geometry.pointcloud.PointCloud.__init__`.
+        :class:`ott.geometry.geometry.Geometry` or
+        :class:`ott.geometry.pointcloud.PointCloud`.
       - if `None`, do not scale the cost matrices.
 
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
