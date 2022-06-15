@@ -548,7 +548,7 @@ class PointCloud(geometry.Geometry):
       static_b: bool = False,
       **kwargs: Any
   ) -> Tuple["PointCloud", ...]:
-    """Instantiates the geometries used for a divergence computation."""
+    """Instantiate the geometries used for a divergence computation."""
     x, y = args
     couples = [(x, y), (x, x)] if static_b else [(x, y), (x, x), (y, y)]
     return tuple(cls(*xy, **kwargs) for xy in couples)

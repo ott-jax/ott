@@ -89,7 +89,9 @@ class BarycenterProblem:
     return cls(*children, **aux_data)
 
   @property
-  def segmented_y_b(self) -> Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]:
+  def segmented_y_b(
+      self
+  ) -> Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]:
     if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
       return self.add_slice_for_debiased(self._y, self._b)
     else:

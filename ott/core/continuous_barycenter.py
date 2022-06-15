@@ -49,12 +49,12 @@ class BarycenterOutput(NamedTuple):
   linear_convergence: Optional[jnp.ndarray] = None
   convergence: bool = False
   errors: Optional[jnp.ndarray] = None
-  x = None
-  a = None
+  x: Optional[jnp.ndarray] = None
+  a: Optional[jnp.ndarray] = None
   transports = None
   reg_gw_cost = None
 
-  def set(self, **kwargs) -> 'BarycenterOutput':
+  def set(self, **kwargs: Any) -> 'BarycenterOutput':
     """Returns a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -71,8 +71,8 @@ class BarycenterState(NamedTuple):
       at each iteration.
     linear_states: State used to solve and store solutions to the OT problems
       from the barycenter to the measures.
-    x: barycenter points
-    a: barycenter weights
+    x: barycenter points.
+    a: barycenter weights.
   """
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
@@ -80,7 +80,7 @@ class BarycenterState(NamedTuple):
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs) -> 'BarycenterState':
+  def set(self, **kwargs: Any) -> 'BarycenterState':
     """Returns a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -107,6 +107,7 @@ class BarycenterState(NamedTuple):
     if bar_prob.debiased:
       # Check max size (used to pad) is bigger than barycenter size
       n, dim = self.x.shape
+      # TODO: statement has no effect
       bar_prob.max_measure_size
       segmented_y = segmented_y.at[-1, :n, :].set(self.x)
       segmented_b = segmented_b.at[-1, :n].set(self.a)
@@ -141,7 +142,9 @@ class BarycenterState(NamedTuple):
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
-def barycentric_projection(matrix, y, cost_fn):
+def barycentric_projection(
+    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn
+) -> jnp.ndarray:
   return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
 
 
@@ -160,7 +163,10 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     out = bar_fn(self, bar_size, bar_prob, x_init, rng)
     return out
 
-  def init_state(self, bar_prob, bar_size, x_init, rng) -> BarycenterState:
+  def init_state(
+      self, bar_prob: bar_problems.BarycenterProblem, bar_size: int,
+      x_init: jnp.ndarray, rng: int
+  ) -> BarycenterState:
     """Initializes the state of the Wasserstein barycenter iterations."""
     if x_init is not None:
       assert bar_size == x_init.shape[0]
@@ -190,12 +196,13 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
         -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, x, a
     )
 
-  def output_from_state(self, state):
+  def output_from_state(self, state: BarycenterState) -> BarycenterState:
     return state
 
 
 def iterations(
-    solver: WassersteinBarycenter, bar_size, bar_prob, x_init, rng
+    solver: WassersteinBarycenter, bar_size: int,
+    bar_prob: bar_problems.BarycenterProblem, x_init: jnp.ndarray, rng: int
 ) -> BarycenterState:
   """A jittable Wasserstein barycenter outer loop."""
 
