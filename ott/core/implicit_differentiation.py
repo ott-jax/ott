@@ -17,7 +17,6 @@ from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from ott.core import dataclasses, problems, unbalanced_functions
 
@@ -45,8 +44,9 @@ class ImplicitDiff:
   precondition_fun: Optional[Callable[[float], float]] = None
 
   def solve(
-      self, gr: Tuple[np.ndarray], ot_prob: problems.LinearProblem,
-      f: np.ndarray, g: np.ndarray, lse_mode: bool
+      self, gr: Tuple[jnp.ndarray,
+                      jnp.ndarray], ot_prob: problems.LinearProblem,
+      f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
   ):
     r"""Applies minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
 
@@ -120,7 +120,7 @@ class ImplicitDiff:
     its transpose before solving the system).
 
     Args:
-      gr: 2-uple, (vector of size ``n``, vector of size ``m``).
+      gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
       ot_prob: the instantiation of the regularizad transport problem.
       f: potential, w.r.t marginal a.
       g: potential, w.r.t marginal b.
@@ -270,7 +270,10 @@ class ImplicitDiff:
     )
     return jnp.concatenate((result_a, result_b))
 
-  def gradient(self, prob, f, g, lse_mode, gr) -> problems.LinearProblem:
+  def gradient(
+      self, prob: problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
+      lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> problems.LinearProblem:
     """Applies vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
