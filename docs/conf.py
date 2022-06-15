@@ -56,6 +56,7 @@ extensions = [
 ]
 
 intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
 }

@@ -15,7 +15,7 @@
 # Lint as: python3
 """Implements a geometry class for points supported on a cartesian product."""
 import itertools
-from typing import Optional, Sequence
+from typing import Any, List, NoReturn, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -58,7 +58,7 @@ class Grid(geometry.Geometry):
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
       grid_dimension: Optional[int] = None,
-      **kwargs
+      **kwargs: Any,
   ):
     """Create instance of grid using either locations or sizes.
 
@@ -80,7 +80,6 @@ class Grid(geometry.Geometry):
         other inputs and used in the flatten/unflatten functions.
       **kwargs: other optional parameters to be passed on to superclass
         initializer, notably those related to epsilon regularization.
-
     """
     if (
         grid_size is not None and x is not None and num_a is not None and
@@ -115,7 +114,7 @@ class Grid(geometry.Geometry):
     super().__init__(**kwargs)
 
   @property
-  def cost_matrices(self):
+  def cost_matrices(self) -> List[jnp.ndarray]:
     # computes cost matrices along each dimension of the grid
     cost_matrices = []
     for dimension, cost_fn in itertools.zip_longest(
@@ -130,7 +129,7 @@ class Grid(geometry.Geometry):
     return cost_matrices
 
   @property
-  def kernel_matrices(self):
+  def kernel_matrices(self) -> List[jnp.ndarray]:
     # computes kernel matrices from cost matrices grid
     kernel_matrices = []
     for cost_matrix in self.cost_matrices:
@@ -138,15 +137,15 @@ class Grid(geometry.Geometry):
     return kernel_matrices
 
   @property
-  def median_cost_matrix(self):
+  def median_cost_matrix(self) -> NoReturn:
     raise NotImplementedError('Median cost not implemented for grids')
 
   @property
-  def shape(self):
+  def shape(self) -> Tuple[int, int]:
     return self.num_a, self.num_a
 
   @property
-  def is_symmetric(self):
+  def is_symmetric(self) -> bool:
     return True
 
   # Reimplemented functions to be used in regularized OT
@@ -157,7 +156,7 @@ class Grid(geometry.Geometry):
       eps: float,
       vec: Optional[jnp.ndarray] = None,
       axis: int = 0
-  ):
+  ) -> jnp.ndarray:
     """Applies grid kernel in log space. See notes in parent class for use case.
 
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
@@ -263,7 +262,7 @@ class Grid(geometry.Geometry):
       scaling: jnp.ndarray,
       eps: Optional[float] = None,
       axis: Optional[int] = None
-  ):
+  ) -> jnp.ndarray:
     """Applies grid kernel on scaling vector.
 
     See notes in parent class for use.
@@ -292,7 +291,9 @@ class Grid(geometry.Geometry):
       ).transpose(ind)
     return scaling.ravel()
 
-  def transport_from_potentials(self, f: jnp.ndarray, g: jnp.ndarray, axis=0):
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+  ) -> NoReturn:
     raise ValueError(
         'Grid geometry cannot instantiate a transport matrix, use',
         ' apply_transport_from_potentials(...) if you wish to ',
@@ -300,7 +301,9 @@ class Grid(geometry.Geometry):
         ' cloud geometry instead'
     )
 
-  def transport_from_scalings(self, f: jnp.ndarray, g: jnp.ndarray, axis=0):
+  def transport_from_scalings(
+      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+  ) -> NoReturn:
     raise ValueError(
         'Grid geometry cannot instantiate a transport matrix, use',
         ' apply_transport_from_scalings(...) if you wish to ',
@@ -309,7 +312,12 @@ class Grid(geometry.Geometry):
     )
 
   @classmethod
-  def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
+  def prepare_divergences(
+      cls,
+      *args: Any,
+      static_b: bool = False,
+      **kwargs: Any
+  ) -> Tuple["Grid", ...]:
     """Instantiates the geometries used for a divergence computation."""
     grid_size = kwargs.pop('grid_size', None)
     x = kwargs.pop('x', args)
