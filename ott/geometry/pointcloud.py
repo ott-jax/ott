@@ -15,10 +15,11 @@
 # Lint as: python3
 """A geometry defined using 2 point clouds and a cost function between them."""
 import math
-from typing import Optional, Union
+from typing import Any, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.geometry import costs, geometry, low_rank, ops
 
@@ -34,8 +35,9 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
       online: Union[bool, int] = False,
+      # TODO(michalk8): use literal here
       scale_cost: Optional[Union[bool, float, str]] = None,
-      **kwargs
+      **kwargs: Any,
   ):
     """Creates a geometry from two point clouds, using CostFn.
 
@@ -91,34 +93,34 @@ class PointCloud(geometry.Geometry):
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
-  def _norm_x(self):
+  def _norm_x(self) -> jnp.ndarray:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.x)
     elif self._axis_norm is None:
       return jnp.zeros(self.x.shape[0])
 
   @property
-  def _norm_y(self):
+  def _norm_y(self) -> jnp.ndarray:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.y)
     elif self._axis_norm is None:
       return jnp.zeros(self.y.shape[0])
 
   @property
-  def cost_matrix(self):
+  def cost_matrix(self) -> Optional[jnp.ndarray]:
     if self._online:
       return None
     cost_matrix = self.compute_cost_matrix()
     return cost_matrix * self.scale_cost
 
   @property
-  def kernel_matrix(self):
+  def kernel_matrix(self) -> Optional[jnp.ndarray]:
     if self._online:
       return None
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
-  def shape(self):
+  def shape(self) -> Tuple[int, int]:
     # in the process of flattening/unflattening in vmap, `__init__`
     # can be called with dummy objects
     # we optionally access `shape` in order to get the batch size
@@ -131,21 +133,22 @@ class PointCloud(geometry.Geometry):
       return 0, 0
 
   @property
-  def is_symmetric(self):
+  def is_symmetric(self) -> bool:
     return self.y is None or (
         jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
     )
 
   @property
-  def is_squared_euclidean(self):
+  def is_squared_euclidean(self) -> bool:
     return isinstance(self._cost_fn, costs.Euclidean) and self.power == 2.0
 
   @property
   def is_online(self) -> Union[bool, int]:
-    return self._online is not None and self._online  # for backward compatibility
+    # `int` for backward compatibility
+    return self._online is not None and self._online
 
   @property
-  def scale_cost(self):
+  def scale_cost(self) -> float:
     """Computes the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
@@ -198,7 +201,7 @@ class PointCloud(geometry.Geometry):
     else:
       return 1.0
 
-  def compute_cost_matrix(self):
+  def compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
@@ -209,7 +212,7 @@ class PointCloud(geometry.Geometry):
       f: jnp.ndarray,
       g: jnp.ndarray,
       eps: float,
-      vec: jnp.ndarray = None,
+      vec: Optional[jnp.ndarray] = None,
       axis: int = 0
   ) -> jnp.ndarray:
 
@@ -293,8 +296,11 @@ class PointCloud(geometry.Geometry):
     return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
 
   def apply_kernel(
-      self, scaling: jnp.ndarray, eps: Optional[float] = None, axis: int = 0
-  ):
+      self,
+      scaling: jnp.ndarray,
+      eps: Optional[float] = None,
+      axis: int = 0
+  ) -> jnp.ndarray:
     if eps is None:
       eps = self.epsilon
 
@@ -316,7 +322,9 @@ class PointCloud(geometry.Geometry):
           self._cost_fn, self.power, self.scale_cost
       )
 
-  def transport_from_potentials(self, f, g):
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
     if not self._online:
       return super().transport_from_potentials(f, g)
     transport = jax.vmap(
@@ -330,7 +338,9 @@ class PointCloud(geometry.Geometry):
         self._cost_fn, self.power, self.scale_cost
     )
 
-  def transport_from_scalings(self, u, v):
+  def transport_from_scalings(
+      self, u: jnp.ndarray, v: jnp.ndarray
+  ) -> jnp.ndarray:
     if not self._online:
       return super().transport_from_scalings(u, v)
     transport = jax.vmap(
@@ -438,7 +448,9 @@ class PointCloud(geometry.Geometry):
     slice_sizes = [self._bs] + list(t.shape[1:])
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
-  def compute_summary_online(self, summary: str) -> float:
+  def compute_summary_online(
+      self, summary: Literal['mean', 'max_cost']
+  ) -> float:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
     Args:
@@ -524,13 +536,18 @@ class PointCloud(geometry.Geometry):
           f'Scaling method {summary} does not exist for online mode.'
       )
 
-  def barycenter(self, weights):
+  def barycenter(self, weights: jnp.ndarray) -> float:
     """Compute barycenter of points in self.x using weights, valid for p=2.0 """
-    assert self.power == 2.0
+    assert self.power == 2.0, self.power
     return self._cost_fn.barycenter(self.x, weights)
 
   @classmethod
-  def prepare_divergences(cls, *args, static_b: bool = False, **kwargs):
+  def prepare_divergences(
+      cls,
+      *args: Any,
+      static_b: bool = False,
+      **kwargs: Any
+  ) -> Tuple["PointCloud", ...]:
     """Instantiates the geometries used for a divergence computation."""
     x, y = args
     couples = [(x, y), (x, x)] if static_b else [(x, y), (x, x), (y, y)]
@@ -550,7 +567,7 @@ class PointCloud(geometry.Geometry):
     eps, fn = children[2:]
     return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
 
-  def to_LRCGeometry(self, scale=1.0):
+  def to_LRCGeometry(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     """Converts sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
