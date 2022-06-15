@@ -17,13 +17,12 @@ from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott.geometry import geometry
 
 MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-TransportAppFunc = Callable[
-    [jnp.ndarray, jnp.ndarray, jnp.ndarray, Literal[0, 1]], jnp.ndarray]
+TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
+                            jnp.ndarray]
 
 
 @jax.tree_util.register_pytree_node_class
