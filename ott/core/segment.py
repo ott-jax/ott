@@ -12,7 +12,7 @@
 # limitations under the License.
 """Prepare point clouds for parallel computations."""
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -26,8 +26,10 @@ def segment_point_cloud(
     indices_are_sorted: Optional[bool] = None,
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None
-) -> jnp.ndarray:
-  """ Segment and pad as needed the entries of a point cloud.
+) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
+  """
+  Segment and pad as needed the entries of a point cloud.
+
   There are two interfaces: either use `segment_ids`, and optionally
   `num_segments` and `indices_are_sorted`, to describe for each
   data point in the matrix to which segment each point corresponds to,
@@ -38,6 +40,12 @@ def segment_point_cloud(
 
   In both cases, jitting requires defining a max_measure_size, the
   upper bound on the maximal size of measures, which will be used for padding.
+
+  Args:
+    TODO.
+
+  Returns:
+    TODO.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
