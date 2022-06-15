@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A class describing low-rank geometries."""
-from typing import Optional, Union
+from typing import Any, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -24,8 +24,7 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class LRCGeometry(geometry.Geometry):
-  r"""Low-rank Cost Geometry defined by two factors.
-  """
+  """Low-rank Cost Geometry defined by two factors."""
 
   def __init__(
       self,
@@ -34,7 +33,7 @@ class LRCGeometry(geometry.Geometry):
       bias: float = 0.0,
       scale_cost: Optional[Union[bool, float, str]] = None,
       batch_size: Optional[int] = None,
-      **kwargs
+      **kwargs: Any,
   ):
     r"""Initializes a geometry by passing it low-rank factors.
 
@@ -51,7 +50,7 @@ class LRCGeometry(geometry.Geometry):
         ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
         batch size is set to 1024 or to the largest number of samples between
         ``cost_1`` and ``cost_2`` if smaller than 1024.
-      **kwargs: additional kwargs to Geometry
+      **kwargs: additional kwargs to :class:`ott.geometry.geometry.Geometry`.
     """
     assert cost_1.shape[1] == cost_2.shape[1]
     self._cost_1 = cost_1
@@ -64,39 +63,39 @@ class LRCGeometry(geometry.Geometry):
     self.batch_size = batch_size
 
   @property
-  def cost_1(self):
+  def cost_1(self) -> jnp.ndarray:
     return self._cost_1 * jnp.sqrt(self.scale_cost)
 
   @property
-  def cost_2(self):
+  def cost_2(self) -> jnp.ndarray:
     return self._cost_2 * jnp.sqrt(self.scale_cost)
 
   @property
-  def bias(self):
+  def bias(self) -> float:
     return self._bias * self.scale_cost
 
   @property
-  def cost_rank(self):
+  def cost_rank(self) -> int:
     return self._cost_1.shape[1]
 
   @property
-  def cost_matrix(self):
+  def cost_matrix(self) -> jnp.ndarray:
     """Returns cost matrix if requested."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
-  def shape(self):
+  def shape(self) -> Tuple[int, int]:
     return (self._cost_1.shape[0], self._cost_2.shape[0])
 
   @property
-  def is_symmetric(self):
+  def is_symmetric(self) -> bool:
     return (
         self._cost_1.shape[0] == self._cost_2.shape[0] and
         jnp.all(self._cost_1 == self._cost_2)
     )
 
   @property
-  def scale_cost(self):
+  def scale_cost(self) -> float:
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_bound':
@@ -169,16 +168,17 @@ class LRCGeometry(geometry.Geometry):
     """Computes the maximum of the cost matrix.
 
     Three cases are taken into account:
+
     - If the number of samples of ``cost_1`` and ``cost_2`` are both smaller
-    than 1024 and if ``batch_size`` is ``None``, the ``cost_matrix`` is
-    computed to obtain its maximum entry.
+      than 1024 and if ``batch_size`` is ``None``, the ``cost_matrix`` is
+      computed to obtain its maximum entry.
     - If one of the number of samples of ``cost_1`` or ``cost_2`` is larger
-    than 1024 and if ``batch_size`` is ``None``, then the maximum of the
-    cost matrix is calculated by batch. The batches are created on the longest
-    axis of the cost matrix and their size is fixed to 1024.
+      than 1024 and if ``batch_size`` is ``None``, then the maximum of the
+      cost matrix is calculated by batch. The batches are created on the
+      longest axis of the cost matrix and their size is fixed to 1024.
     - If ``batch_size`` is provided as a float, then the maximum of the cost
-    matrix is calculated by batch. The batches are created on the longest axis
-    of the cost matrix and their size if fixed by ``batch_size``.
+      matrix is calculated by batch. The batches are created on the longest
+      axis of the cost matrix and their size if fixed by ``batch_size``.
 
     Returns:
       Maximum of the cost matrix.
@@ -226,7 +226,7 @@ class LRCGeometry(geometry.Geometry):
     return cls(*children[:-1], **children[-1], **aux_data)
 
 
-def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry):
+def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry) -> LRCGeometry:
   """Add geometry in geom1 to that in geom2, keeping other geom1 params."""
   return LRCGeometry(
       cost_1=jnp.concatenate((geom1.cost_1, geom2.cost_1), axis=1),

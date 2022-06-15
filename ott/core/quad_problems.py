@@ -104,6 +104,7 @@ class QuadraticProblem:
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
       scale_cost: option to rescale the cost matrices:
+
         - if `True`, use the default for each geometry.
         - if `False`, keep the original scaling in geometries.
         - if :class:`str`, use a specific method available in
