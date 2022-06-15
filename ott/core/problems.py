@@ -13,12 +13,17 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Optional
+from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.geometry import geometry
+
+MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+TransportAppFunc = Callable[
+    [jnp.ndarray, jnp.ndarray, jnp.ndarray, Literal[0, 1]], jnp.ndarray]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -66,24 +71,26 @@ class LinearProblem:
     return cls(*children, **aux_data)
 
   @property
-  def a(self):
+  def a(self) -> jnp.ndarray:
     num_a = self.geom.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self):
+  def b(self) -> jnp.ndarray:
     num_b = self.geom.shape[1]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
   @property
-  def is_balanced(self):
+  def is_balanced(self) -> bool:
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
   @property
-  def epsilon(self):
+  def epsilon(self) -> float:
     return self.geom.epsilon
 
-  def get_transport_functions(self, lse_mode: bool):
+  def get_transport_functions(
+      self, lse_mode: bool
+  ) -> Tuple[MarginalFunc, MarginalFunc, TransportAppFunc]:
     """Instantiates useful functions for Sinkhorn depending on lse_mode."""
     geom = self.geom
     if lse_mode:
