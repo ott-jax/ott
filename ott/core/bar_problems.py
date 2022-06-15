@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -89,7 +89,7 @@ class BarycenterProblem:
     return cls(*children, **aux_data)
 
   @property
-  def segmented_y_b(self):
+  def segmented_y_b(self) -> Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]:
     if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
       return self.add_slice_for_debiased(self._y, self._b)
     else:
@@ -99,7 +99,9 @@ class BarycenterProblem:
       )
     return self.add_slice_for_debiased(segmented_y, segmented_b)
 
-  def add_slice_for_debiased(self, y, b):
+  def add_slice_for_debiased(
+      self, y: Optional[jnp.ndarray], b: Optional[jnp.ndarray]
+  ) -> Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]:
     if y is None or b is None:
       return y, b
     if self.debiased:
@@ -112,21 +114,21 @@ class BarycenterProblem:
     return y, b
 
   @property
-  def flattened_y(self):
+  def flattened_y(self) -> Optional[jnp.ndarray]:
     if self._y is not None and self._y.ndim == 3:
       return self._y.reshape((-1, self._y.shape[-1]))
     else:
       return self._y
 
   @property
-  def flattened_b(self):
+  def flattened_b(self) -> Optional[jnp.ndarray]:
     if self._b is not None and self._b.ndim == 2:
       return self._b.ravel()
     else:
       return self._b
 
   @property
-  def max_measure_size(self):
+  def max_measure_size(self) -> int:
     if self._max_measure_size is not None:
       return self._max_measure_size
     if self._y is not None and self._y.ndim == 3:
@@ -148,7 +150,7 @@ class BarycenterProblem:
         return jnp.max(self._num_per_segment)
 
   @property
-  def num_segments(self):
+  def num_segments(self) -> int:
     if self._y is None:
       return 0
     if self._y.ndim == 3:
@@ -163,7 +165,7 @@ class BarycenterProblem:
     return num_segments
 
   @property
-  def weights(self):
+  def weights(self) -> jnp.ndarray:
     if self._weights is None:
       weights = jnp.ones((self.num_segments,)) / self.num_segments
     else:
