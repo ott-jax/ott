@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Callable, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -36,20 +36,25 @@ class SinkhornState(NamedTuple):
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs) -> 'SinkhornState':
+  def set(self, **kwargs: Any) -> 'SinkhornState':
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def solution_error(self, ot_prob, norm_error, lse_mode) -> jnp.ndarray:
+  def solution_error(
+      self, ot_prob: problems.LinearProblem, norm_error: Sequence[int],
+      lse_mode: bool
+  ) -> jnp.ndarray:
     return solution_error(self.fu, self.gv, ot_prob, norm_error, lse_mode)
 
-  def ent_reg_cost(self, ot_prob, lse_mode: bool) -> jnp.ndarray:
+  def ent_reg_cost(
+      self, ot_prob: problems.LinearProblem, lse_mode: bool
+  ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
 
 def solution_error(
-    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob, norm_error: Sequence[int],
-    lse_mode: bool
+    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob: problems.LinearProblem,
+    norm_error: Sequence[int], lse_mode: bool
 ) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
@@ -106,8 +111,8 @@ def marginal_error(
     axis: int = 0,
     norm_error: Sequence[int] = (1,),
     lse_mode: bool = True
-):
-  """Outputs how far  Sinkhorn solution is w.r.t target.
+) -> jnp.asarray:
+  """Outputs how far Sinkhorn solution is w.r.t target.
 
   Args:
     f_u: a vector of potentials or scalings for the first marginal.
@@ -115,17 +120,17 @@ def marginal_error(
     target: target marginal.
     geom: Geometry object.
     axis: axis (0 or 1) along which to compute marginal.
-    norm_error: (t-uple of int) p's to compute p-norm between marginal/target
+    norm_error: (tuple of int) p's to compute p-norm between marginal/target
     lse_mode: whether operating on scalings or potentials
 
   Returns:
-    t-uple of floats, quantifying difference between target / marginal.
+    Array of floats, quantifying difference between target / marginal.
   """
   if lse_mode:
     marginal = geom.marginal_from_potentials(f_u, g_v, axis=axis)
   else:
     marginal = geom.marginal_from_scalings(f_u, g_v, axis=axis)
-  norm_error = jnp.array(norm_error)
+  norm_error = jnp.asarray(norm_error)
   error = jnp.sum(
       jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis], axis=1
   ) ** (1.0 / norm_error)
@@ -133,8 +138,9 @@ def marginal_error(
 
 
 def ent_reg_cost(
-    f: jnp.ndarray, g: jnp.ndarray, ot_prob, lse_mode: bool
-) -> jnp.ndarray:
+    f: jnp.ndarray, g: jnp.ndarray, ot_prob: problems.LinearProblem,
+    lse_mode: bool
+) -> float:
   r"""Computes objective of Sinkhorn for OT problem given dual solutions.
 
   The objective is evaluated for dual solution ``f`` and ``g``, using
@@ -152,7 +158,7 @@ def ent_reg_cost(
     lse_mode: bool, whether to compute total mass in lse or kernel mode.
 
   Returns:
-    a float, the regularized transport cost.
+    The regularized transport cost.
   """
   supp_a = ot_prob.a > 0
   supp_b = ot_prob.b > 0
@@ -198,40 +204,42 @@ class SinkhornOutput(NamedTuple):
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
-  reg_ot_cost: Optional[jnp.ndarray] = None
+  reg_ot_cost: Optional[float] = None
   ot_prob: Optional[problems.LinearProblem] = None
 
-  def set(self, **kwargs) -> 'SinkhornOutput':
+  def set(self, **kwargs: Any) -> 'SinkhornOutput':
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def set_cost(self, ot_prob, lse_mode, use_danskin) -> 'SinkhornOutput':
+  def set_cost(
+      self, ot_prob: problems.LinearProblem, lse_mode: bool, use_danskin: bool
+  ) -> 'SinkhornOutput':
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
-  def linear(self):
+  def linear(self) -> bool:
     return isinstance(self.ot_prob, problems.LinearProblem)
 
   @property
-  def geom(self):
+  def geom(self) -> geometry.Geometry:
     return self.ot_prob.geom
 
   @property
-  def a(self):
+  def a(self) -> jnp.ndarray:
     return self.ot_prob.a
 
   @property
-  def b(self):
+  def b(self) -> jnp.ndarray:
     return self.ot_prob.b
 
   @property
-  def linear_output(self):
+  def linear_output(self) -> bool:
     return True
 
   @property
-  def converged(self):
+  def converged(self) -> bool:
     if self.errors is None:
       return False
     return jnp.logical_and(
@@ -240,7 +248,7 @@ class SinkhornOutput(NamedTuple):
     )
 
   @property
-  def scalings(self):
+  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
     u = self.ot_prob.geom.scaling_from_potential(self.f)
     v = self.ot_prob.geom.scaling_from_potential(self.g)
     return u, v
@@ -268,7 +276,7 @@ class SinkhornOutput(NamedTuple):
   def marginal(self, axis: int) -> jnp.ndarray:
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
-  def cost_at_geom(self, other_geom: geometry.Geometry):
+  def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Returns reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix) -
@@ -288,25 +296,25 @@ class Sinkhorn:
   SinkhornOutput object that contains all the information required to compute
   transports. See function ``sinkhorn`` for a wrapper.
 
-  Attributes:
+  Args:
+    lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
+      multiplication.
     threshold: tolerance used to stop the Sinkhorn iterations. This is
-     typically the deviation between a target marginal and the marginal of the
-     current primal solution when either or both tau_a and tau_b are 1.0
-     (balanced or semi-balanced problem), or the relative change between two
-     successive solutions in the unbalanced case.
+      typically the deviation between a target marginal and the marginal of the
+      current primal solution when either or both tau_a and tau_b are 1.0
+      (balanced or semi-balanced problem), or the relative change between two
+      successive solutions in the unbalanced case.
     norm_error: power used to define p-norm of error for marginal/target.
     inner_iterations: the Sinkhorn error is not recomputed at each
-     iteration but every inner_num_iter instead.
+      iteration but every inner_num_iter instead.
     min_iterations: the minimum number of Sinkhorn iterations carried
-     out before the error is computed and monitored.
+      out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If
       ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
       run by default using a ``jax.lax.scan`` loop rather than a custom,
       unroll-able ``jax.lax.while_loop`` that monitors convergence. In that case
       the error is not monitored and the ``converged`` flag will return
       ``False`` as a consequence.
-    lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
-      multiplication.
     momentum: a Momentum instance. See ott.core.momentum
     anderson: an AndersonAcceleration instance. See ott.core.anderson.
     implicit_diff: instance used to solve implicit differentiation. Unrolls
@@ -332,11 +340,12 @@ class Sinkhorn:
       inner_iterations: int = 10,
       min_iterations: int = 0,
       max_iterations: int = 2000,
-      momentum=None,
-      anderson=None,
+      momentum: Optional[momentum_lib.Momentum] = None,
+      anderson: Optional[anderson_lib.AndersonAcceleration] = None,
       parallel_dual_updates: bool = False,
-      use_danskin: bool = None,
-      implicit_diff=implicit_lib.ImplicitDiff(),
+      use_danskin: Optional[bool] = None,
+      implicit_diff: Optional[implicit_lib.ImplicitDiff
+                             ] = implicit_lib.ImplicitDiff(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -373,7 +382,7 @@ class Sinkhorn:
                         if use_danskin is None else use_danskin)
 
   @property
-  def norm_error(self):
+  def norm_error(self) -> Tuple[int, ...]:
     # To change momentum adaptively, one needs errors in ||.||_1 norm.
     # In that case, we add this exponent to the list of errors to compute,
     # notably if that was not the error requested by the user.
@@ -385,7 +394,7 @@ class Sinkhorn:
   def __call__(
       self,
       ot_prob: problems.LinearProblem,
-      init: Optional[Tuple[Optional[jnp.ndarray], ...]] = None
+      init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
@@ -402,7 +411,7 @@ class Sinkhorn:
         b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
     )
 
-    run_fn = run if not self.jit else jax.jit(run)
+    run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
   def tree_flatten(self):
@@ -415,7 +424,10 @@ class Sinkhorn:
   def tree_unflatten(cls, aux_data, children):
     return cls(**aux_data, threshold=children[0])
 
-  def lse_step(self, ot_prob, state, iteration) -> SinkhornState:
+  def lse_step(
+      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      iteration: int
+  ) -> SinkhornState:
     """Sinkhorn LSE update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
@@ -434,7 +446,10 @@ class Sinkhorn:
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(fu=fu, gv=gv)
 
-  def kernel_step(self, ot_prob, state, iteration) -> SinkhornState:
+  def kernel_step(
+      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      iteration: int
+  ) -> SinkhornState:
     """Sinkhorn multiplicative update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
@@ -451,10 +466,14 @@ class Sinkhorn:
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(fu=fu, gv=gv)
 
-  def one_iteration(self, ot_prob, state, iteration, compute_error):
+  def one_iteration(
+      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      iteration: int, compute_error: bool
+  ) -> SinkhornState:
     """Carries out sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
+
       - log-space for numerical stability.
       - scaling space, using standard kernel-vector multiply operations.
 
@@ -489,23 +508,23 @@ class Sinkhorn:
     errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
     return state.set(errors=errors)
 
-  def _converged(self, state, iteration):
+  def _converged(self, state: SinkhornState, iteration: int) -> bool:
     err = state.errors[iteration // self.inner_iterations - 1, 0]
     return jnp.logical_and(iteration > 0, err < self.threshold)
 
-  def _diverged(self, state, iteration):
+  def _diverged(self, state: SinkhornState, iteration: int) -> bool:
     err = state.errors[iteration // self.inner_iterations - 1, 0]
     return jnp.logical_not(jnp.isfinite(err))
 
-  def _continue(self, state, iteration):
-    """ continue while not(converged) and not(diverged)"""
+  def _continue(self, state: SinkhornState, iteration: int) -> bool:
+    """Continue while not(converged) and not(diverged)"""
     return jnp.logical_and(
         jnp.logical_not(self._diverged(state, iteration)),
         jnp.logical_not(self._converged(state, iteration))
     )
 
   @property
-  def outer_iterations(self):
+  def outer_iterations(self) -> int:
     """Upper bound on number of times inner_iterations are carried out.
 
     This integer can be used to set constant array sizes to track the algorithm
@@ -513,7 +532,10 @@ class Sinkhorn:
     """
     return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
 
-  def init_state(self, ot_prob, init):
+  def init_state(
+      self, ot_prob: problems.LinearProblem, init: Tuple[jnp.ndarray,
+                                                         jnp.ndarray]
+  ) -> SinkhornState:
     """Returns the initial state of the loop."""
     fu, gv = init
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
@@ -521,7 +543,9 @@ class Sinkhorn:
     state = SinkhornState(errors=errors, fu=fu, gv=gv)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
-  def output_from_state(self, ot_prob, state):
+  def output_from_state(
+      self, ot_prob: problems.LinearProblem, state: SinkhornState
+  ) -> SinkhornOutput:
     """Creates an output from a loop state.
 
     Note:
@@ -555,7 +579,10 @@ class Sinkhorn:
     return SinkhornOutput(f=f, g=g, errors=errors)
 
 
-def run(ot_prob, solver, init) -> SinkhornOutput:
+def run(
+    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
+                                                                   jnp.ndarray]
+) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
   out = iter_fun(ot_prob, solver, init)
@@ -565,14 +592,23 @@ def run(ot_prob, solver, init) -> SinkhornOutput:
   return out.set(ot_prob=ot_prob)
 
 
-def iterations(ot_prob, solver, init):
+def iterations(
+    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
+                                                                   jnp.ndarray]
+) -> SinkhornOutput:
   """A jit'able Sinkhorn loop. args contain initialization variables."""
 
-  def cond_fn(iteration, const, state):
+  def cond_fn(
+      iteration: int, const: Tuple[problems.LinearProblem, Sinkhorn],
+      state: SinkhornState
+  ) -> bool:
     _, solver = const
     return solver._continue(state, iteration)
 
-  def body_fn(iteration, const, state, compute_error):
+  def body_fn(
+      iteration: int, const: Tuple[problems.LinearProblem, Sinkhorn],
+      state: SinkhornState, compute_error: bool
+  ) -> SinkhornState:
     ot_prob, solver = const
     return solver.one_iteration(ot_prob, state, iteration, compute_error)
 
@@ -596,7 +632,8 @@ def iterations(ot_prob, solver, init):
 def _iterations_taped(
     ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
                                                                    jnp.ndarray]
-):
+) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
+                                 problems.LinearProblem, Sinkhorn]]:
   """Runs forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
@@ -697,7 +734,7 @@ def sinkhorn(
     tau_b: float = 1.0,
     init_dual_a: Optional[jnp.ndarray] = None,
     init_dual_b: Optional[jnp.ndarray] = None,
-    **kwargs
+    **kwargs: Any,
 ):
   r"""A Jax version of Sinkhorn's algorithm.
 
@@ -906,18 +943,19 @@ def sinkhorn(
       iterations for possibly several reasons:
 
       1. the regularizer (defined as ``epsilon`` in the geometry ``geom``
-         object) is too small. Consider either switching to ``lse_mode=True`` (at
-         the price of a slower execution), increasing ``epsilon``, or,
+         object) is too small. Consider either switching to ``lse_mode=True``
+         (at the price of a slower execution), increasing ``epsilon``, or,
          alternatively, if you are unable or unwilling to increase  ``epsilon``,
          either increase ``max_iterations`` or ``threshold``.
       2. the probability weights ``a`` and ``b`` do not have the same total
-         mass, while using a balanced (``tau_a=tau_b=1.0``) setup. Consider either
-         normalizing ``a`` and ``b``, or set either ``tau_a`` and/or ``tau_b<1.0``.
+         mass, while using a balanced (``tau_a=tau_b=1.0``) setup.
+         Consider either normalizing ``a`` and ``b``, or set either ``tau_a``
+         and/or ``tau_b<1.0``.
       3. OOMs issues may arise when storing either cost or kernel matrices that
-         are too large in ``geom``. In the case where, the ``geom`` geometry is a
-         ``PointCloud``, some of these issues might be solved by setting the
-         ``online`` flag to ``True``. This will trigger a recomputation on the fly
-         of the cost/kernel matrix.
+         are too large in ``geom``. In the case where, the ``geom`` geometry is
+         a ``PointCloud``, some of these issues might be solved by setting the
+         ``online`` flag to ``True``. This will trigger a recomputation on the
+         fly of the cost/kernel matrix.
 
     * The weight vectors ``a`` and ``b`` can be passed on with coordinates that
       have zero weight. This is then handled by relying on simple arithmetic for
