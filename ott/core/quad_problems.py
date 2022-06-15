@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -104,7 +104,6 @@ class QuadraticProblem:
         fused_penalty is None but geom_xy is passed, fused_penalty is set by
         default to 1.0, equal to 0.0 otherwise.
       scale_cost: option to rescale the cost matrices:
-
         - if `True`, use the default for each geometry.
         - if `False`, keep the original scaling in geometries.
         - if :class:`str`, use a specific method available in
@@ -153,11 +152,11 @@ class QuadraticProblem:
       self.loss = loss
 
   @property
-  def is_fused(self):
+  def is_fused(self) -> bool:
     return self.geom_xy is not None and self.fused_penalty > 0.0
 
   @property
-  def is_all_geoms_lr(self):
+  def is_all_geoms_lr(self) -> bool:
     return (
         isinstance(self.geom_xx, low_rank.LRCGeometry) and
         isinstance(self.geom_yy, low_rank.LRCGeometry) and
@@ -165,15 +164,15 @@ class QuadraticProblem:
     )
 
   @property
-  def linear_loss(self):
+  def linear_loss(self) -> Tuple[LossTerm, LossTerm]:
     return self.loss[0]
 
   @property
-  def quad_loss(self):
+  def quad_loss(self) -> Tuple[LossTerm, LossTerm]:
     return self.loss[1]
 
   @property
-  def is_balanced(self):
+  def is_balanced(self) -> bool:
     return ((not self.gw_unbalanced_correction) or
             (self.tau_a == 1.0 and self.tau_b == 1.0))
 
@@ -193,16 +192,18 @@ class QuadraticProblem:
     return cls(*geoms, a=a, b=b, **aux_data)
 
   @property
-  def a(self):
+  def a(self) -> jnp.ndarray:
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self):
+  def b(self) -> jnp.ndarray:
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
-  def marginal_dependent_cost(self, marginal_1, marginal_2):
+  def marginal_dependent_cost(
+      self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
+  ) -> low_rank.LRCGeometry:
     r"""Initialises cost term that depends on the marginals of the transport.
 
     Uses the first term in Equation 6, Proposition 1 of
@@ -224,7 +225,7 @@ class QuadraticProblem:
        for samples from geom_yy
 
     Returns:
-      a LRCGeometry.
+      Low-rank geometry.
     """
     if self._sq_euc:  # quadratic apply
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
@@ -238,12 +239,12 @@ class QuadraticProblem:
 
   def cost_unbalanced_correction(
       self,
-      transport_matrix,
-      marginal_1,
-      marginal_2,
-      epsilon,
-      rescale_factor,
-      delta=1e-9
+      transport_matrix: jnp.ndarray,
+      marginal_1: jnp.ndarray,
+      marginal_2: jnp.ndarray,
+      epsilon: float,
+      rescale_factor: float,
+      delta: float = 1e-9
   ) -> float:
     r"""Calculates cost term from the quadratic divergence when unbalanced.
 
@@ -263,21 +264,21 @@ class QuadraticProblem:
         :math:`+ tau_b / (1 - tau_b) * \sum(KL(P^T1|b))`
         :math:`+ epsilon * \sum(KL(P|ab'))`
 
-    Arguments:
+    Args:
       transport_matrix: jnp.ndarray<float>[num_a, num_b], transport matrix.
       marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
-       for samples from geom_xx
+        for samples from :attr:`geom_xx`.
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
-       for samples from geom_yy
+        for samples from :attr:`geom_yy`.
       epsilon: regulariser.
-      rescale_factor: float, scaling factor for the transport matrix.
-      delta: float, small quantity to avoid diverging KLs.
+      rescale_factor: scaling factor for the transport matrix.
+      delta: small quantity to avoid diverging KLs.
 
     Returns:
-      float, cost term
-    """
+      The cost term.
+    """  # noqa: RST201, RST203, RST301
 
-    def regulariser(tau):
+    def regulariser(tau: float) -> float:
       return tau / (1.0 - tau) if tau != 1.0 else 0
 
     cost = regulariser(self.tau_a) * jax.scipy.special.xlogy(
@@ -292,7 +293,8 @@ class QuadraticProblem:
     ).sum()
     return cost
 
-  def init_transport(self):
+  def init_transport(self) -> jnp.ndarray:
+    """Initialises transport matrix."""
     # TODO(oliviert, cuturi): consider passing a custom initialization.
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
@@ -390,7 +392,7 @@ class QuadraticProblem:
     )
 
   def init_lr_linearization(
-      self, rank: int = 10, **kwargs
+      self, rank: int = 10, **kwargs: Any
   ) -> problems.LinearProblem:
     """Linearizes a Quad problem with a predefined initializer."""
     x_ = self.geom_xx.apply_square_cost(self.a)
@@ -409,7 +411,9 @@ class QuadraticProblem:
         tau_b=self.tau_b
     )
 
-  def update_lr_geom(self, lr_sink):
+  def update_lr_geom(
+      self, lr_sink: sinkhorn_lr.LRSinkhornOutput
+  ) -> geometry.Geometry:
     """Using LR Sinkhorn output, recompute (possibly LRC) linearization."""
     marginal_1 = lr_sink.marginal(1)
     marginal_2 = lr_sink.marginal(0)
@@ -455,8 +459,8 @@ class QuadraticProblem:
 
     Args:
       transport: Solution of the linearization of the quadratic problem.
-      epsilon: An epsilon scheduler or a float passed on to the linearization.
-      old_transport_mass: Sum of the elements of the transport matrix at the
+        epsilon: An epsilon scheduler or a float passed on to the linearization.
+        old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
 
     Returns:
@@ -520,7 +524,8 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
 
 
 def make(
-    *args,
+    *args: Union[jnp.ndarray, geometry.Geometry, problems.LinearProblem,
+                 QuadraticProblem],
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     tau_a: float = 1.0,
@@ -529,14 +534,14 @@ def make(
     gw_unbalanced_correction: Optional[bool] = True,
     fused_penalty: Optional[float] = None,
     scale_cost: Optional[Union[bool, float, str]] = False,
-    **kwargs
+    **kwargs: Any,
 ):
   """Makes a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
     x = args[0]
     y = args[1] if len(args) > 1 else args[0]
     if ((objective == 'linear') or
-        (objective is None and x.shape[1] == y.shape[1])):
+        (objective is None and x.shape[1] == y.shape[1])):  # noqa: E129
       geom_xy = pointcloud.PointCloud(x, y, **kwargs)
       return problems.LinearProblem(geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
     elif ((objective == 'quadratic') or

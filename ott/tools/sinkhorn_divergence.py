@@ -14,7 +14,7 @@
 """Implements the sinkhorn divergence."""
 
 import collections
-from typing import Any, Dict, Mapping, Optional, Type
+from typing import Any, Dict, Mapping, Optional
 
 import jax
 from jax import numpy as jnp
@@ -29,21 +29,21 @@ SinkhornDivergenceOutput = collections.namedtuple(
 
 
 def sinkhorn_divergence(
-    geom: Type[geometry.Geometry],
-    *args,
+    geom: geometry.Geometry,
+    *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     static_b: bool = False,
     share_epsilon: bool = True,
-    **kwargs
+    **kwargs: Any,
 ):
   """Computes Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
     geom: a geometry class.
-    *args: arguments to the prepare_divergences method that is specific to each
-      geometry.
+    *args: arguments to the :meth:`ott.geometry.Geometry.prepare_divergences`
+      that is specific to each geometry.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
       all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
