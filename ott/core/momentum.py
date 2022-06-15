@@ -13,9 +13,14 @@
 # limitations under the License.
 """Functions related to momemtum."""
 
+from typing import TYPE_CHECKING
+
 import jax.numpy as jnp
 
 from ott.core import dataclasses
+
+if TYPE_CHECKING:
+  from ott.core import sinkhorn
 
 
 @dataclasses.register_pytree_node
@@ -26,14 +31,14 @@ class Momentum:
   value: float = 1.0
   inner_iterations: int = 1
 
-  def weight(self, state, iteration):
+  def weight(self, state: "sinkhorn.SinkhornState", iteration: int) -> float:
     """Computes momentum term if needed, using previously seen errors."""
     return jnp.where(
         iteration >= jnp.where(self.start == 0, jnp.inf, self.start),
         self.at(state), self.value
     )
 
-  def at(self, state):
+  def at(self, state: "sinkhorn.SinkhornState") -> float:
     """Momentum formula, https://arxiv.org/pdf/2012.12562v1.pdf, p.7 and (5)."""
     idx = self.start // self.inner_iterations
     error_ratio = jnp.minimum(
@@ -42,7 +47,13 @@ class Momentum:
     power = 1.0 / self.inner_iterations
     return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio ** power))
 
-  def __call__(self, weight, value, new_value, lse_mode=True):
+  def __call__(
+      self,
+      weight: float,
+      value: jnp.ndarray,
+      new_value: jnp.ndarray,
+      lse_mode: bool = True
+  ) -> jnp.ndarray:
     if lse_mode:
       value = jnp.where(jnp.isfinite(value), value, 0.0)
       return (1.0 - weight) * value + weight * new_value
