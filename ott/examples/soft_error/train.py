@@ -31,7 +31,7 @@ from ott.examples.soft_error import model as model_lib
 
 
 def initialized(key, height, width, model):
-  """Initializes the model parameters."""
+  """Initialize the model parameters."""
   input_shape = (1, height, width, 3)
 
   @jax.jit
@@ -97,7 +97,7 @@ def create_train_state(rng, config, model, height, width):
 
 
 def log(results, epoch, summary, train=True, summary_writer=None):
-  """Logs the metrics to stderr and tensorboard."""
+  """Log the metrics to stderr and tensorboard."""
   if jax.host_id() != 0:
     return
 
@@ -129,7 +129,7 @@ def save_checkpoint(state, workdir):
 def train_and_evaluate(
     workdir: str, config: ml_collections.ConfigDict, seed: int = 0
 ):
-  """Executes model training and evaluation loop."""
+  """Execute model training and evaluation loop."""
   rng = jax.random.PRNGKey(seed)
 
   if config.batch_size % jax.device_count() > 0:

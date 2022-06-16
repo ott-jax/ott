@@ -38,7 +38,7 @@ def sinkhorn_divergence(
     share_epsilon: bool = True,
     **kwargs: Any,
 ):
-  """Computes Sinkhorn divergence defined by a geometry, weights, parameters.
+  """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
     geom: a geometry class.
@@ -85,7 +85,7 @@ def _sinkhorn_divergence(
     geometry_yy: Optional[geometry.Geometry], a: jnp.ndarray, b: jnp.ndarray,
     **kwargs
 ):
-  """Computes the (unbalanced) sinkhorn divergence for the wrapper function.
+  """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
     measure, as defined in https://arxiv.org/pdf/1910.12958.pdf (15).
@@ -159,7 +159,7 @@ def segment_sinkhorn_divergence(
     share_epsilon: bool = True,
     **kwargs
 ) -> jnp.ndarray:
-  """Computes Sinkhorn divergence between subsets of data with pointcloud.
+  """Compute Sinkhorn divergence between subsets of data with pointcloud.
 
   The second interface assumes `x` and `y` are segmented contiguously.
 

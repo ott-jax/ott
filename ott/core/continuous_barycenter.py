@@ -56,7 +56,7 @@ class BarycenterOutput(NamedTuple):
   reg_gw_cost = None
 
   def set(self, **kwargs: Any) -> 'BarycenterOutput':
-    """Returns a copy of self, possibly with overwrites."""
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
 
@@ -82,7 +82,7 @@ class BarycenterState(NamedTuple):
   a: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> 'BarycenterState':
-    """Returns a copy of self, possibly with overwrites."""
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
@@ -168,7 +168,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       self, bar_prob: bar_problems.BarycenterProblem, bar_size: int,
       x_init: Optional[jnp.ndarray], rng: int
   ) -> BarycenterState:
-    """Initializes the state of the Wasserstein barycenter iterations."""
+    """Initialize the state of the Wasserstein barycenter iterations."""
     if x_init is not None:
       assert bar_size == x_init.shape[0]
       x = x_init
@@ -205,7 +205,7 @@ def iterations(
     solver: WassersteinBarycenter, bar_size: int,
     bar_prob: bar_problems.BarycenterProblem, x_init: jnp.ndarray, rng: int
 ) -> BarycenterState:
-  """A jittable Wasserstein barycenter outer loop."""
+  """Jittable Wasserstein barycenter outer loop."""
 
   def cond_fn(
       iteration: int, constants: Tuple[WassersteinBarycenter,

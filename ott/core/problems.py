@@ -37,7 +37,7 @@ class LinearProblem:
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
-    """Initializes the LinearProblem.
+    """Initialize the LinearProblem.
 
     min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
 
@@ -90,7 +90,7 @@ class LinearProblem:
   def get_transport_functions(
       self, lse_mode: bool
   ) -> Tuple[MarginalFunc, MarginalFunc, TransportAppFunc]:
-    """Instantiates useful functions for Sinkhorn depending on lse_mode."""
+    """Instantiate useful functions for Sinkhorn depending on lse_mode."""
     geom = self.geom
     if lse_mode:
       marginal_a = lambda f, g: geom.marginal_from_potentials(f, g, 1)

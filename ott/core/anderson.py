@@ -31,7 +31,7 @@ class AndersonAcceleration:
   ridge_identity: float = 1e-2  # Ridge used in the linear system.
 
   def extrapolation(self, xs, fxs):
-    """Computes Anderson extrapolation from past observations."""
+    """Compute Anderson extrapolation from past observations."""
     # Remove -inf values to instantiate quadratic problem. All others
     # remain since they might be caused by a valid issue.
     fxs_clean = jnp.nan_to_num(fxs, nan=jnp.nan, posinf=jnp.inf, neginf=0.0)
@@ -102,7 +102,7 @@ class AndersonAcceleration:
     return state.set(fu=fu, old_fus=old_fus)
 
   def init_maps(self, pb, state):
-    """Initializes log matrix used in Anderson acceleration with nan values."""
+    """Initialize log matrix used in Anderson acceleration with nan values."""
     fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
     return state.set(old_fus=fus, old_mapped_fus=fus)
 

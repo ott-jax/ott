@@ -48,7 +48,7 @@ class ImplicitDiff:
                       jnp.ndarray], ot_prob: problems.LinearProblem,
       f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
   ):
-    r"""Applies minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
+    r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
     outputs, notably optimal potentials ``f`` and ``g``. That differentiation
@@ -227,7 +227,7 @@ class ImplicitDiff:
   def first_order_conditions(
       self, prob, f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
   ):
-    r"""Computes vector of first order conditions for the reg-OT problem.
+    r"""Compute vector of first order conditions for the reg-OT problem.
 
     The output of this vector should be close to zero at optimality.
     Upon completion of the Sinkhorn forward pass, its norm (using the norm
@@ -274,7 +274,7 @@ class ImplicitDiff:
       self, prob: problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
       lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> problems.LinearProblem:
-    """Applies vjp to recover gradient in reverse mode differentiation."""
+    """Apply vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 

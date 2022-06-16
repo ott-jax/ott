@@ -32,7 +32,7 @@ class Momentum:
   inner_iterations: int = 1
 
   def weight(self, state: "sinkhorn.SinkhornState", iteration: int) -> float:
-    """Computes momentum term if needed, using previously seen errors."""
+    """Compute momentum term if needed, using previously seen errors."""
     return jnp.where(
         iteration >= jnp.where(self.start == 0, jnp.inf, self.start),
         self.at(state), self.value

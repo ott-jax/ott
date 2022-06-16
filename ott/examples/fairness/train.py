@@ -36,7 +36,7 @@ class TrainState:
 
 
 def initialized(key, model, size):
-  """Initialized the model."""
+  """Initialize the model."""
 
   @jax.jit
   def init(*args):
@@ -93,7 +93,7 @@ def eval_step(apply_fn, state, batch):
 
 
 def log(results, epoch, summary, train=True, summary_writer=None):
-  """Logs the metrics to stderr and tensorboard."""
+  """Log the metrics to stderr and tensorboard."""
   if jax.host_id() != 0:
     return
 
@@ -129,7 +129,7 @@ def save_checkpoint(state, workdir):
 def train_and_evaluate(
     workdir: str, config: ml_collections.ConfigDict, seed: int = 0
 ):
-  """Executes model training and evaluation loop."""
+  """Execute model training and evaluation loop."""
   rng = jax.random.PRNGKey(seed)
 
   if config.batch_size % jax.device_count() > 0:

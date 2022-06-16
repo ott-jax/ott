@@ -24,7 +24,7 @@ from ott.geometry import costs
 
 @jax.tree_util.register_pytree_node_class
 class BarycenterProblem:
-  """Holds the definition of a linear regularized OT problem and some tools."""
+  """Definition of a linear regularized OT problem and some tools."""
 
   def __init__(
       self,
@@ -40,7 +40,7 @@ class BarycenterProblem:
       num_per_segment: Optional[jnp.ndarray] = None,
       max_measure_size: Optional[int] = None
   ):
-    """Initializes a discrete BarycenterProblem
+    """Initialize a discrete BarycenterProblem
 
     Args:
       y: a matrix merging the points of all measures.

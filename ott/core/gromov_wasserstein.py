@@ -61,7 +61,7 @@ class GWOutput(NamedTuple):
   old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWOutput':
-    """Returns a copy of self, possibly with overwrites."""
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   @property
@@ -98,10 +98,10 @@ class GWState(NamedTuple):
   linear_state: Optional[LinearOutput] = None
   linear_pb: Optional[problems.LinearProblem] = None
   # Intermediate values.
-  old_transport_mass: Optional[float] = 1.0
+  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWState':
-    """Returns a copy of self, possibly with overwrites."""
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
@@ -179,7 +179,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def init_state(
       self, prob: quad_problems.QuadraticProblem, rank: int
   ) -> GWState:
-    """Initializes the state of the Gromov-Wasserstein iterations."""
+    """Initialize the state of the Gromov-Wasserstein iterations."""
     if rank > 0:
       linearization = prob.init_lr_linearization(rank)
     else:
@@ -220,7 +220,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 def iterations(
     solver: GromovWasserstein, prob: quad_problems.QuadraticProblem, rank: int
 ) -> GWOutput:
-  """A jittable Gromov-Wasserstein outer loop."""
+  """Jittable Gromov-Wasserstein outer loop."""
 
   def cond_fn(
       iteration: int, constants: GromovWasserstein, state: GWState
@@ -274,7 +274,7 @@ def make(
     min_iterations: int = 1,
     **kwargs: Any,
 ) -> GromovWasserstein:
-  """Creates a GromovWasserstein solver.
+  """Create a GromovWasserstein solver.
 
   Args:
     epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
@@ -338,7 +338,7 @@ def gromov_wasserstein(
     gw_unbalanced_correction: bool = True,
     **kwargs: Any,
 ) -> GWOutput:
-  """Wrapper to solve a Gromov Wasserstein problem.
+  """Solve a Gromov Wasserstein problem.
 
   Wrapper that instantiates a quadratic problem (possibly with linear term
   if the problem is fused) and calls a solver to output a solution.

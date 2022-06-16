@@ -37,7 +37,7 @@ class SinkhornState(NamedTuple):
   old_mapped_fus: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> 'SinkhornState':
-    """Returns a copy of self, with potential overwrites."""
+    """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def solution_error(
@@ -112,7 +112,7 @@ def marginal_error(
     norm_error: Sequence[int] = (1,),
     lse_mode: bool = True
 ) -> jnp.asarray:
-  """Outputs how far Sinkhorn solution is w.r.t target.
+  """Output how far Sinkhorn solution is w.r.t target.
 
   Args:
     f_u: a vector of potentials or scalings for the first marginal.
@@ -141,7 +141,7 @@ def ent_reg_cost(
     f: jnp.ndarray, g: jnp.ndarray, ot_prob: problems.LinearProblem,
     lse_mode: bool
 ) -> float:
-  r"""Computes objective of Sinkhorn for OT problem given dual solutions.
+  r"""Compute objective of Sinkhorn for OT problem given dual solutions.
 
   The objective is evaluated for dual solution ``f`` and ``g``, using
   information contained in  ``ot_prob``. The objective is the regularized
@@ -208,7 +208,7 @@ class SinkhornOutput(NamedTuple):
   ot_prob: Optional[problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'SinkhornOutput':
-    """Returns a copy of self, with potential overwrites."""
+    """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(
@@ -262,7 +262,7 @@ class SinkhornOutput(NamedTuple):
       return self.ot_prob.geom.transport_from_scalings(*self.scalings)
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Applies the transport to a ndarray; axis=1 for its transpose."""
+    """Apply the transport to a ndarray; axis=1 for its transpose."""
     try:
       return self.ot_prob.geom.apply_transport_from_potentials(
           self.f, self.g, inputs, axis=axis
@@ -277,7 +277,7 @@ class SinkhornOutput(NamedTuple):
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
-    """Returns reg-OT cost for matrix, evaluated at other cost matrix."""
+    """Return reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix) -
         self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix))
@@ -536,7 +536,7 @@ class Sinkhorn:
       self, ot_prob: problems.LinearProblem, init: Tuple[jnp.ndarray,
                                                          jnp.ndarray]
   ) -> SinkhornState:
-    """Returns the initial state of the loop."""
+    """Return the initial state of the loop."""
     fu, gv = init
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
                        dtype=fu.dtype)
@@ -546,7 +546,7 @@ class Sinkhorn:
   def output_from_state(
       self, ot_prob: problems.LinearProblem, state: SinkhornState
   ) -> SinkhornOutput:
-    """Creates an output from a loop state.
+    """Create an output from a loop state.
 
     Note:
       When differentiating the regularized OT cost, and assuming Sinkhorn has
@@ -596,7 +596,7 @@ def iterations(
     ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
                                                                    ...]
 ) -> SinkhornOutput:
-  """A jit'able Sinkhorn loop. args contain initialization variables."""
+  """Jittable Sinkhorn loop. args contain initialization variables."""
 
   def cond_fn(
       iteration: int, const: Tuple[problems.LinearProblem, Sinkhorn],
@@ -634,13 +634,13 @@ def _iterations_taped(
                                                                    ...]
 ) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
                                  problems.LinearProblem, Sinkhorn]]:
-  """Runs forward pass of the Sinkhorn algorithm storing side information."""
+  """Run forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
 
 
 def _iterations_implicit_bwd(res, gr):
-  """Runs Sinkhorn in backward mode, using implicit differentiation.
+  """Run Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
     res: residual data sent from fwd pass, used for computations below. In this
@@ -736,7 +736,7 @@ def sinkhorn(
     init_dual_b: Optional[jnp.ndarray] = None,
     **kwargs: Any,
 ):
-  r"""A Jax version of Sinkhorn's algorithm.
+  r"""Jax version of Sinkhorn's algorithm.
 
   Solves regularized OT problem using Sinkhorn iterations.
 

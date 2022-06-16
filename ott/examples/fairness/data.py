@@ -29,7 +29,7 @@ def load_df(
     strip_target: bool = True,
     **kwargs
 ):
-  """Loads a pandas dataframe from two filenames."""
+  """Load a pandas dataframe from two filenames."""
   with open_fn(data_path, 'r') as fp:
     df = pd.read_csv(fp, skipinitialspace=True, header=None, **kwargs)
 
@@ -64,7 +64,7 @@ def load_df(
 
 
 def categoricals_to_onehots(df):
-  """Turns string features into onehot vectors."""
+  """Turn string features into onehot vectors."""
   categoricals = {
       k: df[k].unique().tolist()
       for k in df.columns
@@ -103,7 +103,7 @@ def get_dims(data):
 
 
 def load_train_test(config):
-  """Loads the training data, the test data and the dimensions of the input."""
+  """Load the training data, the test data and the dimensions of the input."""
   train_path = os.path.join(config.folder, config.training_filename)
   test_path = os.path.join(config.folder, config.test_filename)
   info_path = os.path.join(config.folder, config.info_filename)
@@ -131,7 +131,7 @@ def load_train_test(config):
 
 
 def flatten(record):
-  """Turns the record array into a flat numpy array."""
+  """Turn the record array into a flat numpy array."""
   result = [np.stack(record[name]) for name in record.dtype.names]
   result = [e[:, np.newaxis] if len(e.shape) == 1 else e for e in result]
   return np.concatenate(result, axis=1)

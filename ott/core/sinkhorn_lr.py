@@ -25,14 +25,14 @@ from ott.geometry import geometry
 
 
 class LRSinkhornState(NamedTuple):
-  """Holds the state of the Low Rank Sinkhorn algorithm."""
+  """State of the Low Rank Sinkhorn algorithm."""
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornState':
-    """Returns a copy of self, with potential overwrites."""
+    """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def reg_ot_cost(
@@ -66,7 +66,7 @@ def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: problems.LinearProblem,
     norm_error: jnp.ndarray, lse_mode: bool
 ) -> jnp.ndarray:
-  """Computes solution error.
+  """Compute solution error.
 
   Since only balanced case is available for LR, this is marginal deviation.
 
@@ -101,7 +101,7 @@ def solution_error(
 
 
 class LRSinkhornOutput(NamedTuple):
-  """Implements the problems.Transport interface, for a LR Sinkhorn solution."""
+  """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
@@ -110,7 +110,7 @@ class LRSinkhornOutput(NamedTuple):
   ot_prob: Optional[problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
-    """Returns a copy of self, with potential overwrites."""
+    """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(
@@ -159,7 +159,7 @@ class LRSinkhornOutput(NamedTuple):
     return jnp.matmul(self.q * (1 / self.g)[None, :], self.r.T)
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Applies the transport to a ndarray; axis=1 for its transpose."""
+    """Apply the transport to a ndarray; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
     inputs = inputs.reshape(-1, r.shape[0])  # (batch, ...)
     return jnp.dot(q, jnp.dot(inputs, r).T / self.g.reshape(-1, 1)).T.squeeze()
@@ -169,7 +169,7 @@ class LRSinkhornOutput(NamedTuple):
     return self.apply(jnp.ones(length,), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
-    """Returns OT cost for matrix, evaluated at other cost matrix."""
+    """Return OT cost for matrix, evaluated at other cost matrix."""
     return jnp.sum(
         self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :]
     )
@@ -501,7 +501,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self, ot_prob: problems.LinearProblem,
       init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRSinkhornState:
-    """Returns the initial state of the loop."""
+    """Return the initial state of the loop."""
     q, r, g = init
     costs = -jnp.ones(self.outer_iterations)
     return LRSinkhornState(q=q, r=r, g=g, costs=costs)
@@ -509,7 +509,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def output_from_state(
       self, ot_prob: problems.LinearProblem, state: LRSinkhornState
   ) -> LRSinkhornOutput:
-    """Creates an output from a loop state.
+    """Create an output from a loop state.
 
     Args:
       ot_prob: the transport problem.

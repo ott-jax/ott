@@ -35,7 +35,7 @@ from ott.core import gromov_wasserstein, problems, quad_problems, sinkhorn
 
 
 class Transport(NamedTuple):
-  """Implements a core.problems.Transport interface to transport solutions."""
+  """Implement a core.problems.Transport interface to transport solutions."""
   problem: Any = None
   solver_output: Any = None
 

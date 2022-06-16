@@ -14,7 +14,7 @@
 """Soft sort operators."""
 
 import functools
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -29,9 +29,9 @@ def transport_for_sort(
     target_weights: jnp.ndarray,
     squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
     epsilon: float = 1e-2,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Solves reg. OT, from inputs to a weighted family of increasing values.
+  r"""Solve reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
     inputs: jnp.ndarray[num_points]. Must be one dimensional.
@@ -68,7 +68,7 @@ def transport_for_sort(
 
 
 def apply_on_axis(op, inputs, axis, *args, **kwargs):
-  """Applies a differentiable operator on a given axis of the input.
+  """Apply a differentiable operator on a given axis of the input.
 
   Args:
     op: a differentiable operator (can be ranks, quantile, etc.)
@@ -106,7 +106,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs):
 
 
 def _sort(inputs: jnp.ndarray, topk, num_targets, **kwargs) -> jnp.ndarray:
-  """Applies the soft sort operator on a one dimensional array."""
+  """Apply the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
   if 0 < topk < num_points:
@@ -129,9 +129,9 @@ def sort(
     axis: int = -1,
     topk: int = -1,
     num_targets: Optional[int] = None,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Applies the soft sort operator on a given axis of the input.
+  r"""Apply the soft sort operator on a given axis of the input.
 
   Args:
     inputs: jnp.ndarray<float> of any shape.
@@ -160,8 +160,8 @@ def sort(
   return apply_on_axis(_sort, inputs, axis, topk, num_targets, **kwargs)
 
 
-def _ranks(inputs: jnp.ndarray, num_targets, **kwargs) -> jnp.ndarray:
-  """Applies the soft ranks operator on a one dimensional array."""
+def _ranks(inputs: jnp.ndarray, num_targets, **kwargs: Any) -> jnp.ndarray:
+  """Apply the soft ranks operator on a one dimensional array."""
   num_points = inputs.shape[0]
   num_targets = num_points if num_targets is None else num_targets
   a = jnp.ones((num_points,)) / num_points
@@ -175,9 +175,9 @@ def ranks(
     inputs: jnp.ndarray,
     axis: int = -1,
     num_targets: Optional[int] = None,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Applies the soft trank operator on input tensor.
+  r"""Apply the soft trank operator on input tensor.
 
   Args:
     inputs: a jnp.ndarray<float> of any shape.
@@ -208,9 +208,9 @@ def quantile(
     axis: int = -1,
     level: float = 0.5,
     weight: float = 0.05,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Applies the soft quantile operator on the input tensor.
+  r"""Apply the soft quantile operator on the input tensor.
 
   For instance:
 
@@ -253,9 +253,9 @@ def quantile(
 
 
 def _quantile_normalization(
-    inputs: jnp.ndarray, targets: jnp.ndarray, weights: float, **kwargs
+    inputs: jnp.ndarray, targets: jnp.ndarray, weights: float, **kwargs: Any
 ) -> jnp.ndarray:
-  """Applies soft quantile normalization on a one dimensional array."""
+  """Apply soft quantile normalization on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
   ot = transport_for_sort(inputs, a, weights, **kwargs)
@@ -269,7 +269,7 @@ def quantile_normalization(
     axis: int = -1,
     **kwargs
 ) -> jnp.ndarray:
-  r"""Renormalizes inputs so that its quantiles match those of targets/weights.
+  r"""Renormalize inputs so that its quantiles match those of targets/weights.
 
   The idea of quantile normalization is to map the inputs to values so that the
   distribution of transformed values matches the distribution of target values.
@@ -314,7 +314,7 @@ def sort_with(
     inputs: jnp.ndarray,
     criterion: jnp.ndarray,
     topk: int = -1,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Sort a multidimensional array according to a real valued criterion.
 
@@ -364,8 +364,10 @@ def sort_with(
   return sort_fn(inputs)
 
 
-def _quantize(inputs: jnp.ndarray, num_levels: int, **kwargs) -> jnp.ndarray:
-  """Applies the soft quantization operator on a one dimensional array."""
+def _quantize(
+    inputs: jnp.ndarray, num_levels: int, **kwargs: Any
+) -> jnp.ndarray:
+  """Apply the soft quantization operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
   b = jnp.ones((num_levels,)) / num_levels
@@ -374,8 +376,11 @@ def _quantize(inputs: jnp.ndarray, num_levels: int, **kwargs) -> jnp.ndarray:
 
 
 def quantize(
-    inputs: jnp.ndarray, num_levels: int = 10, axis: int = -1, **kwargs
-):
+    inputs: jnp.ndarray,
+    num_levels: int = 10,
+    axis: int = -1,
+    **kwargs: Any,
+) -> jnp.ndarray:
   r"""Soft quantizes an input according using num_levels values along axis.
 
   The quantization operator consists in concentrating several values around

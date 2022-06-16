@@ -39,7 +39,7 @@ class PointCloud(geometry.Geometry):
       scale_cost: Optional[Union[bool, float, str]] = None,
       **kwargs: Any,
   ):
-    """Creates a geometry from two point clouds, using CostFn.
+    """Create a geometry from two point clouds, using CostFn.
 
     Creates a geometry, specifying a cost function passed as CostFn type object.
     When the number of points is large, setting the `online` flag to `True`
@@ -149,7 +149,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def scale_cost(self) -> float:
-    """Computes the factor to scale the cost matrix."""
+    """Compute the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
@@ -355,7 +355,7 @@ class PointCloud(geometry.Geometry):
     )
 
   def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
-    """Applies cost matrix to array (vector or matrix).
+    """Apply cost matrix to array (vector or matrix).
 
     This function applies the geometry's cost matrix, to perform either
     output = C arr (if axis=1)
@@ -385,7 +385,7 @@ class PointCloud(geometry.Geometry):
   def _apply_cost(
       self, arr: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
-    """See apply_cost."""
+    """See :meth:`apply_cost`."""
     if self._online:
       app = jax.vmap(
           _apply_cost_xy,
@@ -409,7 +409,7 @@ class PointCloud(geometry.Geometry):
   def vec_apply_cost(
       self, arr: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
-    """Applies the geometry's cost matrix in a vectorised way.
+    """Apply the geometry's cost matrix in a vectorised way.
 
     This performs either:
     output = C arr (if axis=1)
@@ -568,7 +568,7 @@ class PointCloud(geometry.Geometry):
     return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
 
   def to_LRCGeometry(self, scale: float = 1.0) -> low_rank.LRCGeometry:
-    """Converts sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
+    """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
@@ -643,7 +643,7 @@ def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost):
 def _apply_cost_xy(
     x, y, norm_x, norm_y, vec, cost_fn, cost_pow, scale_cost, fn=None
 ):
-  """Applies [num_b, num_a] fn(cost) matrix (or transpose) to vector.
+  """Apply [num_b, num_a] fn(cost) matrix (or transpose) to vector.
 
   Applies [num_b, num_a] ([num_a, num_b] if axis=1 from `apply_cost`)
   fn(cost) matrix (or transpose) to vector.

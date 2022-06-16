@@ -35,7 +35,7 @@ class LRCGeometry(geometry.Geometry):
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
-    r"""Initializes a geometry by passing it low-rank factors.
+    r"""Initialize a geometry by passing it low-rank factors.
 
     Args:
       cost_1: jnp.ndarray<float>[num_a, r]
@@ -80,7 +80,7 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    """Returns cost matrix if requested."""
+    """Return the cost matrix if requested."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
@@ -119,7 +119,7 @@ class LRCGeometry(geometry.Geometry):
       return 1.0
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Applies elementwise-square of cost matrix to array (vector or matrix)."""
+    """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
     # When applying square of a LRCgeometry, one can either elementwise square
     # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
@@ -137,7 +137,7 @@ class LRCGeometry(geometry.Geometry):
   def _apply_cost_to_vec(
       self, vec: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
-    """Applies [num_a, num_b] fn(cost) (or transpose) to vector.
+    """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
       vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
@@ -165,7 +165,7 @@ class LRCGeometry(geometry.Geometry):
     )
 
   def compute_max_cost(self) -> float:
-    """Computes the maximum of the cost matrix.
+    """Compute the maximum of the cost matrix.
 
     Three cases are taken into account:
 

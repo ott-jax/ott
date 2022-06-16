@@ -51,7 +51,7 @@ class PositiveDense(nn.Module):
 
   @nn.compact
   def __call__(self, inputs):
-    """Applies a linear transformation to inputs along the last dimension.
+    """Apply a linear transformation to inputs along the last dimension.
 
     Args:
       inputs: The nd-array to be transformed.
@@ -134,7 +134,7 @@ class ICNN(nn.Module):
 
   @nn.compact
   def __call__(self, x):
-    """Applies ICNN module.
+    """Apply ICNN module.
 
     Args:
       x: jnp.ndarray<float>[batch_size, n_features]: input to the ICNN.

@@ -292,17 +292,17 @@ class NeuralDualSolver:
     return step_fn
 
   def create_train_state(self, rng, model, optimizer, input):
-    """Creates initial `TrainState`."""
-
+    """Create initial `TrainState`."""
     params = model.init(rng, jnp.ones(input))['params']
     return train_state.TrainState.create(
         apply_fn=model.apply, params=params, tx=optimizer
     )
 
+  @staticmethod
   def clip_weights_icnn(params):
     params = params.unfreeze()
     for k in params.keys():
-      if (k.startswith('w_z')):
+      if k.startswith('w_z'):
         params[k]['kernel'] = jnp.clip(params[k]['kernel'], a_min=0)
 
     return freeze(params)

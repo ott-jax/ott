@@ -27,7 +27,7 @@ from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 
 class Transport(Protocol):
-  """Defines the interface for the solution of a transport problem.
+  """Interface for the solution of a transport problem.
 
   Classes implementing those function do not have to inherit from it, the
   class can however be used in type hints to support duck typing.
@@ -48,20 +48,19 @@ LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
 Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
 
 
-def make_square_loss():
+def make_square_loss() -> Loss:
   return ((lambda x: x ** 2, lambda y: y ** 2),
           (lambda x: x, lambda y: 2.0 * y))
 
 
-def make_kl_loss(clipping_value: float = 1e-8):
-
+def make_kl_loss(clipping_value: float = 1e-8) -> Loss:
   return ((lambda x: -jax.scipy.special.entr(x) - x, lambda y: y),
           (lambda x: x, lambda y: jnp.log(jnp.clip(y, clipping_value))))
 
 
 @jax.tree_util.register_pytree_node_class
 class QuadraticProblem:
-  """Holds the definition of the quadratic regularized OT problem.
+  """Definition of the quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
   have the form given in Eq. 4 from
@@ -89,7 +88,7 @@ class QuadraticProblem:
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: Optional[bool] = True
   ):
-    """Initializes the QuadraticProblem.
+    """Initialize the QuadraticProblem.
 
     Args:
       geom_xx: the geometry.Geometry object defining the ground geometry / cost
@@ -205,7 +204,7 @@ class QuadraticProblem:
   def marginal_dependent_cost(
       self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
   ) -> low_rank.LRCGeometry:
-    r"""Initialises cost term that depends on the marginals of the transport.
+    r"""Initialise cost term that depends on the marginals of the transport.
 
     Uses the first term in Equation 6, Proposition 1 of
     http://proceedings.mlr.press/v48/peyre16.pdf.
@@ -247,7 +246,7 @@ class QuadraticProblem:
       rescale_factor: float,
       delta: float = 1e-9
   ) -> float:
-    r"""Calculates cost term from the quadratic divergence when unbalanced.
+    r"""Calculate cost term from the quadratic divergence when unbalanced.
 
     In the unbalanced setting (i.e. tau_a<1.0 or tau_b<1.0), the
     introduction of a quadratic divergence (see Sejourne et al. Neurips 2021)
@@ -295,7 +294,7 @@ class QuadraticProblem:
     return cost
 
   def init_transport(self) -> jnp.ndarray:
-    """Initialises transport matrix."""
+    """Initialise the transport matrix."""
     # TODO(oliviert, cuturi): consider passing a custom initialization.
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
@@ -305,10 +304,10 @@ class QuadraticProblem:
     )
 
   def init_transport_mass(self) -> float:
-    """Initialises the transport mass.
+    """Initialise the transport mass.
 
     Returns:
-      A float, sum of the elements of the normalised transport matrix.
+      The sum of the elements of the normalised transport matrix.
     """
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
@@ -322,7 +321,7 @@ class QuadraticProblem:
       self,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
   ) -> problems.LinearProblem:
-    """Initialises a linear problem locally around a naive initializer ab'.
+    """Initialise a linear problem locally around a naive initializer ab'.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0'), the equation of the
     cost follows Equation 6, Proposition 1 of
@@ -415,7 +414,7 @@ class QuadraticProblem:
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
   ) -> geometry.Geometry:
-    """Using LR Sinkhorn output, recompute (possibly LRC) linearization."""
+    """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
     marginal_2 = lr_sink.marginal(0)
     marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
@@ -448,7 +447,7 @@ class QuadraticProblem:
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
       old_transport_mass: float = 1.0
   ) -> problems.LinearProblem:
-    """Updates linearization of GW problem by updating cost matrix.
+    """Update linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
     follows Equation 6, Proposition 1 of
@@ -506,7 +505,7 @@ class QuadraticProblem:
   def update_lr_linearization(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
   ) -> problems.LinearProblem:
-    """Updates a Quad problem linearization using a LR Sinkhorn."""
+    """Update a Quad problem linearization using a LR Sinkhorn."""
     return problems.LinearProblem(
         self.update_lr_geom(lr_sink),
         self.a,
@@ -537,7 +536,7 @@ def make(
     scale_cost: Optional[Union[bool, float, str]] = False,
     **kwargs: Any,
 ):
-  """Makes a problem from arrays, assuming PointCloud geometries."""
+  """Make a problem from arrays, assuming PointCloud geometries."""
   if isinstance(args[0], (jnp.ndarray, np.ndarray)):
     x = args[0]
     y = args[1] if len(args) > 1 else args[0]

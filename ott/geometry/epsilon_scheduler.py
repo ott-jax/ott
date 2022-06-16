@@ -31,7 +31,7 @@ class Epsilon:
       init: Optional[float] = None,
       decay: Optional[float] = None
   ):
-    r"""Initializes a scheduler using possibly geometric decay.
+    r"""Initialize a scheduler using possibly geometric decay.
 
     An epsilon scheduler outputs a regularization strength, to be used by in a
     Sinkhorn-type algorithm, at any iteration count. That value is either the
@@ -57,11 +57,11 @@ class Epsilon:
 
   @property
   def target(self) -> float:
-    """Returns final regularizer value of scheduler."""
+    """Return the final regularizer value of scheduler."""
     return self._target_init * self._scale_epsilon
 
   def at(self, iteration: Optional[int] = 1) -> float:
-    """Returns (intermediate) regularizer value at a given iteration."""
+    """Return (intermediate) regularizer value at a given iteration."""
     if iteration is None:
       return self.target
     # check the decay is smaller than 1.0.

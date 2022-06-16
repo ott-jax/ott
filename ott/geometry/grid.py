@@ -157,7 +157,7 @@ class Grid(geometry.Geometry):
       vec: Optional[jnp.ndarray] = None,
       axis: int = 0
   ) -> jnp.ndarray:
-    """Applies grid kernel in log space. See notes in parent class for use case.
+    """Apply grid kernel in log space. See notes in parent class for use case.
 
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
     then expands the outputs as vectors.
@@ -191,7 +191,7 @@ class Grid(geometry.Geometry):
     return g.ravel(), vec.ravel()
 
   def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
-    """Helper function to permute axis & apply the kernel on a single slice."""
+    """Permute axis & apply the kernel on a single slice."""
     indices = np.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
     f, g = jnp.transpose(f, indices), jnp.transpose(g, indices)
@@ -216,7 +216,7 @@ class Grid(geometry.Geometry):
   def _apply_cost_to_vec(
       self, vec: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
-    r"""Applies grid's cost matrix (without instantiating it) to a vector.
+    r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
     The `apply_cost` operation on grids rests on the following identity.
     If it were to be cast as a [num_a, num_a] matrix, the corresponding cost
@@ -263,7 +263,7 @@ class Grid(geometry.Geometry):
       eps: Optional[float] = None,
       axis: Optional[int] = None
   ) -> jnp.ndarray:
-    """Applies grid kernel on scaling vector.
+    """Apply grid kernel on scaling vector.
 
     See notes in parent class for use.
 
@@ -318,7 +318,7 @@ class Grid(geometry.Geometry):
       static_b: bool = False,
       **kwargs: Any
   ) -> Tuple["Grid", ...]:
-    """Instantiates the geometries used for a divergence computation."""
+    """Instantiate the geometries used for a divergence computation."""
     grid_size = kwargs.pop('grid_size', None)
     x = kwargs.pop('x', args)
 

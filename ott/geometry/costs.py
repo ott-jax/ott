@@ -51,7 +51,7 @@ class CostFn(abc.ABC):
     ) + (0 if self.norm is None else self.norm(x) + self.norm(y))
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Computes matrix of all costs (including norms) for vectors in x / y.
+    """Compute matrix of all costs (including norms) for vectors in x / y.
 
     Args:
       x: [num_a, d] jnp.ndarray
@@ -62,7 +62,7 @@ class CostFn(abc.ABC):
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
   def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Computes matrix of all pairwise-costs (no norms) for vectors in x / y.
+    """Compute matrix of all pairwise-costs (no norms) for vectors in x / y.
 
     Args:
       x: [num_a, d] jnp.ndarray

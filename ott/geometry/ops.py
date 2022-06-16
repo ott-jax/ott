@@ -28,7 +28,7 @@ def logsumexp(mat, axis=None, keepdims=False, b=None, return_sign=False):
 
 @logsumexp.defjvp
 def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
-  """Implements custom derivative rule for lse that does not blow up with -inf.
+  """Custom derivative rule for lse that does not blow up with -inf.
 
   This logsumexp implementation uses the standard jax one in forward mode but
   implements a custom rule to differentiate. Given the preference of jax for

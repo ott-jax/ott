@@ -40,7 +40,7 @@ def soft_error_loss(
 
 
 def get(name: str = 'cross_entropy'):
-  """Returns the loss function corresponding to the input name."""
+  """Return the loss function corresponding to the input name."""
   losses = {'soft_error': soft_error_loss, 'cross_entropy': cross_entropy_loss}
   result = losses.get(name, None)
   if result is None:

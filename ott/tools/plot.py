@@ -26,7 +26,7 @@ from ott.tools import transport
 
 
 def bidimensional(x: jnp.ndarray, y: jnp.ndarray):
-  """Applies PCA to reduce to bimensional data."""
+  """Apply PCA to reduce to bimensional data."""
   if x.shape[1] < 3:
     return x, y
 
@@ -37,7 +37,7 @@ def bidimensional(x: jnp.ndarray, y: jnp.ndarray):
 
 
 class Plot:
-  """Plots an optimal transport map between two point clouds.
+  """Plot an optimal transport map between two point clouds.
 
   It enables to either plot or update a plot in a single object, offering the
   possibilities to create animations as matplotlib.animation.FuncAnimation,
@@ -73,7 +73,7 @@ class Plot:
     self._cmap = cmap
 
   def _scatter(self, ot: transport.Transport):
-    """Computes the position and scales of the points on a 2D plot."""
+    """Compute the position and scales of the points on a 2D plot."""
     if not isinstance(ot.geom, pointcloud.PointCloud):
       raise ValueError('So far we only plot PointCloud geometry.')
 
@@ -85,7 +85,7 @@ class Plot:
     return x, y, scales_x, scales_y
 
   def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):
-    """Computes the lines representing the mapping between the 2 point clouds."""
+    """Compute the lines representing the mapping between the 2 point clouds."""
     u, v = jnp.where(matrix > self._threshold)
     c = matrix[jnp.where(matrix > self._threshold)]
     xy = jnp.concatenate([x[u], y[v]], axis=-1)
@@ -96,7 +96,7 @@ class Plot:
     return result
 
   def __call__(self, ot: transport.Transport) -> List[plt.Artist]:
-    """Plots 2-D couplings. Projects via PCA if data is higher dimensional."""
+    """Plot 2-D couplings. Projects via PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
         *x.T, s=sx, edgecolors='k', marker='o', label='x'
@@ -124,7 +124,7 @@ class Plot:
     return [self._points_x, self._points_y] + self._lines
 
   def update(self, ot: transport.Transport) -> List[plt.Artist]:
-    """Updates a plot with a transport.Transport instance."""
+    """Update a plot with a transport.Transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
     self._points_y.set_offsets(y)
@@ -162,7 +162,7 @@ class Plot:
       transports: Sequence[transport.Transport],
       frame_rate: float = 10.0
   ) -> animation.FuncAnimation:
-    """Makes an animation from several transport.Transport."""
+    """Make an animation from several transport.Transport."""
     self(transports[0])
     return animation.FuncAnimation(
         self.fig,
@@ -182,7 +182,7 @@ def _barycenters(
     matrix: jnp.ndarray,
     scale: int = 200
 ):
-  """Plots 2-D sinkhorn barycenters."""
+  """Plot 2-D sinkhorn barycenters."""
   sa, sb = jnp.min(a) / scale, jnp.min(b) / scale
   ax.scatter(*y.T, s=b / sb, edgecolors='k', marker='X', label='y')
   tx = 1 / a[:, None] * jnp.matmul(matrix, y)
@@ -198,7 +198,7 @@ def barycentric_projections(
     ax: Optional[plt.Axes] = None,
     **kwargs
 ):
-  """Plots the barycenters, from the Transport object or from arguments."""
+  """Plot the barycenters, from the Transport object or from arguments."""
   if ax is None:
     _, ax = plt.subplots(1, 1, figsize=(8, 5))
 

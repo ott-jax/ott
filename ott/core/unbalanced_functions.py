@@ -33,7 +33,7 @@ def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
 def grad_of_marginal_fit(
     c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
 ) -> jnp.ndarray:
-  """Computes grad of terms linked to marginals in objective.
+  """Compute grad of terms linked to marginals in objective.
 
   Computes gradient w.r.t. f ( or g) of terms in
   https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
@@ -64,7 +64,7 @@ def diag_jacobian_of_marginal_fit(
     c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float,
     derivative: Callable[[jnp.ndarray, float], jnp.ndarray]
 ):
-  """Computes grad of terms linked to marginals in objective.
+  """Compute grad of terms linked to marginals in objective.
 
   Computes second derivative w.r.t. f ( or g) of terms in
   https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 32

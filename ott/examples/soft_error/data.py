@@ -44,7 +44,7 @@ def random_shift(img, ratio=0.1):
 
 
 def prepare_tf_data(xs):
-  """Converts a input batch from tf Tensors to numpy arrays."""
+  """Convert a input batch from tf Tensors to numpy arrays."""
   local_device_count = jax.local_device_count()
 
   def _prepare(x):
@@ -56,7 +56,7 @@ def prepare_tf_data(xs):
 
 
 def create_input_iter(dataset_builder, batch_size: int, train: bool):
-  """Creates an iterator over the training / test set."""
+  """Create an iterator over the training / test set."""
   split = tfds.Split.TRAIN if train else tfds.Split.TEST
   ds = dataset_builder.as_dataset(split=split)
   if train:

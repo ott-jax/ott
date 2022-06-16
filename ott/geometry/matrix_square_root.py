@@ -34,7 +34,7 @@ def sqrtm(
     max_iterations: int = 1000,
     regularization: float = 1e-3
 ):
-  """Implements Higham algorithm to compute matrix square root of p.d. matrix.
+  """Higham algorithm to compute matrix square root of p.d. matrix.
 
   See reference below, eq. 2.6.b
   http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.6.8799&rep=rep1&type=pdf
@@ -71,7 +71,7 @@ def sqrtm(
     )  # check decreasing obj, else stop
 
   def body_fn(iteration, const, state, compute_error):
-    """Carries out matrix updates on y and z, stores error if requested.
+    """Carry out matrix updates on y and z, stores error if requested.
 
     Args:
       iteration: iteration number
