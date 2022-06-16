@@ -581,7 +581,7 @@ class Sinkhorn:
 
 def run(
     ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   jnp.ndarray]
+                                                                   ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
@@ -594,7 +594,7 @@ def run(
 
 def iterations(
     ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   jnp.ndarray]
+                                                                   ...]
 ) -> SinkhornOutput:
   """A jit'able Sinkhorn loop. args contain initialization variables."""
 
@@ -631,7 +631,7 @@ def iterations(
 
 def _iterations_taped(
     ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   jnp.ndarray]
+                                                                   ...]
 ) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
                                  problems.LinearProblem, Sinkhorn]]:
   """Runs forward pass of the Sinkhorn algorithm storing side information."""

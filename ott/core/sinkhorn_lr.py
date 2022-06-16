@@ -14,10 +14,11 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, NamedTuple, Optional, Tuple
+from typing import Any, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.core import fixed_point_loop, problems, sinkhorn
 from ott.geometry import geometry
@@ -30,20 +31,31 @@ class LRSinkhornState(NamedTuple):
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs) -> 'LRSinkhornState':
+  def set(self, **kwargs: Any) -> 'LRSinkhornState':
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def reg_ot_cost(self, ot_prob, use_danskin=False):
+  def reg_ot_cost(
+      self,
+      ot_prob: problems.LinearProblem,
+      use_danskin: bool = False
+  ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(
-      self, ot_prob, norm_error: jnp.ndarray, lse_mode: bool
+      self, ot_prob: problems.LinearProblem, norm_error: jnp.ndarray,
+      lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
 
-def compute_reg_ot_cost(q, r, g, ot_prob, use_danskin=False):
+def compute_reg_ot_cost(
+    q: jnp.ndarray,
+    r: jnp.ndarray,
+    g: jnp.ndarray,
+    ot_prob: problems.LinearProblem,
+    use_danskin: bool = False
+) -> float:
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
@@ -51,7 +63,8 @@ def compute_reg_ot_cost(q, r, g, ot_prob, use_danskin=False):
 
 
 def solution_error(
-    q, r, ot_prob, norm_error: jnp.ndarray, lse_mode: bool
+    q: jnp.ndarray, r: jnp.ndarray, ot_prob: problems.LinearProblem,
+    norm_error: jnp.ndarray, lse_mode: bool
 ) -> jnp.ndarray:
   """Computes solution error.
 
@@ -93,42 +106,46 @@ class LRSinkhornOutput(NamedTuple):
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
-  reg_ot_cost: Optional[jnp.ndarray] = None
+  reg_ot_cost: Optional[float] = None
   ot_prob: Optional[problems.LinearProblem] = None
 
-  def set(self, **kwargs) -> 'LRSinkhornOutput':
+  def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
     """Returns a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def set_cost(self, ot_prob, lse_mode, use_danskin) -> 'LRSinkhornOutput':
+  def set_cost(
+      self, ot_prob: problems.LinearProblem, lse_mode: bool, use_danskin: bool
+  ) -> 'LRSinkhornOutput':
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
-  def compute_reg_ot_cost(self, ot_prob, use_danskin):
+  def compute_reg_ot_cost(
+      self, ot_prob: problems.LinearProblem, use_danskin: bool
+  ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   @property
-  def linear(self):
+  def linear(self) -> bool:
     return isinstance(self.ot_prob, problems.LinearProblem)
 
   @property
-  def geom(self):
+  def geom(self) -> geometry.Geometry:
     return self.ot_prob.geom
 
   @property
-  def a(self):
+  def a(self) -> jnp.ndarray:
     return self.ot_prob.a
 
   @property
-  def b(self):
+  def b(self) -> jnp.ndarray:
     return self.ot_prob.b
 
   @property
-  def linear_output(self):
+  def linear_output(self) -> bool:
     return True
 
   @property
-  def converged(self):
+  def converged(self) -> bool:
     if self.costs is None:
       return False
     return jnp.logical_and(
@@ -151,7 +168,7 @@ class LRSinkhornOutput(NamedTuple):
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
 
-  def cost_at_geom(self, other_geom: geometry.Geometry):
+  def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Returns OT cost for matrix, evaluated at other cost matrix."""
     return jnp.sum(
         self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :]
@@ -181,10 +198,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   and convergence evaluated on successive evaluations of the objective. The
   algorithm is only provided for the balanced case.
 
-  Attributes:
+  Args:
     rank: the rank constraint on the coupling to minimize the linear OT problem
     gamma: the (inverse of) gradient stepsize used by mirror descent.
     epsilon: entropic regularization added on top of low-rank problem.
+    init_type: TODO.
     lse_mode: whether to run computations in lse or kernel mode. At this moment,
       only ``lse_mode=True`` is implemented.
     threshold: convergence threshold, used to quantify whether two successive
@@ -199,8 +217,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     implicit_diff: whether to use implicit differentiation. Not implemented
       at this moment.
     jit: jit by default iterations loop.
-    rng_key: seed of random numer generator to initialize the LR factors.
-    kwargs_dys : keyword arguments passed onto dysktra_update.
+    rng_key: seed of random number generator to initialize the LR factors.
+    kwargs_dys: keyword arguments passed onto :meth:`dysktra_update`.
   """
 
   def __init__(
@@ -208,7 +226,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       rank: int = 10,
       gamma: float = 1.0,
       epsilon: float = 1e-4,
-      init_type: str = 'random',
+      init_type: Literal['random', 'rank_2'] = 'random',
       lse_mode: bool = True,
       threshold: float = 1e-3,
       norm_error: int = 1,
@@ -219,7 +237,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       implicit_diff: bool = False,
       jit: bool = True,
       rng_key: int = 0,
-      kwargs_dys: Any = None
+      kwargs_dys: Optional[Mapping[str, Any]] = None
   ):
     self.rank = rank
     self.gamma = gamma
@@ -242,7 +260,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __call__(
       self,
       ot_prob: problems.LinearProblem,
-      init: Optional[Tuple[Optional[jnp.ndarray], ...]] = None
+      init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                           Optional[jnp.ndarray]]] = None
   ) -> LRSinkhornOutput:
     """Main interface to run LR sinkhorn."""
     init_q, init_r, init_g = (init if init is not None else (None, None, None))
@@ -279,25 +298,25 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
         init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
     else:
-      raise NotImplementedError
-    run_fn = run if not self.jit else jax.jit(run)
+      raise NotImplementedError(self.init_type)
+    run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_q, init_r, init_g))
 
   @property
-  def norm_error(self):
+  def norm_error(self) -> Tuple[int]:
     return (self._norm_error,)
 
-  def _converged(self, state, iteration):
+  def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_and(
         i >= 2, jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
     )
 
-  def _diverged(self, state, iteration):
+  def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_not(jnp.isfinite(costs[i - 1]))
 
-  def _continue(self, state, iteration):
+  def _continue(self, state: LRSinkhornState, iteration: int) -> bool:
     """ continue while not(converged) and not(diverged)"""
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_or(
@@ -308,7 +327,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         )
     )
 
-  def lr_costs(self, ot_prob, state, iteration):
+  def lr_costs(
+      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      iteration: int
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
     c_q += (self.epsilon - 1 / self.gamma) * jnp.log(state.q)
     c_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
@@ -322,19 +344,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def dysktra_update(
       self,
-      c_q,
-      c_r,
-      h,
-      ot_prob,
-      state,
-      iteration,
-      min_entry_value=1e-6,
-      tolerance=1e-4,
-      min_iter=0,
-      inner_iter=10,
-      max_iter=200
-  ):
-
+      c_q: jnp.ndarray,
+      c_r: jnp.ndarray,
+      h: jnp.ndarray,
+      ot_prob: problems.LinearProblem,
+      state: LRSinkhornState,
+      iteration: int,
+      min_entry_value: float = 1e-6,
+      tolerance: float = 1e-4,
+      min_iter: int = 0,
+      inner_iter: int = 10,
+      max_iter: int = 200
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
@@ -416,13 +437,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     q, r, g = self.recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old)
     return q, r, g
 
-  def recompute_couplings(self, f1, g1, c_q, f2, g2, c_r, h):
+  def recompute_couplings(
+      self, f1: jnp.ndarray, g1: jnp.ndarray, c_q: jnp.ndarray, f2: jnp.ndarray,
+      g2: jnp.ndarray, c_r: jnp.ndarray, h: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     q = jnp.exp(self.gamma * (f1[:, None] + g1[None, :] - c_q))
     r = jnp.exp(self.gamma * (f2[:, None] + g2[None, :] - c_r))
     g = jnp.exp(self.gamma * h)
     return q, r, g
 
-  def lse_step(self, ot_prob, state, iteration) -> LRSinkhornState:
+  def lse_step(
+      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      iteration: int
+  ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
     c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
     q, r, g = self.dysktra_update(
@@ -430,12 +457,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
     return state.set(q=q, g=g, r=r)
 
-  def kernel_step(self, ot_prob, state, iteration) -> LRSinkhornState:
+  def kernel_step(
+      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      iteration: int
+  ) -> LRSinkhornState:
     """LR Sinkhorn multiplicative update."""
     # TODO(cuturi): kernel step not implemented.
     return state
 
-  def one_iteration(self, ot_prob, state, iteration, compute_error):
+  def one_iteration(
+      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      iteration: int, compute_error: bool
+  ) -> LRSinkhornState:
     """Carries out one LR sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
@@ -464,13 +497,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     costs = state.costs.at[iteration // self.inner_iterations].set(cost)
     return state.set(costs=costs)
 
-  def init_state(self, ot_prob, init):
+  def init_state(
+      self, ot_prob: problems.LinearProblem,
+      init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+  ) -> LRSinkhornState:
     """Returns the initial state of the loop."""
     q, r, g = init
     costs = -jnp.ones(self.outer_iterations)
     return LRSinkhornState(q=q, r=r, g=g, costs=costs)
 
-  def output_from_state(self, ot_prob, state):
+  def output_from_state(
+      self, ot_prob: problems.LinearProblem, state: LRSinkhornState
+  ) -> LRSinkhornOutput:
     """Creates an output from a loop state.
 
     Args:
@@ -485,7 +523,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
 
-def run(ot_prob, solver, init) -> LRSinkhornOutput:
+# TODO(michalk8): check init types
+def run(
+    ot_prob: problems.LinearProblem, solver: LRSinkhorn,
+    init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
@@ -496,7 +538,7 @@ def make(
     rank: int = 10,
     gamma: float = 1.0,
     epsilon: float = 1e-4,
-    init_type: str = 'random',
+    init_type: Literal['random', 'rank_2'] = 'random',
     lse_mode: bool = True,
     threshold: float = 1e-3,
     norm_error: int = 1,
@@ -507,9 +549,8 @@ def make(
     implicit_diff: bool = False,
     jit: bool = True,
     rng_key: int = 0,
-    kwargs_dys: Any = None
+    kwargs_dys: Optional[Mapping[str, Any]] = None
 ) -> LRSinkhorn:
-
   return LRSinkhorn(
       rank=rank,
       gamma=gamma,
