@@ -126,6 +126,7 @@ class BarycenterState(NamedTuple):
     # x_new = jnp.sum(
     #   barycentric_projection(matrices, segmented_y, bar_prob.cost_fn)
     #   * bar_prob.weights[:, None, None], axis=0)
+
    
     x_new = jax.vmap(bar_prob.cost_fn.barycenter, in_axes=[None, 1])(bar_prob.weights, barycentric_projection(matrices, segmented_y, bar_prob.cost_fn))
 
