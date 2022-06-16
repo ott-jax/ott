@@ -38,6 +38,26 @@ class Geometry:
   Once that cost or kernel matrix is set, the ``Geometry`` class provides a
   basic operations to be run with the Sinkhorn algorithm.
 
+  Args:
+    cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
+      costs.
+    kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
+      x m kernel values.
+    epsilon: a regularization parameter. If a ``epsilon_scheduler.Epsilon``
+      object is passed, other parameters below are ignored in practice. If the
+      parameter is a float, then this is understood to be the regularization
+      that is needed, unless ``relative_epsilon`` below is ``True``, in which
+      case ``epsilon`` is understood as a normalized quantity, to be scaled by
+      the mean value of the ``cost_matrix``.
+    relative_epsilon: whether epsilon is passed relative to scale of problem,
+      here understood as mean value of ``cost_matrix``.
+    scale_epsilon: the scale multiplier for epsilon.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+      If `True`, use 'mean'.
+    **kwargs: additional kwargs to epsilon.
+
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to
     select an ``epsilon`` regularization parameter that is meaningful. That
@@ -55,28 +75,7 @@ class Geometry:
       scale_cost: Optional[Union[bool, float, str]] = None,
       **kwargs: Any,
   ):
-    r"""Initialize a geometry by passing it a cost matrix or a kernel matrix.
 
-    Args:
-      cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
-        costs.
-      kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
-        x m kernel values.
-      epsilon: a regularization parameter. If a ``epsilon_scheduler.Epsilon``
-        object is passed, other parameters below are ignored in practice. If the
-        parameter is a float, then this is understood to be the regularization
-        that is needed, unless ``relative_epsilon`` below is ``True``, in which
-        case ``epsilon`` is understood as a normalized quantity, to be scaled by
-        the mean value of the ``cost_matrix``.
-      relative_epsilon: whether epsilon is passed relative to scale of problem,
-        here understood as mean value of ``cost_matrix``.
-      scale_epsilon: the scale multiplier for epsilon.
-      scale_cost: option to rescale the cost matrix. Implemented scalings are
-        'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
-        given to rescale the cost such that ``cost_matrix /= scale_cost``.
-        If `True`, use 'mean'.
-      **kwargs: additional kwargs to epsilon.
-    """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
     self._epsilon_init = epsilon

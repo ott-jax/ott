@@ -42,8 +42,9 @@ def sinkhorn_divergence(
 
   Args:
     geom: a geometry class.
-    *args: arguments to the :meth:`ott.geometry.Geometry.prepare_divergences`
-      that is specific to each geometry.
+    *args: arguments to
+      :meth:`ott.geometry.geometry.Geometry.prepare_divergences` that is
+      specific to each geometry.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
       all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
@@ -159,7 +160,7 @@ def segment_sinkhorn_divergence(
     share_epsilon: bool = True,
     **kwargs
 ) -> jnp.ndarray:
-  """Compute Sinkhorn divergence between subsets of data with pointcloud.
+  """Compute Sinkhorn divergence between subsets of data with point cloud.
 
   The second interface assumes `x` and `y` are segmented contiguously.
 

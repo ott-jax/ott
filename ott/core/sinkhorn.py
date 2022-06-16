@@ -984,9 +984,6 @@ def sinkhorn(
       first marginal (``a``) of reg-OT problem.
     init_dual_b: optional initialization for potentials/scalings w.r.t.
       second marginal (``b``) of reg-OT problem.
-    **kwargs: optional args, see below.
-
-  Kwargs:
     threshold: tolerance used to stop the Sinkhorn iterations. This is
       typically the deviation between a target marginal and the marginal of the
       current primal solution when either or both tau_a and tau_b are 1.0
@@ -1014,7 +1011,7 @@ def sinkhorn(
       described in https://en.wikipedia.org/wiki/Anderson_acceleration and
       advocated in https://arxiv.org/abs/2006.08172, with a memory of size equal
       to ``anderson_acceleration``. In that case, differentiation is
-      necessarly handled implicitly (``implicit_differentiation`` is set to
+      necessarily handled implicitly (``implicit_differentiation`` is set to
       ``True``) and all ``momentum`` related parameters are ignored.
     refresh_anderson_frequency: int, when using ``anderson_acceleration``,
       recompute direction periodically every int sinkhorn iterations.
@@ -1038,6 +1035,7 @@ def sinkhorn(
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
       should be jitted by the user)
+    kwargs: Additional keyword arguments (see above).
 
   Returns:
     a ``SinkhornOutput`` named tuple. The tuple contains two optimal potential

@@ -22,7 +22,25 @@ import jax.numpy as jnp
 
 @jax.tree_util.register_pytree_node_class
 class Epsilon:
-  """Scheduler class for the regularization parameter epsilon."""
+  """Scheduler class for the regularization parameter epsilon.
+
+  An epsilon scheduler outputs a regularization strength, to be used by in a
+  Sinkhorn-type algorithm, at any iteration count. That value is either the
+  final, targeted regularization, or one that is larger, obtained by
+  geometric decay of an initial value that is larger than the intended target.
+  Concretely, the value returned by such a scheduler will consider first
+  the max between ``target`` and ``init * target * decay ** iteration``.
+  If the ``scale_epsilon`` parameter is provided, that value is used to
+  multiply the max computed previously by ``scale_epsilon``.
+
+  Args:
+    target: the epsilon regularizer that is targeted.
+    scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
+    init: initial value when using epsilon scheduling, understood as multiple
+      of target value. if passed, ``int * decay ** iteration`` will be used
+      to rescale target.
+    decay: geometric decay factor, smaller than 1.
+  """
 
   def __init__(
       self,
@@ -31,25 +49,7 @@ class Epsilon:
       init: Optional[float] = None,
       decay: Optional[float] = None
   ):
-    r"""Initialize a scheduler using possibly geometric decay.
 
-    An epsilon scheduler outputs a regularization strength, to be used by in a
-    Sinkhorn-type algorithm, at any iteration count. That value is either the
-    final, targetted regularization, or one that is larger, obtained by
-    geometric decay of an initial value that is larger than the intended target.
-    Concretely, the value returned by such a scheduler will consider first
-    the max between ``target`` and ``init * target * decay ** iteration``.
-    If the ``scale_epsilon`` parameter is provided, that value is used to
-    multiply the max computed previously by ``scale_epsilon``.
-
-    Args:
-      target: the epsilon regularizer that is targeted.
-      scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
-      init: initial value when using epsilon scheduling, understood as multiple
-        of target value. if passed, ``int * decay ** iteration`` will be used
-        to rescale target.
-      decay: geometric decay factor, smaller than 1.
-    """
     self._target_init = .01 if target is None else target
     self._scale_epsilon = 1.0 if scale_epsilon is None else scale_epsilon
     self._init = 1.0 if init is None else init

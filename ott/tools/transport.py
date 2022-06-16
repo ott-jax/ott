@@ -32,6 +32,7 @@ from typing import Any, NamedTuple
 import jax.numpy as jnp
 
 from ott.core import gromov_wasserstein, problems, quad_problems, sinkhorn
+from ott.geometry import geometry
 
 
 class Transport(NamedTuple):
@@ -40,19 +41,19 @@ class Transport(NamedTuple):
   solver_output: Any = None
 
   @property
-  def linear(self):
+  def linear(self) -> bool:
     return isinstance(self.problem, problems.LinearProblem)
 
   @property
-  def geom(self):
+  def geom(self) -> geometry.Geometry:
     return self.problem.geom if self.linear else self.solver_output.geom
 
   @property
-  def a(self):
+  def a(self) -> jnp.ndarray:
     return self.problem.a
 
   @property
-  def b(self):
+  def b(self) -> jnp.ndarray:
     return self.problem.b
 
   @property
@@ -61,7 +62,7 @@ class Transport(NamedTuple):
     return out if self.linear else out.linear_state
 
   @property
-  def matrix(self):
+  def matrix(self) -> jnp.ndarray:
     return self.linear_output.matrix
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:

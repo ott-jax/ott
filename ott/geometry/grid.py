@@ -49,6 +49,25 @@ class Grid(geometry.Geometry):
   precomputes :math:`d` :math:`n_i` x :math:`n_i` cost matrices (one per
   dimension) and implements these two operations by carrying out these
   convolutions one dimension at a time.
+
+  Args:
+    x : list of arrays of varying sizes, describing the locations of the grid.
+      Locations are provided as a list of jnp.ndarrays, that is :math:`d`
+      vectors of (possibly varying) size :math:`n_i`. The resulting grid
+      is the Cartesian product of these vectors.
+    grid_size: tuple of integers describing grid sizes, namely
+      :math:`(n_1,...,n_d)`. This will only be used if x is None.
+      In that case the grid will be assumed to lie in the hypercube
+      :math:`[0,1]^d`, with the :math:`d` dimensions, described as points
+      regularly sampled in [0,1].
+    cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taking
+      two reals as inputs to output a real number.
+    num_a: total size of grid. This parameters will be computed from other
+      inputs and used in the flatten/unflatten functions.
+    grid_dimension: dimension of grid. This parameters will be computed from
+      other inputs and used in the flatten/unflatten functions.
+    **kwargs: other optional parameters to be passed on to superclass
+      initializer, notably those related to epsilon regularization.
   """
 
   def __init__(
@@ -60,27 +79,7 @@ class Grid(geometry.Geometry):
       grid_dimension: Optional[int] = None,
       **kwargs: Any,
   ):
-    """Create instance of grid using either locations or sizes.
 
-    Args:
-      x : list of arrays of varying sizes, describing the locations of the grid.
-        Locations are provided as a list of jnp.ndarrays, that is :math:`d`
-        vectors of (possibly varying) size :math:`n_i`. The resulting grid
-        is the Cartesian product of these vectors.
-      grid_size: tuple of integers describing grid sizes, namely
-        :math:`(n_1,...,n_d)`. This will only be used if x is None.
-        In that case the grid will be assumed to lie in the hypercube
-        :math:`[0,1]^d`, with the :math:`d` dimensions, described as points
-        regularly sampled in [0,1].
-      cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taking
-        two reals as inputs to output a real number.
-      num_a: total size of grid. This parameters will be computed from other
-        inputs and used in the flatten/unflatten functions.
-      grid_dimension: dimension of grid. This parameters will be computed from
-        other inputs and used in the flatten/unflatten functions.
-      **kwargs: other optional parameters to be passed on to superclass
-        initializer, notably those related to epsilon regularization.
-    """
     if (
         grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None

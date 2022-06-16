@@ -239,6 +239,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       rng_key: int = 0,
       kwargs_dys: Optional[Mapping[str, Any]] = None
   ):
+    # TODO(michalk8): this should call super
     self.rank = rank
     self.gamma = gamma
     self.epsilon = epsilon

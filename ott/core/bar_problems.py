@@ -24,7 +24,26 @@ from ott.geometry import costs
 
 @jax.tree_util.register_pytree_node_class
 class BarycenterProblem:
-  """Definition of a linear regularized OT problem and some tools."""
+  """Definition of a linear regularized OT problem and some tools.
+
+  Args:
+    y: a matrix merging the points of all measures.
+    b: a vector containing the weights (within each masure) of all the points
+    weights: weights of the barycenter problem (size num_segments)
+    cost_fn: cost function used.
+    epsilon: epsilon regularization used to solve reg-OT problems.
+    debiased: whether the problem is debiased, in the sense that
+      the regularized transportation cost of barycenter to itself will
+      be considered when computing gradient. Note that if the debiased option
+      is used, the barycenter size (used in call function) needs to be smaller
+      than the max_measure_size parameter below, for parallelization to
+      operate efficiently.
+    segment_ids: describe for each point to which measure it belongs.
+    num_segments: total number of measures
+    indices_are_sorted: flag indicating indices in segment_ids are sorted.
+    num_per_segment: number of points in each segment, if contiguous.
+    max_measure_size: max number of points in each segment (for efficient jit)
+  """
 
   def __init__(
       self,
@@ -40,26 +59,6 @@ class BarycenterProblem:
       num_per_segment: Optional[jnp.ndarray] = None,
       max_measure_size: Optional[int] = None
   ):
-    """Initialize a discrete BarycenterProblem
-
-    Args:
-      y: a matrix merging the points of all measures.
-      b: a vector containing the weights (within each masure) of all the points
-      weights: weights of the barycenter problem (size num_segments)
-      cost_fn: cost function used.
-      epsilon: epsilon regularization used to solve reg-OT problems.
-      debiased: whether the problem is debiased, in the sense that
-        the regularized transportation cost of barycenter to itself will
-        be considered when computing gradient. Note that if the debiased option
-        is used, the barycenter size (used in call function) needs to be smaller
-        than the max_measure_size parameter below, for parallelization to
-        operate efficiently.
-      segment_ids: describe for each point to which measure it belongs.
-      num_segments: total number of measures
-      indices_are_sorted: flag indicating indices in segment_ids are sorted.
-      num_per_segment: number of points in each segment, if contiguous.
-      max_measure_size: max number of points in each segment (for efficient jit)
-    """
     self._y = y
     self._b = b
     self._weights = weights

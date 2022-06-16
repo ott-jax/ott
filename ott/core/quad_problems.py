@@ -69,9 +69,49 @@ class QuadraticProblem:
 
   The two geometries below parameterize matrices C and bar{C} in that equation.
   The function L (of two real values) in that equation is assumed
-  to match the form given in Eq. 5. , with our notations:
+  to match the form given in Eq. 5., with our notations:
 
   L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
+
+  Args:
+    geom_xx: the geometry.Geometry object defining the ground geometry / cost
+      of the first space.
+    geom_yy: the geometry.Geometry object defining the ground geometry / cost
+      of the second space.
+    geom_xy: the geometry.Geometry object defining the linear penalty term
+      for Fused Gromov Wasserstein. If None, the problem reduces to a plain
+      Gromov Wasserstein problem.
+    fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
+      i.e. problem = purely quadratic + fused_penalty * linear problem. If
+      fused_penalty is None but geom_xy is passed, fused_penalty is set by
+      default to 1.0, equal to 0.0 otherwise.
+    scale_cost: option to rescale the cost matrices:
+
+      - if `True`, use the default for each geometry.
+      - if `False`, keep the original scaling in geometries.
+      - if :class:`str`, use a specific method available in
+        :class:`ott.geometry.geometry.Geometry` or
+        :class`ott.geometry.pointcloud.PointCloud`.
+      - if `None`, do not scale the cost matrices.
+
+    a: jnp.ndarray[n] representing the probability weights of the samples
+      from geom_xx. If None, it will be uniform.
+    b: jnp.ndarray[n] representing the probability weights of the samples
+      from geom_yy. If None, it will be uniform.
+    loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
+      part of the loss (see in the pydoc of the class lin1, lin2). The second
+      one is the quadratic part (quad1, quad2). If None is passed, the loss
+      is set as the 4 functions representing the squared euclidean loss, and
+      this property is taken advantage of in subsequent computations. See
+      make_kl_loss for an alternative, no less optimized way of setting the
+      loss.
+    tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+      the first marginal.
+    tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+      the second marginal.
+    gw_unbalanced_correction: True (default) if the unbalanced version of
+      Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
+      only affect the inner Sinhkorn loop.
   """
 
   def __init__(
@@ -88,48 +128,7 @@ class QuadraticProblem:
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: Optional[bool] = True
   ):
-    """Initialize the QuadraticProblem.
 
-    Args:
-      geom_xx: the geometry.Geometry object defining the ground geometry / cost
-        of the first space.
-      geom_yy: the geometry.Geometry object defining the ground geometry / cost
-        of the second space.
-      geom_xy: the geometry.Geometry object defining the linear penalty term
-        for Fused Gromov Wasserstein. If None, the problem reduces to a plain
-        Gromov Wasserstein problem.
-      fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-        i.e. problem = purely quadratic + fused_penalty * linear problem. If
-        fused_penalty is None but geom_xy is passed, fused_penalty is set by
-        default to 1.0, equal to 0.0 otherwise.
-      scale_cost: option to rescale the cost matrices:
-
-        - if `True`, use the default for each geometry.
-        - if `False`, keep the original scaling in geometries.
-        - if :class:`str`, use a specific method available in
-          :meth:`ott.geometry.geometry.Geometry.__init__` or
-          :meth:`ott.geometry.pointcloud.PointCloud.__init__`.
-        - if `None`, do not scale the cost matrices.
-
-      a: jnp.ndarray[n] representing the probability weights of the samples
-        from geom_xx. If None, it will be uniform.
-      b: jnp.ndarray[n] representing the probability weights of the samples
-        from geom_yy. If None, it will be uniform.
-      loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
-        part of the loss (see in the pydoc of the class lin1, lin2). The second
-        one is the quadratic part (quad1, quad2). If None is passed, the loss
-        is set as the 4 functions representing the squared euclidean loss, and
-        this property is taken advantage of in subsequent computations. See
-        make_kl_loss for an alternative, no less optimized way of setting the
-        loss.
-      tau_a: if lower that 1.0, defines how much unbalanced the problem is on
-        the first marginal.
-      tau_b: if lower that 1.0, defines how much unbalanced the problem is on
-        the second marginal.
-      gw_unbalanced_correction: True (default) if the unbalanced version of
-        Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
-        only affect the inner Sinhkorn loop.
-    """
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
     self.geom_yy = geom_yy._set_scale_cost(scale_cost)
     self.geom_xy = (

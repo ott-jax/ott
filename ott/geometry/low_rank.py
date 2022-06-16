@@ -24,7 +24,23 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class LRCGeometry(geometry.Geometry):
-  """Low-rank Cost Geometry defined by two factors."""
+  """Low-rank Cost Geometry defined by two factors.
+
+  Args:
+    cost_1: jnp.ndarray<float>[num_a, r]
+    cost_2: jnp.ndarray<float>[num_b, r]
+    bias: constant added to entire cost matrix.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'max_bound', 'mean' and 'max_cost'. Alternatively, a float
+      factor can be given to rescale the cost such that
+      ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
+    batch_size: optional size of the batch to compute online (without
+      instantiating the matrix) the scale factor ``scale_cost`` of the
+      ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
+      batch size is set to 1024 or to the largest number of samples between
+      ``cost_1`` and ``cost_2`` if smaller than 1024.
+    **kwargs: additional kwargs to :class:`ott.geometry.geometry.Geometry`.
+  """
 
   def __init__(
       self,
@@ -35,23 +51,6 @@ class LRCGeometry(geometry.Geometry):
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
-    r"""Initialize a geometry by passing it low-rank factors.
-
-    Args:
-      cost_1: jnp.ndarray<float>[num_a, r]
-      cost_2: jnp.ndarray<float>[num_b, r]
-      bias: constant added to entire cost matrix.
-      scale_cost: option to rescale the cost matrix. Implemented scalings are
-        'max_bound', 'mean' and 'max_cost'. Alternatively, a float
-        factor can be given to rescale the cost such that
-        ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
-      batch_size: optional size of the batch to compute online (without
-        instantiating the matrix) the scale factor ``scale_cost`` of the
-        ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
-        batch size is set to 1024 or to the largest number of samples between
-        ``cost_1`` and ``cost_2`` if smaller than 1024.
-      **kwargs: additional kwargs to :class:`ott.geometry.geometry.Geometry`.
-    """
     assert cost_1.shape[1] == cost_2.shape[1]
     self._cost_1 = cost_1
     self._cost_2 = cost_2

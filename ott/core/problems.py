@@ -27,7 +27,22 @@ TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
 
 @jax.tree_util.register_pytree_node_class
 class LinearProblem:
-  """Holds the definition of a linear regularized OT problem and some tools."""
+  """Definition of a linear regularized OT problem.
+
+  min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
+
+  Args:
+    geom: the geometry.Geometry object defining the ground geometry / cost of
+      the linear problem.
+    a: jnp.ndarray[n] representing the first marginal. If None, it will be
+      uniform.
+    b: jnp.ndarray[n] representing the first marginal. If None, it will be
+      uniform.
+    tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+      the first marginal.
+    tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+      the second marginal.
+  """
 
   def __init__(
       self,
@@ -37,22 +52,7 @@ class LinearProblem:
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
-    """Initialize the LinearProblem.
 
-    min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
-
-    Args:
-      geom: the geometry.Geometry object defining the ground geometry / cost of
-        the linear problem.
-      a: jnp.ndarray[n] representing the first marginal. If None, it will be
-        uniform.
-      b: jnp.ndarray[n] representing the first marginal. If None, it will be
-        uniform.
-      tau_a: if lower that 1.0, defines how much unbalanced the problem is on
-        the first marginal.
-      tau_b: if lower that 1.0, defines how much unbalanced the problem is on
-        the second marginal.
-    """
     self.geom = geom
     self._a = a
     self._b = b

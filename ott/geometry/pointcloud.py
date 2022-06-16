@@ -26,7 +26,33 @@ from ott.geometry import costs, geometry, low_rank, ops
 
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
-  """Defines geometry for 2 pointclouds (possibly 1 vs itself) using CostFn."""
+  """Defines geometry for 2 point clouds (possibly 1 vs itself) using CostFn.
+
+  Creates a geometry, specifying a cost function passed as CostFn type object.
+  When the number of points is large, setting the `online` flag to `True`
+  implies that cost and kernel matrices used to update potentials or scalings
+  will be recomputed on the fly, rather than stored in memory. More precisely,
+  when setting `online`, the cost function will be partially cached by storing
+  norm values for each point in both point clouds, but the pairwise cost
+  function evaluations won't be. The sum of norms + the pairwise cost term is
+  raised to `power`.
+
+  Args:
+    x : n x d array of n d-dimensional vectors
+    y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
+    cost_fn: a CostFn function between two points in dimension d.
+    power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
+    online: whether to run the online version of the computation or not. The
+      online computation is particularly useful for big point clouds such that
+      their cost matrix does not fit in memory. This is done by batching
+      :meth:`apply_lse_kernel`. If `True`, batch size of 1024 is used.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
+      Alternatively, a float factor can be given to rescale the cost such
+      that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
+    **kwargs: other optional parameters to be passed on to superclass
+    initializer, notably those related to epsilon regularization.
+  """
 
   def __init__(
       self,
@@ -39,34 +65,6 @@ class PointCloud(geometry.Geometry):
       scale_cost: Optional[Union[bool, float, str]] = None,
       **kwargs: Any,
   ):
-    """Create a geometry from two point clouds, using CostFn.
-
-    Creates a geometry, specifying a cost function passed as CostFn type object.
-    When the number of points is large, setting the `online` flag to `True`
-    implies that cost and kernel matrices used to update potentials or scalings
-    will be recomputed on the fly, rather than stored in memory. More precisely,
-    when setting `online`, the cost function will be partially cached by storing
-    norm values for each point in both point clouds, but the pairwise cost
-    function evaluations won't be. The sum of norms + the pairwise cost term is
-    raised to `power`.
-
-    Args:
-      x : n x d array of n d-dimensional vectors
-      y : m x d array of m d-dimensional vectors
-      cost_fn: a CostFn function between two points in dimension d.
-      power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
-      online: whether to run the online version of the computation or not. The
-        online computation is particularly useful for big point clouds such that
-        their cost matrix does not fit in memory. This is done by batching
-        :meth:`apply_lse_kernel`. If `True`, batch size of 1024 is used.
-      scale_cost: option to rescale the cost matrix. Implemented scalings are
-        'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
-        Alternatively, a float factor can be given to rescale the cost such
-        that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
-      **kwargs: other optional parameters to be passed on to superclass
-      initializer, notably those related to epsilon regularization.
-    """
-
     self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
     self._axis_norm = 0 if callable(self._cost_fn.norm) else None
 
