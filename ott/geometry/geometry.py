@@ -56,7 +56,7 @@ class Geometry:
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    **kwargs: additional kwargs to epsilon.
+    kwargs: additional kwargs to epsilon.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to

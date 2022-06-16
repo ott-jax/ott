@@ -27,9 +27,10 @@ ott.core.problems) and their solvers (see ott.core.sinkhorn and
 ott.core.gromov_wasserstein) for better control over the parameters.
 """
 
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Optional
 
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.core import gromov_wasserstein, problems, quad_problems, sinkhorn
 from ott.geometry import geometry
@@ -72,14 +73,20 @@ class Transport(NamedTuple):
     return self.linear_output.marginal(axis)
 
 
-def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
+def solve(
+    *args: Any,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    objective: Optional[Literal['linear', 'quadratic', 'fused']] = None,
+    **kwargs: Any
+) -> Transport:
   """Generic interface to transport problem.
 
   The geometries can be passed as arrays, geometry.Geometry or directly as a
   problem. The solver is passed via kwargs.
 
   Args:
-    *args: can be either a single argument, the geometry.Geometry instance, or
+    args: can be either a single argument, the geometry.Geometry instance, or
       for convenience only two jnp.ndarray<float> corresponding to two point
       clouds. In that case the regularization parameter epsilon must be set in
       the kwargs.
@@ -88,7 +95,7 @@ def solve(*args, a=None, b=None, objective=None, **kwargs) -> Transport:
     objective: Optional[str], 'linear', 'quadratic', 'fused' or None. None
       means that the objective will be chosen based on the dimensionalities
       of the arrays.
-    **kwargs: the keyword arguments passed to the point clouds and/or the
+    kwargs: the keyword arguments passed to the point clouds and/or the
       solvers.
 
   Returns:

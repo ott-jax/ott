@@ -66,7 +66,7 @@ class Grid(geometry.Geometry):
       inputs and used in the flatten/unflatten functions.
     grid_dimension: dimension of grid. This parameters will be computed from
       other inputs and used in the flatten/unflatten functions.
-    **kwargs: other optional parameters to be passed on to superclass
+    kwargs: other optional parameters to be passed on to superclass
       initializer, notably those related to epsilon regularization.
   """
 

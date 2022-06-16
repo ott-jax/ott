@@ -50,7 +50,7 @@ class PointCloud(geometry.Geometry):
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
       that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
-    **kwargs: other optional parameters to be passed on to superclass
+    kwargs: other optional parameters to be passed on to superclass
     initializer, notably those related to epsilon regularization.
   """
 
@@ -535,7 +535,7 @@ class PointCloud(geometry.Geometry):
       )
 
   def barycenter(self, weights: jnp.ndarray) -> float:
-    """Compute barycenter of points in self.x using weights, valid for p=2.0 """
+    """Compute barycenter of points in self.x using weights, valid for p=2.0."""
     assert self.power == 2.0, self.power
     return self._cost_fn.barycenter(self.x, weights)
 

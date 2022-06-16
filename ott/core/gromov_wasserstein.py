@@ -289,7 +289,7 @@ def make(
       arguments for the linear OT solver (e.g. sinkhorn)
     threshold: threshold (progress between two iterate costs) used to stop GW.
     min_iterations: see fixed_point_loop.
-    **kwargs: additional kwargs for epsilon.
+    kwargs: additional kwargs for epsilon.
 
   Returns:
     A GromovWasserstein solver.
@@ -374,7 +374,7 @@ def gromov_wasserstein(
     gw_unbalanced_correction: True (default) if the unbalanced version of
       Sejourne et al (Neurips 2021) is used, False if tau_a and tau_b
       only affect the inner Sinhkorn loop.
-    **kwargs: keyword arguments to make.
+    kwargs: keyword arguments to make.
 
   Returns:
     A GromovWassersteinState named tuple.

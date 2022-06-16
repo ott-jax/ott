@@ -42,7 +42,7 @@ def transport_for_sort(
       sigmoid of whitened values by default. Can be set to be the identity by
       passing ``squashing_fun = lambda x : x`` instead.
     epsilon: the regularization parameter.
-    **kwargs: keyword arguments for `sinkhorn` and / or `PointCloud`.
+    kwargs: keyword arguments for `sinkhorn` and / or `PointCloud`.
 
   Returns:
     A jnp.ndarray<float> num_points x num_target transport matrix, from all
@@ -51,7 +51,7 @@ def transport_for_sort(
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
     raise ValueError(
-        'Shape ({shape}) not supported. The input should be one-dimensional.'
+        f'Shape ({shape}) not supported. The input should be one-dimensional.'
     )
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
@@ -67,7 +67,7 @@ def transport_for_sort(
   return transport.solve(x, y, a=a, b=b, epsilon=epsilon, **kwargs)
 
 
-def apply_on_axis(op, inputs, axis, *args, **kwargs):
+def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
   """Apply a differentiable operator on a given axis of the input.
 
   Args:
@@ -76,9 +76,8 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs):
     axis: the axis (int) or tuple of ints on which to apply the operator. If
       several axes are passed the operator, those are merged as a single
       dimension.
-    *args: other positional arguments to the operator.
-    **kwargs: other positional arguments to the operator.
-
+    args: other positional arguments to the operator.
+    kwargs: other positional arguments to the operator.
 
   Returns:
     A jnp.ndarray holding the output of the differentiable operator on the given
@@ -105,7 +104,9 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs):
   return result
 
 
-def _sort(inputs: jnp.ndarray, topk, num_targets, **kwargs) -> jnp.ndarray:
+def _sort(
+    inputs: jnp.ndarray, topk: int, num_targets: Optional[int], **kwargs: Any
+) -> jnp.ndarray:
   """Apply the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -144,7 +145,7 @@ def sort(
       order). If not specified, ``num_targets`` is set by default to be the size
       of the slices of the input that are sorted, i.e. the number of composite
       sorted values is equal to that of the inputs that are sorted.
-    **kwargs: keyword arguments passed on to lower level functions. Of interest
+    kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -188,7 +189,7 @@ def ranks(
       specified by the optimal transport between values in ``inputs`` towards
       those values. If not specified, ``num_targets`` is set by default to be
       the size of the slices of the input that are sorted.
-    **kwargs: keyword arguments passed on to lower level functions. Of interest
+    kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -225,7 +226,7 @@ def quantile(
    axis: the axis on which to apply the operator.
    level: the value of the quantile level to be computed. 0.5 for median.
    weight: the weight of the quantile in the transport problem.
-   **kwargs: keyword arguments passed on to lower level functions. Of interest
+   kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -281,7 +282,7 @@ def quantile_normalization(
     targets: the target values of dimension 1. The targets must be sorted.
     weights: if set, the weights or the target.
     axis: the axis along which to apply the transformation on the inputs.
-    **kwargs: keyword arguments passed on to lower level functions. Of interest
+    kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -331,7 +332,7 @@ def sort_with(
     criterion: the values according to which to sort the inputs. It has shape
       [batch, 1].
     topk: The number of outputs to keep.
-    **kwargs: keyword arguments passed on to lower level functions. Of interest
+    kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
@@ -399,7 +400,7 @@ def quantize(
     inputs: the inputs as a jnp.ndarray[batch, dim].
     num_levels: number of levels available to quantize the signal.
     axis: axis along which quantization is carried out.
-    **kwargs: keyword arguments passed on to lower level functions. Of interest
+    kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
       solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,

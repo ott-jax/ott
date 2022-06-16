@@ -42,7 +42,7 @@ def sinkhorn_divergence(
 
   Args:
     geom: a geometry class.
-    *args: arguments to
+    args: arguments to
       :meth:`ott.geometry.geometry.Geometry.prepare_divergences` that is
       specific to each geometry.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
@@ -59,7 +59,7 @@ def sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    **kwargs: keywords arguments to the generic class. This is specific to each
+    kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
   Returns:
@@ -102,7 +102,8 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
-    **kwargs: Arguments to sinkhorn.
+    kwargs: Keyword arguments to sinkhorn.
+
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
@@ -199,7 +200,7 @@ def segment_sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    **kwargs: keywords arguments to the generic class. This is specific to each
+    kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
   Returns:
