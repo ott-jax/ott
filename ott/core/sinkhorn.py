@@ -517,7 +517,7 @@ class Sinkhorn:
     return jnp.logical_not(jnp.isfinite(err))
 
   def _continue(self, state: SinkhornState, iteration: int) -> bool:
-    """Continue while not(converged) and not(diverged)"""
+    """Continue while not(converged) and not(diverged)."""
     return jnp.logical_and(
         jnp.logical_not(self._diverged(state, iteration)),
         jnp.logical_not(self._converged(state, iteration))

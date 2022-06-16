@@ -58,7 +58,7 @@ class GWOutput(NamedTuple):
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
-  old_transport_mass: Optional[float] = 1.0
+  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWOutput':
     """Returns a copy of self, possibly with overwrites."""
@@ -222,11 +222,16 @@ def iterations(
 ) -> GWOutput:
   """A jittable Gromov-Wasserstein outer loop."""
 
-  def cond_fn(iteration, constants, state):
+  def cond_fn(
+      iteration: int, constants: GromovWasserstein, state: GWState
+  ) -> bool:
     solver = constants
     return solver._continue(state, iteration)
 
-  def body_fn(iteration, constants, state, compute_error):
+  def body_fn(
+      iteration: int, constants: GromovWasserstein, state: GWState,
+      compute_error: bool
+  ) -> GWState:
     del compute_error  # Always assumed True for outer loop of GW.
     solver = constants
     if rank > 0:

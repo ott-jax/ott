@@ -15,7 +15,7 @@
 # Lint as: python3
 """A Jax version of the W barycenter algorithm (Cuturi Doucet 2014)."""
 import functools
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -24,6 +24,7 @@ from ott.core import bar_problems, fixed_point_loop, problems, was_solver
 from ott.geometry import pointcloud
 
 
+# TODO: unused
 class BarycenterOutput(NamedTuple):
   """Holds the output of a Wasserstein Barycenter solver.
 
@@ -87,7 +88,7 @@ class BarycenterState(NamedTuple):
   def update(
       self, iteration: int, bar_prob: bar_problems.BarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
-  ):
+  ) -> 'BarycenterState':
     segmented_y, segmented_b = bar_prob.segmented_y_b
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
@@ -156,7 +157,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: bar_problems.BarycenterProblem,
       bar_size: int = 100,
-      x_init: jnp.ndarray = None,
+      x_init: Optional[jnp.ndarray] = None,
       rng: int = 0
   ) -> BarycenterState:
     bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
@@ -165,7 +166,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
 
   def init_state(
       self, bar_prob: bar_problems.BarycenterProblem, bar_size: int,
-      x_init: jnp.ndarray, rng: int
+      x_init: Optional[jnp.ndarray], rng: int
   ) -> BarycenterState:
     """Initializes the state of the Wasserstein barycenter iterations."""
     if x_init is not None:
@@ -206,11 +207,19 @@ def iterations(
 ) -> BarycenterState:
   """A jittable Wasserstein barycenter outer loop."""
 
-  def cond_fn(iteration, constants, state):
+  def cond_fn(
+      iteration: int, constants: Tuple[WassersteinBarycenter,
+                                       bar_problems.BarycenterProblem],
+      state: BarycenterState
+  ) -> bool:
     solver, _ = constants
     return solver._continue(state, iteration)
 
-  def body_fn(iteration, constants, state, compute_error):
+  def body_fn(
+      iteration, constants: Tuple[WassersteinBarycenter,
+                                  bar_problems.BarycenterProblem],
+      state: BarycenterState, compute_error: bool
+  ) -> BarycenterState:
     del compute_error  # Always assumed True
     solver, bar_prob = constants
     return state.update(

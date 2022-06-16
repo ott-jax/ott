@@ -14,6 +14,7 @@
 
 # Lint as: python3
 """Functions useful to define unbalanced OT problems."""
+from typing import Callable
 
 import jax.numpy as jnp
 
@@ -29,7 +30,9 @@ def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   return jnp.exp(f / rho)
 
 
-def grad_of_marginal_fit(c, h, tau, epsilon):
+def grad_of_marginal_fit(
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
+) -> jnp.ndarray:
   """Computes grad of terms linked to marginals in objective.
 
   Computes gradient w.r.t. f ( or g) of terms in
@@ -57,7 +60,10 @@ def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   return jnp.exp(f / rho) / rho
 
 
-def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
+def diag_jacobian_of_marginal_fit(
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float,
+    derivative: Callable[[jnp.ndarray, float], jnp.ndarray]
+):
   """Computes grad of terms linked to marginals in objective.
 
   Computes second derivative w.r.t. f ( or g) of terms in

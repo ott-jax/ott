@@ -14,12 +14,15 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
 
 from ott.core import sinkhorn, sinkhorn_lr
+
+State = Union[sinkhorn.SinkhornState, sinkhorn_lr.LRSinkhornState,
+              "continuous_barycenter.BarycenterState"]  # noqa: F821
 
 
 @jax.tree_util.register_pytree_node_class
@@ -30,13 +33,13 @@ class WassersteinSolver:
       self,
       epsilon: Optional[float] = None,
       rank: int = -1,
-      linear_ot_solver: Any = None,
+      linear_ot_solver: Union[sinkhorn.Sinkhorn, sinkhorn_lr.LRSinkhorn] = None,
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
       jit: bool = True,
       store_inner_errors: bool = False,
-      **kwargs
+      **kwargs: Any,
   ):
     default_epsilon = 1.0
     # Set epsilon value to default if needed, but keep track of whether None was
@@ -72,7 +75,7 @@ class WassersteinSolver:
     self._kwargs = kwargs
 
   @property
-  def is_low_rank(self):
+  def is_low_rank(self) -> bool:
     return self.rank > 0
 
   def tree_flatten(self):
@@ -95,21 +98,19 @@ class WassersteinSolver:
         **aux_data
     )
 
-  def _converged(self, state, iteration):
+  def _converged(self, state: State, iteration: int) -> bool:
     costs, i, tol = state.costs, iteration, self.threshold
     return jnp.logical_and(
         i >= 2, jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
     )
 
-  def _diverged(self, state, iteration):
-    costs, i, tol = state.costs, iteration, self.threshold
-    return jnp.logical_not(jnp.isfinite(costs[i - 1]))
+  def _diverged(self, state: State, iteration: int) -> bool:
+    return jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
 
-  def _continue(self, state, iteration):
-    """ continue while not(converged) and not(diverged)"""
-    costs, i, tol = state.costs, iteration, self.threshold
+  def _continue(self, state: State, iteration: int) -> bool:
+    """Continue while not(converged) and not(diverged)."""
     return jnp.logical_or(
-        i <= 2,
+        iteration <= 2,
         jnp.logical_and(
             jnp.logical_not(self._diverged(state, iteration)),
             jnp.logical_not(self._converged(state, iteration))
