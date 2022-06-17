@@ -43,8 +43,9 @@ class Geometry:
       costs.
     kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
       x m kernel values.
-    epsilon: a regularization parameter. If a ``epsilon_scheduler.Epsilon``
-      object is passed, other parameters below are ignored in practice. If the
+    epsilon: a regularization parameter.
+      If a :class:`ott.geometry.epsilon_scheduler.Epsilon` object is passed,
+      other parameters below are ignored in practice. If the
       parameter is a float, then this is understood to be the regularization
       that is needed, unless ``relative_epsilon`` below is ``True``, in which
       case ``epsilon`` is understood as a normalized quantity, to be scaled by
