@@ -327,7 +327,6 @@ def get_fit_model_em_fn(
     Returns:
       An updated GaussianMixturePair and the final loss.
     """
-
     if point_weights0 is None:
       point_weights0 = jnp.ones(points0.shape[0])
     if point_weights1 is None:

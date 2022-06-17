@@ -57,7 +57,6 @@ def create_train_state(rng, config, model, size):
 
 def train_step(apply_fn, config, state, batch):
   """Perform a single training step."""
-
   regularizer = functools.partial(
       losses.fairness_regularizer,
       quantization=config.quantization,

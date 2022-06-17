@@ -377,7 +377,6 @@ class Geometry:
     Returns:
       new scaling vector, of size num_b if axis=0, num_a if axis is 1.
     """
-
     eps = self._epsilon.at(iteration)
     app_kernel = self.apply_kernel(scaling, eps, axis=axis)
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)

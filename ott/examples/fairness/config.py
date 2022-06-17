@@ -18,7 +18,6 @@ import ml_collections
 
 def get_config():
   """Return a ConfigDict."""
-
   config = ml_collections.ConfigDict()
   config.folder = '/tmp/adult_dataset/'
   config.training_filename = 'adult.data'

@@ -239,10 +239,10 @@ def quantile(
     axis on which the dimension is 1.
   """
 
-  # TODO(cuturi,oliviert) option to compute several quantiles at once, as in tf.
   def _quantile(
       inputs: jnp.ndarray, level: float, weight: float, **kwargs
   ) -> jnp.ndarray:
+    # TODO(cuturi,oliviert) option to compute several quantiles at once
     num_points = inputs.shape[0]
     a = jnp.ones((num_points,)) / num_points
     b = jnp.array([level - weight / 2, weight, 1.0 - weight / 2 - level])

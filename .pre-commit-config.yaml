@@ -59,8 +59,9 @@ repos:
     - flake8-comprehensions
     - flake8-bugbear
     - flake8-blind-except
+    args: [--docstring-convention, google]
 - repo: https://github.com/asottile/pyupgrade
   rev: v2.32.1
   hooks:
   - id: pyupgrade
-    args: [--py3-plus, --py38-plus, --keep-runtime-typing]
+    args: [--py3-plus, --py37-plus, --keep-runtime-typing]

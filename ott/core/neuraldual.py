@@ -152,7 +152,6 @@ class NeuralDualSolver:
       validloader_target
   ):
     """Implementation of the training and validation script."""  # noqa: D401
-
     # define dict to contain source and target batch
     batch_g = {}
     batch_f = {}
@@ -259,7 +258,6 @@ class NeuralDualSolver:
     @jax.jit
     def step_fn(state_f, state_g, batch):
       """Step function of either training or validation."""
-
       if to_optimize == 'f':
         grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
         state = state_f
@@ -345,7 +343,6 @@ class NeuralDual:
 
   def transport(self, data: jnp.ndarray) -> jnp.ndarray:
     """Transport source data samples with potential g."""
-
     return jax.vmap(
         lambda x: jax.grad(self.g.apply_fn, argnums=1)({
             'params': self.g.params
@@ -356,7 +353,6 @@ class NeuralDual:
 
   def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
     """Transport source data samples with potential g."""
-
     return jax.vmap(
         lambda x: jax.grad(self.f.apply_fn, argnums=1)({
             'params': self.f.params
@@ -367,7 +363,6 @@ class NeuralDual:
 
   def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
     """Given potentials f and g, compute the overall distance."""
-
     f_t = self.f.apply_fn({'params': self.f.params}, target)
 
     grad_g_s = jax.vmap(
