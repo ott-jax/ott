@@ -1,14 +1,13 @@
 ott.core package
 ================
-
 .. currentmodule:: ott.core
 .. automodule:: ott.core
 
 The core package contains definitions of various OT problems, starting
 from the most simple, the linear OT problem, to more advanced problems
 such as quadratic, or involving multiple measures, the barycenter problem.
-We follow with the classic ``sinkhorn`` routine (essentially a
-wrapper for the ``Sinkhorn`` solver class) [#]_, [#]_. We also provide an analogous
+We follow with the classic :class:`ott.core.sinkhorn.sinkhorn` routine (essentially a
+wrapper for the :class:`ott.core.sinkhorn.Sinkhorn` solver class) [#]_, [#]_. We also provide an analogous
 low-rank Sinkhorn solver [#]_ to handle very large instances. Both are used
 within our Wasserstein barycenter solvers [#]_, [#]_ as well as our
 Gromov-Wasserstein solver [#]_, [#]_. We also provide an implementation of
@@ -17,7 +16,7 @@ input convex neural networks [#]_, a NN that can be used to estimate OT [#]_.
 OT Problems
 -----------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     problems.LinearProblem
     quad_problems.QuadraticProblem
@@ -26,7 +25,7 @@ OT Problems
 Sinkhorn
 --------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     sinkhorn.sinkhorn
     sinkhorn.Sinkhorn
@@ -34,28 +33,28 @@ Sinkhorn
 Low-Rank Sinkhorn
 -----------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     sinkhorn_lr.LRSinkhorn
 
 Barycenters (Entropic and LR)
 -----------------------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     discrete_barycenter.discrete_barycenter
 
 Gromov-Wasserstein (Entropic and LR)
 ------------------------------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     gromov_wasserstein.gromov_wasserstein
 
 Neural Potentials
 -----------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     icnn.ICNN
     neuraldual.NeuralDualSolver
