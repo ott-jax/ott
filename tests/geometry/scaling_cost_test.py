@@ -72,7 +72,9 @@ class ScaleCostTest(parameterized.TestCase):
     )
     np.testing.assert_allclose(
         geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
-        apply_cost_vec, rtol=1e-4)
+        apply_cost_vec,
+        rtol=1e-4
+    )
 
   @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
   def test_scale_cost_pointcloud_online(self, scale):
@@ -104,7 +106,9 @@ class ScaleCostTest(parameterized.TestCase):
     )
     np.testing.assert_allclose(
         geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
-        apply_cost_vec, rtol=1e-4)
+        apply_cost_vec,
+        rtol=1e-4
+    )
 
   @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
   def test_online_matches_notonline_pointcloud(self, scale):
@@ -116,11 +120,14 @@ class ScaleCostTest(parameterized.TestCase):
         self.x, self.y, epsilon=self.eps, scale_cost=scale, online=False
     )
     geom2 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True)
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True
+    )
     np.testing.assert_allclose(
-        geom0.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4)
+        geom0.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
+    )
     np.testing.assert_allclose(
-        geom2.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4)
+        geom2.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
+    )
     if scale == 'mean':
       np.testing.assert_allclose(1.0, geom1.cost_matrix.mean(), rtol=1e-4)
     elif scale == 'max_cost':
@@ -152,7 +159,9 @@ class ScaleCostTest(parameterized.TestCase):
     )
     np.testing.assert_allclose(
         geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
-        apply_cost_vec, rtol=1e-4)
+        apply_cost_vec,
+        rtol=1e-4
+    )
 
   @parameterized.parameters(['mean', 'max_bound', 'max_cost', 100.])
   def test_scale_cost_low_rank(self, scale):
@@ -180,7 +189,9 @@ class ScaleCostTest(parameterized.TestCase):
     )
     np.testing.assert_allclose(
         geom0._apply_cost_to_vec(self.vec, axis=1) * geom.inv_scale_cost,
-        apply_cost_vec, rtol=1e-4)
+        apply_cost_vec,
+        rtol=1e-4
+    )
 
     if scale == 'mean':
       np.testing.assert_allclose(1.0, geom.cost_matrix.mean(), rtol=1e-4)
@@ -196,7 +207,8 @@ class ScaleCostTest(parameterized.TestCase):
     )
 
     np.testing.assert_allclose(
-        geom0.inv_scale_cost, 1.0 / jnp.max(self.cost_lr), rtol=1e-4)
+        geom0.inv_scale_cost, 1.0 / jnp.max(self.cost_lr), rtol=1e-4
+    )
 
   def test_max_scale_cost_low_rank_large_array(self):
     """Test max_cost options for large matrices."""
@@ -211,7 +223,9 @@ class ScaleCostTest(parameterized.TestCase):
     np.testing.assert_allclose(geom0.scale_cost, 1.0 / max_cost_lr, rtol=1e-4)
 
     np.testing.assert_allclose(
-        geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4)
+        geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

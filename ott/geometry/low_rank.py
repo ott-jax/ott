@@ -94,7 +94,7 @@ class LRCGeometry(geometry.Geometry):
     )
 
   @property
-  def inv_scale_cost(self):
+  def inv_scale_cost(self) -> float:
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_bound':
@@ -105,8 +105,10 @@ class LRCGeometry(geometry.Geometry):
     elif self._scale_cost == 'mean':
       factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
       factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
-      mean = (jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1])
-              + self._bias)
+      mean = (
+          jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1]) +
+          self._bias
+      )
       return 1.0 / mean
     elif self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()

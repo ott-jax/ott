@@ -146,8 +146,8 @@ class PointCloud(geometry.Geometry):
     return self._online is not None and self._online
 
   @property
-  def inv_scale_cost(self):
-    """Computes the factor to scale the cost matrix."""
+  def inv_scale_cost(self) -> float:
+    """Compute the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
@@ -171,22 +171,27 @@ class PointCloud(geometry.Geometry):
         )
     elif self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
-        return 1.0 / jnp.maximum(self._cost_fn.norm(self.x).max(),
-                                 self._cost_fn.norm(self.y).max())
+        return 1.0 / jnp.maximum(
+            self._cost_fn.norm(self.x).max(),
+            self._cost_fn.norm(self.y).max()
+        )
       else:
         return 1.0
     elif self._scale_cost == 'max_bound':
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(self._norm_x)
         y_argmax = jnp.argmax(self._norm_y)
-        max_bound = (self._norm_x[x_argmax] + self._norm_y[y_argmax]
-                     + 2 * jnp.sqrt(
-                         self._norm_x[x_argmax] * self._norm_y[y_argmax]))
+        max_bound = (
+            self._norm_x[x_argmax] + self._norm_y[y_argmax] +
+            2 * jnp.sqrt(self._norm_x[x_argmax] * self._norm_y[y_argmax])
+        )
         return 1.0 / max_bound
       else:
-        raise NotImplementedError("""Using max_bound as scaling factor for
+        raise NotImplementedError(
+            """Using max_bound as scaling factor for
             the cost matrix when the cost is not squared euclidean is not
-            implemented.""")
+            implemented."""
+        )
     elif isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     else:
@@ -217,9 +222,12 @@ class PointCloud(geometry.Geometry):
         norm_y = self._norm_y
       else:
         norm_y = jax.lax.dynamic_slice(
-            self._norm_y, (i * self._bs,), (self._bs,))
-      h_res, h_sgn = app(self.x, y, self._norm_x, norm_y, f, g_, eps, vec,
-                         self._cost_fn, self.power, self.inv_scale_cost)
+            self._norm_y, (i * self._bs,), (self._bs,)
+        )
+      h_res, h_sgn = app(
+          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self._cost_fn,
+          self.power, self.inv_scale_cost
+      )
       return carry, (h_res, h_sgn)
 
     def body1(carry, i: int):
@@ -232,19 +240,26 @@ class PointCloud(geometry.Geometry):
         norm_x = self._norm_x
       else:
         norm_x = jax.lax.dynamic_slice(
-            self._norm_x, (i * self._bs,), (self._bs,))
-      h_res, h_sgn = app(self.y, x, self._norm_y, norm_x, g, f_, eps, vec,
-                         self._cost_fn, self.power, self.inv_scale_cost)
+            self._norm_x, (i * self._bs,), (self._bs,)
+        )
+      h_res, h_sgn = app(
+          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn,
+          self.power, self.inv_scale_cost
+      )
       return carry, (h_res, h_sgn)
 
     def finalize(i: int):
       if axis == 0:
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
-        return app(self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps,
-                   vec, self._cost_fn, self.power, self.inv_scale_cost)
+        return app(
+            self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec,
+            self._cost_fn, self.power, self.inv_scale_cost
+        )
       norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
-      return app(self.y, self.x[i:], self._norm_y, norm_x,
-                 g, f[i:], eps, vec, self._cost_fn, self.power, self.inv_scale_cost)
+      return app(
+          self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec,
+          self._cost_fn, self.power, self.inv_scale_cost
+      )
 
     if not self._online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
@@ -293,31 +308,47 @@ class PointCloud(geometry.Geometry):
         in_axes=[None, 0, None, self._axis_norm, None, None, None, None, None]
     )
     if axis == 0:
-      return app(self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
-                 self._cost_fn, self.power, self.inv_scale_cost)
+      return app(
+          self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
+          self._cost_fn, self.power, self.inv_scale_cost
+      )
     if axis == 1:
-      return app(self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
-                 self._cost_fn, self.power, self.inv_scale_cost)
+      return app(
+          self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
+          self._cost_fn, self.power, self.inv_scale_cost
+      )
 
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray
   ) -> jnp.ndarray:
     if not self._online:
       return super().transport_from_potentials(f, g)
-    transport = jax.vmap(_transport_from_potentials_xy, in_axes=[
-        None, 0, None, self._axis_norm, None, 0, None, None, None, None])
-    return transport(self.y, self.x, self._norm_y, self._norm_x, g, f,
-                     self.epsilon, self._cost_fn, self.power, self.inv_scale_cost)
+    transport = jax.vmap(
+        _transport_from_potentials_xy,
+        in_axes=[
+            None, 0, None, self._axis_norm, None, 0, None, None, None, None
+        ]
+    )
+    return transport(
+        self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon,
+        self._cost_fn, self.power, self.inv_scale_cost
+    )
 
   def transport_from_scalings(
       self, u: jnp.ndarray, v: jnp.ndarray
   ) -> jnp.ndarray:
     if not self._online:
       return super().transport_from_scalings(u, v)
-    transport = jax.vmap(_transport_from_scalings_xy, in_axes=[
-        None, 0, None, self._axis_norm, None, 0, None, None, None, None])
-    return transport(self.y, self.x, self._norm_y, self._norm_x, v, u,
-                     self.epsilon, self._cost_fn, self.power, self.inv_scale_cost)
+    transport = jax.vmap(
+        _transport_from_scalings_xy,
+        in_axes=[
+            None, 0, None, self._axis_norm, None, 0, None, None, None, None
+        ]
+    )
+    return transport(
+        self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon,
+        self._cost_fn, self.power, self.inv_scale_cost
+    )
 
   def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
@@ -359,11 +390,15 @@ class PointCloud(geometry.Geometry):
           ]
       )
       if axis == 0:
-        return app(self.x, self.y, self._norm_x, self._norm_y, arr,
-                   self._cost_fn, self.power, self.inv_scale_cost, fn)
+        return app(
+            self.x, self.y, self._norm_x, self._norm_y, arr, self._cost_fn,
+            self.power, self.inv_scale_cost, fn
+        )
       if axis == 1:
-        return app(self.y, self.x, self._norm_y, self._norm_x, arr,
-                   self._cost_fn, self.power, self.inv_scale_cost, fn)
+        return app(
+            self.y, self.x, self._norm_y, self._norm_x, arr, self._cost_fn,
+            self.power, self.inv_scale_cost, fn
+        )
     else:
       return super().apply_cost(arr, axis, fn)
 
@@ -399,8 +434,10 @@ class PointCloud(geometry.Geometry):
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
     cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
     applied_cost += cross_term[:, None] if rank == 1 else cross_term
-    return (fn(applied_cost) * self.inv_scale_cost if fn
-            else applied_cost * self.inv_scale_cost)
+    return (
+        fn(applied_cost) * self.inv_scale_cost if fn else applied_cost *
+        self.inv_scale_cost
+    )
 
   def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
     start_indices = [i * self._bs] + (t.ndim - 1) * [0]

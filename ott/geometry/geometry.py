@@ -175,8 +175,8 @@ class Geometry:
     ) if mat is not None else False
 
   @property
-  def inv_scale_cost(self):
-    """Computes the factor to scale the cost matrix."""
+  def inv_scale_cost(self) -> float:
+    """Compute the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
