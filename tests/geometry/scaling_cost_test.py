@@ -220,8 +220,6 @@ class ScaleCostTest(parameterized.TestCase):
 
     geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost='max_cost')
 
-    np.testing.assert_allclose(geom0.scale_cost, 1.0 / max_cost_lr, rtol=1e-4)
-
     np.testing.assert_allclose(
         geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4
     )

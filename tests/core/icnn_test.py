@@ -29,7 +29,7 @@ class ICNNTest(parameterized.TestCase):
     self.rng = jax.random.PRNGKey(0)
 
   @parameterized.parameters({'n_samples': 10, 'n_features': 2})
-  def test_icnn_convexity(self, n_samples, n_features, dim_hidden=[64, 64]):
+  def test_icnn_convexity(self, n_samples, n_features, dim_hidden=(64, 64)):
     """Tests convexity of ICNN."""
 
     # define icnn model
@@ -53,7 +53,7 @@ class ICNNTest(parameterized.TestCase):
     self.assertTrue((jnp.array(out) >= 0).all())
 
   @parameterized.parameters({'n_samples': 10})
-  def test_icnn_hessian(self, n_samples, dim_hidden=[64, 64]):
+  def test_icnn_hessian(self, n_samples, dim_hidden=(64, 64)):
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model

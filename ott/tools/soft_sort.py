@@ -85,7 +85,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
   """
   op_inner = functools.partial(op, **kwargs)
   axis = (axis,) if isinstance(axis, int) else axis
-  num_points = np.prod(np.array(inputs.shape)[tuple(axis)])
+  num_points = np.prod(np.array(inputs.shape)[(axis,)])
   permutation = np.arange(len(inputs.shape))
   axis = tuple(permutation[a] for a in axis)
   permutation = tuple(sorted(set(permutation) - set(axis)) + sorted(axis))

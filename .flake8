@@ -39,6 +39,8 @@ ignore =
     P101
     # indentation is not a multiple of 4
     E111, E114
+    # Missing blank line before section
+    D411
 exclude = .git,__pycache__,build,docs/_build,dist
 # C409: Unnecessary <dict/list/tuple> call - rewrite as a literal.
 per-file-ignores =
