@@ -51,7 +51,7 @@ class PointCloud(geometry.Geometry):
       Alternatively, a float factor can be given to rescale the cost such
       that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
     kwargs: other optional parameters to be passed on to superclass
-    initializer, notably those related to epsilon regularization.
+      initializer, notably those related to epsilon regularization.
   """
 
   def __init__(
@@ -61,8 +61,9 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
       online: Union[bool, int] = False,
-      # TODO(michalk8): use literal here
-      scale_cost: Optional[Union[bool, float, str]] = None,
+      scale_cost: Optional[Union[Literal['mean', 'max_norm', 'max_bound',
+                                         'max_cost', 'median'], bool,
+                                 float]] = None,
       **kwargs: Any,
   ):
     self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
@@ -450,7 +451,7 @@ class PointCloud(geometry.Geometry):
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
     Args:
-      summary: str, can be 'mean' or 'max_cost'
+      summary: can be 'mean' or 'max_cost'.
 
     Returns:
       summary statistics

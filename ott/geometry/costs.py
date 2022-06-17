@@ -15,7 +15,7 @@
 # Lint as: python3
 """Several cost/norm functions for relevant vector types."""
 import abc
-from typing import Any
+from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -36,7 +36,8 @@ class CostFn(abc.ABC):
   If the norm function is not implemented, that value is handled as a 0.
   """
 
-  norm = None  #  no norm function created by default.
+  # no norm function created by default.
+  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
@@ -85,7 +86,7 @@ class CostFn(abc.ABC):
 class Euclidean(CostFn):
   """Squared Euclidean distance CostFn."""
 
-  def norm(self, x: jnp.ndarray) -> float:
+  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     return jnp.sum(x ** 2, axis=-1)
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
@@ -121,7 +122,7 @@ class Bures(CostFn):
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> float:
+  def norm(self, x: jnp.ndarray) -> Union[jnp.ndarray, float]:
     norm = jnp.sum(x[..., 0:self._dimension] ** 2, axis=-1)
     x_mat = jnp.reshape(
         x[..., self._dimension:], (-1, self._dimension, self._dimension)
@@ -173,7 +174,7 @@ class UnbalancedBures(CostFn):
     self._sigma2 = sigma ** 2
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> float:
+  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     return self._gamma * x[0]
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:

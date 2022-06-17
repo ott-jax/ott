@@ -49,7 +49,6 @@ class Epsilon:
       init: Optional[float] = None,
       decay: Optional[float] = None
   ):
-
     self._target_init = .01 if target is None else target
     self._scale_epsilon = 1.0 if scale_epsilon is None else scale_epsilon
     self._init = 1.0 if init is None else init

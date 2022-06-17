@@ -79,7 +79,6 @@ class Grid(geometry.Geometry):
       grid_dimension: Optional[int] = None,
       **kwargs: Any,
   ):
-
     if (
         grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None

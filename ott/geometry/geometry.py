@@ -19,6 +19,7 @@ from typing import Any, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, ops
 
@@ -73,10 +74,10 @@ class Geometry:
       epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
       relative_epsilon: Optional[bool] = None,
       scale_epsilon: Optional[float] = None,
-      scale_cost: Optional[Union[bool, float, str]] = None,
+      scale_cost: Optional[Union[Literal['mean', 'max_cost', 'median'], bool,
+                                 float]] = None,
       **kwargs: Any,
   ):
-
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
     self._epsilon_init = epsilon

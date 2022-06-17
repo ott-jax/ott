@@ -18,6 +18,7 @@ from typing import Any, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.geometry import geometry
 
@@ -47,7 +48,8 @@ class LRCGeometry(geometry.Geometry):
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
       bias: float = 0.0,
-      scale_cost: Optional[Union[bool, float, str]] = None,
+      scale_cost: Optional[Union[Literal['mean', 'max_bound', 'max_cost'], bool,
+                                 float]] = None,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
