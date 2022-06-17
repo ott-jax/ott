@@ -38,6 +38,7 @@ from ott.geometry import geometry
 
 class Transport(NamedTuple):
   """Implement a core.problems.Transport interface to transport solutions."""
+
   problem: Any = None
   solver_output: Any = None
 

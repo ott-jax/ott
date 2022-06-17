@@ -40,6 +40,7 @@ class PositiveDense(nn.Module):
     kernel_init: initializer function for the weight matrix.
     bias_init: initializer function for the bias.
   """
+
   dim_hidden: int
   beta: float = 1.0
   use_bias: bool = True

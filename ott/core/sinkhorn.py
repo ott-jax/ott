@@ -30,6 +30,7 @@ from ott.geometry import geometry
 
 class SinkhornState(NamedTuple):
   """Holds the state variables used to solve OT with Sinkhorn."""
+
   errors: Optional[jnp.ndarray] = None
   fu: Optional[jnp.ndarray] = None
   gv: Optional[jnp.ndarray] = None

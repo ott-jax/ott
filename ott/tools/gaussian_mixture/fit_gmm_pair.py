@@ -92,6 +92,7 @@ LOG2 = math.log(2)
 
 class Observations(NamedTuple):
   """Weighted observations and their E-step assignment probabilities."""
+
   points: jnp.ndarray
   point_weights: jnp.ndarray
   assignment_probs: jnp.ndarray

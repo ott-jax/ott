@@ -37,6 +37,7 @@ class ImplicitDiff:
       at the moment, needs to be set manually by the user in the more favorable
       case where the system is guaranteed to be symmetric.
   """
+
   solver_fun: Callable = jax.scipy.sparse.linalg.cg  # pylint: disable=g-bare-generic
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0

@@ -21,6 +21,7 @@ import jax.numpy as jnp
 
 class FeaturesEncoder(nn.Module):
   """Encodes structured features."""
+
   input_dims: Tuple[int]
   embed_dim: int = 32
 
@@ -37,6 +38,7 @@ class FeaturesEncoder(nn.Module):
 
 class AdultModel(nn.Module):
   """A model to predict if the income is above 50k (adult dataset)."""
+
   encoder_cls: Any
   hidden: Tuple[int] = (64, 64)
 

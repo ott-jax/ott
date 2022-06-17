@@ -51,6 +51,7 @@ class GWOutput(NamedTuple):
     transport: The transport matrix.
     reg_gw_cost: Regularized optimal transport cost of the linearization.
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   convergence: bool = False
@@ -92,6 +93,7 @@ class GWState(NamedTuple):
     linear_pb: Local linearization of the quadratic GW problem.
     old_transport_mass: Intermediary value of the mass of the transport matrix.
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None

@@ -26,6 +26,7 @@ class Probabilities:
   The internal representation is a length n-1 unconstrained array. We convert
   to a length n simplex by appending a 0 and taking a softmax.
   """
+
   _params: jnp.ndarray
 
   def __init__(self, params):

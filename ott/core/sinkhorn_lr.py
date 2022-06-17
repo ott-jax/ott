@@ -26,6 +26,7 @@ from ott.geometry import geometry
 
 class LRSinkhornState(NamedTuple):
   """State of the Low Rank Sinkhorn algorithm."""
+
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
@@ -102,6 +103,7 @@ def solution_error(
 
 class LRSinkhornOutput(NamedTuple):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
+
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
@@ -264,7 +266,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                            Optional[jnp.ndarray]]] = None
   ) -> LRSinkhornOutput:
-    """Main interface to run LR sinkhorn."""
+    """Main interface to run LR sinkhorn."""  # noqa: D401
     init_q, init_r, init_g = (init if init is not None else (None, None, None))
     # Random initialization for q, r, g using rng_key
     rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 3)
@@ -314,14 +316,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
-    costs, i, tol = state.costs, iteration, self.threshold
-    return jnp.logical_not(jnp.isfinite(costs[i - 1]))
+    return jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
 
   def _continue(self, state: LRSinkhornState, iteration: int) -> bool:
-    """ continue while not(converged) and not(diverged)"""
-    costs, i, tol = state.costs, iteration, self.threshold
+    """Continue while not(converged) and not(diverged)."""
     return jnp.logical_or(
-        i <= 2,
+        iteration <= 2,
         jnp.logical_and(
             jnp.logical_not(self._diverged(state, iteration)),
             jnp.logical_not(self._converged(state, iteration))

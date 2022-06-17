@@ -46,6 +46,7 @@ class BarycenterOutput(NamedTuple):
     transports: final N transport objects mapping barycenter to input measures.
     reg_gw_cost: Total regularized optimal transport cost upon convergence
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   convergence: bool = False
@@ -75,6 +76,7 @@ class BarycenterState(NamedTuple):
     x: barycenter points.
     a: barycenter weights.
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
