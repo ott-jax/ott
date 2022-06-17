@@ -29,6 +29,7 @@ Sinkhorn
 
     sinkhorn.sinkhorn
     sinkhorn.Sinkhorn
+    sinkhorn.SinkhornOutput
 
 Low-Rank Sinkhorn
 -----------------
@@ -36,6 +37,7 @@ Low-Rank Sinkhorn
     :toctree: _autosummary
 
     sinkhorn_lr.LRSinkhorn
+    sinkhorn_lr.LRSinkhornOutput
 
 Barycenters (Entropic and LR)
 -----------------------------
@@ -50,6 +52,7 @@ Gromov-Wasserstein (Entropic and LR)
     :toctree: _autosummary
 
     gromov_wasserstein.gromov_wasserstein
+    gromov_wasserstein.GWOutput
 
 Neural Potentials
 -----------------

@@ -41,7 +41,6 @@ Geometries
     low_rank.LRCGeometry
     epsilon_scheduler.Epsilon
 
-
 Cost Functions
 --------------
 .. autosummary::
