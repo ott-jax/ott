@@ -33,7 +33,7 @@ def sqrtm(
     inner_iterations: int = 10,
     max_iterations: int = 1000,
     regularization: float = 1e-3
-):
+) -> jnp.ndarray:
   """Higham algorithm to compute matrix square root of p.d. matrix.
 
   See reference below, eq. 2.6.b
@@ -57,7 +57,7 @@ def sqrtm(
     norm_x = norm_x[..., jnp.newaxis, jnp.newaxis]
 
   def cond_fn(iteration, const, state):
-    """Stopping criterion. Checking decrease of objective is needed here."""
+    """Stopping criterion. Checking decrease of objective is needed here."""  # noqa: D401
     _, threshold = const
     errors, _, _ = state
     err = errors[iteration // inner_iterations - 1]

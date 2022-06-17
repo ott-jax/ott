@@ -99,7 +99,7 @@ class NeuralDualSolver:
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
   def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
-    """Setup all components required to train the `NeuralDual`."""
+    """Setup all components required to train the `NeuralDual`."""  # noqa: D401
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
@@ -151,7 +151,7 @@ class NeuralDualSolver:
       self, trainloader_source, trainloader_target, validloader_source,
       validloader_target
   ):
-    """Implementation of the training and validation script."""
+    """Implementation of the training and validation script."""  # noqa: D401
 
     # define dict to contain source and target batch
     batch_g = {}

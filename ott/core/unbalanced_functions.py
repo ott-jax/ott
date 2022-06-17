@@ -26,7 +26,7 @@ def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
 
 # TODO(cuturi): use jax.grad directly.
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Derivative of Legendre transform of phi_starKL, see phi_star."""
+  """Derivative of Legendre transform of phi_starKL, see phi_star."""  # noqa: D401
   return jnp.exp(f / rho)
 
 

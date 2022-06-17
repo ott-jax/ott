@@ -74,7 +74,7 @@ class GaussianMixturePair:
         rho = epsilon tau / (1 - tau)
       lock_gmm1: indicates whether the parameters of gmm1 should be modified
         during optimization
-    """
+    """  # noqa: D401
     self._gmm0 = gmm0
     self._gmm1 = gmm1
     self._epsilon = epsilon
@@ -169,7 +169,7 @@ class GaussianMixturePair:
 
     Returns:
       A tuple of child pytrees and a dict of auxiliary data.
-    """
+    """  # noqa: D401
     children = [self.gmm0]
     aux_data = {
         'epsilon': self.epsilon,
@@ -195,7 +195,7 @@ class GaussianMixturePair:
 
     Returns:
       A GaussianMixturePair.
-    """
+    """  # noqa: D401
     children = list(children)
     if 'gmm1' in aux_data:
       gmm1 = aux_data.pop('gmm1')

@@ -53,7 +53,7 @@ def fixpoint_iter(
 
   Returns:
     outputs state returned by body_fn upon termination.
-  """
+  """  # noqa: D401
   # If number of minimal iterations matches maximal number, force a scan instead
   # of a while loop.
 

@@ -75,7 +75,7 @@ def fairness_regularizer(
       for g in range(num_groups)
   ])
   weights = jnp.stack([jnp.sum(groups == g) for g in range(num_groups)]
-                     ) / groups.shape[0]
+                     ) / groups.shape[0]  # noqa: E124
   mean_quantile = jnp.sum(weights[:, None] * quantiles, axis=0)
   delta = jnp.where(
       quantiles, quantiles - mean_quantile, jnp.zeros_like(mean_quantile)

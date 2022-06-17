@@ -101,7 +101,7 @@ def solve(
 
   Returns:
     A Transport object.
-  """
+  """  # noqa: D401
   tau_a, tau_b = kwargs.get('tau_a', 1.0), kwargs.get('tau_b', 1.0)
   gw_unbalanced_correction = kwargs.pop('gw_unbalanced_correction', True)
   fused_penalty = kwargs.pop('fused_penalty', None)

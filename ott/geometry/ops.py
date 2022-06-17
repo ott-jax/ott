@@ -51,7 +51,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 
   Returns:
     original primal outputs + their tangent.
-  """
+  """  # noqa: D401
   mat, b = primals
   tan_mat, tan_b = tangents
   lse = logsumexp(mat, axis, keepdims, b, return_sign)

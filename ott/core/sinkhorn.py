@@ -346,7 +346,7 @@ class Sinkhorn:
       parallel_dual_updates: bool = False,
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
-                             ] = implicit_lib.ImplicitDiff(),
+                             ] = implicit_lib.ImplicitDiff(),  # noqa: E124
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -397,7 +397,7 @@ class Sinkhorn:
       ot_prob: problems.LinearProblem,
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
-    """Main interface to run sinkhorn."""
+    """Main interface to run sinkhorn."""  # noqa: D401
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
     a, b = ot_prob.a, ot_prob.b
     if init_dual_a is None:

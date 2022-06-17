@@ -96,7 +96,7 @@ class ScaleTriL:
 
   @property
   def params(self) -> jnp.ndarray:
-    """Internal representation."""
+    """Internal representation."""  # noqa: D401
     return self._params
 
   @property
@@ -106,7 +106,7 @@ class ScaleTriL:
 
   @property
   def dtype(self):
-    """Data type of the covariance matrix."""
+    """Data type of the covariance matrix."""  # noqa: D401
     return self._params.dtype
 
   def cholesky(self) -> jnp.ndarray:
