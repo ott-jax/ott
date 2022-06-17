@@ -89,6 +89,7 @@ class Geometry:
 
   @property
   def cost_rank(self) -> None:
+    """Output rank of cost matrix, if any was provided."""
     return None
 
   @property
@@ -120,7 +121,7 @@ class Geometry:
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    """Return the cost matrix. It is computed if only kernel was specified."""
+    """Cost matrix, recomputed from kernel if only kernel was specified."""
     if self._cost_matrix is None:
       # If no epsilon was passed on to the geometry, then assume it is one by
       # default.
@@ -131,10 +132,12 @@ class Geometry:
 
   @property
   def median_cost_matrix(self) -> float:
+    """Median of cost matrix."""
     return jnp.median(self.cost_matrix)
 
   @property
   def mean_cost_matrix(self) -> float:
+    """Mean of cost matrix."""
     if isinstance(self.shape[0], int) and (self.shape[0] > 0):
       return jnp.sum(self.apply_cost(jnp.ones((self.shape[0],)))) / (
           self.shape[0] * self.shape[1]
@@ -144,16 +147,19 @@ class Geometry:
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
+    """Kernel matrix, either provided by user or recomputed from cost."""
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
   def epsilon(self) -> float:
+    """Epsilon regularization value."""
     return self._epsilon.target
 
   @property
   def shape(self) -> Tuple[int, int]:
+    """Shape of cost or kernel matrix."""
     mat = (
         self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
     )
@@ -163,14 +169,17 @@ class Geometry:
 
   @property
   def is_squared_euclidean(self) -> bool:
+    """Whether cost is computed by taking squared-Eucl. distance of points."""
     return False
 
   @property
   def is_online(self) -> bool:
+    """Whether geometry cost/kernel should be recomputed on the fly."""
     return False
 
   @property
   def is_symmetric(self) -> bool:
+    """Whether geometry cost/kernel is a symmetric matrix."""
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
     return (
         mat.shape[0] == mat.shape[1] and jnp.all(mat == mat.T)
@@ -178,7 +187,7 @@ class Geometry:
 
   @property
   def inv_scale_cost(self) -> float:
-    """Compute the factor to scale the cost matrix."""
+    """Compute and return inverse of scaling factor for cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
@@ -477,16 +486,47 @@ class Geometry:
     return self._apply_transport_from_scalings(u, v, vec, axis)
 
   def potential_from_scaling(self, scaling: jnp.ndarray) -> jnp.ndarray:
+    """Compute dual potential vector from scaling vector.
+
+    Args:
+      scaling: vector.
+
+    Returns:
+      a vector of the same size.
+    """
     return self.epsilon * jnp.log(scaling)
 
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
+    """Compute scaling vector from dual potential.
+
+    Args:
+      scaling: vector.
+
+    Returns:
+      a vector of the same size.
+    """
     finite = jnp.isfinite(potential)
     return jnp.where(
         finite, jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)), 0.0
     )
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Apply elementwise-square of cost matrix to array (vector or matrix)."""
+    """Apply elementwise-square of cost matrix to array (vector or matrix).
+
+    This function applies the ground geometry's cost matrix, to perform either
+    output = C arr (if axis=1)
+    output = C' arr (if axis=0)
+    where C is [num_a, num_b], when the cost matrix itself is computed as a
+    squared-Euclidean distance between vectors, and therefore admits an
+    explicit low-rank factorization.
+
+    Args:
+      arr: array.
+      axis: axis of the array on which the cost matrix should be applied.
+
+    Returns:
+      An array, [num_b, p] if axis=0 or [num_a, p] if axis=1.
+    """
     fn = lambda x: x ** 2
     return self.apply_cost(arr, axis, fn)
 
@@ -505,7 +545,7 @@ class Geometry:
       fn: function to apply to cost matrix element-wise before the dot product
 
     Returns:
-      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
+      An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
       return jax.vmap(
@@ -524,6 +564,15 @@ class Geometry:
     )
 
   def rescale_cost_fn(self, factor: float) -> None:
+    """Rescale the cost or kernel matrix using a factor.
+
+    Args:
+      factor: used to multiply the cost matrix, or, alternatively, used to
+        exponentiate (using its inverse) the kernel matrix.
+
+    Returns:
+      Nothing.
+    """
     if self._cost_matrix is not None:
       self._cost_matrix *= factor
     if self._kernel_matrix is not None:
@@ -565,7 +614,7 @@ class Geometry:
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
         self._relative_epsilon, self._kwargs
@@ -574,7 +623,7 @@ class Geometry:
     }
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children[:-1], **children[-1], **aux_data)
 
 
