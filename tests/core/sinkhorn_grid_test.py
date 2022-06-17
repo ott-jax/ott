@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,15 +15,13 @@
 # Lint as: python3
 """Tests for Sinkhorn when applied on a grid."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
 
 from ott.core import sinkhorn
-from ott.geometry import grid
-from ott.geometry import pointcloud
+from ott.geometry import grid, pointcloud
 
 
 class SinkhornGridTest(parameterized.TestCase):
@@ -49,8 +46,8 @@ class SinkhornGridTest(parameterized.TestCase):
     threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
-        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode,
-        jit=False).errors
+        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode, jit=False
+    ).errors
     err = errors[jnp.isfinite(errors)][-1]
     self.assertGreater(threshold, err)
 
@@ -71,11 +68,13 @@ class SinkhornGridTest(parameterized.TestCase):
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
-    out_mat = sinkhorn.sinkhorn(geometry_mat, a=a, b=b, lse_mode=lse_mode,
-                                jit=False)
+    out_mat = sinkhorn.sinkhorn(
+        geometry_mat, a=a, b=b, lse_mode=lse_mode, jit=False
+    )
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     np.testing.assert_allclose(
-        out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1E-5, atol=1E-5)
+        out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1E-5, atol=1E-5
+    )
 
   @parameterized.parameters([True], [False])
   def test_apply_transport_grid(self, lse_mode):
@@ -98,28 +97,32 @@ class SinkhornGridTest(parameterized.TestCase):
 
     batch_a = 3
     batch_b = 4
-    vec_a = jax.random.normal(keys[4], [batch_a,
-                                        np.prod(np.array(grid_size))])
-    vec_b = jax.random.normal(keys[4], [batch_b,
-                                        np.prod(grid_size)])
+    vec_a = jax.random.normal(keys[4], [batch_a, np.prod(np.array(grid_size))])
+    vec_b = jax.random.normal(keys[4], [batch_b, np.prod(grid_size)])
 
     vec_a = vec_a / jnp.sum(vec_a, axis=1)[:, jnp.newaxis]
     vec_b = vec_b / jnp.sum(vec_b, axis=1)[:, jnp.newaxis]
 
     mat_transport_t_vec_a = geom_mat.apply_transport_from_potentials(
-        sink_mat.f, sink_mat.g, vec_a, axis=0)
+        sink_mat.f, sink_mat.g, vec_a, axis=0
+    )
     mat_transport_vec_b = geom_mat.apply_transport_from_potentials(
-        sink_mat.f, sink_mat.g, vec_b, axis=1)
+        sink_mat.f, sink_mat.g, vec_b, axis=1
+    )
 
     grid_transport_t_vec_a = geom_grid.apply_transport_from_potentials(
-        sink_grid.f, sink_grid.g, vec_a, axis=0)
+        sink_grid.f, sink_grid.g, vec_a, axis=0
+    )
     grid_transport_vec_b = geom_grid.apply_transport_from_potentials(
-        sink_grid.f, sink_grid.g, vec_b, axis=1)
+        sink_grid.f, sink_grid.g, vec_b, axis=1
+    )
 
     np.testing.assert_allclose(
-        mat_transport_t_vec_a, grid_transport_t_vec_a, rtol=1E-5, atol=1E-5)
+        mat_transport_t_vec_a, grid_transport_t_vec_a, rtol=1E-5, atol=1E-5
+    )
     np.testing.assert_allclose(
-        mat_transport_vec_b, grid_transport_vec_b, rtol=1E-5, atol=1E-5)
+        mat_transport_vec_b, grid_transport_vec_b, rtol=1E-5, atol=1E-5
+    )
     self.assertIsNot(jnp.any(jnp.isnan(mat_transport_t_vec_a)), True)
 
   def test_apply_cost(self):
@@ -139,13 +142,15 @@ class SinkhornGridTest(parameterized.TestCase):
         geom_mat.apply_cost(vec),
         geom_grid.apply_cost(vec),
         rtol=1e-4,
-        atol=1e-4)
+        atol=1e-4
+    )
 
     np.testing.assert_allclose(
         geom_grid.apply_cost(vec)[:, 0],
         np.dot(geom_mat.cost_matrix.T, vec),
         rtol=1e-4,
-        atol=1e-4)
+        atol=1e-4
+    )
 
 
 if __name__ == '__main__':

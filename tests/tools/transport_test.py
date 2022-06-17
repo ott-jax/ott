@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ott.tools.transport."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.core import problems
 from ott.geometry import pointcloud
 from ott.tools import transport
@@ -84,4 +82,3 @@ class TransportTest(absltest.TestCase):
 
 if __name__ == '__main__':
   absltest.main()
-

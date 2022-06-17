@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +16,12 @@
 """Tests for matrix square roots."""
 from typing import Callable
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
-from jax.config import config
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+from jax.config import config
+
 from ott.geometry import matrix_square_root
 
 
@@ -31,9 +30,7 @@ def _get_random_spd_matrix(dim: int, key: jnp.ndarray):
 
   key, subkey0, subkey1 = jax.random.split(key, num=3)
   # Step 1: generate a random orthogonal matrix
-  m = jax.random.normal(
-      key=subkey0,
-      shape=[dim, dim])
+  m = jax.random.normal(key=subkey0, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
@@ -44,9 +41,8 @@ def _get_random_spd_matrix(dim: int, key: jnp.ndarray):
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray],
-    dim: int,
-    key: jnp.ndarray) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, key: jnp.ndarray
+) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
   # difference approximations. We'll do so via a test function that
@@ -60,11 +56,13 @@ def _get_test_fn(
   dx = _get_random_spd_matrix(dim=dim, key=subkey2)
   unit = jax.random.normal(key=subkey3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
+
   def _test_fn(x: float) -> float:
     # m is the product of 2 symmetric, positive definite matrices
     # so it will be positive definite but not necessarily symmetric
     m = jnp.matmul(m0, m1 + x * dx)
     return jnp.sum(fn(m) * unit)
+
   return _test_fn
 
 
@@ -105,17 +103,21 @@ class MatrixSquareRootTest(parameterized.TestCase):
       threshold = 1e-4
 
       sqrt_x, inv_sqrt_x, errors = matrix_square_root.sqrtm(
-          x, min_iterations=self.dim, threshold=threshold)
+          x, min_iterations=self.dim, threshold=threshold
+      )
       err = errors[errors > -1][-1]
       self.assertGreater(threshold, err)
       np.testing.assert_allclose(
-          x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3)
+          x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3
+      )
       ids = jnp.eye(self.dim)
       if jnp.ndim(x) == 3:
         ids = ids[jnp.newaxis, :, :]
       np.testing.assert_allclose(
           jnp.zeros_like(x),
-          jnp.matmul(x, jnp.matmul(inv_sqrt_x, inv_sqrt_x)) - ids, atol=1e-2)
+          jnp.matmul(x, jnp.matmul(inv_sqrt_x, inv_sqrt_x)) - ids,
+          atol=1e-2
+      )
 
   def test_sqrtm_batch(self):
     """Check sqrtm on larger of matrices."""
@@ -124,10 +126,14 @@ class MatrixSquareRootTest(parameterized.TestCase):
     threshold = 1e-4
 
     m = jax.random.normal(
-        self.rng, (batch_dim0, batch_dim1, self.dim, 2 * self.dim))
+        self.rng, (batch_dim0, batch_dim1, self.dim, 2 * self.dim)
+    )
     x = jnp.matmul(m, jnp.swapaxes(m, axis1=-2, axis2=-1))
     sqrt_x, inv_sqrt_x, errors = matrix_square_root.sqrtm(
-        x, threshold=threshold, min_iterations=self.dim,)
+        x,
+        threshold=threshold,
+        min_iterations=self.dim,
+    )
 
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
@@ -139,26 +145,32 @@ class MatrixSquareRootTest(parameterized.TestCase):
             x[i, j],
             jnp.matmul(sqrt_x[i, j], sqrt_x[i, j]),
             rtol=1e-3,
-            atol=1e-3)
+            atol=1e-3
+        )
         np.testing.assert_allclose(
             eye,
             jnp.matmul(x[i, j], jnp.matmul(inv_sqrt_x[i, j], inv_sqrt_x[i, j])),
-            atol=1e-2)
+            atol=1e-2
+        )
 
   def test_solve_bartels_stewart(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[0], b=self.b[0], c=self.c[0])
+        a=self.a[0], b=self.b[0], c=self.c[0]
+    )
     np.testing.assert_allclose(self.x[0], x, atol=1.e-5)
 
   def test_solve_bartels_stewart_batch(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a, b=self.b, c=self.c)
+        a=self.a, b=self.b, c=self.c
+    )
     np.testing.assert_allclose(self.x, x, atol=1.e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[None], b=self.b[None], c=self.c[None])
+        a=self.a[None], b=self.b[None], c=self.c[None]
+    )
     np.testing.assert_allclose(self.x, x[0], atol=1.e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[None, None], b=self.b[None, None], c=self.c[None, None])
+        a=self.a[None, None], b=self.b[None, None], c=self.c[None, None]
+    )
     np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
 
   @parameterized.named_parameters(
@@ -207,7 +219,7 @@ class MatrixSquareRootTest(parameterized.TestCase):
           atol=1.e-8,
           rtol=1.e-8,
       ),
-      )
+  )
   def test_grad(self, fn, n_tests, dim, epsilon, atol, rtol):
     config.update('jax_enable_x64', True)
     key = self.rng
@@ -217,6 +229,7 @@ class MatrixSquareRootTest(parameterized.TestCase):
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
       actual = jax.grad(test_fn)(0.)
       np.testing.assert_allclose(expected, actual, atol=atol, rtol=rtol)
+
 
 if __name__ == '__main__':
   absltest.main()

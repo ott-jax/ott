@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,14 +15,13 @@
 # Lint as: python3
 """Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.core import sinkhorn
-from ott.geometry import geometry
-from ott.geometry import pointcloud
+from ott.geometry import geometry, pointcloud
 
 
 class SinkhornJacobianTest(parameterized.TestCase):
@@ -51,8 +49,8 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     def reg_ot(a, b):
       return sinkhorn.sinkhorn(
-          pointcloud.PointCloud(x, y, epsilon=0.1),
-          a=a, b=b, lse_mode=lse_mode).reg_ot_cost
+          pointcloud.PointCloud(x, y, epsilon=0.1), a=a, b=b, lse_mode=lse_mode
+      ).reg_ot_cost
 
     reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
     _, grad_reg_ot = reg_ot_and_grad(a, b)
@@ -67,7 +65,8 @@ class SinkhornJacobianTest(parameterized.TestCase):
     np.testing.assert_allclose(
         delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
         rtol=1e-03,
-        atol=1e-02)
+        atol=1e-02
+    )
 
   @parameterized.parameters([True, (7, 9)], [False, (11, 5)])
   def test_gradient_sinkhorn_geometry(self, lse_mode, shape_data):
@@ -107,9 +106,11 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+    )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+    )
     self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
   @parameterized.named_parameters(
@@ -117,36 +118,45 @@ class SinkhornJacobianTest(parameterized.TestCase):
           testcase_name='lse-implicit',
           lse_mode=True,
           implicit_differentiation=True,
-          epsilon=0.001),
+          epsilon=0.001
+      ),
       dict(
           testcase_name='lse-implicit-force_scan',
           lse_mode=True,
           implicit_differentiation=True,
           epsilon=0.001,
           min_iterations=1000,
-          max_iterations=1000),
+          max_iterations=1000
+      ),
       dict(
           testcase_name='lse-backprop-force_scan',
           lse_mode=True,
           implicit_differentiation=False,
           epsilon=0.01,
           min_iterations=1000,
-          max_iterations=1000),
+          max_iterations=1000
+      ),
       dict(
           testcase_name='lse-backprop',
           lse_mode=True,
           implicit_differentiation=False,
-          epsilon=0.01),
+          epsilon=0.01
+      ),
       dict(
           testcase_name='scal-implicit',
           lse_mode=False,
           implicit_differentiation=True,
-          epsilon=0.01))
-  def test_gradient_sinkhorn_euclidean(self, lse_mode,
-                                       implicit_differentiation, epsilon,
-                                       min_iterations=0,
-                                       max_iterations=2000
-                                       ):
+          epsilon=0.01
+      )
+  )
+  def test_gradient_sinkhorn_euclidean(
+      self,
+      lse_mode,
+      implicit_differentiation,
+      epsilon,
+      min_iterations=0,
+      max_iterations=2000
+  ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3
@@ -166,9 +176,13 @@ class SinkhornJacobianTest(parameterized.TestCase):
     def loss_fn(x, y):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       out = sinkhorn.sinkhorn(
-          geom, a, b, lse_mode=lse_mode,
+          geom,
+          a,
+          b,
+          lse_mode=lse_mode,
           implicit_differentiation=implicit_differentiation,
-          jit=False)
+          jit=False
+      )
       return out.reg_ot_cost, (geom, out.f, out.g)
 
     delta = jax.random.normal(keys[0], (n, d))
@@ -195,9 +209,11 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+    )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02)
+        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+    )
     self.assertIsNot(jnp.any(jnp.isnan(custom_grad)), True)
 
   def test_autoepsilon_differentiability(self):
@@ -219,6 +235,7 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     gradient = jax.grad(reg_ot_cost)(cost)
     self.assertFalse(jnp.any(jnp.isnan(gradient)))
+
 
 if __name__ == '__main__':
   absltest.main()

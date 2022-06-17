@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,31 +17,32 @@
 
 import collections
 import functools
-from typing import Sequence
+from typing import Optional, Sequence
 
 import jax
 import jax.numpy as jnp
 
-from ott.core import fixed_point_loop
-from ott.core import sinkhorn
+from ott.core import fixed_point_loop, sinkhorn
 from ott.geometry import geometry
 
-
 SinkhornBarycenterOutput = collections.namedtuple(
-    'Barycenter', ['f', 'g', 'histogram', 'errors'])
+    'Barycenter', ['f', 'g', 'histogram', 'errors']
+)
 
 
-def discrete_barycenter(geom: geometry.Geometry,
-                        a: jnp.ndarray,
-                        weights: jnp.ndarray = None,
-                        dual_initialization: jnp.ndarray = None,
-                        threshold: float = 1e-2,
-                        norm_error: int = 1,
-                        inner_iterations: float = 10,
-                        min_iterations: int = 0,
-                        max_iterations: int = 2000,
-                        lse_mode: bool = True,
-                        debiased: bool = False) -> SinkhornBarycenterOutput:
+def discrete_barycenter(
+    geom: geometry.Geometry,
+    a: jnp.ndarray,
+    weights: Optional[jnp.ndarray] = None,
+    dual_initialization: Optional[jnp.ndarray] = None,
+    threshold: float = 1e-2,
+    norm_error: int = 1,
+    inner_iterations: float = 10,
+    min_iterations: int = 0,
+    max_iterations: int = 2000,
+    lse_mode: bool = True,
+    debiased: bool = False
+) -> SinkhornBarycenterOutput:
   """Compute discrete barycenter using https://arxiv.org/abs/2006.02575.
 
   Args:
@@ -77,32 +77,27 @@ def discrete_barycenter(geom: geometry.Geometry,
   if dual_initialization is None:
     # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
     dual_initialization = geom.apply_cost(a.T, axis=0).T
-    dual_initialization -= jnp.average(dual_initialization,
-                                       weights=weights,
-                                       axis=0)[jnp.newaxis, :]
+    dual_initialization -= jnp.average(
+        dual_initialization, weights=weights, axis=0
+    )[jnp.newaxis, :]
 
   if debiased and not geom.is_symmetric:
     raise ValueError('Geometry must be symmetric to use debiased option.')
   norm_error = (norm_error,)
-  return _discrete_barycenter(geom, a, weights, dual_initialization, threshold,
-                              norm_error, inner_iterations, min_iterations,
-                              max_iterations, lse_mode, debiased, num_a, num_b)
+  return _discrete_barycenter(
+      geom, a, weights, dual_initialization, threshold, norm_error,
+      inner_iterations, min_iterations, max_iterations, lse_mode, debiased,
+      num_a, num_b
+  )
 
 
 @functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12))
-def _discrete_barycenter(geom: geometry.Geometry,
-                         a: jnp.ndarray,
-                         weights: jnp.ndarray,
-                         dual_initialization: jnp.ndarray,
-                         threshold: float,
-                         norm_error: Sequence[int],
-                         inner_iterations: int,
-                         min_iterations: int,
-                         max_iterations: int,
-                         lse_mode: bool,
-                         debiased: bool,
-                         num_a: int,
-                         num_b: int) -> SinkhornBarycenterOutput:
+def _discrete_barycenter(
+    geom: geometry.Geometry, a: jnp.ndarray, weights: jnp.ndarray,
+    dual_initialization: jnp.ndarray, threshold: float,
+    norm_error: Sequence[int], inner_iterations: int, min_iterations: int,
+    max_iterations: int, lse_mode: bool, debiased: bool, num_a: int, num_b: int
+) -> SinkhornBarycenterOutput:
   """Jit'able function to compute discrete barycenters."""
   if lse_mode:
     f_u = jnp.zeros_like(a)
@@ -117,20 +112,24 @@ def _discrete_barycenter(geom: geometry.Geometry,
 
   if lse_mode:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iter: geom.update_potential(
-            f, g, jnp.log(marginal), axis=1),
-        in_axes=[0, 0, 0, None])
+        lambda f, g, marginal, iter: geom.
+        update_potential(f, g, jnp.log(marginal), axis=1),
+        in_axes=[0, 0, 0, None]
+    )
     parallel_apply = jax.vmap(
-        lambda f_, g_, eps_: geom.apply_lse_kernel(
-            f_, g_, eps_, vec=None, axis=0)[0],
-        in_axes=[0, 0, None])
+        lambda f_, g_, eps_: geom.
+        apply_lse_kernel(f_, g_, eps_, vec=None, axis=0)[0],
+        in_axes=[0, 0, None]
+    )
   else:
     parallel_update = jax.vmap(
         lambda f, g, marginal, iter: geom.update_scaling(g, marginal, axis=1),
-        in_axes=[0, 0, 0, None])
+        in_axes=[0, 0, 0, None]
+    )
     parallel_apply = jax.vmap(
         lambda f_, g_, eps_: geom.apply_kernel(f_, eps_, axis=0),
-        in_axes=[0, 0, None])
+        in_axes=[0, 0, None]
+    )
 
   errors_fn = jax.vmap(
       functools.partial(
@@ -138,18 +137,20 @@ def _discrete_barycenter(geom: geometry.Geometry,
           geom=geom,
           axis=1,
           norm_error=norm_error,
-          lse_mode=lse_mode),
-      in_axes=[0, 0, 0])
+          lse_mode=lse_mode
+      ),
+      in_axes=[0, 0, 0]
+  )
 
-  errors = - jnp.ones(
-      (max_iterations // inner_iterations + 1, len(norm_error)))
+  errors = -jnp.ones((max_iterations // inner_iterations + 1, len(norm_error)))
 
   const = (geom, a, weights)
+
   def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
     errors = state[0]
     return jnp.logical_or(
-        iteration == 0,
-        errors[iteration // inner_iterations - 1, 0] > threshold)
+        iteration == 0, errors[iteration // inner_iterations - 1, 0] > threshold
+    )
 
   def body_fn(iteration, const, state, compute_error):
     geom, a, weights = const
@@ -171,16 +172,13 @@ def _discrete_barycenter(geom: geometry.Geometry,
       if lse_mode:
         b += d
         d = 0.5 * (
-            d +
-            geom.update_potential(jnp.zeros((num_a,)), d,
-                                  b / eps,
-                                  iteration=iteration, axis=0))
+            d + geom.update_potential(
+                jnp.zeros((num_a,)), d, b / eps, iteration=iteration, axis=0
+            )
+        )
       else:
         b *= d
-        d = jnp.sqrt(
-            d *
-            geom.update_scaling(d, b,
-                                iteration=iteration, axis=0))
+        d = jnp.sqrt(d * geom.update_scaling(d, b, iteration=iteration, axis=0))
     if lse_mode:
       g_v = b[jnp.newaxis, :] - kernel_f_u
     else:
@@ -189,19 +187,18 @@ def _discrete_barycenter(geom: geometry.Geometry,
     # re-compute error if compute_error is True, else set to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= min_iterations),
-        jnp.mean(errors_fn(f_u, g_v, a)),
-        jnp.inf)
+        jnp.mean(errors_fn(f_u, g_v, a)), jnp.inf
+    )
 
     errors = errors.at[iteration // inner_iterations, :].set(err)
     return errors, d, f_u, g_v
 
   state = (errors, d, f_u, g_v)
 
-  state = fixed_point_loop.fixpoint_iter_backprop(cond_fn, body_fn,
-                                                  min_iterations,
-                                                  max_iterations,
-                                                  inner_iterations, const,
-                                                  state)
+  state = fixed_point_loop.fixpoint_iter_backprop(
+      cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
+      state
+  )
 
   errors, d, f_u, g_v = state
   kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)

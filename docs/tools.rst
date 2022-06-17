@@ -1,6 +1,5 @@
 ott.tools package
 =================
-
 .. currentmodule:: ott.tools
 .. automodule:: ott.tools
 
@@ -12,23 +11,21 @@ provide differentiable approximations to ranks and quantile functions [#]_, etc.
 Optimal Transport
 -----------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     transport.Transport
-
 
 Sinkhorn Divergence
 -------------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     sinkhorn_divergence.sinkhorn_divergence
-
 
 Soft Sorting algorithms
 -----------------------
 .. autosummary::
-  :toctree: _autosummary
+    :toctree: _autosummary
 
     soft_sort.quantile
     soft_sort.quantile_normalization
@@ -39,6 +36,5 @@ Soft Sorting algorithms
 
 References
 ----------
-
 .. [#] T. Séjourné et al., `Sinkhorn Divergences for Unbalanced Optimal Transport <https://arxiv.org/abs/1910.12958>`_, arXiv:1910.12958.
 .. [#] M. Cuturi et al. `Differentiable Ranking and Sorting using Optimal Transport <https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html>`_, NeurIPS'19.

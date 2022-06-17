@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,23 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """OTT core libraries: the engines behind most computations happening in OTT."""
 
 # pytype: disable=import-error  # kwargs-checking
-from . import anderson
-from . import dataclasses
-from . import problems
-from . import quad_problems
-from . import bar_problems
-from . import discrete_barycenter
-from . import continuous_barycenter
-from . import gromov_wasserstein
-from . import implicit_differentiation
-from . import momentum
-from . import sinkhorn
-from . import sinkhorn_lr
-#from . import neuraldual
+from . import (
+    anderson,
+    bar_problems,
+    continuous_barycenter,
+    dataclasses,
+    discrete_barycenter,
+    gromov_wasserstein,
+    implicit_differentiation,
+    momentum,
+    problems,
+    quad_problems,
+    sinkhorn,
+    sinkhorn_lr,
+)
+
+# from . import neuraldual
 from .implicit_differentiation import ImplicitDiff
 from .problems import LinearProblem
 from .sinkhorn import Sinkhorn

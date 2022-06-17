@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,14 +15,13 @@
 # Lint as: python3
 """Tests for the Bures cost between Gaussian distributions."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.core import sinkhorn
-from ott.geometry import costs
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 
 
 class SinkhornTest(parameterized.TestCase):
@@ -45,32 +43,33 @@ class SinkhornTest(parameterized.TestCase):
     m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
     m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
 
-    self.x = jnp.concatenate((m_x.reshape(
-        (self.n, -1)), sig_x.reshape((self.n, -1))),
-                             axis=1)
-    self.y = jnp.concatenate((m_y.reshape(
-        (self.m, -1)), sig_y.reshape((self.m, -1))),
-                             axis=1)
+    self.x = jnp.concatenate(
+        (m_x.reshape((self.n, -1)), sig_x.reshape((self.n, -1))), axis=1
+    )
+    self.y = jnp.concatenate(
+        (m_y.reshape((self.m, -1)), sig_y.reshape((self.m, -1))), axis=1
+    )
     a = jax.random.uniform(self.rngs[4], (self.n,)) + .1
     b = jax.random.uniform(self.rngs[5], (self.m,)) + .1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
   @parameterized.named_parameters(
-      dict(testcase_name='ker-batch', lse_mode=False, online=False))
+      dict(testcase_name='ker-batch', lse_mode=False, online=False)
+  )
   def test_bures_point_cloud(self, lse_mode, online):
     """Two point clouds of Gaussians, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(
-        self.x, self.y,
+        self.x,
+        self.y,
         cost_fn=costs.Bures(dimension=self.dim, regularization=1e-4),
         online=online,
-        epsilon=self.eps)
+        epsilon=self.eps
+    )
     errors = sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
-        lse_mode=lse_mode).errors
+        geom, a=self.a, b=self.b, lse_mode=lse_mode
+    ).errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
 

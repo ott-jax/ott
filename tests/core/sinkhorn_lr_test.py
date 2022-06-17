@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,17 +14,17 @@
 
 # Lint as: python3
 """Tests Sinkhorn Low-Rank solver with various initializations."""
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.core import problems
-from ott.core import sinkhorn_lr
+from absl.testing import absltest, parameterized
+
+from ott.core import problems, sinkhorn_lr
 from ott.geometry import pointcloud
 
 
 class SinkhornLRTest(parameterized.TestCase):
+
   def setUp(self):
     super().setUp()
     self.rng = jax.random.PRNGKey(0)
@@ -45,11 +44,11 @@ class SinkhornLRTest(parameterized.TestCase):
     self.b = b / jnp.sum(b)
 
   @parameterized.product(
-      use_lrcgeom=[True, False],
-      init_type=  ["rank_2", "random"])
+      use_lrcgeom=[True, False], init_type=["rank_2", "random"]
+  )
   def test_euclidean_point_cloud(self, use_lrcgeom, init_type):
     """Two point clouds, tested with 2 different initializations."""
-    threshold = 1e-6  
+    threshold = 1e-6
     geom = pointcloud.PointCloud(self.x, self.y)
     # This test to check LR can work both with LRCGeometries and regular ones
     if use_lrcgeom:
@@ -58,28 +57,28 @@ class SinkhornLRTest(parameterized.TestCase):
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
-      threshold=threshold,
-      rank=10,
-      epsilon=0.0,
-      init_type=init_type,
+        threshold=threshold,
+        rank=10,
+        epsilon=0.0,
+        init_type=init_type,
     )
     solved = solver(ot_prob)
     costs = solved.costs
-    costs= costs[ costs > -1]
-    
+    costs = costs[costs > -1]
+
     # Check convergence
     self.assertTrue(solved.converged)
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
-    
+
     # Store cost value.
     cost_1 = costs[-1]
 
     # Try with higher rank
     solver = sinkhorn_lr.LRSinkhorn(
-      threshold=threshold,
-      rank=14,
-      epsilon=0.0,
-      init_type=init_type,
+        threshold=threshold,
+        rank=14,
+        epsilon=0.0,
+        init_type=init_type,
     )
     out = solver(ot_prob)
     costs = out.costs
@@ -96,10 +95,10 @@ class SinkhornLRTest(parameterized.TestCase):
     # (Note that for small entropy regularizers, this can be the opposite
     # due to non-convexity of problem and benefit of adding regularizer.
     solver = sinkhorn_lr.LRSinkhorn(
-      threshold=threshold,
-      rank=14,
-      epsilon=1e-1,
-      init_type=init_type,
+        threshold=threshold,
+        rank=14,
+        epsilon=1e-1,
+        init_type=init_type,
     )
     out = solver(ot_prob)
     costs = out.costs
@@ -115,9 +114,9 @@ class SinkhornLRTest(parameterized.TestCase):
     geom = pointcloud.PointCloud(self.x, self.y)
     ot_prob = problems.LinearProblem(geom, self.a, self.b)
     solver = sinkhorn_lr.LRSinkhorn(
-      threshold=threshold,
-      rank=10,
-      epsilon=0.0,
+        threshold=threshold,
+        rank=10,
+        epsilon=0.0,
     )
     out = solver(ot_prob)
 
@@ -126,7 +125,9 @@ class SinkhornLRTest(parameterized.TestCase):
 
     self.assertEqual(gt.shape, (geom.shape[1 - axis],))
     self.assertEqual(pred.shape, (n_stack, geom.shape[1 - axis]))
-    np.testing.assert_allclose(pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
+    )
 
 
 if __name__ == '__main__':

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,30 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Runs the training of the network on CIFAR10."""
 
 from typing import Sequence
 
-from absl import app
-from absl import flags
-from absl import logging
-from clu import platform
 import jax
+from absl import app, flags, logging
+from clu import platform
 from ml_collections import config_flags
-from ott.examples.fairness import train
 
+from ott.examples.fairness import train
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('workdir',
-                    '/tmp/soft_error/',
-                    'Directory to store model data.')
+flags.DEFINE_string(
+    'workdir', '/tmp/soft_error/', 'Directory to store model data.'
+)
 config_flags.DEFINE_config_file(
     'config',
     None,
     'File path to the training hyperparameter configuration.',
-    lock_config=True)
+    lock_config=True
+)
 flags.DEFINE_integer('seed', 0, 'Random seed')
 FLAGS = flags.FLAGS
 
@@ -50,9 +47,11 @@ def main(argv: Sequence[str]) -> None:
   # Add a note so that we can tell which task is which JAX host.
   # (Depending on the platform task 0 is not guaranteed to be host 0)
   platform.work_unit().set_task_status(
-      f'host_id: {jax.host_id()}, host_count: {jax.host_count()}')
-  platform.work_unit().create_artifact(platform.ArtifactType.DIRECTORY,
-                                       FLAGS.workdir, 'workdir')
+      f'host_id: {jax.host_id()}, host_count: {jax.host_count()}'
+  )
+  platform.work_unit().create_artifact(
+      platform.ArtifactType.DIRECTORY, FLAGS.workdir, 'workdir'
+  )
 
   train.train_and_evaluate(FLAGS.workdir, FLAGS.config, FLAGS.seed)
 

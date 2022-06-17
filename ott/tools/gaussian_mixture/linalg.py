@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Linear algebra utility methods for optimal transport of Gaussian mixtures."""
 
 from typing import Callable, Iterable, List, Optional, Tuple
@@ -24,29 +22,32 @@ import jax.numpy as jnp
 def get_mean_and_var(
     points: jnp.ndarray,  # (n, d)
     weights: jnp.ndarray,  # (n,)
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and variance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1)  # (1,)
   mean = (
       # matmul((1, n), (n, d)) -> (1, d)
-      jnp.matmul(weights, points) / weights_sum)
+      jnp.matmul(weights, points) / weights_sum
+  )
   # center points
   centered = points - mean[None, :]  # (n, d) - (1, d)
   var = (
       # matmul((1, n), (n, d)) -> (1, d)
-      jnp.matmul(weights, centered ** 2.) / weights_sum)
+      jnp.matmul(weights, centered ** 2.) / weights_sum
+  )
   return mean, var
 
 
 def get_mean_and_cov(
     points: jnp.ndarray,  # (n, d)
     weights: jnp.ndarray,  # (n,)
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and covariance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1, keepdims=True)  # (1,)
   mean = (
       # matmul((1, n), (n, d)) -> (1, d)
-      jnp.matmul(weights, points) / weights_sum)
+      jnp.matmul(weights, points) / weights_sum
+  )
   # center points
   centered = points - mean[None, :]  # (n, d) - (1, d)
   cov = (
@@ -54,8 +55,9 @@ def get_mean_and_cov(
           # (1, n)           (d, n)
           weights[None, :] * jnp.swapaxes(centered, axis1=-2, axis2=-1),
           # (n, d)
-          centered) /
-      weights_sum)
+          centered
+      ) / weights_sum
+  )
   return mean, cov
 
 
@@ -91,8 +93,7 @@ def tril_to_flat(m: jnp.ndarray) -> jnp.ndarray:
 
 
 def apply_to_diag(
-    m: jnp.ndarray,
-    fn: Callable[[jnp.ndarray], jnp.ndarray]
+    m: jnp.ndarray, fn: Callable[[jnp.ndarray], jnp.ndarray]
 ) -> jnp.ndarray:
   """Apply a function to the diagonal of a matrix."""
   size = m.shape[-1]
@@ -115,9 +116,7 @@ def matrix_powers(
 
 
 def invmatvectril(
-    m: jnp.ndarray,
-    x: jnp.ndarray,
-    lower: bool = True
+    m: jnp.ndarray, x: jnp.ndarray, lower: bool = True
 ) -> jnp.ndarray:
   """Multiply x by the inverse of a triangular matrix.
 
@@ -130,8 +129,8 @@ def invmatvectril(
     m^{-1} x
   """
   return jnp.transpose(
-      jax.scipy.linalg.solve_triangular(
-          m, jnp.transpose(x), lower=lower))
+      jax.scipy.linalg.solve_triangular(m, jnp.transpose(x), lower=lower)
+  )
 
 
 def get_random_orthogonal(
@@ -140,9 +139,6 @@ def get_random_orthogonal(
     dtype: Optional[jnp.dtype] = None
 ) -> jnp.ndarray:
   """Get a random orthogonal matrix with the specified dimension."""
-  m = jax.random.normal(
-      key=key,
-      shape=[dim, dim],
-      dtype=dtype)
+  m = jax.random.normal(key=key, shape=[dim, dim], dtype=dtype)
   q, _ = jnp.linalg.qr(m)
   return q

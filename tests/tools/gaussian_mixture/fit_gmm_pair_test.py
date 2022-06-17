@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,31 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for fit_gmm_pair."""
-
-from absl.testing import absltest
-from absl.testing import parameterized
 
 import jax
 import jax.numpy as jnp
+from absl.testing import absltest, parameterized
 
-from ott.tools.gaussian_mixture import fit_gmm
-from ott.tools.gaussian_mixture import fit_gmm_pair
-from ott.tools.gaussian_mixture import gaussian_mixture
-from ott.tools.gaussian_mixture import gaussian_mixture_pair
-from ott.tools.gaussian_mixture import probabilities
+from ott.tools.gaussian_mixture import (
+    fit_gmm,
+    fit_gmm_pair,
+    gaussian_mixture,
+    gaussian_mixture_pair,
+)
 
 
 class FitGmmPairTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
-    mean_generator0 = jnp.array([[2., -1.],
-                                 [-2., 0.],
-                                 [4., 3.]])
-    cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]],
-                                [[0.6, 0.], [0., 0.3]],
+    mean_generator0 = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
+    cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                 [[0.5, 0.4], [0.4, 0.5]]])
     weights_generator0 = jnp.array([0.3, 0.3, 0.4])
 
@@ -44,11 +38,12 @@ class FitGmmPairTest(parameterized.TestCase):
         gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
             mean=mean_generator0,
             cov=cov_generator0,
-            component_weights=weights_generator0))
+            component_weights=weights_generator0
+        )
+    )
 
     # shift the means to the right by varying amounts
-    mean_generator1 = mean_generator0 + jnp.array([[1., -0.5],
-                                                   [-1., -1.],
+    mean_generator1 = mean_generator0 + jnp.array([[1., -0.5], [-1., -1.],
                                                    [-1., 0.]])
     cov_generator1 = cov_generator0
     weights_generator1 = weights_generator0 + jnp.array([0., 0.1, -0.1])
@@ -57,7 +52,9 @@ class FitGmmPairTest(parameterized.TestCase):
         gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
             mean=mean_generator1,
             cov=cov_generator1,
-            component_weights=weights_generator1))
+            component_weights=weights_generator1
+        )
+    )
 
     self.epsilon = 1.e-2
     self.rho = 0.1
@@ -68,11 +65,10 @@ class FitGmmPairTest(parameterized.TestCase):
     self.samples_gmm0 = gmm_generator0.sample(key=subkey0, size=2000)
     self.samples_gmm1 = gmm_generator1.sample(key=subkey1, size=2000)
 
-  @parameterized.named_parameters(
-      ('balanced_unweighted', True, False),
-      ('balanced_weighted', True, True),
-      ('unbalanced_unweighted', False, False),
-      ('unbalanced_weighted', False, True))
+  @parameterized.named_parameters(('balanced_unweighted', True, False),
+                                  ('balanced_weighted', True, True),
+                                  ('unbalanced_unweighted', False, False),
+                                  ('unbalanced_weighted', False, True))
   def test_fit_gmm(self, balanced, weighted):
     # dumb integration test that makes sure nothing crashes
     if balanced:
@@ -96,26 +92,29 @@ class FitGmmPairTest(parameterized.TestCase):
         points=samples,
         point_weights=weights_pooled,
         n_components=3,
-        verbose=False)
+        verbose=False
+    )
     gmm = fit_gmm.fit_model_em(
-        gmm=gmm_init,
-        points=samples,
-        point_weights=None,
-        steps=20)
+        gmm=gmm_init, points=samples, point_weights=None, steps=20
+    )
     # use the same mixture model for gmm0 and gmm1 initially
     pair_init = gaussian_mixture_pair.GaussianMixturePair(
-        gmm0=gmm, gmm1=gmm, epsilon=self.epsilon, tau=tau)
+        gmm0=gmm, gmm1=gmm, epsilon=self.epsilon, tau=tau
+    )
     fit_model_em_fn = fit_gmm_pair.get_fit_model_em_fn(
-        weight_transport=0.1,
-        jit=True)
-    fit_model_em_fn(pair=pair_init,
-                    points0=self.samples_gmm0,
-                    points1=self.samples_gmm1,
-                    point_weights0=weights0,
-                    point_weights1=weights1,
-                    em_steps=1,
-                    m_steps=10,
-                    verbose=False)
+        weight_transport=0.1, jit=True
+    )
+    fit_model_em_fn(
+        pair=pair_init,
+        points0=self.samples_gmm0,
+        points1=self.samples_gmm1,
+        point_weights0=weights0,
+        point_weights1=weights1,
+        em_steps=1,
+        m_steps=10,
+        verbose=False
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

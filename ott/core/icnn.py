@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,11 @@
 # Lint as: python3
 """Implementation of Amos+(2017) input convex neural networks (ICNN)."""
 
+from typing import Any, Callable, Sequence, Tuple
+
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from typing import Any, Callable, Sequence, Tuple
 
 PRNGKey = Any
 Shape = Tuple[int]
@@ -40,18 +40,19 @@ class PositiveDense(nn.Module):
     kernel_init: initializer function for the weight matrix.
     bias_init: initializer function for the bias.
   """
+
   dim_hidden: int
   beta: float = 1.0
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[
-    [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+  kernel_init: Callable[[PRNGKey, Shape, Dtype],
+                        Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
   def __call__(self, inputs):
-    """Applies a linear transformation to inputs along the last dimension.
+    """Apply a linear transformation to inputs along the last dimension.
 
     Args:
       inputs: The nd-array to be transformed.
@@ -60,13 +61,15 @@ class PositiveDense(nn.Module):
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-      'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
+        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+    )
     scaled_kernel = self.beta * kernel
-    kernel = jnp.asarray(
-      1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
+    kernel = jnp.asarray(1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
     y = jax.lax.dot_general(
-      inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-      precision=self.precision)
+        inputs,
+        kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
+        precision=self.precision
+    )
     if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
@@ -96,7 +99,7 @@ class ICNN(nn.Module):
   def setup(self):
     num_hidden = len(self.dim_hidden)
 
-    w_zs = list()
+    w_zs = []
 
     if self.pos_weights:
       Dense = PositiveDense
@@ -104,25 +107,35 @@ class ICNN(nn.Module):
       Dense = nn.Dense
 
     for i in range(1, num_hidden):
-      w_zs.append(Dense(
-        self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
-        use_bias=False))
-    w_zs.append(Dense(
-      1, kernel_init=self.init_fn(self.init_std), use_bias=False))
+      w_zs.append(
+          Dense(
+              self.dim_hidden[i],
+              kernel_init=self.init_fn(self.init_std),
+              use_bias=False
+          )
+      )
+    w_zs.append(
+        Dense(1, kernel_init=self.init_fn(self.init_std), use_bias=False)
+    )
     self.w_zs = w_zs
 
-    w_xs = list()
+    w_xs = []
     for i in range(num_hidden):
-      w_xs.append(nn.Dense(
-        self.dim_hidden[i], kernel_init=self.init_fn(self.init_std),
-        use_bias=True))
-    w_xs.append(nn.Dense(
-      1, kernel_init=self.init_fn(self.init_std), use_bias=True))
+      w_xs.append(
+          nn.Dense(
+              self.dim_hidden[i],
+              kernel_init=self.init_fn(self.init_std),
+              use_bias=True
+          )
+      )
+    w_xs.append(
+        nn.Dense(1, kernel_init=self.init_fn(self.init_std), use_bias=True)
+    )
     self.w_xs = w_xs
 
   @nn.compact
   def __call__(self, x):
-    """Applies ICNN module.
+    """Apply ICNN module.
 
     Args:
       x: jnp.ndarray<float>[batch_size, n_features]: input to the ICNN.

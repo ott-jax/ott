@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,26 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for google3.experimental.users.geoffd.contour.clustering.ot.parameters.scale_tril_params."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.geometry import matrix_square_root
 from ott.tools.gaussian_mixture import scale_tril
 
 
-def get_w2_dist(scale0: scale_tril.ScaleTriL,
-                scale1: scale_tril.ScaleTriL) -> jnp.ndarray:
+def get_w2_dist(
+    scale0: scale_tril.ScaleTriL, scale1: scale_tril.ScaleTriL
+) -> jnp.ndarray:
   """Get Wasserstein distance W_2^2 to another Gaussian with same mean."""
   sigma0 = scale0.covariance()
   sigma1 = scale1.covariance()
   sqrt0 = scale0.covariance_sqrt()
   m = matrix_square_root.sqrtm_only(
-      jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0)))
+      jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
+  )
   return jnp.trace(sigma0 + sigma1 - 2. * m, axis1=-2, axis2=-1)
 
 
@@ -49,7 +49,8 @@ class ScaleTriLTest(absltest.TestCase):
 
   def test_cholesky(self):
     np.testing.assert_allclose(
-        self.m_chol, self.chol.cholesky(), atol=1e-4, rtol=1e-4)
+        self.m_chol, self.chol.cholesky(), atol=1e-4, rtol=1e-4
+    )
 
   def test_covariance(self):
     np.testing.assert_allclose(self.m_cov, self.chol.covariance())
@@ -67,13 +68,15 @@ class ScaleTriLTest(absltest.TestCase):
   def test_from_random(self):
     n_dimensions = 4
     cov = scale_tril.ScaleTriL.from_random(
-        key=self.key, n_dimensions=n_dimensions, stdev=0.1)
+        key=self.key, n_dimensions=n_dimensions, stdev=0.1
+    )
     self.assertEqual(cov.cholesky().shape, (n_dimensions, n_dimensions))
 
   def test_from_cholesky(self):
     n_dimensions = 4
     cholesky = scale_tril.ScaleTriL.from_random(
-        key=self.key, n_dimensions=n_dimensions, stdev=1.).cholesky()
+        key=self.key, n_dimensions=n_dimensions, stdev=1.
+    ).cholesky()
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
     np.testing.assert_allclose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
 
@@ -95,7 +98,7 @@ class ScaleTriLTest(absltest.TestCase):
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
-    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1))**2.)
+    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
     np.testing.assert_allclose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
   def test_transport(self):
@@ -123,6 +126,7 @@ class ScaleTriLTest(absltest.TestCase):
     scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
     scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
     np.testing.assert_allclose(2. * scale.params, scale_x_2.params)
+
 
 if __name__ == '__main__':
   absltest.main()
