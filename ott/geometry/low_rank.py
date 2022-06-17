@@ -58,20 +58,20 @@ class LRCGeometry(geometry.Geometry):
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
-    self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._scale_cost = 'mean' if scale_cost is True else scale_cost
     self.batch_size = batch_size
 
   @property
-  def cost_1(self) -> jnp.ndarray:
-    return self._cost_1 * jnp.sqrt(self.scale_cost)
+  def cost_1(self):
+    return self._cost_1 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def cost_2(self) -> jnp.ndarray:
-    return self._cost_2 * jnp.sqrt(self.scale_cost)
+  def cost_2(self):
+    return self._cost_2 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def bias(self) -> float:
-    return self._bias * self.scale_cost
+  def bias(self):
+    return self._bias * self.inv_scale_cost
 
   @property
   def cost_rank(self) -> int:
@@ -94,24 +94,22 @@ class LRCGeometry(geometry.Geometry):
     )
 
   @property
-  def scale_cost(self) -> float:
+  def inv_scale_cost(self):
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
-      return jax.lax.stop_gradient(1.0 / (max_bound + self._bias))
+      return 1.0 / (max_bound + self._bias)
     elif self._scale_cost == 'mean':
       factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
       factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
-      mean = (
-          jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1]) +
-          self._bias
-      )
-      return jax.lax.stop_gradient(1.0 / mean)
+      mean = (jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1])
+              + self._bias)
+      return 1.0 / mean
     elif self._scale_cost == 'max_cost':
-      return jax.lax.stop_gradient(1.0 / self.compute_max_cost())
+      return 1.0 / self.compute_max_cost()
     elif isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not provided.')
     else:

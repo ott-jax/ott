@@ -123,9 +123,9 @@ class Geometry:
       # If no epsilon was passed on to the geometry, then assume it is one by
       # default.
       cost = -jnp.log(self._kernel_matrix)
-      cost *= self.scale_cost
+      cost *= self.inv_scale_cost
       return cost if self._epsilon_init is None else self.epsilon * cost
-    return self._cost_matrix * self.scale_cost
+    return self._cost_matrix * self.inv_scale_cost
 
   @property
   def median_cost_matrix(self) -> float:
@@ -143,9 +143,8 @@ class Geometry:
   @property
   def kernel_matrix(self) -> jnp.ndarray:
     if self._kernel_matrix is None:
-      return jnp.exp(-(self._cost_matrix /
-                       self.epsilon)) ** (1.0 / self.scale_cost)
-    return self._kernel_matrix
+      return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
+    return self._kernel_matrix ** self.inv_scale_cost
 
   @property
   def epsilon(self) -> float:
@@ -176,16 +175,16 @@ class Geometry:
     ) if mat is not None else False
 
   @property
-  def scale_cost(self) -> jnp.ndarray:
-    """Compute the factor to scale the cost matrix."""
+  def inv_scale_cost(self):
+    """Computes the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     elif self._scale_cost == 'max_cost':
-      return jax.lax.stop_gradient(1.0 / jnp.max(self._cost_matrix))
+      return 1.0 / jnp.max(self._cost_matrix)
     elif self._scale_cost == 'mean':
-      return jax.lax.stop_gradient(1.0 / jnp.mean(self._cost_matrix))
+      return 1.0 / jnp.mean(self._cost_matrix)
     elif self._scale_cost == 'median':
-      return jax.lax.stop_gradient(1.0 / jnp.median(self._cost_matrix))
+      return 1.0 / jnp.median(self._cost_matrix)
     elif isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     else:
