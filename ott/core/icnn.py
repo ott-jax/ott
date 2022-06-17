@@ -99,7 +99,7 @@ class ICNN(nn.Module):
   def setup(self):
     num_hidden = len(self.dim_hidden)
 
-    w_zs = list()
+    w_zs = []
 
     if self.pos_weights:
       Dense = PositiveDense
@@ -119,7 +119,7 @@ class ICNN(nn.Module):
     )
     self.w_zs = w_zs
 
-    w_xs = list()
+    w_xs = []
     for i in range(num_hidden):
       w_xs.append(
           nn.Dense(

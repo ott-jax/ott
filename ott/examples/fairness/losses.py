@@ -40,7 +40,7 @@ def compute_metrics(logits, labels):
 def sort_group(
     inputs: jnp.ndarray, in_group: jnp.ndarray, quantization: int,
     epsilon: float
-):
+) -> jnp.ndarray:
   """Sorts and quantizes only the member of the given group.
 
   Args:
@@ -56,9 +56,7 @@ def sort_group(
   """
   a = in_group / jnp.sum(in_group)
   b = jnp.ones(quantization) / quantization
-  ot = ott.tools.soft_sort.transport_for_sort(
-      inputs, a, b, dict(epsilon=epsilon)
-  )
+  ot = ott.tools.soft_sort.transport_for_sort(inputs, a, b, epsilon=epsilon)
   return 1.0 / b * ot.apply(inputs, axis=0)
 
 
