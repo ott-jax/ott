@@ -275,7 +275,7 @@ class QuadraticProblem:
 
     Returns:
       The cost term.
-    """  # noqa: RST201, RST203, RST301
+    """
 
     def regulariser(tau: float) -> float:
       return tau / (1.0 - tau) if tau != 1.0 else 0
