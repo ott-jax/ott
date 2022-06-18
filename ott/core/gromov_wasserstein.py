@@ -330,7 +330,7 @@ def gromov_wasserstein(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
-    fused_penalty: Optional[float] = None,
+    fused_penalty: float = 1.0,
     scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
@@ -350,8 +350,8 @@ def gromov_wasserstein(
     geom_yy: a second Geometry object for the second view.
     geom_xy: a Geometry object representing the linear cost in FGW.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-      i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
-      None fused_penalty will be ignored, i.e. fused_penalty = 0.
+      i.e. loss = quadratic_loss + fused_penalty * linear_loss.
+      Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
 
       - if `True`, use the default for each geometry.

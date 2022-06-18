@@ -82,9 +82,8 @@ class QuadraticProblem:
       for Fused Gromov Wasserstein. If None, the problem reduces to a plain
       Gromov Wasserstein problem.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-      i.e. problem = purely quadratic + fused_penalty * linear problem. If
-      fused_penalty is None but geom_xy is passed, fused_penalty is set by
-      default to 1.0, equal to 0.0 otherwise.
+      i.e. problem = purely quadratic + fused_penalty * linear problem.
+      Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
 
       - if `True`, use the default for each geometry.
@@ -119,7 +118,7 @@ class QuadraticProblem:
       geom_xx: geometry.Geometry,
       geom_yy: geometry.Geometry,
       geom_xy: Optional[geometry.Geometry] = None,
-      fused_penalty: Optional[float] = None,
+      fused_penalty: float = 1.0,
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
@@ -128,14 +127,12 @@ class QuadraticProblem:
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: Optional[bool] = True
   ):
-
+    assert fused_penalty > 0, fused_penalty
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
     self.geom_yy = geom_yy._set_scale_cost(scale_cost)
     self.geom_xy = (
         None if geom_xy is None else geom_xy._set_scale_cost(scale_cost)
     )
-    if fused_penalty is None:
-      fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
     self.scale_cost = scale_cost
     self._a = a
@@ -152,14 +149,14 @@ class QuadraticProblem:
 
   @property
   def is_fused(self) -> bool:
-    return self.geom_xy is not None and self.fused_penalty > 0.0
+    return self.geom_xy is not None
 
   @property
   def is_all_geoms_lr(self) -> bool:
     return (
         isinstance(self.geom_xx, low_rank.LRCGeometry) and
         isinstance(self.geom_yy, low_rank.LRCGeometry) and
-        (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry))
+        isinstance(self.geom_xy, (low_rank.LRCGeometry, type(None)))
     )
 
   @property
@@ -380,10 +377,7 @@ class QuadraticProblem:
       transport_mass = marginal_1.sum()
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
-    cost_matrix += self.fused_penalty * jnp.where(
-        self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-    )
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return problems.LinearProblem(
@@ -433,10 +427,7 @@ class QuadraticProblem:
         geom = low_rank.add_lrc_geom(geom, self.geom_xy)
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
-      cost_matrix += self.fused_penalty * jnp.where(
-          self.is_fused,
-          0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-      )
+      cost_matrix += self.fused_penalty * self._fused_cost_matrix
       geom = geometry.Geometry(cost_matrix=cost_matrix)
     return geom
 
@@ -488,12 +479,7 @@ class QuadraticProblem:
     tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-
-    cost_matrix += self.fused_penalty * jnp.where(
-        self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-    )
-
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix
     cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
@@ -512,6 +498,16 @@ class QuadraticProblem:
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
+
+  @property
+  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+    if not self.is_fused:
+      return 0
+    if isinstance(
+        self.geom_xy, pointcloud.PointCloud
+    ) and self.geom_xy.is_online:
+      return self.geom_xy.compute_cost_matrix() * self.geom_xy.inv_scale_cost
+    return self.geom_xy.cost_matrix
 
 
 def update_epsilon_unbalanced(epsilon, transport_mass):
