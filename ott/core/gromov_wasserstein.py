@@ -330,7 +330,7 @@ def gromov_wasserstein(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
-    fused_penalty: Optional[float] = None,
+    fused_penalty: float = 1.0,
     scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,

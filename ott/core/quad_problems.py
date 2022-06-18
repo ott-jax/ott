@@ -379,10 +379,7 @@ class QuadraticProblem:
       transport_mass = marginal_1.sum()
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
-    cost_matrix += self.fused_penalty * jnp.where(
-        self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-    )
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return problems.LinearProblem(
@@ -432,10 +429,7 @@ class QuadraticProblem:
         geom = low_rank.add_lrc_geom(geom, self.geom_xy)
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
-      cost_matrix += self.fused_penalty * jnp.where(
-          self.is_fused,
-          0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-      )
+      cost_matrix += self.fused_penalty * self._fused_cost_matrix
       geom = geometry.Geometry(cost_matrix=cost_matrix)
     return geom
 
@@ -487,12 +481,7 @@ class QuadraticProblem:
     tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-
-    cost_matrix += self.fused_penalty * jnp.where(
-        self.is_fused,
-        0.0 if self.geom_xy is None else self.geom_xy.cost_matrix, 0.0
-    )
-
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix
     cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
@@ -511,6 +500,16 @@ class QuadraticProblem:
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
+
+  @property
+  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+    if not self.is_fused:
+      return 0
+    if isinstance(
+        self.geom_xy, pointcloud.PointCloud
+    ) and self.geom_xy.is_online:
+      return self.geom_xy.compute_cost_matrix() * self.geom_xy.inv_scale_cost
+    return self.geom_xy.cost_matrix
 
 
 def update_epsilon_unbalanced(epsilon, transport_mass):
