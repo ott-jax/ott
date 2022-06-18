@@ -373,10 +373,10 @@ class PointCloud(geometry.Geometry):
     if fn is None:
       return self._apply_cost(arr, axis, fn=fn)
     # Switch to efficient computation for the squared euclidean case.
-    return jnp.where(
+    return jax.lax.cond(
         jnp.logical_and(self.is_squared_euclidean, geometry.is_affine(fn)),
-        self.vec_apply_cost(arr, axis, fn=fn),
-        self._apply_cost(arr, axis, fn=fn)
+        lambda: self.vec_apply_cost(arr, axis, fn=fn),
+        lambda: self._apply_cost(arr, axis, fn=fn)
     )
 
   def _apply_cost(
@@ -390,6 +390,8 @@ class PointCloud(geometry.Geometry):
               None, 0, None, self._axis_norm, None, None, None, None, None
           ]
       )
+      if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
       if axis == 0:
         return app(
             self.x, self.y, self._norm_x, self._norm_y, arr, self._cost_fn,

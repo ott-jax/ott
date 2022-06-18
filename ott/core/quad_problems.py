@@ -82,7 +82,8 @@ class QuadraticProblem:
       for Fused Gromov Wasserstein. If None, the problem reduces to a plain
       Gromov Wasserstein problem.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-      i.e. problem = purely quadratic + fused_penalty * linear problem. If
+      i.e. problem = purely quadratic + fused_penalty * linear problem.
+      TODO: Ir
       fused_penalty is None but geom_xy is passed, fused_penalty is set by
       default to 1.0, equal to 0.0 otherwise.
     scale_cost: option to rescale the cost matrices:
@@ -119,7 +120,7 @@ class QuadraticProblem:
       geom_xx: geometry.Geometry,
       geom_yy: geometry.Geometry,
       geom_xy: Optional[geometry.Geometry] = None,
-      fused_penalty: Optional[float] = None,
+      fused_penalty: float = 1.0,
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
@@ -128,14 +129,12 @@ class QuadraticProblem:
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: Optional[bool] = True
   ):
-
+    assert fused_penalty > 0, fused_penalty
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
     self.geom_yy = geom_yy._set_scale_cost(scale_cost)
     self.geom_xy = (
         None if geom_xy is None else geom_xy._set_scale_cost(scale_cost)
     )
-    if fused_penalty is None:
-      fused_penalty = jnp.where(self.geom_xy is None, 0.0, 1.0)
     self.fused_penalty = fused_penalty
     self.scale_cost = scale_cost
     self._a = a
@@ -152,14 +151,14 @@ class QuadraticProblem:
 
   @property
   def is_fused(self) -> bool:
-    return self.geom_xy is not None and self.fused_penalty > 0.0
+    return self.geom_xy is not None
 
   @property
   def is_all_geoms_lr(self) -> bool:
     return (
         isinstance(self.geom_xx, low_rank.LRCGeometry) and
         isinstance(self.geom_yy, low_rank.LRCGeometry) and
-        (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry))
+        isinstance(self.geom_xy, (low_rank.LRCGeometry, type(None)))
     )
 
   @property
