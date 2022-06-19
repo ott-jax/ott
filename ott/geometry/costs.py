@@ -20,6 +20,7 @@ import functools
 import jax
 import jax.numpy as jnp
 from ott.geometry import matrix_square_root
+from ott.core import fixed_point_loop
 
 
 @jax.tree_util.register_pytree_node_class
@@ -144,49 +145,51 @@ class Bures(CostFn):
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-  def scale_component(self, S, S_i, lambda_i):
-    root_Si = matrix_square_root.sqrtm_only(S_i)
-    return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul(root_Si, S), root_Si))
-
+  def scale_covariances(self, cov, cov_i, lambda_i):
+    """Uses simplified fixed point iteration (as proposed in https://arxiv.org/pdf/1710.07876.pdf) of Esteban et al (https://arxiv.org/pdf/1511.05355.pdf) for the computation of the covariance of the barycenter."""
+    covi_sqrt = matrix_square_root.sqrtm_only(cov_i)
+    return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (covi_sqrt, cov), covi_sqrt))
 
   def scaled_mse(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
-  
-  def covariance_fixed_point_loop(self, 
-    S: jnp.ndarray,
-    Sigs: jnp.ndarray,
+
+  def covariance_fixpoint_iter(self, 
+    covs: jnp.ndarray,
     lambdas: jnp.ndarray,
-    max_iter: int = 100,
-    threshold: float = 1e-2,
-) -> jnp.ndarray:
+    threshold: float = 1e-2):
 
-    i = 0
-    diff = jnp.sum(S**2)
-    state = (S, i, diff)
+    def cond_fn(iteration, constants, state):
+      _ , diff = state
+      return diff > jnp.array(threshold)
 
-    def cond_fn(state):
-        S, i, diff = state
-        return (i < jnp.array(max_iter)) & (diff > jnp.array(threshold))
+    def body_fn(iteration, constants, state, compute_error):
+      del compute_error
+      cov, _ = state
+      next_cov = jnp.sum(self.scale_covariances(cov, covs, lambdas), axis=0)
+      diff = self.scaled_mse(next_cov, cov)
+      return next_cov, diff
 
-    def body_fn(state):
-        S, i, _ = state
-        next_S = jnp.sum(self.scale_component(S, Sigs, lambdas), axis=0)
-        diff = self.scaled_mse(next_S, S)
-        return next_S, i + 1, diff
+    def init_state():
+      cov_init = jnp.eye(self._dimension)
+      diff = jnp.sum(cov_init**2)
+      return (cov_init, diff)
 
-    final_S, num_iter, _ = jax.lax.while_loop(
-        cond_fun=cond_fn, body_fun=body_fn, init_val=state
-    )
-
-    return final_S
+    state = fixed_point_loop.fixpoint_iter(
+      cond_fn=cond_fn,
+      body_fn=body_fn,
+      min_iterations=10,
+      max_iterations=500,
+      inner_iterations=1,
+      constants=(),
+      state=init_state())
+    return state
 
   def barycenter(self, weights, xs):
     mus = xs[:, 0:self._dimension]
-    Sigmas = jnp.reshape(xs[:, self._dimension:], (-1, self._dimension, self._dimension))
-    S_init = jnp.eye(self._dimension)
+    covs = jnp.reshape(xs[:, self._dimension:], (-1, self._dimension, self._dimension))
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
-    S_bary = self.covariance_fixed_point_loop(S=S_init, Sigs=Sigmas, lambdas=weights)
-    return jnp.concatenate((mu_bary, jnp.reshape(S_bary, (self._dimension * self._dimension))))
+    cov_bary, _ = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
+    return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
