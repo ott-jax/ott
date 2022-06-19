@@ -22,6 +22,8 @@ import jax.numpy as jnp
 from ott.geometry import matrix_square_root
 from ott.core import fixed_point_loop
 
+from my_scripts_notebooks.gauss_mixture_utils import gauss_mixture_pointcloud_to_mean_and_cov
+
 
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
@@ -146,7 +148,7 @@ class Bures(CostFn):
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
   def scale_covariances(self, cov, cov_i, lambda_i):
-    """Uses simplified fixed point iteration (as proposed in https://arxiv.org/pdf/1710.07876.pdf) of Esteban et al (https://arxiv.org/pdf/1511.05355.pdf) for the computation of the covariance of the barycenter."""
+    """Uses scaling of covariances as in the simplified fixed point iteration (see https://arxiv.org/pdf/1710.07876.pdf) of Esteban et al (https://arxiv.org/pdf/1511.05355.pdf) for the computation of the covariance of the barycenter."""
     covi_sqrt = matrix_square_root.sqrtm_only(cov_i)
     return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (covi_sqrt, cov), covi_sqrt))
 
@@ -171,7 +173,7 @@ class Bures(CostFn):
 
     def init_state():
       cov_init = jnp.eye(self._dimension)
-      diff = jnp.sum(cov_init**2)
+      diff = jnp.inf 
       return (cov_init, diff)
 
     state = fixed_point_loop.fixpoint_iter(
@@ -185,8 +187,8 @@ class Bures(CostFn):
     return state
 
   def barycenter(self, weights, xs):
-    mus = xs[:, 0:self._dimension]
-    covs = jnp.reshape(xs[:, self._dimension:], (-1, self._dimension, self._dimension))
+    num_components = weights.shape[0]
+    mus, covs = gauss_mixture_pointcloud_to_mean_and_cov(xs, self._dimension, num_components)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary, _ = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
     return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
