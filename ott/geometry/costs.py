@@ -147,10 +147,8 @@ class Bures(CostFn):
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-  def scale_covariances(self, cov, cov_i, lambda_i):
-    """Uses scaling of covariances as in the simplified fixed point iteration (see https://arxiv.org/pdf/1710.07876.pdf) of Esteban et al (https://arxiv.org/pdf/1511.05355.pdf) for the computation of the covariance of the barycenter."""
-    covi_sqrt = matrix_square_root.sqrtm_only(cov_i)
-    return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (covi_sqrt, cov), covi_sqrt))
+  def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
+    return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (cov_sqrt, cov_i), cov_sqrt))
 
   def scaled_mse(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
@@ -167,7 +165,10 @@ class Bures(CostFn):
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
       cov, _ = state
-      next_cov = jnp.sum(self.scale_covariances(cov, covs, lambdas), axis=0)
+      cov_sqrt = matrix_square_root.sqrtm_only(cov)
+      scaled_cov = jnp.linalg.matrix_power(jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2)
+      cov_sqrt_minus = jnp.linalg.matrix_power(cov_sqrt, -1)
+      next_cov = jnp.matmul(jnp.matmul(cov_sqrt_minus, scaled_cov), cov_sqrt_minus)
       diff = self.scaled_mse(next_cov, cov)
       return next_cov, diff
 
