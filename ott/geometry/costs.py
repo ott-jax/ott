@@ -195,7 +195,7 @@ class Bures(CostFn):
     return cov
 
   def barycenter(self, weights, xs):
-    """Implements fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
+    """Implements the fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
     num_components = weights.shape[0]
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
