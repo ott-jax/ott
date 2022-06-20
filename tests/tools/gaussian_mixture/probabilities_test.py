@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for probabilities."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.tools.gaussian_mixture import probabilities
 
 
@@ -44,7 +42,8 @@ class ProbabilitiesTest(absltest.TestCase):
     n_dimensions = 4
     key = jax.random.PRNGKey(0)
     pp = probabilities.Probabilities.from_random(
-        key=key, n_dimensions=n_dimensions, stdev=0.1)
+        key=key, n_dimensions=n_dimensions, stdev=0.1
+    )
     self.assertEqual(pp.probs().shape, (4,))
 
   def test_from_probs(self):
@@ -73,6 +72,7 @@ class ProbabilitiesTest(absltest.TestCase):
     pp = probabilities.Probabilities.from_probs(probs)
     pp_x_2 = jax.tree_map(lambda x: 2 * x, pp)
     np.testing.assert_allclose(2. * pp.params, pp_x_2.params)
+
 
 if __name__ == '__main__':
   absltest.main()

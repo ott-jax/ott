@@ -6,3 +6,5 @@ matplotlib>=2.0.1
 flax>=0.3.6
 optax>=0.1.1
 tqdm>=4.63.0
+typing_extensions
+PyYAML>=6.0  # https://github.com/google/flax/issues/2190

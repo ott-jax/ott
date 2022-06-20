@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Loads the adult dataset data."""
 
 import os
@@ -21,17 +19,17 @@ import jax
 import numpy as np
 import pandas as pd
 
-
-
 open_fn = open
 
 
-def load_df(data_path: str,
-            info_path: str,
-            protected: str,
-            strip_target: bool = True,
-            **kwargs):
-  """Loads a pandas dataframe from two filenames."""
+def load_df(
+    data_path: str,
+    info_path: str,
+    protected: str,
+    strip_target: bool = True,
+    **kwargs
+):
+  """Load a pandas dataframe from two filenames."""
   with open_fn(data_path, 'r') as fp:
     df = pd.read_csv(fp, skipinitialspace=True, header=None, **kwargs)
 
@@ -66,10 +64,11 @@ def load_df(data_path: str,
 
 
 def categoricals_to_onehots(df):
-  """Turns string features into onehot vectors."""
+  """Turn string features into onehot vectors."""
   categoricals = {
       k: df[k].unique().tolist()
-      for k in df.columns if not pd.api.types.is_numeric_dtype(df[k])
+      for k in df.columns
+      if not pd.api.types.is_numeric_dtype(df[k])
   }
 
   def onehots(row):
@@ -87,8 +86,10 @@ def categoricals_to_onehots(df):
 def whiten(df, reference_df=None, target='target'):
   """Make the numerical data have zero means and unit variance."""
   df_ref = df if reference_df is None else reference_df
-  cols = [k for k in df.columns
-          if pd.api.types.is_numeric_dtype(df[k]) and k != target]
+  cols = [
+      k for k in df.columns
+      if pd.api.types.is_numeric_dtype(df[k]) and k != target
+  ]
   df_num = df[cols].astype(np.float32)
   df_ref = df_ref[cols].astype(np.float32)
   return (df_num - df_ref.mean()) / df_ref.std()
@@ -102,14 +103,15 @@ def get_dims(data):
 
 
 def load_train_test(config):
-  """Loads the training data, the test data and the dimensions of the input."""
+  """Load the training data, the test data and the dimensions of the input."""
   train_path = os.path.join(config.folder, config.training_filename)
   test_path = os.path.join(config.folder, config.test_filename)
   info_path = os.path.join(config.folder, config.info_filename)
 
   train_df = load_df(train_path, info_path, config.protected, strip_target=True)
   test_df = load_df(
-      test_path, info_path, config.protected, strip_target=False, skiprows=1)
+      test_path, info_path, config.protected, strip_target=False, skiprows=1
+  )
 
   result = []
   for df, ref_df in zip((train_df, test_df), (None, train_df)):
@@ -119,8 +121,8 @@ def load_train_test(config):
     num_df = whiten(df, reference_df=ref_df, target='target')
     cat_df = categoricals_to_onehots(df)
     x = pd.concat([num_df, cat_df], axis=1).to_records(index=False)
-    y_true = pd.concat(
-        [protected_df, target_df], axis=1).to_records(index=False)
+    y_true = pd.concat([protected_df, target_df],
+                       axis=1).to_records(index=False)
     result.append((x, y_true))
 
   dims = [x[0][name].shape for name in result[0][0].dtype.names]
@@ -129,7 +131,7 @@ def load_train_test(config):
 
 
 def flatten(record):
-  """Turns the record array into a flat numpy array."""
+  """Turn the record array into a flat numpy array."""
   result = [np.stack(record[name]) for name in record.dtype.names]
   result = [e[:, np.newaxis] if len(e.shape) == 1 else e for e in result]
   return np.concatenate(result, axis=1)

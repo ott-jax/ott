@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,10 @@
 # Lint as: python3
 """Tests Anderson acceleration for sinkhorn."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+from absl.testing import absltest, parameterized
+
 from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
@@ -37,9 +36,10 @@ class SinkhornAndersonTest(parameterized.TestCase):
       tau_b=[1.0, .985],
       shape=[(237, 153)],
       refresh_anderson_frequency=[1, 3]
-      )
-  def test_anderson(self, lse_mode, tau_a,
-                    tau_b, shape, refresh_anderson_frequency):
+  )
+  def test_anderson(
+      self, lse_mode, tau_a, tau_b, shape, refresh_anderson_frequency
+  ):
     """Test efficiency of Anderson acceleration.
 
     Args:
@@ -82,7 +82,8 @@ class SinkhornAndersonTest(parameterized.TestCase):
           lse_mode=lse_mode,
           threshold=threshold,
           anderson_acceleration=anderson_acceleration,
-          refresh_anderson_frequency=refresh_anderson_frequency)
+          refresh_anderson_frequency=refresh_anderson_frequency
+      )
       errors = out.errors
       clean_errors = errors[errors > -1]
       # Check convergence
@@ -93,6 +94,7 @@ class SinkhornAndersonTest(parameterized.TestCase):
     # Check Anderson acceleration speeds up execution when compared to none.
     for i in range(1, len(anderson_memory)):
       self.assertGreater(iterations_anderson[0], iterations_anderson[i])
+
 
 if __name__ == '__main__':
   absltest.main()

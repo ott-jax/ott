@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,12 +15,12 @@
 # Lint as: python3
 """Tests for apply_cost and apply_kernel."""
 
-from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.geometry import geometry
-from ott.geometry import pointcloud
+from absl.testing import absltest
+
+from ott.geometry import geometry, pointcloud
 
 
 class ApplyTest(absltest.TestCase):
@@ -85,6 +84,7 @@ class ApplyTest(absltest.TestCase):
     x = jnp.zeros((n, d))
     pc = pointcloud.PointCloud(x=x)
     self.assertEqual(pc.shape, (n, n))
+
 
 if __name__ == '__main__':
   absltest.main()

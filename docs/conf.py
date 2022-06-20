@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,17 +26,17 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../'))
 
+sys.path.insert(0, os.path.abspath('../'))
 
 # -- Project information -----------------------------------------------------
 
+# TODO(michalk8): import hthe project and read info from there
 project = 'ott'
 copyright = '2021-2022, the OTT authors'
 
 # The full version, including alpha/beta/rc tags
 release = '0.2.5'
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -51,25 +50,26 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'matplotlib.sphinxext.plot_directive',
     'nbsphinx',
+    'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
     'recommonmark',
 ]
 
 intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
 }
 
-source_suffix = ['.rst', '.md']
+master_doc = 'index'
+source_suffix = ['.rst']
 
 autosummary_generate = True
 
-master_doc = 'index'
-
 autodoc_typehints = 'description'
-nbsphinx_codecell_lexer = 'ipython3'
+pygments_lexer = 'ipython3'
+nbsphinx_execute = 'never'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -77,8 +77,7 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
-
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # -- Options for HTML output -------------------------------------------------
 

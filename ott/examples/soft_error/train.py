@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Train for the soft-error loss."""
 
 import collections
@@ -20,31 +18,27 @@ import functools
 from typing import Any
 
 import flax
-from flax import jax_utils
-from flax.metrics import tensorboard
-from flax.training import checkpoints
-from flax.training import common_utils
-
 import jax
 import jax.numpy as jnp
 import ml_collections
-
-from ott.examples.soft_error import data
-from ott.examples.soft_error import losses
-from ott.examples.soft_error import model as model_lib
 import tensorflow_datasets as tfds
+from flax import jax_utils
+from flax.metrics import tensorboard
+from flax.training import checkpoints, common_utils
+
+from ott.examples.soft_error import data, losses
+from ott.examples.soft_error import model as model_lib
 
 
 def initialized(key, height, width, model):
-  """Initializes the model parameters."""
+  """Initialize the model parameters."""
   input_shape = (1, height, width, 3)
 
   @jax.jit
   def init(*args):
     return model.init(*args)
 
-  variables = init({'params': key},
-                   jnp.ones(input_shape, jnp.float32))
+  variables = init({'params': key}, jnp.ones(input_shape, jnp.float32))
   model_state, params = variables.pop('params')
   return params, model_state
 
@@ -103,15 +97,18 @@ def create_train_state(rng, config, model, height, width):
 
 
 def log(results, epoch, summary, train=True, summary_writer=None):
-  """Logs the metrics to stderr and tensorboard."""
+  """Log the metrics to stderr and tensorboard."""
   if jax.host_id() != 0:
     return
 
   phase = 'train' if train else 'eval'
   for key in ('loss', 'accuracy'):
     results[f'{phase}_{key}'].append((epoch + 1, summary[key]))
-  print('{} epoch: {}, loss: {:.3f}, accuracy: {:.2%}'.format(
-      phase, epoch + 1, summary['loss'], summary['accuracy']))
+  print(
+      '{} epoch: {}, loss: {:.3f}, accuracy: {:.2%}'.format(
+          phase, epoch + 1, summary['loss'], summary['accuracy']
+      )
+  )
 
   for key, val in summary.items():
     summary_writer.scalar(f'{phase}_{key}', val, epoch)
@@ -129,10 +126,10 @@ def save_checkpoint(state, workdir):
     checkpoints.save_checkpoint(workdir, state, step, keep=3)
 
 
-def train_and_evaluate(workdir: str,
-                       config: ml_collections.ConfigDict,
-                       seed: int = 0):
-  """Executes model training and evaluation loop."""
+def train_and_evaluate(
+    workdir: str, config: ml_collections.ConfigDict, seed: int = 0
+):
+  """Execute model training and evaluation loop."""
   rng = jax.random.PRNGKey(seed)
 
   if config.batch_size % jax.device_count() > 0:
@@ -148,9 +145,11 @@ def train_and_evaluate(workdir: str,
   info = dataset_builder.info
   height, width = info.features['image'].shape[:2]
   train_iter = data.create_input_iter(
-      dataset_builder, local_batch_size, train=True)
+      dataset_builder, local_batch_size, train=True
+  )
   eval_iter = data.create_input_iter(
-      dataset_builder, local_batch_size, train=False)
+      dataset_builder, local_batch_size, train=False
+  )
   steps_per_epoch = info.splits['train'].num_examples // config.batch_size
   num_steps = int(steps_per_epoch * config.num_epochs)
   num_validation_examples = info.splits['test'].num_examples
@@ -165,9 +164,11 @@ def train_and_evaluate(workdir: str,
   state = jax_utils.replicate(state)
 
   p_train_step = jax.pmap(
-      functools.partial(train_step, model.apply, loss_fn), axis_name='batch')
+      functools.partial(train_step, model.apply, loss_fn), axis_name='batch'
+  )
   p_eval_step = jax.pmap(
-      functools.partial(eval_step, model.apply, loss_fn), axis_name='batch')
+      functools.partial(eval_step, model.apply, loss_fn), axis_name='batch'
+  )
 
   results = collections.defaultdict(list)
   epoch_metrics = []

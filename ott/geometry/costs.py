@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +16,11 @@
 """Several cost/norm functions for relevant vector types."""
 import abc
 import functools
+from typing import Any, Callable, Optional, Union
+
 import jax
 import jax.numpy as jnp
+
 from ott.geometry import matrix_square_root
 from ott.core import fixed_point_loop
 
@@ -35,21 +37,23 @@ class CostFn(abc.ABC):
   If the norm function is not implemented, that value is handled as a 0.
   """
 
-  norm = None  #  no norm function created by default.
+  # no norm function created by default.
+  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
-  def barycenter(self, weights, xs):
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
-  def __call__(self, x, y):
-    return self.pairwise(x, y) + (
-        0 if self.norm is None else self.norm(x) + self.norm(y))  # pylint: disable=not-callable
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    return self.pairwise(
+        x, y
+    ) + (0 if self.norm is None else self.norm(x) + self.norm(y))
 
-  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray):
-    """Computes matrix of all costs (including norms) for vectors in x / y.
+  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compute matrix of all costs (including norms) for vectors in x / y.
 
     Args:
       x: [num_a, d] jnp.ndarray
@@ -59,8 +63,8 @@ class CostFn(abc.ABC):
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray):
-    """Computes matrix of all pairwise-costs (no norms) for vectors in x / y.
+  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compute matrix of all pairwise-costs (no norms) for vectors in x / y.
 
     Args:
       x: [num_a, d] jnp.ndarray
@@ -83,26 +87,25 @@ class CostFn(abc.ABC):
 class Euclidean(CostFn):
   """Squared Euclidean distance CostFn."""
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     return -2 * jnp.vdot(x, y)
-  
-  def barycenter(self, weights, xs):
-    return jnp.average(xs, weights=weights, axis=0)
 
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+    return jnp.average(xs, weights=weights, axis=0)
 
 
 @jax.tree_util.register_pytree_node_class
 class Cosine(CostFn):
   """Cosine distance CostFn."""
 
-  def __init__(self, ridge=1e-8):
+  def __init__(self, ridge: float = 1e-8):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
@@ -115,7 +118,7 @@ class Cosine(CostFn):
 class Bures(CostFn):
   """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
 
-  def __init__(self, dimension, **kwargs):
+  def __init__(self, dimension: int, **kwargs: Any):
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = kwargs
@@ -222,21 +225,23 @@ class UnbalancedBures(CostFn):
   as triplets (mass, mean, covariance) raveled as vectors, in that order.
   """
 
-  def __init__(self,
-               dimension: int,
-               gamma: float = 1,
-               sigma: float = 1,
-               **kwargs):
+  def __init__(
+      self,
+      dimension: int,
+      gamma: float = 1.0,
+      sigma: float = 1.0,
+      **kwargs: Any,
+  ):
     super().__init__()
     self._dimension = dimension
     self._gamma = gamma
     self._sigma2 = sigma ** 2
     self._sqrtm_kw = kwargs
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     return self._gamma * x[0]
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     # Sets a few constants
     gam = self._gamma
     sig2 = self._sigma2
@@ -245,11 +250,13 @@ class UnbalancedBures(CostFn):
 
     # Extracts mass, mean vector, covariance matrices
     mass_x, mass_y = x[0], y[0]
-    diff_means = x[1:1+self._dimension] - y[1:1+self._dimension]
-    x_mat = jnp.reshape(x[1+self._dimension:],
-                        (self._dimension, self._dimension))
-    y_mat = jnp.reshape(y[1+self._dimension:],
-                        (self._dimension, self._dimension))
+    diff_means = x[1:1 + self._dimension] - y[1:1 + self._dimension]
+    x_mat = jnp.reshape(
+        x[1 + self._dimension:], (self._dimension, self._dimension)
+    )
+    y_mat = jnp.reshape(
+        y[1 + self._dimension:], (self._dimension, self._dimension)
+    )
 
     # Identity matrix of suitable size
     iden = jnp.eye(self._dimension, dtype=x.dtype)
@@ -260,7 +267,8 @@ class UnbalancedBures(CostFn):
 
     tilde_a_b = jnp.matmul(tilde_a, tilde_b)
     c_mat = matrix_square_root.sqrtm(
-        1 / tau * tilde_a_b + 0.25 * (sig2 ** 2) * iden, **self._sqrtm_kw)[0]
+        1 / tau * tilde_a_b + 0.25 * (sig2 ** 2) * iden, **self._sqrtm_kw
+    )[0]
     c_mat -= 0.5 * sig2 * iden
 
     # Computes log determinants (their sign should be >0).
@@ -272,19 +280,23 @@ class UnbalancedBures(CostFn):
     # Gathers all these results to compute log total mass of transport
     log_m_pi = (0.5 * self._dimension * sig2 / (gam + sig2)) * jnp.log(sig2)
 
-    log_m_pi += (1 / (tau + 1)) * (jnp.log(mass_x) + jnp.log(mass_y) + ldet_c
-                                   + 0.5 * (tau * ldet_t_ab - ldet_ab))
+    log_m_pi += (1 / (tau + 1)) * (
+        jnp.log(mass_x) + jnp.log(mass_y) + ldet_c + 0.5 *
+        (tau * ldet_t_ab - ldet_ab)
+    )
 
-    log_m_pi += -jnp.sum(diff_means * jnp.linalg.solve(
-        x_mat + y_mat + lam * iden, diff_means)) / (2 * (tau + 1))
+    log_m_pi += -jnp.sum(
+        diff_means * jnp.linalg.solve(x_mat + y_mat + lam * iden, diff_means)
+    ) / (2 * (tau + 1))
 
-    log_m_pi += - 0.5 * ldet_c_ab
+    log_m_pi += -0.5 * ldet_c_ab
 
     # If all logdet signs are 1, output value, nan otherwise.
     return jnp.where(
         sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
         2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
-        jnp.nan)
+        jnp.nan
+    )
 
   def tree_flatten(self):
     return (), (self._dimension, self._gamma, self._sigma2, self._sqrtm_kw)

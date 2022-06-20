@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for linalg."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.tools.gaussian_mixture import linalg
 
 
@@ -35,7 +33,8 @@ class LinalgTest(absltest.TestCase):
     expected_mean = jnp.mean(points, axis=0)
     expected_var = jnp.var(points, axis=0)
     actual_mean, actual_var = linalg.get_mean_and_var(
-        points=points, weights=weights)
+        points=points, weights=weights
+    )
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1E-5, rtol=1E-5)
     np.testing.assert_allclose(expected_var, actual_var, atol=1E-5, rtol=1E-5)
 
@@ -45,7 +44,8 @@ class LinalgTest(absltest.TestCase):
     expected_mean = jnp.mean(points[:5], axis=0)
     expected_var = jnp.var(points[:5], axis=0)
     actual_mean, actual_var = linalg.get_mean_and_var(
-        points=points, weights=weights)
+        points=points, weights=weights
+    )
     np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(expected_var, actual_var, rtol=1e-6, atol=1e-6)
 
@@ -55,7 +55,8 @@ class LinalgTest(absltest.TestCase):
     expected_mean = jnp.mean(points, axis=0)
     expected_cov = jnp.cov(points, rowvar=False, bias=True)
     actual_mean, actual_cov = linalg.get_mean_and_cov(
-        points=points, weights=weights)
+        points=points, weights=weights
+    )
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1E-5, rtol=1E-5)
     np.testing.assert_allclose(expected_cov, actual_cov, atol=1E-5, rtol=1E-5)
 
@@ -65,7 +66,8 @@ class LinalgTest(absltest.TestCase):
     expected_mean = jnp.mean(points[:5], axis=0)
     expected_cov = jnp.cov(points[:5], rowvar=False, bias=True)
     actual_mean, actual_cov = linalg.get_mean_and_cov(
-        points=points, weights=weights)
+        points=points, weights=weights
+    )
     np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(expected_cov, actual_cov, rtol=1e-6, atol=1e-6)
 
@@ -81,8 +83,9 @@ class LinalgTest(absltest.TestCase):
       for j in range(size):
         if j <= i:
           continue
-        np.testing.assert_array_equal(m[..., i, j], jnp.zeros_like(m[..., i,
-                                                                     j]))
+        np.testing.assert_array_equal(
+            m[..., i, j], jnp.zeros_like(m[..., i, j])
+        )
 
     # make sure we can invert
     actual = linalg.tril_to_flat(m)
@@ -151,7 +154,8 @@ class LinalgTest(absltest.TestCase):
     qt = jnp.transpose(q)
     expected = jnp.eye(3)
     actual = jnp.matmul(q, qt)
-    self.assertGreater(1e-4, jnp.linalg.norm(expected-actual))
+    self.assertGreater(1e-4, jnp.linalg.norm(expected - actual))
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -4,3 +4,9 @@ requires = [
   "wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile = "black"
+include_trailing_comma = true
+multi_line_output = 3
+skip_glob = ["docs/*"]

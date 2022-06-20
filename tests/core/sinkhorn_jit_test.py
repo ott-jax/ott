@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Jitting test for Sinkhorn."""
 import functools
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import chex
 import jax
 import jax.numpy as jnp
+from absl.testing import absltest, parameterized
+
 from ott.core import sinkhorn
 from ott.geometry import geometry
 
@@ -54,10 +52,13 @@ class SinkhornTest(parameterized.TestCase):
     self.b = b / jnp.sum(b)
     self.epsilon = 0.05
     self.geometry = geometry.Geometry(
-        cost_matrix=(jnp.sum(self.x**2, axis=1)[:, jnp.newaxis] +
-                     jnp.sum(self.y**2, axis=1)[jnp.newaxis, :] -
-                     2 * jnp.dot(self.x, self.y.T)),
-        epsilon=self.epsilon)
+        cost_matrix=(
+            jnp.sum(self.x ** 2, axis=1)[:, jnp.newaxis] +
+            jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
+            2 * jnp.dot(self.x, self.y.T)
+        ),
+        epsilon=self.epsilon
+    )
 
   def test_jit_vs_non_jit_fwd(self):
     jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
@@ -76,26 +77,32 @@ class SinkhornTest(parameterized.TestCase):
     def loss(a, x, fun):
       out = fun(
           geometry.Geometry(
-              cost_matrix=(jnp.sum(x**2, axis=1)[:, jnp.newaxis] +
-                           jnp.sum(self.y**2, axis=1)[jnp.newaxis, :] -
-                           2 * jnp.dot(x, self.y.T)),
-              epsilon=self.epsilon),
+              cost_matrix=(
+                  jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
+                  jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
+                  2 * jnp.dot(x, self.y.T)
+              ),
+              epsilon=self.epsilon
+          ),
           a=a,
           b=self.b,
           tau_a=0.94,
           tau_b=0.97,
           threshold=1e-4,
           lse_mode=True,
-          implicit_differentiation=implicit)
+          implicit_differentiation=implicit
+      )
       return out.reg_ot_cost
 
     def value_and_grad(a, x):
       return jax.value_and_grad(loss)(a, x, non_jitted_sinkhorn)
 
     jitted_loss, jitted_grad = jax.value_and_grad(loss)(
-        self.a, self.x, sinkhorn.sinkhorn)
+        self.a, self.x, sinkhorn.sinkhorn
+    )
     non_jitted_loss, non_jitted_grad = jax.value_and_grad(loss)(
-        self.a, self.x, non_jitted_sinkhorn)
+        self.a, self.x, non_jitted_sinkhorn
+    )
 
     user_jitted_loss, user_jitted_grad = jax.jit(value_and_grad)(self.a, self.x)
     chex.assert_tree_all_close(jitted_loss, non_jitted_loss, atol=1e-6, rtol=0)

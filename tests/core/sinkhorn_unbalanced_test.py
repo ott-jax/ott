@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,10 @@
 # Lint as: python3
 """Tests for the Policy."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+from absl.testing import absltest, parameterized
+
 from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
@@ -49,7 +48,7 @@ class SinkhornUnbalancedTest(parameterized.TestCase):
           norm_error=1,
           tau_a=0.8,
           tau_b=0.9
-          ),
+      ),
       dict(
           testcase_name='lse-high-mom',
           lse_mode=True,
@@ -58,7 +57,7 @@ class SinkhornUnbalancedTest(parameterized.TestCase):
           norm_error=1,
           tau_a=0.8,
           tau_b=0.9
-          ),
+      ),
       dict(
           testcase_name='scal-no-mom',
           lse_mode=False,
@@ -67,7 +66,7 @@ class SinkhornUnbalancedTest(parameterized.TestCase):
           norm_error=1,
           tau_a=0.8,
           tau_b=0.9
-          ),
+      ),
       dict(
           testcase_name='scal-high-mom',
           lse_mode=False,
@@ -76,9 +75,11 @@ class SinkhornUnbalancedTest(parameterized.TestCase):
           norm_error=1,
           tau_a=0.8,
           tau_b=0.9
-          ))
-  def test_euclidean_point_cloud(self, lse_mode, momentum,
-                                 inner_iterations, norm_error, tau_a, tau_b):
+      )
+  )
+  def test_euclidean_point_cloud(
+      self, lse_mode, momentum, inner_iterations, norm_error, tau_a, tau_b
+  ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
@@ -92,7 +93,8 @@ class SinkhornUnbalancedTest(parameterized.TestCase):
         norm_error=norm_error,
         lse_mode=lse_mode,
         tau_a=tau_a,
-        tau_b=tau_b).errors
+        tau_b=tau_b
+    ).errors
     err = errors[errors > -1][-1]
     self.assertGreater(threshold, err)
     self.assertGreater(err, 0)

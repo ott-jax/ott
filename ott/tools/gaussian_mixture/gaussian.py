@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pytree for a normal distribution."""
 
 import math
@@ -20,6 +18,7 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
+
 from ott.tools.gaussian_mixture import scale_tril
 
 LOG2PI = math.log(2. * math.pi)
@@ -55,16 +54,15 @@ class Gaussian:
     """
     key, subkey0, subkey1 = jax.random.split(key, num=3)
     loc = jax.random.normal(
-        key=subkey0, shape=(n_dimensions,), dtype=dtype) * stdev
+        key=subkey0, shape=(n_dimensions,), dtype=dtype
+    ) * stdev
     scale = scale_tril.ScaleTriL.from_random(
-        key=subkey1, n_dimensions=n_dimensions, stdev=stdev, dtype=dtype)
+        key=subkey1, n_dimensions=n_dimensions, stdev=stdev, dtype=dtype
+    )
     return cls(loc=loc, scale=scale)
 
   @classmethod
-  def from_mean_and_cov(
-      cls,
-      mean: jnp.ndarray,
-      cov: jnp.ndarray):
+  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray):
     """Construct a Gaussian from a mean and covariance."""
     scale = scale_tril.ScaleTriL.from_covariance(cov)
     return cls(loc=mean, scale=scale)
@@ -98,17 +96,20 @@ class Gaussian:
     d = x.shape[-1]
     z = self.to_z(x)
     log_det = self.scale.log_det_covariance()
-    return (-0.5 * (d * LOG2PI +
-                    log_det[None] +
-                    jnp.sum(z ** 2., axis=-1)))  # (?, k)
+    return (
+        -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2., axis=-1))
+    )  # (?, k)
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
-    std_samples_t = jax.random.normal(
-        key=key, shape=(self.n_dimensions, size))
+    std_samples_t = jax.random.normal(key=key, shape=(self.n_dimensions, size))
     return self.loc[None] + (
-        jnp.swapaxes(jnp.matmul(self.scale.cholesky(), std_samples_t),
-                     axis1=-2, axis2=-1))
+        jnp.swapaxes(
+            jnp.matmul(self.scale.cholesky(), std_samples_t),
+            axis1=-2,
+            axis2=-1
+        )
+    )
 
   def w2_dist(self, other: 'Gaussian') -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian.
@@ -126,13 +127,10 @@ class Gaussian:
     delta_sigma = self.scale.w2_dist(other.scale)
     return delta_mean + delta_sigma
 
-  def transport(
-      self,
-      dest: 'Gaussian',
-      points: jnp.ndarray) -> jnp.ndarray:
+  def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
     return self.scale.transport(
-        dest_scale=dest.scale,
-        points=points - self.loc[None]) + dest.loc[None]
+        dest_scale=dest.scale, points=points - self.loc[None]
+    ) + dest.loc[None]
 
   def tree_flatten(self):
     children = (self.loc, self.scale)

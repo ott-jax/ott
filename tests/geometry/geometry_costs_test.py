@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,11 @@
 # Lint as: python3
 """Tests for the cost/norm functions."""
 
-from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest
+
 from ott.geometry import costs
 
 
@@ -53,7 +53,7 @@ class CostFnTest(absltest.TestCase):
     y = jax.random.normal(keys[1], (m, d))
 
     cosine_fn = costs.Cosine()
-    normalize = lambda v: v / jnp.sqrt(jnp.sum(v**2))
+    normalize = lambda v: v / jnp.sqrt(jnp.sum(v ** 2))
     for i in range(n):
       for j in range(m):
         exp_sim_xi_yj = jnp.sum(normalize(x[i]) * normalize(y[j]))
@@ -62,7 +62,8 @@ class CostFnTest(absltest.TestCase):
             cosine_fn.pairwise(x[i], y[j]),
             exp_dist_xi_yj,
             rtol=1E-5,
-            atol=1E-5)
+            atol=1E-5
+        )
 
     all_pairs = cosine_fn.all_pairs(x, y)
     for i in range(n):

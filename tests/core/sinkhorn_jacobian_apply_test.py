@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +15,11 @@
 # Lint as: python3
 """Tests for the Jacobian of Apply OT."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
+from absl.testing import absltest, parameterized
+
 from ott.tools import transport
 
 
@@ -36,9 +35,11 @@ class SinkhornJacobianTest(parameterized.TestCase):
       tau_b=[1.0, .92],
       shape=[(237, 153)],
       arg=[0, 1],
-      axis=[0, 1])
-  def test_apply_transport_jacobian(self, lse_mode, tau_a, tau_b, shape, arg,
-                                    axis):
+      axis=[0, 1]
+  )
+  def test_apply_transport_jacobian(
+      self, lse_mode, tau_a, tau_b, shape, arg, axis
+  ):
     """Tests Jacobian of application of OT to vector, w.r.t.
 
     a/x.
@@ -75,29 +76,40 @@ class SinkhornJacobianTest(parameterized.TestCase):
 
     def apply_ot(a, x, implicit):
       out = transport.solve(
-          x, y, epsilon=epsilon, a=a, b=b, tau_a=tau_a, tau_b=tau_b,
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
           lse_mode=lse_mode,
-          implicit_differentiation=implicit)
+          implicit_differentiation=implicit
+      )
       return out.apply(vec, axis=axis)
 
     delta = delta_x if arg else delta_a
     # Compute implicit jacobian
     jac_apply_imp = jax.jit(
-        jax.jacrev(lambda a, x: apply_ot(a, x, True), argnums=arg))
+        jax.jacrev(lambda a, x: apply_ot(a, x, True), argnums=arg)
+    )
     j_imp = jac_apply_imp(a, x)
     # Apply jacobian to perturbation tensor (here vector or matrix)
     imp_dif = jnp.sum(
         j_imp * delta[jnp.newaxis, ...],
-        axis=tuple(range(1, 1 + len(delta.shape))))
+        axis=tuple(range(1, 1 + len(delta.shape)))
+    )
     if lse_mode:  # only check unrolling if using lse_mode, too unstable else.
       # Compute backprop (unrolling) jacobian
       jac_apply_back = jax.jit(
-          jax.jacrev(lambda a, x: apply_ot(a, x, False), argnums=arg))
+          jax.jacrev(lambda a, x: apply_ot(a, x, False), argnums=arg)
+      )
       j_back = jac_apply_back(a, x)
       # Apply jacobian to perturbation tensor (here vector or matrix)
       back_dif = jnp.sum(
           j_back * delta[jnp.newaxis, ...],
-          axis=tuple(range(1, 1 + len(delta.shape))))
+          axis=tuple(range(1, 1 + len(delta.shape)))
+      )
 
     # Compute finite difference
     perturb_scale = 1e-5

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Training a network on the adult dataset with fairnes constraints."""
 
 import collections
@@ -20,17 +18,14 @@ import functools
 from typing import Any
 
 import flax
-from flax import jax_utils
-from flax.metrics import tensorboard
-from flax.training import checkpoints
-from flax.training import common_utils
 import jax
 import jax.numpy as jnp
 import ml_collections
+from flax import jax_utils
+from flax.metrics import tensorboard
+from flax.training import checkpoints, common_utils
 
-from ott.examples.fairness import data
-from ott.examples.fairness import losses
-from ott.examples.fairness import models
+from ott.examples.fairness import data, losses, models
 
 
 @flax.struct.dataclass
@@ -41,7 +36,7 @@ class TrainState:
 
 
 def initialized(key, model, size):
-  """Initialized the model."""
+  """Initialize the model."""
 
   @jax.jit
   def init(*args):
@@ -62,17 +57,20 @@ def create_train_state(rng, config, model, size):
 
 def train_step(apply_fn, config, state, batch):
   """Perform a single training step."""
+  regularizer = functools.partial(
+      losses.fairness_regularizer,
+      quantization=config.quantization,
+      num_groups=config.num_groups,
+      epsilon=config.epsilon
+  )
 
-  regularizer = functools.partial(losses.fairness_regularizer,
-                                  quantization=config.quantization,
-                                  num_groups=config.num_groups,
-                                  epsilon=config.epsilon)
   def compute_loss(params):
     variables = {'params': params, **state.model_state}
     logits = apply_fn(variables, batch['features'], train=True)
     loss = losses.binary_cross_entropy(logits, batch['label'])
-    reg = (regularizer(logits, batch['protected'])
-           if config.fair_weight > 0 else 0)
+    reg = (
+        regularizer(logits, batch['protected']) if config.fair_weight > 0 else 0
+    )
     return loss + config.fair_weight * reg, logits
 
   grad_fn = jax.value_and_grad(compute_loss, has_aux=True)
@@ -94,15 +92,18 @@ def eval_step(apply_fn, state, batch):
 
 
 def log(results, epoch, summary, train=True, summary_writer=None):
-  """Logs the metrics to stderr and tensorboard."""
+  """Log the metrics to stderr and tensorboard."""
   if jax.host_id() != 0:
     return
 
   phase = 'train' if train else 'eval'
   for key in ('loss', 'accuracy'):
     results[f'{phase}_{key}'].append((epoch + 1, summary[key]))
-  print('{} epoch: {}, loss: {:.3f}, accuracy: {:.2%}'.format(
-      phase, epoch + 1, summary['loss'], summary['accuracy']))
+  print(
+      '{} epoch: {}, loss: {:.3f}, accuracy: {:.2%}'.format(
+          phase, epoch + 1, summary['loss'], summary['accuracy']
+      )
+  )
 
   if summary_writer is None:
     return
@@ -124,10 +125,10 @@ def save_checkpoint(state, workdir):
   checkpoints.save_checkpoint(workdir, state, step, keep=3)
 
 
-def train_and_evaluate(workdir: str,
-                       config: ml_collections.ConfigDict,
-                       seed: int = 0):
-  """Executes model training and evaluation loop."""
+def train_and_evaluate(
+    workdir: str, config: ml_collections.ConfigDict, seed: int = 0
+):
+  """Execute model training and evaluation loop."""
   rng = jax.random.PRNGKey(seed)
 
   if config.batch_size % jax.device_count() > 0:
@@ -140,13 +141,16 @@ def train_and_evaluate(workdir: str,
   local_batch_size = config.batch_size // jax.host_count()
   train_ds, test_ds, dims = data.load_train_test(config)
   train_iter = data.generate(
-      train_ds, batch_size=local_batch_size, num_epochs=config.num_epochs)
+      train_ds, batch_size=local_batch_size, num_epochs=config.num_epochs
+  )
   train_iter = jax_utils.prefetch_to_device(train_iter, 8)
 
   model = models.AdultModel(
       encoder_cls=functools.partial(
-          models.FeaturesEncoder, input_dims=dims, embed_dim=config.embed_dim),
-      hidden=config.hidden_layers)
+          models.FeaturesEncoder, input_dims=dims, embed_dim=config.embed_dim
+      ),
+      hidden=config.hidden_layers
+  )
 
   state = create_train_state(rng, config, model, sum(dims))
   state = restore_checkpoint(state, workdir)
@@ -154,9 +158,11 @@ def train_and_evaluate(workdir: str,
   state = jax_utils.replicate(state)
 
   p_train_step = jax.pmap(
-      functools.partial(train_step, model.apply, config), axis_name='batch')
+      functools.partial(train_step, model.apply, config), axis_name='batch'
+  )
   p_eval_step = jax.pmap(
-      functools.partial(eval_step, model.apply), axis_name='batch')
+      functools.partial(eval_step, model.apply), axis_name='batch'
+  )
 
   steps_per_epoch = train_ds[0].shape[0] // config.batch_size
   num_steps = steps_per_epoch * config.num_epochs

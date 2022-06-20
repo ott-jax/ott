@@ -1,4 +1,3 @@
-# coding=utf-8
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +14,12 @@
 # Lint as: python3
 """Tests for general geometry."""
 
-from absl.testing import absltest
 import jax
-import jax.numpy as jnp
 import numpy as np
-from ott.geometry import geometry
-from ott.geometry import pointcloud
-from ott.geometry import costs
+from absl.testing import absltest
+
+from ott.geometry import costs, geometry, pointcloud
+
 
 class ApplyTest(absltest.TestCase):
 
@@ -42,7 +40,7 @@ class ApplyTest(absltest.TestCase):
     cost = geom.cost_matrix
     prod0 = geom.apply_cost(vec0, axis=0)
     prod1 = geom.apply_cost(vec1, axis=1)
-    
+
     geom = geometry.Geometry(cost)
     prod0_geom = geom.apply_cost(vec0, axis=0)
     prod1_geom = geom.apply_cost(vec1, axis=1)
