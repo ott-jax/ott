@@ -21,8 +21,9 @@ from typing import Any, Callable, Optional, Union
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import matrix_square_root
 from ott.core import fixed_point_loop
+from ott.geometry import matrix_square_root
+
 
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
@@ -129,70 +130,89 @@ class Bures(CostFn):
     else:
       num_components = x.shape[0]
     mean, cov = self.x_to_mean_and_cov(x, num_components=num_components)
-    norm = jnp.sum(mean**2, axis=-1)
+    norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
-    return norm 
+    return norm
 
   def pairwise(self, x, y):
     mean_x, cov_x = self.x_to_mean_and_cov(x, num_components=1)
     mean_y, cov_y = self.x_to_mean_and_cov(y, num_components=1)
     mean_dot_prod = jnp.vdot(mean_x, mean_y)
-    sq_x = matrix_square_root.sqrtm(cov_x, self._dimension,
-                                    **self._sqrtm_kw)[0]
+    sq_x = matrix_square_root.sqrtm(cov_x, self._dimension, **self._sqrtm_kw)[0]
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
-    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, self._dimension,
-                                               **self._sqrtm_kw)[0]
-    return -2 * (
-        mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
+        sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
+    )[0]
+    return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
   def x_to_mean_and_cov(self, pointcloud, num_components):
     if num_components == 1:
-      means =  pointcloud[0:self._dimension]
-      covariances = jnp.reshape(pointcloud[self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension))
+      means = pointcloud[0:self._dimension]
+      covariances = jnp.reshape(
+          pointcloud[self._dimension:self._dimension + self._dimension ** 2],
+          (self._dimension, self._dimension)
+      )
     else:
-      means = jnp.asarray([pointcloud[i][0:self._dimension] for i in range(num_components)])
-      covariances = jnp.asarray([jnp.reshape(pointcloud[i][self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension)) for i in range(num_components)])
+      means = jnp.asarray([
+          pointcloud[i][0:self._dimension] for i in range(num_components)
+      ])
+      covariances = jnp.asarray([
+          jnp.reshape(
+              pointcloud[i][self._dimension:self._dimension +
+                            self._dimension ** 2],
+              (self._dimension, self._dimension)
+          ) for i in range(num_components)
+      ])
     return means, covariances
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
   def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
-    return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (cov_sqrt, cov_i), cov_sqrt))
+    return lambda_i * matrix_square_root.sqrtm_only(
+        jnp.matmul(jnp.matmul(cov_sqrt, cov_i), cov_sqrt)
+    )
 
   def relative_diff(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
 
-  def covariance_fixpoint_iter(self, 
-    covs: jnp.ndarray,
-    lambdas: jnp.ndarray,
-    rtol: float = 1e-2) -> jnp.ndarray:
+  def covariance_fixpoint_iter(
+      self,
+      covs: jnp.ndarray,
+      lambdas: jnp.ndarray,
+      rtol: float = 1e-2
+  ) -> jnp.ndarray:
 
     def cond_fn(iteration, constants, state):
-      _ , diff = state
+      _, diff = state
       return diff > jnp.array(rtol)
 
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
       cov, _ = state
       cov_sqrt = matrix_square_root.sqrtm_only(cov)
-      scaled_cov = jnp.linalg.matrix_power(jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2)
+      scaled_cov = jnp.linalg.matrix_power(
+          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+      )
       cov_sqrt_minus = jnp.linalg.matrix_power(cov_sqrt, -1)
-      next_cov = jnp.matmul(jnp.matmul(cov_sqrt_minus, scaled_cov), cov_sqrt_minus)
+      next_cov = jnp.matmul(
+          jnp.matmul(cov_sqrt_minus, scaled_cov), cov_sqrt_minus
+      )
       diff = self.relative_diff(next_cov, cov)
       return next_cov, diff
 
     def init_state():
       cov_init = jnp.eye(self._dimension)
-      diff = jnp.inf 
+      diff = jnp.inf
       return (cov_init, diff)
 
     state = fixed_point_loop.fixpoint_iter(
-      cond_fn=cond_fn,
-      body_fn=body_fn,
-      min_iterations=10,
-      max_iterations=500,
-      inner_iterations=1,
-      constants=(),
-      state=init_state())
+        cond_fn=cond_fn,
+        body_fn=body_fn,
+        min_iterations=10,
+        max_iterations=500,
+        inner_iterations=1,
+        constants=(),
+        state=init_state()
+    )
 
     cov, _ = state
     return cov
@@ -204,8 +224,10 @@ class Bures(CostFn):
     weights = weights / jnp.sum(weights)
     mus, covs = self.x_to_mean_and_cov(xs, num_components)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
-    cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
-    return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
+    cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
+    return jnp.concatenate(
+        (mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension)))
+    )
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)

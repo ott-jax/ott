@@ -109,8 +109,9 @@ class BarycenterState(NamedTuple):
 
     if bar_prob.debiased:
 
-      raise NotImplementedError("Debiased version of continuous Wasserstein barycenter not yet implemented.")
-
+      raise NotImplementedError(
+          "Debiased version of continuous Wasserstein barycenter not yet implemented."
+      )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
         self.a, self.x, segmented_b, segmented_y
@@ -126,14 +127,20 @@ class BarycenterState(NamedTuple):
     else:
       errors = None
 
-
     # compute each point of the barycenter as the barycenter of the bar_prob.weights.shape[0] barycenters. TODO: compute directly minimizer of double sum.
-    x_new = jax.vmap(bar_prob.cost_fn.barycenter, in_axes=[None, 1])(bar_prob.weights, barycentric_projection(matrices, segmented_y, bar_prob.cost_fn))
+    x_new = jax.vmap(
+        bar_prob.cost_fn.barycenter, in_axes=[None, 1]
+    )(
+        bar_prob.weights,
+        barycentric_projection(matrices, segmented_y, bar_prob.cost_fn)
+    )
 
-    return self.set(costs=updated_costs,
-                    linear_convergence=linear_convergence,
-                    errors=errors,
-                    x=x_new)
+    return self.set(
+        costs=updated_costs,
+        linear_convergence=linear_convergence,
+        errors=errors,
+        x=x_new
+    )
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
