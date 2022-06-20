@@ -24,7 +24,6 @@ import optax
 from flax.core import freeze
 from flax.training import train_state
 from optax._src import base
-from tqdm import tqdm
 
 from ott.core import icnn
 
@@ -152,6 +151,10 @@ class NeuralDualSolver:
       validloader_target
   ):
     """Implementation of the training and validation script."""  # noqa: D401
+    try:
+      from tqdm import tqdm
+    except ImportError:
+      tqdm = lambda _: _
     # define dict to contain source and target batch
     batch_g = {}
     batch_f = {}
