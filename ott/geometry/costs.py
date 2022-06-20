@@ -22,9 +22,6 @@ import jax.numpy as jnp
 from ott.geometry import matrix_square_root
 from ott.core import fixed_point_loop
 
-from my_scripts_notebooks.gauss_mixture_utils import gauss_mixture_pointcloud_to_mean_and_cov
-
-
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
   """A generic cost function, taking two vectors as input.
@@ -146,6 +143,11 @@ class Bures(CostFn):
     return -2 * (
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
+  def gauss_mixture_pointcloud_to_mean_and_cov(self, pointcloud, num_components):
+    means = jnp.asarray([pointcloud[i][0:self._dimension] for i in range(num_components)])
+    covariances = jnp.asarray([jnp.reshape(pointcloud[i][self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension)) for i in range(num_components)])
+    return means, covariances
+
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
   def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
     return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (cov_sqrt, cov_i), cov_sqrt))
@@ -156,7 +158,7 @@ class Bures(CostFn):
   def covariance_fixpoint_iter(self, 
     covs: jnp.ndarray,
     lambdas: jnp.ndarray,
-    threshold: float = 1e-2):
+    threshold: float = 1e-2) -> jnp.ndarray:
 
     def cond_fn(iteration, constants, state):
       _ , diff = state
@@ -185,13 +187,16 @@ class Bures(CostFn):
       inner_iterations=1,
       constants=(),
       state=init_state())
-    return state
+
+    cov, _ = state
+    return cov
 
   def barycenter(self, weights, xs):
+    """Implements fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
     num_components = weights.shape[0]
-    mus, covs = gauss_mixture_pointcloud_to_mean_and_cov(xs, self._dimension, num_components)
+    mus, covs = self.gauss_mixture_pointcloud_to_mean_and_cov(xs, num_components)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
-    cov_bary, _ = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
+    cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
     return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
 
   def tree_flatten(self):
