@@ -12,16 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """OTT library."""
-
-from packaging.version import parse
-
 from . import core, geometry, tools
-
-try:
-  from importlib_metadata import version  # Python < 3.8
-except ImportError:
-  from importlib.metadata import version
-
-__version__ = str(parse(version(__name__)))
-
-del parse, version
+from ._version import __version__
