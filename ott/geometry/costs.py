@@ -143,7 +143,7 @@ class Bures(CostFn):
     return -2 * (
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
-  def gauss_mixture_pointcloud_to_mean_and_cov(self, pointcloud, num_components):
+  def pointcloud_to_mean_and_cov(self, pointcloud, num_components):
     means = jnp.asarray([pointcloud[i][0:self._dimension] for i in range(num_components)])
     covariances = jnp.asarray([jnp.reshape(pointcloud[i][self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension)) for i in range(num_components)])
     return means, covariances
@@ -194,7 +194,7 @@ class Bures(CostFn):
   def barycenter(self, weights, xs):
     """Implements fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
     num_components = weights.shape[0]
-    mus, covs = self.gauss_mixture_pointcloud_to_mean_and_cov(xs, num_components)
+    mus, covs = self.pointcloud_to_mean_and_cov(xs, num_components)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
     return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
