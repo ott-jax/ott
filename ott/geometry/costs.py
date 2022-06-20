@@ -152,17 +152,17 @@ class Bures(CostFn):
   def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
     return lambda_i * matrix_square_root.sqrtm_only(jnp.matmul(jnp.matmul       (cov_sqrt, cov_i), cov_sqrt))
 
-  def scaled_mse(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def relative_diff(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
 
   def covariance_fixpoint_iter(self, 
     covs: jnp.ndarray,
     lambdas: jnp.ndarray,
-    threshold: float = 1e-2) -> jnp.ndarray:
+    rtol: float = 1e-2) -> jnp.ndarray:
 
     def cond_fn(iteration, constants, state):
       _ , diff = state
-      return diff > jnp.array(threshold)
+      return diff > jnp.array(rtol)
 
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
@@ -171,7 +171,7 @@ class Bures(CostFn):
       scaled_cov = jnp.linalg.matrix_power(jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2)
       cov_sqrt_minus = jnp.linalg.matrix_power(cov_sqrt, -1)
       next_cov = jnp.matmul(jnp.matmul(cov_sqrt_minus, scaled_cov), cov_sqrt_minus)
-      diff = self.scaled_mse(next_cov, cov)
+      diff = self.relative_diff(next_cov, cov)
       return next_cov, diff
 
     def init_state():
