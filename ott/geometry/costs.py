@@ -121,31 +121,34 @@ class Bures(CostFn):
     self._sqrtm_kw = kwargs
 
   def norm(self, x):
-    norm = jnp.sum(x[..., 0:self._dimension]**2, axis=-1)
-    x_mat = jnp.reshape(x[..., self._dimension:],
-                        (-1, self._dimension, self._dimension))
-
-    norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
-    return norm
+    if len(x.shape) == 1:
+      num_components = 1
+    else:
+      num_components = x.shape[0]
+    mean, cov = self.x_to_mean_and_cov(x, num_components=num_components)
+    norm = jnp.sum(mean**2, axis=-1)
+    norm += jnp.trace(cov, axis1=-2, axis2=-1)
+    return norm 
 
   def pairwise(self, x, y):
-    mean_dot_prod = jnp.vdot(x[0:self._dimension], y[0:self._dimension])
-    x_mat = jnp.reshape(x[self._dimension:],
-                        (self._dimension, self._dimension))
-    y_mat = jnp.reshape(y[self._dimension:],
-                        (self._dimension, self._dimension))
-
-    sq_x = matrix_square_root.sqrtm(x_mat, self._dimension,
+    mean_x, cov_x = self.x_to_mean_and_cov(x, num_components=1)
+    mean_y, cov_y = self.x_to_mean_and_cov(y, num_components=1)
+    mean_dot_prod = jnp.vdot(mean_x, mean_y)
+    sq_x = matrix_square_root.sqrtm(cov_x, self._dimension,
                                     **self._sqrtm_kw)[0]
-    sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(y_mat, sq_x))
+    sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, self._dimension,
                                                **self._sqrtm_kw)[0]
     return -2 * (
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
-  def pointcloud_to_mean_and_cov(self, pointcloud, num_components):
-    means = jnp.asarray([pointcloud[i][0:self._dimension] for i in range(num_components)])
-    covariances = jnp.asarray([jnp.reshape(pointcloud[i][self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension)) for i in range(num_components)])
+  def x_to_mean_and_cov(self, pointcloud, num_components):
+    if num_components == 1:
+      means =  pointcloud[0:self._dimension]
+      covariances = jnp.reshape(pointcloud[self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension))
+    else:
+      means = jnp.asarray([pointcloud[i][0:self._dimension] for i in range(num_components)])
+      covariances = jnp.asarray([jnp.reshape(pointcloud[i][self._dimension:self._dimension+self._dimension**2], (self._dimension, self._dimension)) for i in range(num_components)])
     return means, covariances
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
@@ -194,7 +197,9 @@ class Bures(CostFn):
   def barycenter(self, weights, xs):
     """Implements fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
     num_components = weights.shape[0]
-    mus, covs = self.pointcloud_to_mean_and_cov(xs, num_components)
+    # Ensure that barycentric weights sum to 1.
+    weights = weights / jnp.sum(weights)
+    mus, covs = self.x_to_mean_and_cov(xs, num_components)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights) 
     return jnp.concatenate((mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension))))
