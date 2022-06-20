@@ -12,7 +12,7 @@ description = "OTT: Optimal Transport Tools in Jax."
 license = {file = "LICENSE"}
 requires-python = ">=3.7"
 authors = [
-    {name = "TODO"},
+    {name = "TODO", email = "TODO@TODO.com"},
 ]
 maintainers = [
     {name = "TODO", email = "TODO@TODO.com"},
@@ -30,6 +30,12 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "License :: OSI Approved :: Apache Software License",
+]
+keywords = [
+    "optimal transport",
+    "sinkhorn",
+    "wasserstein",
+    "jax",
 ]
 dependencies = [
     "importlib-metadata>=1.0; python_version < '3.8'",
