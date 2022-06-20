@@ -17,9 +17,10 @@ authors = [
 maintainers = [
     {name = "TODO", email = "TODO@TODO.com"},
 ]
-readme = {file = "README.md", content-type="text/markdown"}
+readme = {file = "README.md", content-type = "text/markdown"}
 classifiers = [
     "Development Status :: 5 - Production/Stable",
+    "Topic :: Scientific/Engineering :: Mathematics",
     "Natural Language :: English",
     "Intended Audience :: Science/Research",
     "Operating System :: MacOS :: MacOS X",
@@ -48,7 +49,7 @@ dependencies = [
     "optax>=0.1.1",
     "tqdm>=4.63.0",
     "typing_extensions; python_version < '3.8'",
-    "PyYAML>=6.0"  # https://github.com/google/flax/issues/2190
+    "PyYAML>=6.0",  # https://github.com/google/flax/issues/2190
 ]
 
 [project.optional-dependencies]
@@ -71,7 +72,7 @@ docs = [
 [project.urls]
 Documentation = "https://ott-jax.readthedocs.io/"
 Source = "https://github.com/ott-jax/ott"
-Home-page = "https://ott-jax.readthedocs.io/"
+Homepage = "https://ott-jax.readthedocs.io/"
 
 [tool.setuptools]
 packages = ["ott"]
