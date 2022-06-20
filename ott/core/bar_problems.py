@@ -162,8 +162,10 @@ class BarycenterProblem:
       weights = jnp.ones((self.num_segments,)) / self.num_segments
     else:
       assert self._weights.shape[0] == self.num_segments
-      # assert jnp.isclose(jnp.sum(self._weights), 1.0)
-      weights = self._weights
+      # assert jnp.isclose(jnp.sum(self._weights), 1)
+      # weights = self._weights
+      # remove assertion and add normalization of weights
+      weights = self._weights / jnp.sum(self._weights)
     if self.debiased:
       weights = jnp.concatenate((weights, jnp.array([-0.5])))    
     return weights
