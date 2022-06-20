@@ -2,7 +2,6 @@
 requires = [
     "setuptools>=45",
     "setuptools_scm[toml]>=6.2",
-    "importlib_metadata>=0.7; python_version < '3.8'"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -33,6 +32,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "importlib-metadata>=1.0; python_version < '3.8'",
     "absl-py>=0.7.0",
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
@@ -70,8 +70,6 @@ Home-page = "https://ott-jax.readthedocs.io/"
 packages = ["ott"]
 
 [tool.setuptools_scm]
-write_to = "ott/_version.py"
-write_to_template = "__version__ = '{version}'\n"
 
 [tool.isort]
 profile = "black"
