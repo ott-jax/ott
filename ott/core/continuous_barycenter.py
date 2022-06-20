@@ -119,11 +119,8 @@ class BarycenterState(NamedTuple):
     else:
       errors = None
 
-    # this division guarantees that x_new will be a vector of position and not mass * position
-    divide_a = jnp.where(self.a > 0, 1.0 / self.a, 1.0)
-    convex_weights = matrices * divide_a[None, :, None]
     # compute each point of the barycenter as the barycenter of the bar_prob.weights.shape[0] barycenters. TODO: compute directly minimizer of double sum.
-    x_new = jax.vmap(bar_prob.cost_fn.barycenter, in_axes=[None, 1])(bar_prob.weights, barycentric_projection(convex_weights, segmented_y, bar_prob.cost_fn))
+    x_new = jax.vmap(bar_prob.cost_fn.barycenter, in_axes=[None, 1])(bar_prob.weights, barycentric_projection(matrices, segmented_y, bar_prob.cost_fn))
 
     return self.set(costs=updated_costs,
                     linear_convergence=linear_convergence,
