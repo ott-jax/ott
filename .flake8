@@ -41,6 +41,14 @@ ignore =
     E111, E114
     # Missing blank line before section
     D411
+    Missing doc
+    # TODO(michalk8): fix D10{1,2,3}
+    # D101 Missing docstring in public class
+    D101
+    Missing docstring in public method
+    D102
+    Missing docstring in public function
+    D103
 exclude = .git,__pycache__,build,docs/_build,dist
 # C409: Unnecessary <dict/list/tuple> call - rewrite as a literal.
 per-file-ignores =

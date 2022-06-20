@@ -20,7 +20,6 @@ done via the ``--no-verify`` flag as:
 ```bash
 git commit --no-verify -m "The commit message"
 ```
-Currently, some checks
 
 ## Running tests
 In order to run tests, you can:
