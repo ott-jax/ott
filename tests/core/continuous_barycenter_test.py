@@ -36,7 +36,6 @@ class Barycenter(parameterized.TestCase):
       init_random=[True, False]
   )
   def test_euclidean_barycenter(self, rank, epsilon, jit, init_random):
-    print('Rank: ', rank, 'Epsilon: ', epsilon)
     rngs = jax.random.split(self.rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
