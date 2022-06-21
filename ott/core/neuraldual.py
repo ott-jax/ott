@@ -152,7 +152,7 @@ class NeuralDualSolver:
   ):
     """Implementation of the training and validation script."""  # noqa: D401
     try:
-      from tqdm import tqdm
+      from tqdm.auto import tqdm
     except ImportError:
       tqdm = lambda _: _
     # define dict to contain source and target batch

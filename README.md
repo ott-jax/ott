@@ -1,4 +1,4 @@
-<img src="https://github.com/ott-jax/ott/blob/main/docs/_static/logoOTT.png" width="10%" alt="logo">
+<img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/logoOTT.png" width="10%" alt="logo">
 
 # Optimal Transport Tools (OTT).
 
@@ -36,7 +36,7 @@ P = ot.matrix
 
 The call to `sinkhorn` above works out the optimal transport solution by storing its output. That transoprt matrix links each point from the first point cloud to one or more points from the second, as illustrated below.
 
-![obtained coupling](./images/couplings.png)
+![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/images/couplings.png)
 
 ## Overall description of source code
 
