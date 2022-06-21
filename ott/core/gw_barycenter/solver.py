@@ -1,11 +1,11 @@
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.core import gromov_wasserstein
+from ott.core import fixed_point_loop, gromov_wasserstein
 from ott.core.gw_barycenter.problem import GromovWassersteinBarycenterProblem
-from ott.geometry import geometry
+from ott.geometry import geometry, low_rank
 
 
 class GWBarycenterState(NamedTuple):
@@ -13,6 +13,7 @@ class GWBarycenterState(NamedTuple):
   a: Optional[jnp.ndarray] = None
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
+  costs: Optional[jnp.ndarray] = None
   reg_gw_cost: Optional[float] = None
 
 
@@ -41,7 +42,7 @@ class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
     if a is None:
       a = jnp.ones((bar_size,)) / bar_size
     if not isinstance(bar_init, geometry.Geometry):
-      bar_init = geometry.Geometry(cost_matrix=a[:, None] * a[None, :])
+      bar_init = low_rank.LRCGeometry(cost_1=a[:, None], cost_2=a[:, None])
 
     assert a.shape == (bar_size,), (a.shape, (bar_size,))
     assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
@@ -54,9 +55,13 @@ class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
     else:
       errors = None
 
-    return GWBarycenterState(x=bar_init, a=a, errors=errors)
+    costs = -jnp.ones((num_iter,))
+    return GWBarycenterState(x=bar_init, a=a, errors=errors, costs=costs)
 
-  def update_state(self, state: GWBarycenterState) -> GWBarycenterState:
+  def update_state(
+      self, state: GWBarycenterState, iteration: int,
+      problem: GromovWassersteinBarycenterProblem
+  ) -> GWBarycenterState:
     return state
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
@@ -68,4 +73,30 @@ def iterations(
     solver: GromovWassersteinBarycenter,
     problem: GromovWassersteinBarycenterProblem, init_state: GWBarycenterState
 ) -> GWBarycenterState:
-  return init_state
+
+  def cond_fn(
+      iteration: int, constants: GromovWassersteinBarycenter,
+      state: GWBarycenterState
+  ) -> bool:
+    solver, _ = constants
+    return solver._continue(state, iteration)
+
+  def body_fn(
+      iteration, constants: Tuple[GromovWassersteinBarycenter,
+                                  GromovWassersteinBarycenterProblem],
+      state: GWBarycenterState, compute_error: bool
+  ) -> GWBarycenterState:
+    del compute_error  # always assumed true
+    solver, problem = constants
+    return solver.update_state(state, iteration, problem)
+
+  state = fixed_point_loop.fixpoint_iter(
+      cond_fn=cond_fn,
+      body_fn=body_fn,
+      min_iterations=solver.min_iterations,
+      max_iterations=solver.max_iterations,
+      inner_iterations=1,
+      constants=(solver, problem),
+      state=init_state,
+  )
+  return state
