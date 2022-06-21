@@ -54,7 +54,7 @@ class BarycenterOutput(NamedTuple):
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
   transports = None
-  reg_gw_cost = None
+  reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> 'BarycenterOutput':
     """Return a copy of self, possibly with overwrites."""

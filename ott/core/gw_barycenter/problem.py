@@ -20,7 +20,13 @@ class GromovWassersteinBarycenterProblem:
     self._weights = weights
 
   @property
+  def size(self) -> int:
+    """Number of measures."""
+    return 0 if self.geometries is None else len(self.geometries)
+
+  @property
   def weights(self) -> jnp.ndarray:
+    """Weights for each measure."""
     weights = self._weights
     if weights is None:
       weights = jnp.ones((len(self.geometries),)) / len(self.geometries)
