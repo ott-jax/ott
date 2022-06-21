@@ -27,8 +27,7 @@ def segment_point_cloud(
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
-  """
-  Segment and pad as needed the entries of a point cloud.
+  """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces: either use `segment_ids`, and optionally
   `num_segments` and `indices_are_sorted`, to describe for each

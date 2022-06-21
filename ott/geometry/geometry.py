@@ -614,7 +614,7 @@ class Geometry:
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
 
-  def tree_flatten(self):  # noqa: D102
+  def tree_flatten(self):
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
         self._relative_epsilon, self._kwargs
@@ -623,7 +623,7 @@ class Geometry:
     }
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+  def tree_unflatten(cls, aux_data, children):
     return cls(*children[:-1], **children[-1], **aux_data)
 
 

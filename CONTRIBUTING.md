@@ -11,7 +11,7 @@ to the project, participating in discussions or raising issues.
 2. ```bash
    git clone https://github.com/YOUR_USERNAME/ott-jax
    cd ott-jax
-   pip install -e .[dev,test]
+   pip install -e .'[dev,test]'
    pre-commit install
    ```
 
@@ -20,7 +20,6 @@ done via the ``--no-verify`` flag as:
 ```bash
 git commit --no-verify -m "The commit message"
 ```
-Currently, some checks
 
 ## Running tests
 In order to run tests, you can:
@@ -28,6 +27,16 @@ In order to run tests, you can:
 pytest -n auto  # automatic number of jobs
 pytest tests/sinkhorn_test.py  # only test within a specific file
 pytest -k "test_euclidean_point_cloud"  # only tests which contain the expression
+```
+
+## Building documentation
+From the root of the repository, run:
+```bash
+pip install -e.'[docs]'
+cd docs
+make html  # use `-j 4` to run using 4 jobs
+<your favorite browser> _build/html/index.html
+# run `make clean` to remove generated files
 ```
 
 ## Code reviews
