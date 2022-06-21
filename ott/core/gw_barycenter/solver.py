@@ -1,4 +1,5 @@
-from typing import Any, NamedTuple, Optional, Tuple, Union
+from functools import partial
+from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -18,12 +19,20 @@ class GWBarycenterState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
+class GromovWassersteinBarycenter:
+
+  # TODO(michalk8): consider subclassing + calling parent in `update_state`
+  def __init__(self, **kwargs: Any):
+    self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
+    self._kwargs = kwargs
+    assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
 
   def __call__(
       self, problem: GromovWassersteinBarycenterProblem, **kwargs: Any
   ):
-    bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
+    bar_fn = jax.jit(
+        iterations, static_argnums=1
+    ) if self._quad_solver.jit else iterations
     state = self.init_state(problem, **kwargs)
     state = bar_fn(solver=self, problem=problem, init_state=state)  # TODO
     out = self.output_from_state(state)
@@ -34,7 +43,6 @@ class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
       problem: GromovWassersteinBarycenterProblem,
       *,
       bar_init: Union[int, geometry.Geometry],
-      num_iter: int,
       a: Optional[jnp.ndarray] = None,
   ) -> GWBarycenterState:
     bar_size = bar_init if isinstance(bar_init, int) else bar_init.shape[0]
@@ -47,11 +55,12 @@ class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
     assert a.shape == (bar_size,), (a.shape, (bar_size,))
     assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
 
-    num_iter = self.max_iterations
-    if self.store_inner_errors:
-      errors = -jnp.ones(
-          (num_iter, problem.size, self.linear_ot_solver.outer_iterations)
-      )
+    num_iter = self._quad_solver.max_iterations
+    if self._quad_solver.store_inner_errors:
+      errors = -jnp.ones((
+          num_iter, problem.size,
+          self._quad_solver.linear_ot_solver.outer_iterations
+      ))
     else:
       errors = None
 
@@ -62,11 +71,33 @@ class GromovWassersteinBarycenter(gromov_wasserstein.GromovWasserstein):
       self, state: GWBarycenterState, iteration: int,
       problem: GromovWassersteinBarycenterProblem
   ) -> GWBarycenterState:
+    from ott.core import gromov_wasserstein, quad_problems
+
+    @partial(jax.vmap, in_axes=[None, 0])
+    def solve_gw(
+        bar: geometry.Geometry, geom_x: geometry.Geometry
+    ) -> gromov_wasserstein.GWOutput:
+      quad_prob = quad_problems.QuadraticProblem(
+          geom_xx=bar, geom_xy=geom_x, a=None, b=None
+      )
+      sol = self._quad_solver(quad_prob)
+      return sol
+
     return state
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     # TODO(michalk8)
     return state
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
+    return [], self._kwargs
+
+  @classmethod
+  def tree_unflatten(
+      cls, aux_data: Mapping[str, Any], children: Sequence[Any]
+  ) -> "GromovWassersteinBarycenter":
+    del children
+    return cls(**aux_data)
 
 
 def iterations(
@@ -79,7 +110,7 @@ def iterations(
       state: GWBarycenterState
   ) -> bool:
     solver, _ = constants
-    return solver._continue(state, iteration)
+    return solver._quad_solver._continue(state, iteration)
 
   def body_fn(
       iteration, constants: Tuple[GromovWassersteinBarycenter,
@@ -93,8 +124,8 @@ def iterations(
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
-      min_iterations=solver.min_iterations,
-      max_iterations=solver.max_iterations,
+      min_iterations=solver._quad_solver.min_iterations,
+      max_iterations=solver._quad_solver.max_iterations,
       inner_iterations=1,
       constants=(solver, problem),
       state=init_state,
