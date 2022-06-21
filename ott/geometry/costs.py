@@ -173,14 +173,11 @@ class Bures(CostFn):
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
       cov, _ = state
-      cov_sqrt = matrix_square_root.sqrtm_only(cov)
+      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
       scaled_cov = jnp.linalg.matrix_power(
           jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
       )
-      cov_sqrt_minus = jnp.linalg.matrix_power(cov_sqrt, -1)
-      next_cov = jnp.matmul(
-          jnp.matmul(cov_sqrt_minus, scaled_cov), cov_sqrt_minus
-      )
+      next_cov = jnp.matmul(jnp.matmul(cov_inv_sqrt, scaled_cov), cov_inv_sqrt)
       diff = self.relative_diff(next_cov, cov)
       return next_cov, diff
 
@@ -212,11 +209,10 @@ class Bures(CostFn):
     Args:
       weights: The barycentric weights.
       xs: The points to be used in the computation of the barycenter, where
-        each point is described by a concatenation of the mean and the covariance
-        reshaped.
+        each point is described by a concatenation of the mean and the covariance (raveled).
 
     Returns:
-      barycenter: A concatenation of the mean and the covariance (reshaped) of
+      barycenter: A concatenation of the mean and the covariance (raveled) of
         the barycenter.
     """
     # Ensure that barycentric weights sum to 1.
