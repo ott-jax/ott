@@ -211,10 +211,13 @@ class Bures(CostFn):
 
     Args:
       weights: The barycentric weights.
-      xs: The points to be used in the computation of the barycenter, where each point is described by a concatenation of the mean and the covariance reshaped.
+      xs: The points to be used in the computation of the barycenter, where
+        each point is described by a concatenation of the mean and the covariance
+        reshaped.
 
     Returns:
-      barycenter: A concatenation of the mean and the covariance (reshaped) of the barycenter.
+      barycenter: A concatenation of the mean and the covariance (reshaped) of
+        the barycenter.
     """
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
