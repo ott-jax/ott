@@ -13,6 +13,9 @@
 
 # Lint as: python3
 """Tests for Continuous barycenters."""
+import sys
+
+sys.path.insert(1, '/Users/ersi/Documents/ott/')
 
 import jax
 import jax.numpy as jnp
@@ -32,14 +35,11 @@ class Barycenter(parameterized.TestCase):
   @parameterized.product(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
-      debiased=[True, False],
       jit=[True, False],
       init_random=[True, False]
   )
-  def test_euclidean_barycenter(
-      self, rank, epsilon, debiased, jit, init_random
-  ):
-    print('Rank: ', rank, 'Epsilon: ', epsilon, 'Debiased', debiased)
+  def test_euclidean_barycenter(self, rank, epsilon, jit, init_random):
+    print('Rank: ', rank, 'Epsilon: ', epsilon)
     rngs = jax.random.split(self.rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
@@ -66,7 +66,6 @@ class Barycenter(parameterized.TestCase):
         num_segments=num_per_segment.shape[0],
         max_measure_size=jnp.max(num_per_segment) +
         3,  # +3 set with no purpose.
-        debiased=debiased,
         epsilon=epsilon
     )
 

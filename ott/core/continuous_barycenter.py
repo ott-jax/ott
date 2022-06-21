@@ -127,13 +127,15 @@ class BarycenterState(NamedTuple):
     else:
       errors = None
 
-    # compute each point of the barycenter as the barycenter of the bar_prob.weights.shape[0] barycenters. TODO: compute directly minimizer of double sum.
+    # Approximation of barycenter as barycenter of barycenters per measure.
+
+    barycenters_per_measure = barycentric_projection(
+        matrices, segmented_y, bar_prob.cost_fn
+    )
+
     x_new = jax.vmap(
         bar_prob.cost_fn.barycenter, in_axes=[None, 1]
-    )(
-        bar_prob.weights,
-        barycentric_projection(matrices, segmented_y, bar_prob.cost_fn)
-    )
+    )(bar_prob.weights, barycenters_per_measure)
 
     return self.set(
         costs=updated_costs,
