@@ -13,9 +13,6 @@
 
 # Lint as: python3
 """Tests for Continuous barycenters."""
-import sys
-
-sys.path.insert(1, '/Users/ersi/Documents/ott/')
 
 import jax
 import jax.numpy as jnp
