@@ -23,20 +23,24 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#
+from datetime import datetime
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../'))
 
-# -- Project information -----------------------------------------------------
+import ott  # noqa: 402
 
-# TODO(michalk8): import hthe project and read info from there
-project = 'ott'
-copyright = '2021-2022, the OTT authors'
+# -- Project information -----------------------------------------------------
+needs_sphinx = "4.0"
+
+project = "ott"
+author = "OTT authors"
+copyright = f"2021-{datetime.now():%Y}, {author}"
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.5'
+release = ott.__version__
+version = release
 
 # -- General configuration ---------------------------------------------------
 
