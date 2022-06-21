@@ -17,6 +17,10 @@ class GWBarycenterState(NamedTuple):
   costs: Optional[jnp.ndarray] = None
   reg_gw_cost: Optional[float] = None
 
+  def set(self, **kwargs: Any) -> 'GWBarycenterState':
+    """Return a copy of self, possibly with overwrites."""
+    return self._replace(**kwargs)
+
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter:
@@ -35,8 +39,7 @@ class GromovWassersteinBarycenter:
     ) if self._quad_solver.jit else iterations
     state = self.init_state(problem, **kwargs)
     state = bar_fn(solver=self, problem=problem, init_state=state)  # TODO
-    out = self.output_from_state(state)
-    return out
+    return self.output_from_state(state)
 
   def init_state(
       self,
@@ -68,22 +71,40 @@ class GromovWassersteinBarycenter:
     return GWBarycenterState(x=bar_init, a=a, errors=errors, costs=costs)
 
   def update_state(
-      self, state: GWBarycenterState, iteration: int,
-      problem: GromovWassersteinBarycenterProblem
+      self,
+      state: GWBarycenterState,
+      iteration: int,
+      problem: GromovWassersteinBarycenterProblem,
+      store_errors: bool = True,
   ) -> GWBarycenterState:
     from ott.core import gromov_wasserstein, quad_problems
 
-    @partial(jax.vmap, in_axes=[None, 0])
+    # TODO(michalk8): make sure geometries are padded to the same shape
+    # TODO(michalk8): think about low rank
+    @partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_gw(
-        bar: geometry.Geometry, geom_x: geometry.Geometry
+        a: jnp.ndarray, bar: geometry.Geometry, b: jnp.ndarray,
+        cost: geometry.Geometry
     ) -> gromov_wasserstein.GWOutput:
-      quad_prob = quad_problems.QuadraticProblem(
-          geom_xx=bar, geom_xy=geom_x, a=None, b=None
+      assert isinstance(cost, jnp.ndarray), cost
+      geom = geometry.Geometry(cost, epsilon=self._quad_solver.epsilon)
+      quad_problem = quad_problems.QuadraticProblem(
+          geom_xx=bar, geom_yy=geom, a=a, b=b
       )
-      sol = self._quad_solver(quad_prob)
-      return sol
+      out = self._quad_solver(quad_problem)
+      return (
+          out.reg_gw_cost, out.convergence, out.matrix,
+          out.errors if store_errors else None
+      )
 
-    return state
+    costs, convs, matrices, errors = solve_gw(
+        state.a, state.x, problem.b, problem.geometries
+    )
+
+    cost = jnp.sum(costs * problem.weights)
+    costs = state.costs.at[iteration].set(cost)
+
+    return state.set(costs=costs)
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     # TODO(michalk8)
