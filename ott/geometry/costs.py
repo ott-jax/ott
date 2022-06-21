@@ -203,15 +203,28 @@ class Bures(CostFn):
     return cov
 
   def barycenter(self, weights, xs):
-    """Implements the fixed point approach proposed in https://arxiv.org/pdf/1511.05355.pdf for the computation of the mean and the covariance of the barycenter."""
+    """Compute the barycenter.
+
+    Implements the fixed point approach proposed in https://arxiv.org/abs/
+    1511.05355 for the computation of the mean and the covariance of the
+    barycenter.
+
+    Args:
+      weights: The barycentric weights.
+      xs: The points to be used in the computation of the barycenter, where each point is described by a concatenation of the mean and the covariance reshaped.
+
+    Returns:
+      barycenter: A concatenation of the mean and the covariance (reshaped) of the barycenter.
+    """
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
     mus, covs = self.x_to_mean_and_cov(xs)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
-    return jnp.concatenate(
+    barycenter = jnp.concatenate(
         (mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension)))
     )
+    return barycenter
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
