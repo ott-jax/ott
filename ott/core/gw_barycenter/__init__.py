@@ -1,1 +1,2 @@
-from .problem import GromovWassersteinBarycenterProblem, GWGeometryHolder
+from .problem import GromovWassersteinBarycenterProblem
+from .solver import GromovWassersteinBarycenter

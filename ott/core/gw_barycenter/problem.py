@@ -14,12 +14,10 @@ class GromovWassersteinBarycenterProblem:
       geometries: Sequence[geometry.Geometry],
       b: Optional[Sequence[jnp.ndarray]] = None,
       weights: Optional[jnp.ndarray] = None,
-      epsilon: Optional[float] = None
   ):
     self.geometries = geometries
     self.b = b
     self._weights = weights
-    self._epsilon = epsilon
 
   @property
   def weights(self) -> jnp.ndarray:
@@ -30,7 +28,7 @@ class GromovWassersteinBarycenterProblem:
     return weights
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
-    return [self.geometries, self._weights], {"epsilon": self._epsilon}
+    return [self.geometries, self._weights], {}
 
   @classmethod
   def tree_unflatten(
