@@ -1,4 +1,5 @@
 from functools import partial
+from types import MappingProxyType
 from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
@@ -206,3 +207,39 @@ def iterations(
       state=init_state,
   )
   return state
+
+
+def pad_along_axis(
+    x: Sequence[jnp.ndarray],
+    max_pad_size: Mapping[int, Optional[int]] = MappingProxyType({}),
+    constant_values: Any = 0.0
+) -> jnp.ndarray:
+  """TODO.
+
+  Args:
+    x: sequence of arrays to pad.
+    max_pad_size: maximum padding size along axis. Always pads after.
+    constant_values: value to pad with.
+
+  Returns:
+    TODO.
+  """
+  shapes = jnp.asarray([arr.shape for arr in x])
+  res = []
+
+  for arr in x:
+    pad_width = []
+    for dim in range(arr.ndim):
+      max_size = max_pad_size.get(dim, arr.shape[dim])
+      if max_size is None:
+        max_size = jnp.max(shapes[:, dim])
+      pad_width.append((0, max_size - arr.shape[dim]))
+    padded = jnp.pad(
+        arr,
+        pad_width=pad_width,
+        mode='constant',
+        constant_values=constant_values
+    )
+    res.append(padded)
+
+  return jnp.asarray(res)

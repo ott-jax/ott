@@ -40,6 +40,7 @@ class GromovWassersteinBarycenterProblem:
   def _create_loss(loss: Literal['squecl', 'kl']):
     from ott.core.quad_problems import make_kl_loss, make_square_loss
 
+    # TODO(michalk8): consider refactoring as a quad. loss class
     if loss == 'sqeucl':
       return make_square_loss()
     if loss == 'kl':
