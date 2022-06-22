@@ -125,14 +125,14 @@ class Bures(CostFn):
     self._sqrtm_kw = kwargs
 
   def norm(self, x):
-    mean, cov = self.x_to_mean_and_cov(x)
+    mean, cov = self.x_to_means_and_covs(x)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
   def pairwise(self, x, y):
-    mean_x, cov_x = self.x_to_mean_and_cov(x)
-    mean_y, cov_y = self.x_to_mean_and_cov(y)
+    mean_x, cov_x = self.x_to_means_and_covs(x)
+    mean_y, cov_y = self.x_to_means_and_covs(y)
     mean_dot_prod = jnp.vdot(mean_x, mean_y)
     sq_x = matrix_square_root.sqrtm(cov_x, self._dimension, **self._sqrtm_kw)[0]
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
@@ -141,7 +141,7 @@ class Bures(CostFn):
     )[0]
     return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
-  def x_to_mean_and_cov(self, x):
+  def x_to_means_and_covs(self, x):
     x = jnp.atleast_2d(x)
     means = x[:, 0:self._dimension]
     covariances = jnp.reshape(
@@ -224,7 +224,7 @@ class Bures(CostFn):
     """
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
-    mus, covs = self.x_to_mean_and_cov(xs)
+    mus, covs = self.x_to_means_and_covs(xs)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
     barycenter = jnp.concatenate(
