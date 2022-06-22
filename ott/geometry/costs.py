@@ -15,11 +15,13 @@
 # Lint as: python3
 """Several cost/norm functions for relevant vector types."""
 import abc
+import functools
 from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
 
+from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
 
 
@@ -122,26 +124,113 @@ class Bures(CostFn):
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> Union[jnp.ndarray, float]:
-    norm = jnp.sum(x[..., 0:self._dimension] ** 2, axis=-1)
-    x_mat = jnp.reshape(
-        x[..., self._dimension:], (-1, self._dimension, self._dimension)
-    )
-
-    norm += jnp.trace(x_mat, axis1=-2, axis2=-1)
+  def norm(self, x):
+    mean, cov = self.x_to_means_and_covs(x)
+    norm = jnp.sum(mean ** 2, axis=-1)
+    norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    mean_dot_prod = jnp.vdot(x[0:self._dimension], y[0:self._dimension])
-    x_mat = jnp.reshape(x[self._dimension:], (self._dimension, self._dimension))
-    y_mat = jnp.reshape(y[self._dimension:], (self._dimension, self._dimension))
-
-    sq_x = matrix_square_root.sqrtm(x_mat, self._dimension, **self._sqrtm_kw)[0]
-    sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(y_mat, sq_x))
+  def pairwise(self, x, y):
+    mean_x, cov_x = self.x_to_means_and_covs(x)
+    mean_y, cov_y = self.x_to_means_and_covs(y)
+    mean_dot_prod = jnp.vdot(mean_x, mean_y)
+    sq_x = matrix_square_root.sqrtm(cov_x, self._dimension, **self._sqrtm_kw)[0]
+    sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
         sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
     )[0]
     return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+
+  def x_to_means_and_covs(self, x):
+    x = jnp.atleast_2d(x)
+    means = x[:, 0:self._dimension]
+    covariances = jnp.reshape(
+        x[:, self._dimension:self._dimension + self._dimension ** 2],
+        (-1, self._dimension, self._dimension)
+    )
+    return jnp.squeeze(means), jnp.squeeze(covariances)
+
+  @functools.partial(jax.vmap, in_axes=[None, 0, 0])
+  def means_and_covs_to_x(self, mean, covariance):
+    x = jnp.concatenate(
+        (mean, jnp.reshape(covariance, (self._dimension * self._dimension)))
+    )
+    return x
+
+  @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
+  def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
+    return lambda_i * matrix_square_root.sqrtm_only(
+        jnp.matmul(jnp.matmul(cov_sqrt, cov_i), cov_sqrt)
+    )
+
+  def relative_diff(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
+
+  def covariance_fixpoint_iter(
+      self,
+      covs: jnp.ndarray,
+      lambdas: jnp.ndarray,
+      rtol: float = 1e-2
+  ) -> jnp.ndarray:
+
+    def cond_fn(iteration, constants, state):
+      _, diff = state
+      return diff > jnp.array(rtol)
+
+    def body_fn(iteration, constants, state, compute_error):
+      del compute_error
+      cov, _ = state
+      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
+      scaled_cov = jnp.linalg.matrix_power(
+          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+      )
+      next_cov = jnp.matmul(jnp.matmul(cov_inv_sqrt, scaled_cov), cov_inv_sqrt)
+      diff = self.relative_diff(next_cov, cov)
+      return next_cov, diff
+
+    def init_state():
+      cov_init = jnp.eye(self._dimension)
+      diff = jnp.inf
+      return (cov_init, diff)
+
+    state = fixed_point_loop.fixpoint_iter(
+        cond_fn=cond_fn,
+        body_fn=body_fn,
+        min_iterations=10,
+        max_iterations=500,
+        inner_iterations=1,
+        constants=(),
+        state=init_state()
+    )
+
+    cov, _ = state
+    return cov
+
+  def barycenter(self, weights, xs):
+    """Compute the barycenter.
+
+    Implements the fixed point approach proposed in https://arxiv.org/abs/
+    1511.05355 for the computation of the mean and the covariance of the
+    barycenter.
+
+    Args:
+      weights: The barycentric weights.
+      xs: The points to be used in the computation of the barycenter, where
+        each point is described by a concatenation of the mean and the covariance (raveled).
+
+    Returns:
+      barycenter: A concatenation of the mean and the covariance (raveled) of
+        the barycenter.
+    """
+    # Ensure that barycentric weights sum to 1.
+    weights = weights / jnp.sum(weights)
+    mus, covs = self.x_to_means_and_covs(xs)
+    mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
+    cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
+    barycenter = jnp.concatenate(
+        (mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension)))
+    )
+    return barycenter
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)

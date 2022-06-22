@@ -35,7 +35,7 @@ class BarycenterOutput(NamedTuple):
 
   Attributes:
     costs: Holds the sequence of weighted sum of N regularized W costs seen
-      (possibly debiased) through the outer loop of the solver.
+      through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner N Sinkhorn iterations.
     convergence: Bool convergence flag for the outer Barycenter iterations.
@@ -108,12 +108,10 @@ class BarycenterState(NamedTuple):
       )
 
     if bar_prob.debiased:
-      # Check max size (used to pad) is bigger than barycenter size
-      n, dim = self.x.shape
-      # TODO: statement has no effect
-      bar_prob.max_measure_size
-      segmented_y = segmented_y.at[-1, :n, :].set(self.x)
-      segmented_b = segmented_b.at[-1, :n].set(self.a)
+
+      raise NotImplementedError(
+          "Debiased version of continuous Wasserstein barycenter not yet implemented."
+      )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
         self.a, self.x, segmented_b, segmented_y
@@ -129,13 +127,16 @@ class BarycenterState(NamedTuple):
     else:
       errors = None
 
-    divide_a = jnp.where(self.a > 0, 1.0 / self.a, 1.0)
-    convex_weights = matrices * divide_a[None, :, None]
-    x_new = jnp.sum(
-        barycentric_projection(convex_weights, segmented_y, bar_prob.cost_fn) *
-        bar_prob.weights[:, None, None],
-        axis=0
+    # Approximation of barycenter as barycenter of barycenters per measure.
+
+    barycenters_per_measure = barycentric_projection(
+        matrices, segmented_y, bar_prob.cost_fn
     )
+
+    x_new = jax.vmap(
+        bar_prob.cost_fn.barycenter, in_axes=[None, 1]
+    )(bar_prob.weights, barycenters_per_measure)
+
     return self.set(
         costs=updated_costs,
         linear_convergence=linear_convergence,
