@@ -150,6 +150,13 @@ class Bures(CostFn):
     )
     return jnp.squeeze(means), jnp.squeeze(covariances)
 
+  @functools.partial(jax.vmap, in_axes=[None, 0, 0])
+  def means_and_covs_to_x(self, mean, covariance):
+    x = jnp.concatenate(
+        (mean, jnp.reshape(covariance, (self._dimension * self._dimension)))
+    )
+    return x
+
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
   def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
     return lambda_i * matrix_square_root.sqrtm_only(
