@@ -20,7 +20,7 @@ class GWBarycenterState(NamedTuple):
     costs: TODO.
     reg_gw_cost: TODO.
   """
-  x: Optional[geometry.Geometry] = None
+  x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
@@ -48,14 +48,14 @@ class GromovWassersteinBarycenter:
         iterations, static_argnums=1
     ) if self._quad_solver.jit else iterations
     state = self.init_state(problem, **kwargs)
-    state = bar_fn(solver=self, problem=problem, init_state=state)  # TODO
+    state = bar_fn(solver=self, problem=problem, init_state=state)
     return self.output_from_state(state)
 
   def init_state(
       self,
       problem: GromovWassersteinBarycenterProblem,
       *,
-      bar_init: Union[int, geometry.Geometry],
+      bar_init: Union[int, jnp.ndarray],
       a: Optional[jnp.ndarray] = None,
   ) -> GWBarycenterState:
     bar_size = bar_init if isinstance(bar_init, int) else bar_init.shape[0]
@@ -63,13 +63,9 @@ class GromovWassersteinBarycenter:
     if a is None:
       a = jnp.ones((bar_size,)) / bar_size
     if isinstance(bar_init, int):
-      # TODO(michalk8): sample from each measure
+      # TODO(michalk8): initializer
       raise NotImplementedError(bar_init)
-    elif not isinstance(bar_init, geometry.Geometry):
-      # TODO(michalk8): think about low rank, also fails if PC is passed
-      bar_init = geometry.Geometry(
-          cost=a[:, None] * a[:, None], epsilon=problem.epsilon
-      )
+    # TODO(michalk8): think about low rank
 
     assert a.shape == (bar_size,), (a.shape, (bar_size,))
     assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
@@ -95,16 +91,17 @@ class GromovWassersteinBarycenter:
   ) -> GWBarycenterState:
     from ott.core import gromov_wasserstein, quad_problems
 
-    # TODO(michalk8): make sure geometries are padded to the same shape
+    # TODO(michalk8): use point clouds instead of geometries
     # TODO(michalk8): think about low rank
     @partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_gw(
         a: jnp.ndarray,
-        bar: geometry.Geometry,
+        bar: jnp.ndarray,
         b: jnp.ndarray,
         cost: jnp.ndarray,
     ) -> gromov_wasserstein.GWOutput:
       assert isinstance(cost, jnp.ndarray), cost
+      bar = geometry.Geometry(bar, epsilon=problem.epsilon)
       geom = geometry.Geometry(cost, epsilon=problem.epsilon)
       quad_problem = quad_problems.QuadraticProblem(
           geom_xx=bar, geom_yy=geom, a=a, b=b
@@ -145,7 +142,7 @@ def compute_baycenter(
     problem: GromovWassersteinBarycenterProblem,
     transports: jnp.ndarray,
     a: jnp.ndarray,
-) -> geometry.Geometry:
+) -> jnp.ndarray:
   """TODO.
 
   Args:
@@ -156,27 +153,26 @@ def compute_baycenter(
 
   @partial(jax.vmap, in_axes=[0, 0, None])
   def project(cost: jnp.ndarray, transport: jnp.ndarray, fn) -> jnp.ndarray:
-    # TODO(michalk8): use geometries
-    print(cost.shape, transport.shape)
-    return transport @ (fn(cost) @ transport.T)
-
-  scale = 1.0 / jnp.vdot(a, a)
-  weights = problem.weights[:, None, None]
-
-  h2 = problem.loss[1][1]
-  barycenter = jnp.sum(
-      weights * project(problem.geometries, transports, h2), axis=0
-  )
+    # TODO(michalk8): use geometries/outputs
+    cost = cost if fn is None else fn(cost)
+    return transport @ (cost @ transport.T)
 
   if problem._loss == 'sqeucl':
-    # divide by `2` to adjust for the scale in `h2`
-    barycenter = barycenter * (scale / 2.0)
+    fn = None
   elif problem._loss == 'kl':
-    barycenter = jnp.exp(barycenter * scale)
+    fn = problem.loss[1][1]  # log(x)
   else:
     raise NotImplementedError(problem._loss)
 
-  return geometry.Geometry(cost_matrix=barycenter)
+  barycenter = jnp.sum(
+      problem.weights[:, None, None] *
+      project(problem.geometries, transports, fn),
+      axis=0
+  ) / jnp.vdot(a, a)
+
+  if problem._loss == 'kl':
+    barycenter = jnp.exp(barycenter)
+  return barycenter
 
 
 def iterations(
