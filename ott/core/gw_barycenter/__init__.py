@@ -1,2 +1,2 @@
-from .problem import GromovWassersteinBarycenterProblem
+from .problem import GWBarycenterProblem
 from .solver import GromovWassersteinBarycenter

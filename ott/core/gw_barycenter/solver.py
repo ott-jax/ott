@@ -1,13 +1,12 @@
 from functools import partial
-from types import MappingProxyType
 from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
 from ott.core import fixed_point_loop, gromov_wasserstein
-from ott.core.gw_barycenter.problem import GromovWassersteinBarycenterProblem
-from ott.geometry import geometry
+from ott.core.gw_barycenter.problem import GWBarycenterProblem
+from ott.geometry import pointcloud
 
 
 class GWBarycenterState(NamedTuple):
@@ -42,9 +41,7 @@ class GromovWassersteinBarycenter:
     self._kwargs = kwargs
     assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
 
-  def __call__(
-      self, problem: GromovWassersteinBarycenterProblem, **kwargs: Any
-  ):
+  def __call__(self, problem: GWBarycenterProblem, **kwargs: Any):
     bar_fn = jax.jit(
         iterations, static_argnums=1
     ) if self._quad_solver.jit else iterations
@@ -54,7 +51,7 @@ class GromovWassersteinBarycenter:
 
   def init_state(
       self,
-      problem: GromovWassersteinBarycenterProblem,
+      problem: GWBarycenterProblem,
       *,
       bar_init: Union[int, jnp.ndarray],
       a: Optional[jnp.ndarray] = None,
@@ -74,7 +71,7 @@ class GromovWassersteinBarycenter:
     num_iter = self._quad_solver.max_iterations
     if self._quad_solver.store_inner_errors:
       errors = -jnp.ones((
-          num_iter, problem.size,
+          num_iter, problem.max_measure_size,
           self._quad_solver.linear_ot_solver.outer_iterations
       ))
     else:
@@ -87,7 +84,7 @@ class GromovWassersteinBarycenter:
       self,
       state: GWBarycenterState,
       iteration: int,
-      problem: GromovWassersteinBarycenterProblem,
+      problem: GWBarycenterProblem,
       store_errors: bool = True,
   ) -> GWBarycenterState:
     from ott.core import gromov_wasserstein, quad_problems
@@ -102,8 +99,9 @@ class GromovWassersteinBarycenter:
         cost: jnp.ndarray,
     ) -> gromov_wasserstein.GWOutput:
       assert isinstance(cost, jnp.ndarray), cost
-      bar = geometry.Geometry(bar, epsilon=problem.epsilon)
-      geom = geometry.Geometry(cost, epsilon=problem.epsilon)
+      # TODO(michalk8): pass kwargs
+      bar = pointcloud.PointCloud(bar, epsilon=problem.epsilon)
+      geom = pointcloud.PointCloud(cost, epsilon=problem.epsilon)
       quad_problem = quad_problems.QuadraticProblem(
           geom_xx=bar, geom_yy=geom, a=a, b=b
       )
@@ -113,9 +111,8 @@ class GromovWassersteinBarycenter:
           out.errors if store_errors else None
       )
 
-    costs, convs, transports, errors = solve_gw(
-        state.a, state.x, problem.b, problem.geometries
-    )
+    y, b = problem.segmented_y_b
+    costs, convs, transports, errors = solve_gw(state.a, state.x, b, y)
 
     cost = jnp.sum(costs * problem.weights)
     costs = state.costs.at[iteration].set(cost)
@@ -140,7 +137,7 @@ class GromovWassersteinBarycenter:
 
 
 def compute_baycenter(
-    problem: GromovWassersteinBarycenterProblem,
+    problem: GWBarycenterProblem,
     transports: jnp.ndarray,
     a: jnp.ndarray,
 ) -> jnp.ndarray:
@@ -153,10 +150,10 @@ def compute_baycenter(
   """
 
   @partial(jax.vmap, in_axes=[0, 0, None])
-  def project(cost: jnp.ndarray, transport: jnp.ndarray, fn) -> jnp.ndarray:
-    # TODO(michalk8): use geometries/outputs
-    cost = cost if fn is None else fn(cost)
-    return transport @ (cost @ transport.T)
+  def project(y: jnp.ndarray, transport: jnp.ndarray, fn) -> jnp.ndarray:
+    geom = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+    tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
+    return transport @ tmp
 
   if problem._loss == 'sqeucl':
     fn = None
@@ -165,10 +162,9 @@ def compute_baycenter(
   else:
     raise NotImplementedError(problem._loss)
 
+  y, _ = problem.segmented_y_b
   barycenter = jnp.sum(
-      problem.weights[:, None, None] *
-      project(problem.geometries, transports, fn),
-      axis=0
+      problem.weights[:, None, None] * project(y, transports, fn), axis=0
   ) / jnp.vdot(a, a)
 
   if problem._loss == 'kl':
@@ -177,8 +173,8 @@ def compute_baycenter(
 
 
 def iterations(
-    solver: GromovWassersteinBarycenter,
-    problem: GromovWassersteinBarycenterProblem, init_state: GWBarycenterState
+    solver: GromovWassersteinBarycenter, problem: GWBarycenterProblem,
+    init_state: GWBarycenterState
 ) -> GWBarycenterState:
 
   def cond_fn(
@@ -190,7 +186,7 @@ def iterations(
 
   def body_fn(
       iteration, constants: Tuple[GromovWassersteinBarycenter,
-                                  GromovWassersteinBarycenterProblem],
+                                  GWBarycenterProblem],
       state: GWBarycenterState, compute_error: bool
   ) -> GWBarycenterState:
     del compute_error  # always assumed true
@@ -207,39 +203,3 @@ def iterations(
       state=init_state,
   )
   return state
-
-
-def pad_along_axis(
-    x: Sequence[jnp.ndarray],
-    max_pad_size: Mapping[int, Optional[int]] = MappingProxyType({}),
-    constant_values: Any = 0.0
-) -> jnp.ndarray:
-  """TODO.
-
-  Args:
-    x: sequence of arrays to pad.
-    max_pad_size: maximum padding size along axis. Always pads after.
-    constant_values: value to pad with.
-
-  Returns:
-    TODO.
-  """
-  shapes = jnp.asarray([arr.shape for arr in x])
-  res = []
-
-  for arr in x:
-    pad_width = []
-    for dim in range(arr.ndim):
-      max_size = max_pad_size.get(dim, arr.shape[dim])
-      if max_size is None:
-        max_size = jnp.max(shapes[:, dim])
-      pad_width.append((0, max_size - arr.shape[dim]))
-    padded = jnp.pad(
-        arr,
-        pad_width=pad_width,
-        mode='constant',
-        constant_values=constant_values
-    )
-    res.append(padded)
-
-  return jnp.asarray(res)
