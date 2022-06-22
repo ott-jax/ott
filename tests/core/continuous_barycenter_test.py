@@ -157,14 +157,22 @@ class Barycenter(parameterized.TestCase):
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
 
-    means_bary, covs_bary = bures_cost.x_to_mean_and_cov(barycenter)
+    means_bary, covs_bary = bures_cost.x_to_means_and_covs(barycenter)
 
     self.assertTrue(
-        jnp.allclose(
-            means_bary,
-            jnp.array([[0., 1.], [0., -1.]]),
-            rtol=1e-02,
-            atol=1e-02
+        jnp.logical_or(
+            jnp.allclose(
+                means_bary,
+                jnp.array([[0., 1.], [0., -1.]]),
+                rtol=1e-02,
+                atol=1e-02
+            ),
+            jnp.allclose(
+                means_bary,
+                jnp.array([[0., -1.], [0., 1.]]),
+                rtol=1e-02,
+                atol=1e-02
+            )
         )
     )
 
