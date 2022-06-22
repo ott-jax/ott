@@ -6,16 +6,26 @@ import jax.numpy as jnp
 
 from ott.core import fixed_point_loop, gromov_wasserstein
 from ott.core.gw_barycenter.problem import GromovWassersteinBarycenterProblem
-from ott.geometry import geometry, low_rank
+from ott.geometry import geometry
 
 
 class GWBarycenterState(NamedTuple):
+  """TODO.
+
+  Attributes:
+    x: TODO.
+    a: TODO.
+    converged: TODO.
+    errors: TODO.
+    costs: TODO.
+    reg_gw_cost: TODO.
+  """
   x: Optional[geometry.Geometry] = None
   a: Optional[jnp.ndarray] = None
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
-  reg_gw_cost: Optional[float] = None
+  reg_gw_cost: float = -1
 
   def set(self, **kwargs: Any) -> 'GWBarycenterState':
     """Return a copy of self, possibly with overwrites."""
@@ -52,8 +62,14 @@ class GromovWassersteinBarycenter:
 
     if a is None:
       a = jnp.ones((bar_size,)) / bar_size
-    if not isinstance(bar_init, geometry.Geometry):
-      bar_init = low_rank.LRCGeometry(cost_1=a[:, None], cost_2=a[:, None])
+    if isinstance(bar_init, int):
+      # TODO(michalk8): sample from each measure
+      raise NotImplementedError(bar_init)
+    elif not isinstance(bar_init, geometry.Geometry):
+      # TODO(michalk8): think about low rank, also fails if PC is passed
+      bar_init = geometry.Geometry(
+          cost=a[:, None] * a[:, None], epsilon=problem.epsilon
+      )
 
     assert a.shape == (bar_size,), (a.shape, (bar_size,))
     assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
@@ -83,11 +99,13 @@ class GromovWassersteinBarycenter:
     # TODO(michalk8): think about low rank
     @partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_gw(
-        a: jnp.ndarray, bar: geometry.Geometry, b: jnp.ndarray,
-        cost: geometry.Geometry
+        a: jnp.ndarray,
+        bar: geometry.Geometry,
+        b: jnp.ndarray,
+        cost: jnp.ndarray,
     ) -> gromov_wasserstein.GWOutput:
       assert isinstance(cost, jnp.ndarray), cost
-      geom = geometry.Geometry(cost, epsilon=self._quad_solver.epsilon)
+      geom = geometry.Geometry(cost, epsilon=problem.epsilon)
       quad_problem = quad_problems.QuadraticProblem(
           geom_xx=bar, geom_yy=geom, a=a, b=b
       )
@@ -97,14 +115,16 @@ class GromovWassersteinBarycenter:
           out.errors if store_errors else None
       )
 
-    costs, convs, matrices, errors = solve_gw(
+    costs, convs, transports, errors = solve_gw(
         state.a, state.x, problem.b, problem.geometries
     )
 
     cost = jnp.sum(costs * problem.weights)
     costs = state.costs.at[iteration].set(cost)
 
-    return state.set(costs=costs)
+    x_new = compute_baycenter(problem, transports, state.a)
+
+    return state.set(x=x_new, costs=costs)
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     # TODO(michalk8)
@@ -119,6 +139,44 @@ class GromovWassersteinBarycenter:
   ) -> "GromovWassersteinBarycenter":
     del children
     return cls(**aux_data)
+
+
+def compute_baycenter(
+    problem: GromovWassersteinBarycenterProblem,
+    transports: jnp.ndarray,
+    a: jnp.ndarray,
+) -> geometry.Geometry:
+  """TODO.
+
+  Args:
+    problem: the GW barycenter problem.
+    transports: (num_measures, )
+    a: barycenter weights.
+  """
+
+  @partial(jax.vmap, in_axes=[0, 0, None])
+  def project(cost: jnp.ndarray, transport: jnp.ndarray, fn) -> jnp.ndarray:
+    # TODO(michalk8): use geometries
+    print(cost.shape, transport.shape)
+    return transport @ (fn(cost) @ transport.T)
+
+  scale = 1.0 / jnp.vdot(a, a)
+  weights = problem.weights[:, None, None]
+
+  h2 = problem.loss[1][1]
+  barycenter = jnp.sum(
+      weights * project(problem.geometries, transports, h2), axis=0
+  )
+
+  if problem._loss == 'sqeucl':
+    # divide by `2` to adjust for the scale in `h2`
+    barycenter = barycenter * (scale / 2.0)
+  elif problem._loss == 'kl':
+    barycenter = jnp.exp(barycenter * scale)
+  else:
+    raise NotImplementedError(problem._loss)
+
+  return geometry.Geometry(cost_matrix=barycenter)
 
 
 def iterations(
