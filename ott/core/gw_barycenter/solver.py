@@ -6,9 +6,10 @@ import jax.numpy as jnp
 
 from ott.core import fixed_point_loop, gromov_wasserstein
 from ott.core.gw_barycenter.problem import GWBarycenterProblem
-from ott.geometry import pointcloud
+from ott.geometry import geometry, pointcloud
 
 
+# TODO(michalk8): think how this can be abstracted with other cont. barycenters
 class GWBarycenterState(NamedTuple):
   """TODO.
 
@@ -96,12 +97,12 @@ class GromovWassersteinBarycenter:
         a: jnp.ndarray,
         bar: jnp.ndarray,
         b: jnp.ndarray,
-        cost: jnp.ndarray,
+        y: jnp.ndarray,
     ) -> gromov_wasserstein.GWOutput:
-      assert isinstance(cost, jnp.ndarray), cost
-      # TODO(michalk8): pass kwargs
-      bar = pointcloud.PointCloud(bar, epsilon=problem.epsilon)
-      geom = pointcloud.PointCloud(cost, epsilon=problem.epsilon)
+      assert isinstance(y, jnp.ndarray), y
+      # TODO(michalk8): pass kwargs?
+      bar = geometry.Geometry(cost_matrix=bar, epsilon=problem.epsilon)
+      geom = pointcloud.PointCloud(y, epsilon=problem.epsilon)
       quad_problem = quad_problems.QuadraticProblem(
           geom_xx=bar, geom_yy=geom, a=a, b=b
       )
@@ -118,6 +119,7 @@ class GromovWassersteinBarycenter:
     costs = state.costs.at[iteration].set(cost)
 
     x_new = compute_baycenter(problem, transports, state.a)
+    # TODO(michalk8): set other flags
 
     return state.set(x=x_new, costs=costs)
 
