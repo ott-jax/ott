@@ -104,11 +104,14 @@ class GromovWassersteinBarycenter:
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
         f: Optional[jnp.ndarray]
     ) -> Any:
-      # TODO(michalk8): think about low rank
-      geom_xx = geometry.Geometry(cost_matrix=state.c, epsilon=problem.epsilon)
-      geom_yy = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+      geom_xx = geometry.Geometry(state.c, epsilon=problem.epsilon)
+      if problem.is_cost:
+        geom_yy = geometry.Geometry(y, epsilon=problem.epsilon)
+      else:
+        geom_yy = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+
       if problem.is_fused:
-        geom_xy = pointcloud.PointCloud(x=state.x, y=f, epsilon=problem.epsilon)
+        geom_xy = pointcloud.PointCloud(state.x, f, epsilon=problem.epsilon)
       else:
         geom_xy = None
 

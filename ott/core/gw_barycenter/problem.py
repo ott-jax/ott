@@ -18,6 +18,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
+      is_cost: bool = False,
       **kwargs: Any,
   ):
     """TODO.
@@ -29,6 +30,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       loss: TODO.
       fused_penalty: TODO.
         Only used when ``y_fused != None``.
+      is_cost: Whether ``y`` represents a cost matrix or a point cloud.
       kwargs: Keyword arguments for
         :class:`ott.core.bar_problems.BarycenterProblem`.
     """
@@ -37,6 +39,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     self.loss = self._create_loss(loss)
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
+    self.is_cost = is_cost
 
   def update_barycenter(
       self, transports: jnp.ndarray, a: jnp.ndarray
