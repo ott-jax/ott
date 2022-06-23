@@ -1,5 +1,4 @@
-from functools import partial
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -13,7 +12,8 @@ class GWBarycenterState(NamedTuple):
   """TODO.
 
   Attributes:
-    x: TODO.
+    x: Barycenter features. Only in fused case.
+    c: Barycenter cost matrix.
     a: TODO.
     converged: TODO.
     errors: TODO.
@@ -21,6 +21,7 @@ class GWBarycenterState(NamedTuple):
     reg_gw_cost: TODO.
   """
   x: Optional[jnp.ndarray] = None
+  c: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
@@ -51,20 +52,32 @@ class GromovWassersteinBarycenter:
   def init_state(
       self,
       problem: GWBarycenterProblem,
-      *,
-      bar_init: Union[int, jnp.ndarray],
+      bar_init: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
       a: Optional[jnp.ndarray] = None,
   ) -> GWBarycenterState:
-    bar_size = bar_init if isinstance(bar_init, int) else bar_init.shape[0]
+    """TODO.
 
+    Args:
+      problem: The barycenter problem.
+      bar_init:
+      a: Barycenter weights.
+
+    Returns:
+      TODO.
+    """
+    # TODO(michalk8): same feature initializer as in continuous barycenter?
+    # TODO(michalk8): default random initializer for structure?
+    c, x = bar_init
+    bar_size = c.shape[0]
     if a is None:
       a = jnp.ones((bar_size,)) / bar_size
-    if isinstance(bar_init, int):
-      # TODO(michalk8): same initializer as in continuous barycenter?
-      raise NotImplementedError(bar_init)
 
-    assert a.shape == (bar_size,), (a.shape, (bar_size,))
-    assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
+    assert c.shape == (bar_size, bar_size)
+    assert a.shape == (bar_size,)
+    if problem.is_fused:
+      assert x is not None, "barycenter features are not initialized"
+      _, _, d = problem.segmented_y_fused.shape
+      assert x.shape == (bar_size, d)
 
     num_iter = self._quad_solver.max_iterations
     if self._quad_solver.store_inner_errors:
@@ -76,7 +89,7 @@ class GromovWassersteinBarycenter:
       errors = None
 
     costs = -jnp.ones((num_iter,))
-    return GWBarycenterState(x=bar_init, a=a, errors=errors, costs=costs)
+    return GWBarycenterState(x=x, c=c, a=a, errors=errors, costs=costs)
 
   def update_state(
       self,
@@ -89,15 +102,13 @@ class GromovWassersteinBarycenter:
 
     def solve_gw(
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
-        y_fused: Optional[jnp.ndarray]
+        f: Optional[jnp.ndarray]
     ) -> Any:
       # TODO(michalk8): think about low rank
-      geom_xx = geometry.Geometry(cost_matrix=state.x, epsilon=problem.epsilon)
+      geom_xx = geometry.Geometry(cost_matrix=state.c, epsilon=problem.epsilon)
       geom_yy = pointcloud.PointCloud(y, epsilon=problem.epsilon)
       if problem.is_fused:
-        geom_xy = geometry.Geometry(
-            cost_matrix=y_fused, epsilon=problem.epsilon
-        )
+        geom_xy = pointcloud.PointCloud(x=state.x, y=f, epsilon=problem.epsilon)
       else:
         geom_xy = None
 
@@ -127,10 +138,11 @@ class GromovWassersteinBarycenter:
     cost = jnp.sum(costs * problem.weights)
     costs = state.costs.at[iteration].set(cost)
 
-    x_new = compute_baycenter(problem, transports, state.a)
+    x_new = problem.update_features(transports, state.a)
+    c_new = problem.update_barycenter(transports, state.a)
     # TODO(michalk8): set other flags
 
-    return state.set(x=x_new, costs=costs)
+    return state.set(x=x_new, c=c_new, costs=costs)
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     # for consistency with cont. barycenter, will be refactored in the future
@@ -145,47 +157,6 @@ class GromovWassersteinBarycenter:
   ) -> "GromovWassersteinBarycenter":
     del children
     return cls(**aux_data)
-
-
-def compute_baycenter(
-    problem: GWBarycenterProblem,
-    transports: jnp.ndarray,
-    a: jnp.ndarray,
-) -> jnp.ndarray:
-  """TODO.
-
-  Args:
-    problem: the GW barycenter problem.
-    transports: (num_measures, )
-    a: barycenter weights.
-  """
-
-  @partial(jax.vmap, in_axes=[0, 0, None])
-  def project(
-      y: jnp.ndarray, transport: jnp.ndarray, fn: Callable[[jnp.ndarray],
-                                                           jnp.ndarray]
-  ) -> jnp.ndarray:
-    geom = pointcloud.PointCloud(y, epsilon=problem.epsilon)
-    tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
-    return transport @ tmp
-
-  if problem._loss_name == 'sqeucl':
-    fn = None
-  elif problem._loss_name == 'kl':
-    fn = problem.loss[1][1]
-  else:
-    raise NotImplementedError(
-        f"Loss `{problem._loss_name}` is not yet implemented."
-    )
-
-  y, _ = problem.segmented_y_b
-  barycenter = jnp.sum(
-      problem.weights[:, None, None] * project(y, transports, fn), axis=0
-  ) / jnp.vdot(a, a)
-
-  if problem._loss_name == 'kl':
-    barycenter = jnp.exp(barycenter)
-  return barycenter
 
 
 def iterations(
