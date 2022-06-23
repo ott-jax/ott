@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import bar_problems, continuous_barycenter, segment
+from ott.core import bar_problems, continuous_barycenter, quad_problems, segment
 from ott.geometry import costs, pointcloud
 
 
@@ -35,10 +35,10 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
         :class:`ott.core.bar_problems.BarycenterProblem`.
     """
     super().__init__(*args, **kwargs)
-    self._loss_name = loss
-    self.loss = self._create_loss(loss)
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
+    self.loss = self._create_loss(loss)
+    self._loss_name = loss
     self.is_cost = is_cost
 
   def update_barycenter(
@@ -63,15 +63,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
       return transport @ tmp
 
-    if self._loss_name == 'sqeucl':
-      fn = None
-    elif self._loss_name == 'kl':
-      fn = self.loss[1][1]
-    else:
-      raise NotImplementedError(
-          f"Loss `{self._loss_name}` is not yet implemented."
-      )
-
+    fn = None if self._loss_name == 'sqeucl' else self.loss[1][1]
     y, _ = self.segmented_y_b
     weights = self.weights[:, None, None]
 
@@ -84,13 +76,13 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
 
   def update_features(self, transports: jnp.ndarray,
                       a: jnp.ndarray) -> Optional[jnp.ndarray]:
-
     if not self.is_fused:
       return None
 
     y_fused = self.segmented_y_fused
     weights = self.weights[:, None, None]
 
+    # TODO(michalk8): verify
     if self._loss_name == "sqeucl":
       cost = costs.Euclidean()
       divide_a = jnp.where(a > 0, 1.0 / a, 1.0)
@@ -100,7 +92,6 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
           .barycentric_projection(transports, y_fused, cost),
           axis=0
       )
-
     raise NotImplementedError(self._loss_name)
 
   @property
@@ -120,13 +111,11 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
 
   @staticmethod
   def _create_loss(loss: Literal['sqeucl', 'kl']):
-    from ott.core.quad_problems import make_kl_loss, make_square_loss
-
     # TODO(michalk8): consider refactoring as a quad. loss class
     if loss == 'sqeucl':
-      return make_square_loss()
+      return quad_problems.make_square_loss()
     if loss == 'kl':
-      return make_kl_loss()
+      return quad_problems.make_kl_loss()
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
