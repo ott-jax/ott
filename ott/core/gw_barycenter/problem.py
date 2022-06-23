@@ -132,7 +132,10 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     # TODO(michalk8): update me
     children, aux = super().tree_flatten()
+    aux["y_fused"] = self._y_fused
+    aux["fused_penalty"] = self.fused_penalty
     aux['loss'] = self._loss_name
+    aux['is_cost'] = self.is_cost
     return children, aux
 
 
