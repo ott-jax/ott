@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +9,6 @@ from ott.core.gw_barycenter.problem import GWBarycenterProblem
 from ott.geometry import geometry, pointcloud
 
 
-# TODO(michalk8): think how this can be abstracted with other cont. barycenters
 class GWBarycenterState(NamedTuple):
   """TODO.
 
@@ -36,7 +35,6 @@ class GWBarycenterState(NamedTuple):
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter:
 
-  # TODO(michalk8): consider subclassing + calling parent in `update_state`
   def __init__(self, **kwargs: Any):
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
     self._kwargs = kwargs
@@ -62,9 +60,8 @@ class GromovWassersteinBarycenter:
     if a is None:
       a = jnp.ones((bar_size,)) / bar_size
     if isinstance(bar_init, int):
-      # TODO(michalk8): initializer
+      # TODO(michalk8): same initializer as in continuous barycenter?
       raise NotImplementedError(bar_init)
-    # TODO(michalk8): think about low rank
 
     assert a.shape == (bar_size,), (a.shape, (bar_size,))
     assert a.shape == (bar_init.shape[0],), (a.shape, bar_init.shape[0])
@@ -87,33 +84,45 @@ class GromovWassersteinBarycenter:
       iteration: int,
       problem: GWBarycenterProblem,
       store_errors: bool = True,
-  ) -> GWBarycenterState:
-    from ott.core import gromov_wasserstein, quad_problems
+  ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
+    from ott.core import quad_problems
 
-    # TODO(michalk8): use point clouds instead of geometries
-    # TODO(michalk8): think about low rank
-    @partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_gw(
-        a: jnp.ndarray,
-        bar: jnp.ndarray,
-        b: jnp.ndarray,
-        y: jnp.ndarray,
-    ) -> gromov_wasserstein.GWOutput:
-      assert isinstance(y, jnp.ndarray), y
-      # TODO(michalk8): pass kwargs?
-      bar = geometry.Geometry(cost_matrix=bar, epsilon=problem.epsilon)
-      geom = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+        state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
+        y_fused: Optional[jnp.ndarray]
+    ) -> Any:
+      # TODO(michalk8): think about low rank
+      geom_xx = geometry.Geometry(cost_matrix=state.x, epsilon=problem.epsilon)
+      geom_yy = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+      if problem.is_fused:
+        geom_xy = geometry.Geometry(
+            cost_matrix=y_fused, epsilon=problem.epsilon
+        )
+      else:
+        geom_xy = None
+
       quad_problem = quad_problems.QuadraticProblem(
-          geom_xx=bar, geom_yy=geom, a=a, b=b
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=geom_xy,
+          a=state.a,
+          b=b,
+          fused_penalty=problem.fused_penalty,
       )
       out = self._quad_solver(quad_problem)
+
       return (
           out.reg_gw_cost, out.convergence, out.matrix,
           out.errors if store_errors else None
       )
 
+    in_axes = [None, 0, 0]
+    in_axes += [0] if problem.is_fused else [None]
+    solve_fn = jax.vmap(solve_gw, in_axes=in_axes)
+
     y, b = problem.segmented_y_b
-    costs, convs, transports, errors = solve_gw(state.a, state.x, b, y)
+    y_f = problem.segmented_y_fused
+    costs, convs, transports, errors = solve_fn(state, b, y, y_f)
 
     cost = jnp.sum(costs * problem.weights)
     costs = state.costs.at[iteration].set(cost)
@@ -124,7 +133,7 @@ class GromovWassersteinBarycenter:
     return state.set(x=x_new, costs=costs)
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
-    # TODO(michalk8)
+    # for consistency with cont. barycenter, will be refactored in the future
     return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
@@ -152,24 +161,29 @@ def compute_baycenter(
   """
 
   @partial(jax.vmap, in_axes=[0, 0, None])
-  def project(y: jnp.ndarray, transport: jnp.ndarray, fn) -> jnp.ndarray:
+  def project(
+      y: jnp.ndarray, transport: jnp.ndarray, fn: Callable[[jnp.ndarray],
+                                                           jnp.ndarray]
+  ) -> jnp.ndarray:
     geom = pointcloud.PointCloud(y, epsilon=problem.epsilon)
     tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
     return transport @ tmp
 
-  if problem._loss == 'sqeucl':
+  if problem._loss_name == 'sqeucl':
     fn = None
-  elif problem._loss == 'kl':
-    fn = problem.loss[1][1]  # log(x)
+  elif problem._loss_name == 'kl':
+    fn = problem.loss[1][1]
   else:
-    raise NotImplementedError(problem._loss)
+    raise NotImplementedError(
+        f"Loss `{problem._loss_name}` is not yet implemented."
+    )
 
   y, _ = problem.segmented_y_b
   barycenter = jnp.sum(
       problem.weights[:, None, None] * project(y, transports, fn), axis=0
   ) / jnp.vdot(a, a)
 
-  if problem._loss == 'kl':
+  if problem._loss_name == 'kl':
     barycenter = jnp.exp(barycenter)
   return barycenter
 
