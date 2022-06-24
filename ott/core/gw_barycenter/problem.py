@@ -119,7 +119,6 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    # TODO(michalk8): update me
     children, aux = super().tree_flatten()
     aux["y_fused"] = self._y_fused
     aux["fused_penalty"] = self.fused_penalty

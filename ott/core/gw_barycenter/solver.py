@@ -1,10 +1,17 @@
 from functools import partial
+from types import MappingProxyType
 from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.core import fixed_point_loop, gromov_wasserstein, problems, quad_problems
+from ott.core import (
+    fixed_point_loop,
+    gromov_wasserstein,
+    problems,
+    quad_problems,
+    was_solver,
+)
 from ott.core.gw_barycenter.problem import GWBarycenterProblem
 from ott.geometry import geometry, pointcloud
 
@@ -35,17 +42,25 @@ class GWBarycenterState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWassersteinBarycenter:
+class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
-  def __init__(self, **kwargs: Any):
-    self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
-    self._kwargs = kwargs
-    assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
+  def __init__(
+      self,
+      *args: Any,
+      gw_kwargs: Mapping[str, Any] = MappingProxyType({}),
+      **kwargs: Any
+  ):
+    super().__init__(*args, **kwargs)
+    gw_kwargs = dict(gw_kwargs)
+    gw_kwargs["epsilon"] = kwargs.get("epsilon", None)
+    gw_kwargs["rank"] = kwargs.get("rank", -1)
+
+    self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
+    self._gw_kwargs = gw_kwargs
+    assert not self.is_low_rank, "Low rank not yet implemented."
 
   def __call__(self, problem: GWBarycenterProblem, **kwargs: Any):
-    bar_fn = jax.jit(
-        iterations, static_argnums=1
-    ) if self._quad_solver.jit else iterations
+    bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
     state = self.init_state(problem, **kwargs)
     state = bar_fn(solver=self, problem=problem, init_state=state)
     return self.output_from_state(state)
@@ -95,11 +110,11 @@ class GromovWassersteinBarycenter:
         _, _, d = problem.segmented_y_fused.shape
         assert x.shape == (bar_size, d)
 
-    num_iter = self._quad_solver.max_iterations
-    if self._quad_solver.store_inner_errors:
+    num_iter = self.max_iterations
+    if self.store_inner_errors:
       errors = -jnp.ones((
           num_iter, problem.max_measure_size,
-          self._quad_solver.linear_ot_solver.outer_iterations
+          self.linear_ot_solver.outer_iterations
       ))
     else:
       errors = None
@@ -166,14 +181,13 @@ class GromovWassersteinBarycenter:
     return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
-    return [], self._kwargs
+    raise NotImplementedError("TODO")
 
   @classmethod
   def tree_unflatten(
       cls, aux_data: Mapping[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
-    del children
-    return cls(**aux_data)
+    raise NotImplementedError("TODO")
 
 
 @partial(jax.vmap, in_axes=[None, 0, 0, None, None])
@@ -196,7 +210,7 @@ def iterations(
       state: GWBarycenterState
   ) -> bool:
     solver, _ = constants
-    return solver._quad_solver._continue(state, iteration)
+    return solver._continue(state, iteration)
 
   def body_fn(
       iteration, constants: Tuple[GromovWassersteinBarycenter,
@@ -210,8 +224,8 @@ def iterations(
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
-      min_iterations=solver._quad_solver.min_iterations,
-      max_iterations=solver._quad_solver.max_iterations,
+      min_iterations=solver.min_iterations,
+      max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=(solver, problem),
       state=init_state,
