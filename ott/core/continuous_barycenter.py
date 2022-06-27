@@ -20,7 +20,7 @@ from typing import Any, NamedTuple, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.core import bar_problems, fixed_point_loop, problems, was_solver
+from ott.core import bar_problems, fixed_point_loop, linear_problems, was_solver
 from ott.geometry import pointcloud
 
 
@@ -96,7 +96,7 @@ class BarycenterState(NamedTuple):
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(a, x, b, y):
       out = linear_ot_solver(
-          problems.LinearProblem(
+          linear_problems.LinearProblem(
               pointcloud.PointCloud(
                   x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
               ), a, b

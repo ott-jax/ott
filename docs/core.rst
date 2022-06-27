@@ -18,7 +18,7 @@ OT Problems
 .. autosummary::
     :toctree: _autosummary
 
-    problems.LinearProblem
+    linear_problems.LinearProblem
     quad_problems.QuadraticProblem
     bar_problems.BarycenterProblem
 

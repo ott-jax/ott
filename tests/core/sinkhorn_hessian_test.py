@@ -23,7 +23,7 @@ import numpy as np
 from absl.testing import absltest, parameterized
 
 from ott.core import implicit_differentiation as implicit_lib
-from ott.core import problems, sinkhorn
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import pointcloud
 
 
@@ -57,7 +57,7 @@ class SinkhornHessianTest(parameterized.TestCase):
 
     def loss(a, x, implicit=True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-      prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
+      prob = linear_problems.LinearProblem(geom, a, b, tau_a, tau_b)
       implicit_diff = (
           None if not implicit else
           implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge)

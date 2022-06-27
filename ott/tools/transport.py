@@ -32,7 +32,7 @@ from typing import Any, NamedTuple, Optional
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import gromov_wasserstein, problems, quad_problems, sinkhorn
+from ott.core import gromov_wasserstein, linear_problems, problems, sinkhorn
 from ott.geometry import geometry
 
 
@@ -44,7 +44,7 @@ class Transport(NamedTuple):
 
   @property
   def linear(self) -> bool:
-    return isinstance(self.problem, problems.LinearProblem)
+    return isinstance(self.problem, linear_problems.LinearProblem)
 
   @property
   def geom(self) -> geometry.Geometry:
@@ -107,7 +107,7 @@ def solve(
   fused_penalty = kwargs.pop('fused_penalty', None)
   eps_keys = ['epsilon', 'init', 'target', 'decay']
   pb_kwargs = {k: v for k, v in kwargs.items() if k in eps_keys}
-  pb = quad_problems.make(
+  pb = problems.make(
       *args,
       objective=objective,
       a=a,
@@ -118,7 +118,7 @@ def solve(
       fused_penalty=fused_penalty,
       **pb_kwargs
   )
-  linear = isinstance(pb, problems.LinearProblem)
+  linear = isinstance(pb, linear_problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
   remove_keys = geom_keys + eps_keys if linear else geom_keys
