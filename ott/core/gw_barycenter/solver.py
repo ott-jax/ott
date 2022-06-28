@@ -17,15 +17,16 @@ from ott.geometry import geometry, pointcloud
 
 
 class GWBarycenterState(NamedTuple):
-  """TODO.
+  """Holds the state of the (fused) Gromov-Wasserstein barycenter solver.
 
   Attributes:
-    x: Barycenter features. Only in fused case.
-    c: Barycenter cost matrix.
-    a: TODO.
-    converged: TODO.
-    errors: TODO.
-    costs: TODO.
+    x: Barycenter features of shape ``[N, D]``. Only used in the fused case.
+    c: Barycenter cost matrix of shape ``[N, D]``.
+    a: Weights of the barycenter of shape ``[N,]``.
+    errors: Array of shape ``[max_iter, num_measures]``
+    costs: Array of shape ``[max_iter,] containing the cost for each iteration.
+    gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
+      of all GW problems for each iteration.
   """
   x: Optional[jnp.ndarray] = None
   c: Optional[jnp.ndarray] = None
@@ -62,6 +63,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     )
     gw_kwargs = dict(gw_kwargs)
     gw_kwargs["epsilon"] = epsilon
+    # TODO(michalk8): store only GW errors?
     gw_kwargs["store_inner_errors"] = store_inner_errors
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
     assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
@@ -79,16 +81,25 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       a: Optional[jnp.ndarray] = None,
       seed: int = 0,
   ) -> GWBarycenterState:
-    """TODO.
+    """Initialize the (fused) Gromov-Wasserstein barycenter state.
 
     Args:
       problem: The barycenter problem.
-      bar_init: TODO.
-      a: Barycenter weights.
-      seed: TODO.
+      bar_init: Initial barycenter value. Can be one of following:
+
+        - :class:`int` - randomly initialize barycenter, see also ``seed``.
+        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[N, N]``.
+          Only used when solving Gromov-Wasserstein barycenters.
+        - 2- :class:`tuple` of :class:`jnp.ndarray` - first array corresponds
+          to the ``[N, N]`` cost matrix, the second array is an ``[N, D]``
+          barycenter feature array.
+          Only used when solving Fused Gromov-Wasserstein barycenters.
+
+      a: An array of shape ``[N,]`` containing the barycenter weights.
+      seed: Random seed when ``bar_init`` is :class:`int`.
 
     Returns:
-      TODO.
+      The initial barycenter state.
     """
     if isinstance(bar_init, int):
       if a is None:
@@ -208,10 +219,11 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
-    # for consistency with cont. barycenter, will be refactored in the future
+    # TODO(michalk8): just for consistency with continuous barycenter
+    # will be refactored in the future
     return state
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux = super().tree_flatten()
     aux['_gw_kwargs'] = self._quad_solver._kwargs
     return children, aux
@@ -230,12 +242,25 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     )
 
 
-@partial(jax.vmap, in_axes=[None, 0, 0, None, None])
+@partial(jax.vmap, in_axes=[None, 0, None, 0, None])
 def init_transports(
-    solver, key: jnp.ndarray, b: jnp.ndarray, a: jnp.ndarray, eps: float
+    solver, key: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+    epsilon: Optional[float]
 ) -> jnp.ndarray:
+  """Initialize random cost matrix and solve the OT problem.
+
+  Args:
+    solver: Linear OT solver.
+    key: Random key.
+    a: Source marginals (e.g., for barycenter) of shape ``[N,]``.
+    b: Target marginals of shape ``[M,]``.
+    epsilon: Entropy regularization.
+
+  Returns:
+    Transport map of shape ``[N, M]``.
+  """
   cost = jax.random.uniform(key, shape=(len(a), len(b)), minval=0, maxval=1)
-  geom = geometry.Geometry(cost, epsilon=eps)
+  geom = geometry.Geometry(cost, epsilon=epsilon)
   problem = problems.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 
