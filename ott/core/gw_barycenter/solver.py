@@ -26,15 +26,13 @@ class GWBarycenterState(NamedTuple):
     converged: TODO.
     errors: TODO.
     costs: TODO.
-    reg_gw_cost: TODO.
   """
   x: Optional[jnp.ndarray] = None
   c: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
-  converged: bool = False
   errors: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
-  reg_gw_cost: float = -1
+  gw_convergence: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> 'GWBarycenterState':
     """Return a copy of self, possibly with overwrites."""
@@ -64,6 +62,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     )
     gw_kwargs = dict(gw_kwargs)
     gw_kwargs["epsilon"] = epsilon
+    gw_kwargs["store_inner_errors"] = store_inner_errors
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
     assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
 
@@ -120,15 +119,24 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     num_iter = self.max_iterations
     if self.store_inner_errors:
+      # TODO(michalk8): think about how to do this in general
       errors = -jnp.ones((
-          num_iter, problem.max_measure_size,
+          num_iter, problem.num_segments, self._quad_solver.max_iterations,
           self.linear_ot_solver.outer_iterations
       ))
     else:
       errors = None
 
     costs = -jnp.ones((num_iter,))
-    return GWBarycenterState(x=x, c=c, a=a, errors=errors, costs=costs)
+    gw_convergence = -jnp.ones((num_iter,))
+    return GWBarycenterState(
+        x=x,
+        c=c,
+        a=a,
+        errors=errors,
+        costs=costs,
+        gw_convergence=gw_convergence
+    )
 
   def update_state(
       self,
@@ -174,15 +182,27 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     y, b = problem.segmented_y_b
     y_f = problem.segmented_y_fused
-    costs, convs, transports, errors = solve_fn(state, b, y, y_f)
+    costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
 
     cost = jnp.sum(costs * problem.weights)
     costs = state.costs.at[iteration].set(cost)
+    converged = jnp.all(convergeds)
+    gw_convergence = state.gw_convergence.at[iteration].set(converged)
+
+    if self.store_inner_errors:
+      errors = state.errors.at[iteration, ...].set(errors)
+    else:
+      errors = None
 
     x_new = problem.update_features(transports, state.a)
     c_new = problem.update_barycenter(transports, state.a)
-    # TODO(michalk8): set other flags
-    return state.set(x=x_new, c=c_new, costs=costs)
+    return state.set(
+        x=x_new,
+        c=c_new,
+        costs=costs,
+        errors=errors,
+        gw_convergence=gw_convergence
+    )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     # for consistency with cont. barycenter, will be refactored in the future
