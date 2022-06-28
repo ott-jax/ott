@@ -275,7 +275,8 @@ class GWBarycenterProblem(BarycenterProblem):
     weights = self.weights[:, None, None]
 
     barycenter = jnp.sum(weights * project(y, transports, fn), axis=0)
-    barycenter *= 1. / jnp.vdot(a, a)
+    # TODO(michalk8): more efficient impl.
+    barycenter /= jnp.outer(a, a)
 
     if self._loss_name == 'kl':
       barycenter = jnp.exp(barycenter)
