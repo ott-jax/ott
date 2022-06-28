@@ -62,6 +62,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         jit=jit,
         store_inner_errors=store_inner_errors
     )
+    gw_kwargs = dict(gw_kwargs)
+    gw_kwargs["epsilon"] = epsilon
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
     assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
 
