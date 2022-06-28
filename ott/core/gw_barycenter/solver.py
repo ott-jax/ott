@@ -1,6 +1,6 @@
 from functools import partial
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -46,18 +46,24 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def __init__(
       self,
-      *args: Any,
+      epsilon: Optional[float] = None,
+      min_iterations: int = 5,
+      max_iterations: int = 50,
+      threshold: float = 1e-3,
+      jit: bool = True,
+      store_inner_errors: bool = False,
       gw_kwargs: Mapping[str, Any] = MappingProxyType({}),
-      **kwargs: Any
   ):
-    super().__init__(*args, **kwargs)
-    gw_kwargs = dict(gw_kwargs)
-    gw_kwargs["epsilon"] = kwargs.get("epsilon", None)
-    gw_kwargs["rank"] = kwargs.get("rank", -1)
-
+    super().__init__(
+        epsilon=epsilon,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations,
+        threshold=threshold,
+        jit=jit,
+        store_inner_errors=store_inner_errors
+    )
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
-    self._gw_kwargs = gw_kwargs
-    assert not self.is_low_rank, "Low rank not yet implemented."
+    assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
 
   def __call__(self, problem: GWBarycenterProblem, **kwargs: Any):
     bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
@@ -181,13 +187,17 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Mapping[str, Any]]:
-    raise NotImplementedError("TODO")
+    children, aux = super().tree_flatten()
+    aux['_gw_kwargs'] = self._quad_solver._kwargs
+    return children, aux
 
   @classmethod
   def tree_unflatten(
-      cls, aux_data: Mapping[str, Any], children: Sequence[Any]
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
-    raise NotImplementedError("TODO")
+    gw_kwargs = aux_data.pop("_gw_kwargs")
+    aux_data = {**aux_data, **gw_kwargs}
+    return super().tree_unflatten(aux_data, children)
 
 
 @partial(jax.vmap, in_axes=[None, 0, 0, None, None])
