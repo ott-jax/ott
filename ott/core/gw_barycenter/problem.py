@@ -14,29 +14,37 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
 
   def __init__(
       self,
-      *args: Any,
+      y: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
-      scale_cost: Optional[Union[float, Literal["TODO"]]] = None,
+      scale_cost: Optional[Union[float, Literal["mean", "max_cost"]]] = None,
       is_cost: bool = False,
       **kwargs: Any,
   ):
-    """TODO.
+    """Gromov-Wasserstein barycenter problem, possibly fused.
 
     Args:
-      args: Positional arguments for
-        :class:`ott.core.bar_problems.BarycenterProblem`.
-      y_fused: TODO.
-      loss: TODO.
-      fused_penalty: TODO.
+      y: Array of shape ``[num_measures, N, D]`` containing all points.
+        If ``is_cost = True``, each measure will be interpreted as
+        a cost matrix, otherwise as a point cloud.
+        Alternatively, array of shape ``[num_total_points, D]`` containing all
+        measures can be used that will be reshaped to ``[num_measures, N, D]``.
+        See :func:`ott.core.segment.segment_point_cloud`.
+      b: Array of shape ``[num_measures, N]`` containing the weights
+        (within each measure) of all the points.
+      y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
+        of all points used to define the linear term in the fused case.
+      loss: Gromov-Wasserstein loss.
+      fused_penalty: Multiplier of the linear term in Fused Gromov-Wasserstein.
         Only used when ``y_fused != None``.
-      scale_cost: TODO.
-      is_cost: Whether ``y`` represents a cost matrix or a point cloud.
+      scale_cost: Scaling passed to geometries.
+      is_cost: Whether ``y`` represents cost matrices or point clouds.
       kwargs: Keyword arguments for
         :class:`ott.core.bar_problems.BarycenterProblem`.
     """
-    super().__init__(*args, **kwargs)
+    super().__init__(y=y, b=b, **kwargs)
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
     self.loss, self._loss_name = self._create_loss(loss), loss
@@ -61,7 +69,6 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
         y: jnp.ndarray, transport: jnp.ndarray,
         fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
     ) -> jnp.ndarray:
-      # TODO(michalk8): check this
       if self.is_cost:
         geom = geometry.Geometry(
             y, epsilon=self.epsilon, scale_cost=self.scale_cost
@@ -95,7 +102,6 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     y_fused = self.segmented_y_fused
     weights = self.weights[:, None, None]
 
-    # TODO(michalk8): verify
     if self._loss_name == "sqeucl":
       cost = costs.Euclidean()
       divide_a = jnp.where(a > 0, 1.0 / a, 1.0)
@@ -114,6 +120,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
+    """Array of shape ``[num_measures, N, D_f]`` used in the fused case."""
     if self._y_fused is None or self._y_fused.ndim == 3:
       return self._y_fused
     segmented_y_fused, _, _ = segment.segment_point_cloud(
