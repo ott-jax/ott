@@ -19,13 +19,15 @@ __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
 
 class GWBarycenterState(NamedTuple):
-  """Holds the state of the (fused) Gromov-Wasserstein barycenter solver.
+  """Holds the state of the :class:`ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
-    x: Barycenter features of shape ``[N, D]``. Only used in the fused case.
-    c: Barycenter cost matrix of shape ``[N, D]``.
-    a: Weights of the barycenter of shape ``[N,]``.
-    errors: Array of shape ``[max_iter, num_measures]``.
+    x: Barycenter features of shape ``[B, D_f]``. Only used in the fused case.
+    c: Barycenter cost matrix of shape ``[B, B]``.
+    a: Weights of the barycenter of shape ``[B,]``.
+    errors: Array of shape
+      ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
+      the GW errors at each iteration.
     costs: Array of shape ``[max_iter,]`` containing the cost at each iteration.
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
       of all GW problems at each iteration.
@@ -42,9 +44,10 @@ class GWBarycenterState(NamedTuple):
     return self._replace(**kwargs)
 
 
+# TODO(michalk8): add citations
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """TODO.
+  """Gromov-Wasserstein barycenter solver.
 
   Args:
     epsilon: Entropy regulariser.
@@ -52,7 +55,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
     jit: Whether to jit the iteration loop.
-    store_inner_errors: TODO.
+    store_inner_errors: Whether to store the iterations of inner GW solver.
     gw_kwargs: Keyword argument for
       :class:`ott.core.gromov_wasserstein.GromovWasserstein`.
   """
@@ -78,6 +81,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     gw_kwargs = dict(gw_kwargs)
     gw_kwargs["epsilon"] = epsilon
     # TODO(michalk8): store only GW errors?
+    # would be ``[max_iter, num_measures, num_gw_iters]``
     gw_kwargs["store_inner_errors"] = store_inner_errors
     self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
     assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
@@ -102,14 +106,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Initial barycenter value. Can be one of following:
 
         - :class:`int` - randomly initialize barycenter, see also ``seed``.
-        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[N, N]``.
-          Only used when solving Gromov-Wasserstein barycenters.
-        - 2- :class:`tuple` of :class:`jnp.ndarray` - first array corresponds
-          to the ``[N, N]`` cost matrix, the second array is an ``[N, D]``
-          barycenter feature array.
-          Only used when solving Fused Gromov-Wasserstein barycenters.
+        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[B, B]``.
+          Only used in the non-fused case.
+        - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
+          corresponds to ``[B, B]`` cost matrix, the 2nd array is ``[B, D_f]``
+          barycenter feature array. Only used in the fused case.
 
-      a: An array of shape ``[N,]`` containing the barycenter weights.
+      a: An array of shape ``[B,]`` containing the barycenter weights.
       seed: Random seed when ``bar_init`` is :class:`int`.
 
     Returns:
@@ -144,7 +147,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     num_iter = self.max_iterations
     if self.store_inner_errors:
-      # TODO(michalk8): think about how to do this in general
+      # TODO(michalk8): in the future, think about how to do this in general
       errors = -jnp.ones((
           num_iter, problem.num_segments, self._quad_solver.max_iterations,
           self._quad_solver.linear_ot_solver.outer_iterations
@@ -235,6 +238,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
+    """No-op."""
     # TODO(michalk8): just for consistency with continuous barycenter
     # will be refactored in the future
     return state
@@ -268,12 +272,12 @@ def init_transports(
   Args:
     solver: Linear OT solver.
     key: Random key.
-    a: Source marginals (e.g., for barycenter) of shape ``[N,]``.
-    b: Target marginals of shape ``[M,]``.
+    a: Source marginals (e.g., for barycenter) of shape ``[B,]``.
+    b: Target marginals of shape ``[N,]``.
     epsilon: Entropy regularization.
 
   Returns:
-    Transport map of shape ``[N, M]``.
+    Transport map of shape ``[B, N]``.
   """
   cost = jax.random.uniform(key, shape=(len(a), len(b)), minval=0, maxval=1)
   geom = geometry.Geometry(cost, epsilon=epsilon)

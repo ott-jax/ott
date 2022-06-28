@@ -44,7 +44,7 @@ def segment_point_cloud(
     TODO.
 
   Returns:
-    TODO.
+    Segmented ``x``, ``y`` and the number segments.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None

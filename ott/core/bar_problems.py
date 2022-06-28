@@ -193,6 +193,7 @@ class BarycenterProblem:
     return weights
 
 
+# TODO(michalk8): add citations
 @jax.tree_util.register_pytree_node_class
 class GWBarycenterProblem(BarycenterProblem):
   """Gromov-Wasserstein barycenter problem, possibly fused.
@@ -202,8 +203,9 @@ class GWBarycenterProblem(BarycenterProblem):
       If ``is_cost = True``, each measure will be interpreted as
       a cost matrix, otherwise as a point cloud.
       Alternatively, array of shape ``[num_total_points, D]`` containing all
-      measures can be used that will be reshaped to ``[num_measures, N, D]``.
-      See :func:`ott.core.segment.segment_point_cloud`.
+      measures can be used that will be reshaped to ``[num_measures, N, D]``
+      where ``N`` larger or equal to the maximum number of points across all
+      measures. See :func:`ott.core.segment.segment_point_cloud`.
     b: Array of shape ``[num_measures, N]`` containing the weights
       (within each measure) of all the points.
     y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
@@ -241,11 +243,11 @@ class GWBarycenterProblem(BarycenterProblem):
     """Update the barycenter cost matrix.
 
     Args:
-      transports: Transport maps of shape ``[num_measures, N, M]``.
-      a: Barycenter weights of shape ``[N,]``.
+      transports: Transport maps of shape ``[num_measures, B, N]``.
+      a: Barycenter weights of shape ``[B,]``.
 
     Returns:
-      Cost matrix of shape ``[N, N]``.
+      Cost matrix of shape ``[B, B]``.
     """
 
     @partial(jax.vmap, in_axes=[0, 0, None])
@@ -254,6 +256,7 @@ class GWBarycenterProblem(BarycenterProblem):
         fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
     ) -> jnp.ndarray:
       if self.is_cost:
+        assert y.shape[0] == y.shape[1], y.shape
         geom = geometry.Geometry(
             y, epsilon=self.epsilon, scale_cost=self.scale_cost
         )
