@@ -1,12 +1,12 @@
 from functools import partial
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import bar_problems, continuous_barycenter, quad_problems, segment
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 
 
 @jax.tree_util.register_pytree_node_class
@@ -18,7 +18,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
-      scale_cost: Optional[Literal["TODO"]] = None,
+      scale_cost: Optional[Union[float, Literal["TODO"]]] = None,
       is_cost: bool = False,
       **kwargs: Any,
   ):
@@ -39,30 +39,40 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     super().__init__(*args, **kwargs)
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
-    self.loss = self._create_loss(loss)
-    self._loss_name = loss
+    self.loss, self._loss_name = self._create_loss(loss), loss
     self.scale_cost = scale_cost
     self.is_cost = is_cost
 
   def update_barycenter(
       self, transports: jnp.ndarray, a: jnp.ndarray
   ) -> jnp.ndarray:
-    """TODO.
+    """Update the barycenter cost matrix.
 
     Args:
-      transports: (num_measures, TODO, TODO)
-      a: barycenter weights.
+      transports: Transport maps of shape ``[num_measures, N, M]``.
+      a: Barycenter weights of shape ``[N,]``.
 
     Returns:
-      TODO.
+      Cost matrix of shape ``[N, N]``.
     """
 
     @partial(jax.vmap, in_axes=[0, 0, None])
-    def update(
-        y: jnp.ndarray, transport: jnp.ndarray, fn: Callable[[jnp.ndarray],
-                                                             jnp.ndarray]
+    def project(
+        y: jnp.ndarray, transport: jnp.ndarray,
+        fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
     ) -> jnp.ndarray:
-      geom = pointcloud.PointCloud(y, epsilon=self.epsilon)
+      # TODO(michalk8): check this
+      if self.is_cost:
+        geom = geometry.Geometry(
+            y, epsilon=self.epsilon, scale_cost=self.scale_cost
+        )
+      else:
+        geom = pointcloud.PointCloud(
+            y,
+            cost_fn=self.cost_fn,
+            epsilon=self.epsilon,
+            scale_cost=self.scale_cost
+        )
       tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
       return transport @ tmp
 
@@ -70,7 +80,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     y, _ = self.segmented_y_b
     weights = self.weights[:, None, None]
 
-    barycenter = jnp.sum(weights * update(y, transports, fn), axis=0)
+    barycenter = jnp.sum(weights * project(y, transports, fn), axis=0)
     barycenter *= 1. / jnp.vdot(a, a)
 
     if self._loss_name == 'kl':
@@ -113,8 +123,8 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     return segmented_y_fused
 
   @staticmethod
-  def _create_loss(loss: Literal['sqeucl', 'kl']):
-    # TODO(michalk8): consider refactoring as a quad. loss class
+  def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.Loss:
+    # TODO(michalk8): use namedtuple for in `quad_problems`
     if loss == 'sqeucl':
       return quad_problems.make_square_loss()
     if loss == 'kl':
@@ -129,20 +139,3 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     aux['scale_cost'] = self.scale_cost
     aux['is_cost'] = self.is_cost
     return children, aux
-
-
-def segment_cost_matrix(
-    costs: Sequence[jnp.ndarray],
-    axis: int = 1,
-    **kwargs: Any
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  num_per_segment = jnp.asarray([c.shape[axis] for c in costs])
-  fcs, fb, _ = segment.segment_point_cloud(
-      jnp.concatenate(costs, axis=axis).T,
-      num_per_segment=num_per_segment,
-      num_segments=len(costs),
-      **kwargs,
-  )
-  if axis == 1:
-    fcs = jnp.swapaxes(fcs, 1, 2)
-  return fcs, fb

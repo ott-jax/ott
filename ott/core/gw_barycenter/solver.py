@@ -110,7 +110,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       keys = jax.random.split(rng, len(b))
 
       linear_solver = self._quad_solver.linear_ot_solver
-      transports = init_transports(linear_solver, keys, b, a, problem.epsilon)
+      transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
 
       x = problem.update_features(transports, a)
       c = problem.update_barycenter(transports, a)
@@ -133,7 +133,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # TODO(michalk8): think about how to do this in general
       errors = -jnp.ones((
           num_iter, problem.num_segments, self._quad_solver.max_iterations,
-          self.linear_ot_solver.outer_iterations
+          self._quad_solver.linear_ot_solver.outer_iterations
       ))
     else:
       errors = None
@@ -160,17 +160,19 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     def solve_gw(
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
         f: Optional[jnp.ndarray]
-    ) -> Any:
-      eps, scale_cost = problem.epsilon, problem.scale_cost
+    ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
+      eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
 
-      geom_xx = geometry.Geometry(state.c, epsilon=eps, scale_cost=scale_cost)
+      geom_xx = geometry.Geometry(state.c, epsilon=eps, scale_cost=scale)
       if problem.is_cost:
-        geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale_cost)
+        geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale)
       else:
-        geom_yy = pointcloud.PointCloud(y, epsilon=eps, scale_cost=scale_cost)
+        geom_yy = pointcloud.PointCloud(
+            y, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
+        )
       if problem.is_fused:
         geom_xy = pointcloud.PointCloud(
-            state.x, f, epsilon=eps, scale_cost=scale_cost
+            state.x, f, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
         )
       else:
         geom_xy = None
