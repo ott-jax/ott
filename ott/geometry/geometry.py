@@ -545,7 +545,7 @@ class Geometry:
       fn: function to apply to cost matrix element-wise before the dot product
 
     Returns:
-      An array, [num_b, p] if axis=0 or [num_a, p] if axis=1(num_measures, )
+      An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
       return jax.vmap(
