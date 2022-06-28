@@ -12,21 +12,23 @@ from ott.core import (
     quad_problems,
     was_solver,
 )
-from ott.core.gw_barycenter.problem import GWBarycenterProblem
+from ott.core.bar_problems import GWBarycenterProblem
 from ott.geometry import geometry, pointcloud
+
+__all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
 
 class GWBarycenterState(NamedTuple):
   """Holds the state of the (fused) Gromov-Wasserstein barycenter solver.
 
-  Attributes:
+  Args:
     x: Barycenter features of shape ``[N, D]``. Only used in the fused case.
     c: Barycenter cost matrix of shape ``[N, D]``.
     a: Weights of the barycenter of shape ``[N,]``.
-    errors: Array of shape ``[max_iter, num_measures]``
-    costs: Array of shape ``[max_iter,] containing the cost for each iteration.
+    errors: Array of shape ``[max_iter, num_measures]``.
+    costs: Array of shape ``[max_iter,]`` containing the cost at each iteration.
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
-      of all GW problems for each iteration.
+      of all GW problems at each iteration.
   """
   x: Optional[jnp.ndarray] = None
   c: Optional[jnp.ndarray] = None
@@ -42,6 +44,18 @@ class GWBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
+  """TODO.
+
+  Args:
+    epsilon: Entropy regulariser.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of outermost iterations.
+    threshold: Convergence threshold.
+    jit: Whether to jit the iteration loop.
+    store_inner_errors: TODO.
+    gw_kwargs: Keyword argument for
+      :class:`ott.core.gromov_wasserstein.GromovWasserstein`.
+  """
 
   def __init__(
       self,

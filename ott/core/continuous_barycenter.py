@@ -21,50 +21,16 @@ import jax
 import jax.numpy as jnp
 
 from ott.core import bar_problems, fixed_point_loop, problems, was_solver
+from ott.core.bar_problems import barycentric_projection
 from ott.geometry import pointcloud
 
-
-# TODO: unused
-class BarycenterOutput(NamedTuple):
-  """Holds the output of a Wasserstein Barycenter solver.
-
-  The goal is to approximate the W barycenter of a set of N measures using
-  a discrete measure described by k locations x. To do so the OT between
-  each of the input N measures to the barycenter is recomputed and x_bar
-  adjusted following that result.
-
-  Attributes:
-    costs: Holds the sequence of weighted sum of N regularized W costs seen
-      through the outer loop of the solver.
-    linear_convergence: Holds the sequence of bool convergence flags of the
-      inner N Sinkhorn iterations.
-    convergence: Bool convergence flag for the outer Barycenter iterations.
-    errors: Holds sequence of matrices of N x max_iterations errors of the
-      N Sinkhorn algorithms run at each inner iteration.
-    x : barycenter locations, k x dimension
-    a : weights of the barycenter
-    transports: final N transport objects mapping barycenter to input measures.
-    reg_gw_cost: Total regularized optimal transport cost upon convergence
-  """
-
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
-  convergence: bool = False
-  errors: Optional[jnp.ndarray] = None
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
-  transports = None
-  reg_gw_cost: Optional[float] = None
-
-  def set(self, **kwargs: Any) -> 'BarycenterOutput':
-    """Return a copy of self, possibly with overwrites."""
-    return self._replace(**kwargs)
+__all__ = ["BarycenterState", "WassersteinBarycenter"]
 
 
 class BarycenterState(NamedTuple):
   """Holds the state of the Wasserstein barycenter solver.
 
-  Attributes:
+  Args:
     costs: Holds the sequence of regularized GW costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
@@ -108,9 +74,9 @@ class BarycenterState(NamedTuple):
       )
 
     if bar_prob.debiased:
-
       raise NotImplementedError(
-          "Debiased version of continuous Wasserstein barycenter not yet implemented."
+          "Debiased version of continuous Wasserstein barycenter "
+          "not yet implemented."
       )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
@@ -143,13 +109,6 @@ class BarycenterState(NamedTuple):
         errors=errors,
         x=x_new
     )
-
-
-@functools.partial(jax.vmap, in_axes=[0, 0, None])
-def barycentric_projection(
-    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn
-) -> jnp.ndarray:
-  return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
 
 
 @jax.tree_util.register_pytree_node_class

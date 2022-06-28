@@ -21,6 +21,7 @@ OT Problems
     problems.LinearProblem
     quad_problems.QuadraticProblem
     bar_problems.BarycenterProblem
+    bar_problems.GWBarycenterProblem
 
 Sinkhorn
 --------
@@ -45,6 +46,10 @@ Barycenters (Entropic and LR)
     :toctree: _autosummary
 
     discrete_barycenter.discrete_barycenter
+    continuous_barycenter.WassersteinBarycenter
+    continuous_barycenter.BarycenterState
+    gw_barycenter.GromovWassersteinBarycenter
+    gw_barycenter.GWBarycenterState
 
 Gromov-Wasserstein (Entropic and LR)
 ------------------------------------

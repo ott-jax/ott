@@ -36,7 +36,7 @@ LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
-  Attributes:
+  Args:
     costs: Holds the sequence of regularized GW costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
