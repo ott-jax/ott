@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from absl.testing import absltest, parameterized
 
 from ott.core import bar_problems, continuous_barycenter
+from ott.geometry import costs
 
 
 class Barycenter(parameterized.TestCase):
@@ -32,14 +33,10 @@ class Barycenter(parameterized.TestCase):
   @parameterized.product(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
-      debiased=[True, False],
       jit=[True, False],
       init_random=[True, False]
   )
-  def test_euclidean_barycenter(
-      self, rank, epsilon, debiased, jit, init_random
-  ):
-    print('Rank: ', rank, 'Epsilon: ', epsilon, 'Debiased', debiased)
+  def test_euclidean_barycenter(self, rank, epsilon, jit, init_random):
     rngs = jax.random.split(self.rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
@@ -66,7 +63,6 @@ class Barycenter(parameterized.TestCase):
         num_segments=num_per_segment.shape[0],
         max_measure_size=jnp.max(num_per_segment) +
         3,  # +3 set with no purpose.
-        debiased=debiased,
         epsilon=epsilon
     )
 
@@ -98,10 +94,96 @@ class Barycenter(parameterized.TestCase):
     self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
 
     # Check barycenter has all points roughly in [1,2]^4.
-    # (this is because sampled points where equally set in either [0,1]^4
+    # (this is because sampled points were equally set in either [0,1]^4
     # or [2,3]^4)
     self.assertTrue(jnp.all(out.x.ravel() < 2.3))
     self.assertTrue(jnp.all(out.x.ravel() > .7))
+
+  @parameterized.product(
+      lse_mode=[True, False], epsilon=[1e-1, 5e-1], jit=[True, False]
+  )
+  def test_bures_barycenter(self, lse_mode, epsilon, jit):
+    num_measures = 2
+    num_components = 2
+    dimension = 2
+    bar_size = 2
+    barycentric_weights = jnp.asarray([0.5, 0.5])
+    bures_cost = costs.Bures(dimension=dimension)
+
+    means1 = jnp.array([[-1., 1.], [-1., -1.]])
+    means2 = jnp.array([[1., 1.], [1., -1.]])
+    sigma = 0.01
+    covs1 = sigma * jnp.asarray([
+        jnp.eye(dimension) for i in range(num_components)
+    ])
+    covs2 = sigma * jnp.asarray([
+        jnp.eye(dimension) for i in range(num_components)
+    ])
+
+    y1 = bures_cost.means_and_covs_to_x(means1, covs1)
+    y2 = bures_cost.means_and_covs_to_x(means2, covs2)
+
+    b1 = b2 = jnp.ones(num_components) / num_components
+
+    y = jnp.concatenate((y1, y2))
+    b = jnp.concatenate((b1, b2))
+
+    key = jax.random.PRNGKey(0)
+    keys = jax.random.split(key, num=2)
+    x_init_means = jax.random.uniform(keys[0], (bar_size, dimension))
+    x_init_covs = jax.vmap(
+        lambda a: a @ jnp.transpose(a), in_axes=0
+    )(
+        jax.random.uniform(keys[1], (bar_size, dimension, dimension))
+    )
+
+    x_init = bures_cost.means_and_covs_to_x(x_init_means, x_init_covs)
+
+    bar_p = bar_problems.BarycenterProblem(
+        y,
+        b,
+        weights=barycentric_weights,
+        num_per_segment=jnp.asarray([num_components, num_components]),
+        num_segments=num_measures,
+        max_measure_size=num_components,
+        cost_fn=bures_cost,
+        epsilon=epsilon
+    )
+
+    solver = continuous_barycenter.WassersteinBarycenter(
+        lse_mode=lse_mode, jit=jit
+    )
+
+    out = solver(bar_p, bar_size=bar_size, x_init=x_init)
+    barycenter = out.x
+
+    means_bary, covs_bary = bures_cost.x_to_means_and_covs(barycenter)
+
+    self.assertTrue(
+        jnp.logical_or(
+            jnp.allclose(
+                means_bary,
+                jnp.array([[0., 1.], [0., -1.]]),
+                rtol=1e-02,
+                atol=1e-02
+            ),
+            jnp.allclose(
+                means_bary,
+                jnp.array([[0., -1.], [0., 1.]]),
+                rtol=1e-02,
+                atol=1e-02
+            )
+        )
+    )
+
+    self.assertTrue(
+        jnp.allclose(
+            covs_bary,
+            jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
+            rtol=1e-05,
+            atol=1e-05
+        )
+    )
 
 
 if __name__ == '__main__':

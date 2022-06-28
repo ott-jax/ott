@@ -154,8 +154,8 @@ class ScaleTriL:
     x0 = _flatten_cov(self.covariance())
     x1 = _flatten_cov(other.covariance())
     cost_fn = costs.Bures(dimension=dimension)
-    return (cost_fn.norm(x0) + cost_fn.norm(x1) + cost_fn.pairwise(x0, x1))[...,
-                                                                            0]
+    return (cost_fn.norm(x0) + cost_fn.norm(x1) +
+            cost_fn.pairwise(x0, x1))[...,]
 
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray
