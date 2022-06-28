@@ -18,6 +18,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
+      scale_cost: Optional[Literal["TODO"]] = None,
       is_cost: bool = False,
       **kwargs: Any,
   ):
@@ -30,6 +31,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
       loss: TODO.
       fused_penalty: TODO.
         Only used when ``y_fused != None``.
+      scale_cost: TODO.
       is_cost: Whether ``y`` represents a cost matrix or a point cloud.
       kwargs: Keyword arguments for
         :class:`ott.core.bar_problems.BarycenterProblem`.
@@ -39,6 +41,7 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
     self.fused_penalty = fused_penalty
     self.loss = self._create_loss(loss)
     self._loss_name = loss
+    self.scale_cost = scale_cost
     self.is_cost = is_cost
 
   def update_barycenter(
@@ -121,8 +124,9 @@ class GWBarycenterProblem(bar_problems.BarycenterProblem):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux = super().tree_flatten()
     aux["y_fused"] = self._y_fused
-    aux["fused_penalty"] = self.fused_penalty
+    aux['fused_penalty'] = self.fused_penalty
     aux['loss'] = self._loss_name
+    aux['scale_cost'] = self.scale_cost
     aux['is_cost'] = self.is_cost
     return children, aux
 

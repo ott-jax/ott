@@ -150,14 +150,17 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
         f: Optional[jnp.ndarray]
     ) -> Any:
-      geom_xx = geometry.Geometry(state.c, epsilon=problem.epsilon)
-      if problem.is_cost:
-        geom_yy = geometry.Geometry(y, epsilon=problem.epsilon)
-      else:
-        geom_yy = pointcloud.PointCloud(y, epsilon=problem.epsilon)
+      eps, scale_cost = problem.epsilon, problem.scale_cost
 
+      geom_xx = geometry.Geometry(state.c, epsilon=eps, scale_cost=scale_cost)
+      if problem.is_cost:
+        geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale_cost)
+      else:
+        geom_yy = pointcloud.PointCloud(y, epsilon=eps, scale_cost=scale_cost)
       if problem.is_fused:
-        geom_xy = pointcloud.PointCloud(state.x, f, epsilon=problem.epsilon)
+        geom_xy = pointcloud.PointCloud(
+            state.x, f, epsilon=eps, scale_cost=scale_cost
+        )
       else:
         geom_xy = None
 
