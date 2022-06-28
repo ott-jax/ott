@@ -195,9 +195,14 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
+    epsilon, _, _, threshold = children
     gw_kwargs = aux_data.pop("_gw_kwargs")
-    aux_data = {**aux_data, **gw_kwargs}
-    return super().tree_unflatten(aux_data, children)
+    return cls(
+        epsilon=epsilon,
+        threshold=threshold,
+        gw_kwargs=gw_kwargs,
+        **aux_data,
+    )
 
 
 @partial(jax.vmap, in_axes=[None, 0, 0, None, None])
