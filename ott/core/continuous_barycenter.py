@@ -21,7 +21,6 @@ import jax
 import jax.numpy as jnp
 
 from ott.core import bar_problems, fixed_point_loop, problems, was_solver
-from ott.core.bar_problems import barycentric_projection
 from ott.geometry import pointcloud
 
 __all__ = ["BarycenterState", "WassersteinBarycenter"]
@@ -95,7 +94,7 @@ class BarycenterState(NamedTuple):
 
     # Approximation of barycenter as barycenter of barycenters per measure.
 
-    barycenters_per_measure = barycentric_projection(
+    barycenters_per_measure = bar_problems.barycentric_projection(
         matrices, segmented_y, bar_prob.cost_fn
     )
 
