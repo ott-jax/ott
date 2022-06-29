@@ -17,12 +17,11 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 # Because Protocol is not available in Python < 3.8
 from typing_extensions import Literal, Protocol
 
-from ott.core import problems, sinkhorn_lr
+from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 
@@ -318,7 +317,7 @@ class QuadraticProblem:
   def init_linearization(
       self,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Initialise a linear problem locally around a naive initializer ab'.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0'), the equation of the
@@ -355,7 +354,8 @@ class QuadraticProblem:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
 
     Returns:
-      A problems.LinearProblem, representing local linearization of GW problem.
+      A linear_problems.LinearProblem, representing local linearization of
+      GW problem.
     """
     unbalanced_correction = 0.0
     tmp = self.init_transport()
@@ -382,13 +382,13 @@ class QuadraticProblem:
     cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
 
   def init_lr_linearization(
       self, rank: int = 10, **kwargs: Any
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Linearizes a Quad problem with a predefined initializer."""
     x_ = self.geom_xx.apply_square_cost(self.a)
     y_ = self.geom_yy.apply_square_cost(self.b)
@@ -396,9 +396,9 @@ class QuadraticProblem:
     out = sinkhorn_lr.LRSinkhorn(
         rank=rank, **kwargs
     )(
-        problems.LinearProblem(geom_, self.a, self.b)
+        linear_problems.LinearProblem(geom_, self.a, self.b)
     )
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         self.update_lr_geom(out),
         self.a,
         self.b,
@@ -438,7 +438,7 @@ class QuadraticProblem:
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
       old_transport_mass: float = 1.0
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
@@ -485,15 +485,15 @@ class QuadraticProblem:
     cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
 
   def update_lr_linearization(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         self.update_lr_geom(lr_sink),
         self.a,
         self.b,
@@ -518,69 +518,3 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
       updated_epsilon._scale_epsilon * transport_mass
   )
   return updated_epsilon
-
-
-def make(
-    *args: Union[jnp.ndarray, geometry.Geometry, problems.LinearProblem,
-                 QuadraticProblem],
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    objective: Optional[str] = None,
-    gw_unbalanced_correction: bool = True,
-    fused_penalty: Optional[float] = None,
-    scale_cost: Optional[Union[bool, float, str]] = False,
-    **kwargs: Any,
-):
-  """Make a problem from arrays, assuming PointCloud geometries."""
-  if isinstance(args[0], (jnp.ndarray, np.ndarray)):
-    x = args[0]
-    y = args[1] if len(args) > 1 else args[0]
-    if ((objective == 'linear') or
-        (objective is None and x.shape[1] == y.shape[1])):  # noqa: E129
-      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
-      return problems.LinearProblem(geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    elif ((objective == 'quadratic') or
-          (objective is None and x.shape[1] != y.shape[1])):
-      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
-      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
-      return QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=None,
-          scale_cost=scale_cost,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          gw_unbalanced_correction=gw_unbalanced_correction
-      )
-    elif objective == 'fused':
-      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
-      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
-      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
-      return QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=geom_xy,
-          fused_penalty=fused_penalty,
-          scale_cost=scale_cost,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          gw_unbalanced_correction=gw_unbalanced_correction
-      )
-    else:
-      raise ValueError(f'Unknown transport problem `{objective}`')
-  elif isinstance(args[0], geometry.Geometry):
-    if len(args) == 1:
-      return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    return QuadraticProblem(
-        *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost
-    )
-  elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
-    return args[0]
-  else:
-    raise ValueError('Cannot instantiate a transport problem.')

@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import fixed_point_loop, problems, sinkhorn
+from ott.core import fixed_point_loop, linear_problems, sinkhorn
 from ott.geometry import geometry
 
 
@@ -38,13 +38,13 @@ class LRSinkhornState(NamedTuple):
 
   def reg_ot_cost(
       self,
-      ot_prob: problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       use_danskin: bool = False
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(
-      self, ot_prob: problems.LinearProblem, norm_error: jnp.ndarray,
+      self, ot_prob: linear_problems.LinearProblem, norm_error: jnp.ndarray,
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
@@ -54,7 +54,7 @@ def compute_reg_ot_cost(
     q: jnp.ndarray,
     r: jnp.ndarray,
     g: jnp.ndarray,
-    ot_prob: problems.LinearProblem,
+    ot_prob: linear_problems.LinearProblem,
     use_danskin: bool = False
 ) -> float:
   q = jax.lax.stop_gradient(q) if use_danskin else q
@@ -64,7 +64,7 @@ def compute_reg_ot_cost(
 
 
 def solution_error(
-    q: jnp.ndarray, r: jnp.ndarray, ot_prob: problems.LinearProblem,
+    q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problems.LinearProblem,
     norm_error: jnp.ndarray, lse_mode: bool
 ) -> jnp.ndarray:
   """Compute solution error.
@@ -109,26 +109,27 @@ class LRSinkhornOutput(NamedTuple):
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
-  ot_prob: Optional[problems.LinearProblem] = None
+  ot_prob: Optional[linear_problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(
-      self, ot_prob: problems.LinearProblem, lse_mode: bool, use_danskin: bool
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool,
+      use_danskin: bool
   ) -> 'LRSinkhornOutput':
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
   def compute_reg_ot_cost(
-      self, ot_prob: problems.LinearProblem, use_danskin: bool
+      self, ot_prob: linear_problems.LinearProblem, use_danskin: bool
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   @property
   def linear(self) -> bool:
-    return isinstance(self.ot_prob, problems.LinearProblem)
+    return isinstance(self.ot_prob, linear_problems.LinearProblem)
 
   @property
   def geom(self) -> geometry.Geometry:
@@ -262,7 +263,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def __call__(
       self,
-      ot_prob: problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                            Optional[jnp.ndarray]]] = None
   ) -> LRSinkhornOutput:
@@ -329,7 +330,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def lr_costs(
-      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
@@ -348,7 +349,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
       h: jnp.ndarray,
-      ot_prob: problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       state: LRSinkhornState,
       iteration: int,
       min_entry_value: float = 1e-6,
@@ -448,7 +449,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return q, r, g
 
   def lse_step(
-      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
@@ -459,7 +460,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return state.set(q=q, g=g, r=r)
 
   def kernel_step(
-      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn multiplicative update."""
@@ -467,7 +468,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return state
 
   def one_iteration(
-      self, ot_prob: problems.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int, compute_error: bool
   ) -> LRSinkhornState:
     """Carries out one LR sinkhorn iteration.
@@ -499,7 +500,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return state.set(costs=costs)
 
   def init_state(
-      self, ot_prob: problems.LinearProblem,
+      self, ot_prob: linear_problems.LinearProblem,
       init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
@@ -508,7 +509,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return LRSinkhornState(q=q, r=r, g=g, costs=costs)
 
   def output_from_state(
-      self, ot_prob: problems.LinearProblem, state: LRSinkhornState
+      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState
   ) -> LRSinkhornOutput:
     """Create an output from a loop state.
 
@@ -526,7 +527,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
 # TODO(michalk8): check init types
 def run(
-    ot_prob: problems.LinearProblem, solver: LRSinkhorn,
+    ot_prob: linear_problems.LinearProblem, solver: LRSinkhorn,
     init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
 ) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""

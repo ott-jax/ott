@@ -18,7 +18,7 @@ from typing import Callable, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.core import dataclasses, problems, unbalanced_functions
+from ott.core import dataclasses, linear_problems, unbalanced_functions
 
 
 @dataclasses.register_pytree_node
@@ -46,7 +46,7 @@ class ImplicitDiff:
 
   def solve(
       self, gr: Tuple[jnp.ndarray,
-                      jnp.ndarray], ot_prob: problems.LinearProblem,
+                      jnp.ndarray], ot_prob: linear_problems.LinearProblem,
       f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
   ):
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
@@ -272,9 +272,9 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(
-      self, prob: problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
+      self, prob: linear_problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
       lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Apply vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)

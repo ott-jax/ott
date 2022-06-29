@@ -23,7 +23,7 @@ from typing_extensions import Literal
 
 from ott.core import (
     fixed_point_loop,
-    problems,
+    linear_problems,
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
@@ -99,7 +99,7 @@ class GWState(NamedTuple):
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
-  linear_pb: Optional[problems.LinearProblem] = None
+  linear_pb: Optional[linear_problems.LinearProblem] = None
   # Intermediate values.
   old_transport_mass: float = 1.0
 
@@ -109,7 +109,7 @@ class GWState(NamedTuple):
 
   def update(
       self, iteration: int, linear_sol: LinearOutput,
-      linear_pb: problems.LinearProblem, store_errors: bool,
+      linear_pb: linear_problems.LinearProblem, store_errors: bool,
       old_transport_mass: float
   ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)

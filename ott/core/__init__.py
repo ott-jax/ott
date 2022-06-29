@@ -22,8 +22,8 @@ from . import (
     discrete_barycenter,
     gromov_wasserstein,
     implicit_differentiation,
+    linear_problems,
     momentum,
-    problems,
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
@@ -31,7 +31,7 @@ from . import (
 
 # from . import neuraldual
 from .implicit_differentiation import ImplicitDiff
-from .problems import LinearProblem
+from .linear_problems import LinearProblem
 from .sinkhorn import Sinkhorn
 from .sinkhorn_lr import LRSinkhorn
 
