@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 
 # Because Protocol is not available in Python < 3.8
-from typing_extensions import Protocol
+from typing_extensions import Literal, Protocol
 
 from ott.core import problems, sinkhorn_lr
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
@@ -48,6 +48,7 @@ LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
 Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
 
 
+# TODO(michalk8): make nicer abstraction
 def make_square_loss() -> Loss:
   return ((lambda x: x ** 2, lambda y: y ** 2),
           (lambda x: x, lambda y: 2.0 * y))
@@ -99,11 +100,10 @@ class QuadraticProblem:
       from geom_yy. If None, it will be uniform.
     loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
       part of the loss (see in the pydoc of the class lin1, lin2). The second
-      one is the quadratic part (quad1, quad2). If None is passed, the loss
-      is set as the 4 functions representing the squared euclidean loss, and
+      one is the quadratic part (quad1, quad2). By default, the loss
+      is set as the 4 functions representing the squared Euclidean loss, and
       this property is taken advantage of in subsequent computations. See
-      make_kl_loss for an alternative, no less optimized way of setting the
-      loss.
+      Alternatively, KL loss can be specified in no less optimized way.
     tau_a: if lower that 1.0, defines how much unbalanced the problem is on
       the first marginal.
     tau_b: if lower that 1.0, defines how much unbalanced the problem is on
@@ -122,10 +122,10 @@ class QuadraticProblem:
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
-      loss: Optional[Loss] = None,
+      loss: Union[Literal['sqeucl', 'kl'], Loss] = 'sqeucl',
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
-      gw_unbalanced_correction: Optional[bool] = True
+      gw_unbalanced_correction: bool = True
   ):
     assert fused_penalty > 0, fused_penalty
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
@@ -140,11 +140,13 @@ class QuadraticProblem:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.gw_unbalanced_correction = gw_unbalanced_correction
-    if loss is None:
-      self._sq_euc = True
+
+    self._loss_name = loss
+    if self._loss_name == 'sqeucl':
       self.loss = make_square_loss()
+    elif loss == 'kl':
+      self.loss = make_kl_loss()
     else:
-      self._sq_euc = False
       self.loss = loss
 
   @property
@@ -176,7 +178,7 @@ class QuadraticProblem:
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
         'tau_a': self.tau_a,
         'tau_b': self.tau_b,
-        'loss': self.loss,
+        'loss': self._loss_name,
         'fused_penalty': self.fused_penalty,
         'scale_cost': self.scale_cost,
         'gw_unbalanced_correction': self.gw_unbalanced_correction
@@ -223,7 +225,7 @@ class QuadraticProblem:
     Returns:
       Low-rank geometry.
     """
-    if self._sq_euc:  # quadratic apply
+    if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
     else:
@@ -526,7 +528,7 @@ def make(
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     objective: Optional[str] = None,
-    gw_unbalanced_correction: Optional[bool] = True,
+    gw_unbalanced_correction: bool = True,
     fused_penalty: Optional[float] = None,
     scale_cost: Optional[Union[bool, float, str]] = False,
     **kwargs: Any,
