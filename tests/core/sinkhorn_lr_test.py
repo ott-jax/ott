@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 from absl.testing import absltest, parameterized
 
-from ott.core import problems, sinkhorn_lr
+from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import pointcloud
 
 
@@ -53,7 +53,7 @@ class SinkhornLRTest(parameterized.TestCase):
     # This test to check LR can work both with LRCGeometries and regular ones
     if use_lrcgeom:
       geom = geom.to_LRCGeometry()
-    ot_prob = problems.LinearProblem(geom, self.a, self.b)
+    ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
@@ -112,7 +112,7 @@ class SinkhornLRTest(parameterized.TestCase):
     data = self.a if axis == 0 else self.b
 
     geom = pointcloud.PointCloud(self.x, self.y)
-    ot_prob = problems.LinearProblem(geom, self.a, self.b)
+    ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=10,

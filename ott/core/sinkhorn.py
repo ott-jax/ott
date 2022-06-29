@@ -23,8 +23,9 @@ import numpy as np
 from ott.core import anderson as anderson_lib
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
+from ott.core import linear_problems
 from ott.core import momentum as momentum_lib
-from ott.core import problems, unbalanced_functions
+from ott.core import unbalanced_functions
 from ott.geometry import geometry
 
 
@@ -42,19 +43,19 @@ class SinkhornState(NamedTuple):
     return self._replace(**kwargs)
 
   def solution_error(
-      self, ot_prob: problems.LinearProblem, norm_error: Sequence[int],
+      self, ot_prob: linear_problems.LinearProblem, norm_error: Sequence[int],
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.fu, self.gv, ot_prob, norm_error, lse_mode)
 
   def ent_reg_cost(
-      self, ot_prob: problems.LinearProblem, lse_mode: bool
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
 
 def solution_error(
-    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob: problems.LinearProblem,
+    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob: linear_problems.LinearProblem,
     norm_error: Sequence[int], lse_mode: bool
 ) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
@@ -139,7 +140,7 @@ def marginal_error(
 
 
 def ent_reg_cost(
-    f: jnp.ndarray, g: jnp.ndarray, ot_prob: problems.LinearProblem,
+    f: jnp.ndarray, g: jnp.ndarray, ot_prob: linear_problems.LinearProblem,
     lse_mode: bool
 ) -> float:
   r"""Compute objective of Sinkhorn for OT problem given dual solutions.
@@ -206,14 +207,15 @@ class SinkhornOutput(NamedTuple):
   g: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
-  ot_prob: Optional[problems.LinearProblem] = None
+  ot_prob: Optional[linear_problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'SinkhornOutput':
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(
-      self, ot_prob: problems.LinearProblem, lse_mode: bool, use_danskin: bool
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool,
+      use_danskin: bool
   ) -> 'SinkhornOutput':
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
@@ -221,7 +223,7 @@ class SinkhornOutput(NamedTuple):
 
   @property
   def linear(self) -> bool:
-    return isinstance(self.ot_prob, problems.LinearProblem)
+    return isinstance(self.ot_prob, linear_problems.LinearProblem)
 
   @property
   def geom(self) -> geometry.Geometry:
@@ -394,7 +396,7 @@ class Sinkhorn:
 
   def __call__(
       self,
-      ot_prob: problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""  # noqa: D401
@@ -426,7 +428,7 @@ class Sinkhorn:
     return cls(**aux_data, threshold=children[0])
 
   def lse_step(
-      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: SinkhornState,
       iteration: int
   ) -> SinkhornState:
     """Sinkhorn LSE update."""
@@ -448,7 +450,7 @@ class Sinkhorn:
     return state.set(fu=fu, gv=gv)
 
   def kernel_step(
-      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: SinkhornState,
       iteration: int
   ) -> SinkhornState:
     """Sinkhorn multiplicative update."""
@@ -468,7 +470,7 @@ class Sinkhorn:
     return state.set(fu=fu, gv=gv)
 
   def one_iteration(
-      self, ot_prob: problems.LinearProblem, state: SinkhornState,
+      self, ot_prob: linear_problems.LinearProblem, state: SinkhornState,
       iteration: int, compute_error: bool
   ) -> SinkhornState:
     """Carries out sinkhorn iteration.
@@ -534,8 +536,8 @@ class Sinkhorn:
     return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
 
   def init_state(
-      self, ot_prob: problems.LinearProblem, init: Tuple[jnp.ndarray,
-                                                         jnp.ndarray]
+      self, ot_prob: linear_problems.LinearProblem, init: Tuple[jnp.ndarray,
+                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
     fu, gv = init
@@ -545,7 +547,7 @@ class Sinkhorn:
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
   def output_from_state(
-      self, ot_prob: problems.LinearProblem, state: SinkhornState
+      self, ot_prob: linear_problems.LinearProblem, state: SinkhornState
   ) -> SinkhornOutput:
     """Create an output from a loop state.
 
@@ -581,8 +583,8 @@ class Sinkhorn:
 
 
 def run(
-    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   ...]
+    ot_prob: linear_problems.LinearProblem, solver: Sinkhorn,
+    init: Tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
@@ -594,20 +596,20 @@ def run(
 
 
 def iterations(
-    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   ...]
+    ot_prob: linear_problems.LinearProblem, solver: Sinkhorn,
+    init: Tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Jittable Sinkhorn loop. args contain initialization variables."""
 
   def cond_fn(
-      iteration: int, const: Tuple[problems.LinearProblem, Sinkhorn],
+      iteration: int, const: Tuple[linear_problems.LinearProblem, Sinkhorn],
       state: SinkhornState
   ) -> bool:
     _, solver = const
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, const: Tuple[problems.LinearProblem, Sinkhorn],
+      iteration: int, const: Tuple[linear_problems.LinearProblem, Sinkhorn],
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
@@ -631,10 +633,10 @@ def iterations(
 
 
 def _iterations_taped(
-    ot_prob: problems.LinearProblem, solver: Sinkhorn, init: Tuple[jnp.ndarray,
-                                                                   ...]
+    ot_prob: linear_problems.LinearProblem, solver: Sinkhorn,
+    init: Tuple[jnp.ndarray, ...]
 ) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
-                                 problems.LinearProblem, Sinkhorn]]:
+                                 linear_problems.LinearProblem, Sinkhorn]]:
   """Run forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
@@ -1047,5 +1049,5 @@ def sinkhorn(
     by the user.
   """
   sink = make(**kwargs)
-  ot_prob = problems.LinearProblem(geom, a, b, tau_a, tau_b)
+  ot_prob = linear_problems.LinearProblem(geom, a, b, tau_a, tau_b)
   return sink(ot_prob, (init_dual_a, init_dual_b))
