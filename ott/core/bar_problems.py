@@ -32,8 +32,8 @@ class BarycenterProblem:
 
   Args:
     y: a matrix merging the points of all measures.
-    b: a vector containing the weights (within each masure) of all the points
-    weights: weights of the barycenter problem (size num_segments)
+    b: a vector containing the weights (within each masure) of all the points.
+    weights: weights of the barycenter problem (size num_segments).
     cost_fn: cost function used.
     epsilon: epsilon regularization used to solve reg-OT problems.
     debiased: whether the problem is debiased, in the sense that
@@ -52,7 +52,7 @@ class BarycenterProblem:
 
   def __init__(
       self,
-      y: Optional[jnp.ndarray] = None,
+      y: jnp.ndarray,
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
@@ -199,22 +199,26 @@ class GWBarycenterProblem(BarycenterProblem):
   """Gromov-Wasserstein barycenter problem, possibly fused.
 
   Args:
-    y: Array of shape ``[num_measures, N, D]`` containing all points.
-      If ``is_cost = True``, each measure will be interpreted as
-      a cost matrix, otherwise as a point cloud.
-      Alternatively, array of shape ``[num_total_points, D]`` containing all
-      measures can be used that will be reshaped to ``[num_measures, N, D]``
-      where ``N`` larger or equal to the maximum number of points across all
-      measures. See :func:`ott.core.segment.segment_point_cloud`.
+    y: Array of shape ``[num_measures, N, D]`` containing all points as point
+      clouds. Alternatively, stacked array of shape ``[num_total_points, D]``
+      can also be specified that will be reshaped to ``[num_measures, N, D]``
+      where ``N`` larger or equal to the maximum number of points within all
+      measures. See :class:`~ott.core.bar_problems.BarycenterProblem` or
+      :func:`~ott.core.segment.segment_point_cloud` for more information.
     b: Array of shape ``[num_measures, N]`` containing the weights
       (within each measure) of all the points.
+    weights: weights of the barycenter problem (size num_segments).
+    cost: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
+      defines padded cost matrices for each measure.
+      Only one of ``y`` and ``cost`` can be passed.
     y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
       of all points used to define the linear term in the fused case.
+      Similarly to ``y``, can be specified as a stacked array of shape
+      ``[num_total_points, D_f]``.
     loss: Gromov-Wasserstein loss.
     fused_penalty: Multiplier of the linear term in Fused Gromov-Wasserstein.
       Only used when ``y_fused != None``.
     scale_cost: Scaling passed to geometries.
-    is_cost: Whether ``y`` represents cost matrices or point clouds.
     kwargs: Keyword arguments for
       :class:`ott.core.bar_problems.BarycenterProblem`.
   """
@@ -223,19 +227,21 @@ class GWBarycenterProblem(BarycenterProblem):
       self,
       y: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
+      weights: Optional[jnp.ndarray] = None,
+      cost: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
       scale_cost: Optional[Union[float, Literal["mean", "max_cost"]]] = None,
-      is_cost: bool = False,
       **kwargs: Any,
   ):
-    super().__init__(y=y, b=b, **kwargs)
+    assert y is None or cost is None, "Cannot specify both `y` and `cost`."
+    super().__init__(y if cost is None else cost, b, weights, **kwargs)
+    self._is_cost = cost is not None
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
     self.loss, self._loss_name = self._create_loss(loss), loss
     self.scale_cost = scale_cost
-    self.is_cost = is_cost
 
   def update_barycenter(
       self, transports: jnp.ndarray, a: jnp.ndarray
@@ -255,7 +261,7 @@ class GWBarycenterProblem(BarycenterProblem):
         y: jnp.ndarray, transport: jnp.ndarray,
         fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
     ) -> jnp.ndarray:
-      if self.is_cost:
+      if self._is_cost:
         assert y.shape[0] == y.shape[1], y.shape
         geom = geometry.Geometry(
             y, epsilon=self.epsilon, scale_cost=self.scale_cost
@@ -336,12 +342,15 @@ class GWBarycenterProblem(BarycenterProblem):
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    children, aux = super().tree_flatten()
+    (y, b, weights), aux = super().tree_flatten()
+    if self._is_cost:
+      children = [None, b, weights, y]
+    else:
+      children = [y, b, weights, None]
     aux["y_fused"] = self._y_fused
     aux['fused_penalty'] = self.fused_penalty
     aux['loss'] = self._loss_name
     aux['scale_cost'] = self.scale_cost
-    aux['is_cost'] = self.is_cost
     return children, aux
 
 
