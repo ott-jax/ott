@@ -91,11 +91,12 @@ class WassersteinSolver:
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    epsilon, rank, linear_ot_solver, threshold = children
     return cls(
-        epsilon=children[0],
-        rank=children[1],
-        linear_ot_solver=children[2],
-        threshold=children[3],
+        epsilon=epsilon,
+        rank=rank,
+        linear_ot_solver=linear_ot_solver,
+        threshold=threshold,
         **aux_data
     )
 

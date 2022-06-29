@@ -1,6 +1,5 @@
 from functools import partial
-from types import MappingProxyType
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -55,9 +54,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
     jit: Whether to jit the iteration loop.
-    store_inner_errors: Whether to store the iterations of inner GW solver.
-    gw_kwargs: Keyword argument for
+    store_inner_errors: Whether to store the errors of the GW solver, as well
+      as its linear solver, at each iteration for each measure.
+    quad_solver: The GW solver.
+    kwargs: Keyword argument for
       :class:`ott.core.gromov_wasserstein.GromovWasserstein`.
+      Only used when ``quad_solver = None``.
   """
 
   def __init__(
@@ -68,7 +70,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       threshold: float = 1e-3,
       jit: bool = True,
       store_inner_errors: bool = False,
-      gw_kwargs: Mapping[str, Any] = MappingProxyType({}),
+      quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
+      # TODO(michalk8): this maintains the API compatibility with `was_solver`
+      # but makes passing kwargs with the same name to `quad_solver` impossible
+      # will be fixed when refactoring the solvers
+      # note that `was_solver` also suffers from this
+      **kwargs: Any,
   ):
     super().__init__(
         epsilon=epsilon,
@@ -78,13 +85,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         jit=jit,
         store_inner_errors=store_inner_errors
     )
-    gw_kwargs = dict(gw_kwargs)
-    gw_kwargs["epsilon"] = epsilon
-    # TODO(michalk8): store only GW errors?
-    # would be ``[max_iter, num_measures, num_gw_iters]``
-    gw_kwargs["store_inner_errors"] = store_inner_errors
-    self._quad_solver = gromov_wasserstein.GromovWasserstein(**gw_kwargs)
-    assert not self._quad_solver.is_low_rank, "Low rank not yet implemented."
+    self._quad_solver = quad_solver
+    if quad_solver is None:
+      kwargs["epsilon"] = epsilon
+      # TODO(michalk8): store only GW errors?
+      kwargs["store_inner_errors"] = store_inner_errors
+      self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
+    assert not self._quad_solver.is_low_rank, "Low rank is not yet implemented."
 
   def __call__(self, problem: GWBarycenterProblem, **kwargs: Any):
     bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
@@ -245,7 +252,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux = super().tree_flatten()
-    aux['_gw_kwargs'] = self._quad_solver._kwargs
+    aux["quad_solver"] = self._quad_solver
     return children, aux
 
   @classmethod
@@ -253,11 +260,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
     epsilon, _, _, threshold = children
-    gw_kwargs = aux_data.pop("_gw_kwargs")
     return cls(
         epsilon=epsilon,
         threshold=threshold,
-        gw_kwargs=gw_kwargs,
         **aux_data,
     )
 
