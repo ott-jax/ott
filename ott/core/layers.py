@@ -44,7 +44,7 @@ class PositiveDense(nn.Module):
   dtype: Any = jnp.float32
   precision: Any = None
   kernel_init: Callable[
-    [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+      [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -58,13 +58,13 @@ class PositiveDense(nn.Module):
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-      'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
+        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
     scaled_kernel = self.beta * kernel
     kernel = jnp.asarray(
-      1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
+        1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
     y = jax.lax.dot_general(
-      inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-      precision=self.precision)
+        inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
+        precision=self.precision)
     if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
@@ -88,7 +88,7 @@ class PosDefDense(nn.Module):
   dtype: Any = jnp.float32
   precision: Any = None
   kernel_init: Callable[
-    [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+      [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -101,7 +101,7 @@ class PosDefDense(nn.Module):
       """
       inputs = jnp.asarray(inputs, self.dtype)
       kernel = self.param(
-        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
+          'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
 
       y = jax.lax.dot_general(
           inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),

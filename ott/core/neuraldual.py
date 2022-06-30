@@ -104,7 +104,7 @@ class NeuralDualSolver:
         # check setting of network architectures
         if (
             neural_f.pos_weights != self.pos_weights or (
-              neural_g.pos_weights != self.pos_weights)
+                neural_g.pos_weights != self.pos_weights)
         ):
             warnings.warn(
                 f"Setting of ICNN and the positive weights setting of the \
