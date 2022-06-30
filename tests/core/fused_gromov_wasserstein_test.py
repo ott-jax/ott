@@ -18,6 +18,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from absl.testing import absltest, parameterized
 
 from ott.core import gromov_wasserstein
@@ -347,6 +348,31 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
     gw_output = reg_gw(self.x, self.y, self.a, self.b)
     self.assertGreater(fgw_output.reg_gw_cost, gw_output.reg_gw_cost)
     self.assertNotAlmostEqual(fgw_output.matrix[0, 0], gw_output.matrix[0, 0])
+
+
+# currently works only with `pytest`
+# and mustn't be placed in the class
+# furthermore, can't be used atm with `pytest-xdist`
+# https://github.com/bloomberg/pytest-memray/issues/2
+@pytest.mark.limit_memory("200 MB")
+@pytest.mark.parametrize("jit", [False, True])
+def test_fgw_lr_memory(jit: bool):
+  # Total memory allocated: 108.7MiB (32-bit)
+  rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+  n, m, d1, d2 = 15_000, 10_000, 2, 3
+  x = jax.random.uniform(rngs[0], (n, d1))
+  y = jax.random.uniform(rngs[1], (m, d2))
+  xx = jax.random.uniform(rngs[2], (n, d2))
+  yy = jax.random.uniform(rngs[3], (m, d2))
+  geom_x = pointcloud.PointCloud(x)
+  geom_y = pointcloud.PointCloud(y)
+  geom_xy = pointcloud.PointCloud(xx, yy)
+
+  ot_gwlr = gromov_wasserstein.gromov_wasserstein(
+      geom_x, geom_y, geom_xy, rank=5, jit=jit
+  )
+
+  assert ot_gwlr.convergence
 
 
 if __name__ == '__main__':
