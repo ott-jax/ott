@@ -1,4 +1,3 @@
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -104,8 +103,8 @@ class NeuralDualSolver:
 
     # check setting of network architectures
     if (
-        neural_f.pos_weights != self.pos_weights or
-        neural_g.pos_weights != self.pos_weights
+        neural_f.pos_weights != self.pos_weights
+        or neural_g.pos_weights != self.pos_weights
     ):
       warnings.warn(
           f"Setting of ICNN and the positive weights setting of the \
