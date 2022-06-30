@@ -335,7 +335,7 @@ def gromov_wasserstein(
     scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    loss: Union[Literal['sqeucl', 'kl'], quad_problems.Loss] = 'sqeucl',
+    loss: Union[Literal['sqeucl', 'kl'], quad_problems.GWLoss] = 'sqeucl',
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
