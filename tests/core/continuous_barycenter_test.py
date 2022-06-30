@@ -120,8 +120,8 @@ class Barycenter(parameterized.TestCase):
         jnp.eye(dimension) for i in range(num_components)
     ])
 
-    y1 = bures_cost.means_and_covs_to_x(means1, covs1)
-    y2 = bures_cost.means_and_covs_to_x(means2, covs2)
+    y1 = costs.means_and_covs_to_x(means1, covs1, dimension)
+    y2 = costs.means_and_covs_to_x(means2, covs2, dimension)
 
     b1 = b2 = jnp.ones(num_components) / num_components
 
@@ -137,7 +137,7 @@ class Barycenter(parameterized.TestCase):
         jax.random.uniform(keys[1], (bar_size, dimension, dimension))
     )
 
-    x_init = bures_cost.means_and_covs_to_x(x_init_means, x_init_covs)
+    x_init = costs.means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
     bar_p = bar_problems.BarycenterProblem(
         y,
@@ -157,7 +157,7 @@ class Barycenter(parameterized.TestCase):
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
 
-    means_bary, covs_bary = bures_cost.x_to_means_and_covs(barycenter)
+    means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dimension)
 
     self.assertTrue(
         jnp.logical_or(
