@@ -67,16 +67,11 @@ class ICNN(nn.Module):
       # this function needs to be the inverse map of function
       # used in PositiveDense layers
       rescale = hid_dense.inv_rectifier_fn
-      if hid_dense.inv_rectifier_fn(hid_dense.rectifier_fn(0.1)) != 0.1:
-        raise RuntimeError(
-            "Make sure both rectifier and inverse are defined properly."
-        )
     else:
       hid_dense = nn.Dense
       rescale = lambda x: x
     self.use_init = False
     # check if Gaussian map was provided
-    print(self.gaussian_map)
     if self.gaussian_map is not None:
       factor, mean = self.compute_gaussian_map(self.gaussian_map)
     else:

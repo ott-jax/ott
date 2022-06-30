@@ -33,7 +33,6 @@ class PositiveDense(nn.Module):
     rectifier_fn: choice of rectiver function (default: softplus function).
     inv_rectifier_fn: choice of inverse rectiver function
       (default: inverse softplus function).
-    beta: inverse temperature parameter (default: 1.0)
     dtype: the dtype of the computation (default: float32).
     precision: numerical precision of computation see `jax.lax.Precision`
       for details.
@@ -43,13 +42,18 @@ class PositiveDense(nn.Module):
   dim_hidden: int
   rectifier_fn: Callable = nn.softplus
   inv_rectifier_fn: Callable = lambda x: jnp.log(jnp.exp(x) - 1)
-  beta: float = 1.0
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
   kernel_init: Callable[[PRNGKey, Shape, Dtype],
                         Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
+
+  def setup(self):
+    if round(self.inv_rectifier_fn(self.rectifier_fn(0.1)), 3) != 0.1:
+      raise RuntimeError(
+          "Make sure both rectifier and inverse are defined properly."
+      )
 
   @nn.compact
   def __call__(self, inputs):
@@ -64,8 +68,7 @@ class PositiveDense(nn.Module):
     kernel = self.param(
         'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
-    scaled_kernel = self.beta * kernel
-    kernel = jnp.asarray(1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
+    kernel = self.rectifier_fn(kernel)
     y = jax.lax.dot_general(
         inputs,
         kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
