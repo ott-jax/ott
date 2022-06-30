@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -84,8 +84,7 @@ class ICNN(nn.Module):
       w_zs.append(
         hid_dense(
           self.dim_hidden[i],
-          kernel_init=initializers.constant(
-            rescale(1.0 / normalization)),
+          kernel_init=initializers.constant(rescale(1.0 / normalization)),
           use_bias=False,
         )
       )
@@ -94,8 +93,7 @@ class ICNN(nn.Module):
     w_zs.append(
       hid_dense(
         1,
-        kernel_init=initializers.constant(
-          rescale(1.0 / normalization)),
+        kernel_init=initializers.constant(rescale(1.0 / normalization)),
         use_bias=False,
       )
     )
@@ -140,8 +138,9 @@ class ICNN(nn.Module):
       z = x.reshape(shape[0], -1)
       mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
       z = z - mu
-      sigma = jax.vmap(lambda a, b: jnp.matmul(
-        a, b))(jnp.expand_dims(z, 2), jnp.expand_dims(z, 1))
+      sigma = jax.vmap(lambda a, b: jnp.matmul(a, b))(
+        jnp.expand_dims(z, 2), jnp.expand_dims(z, 1)
+      )
       # unbiased estimate
       sigma = jnp.sum(sigma, axis=0) / (shape[0] - 1)
       # regularize
@@ -154,8 +153,7 @@ class ICNN(nn.Module):
         return sigma, mu
 
     source, target = inputs
-    _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(
-      source, sqrt_inv=True)
+    _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
     covt, mut = compute_moments(target, sqrt_inv=False)
 
     mo = sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
