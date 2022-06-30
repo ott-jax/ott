@@ -151,7 +151,8 @@ class PosDefPotentials(nn.Module):
                            inputs.shape[-1]))
 
       if self.use_bias:
-          bias = self.param("bias", self.bias_init, (self.num_potentials, self.dim_data))
+          bias = self.param("bias", self.bias_init,
+                            (self.num_potentials, self.dim_data))
           bias = jnp.asarray(bias, self.dtype)
 
           y = inputs.reshape((-1, inputs.shape[-1])) if inputs.ndim == 1 else inputs
