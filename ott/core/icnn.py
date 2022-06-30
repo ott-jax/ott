@@ -138,9 +138,9 @@ class ICNN(nn.Module):
       z = x.reshape(shape[0], -1)
       mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
       z = z - mu
-      sigma = jax.vmap(lambda a, b: jnp.matmul(a, b))(
-        jnp.expand_dims(z, 2), jnp.expand_dims(z, 1)
-      )
+      sigma = jax.vmap(
+        lambda a, b: jnp.matmul(a, b)
+      )(jnp.expand_dims(z, 2), jnp.expand_dims(z, 1))
       # unbiased estimate
       sigma = jnp.sum(sigma, axis=0) / (shape[0] - 1)
       # regularize
