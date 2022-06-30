@@ -13,10 +13,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Implementation of Amos+(2017) input convex neural networks (ICNN).
-
-  Containing initialization schemes introduced in Bunne+(2022).
-"""
+"""Implementation of Amos+(2017) input convex neural networks (ICNN)."""
 
 from typing import Any, Callable, Sequence, Tuple
 
@@ -35,6 +32,8 @@ Array = Any
 
 class ICNN(nn.Module):
   """Input convex neural network (ICNN) architeture with initialization.
+
+  Containing initialization schemes introduced in Bunne+(2022).
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The
@@ -141,8 +140,8 @@ class ICNN(nn.Module):
       z = x.reshape(shape[0], -1)
       mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
       z = z - mu
-      sigma = jax.vmap(lambda a, b: jnp.matmul(a, b))(jnp.expand_dims(z, 2),
-                                                      jnp.expand_dims(z, 1))
+      sigma = jax.vmap(lambda a, b: jnp.matmul(
+        a, b))(jnp.expand_dims(z, 2), jnp.expand_dims(z, 1))
       # unbiased estimate
       sigma = jnp.sum(sigma, axis=0) / (shape[0] - 1)
       # regularize
