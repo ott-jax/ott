@@ -25,6 +25,25 @@ from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
 
 
+def x_to_means_and_covs(x, dimension):
+  """Extract mean and covariance matrix from raveled d(1 + d) vector."""
+  x = jnp.atleast_2d(x)
+  means = x[:, 0:dimension]
+  covariances = jnp.reshape(
+      x[:, dimension:dimension + dimension ** 2], (-1, dimension, dimension)
+  )
+  return jnp.squeeze(means), jnp.squeeze(covariances)
+
+
+def mean_and_cov_to_x(mean, covariance, dimension):
+  """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
+  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
+  return x
+
+
+means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
+
+
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
   """A generic cost function, taking two vectors as input.
@@ -130,15 +149,15 @@ class Bures(CostFn):
 
   def norm(self, x):
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
-    mean, cov = self.x_to_means_and_covs(x)
+    mean, cov = x_to_means_and_covs(x, self._dimension)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
   def pairwise(self, x, y):
     """Compute - 2 x Bures dot-product."""
-    mean_x, cov_x = self.x_to_means_and_covs(x)
-    mean_y, cov_y = self.x_to_means_and_covs(y)
+    mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
+    mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
     mean_dot_prod = jnp.vdot(mean_x, mean_y)
     sq_x = matrix_square_root.sqrtm(cov_x, self._dimension, **self._sqrtm_kw)[0]
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
@@ -146,24 +165,6 @@ class Bures(CostFn):
         sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
     )[0]
     return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
-
-  def x_to_means_and_covs(self, x):
-    """Extract mean and covariance matrix from raveled d(1 + d) vector."""
-    x = jnp.atleast_2d(x)
-    means = x[:, 0:self._dimension]
-    covariances = jnp.reshape(
-        x[:, self._dimension:self._dimension + self._dimension ** 2],
-        (-1, self._dimension, self._dimension)
-    )
-    return jnp.squeeze(means), jnp.squeeze(covariances)
-
-  @functools.partial(jax.vmap, in_axes=[None, 0, 0])
-  def means_and_covs_to_x(self, mean, covariance):
-    """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
-    x = jnp.concatenate(
-        (mean, jnp.reshape(covariance, (self._dimension * self._dimension)))
-    )
-    return x
 
   @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
   def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
@@ -236,12 +237,10 @@ class Bures(CostFn):
     """
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
-    mus, covs = self.x_to_means_and_covs(xs)
+    mus, covs = x_to_means_and_covs(xs, self._dimension)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
-    barycenter = jnp.concatenate(
-        (mu_bary, jnp.reshape(cov_bary, (self._dimension * self._dimension)))
-    )
+    barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
 
   def tree_flatten(self):
@@ -289,20 +288,17 @@ class UnbalancedBures(CostFn):
 
     # Extracts mass, mean vector, covariance matrices
     mass_x, mass_y = x[0], y[0]
-    diff_means = x[1:1 + self._dimension] - y[1:1 + self._dimension]
-    x_mat = jnp.reshape(
-        x[1 + self._dimension:], (self._dimension, self._dimension)
-    )
-    y_mat = jnp.reshape(
-        y[1 + self._dimension:], (self._dimension, self._dimension)
-    )
+    mean_x, cov_x = x_to_means_and_covs(x[1:], self._dimension)
+    mean_y, cov_y = x_to_means_and_covs(y[1:], self._dimension)
+
+    diff_means = mean_x - mean_y
 
     # Identity matrix of suitable size
     iden = jnp.eye(self._dimension, dtype=x.dtype)
 
     # Creates matrices needed in the computation
-    tilde_a = 0.5 * gam * (iden - lam * jnp.linalg.inv(x_mat + lam * iden))
-    tilde_b = 0.5 * gam * (iden - lam * jnp.linalg.inv(y_mat + lam * iden))
+    tilde_a = 0.5 * gam * (iden - lam * jnp.linalg.inv(cov_x + lam * iden))
+    tilde_b = 0.5 * gam * (iden - lam * jnp.linalg.inv(cov_y + lam * iden))
 
     tilde_a_b = jnp.matmul(tilde_a, tilde_b)
     c_mat = matrix_square_root.sqrtm(
@@ -313,7 +309,7 @@ class UnbalancedBures(CostFn):
     # Computes log determinants (their sign should be >0).
     sldet_c, ldet_c = jnp.linalg.slogdet(c_mat)
     sldet_t_ab, ldet_t_ab = jnp.linalg.slogdet(tilde_a_b)
-    sldet_ab, ldet_ab = jnp.linalg.slogdet(jnp.matmul(x_mat, y_mat))
+    sldet_ab, ldet_ab = jnp.linalg.slogdet(jnp.matmul(cov_x, cov_y))
     sldet_c_ab, ldet_c_ab = jnp.linalg.slogdet(c_mat - 2 * tilde_a_b / gam)
 
     # Gathers all these results to compute log total mass of transport
@@ -325,7 +321,7 @@ class UnbalancedBures(CostFn):
     )
 
     log_m_pi += -jnp.sum(
-        diff_means * jnp.linalg.solve(x_mat + y_mat + lam * iden, diff_means)
+        diff_means * jnp.linalg.solve(cov_x + cov_y + lam * iden, diff_means)
     ) / (2 * (tau + 1))
 
     log_m_pi += -0.5 * ldet_c_ab
