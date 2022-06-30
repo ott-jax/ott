@@ -157,6 +157,26 @@ class ScaleTriL:
     return (cost_fn.norm(x0) + cost_fn.norm(x1) +
             cost_fn.pairwise(x0, x1))[...,]
 
+  def transport_scale_matrix(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
+    """
+    Scaling matrix used in transport between 0-mean normal, \mu, w/ current scale to one w/ dest_scale, \nu
+    
+    m = \Sigma_\mu ^{-1/2} [ \Sigma_\mu ^{1/2} \Sigma_\nu \Sigma_\mu ^{1/2}] ^{1/2}\Sigma_\mu ^{-1/2}
+
+    Args:
+      dest_scale: destination Scale
+
+    Returns:
+      Gaussian scaling matrix, same dimension as self.covaraince()
+    """
+    sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
+    sigma1 = dest_scale.covariance()
+    m = matrix_square_root.sqrtm_only(
+        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
+    )
+    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
+    return m
+
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray
   ) -> jnp.ndarray:
@@ -169,12 +189,8 @@ class ScaleTriL:
     Returns:
       Points transported to a Gaussian with the new scale.
     """
-    sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
-    sigma1 = dest_scale.covariance()
-    m = matrix_square_root.sqrtm_only(
-        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
-    )
-    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
+
+    m = self.transport_scale_matrix(dest_scale)
     return jnp.transpose(jnp.matmul(m, jnp.transpose(points)))
 
   def tree_flatten(self):
