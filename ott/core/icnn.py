@@ -21,8 +21,9 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from jax.nn import initializers
+
+from ott.core.layers import PosDefPotentials, PositiveDense
 from ott.geometry.matrix_square_root import sqrtm, sqrtm_only
-from ott.core.layers import PositiveDense, PosDefPotentials
 
 PRNGKey = Any
 Shape = Tuple[int]
@@ -82,57 +83,58 @@ class ICNN(nn.Module):
     # first layer in x normalization factor is rescaled accordingly
     for i in range(0, self.num_hidden):
       w_zs.append(
-        hid_dense(
-          self.dim_hidden[i],
-          kernel_init=initializers.constant(rescale(1.0 / normalization)),
-          use_bias=False,
-        )
+          hid_dense(
+              self.dim_hidden[i],
+              kernel_init=initializers.constant(rescale(1.0 / normalization)),
+              use_bias=False,
+          )
       )
       normalization = self.dim_hidden[i]
     # final layer computes average, still with normalized rescaling
     w_zs.append(
-      hid_dense(
-        1,
-        kernel_init=initializers.constant(rescale(1.0 / normalization)),
-        use_bias=False,
-      )
+        hid_dense(
+            1,
+            kernel_init=initializers.constant(rescale(1.0 / normalization)),
+            use_bias=False,
+        )
     )
     self.w_zs = w_zs
 
     w_xs = []
     # first square layer, initialized to identity
     w_xs.append(
-      PosDefPotentials(
-        self.dim_data,
-        num_potentials=1,
-        kernel_init=lambda *args, **kwargs: factor,
-        bias_init=lambda *args, **kwargs: mean,
-        use_bias=True,
-      )
+        PosDefPotentials(
+            self.dim_data,
+            num_potentials=1,
+            kernel_init=lambda *args, **kwargs: factor,
+            bias_init=lambda *args, **kwargs: mean,
+            use_bias=True,
+        )
     )
 
     # subsequent layers reinjected into convex functions
     for i in range(self.num_hidden):
       w_xs.append(
-        nn.Dense(
-          self.dim_hidden[i],
-          kernel_init=self.init_fn(self.init_std),
-          bias_init=self.init_fn(self.init_std),
-          use_bias=True,
-        )
+          nn.Dense(
+              self.dim_hidden[i],
+              kernel_init=self.init_fn(self.init_std),
+              bias_init=self.init_fn(self.init_std),
+              use_bias=True,
+          )
       )
     # final layer, to output number
     w_xs.append(
-      nn.Dense(
-        1,
-        kernel_init=self.init_fn(self.init_std),
-        bias_init=self.init_fn(self.init_std),
-        use_bias=True,
-      )
+        nn.Dense(
+            1,
+            kernel_init=self.init_fn(self.init_std),
+            bias_init=self.init_fn(self.init_std),
+            use_bias=True,
+        )
     )
     self.w_xs = w_xs
 
   def compute_gaussian_map(self, inputs):
+
     def compute_moments(x, reg=1e-2, sqrt_inv=False):
       shape = x.shape
       z = x.reshape(shape[0], -1)

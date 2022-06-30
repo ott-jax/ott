@@ -43,8 +43,8 @@ class PositiveDense(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[
-      [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+  kernel_init: Callable[[PRNGKey, Shape, Dtype],
+                        Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -58,13 +58,15 @@ class PositiveDense(nn.Module):
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
+        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+    )
     scaled_kernel = self.beta * kernel
-    kernel = jnp.asarray(
-        1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
+    kernel = jnp.asarray(1 / self.beta * nn.softplus(scaled_kernel), self.dtype)
     y = jax.lax.dot_general(
-        inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-        precision=self.precision)
+        inputs,
+        kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
+        precision=self.precision
+    )
     if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
@@ -88,8 +90,8 @@ class PosDefDense(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[
-      [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+  kernel_init: Callable[[PRNGKey, Shape, Dtype],
+                        Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -103,14 +105,19 @@ class PosDefDense(nn.Module):
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-      'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden))
+        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+    )
 
     y = jax.lax.dot_general(
-      inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-      precision=self.precision)
+        inputs,
+        kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
+        precision=self.precision
+    )
     y = jax.lax.dot_general(
-      y, kernel.transpose(), (((inputs.ndim - 1,), (0,)), ((), ())),
-      precision=self.precision)
+        y,
+        kernel.transpose(), (((inputs.ndim - 1,), (0,)), ((), ())),
+        precision=self.precision
+    )
     if self.use_bias:
       bias = self.param("bias", self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
@@ -134,8 +141,8 @@ class PosDefPotentials(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[
-    [PRNGKey, Shape, Dtype], Array] = nn.initializers.lecun_normal()
+  kernel_init: Callable[[PRNGKey, Shape, Dtype],
+                        Array] = nn.initializers.lecun_normal()
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -148,27 +155,29 @@ class PosDefPotentials(nn.Module):
       The transformed input.
     """
     inputs = jnp.asarray(inputs, self.dtype)
-    kernel = self.param("kernel", self.kernel_init,
-                        (self.num_potentials, inputs.shape[-1],
-                         inputs.shape[-1]))
+    kernel = self.param(
+        "kernel", self.kernel_init,
+        (self.num_potentials, inputs.shape[-1], inputs.shape[-1])
+    )
 
     if self.use_bias:
-      bias = self.param("bias", self.bias_init,
-                        (self.num_potentials, self.dim_data))
+      bias = self.param(
+          "bias", self.bias_init, (self.num_potentials, self.dim_data)
+      )
       bias = jnp.asarray(bias, self.dtype)
 
-      y = inputs.reshape(
-        (-1, inputs.shape[-1])) if inputs.ndim == 1 else inputs
+      y = inputs.reshape((-1, inputs.shape[-1])) if inputs.ndim == 1 else inputs
       y = y[..., None] - bias.T[None, ...]
       y = jax.lax.dot_general(
-        y, kernel, (((1,), (1,)), ((2,), (0,))),
-        precision=self.precision)
+          y, kernel, (((1,), (1,)), ((2,), (0,))), precision=self.precision
+      )
     else:
       y = jax.lax.dot_general(
-        inputs, kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-        precision=self.precision)
+          inputs,
+          kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
+          precision=self.precision
+      )
 
     y = 0.5 * y * y
-    out = jnp.sum(
-      y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)
+    out = jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)
     return out

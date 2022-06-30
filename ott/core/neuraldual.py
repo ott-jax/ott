@@ -55,20 +55,20 @@ class NeuralDualSolver:
   """
 
   def __init__(
-    self,
-    input_dim: int,
-    neural_f: Optional[nn.Module] = None,
-    neural_g: Optional[nn.Module] = None,
-    optimizer_f: Optional[base.GradientTransformation] = None,
-    optimizer_g: Optional[base.GradientTransformation] = None,
-    num_train_iters: int = 100,
-    num_inner_iters: int = 10,
-    valid_freq: int = 100,
-    log_freq: int = 100,
-    logging: bool = False,
-    seed: int = 0,
-    pos_weights: bool = True,
-    beta: int = 1.0,
+      self,
+      input_dim: int,
+      neural_f: Optional[nn.Module] = None,
+      neural_g: Optional[nn.Module] = None,
+      optimizer_f: Optional[base.GradientTransformation] = None,
+      optimizer_g: Optional[base.GradientTransformation] = None,
+      num_train_iters: int = 100,
+      num_inner_iters: int = 10,
+      valid_freq: int = 100,
+      log_freq: int = 100,
+      logging: bool = False,
+      seed: int = 0,
+      pos_weights: bool = True,
+      beta: int = 1.0,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -103,11 +103,11 @@ class NeuralDualSolver:
 
     # check setting of network architectures
     if (
-      neural_f.pos_weights != self.pos_weights or (
-        neural_g.pos_weights != self.pos_weights)
+        neural_f.pos_weights != self.pos_weights or
+        (neural_g.pos_weights != self.pos_weights)
     ):
       warnings.warn(
-        f"Setting of ICNN and the positive weights setting of the \
+          f"Setting of ICNN and the positive weights setting of the \
         `NeuralDualSolver` are not consistent. Proceeding with \
         the `NeuralDualSolver` setting, with positive weigths \
         being {self.positive_weights}."
@@ -115,8 +115,12 @@ class NeuralDualSolver:
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights
 
-    self.state_f = self.create_train_state(rng_f, neural_f, optimizer_f, input_dim)
-    self.state_g = self.create_train_state(rng_g, neural_g, optimizer_g, input_dim)
+    self.state_f = self.create_train_state(
+        rng_f, neural_f, optimizer_f, input_dim
+    )
+    self.state_g = self.create_train_state(
+        rng_g, neural_g, optimizer_g, input_dim
+    )
 
     # define train and valid step functions
     self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
@@ -126,17 +130,17 @@ class NeuralDualSolver:
     self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
 
   def __call__(
-    self,
-    trainloader_source: Iterator[jnp.ndarray],
-    trainloader_target: Iterator[jnp.ndarray],
-    validloader_source: Iterator[jnp.ndarray],
-    validloader_target: Iterator[jnp.ndarray],
+      self,
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
   ) -> "NeuralDual":
     logs = self.train_neuraldual(
-      trainloader_source,
-      trainloader_target,
-      validloader_source,
-      validloader_target,
+        trainloader_source,
+        trainloader_target,
+        validloader_source,
+        validloader_target,
     )
     if self.logging:
       return NeuralDual(self.state_f, self.state_g), logs
@@ -144,11 +148,11 @@ class NeuralDualSolver:
       return NeuralDual(self.state_f, self.state_g)
 
   def train_neuraldual(
-    self,
-    trainloader_source,
-    trainloader_target,
-    validloader_source,
-    validloader_target,
+      self,
+      trainloader_source,
+      trainloader_target,
+      validloader_source,
+      validloader_target,
   ):
     """Implementation of the training and validation script."""  # noqa: D401
     try:
@@ -172,7 +176,7 @@ class NeuralDualSolver:
         batch_g["target"] = jnp.array(next(trainloader_target))
 
         self.state_g, loss_g, _ = self.train_step_g(
-          self.state_f, self.state_g, batch_g
+            self.state_f, self.state_g, batch_g
         )
 
       # get train batch for potential f
@@ -180,11 +184,11 @@ class NeuralDualSolver:
       batch_f["target"] = jnp.array(next(trainloader_target))
 
       self.state_f, loss_f, w_dist = self.train_step_f(
-        self.state_f, self.state_g, batch_f
+          self.state_f, self.state_g, batch_f
       )
       if not self.pos_weights:
         self.state_f = self.state_f.replace(
-          params=self.clip_weights_icnn(self.state_f.params)
+            params=self.clip_weights_icnn(self.state_f.params)
         )
 
       # log to wandb
@@ -200,10 +204,10 @@ class NeuralDualSolver:
         valid_batch["target"] = jnp.array(next(validloader_target))
 
         valid_loss_f, _ = self.valid_step_f(
-          self.state_f, self.state_g, valid_batch
+            self.state_f, self.state_g, valid_batch
         )
         valid_loss_g, valid_w_dist = self.valid_step_g(
-          self.state_f, self.state_g, valid_batch
+            self.state_f, self.state_g, valid_batch
         )
 
         if self.logging:
@@ -226,8 +230,12 @@ class NeuralDualSolver:
       f_t = f({"params": params_f}, batch["target"])
 
       grad_g_s = jax.vmap(
-        lambda x: jax.grad(g, argnums=1)({"params": params_g}, x)
-      )(batch["source"])
+          lambda x: jax.grad(g, argnums=1)({
+              "params": params_g
+          }, x)
+      )(
+          batch["source"]
+      )
 
       f_grad_g_s = f({"params": params_f}, grad_g_s)
 
@@ -238,7 +246,7 @@ class NeuralDualSolver:
 
       # compute final wasserstein distance
       dist = 2 * jnp.mean(
-        f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
+          f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
       )
 
       loss_f = jnp.mean(f_t - f_grad_g_s)
@@ -269,11 +277,11 @@ class NeuralDualSolver:
       if train:
         # compute loss and gradients
         (loss, dist), grads = grad_fn(
-          state_f.params,
-          state_g.params,
-          state_f.apply_fn,
-          state_g.apply_fn,
-          batch,
+            state_f.params,
+            state_g.params,
+            state_f.apply_fn,
+            state_g.apply_fn,
+            batch,
         )
 
         # update state
@@ -282,11 +290,11 @@ class NeuralDualSolver:
       else:
         # compute loss and gradients
         (loss, dist), _ = grad_fn(
-          state_f.params,
-          state_g.params,
-          state_f.apply_fn,
-          state_g.apply_fn,
-          batch,
+            state_f.params,
+            state_g.params,
+            state_f.apply_fn,
+            state_g.apply_fn,
+            batch,
         )
 
         # do not update state
@@ -298,7 +306,7 @@ class NeuralDualSolver:
     """Create initial `TrainState`."""
     params = model.init(rng, jnp.ones(input))["params"]
     return train_state.TrainState.create(
-      apply_fn=model.apply, params=params, tx=optimizer
+        apply_fn=model.apply, params=params, tx=optimizer
     )
 
   @staticmethod
@@ -349,25 +357,34 @@ class NeuralDual:
   def transport(self, data: jnp.ndarray) -> jnp.ndarray:
     """Transport source data samples with potential g."""
     return jax.vmap(
-      lambda x: jax.grad(self.g.apply_fn, argnums=1)(
-        {"params": self.g.params}, x)
-    )(data)
+        lambda x: jax.grad(self.g.apply_fn, argnums=1)({
+            "params": self.g.params
+        }, x)
+    )(
+        data
+    )
 
   def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
     """Transport source data samples with potential g."""
     return jax.vmap(
-      lambda x: jax.grad(self.f.apply_fn, argnums=1)(
-        {"params": self.f.params}, x)
-    )(data)
+        lambda x: jax.grad(self.f.apply_fn, argnums=1)({
+            "params": self.f.params
+        }, x)
+    )(
+        data
+    )
 
   def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
     """Given potentials f and g, compute the overall distance."""
     f_t = self.f.apply_fn({"params": self.f.params}, target)
 
     grad_g_s = jax.vmap(
-      lambda x: jax.grad(self.g.apply_fn, argnums=1)(
-        {"params": self.g.params}, x)
-    )(source)
+        lambda x: jax.grad(self.g.apply_fn, argnums=1)({
+            "params": self.g.params
+        }, x)
+    )(
+        source
+    )
 
     f_grad_g_s = self.f.apply_fn({"params": self.f.params}, grad_g_s)
 
@@ -378,5 +395,6 @@ class NeuralDual:
 
     # compute final wasserstein distance
     dist = 2 * jnp.mean(
-      f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
+        f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
+    )
     return dist
