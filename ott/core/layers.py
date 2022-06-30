@@ -30,8 +30,10 @@ class PositiveDense(nn.Module):
 
   Args:
     dim_hidden: the number of output dim_hidden.
-    beta: inverse temperature parameter of the softplus function (default: 1).
-    use_bias: whether to add a bias to the output (default: True).
+    rectifier_fn: choice of rectiver function (default: softplus function).
+    inv_rectifier_fn: choice of inverse rectiver function
+      (default: inverse softplus function).
+    beta: inverse temperature parameter (default: 1.0)
     dtype: the dtype of the computation (default: float32).
     precision: numerical precision of computation see `jax.lax.Precision`
       for details.
@@ -39,6 +41,8 @@ class PositiveDense(nn.Module):
     bias_init: initializer function for the bias.
   """
   dim_hidden: int
+  rectifier_fn: Callable = nn.softplus
+  inv_rectifier_fn: Callable = lambda x: jnp.log(jnp.exp(x) - 1)
   beta: float = 1.0
   use_bias: bool = True
   dtype: Any = jnp.float32
@@ -69,57 +73,6 @@ class PositiveDense(nn.Module):
     )
     if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.dim_hidden,))
-      bias = jnp.asarray(bias, self.dtype)
-      y = y + bias
-    return y
-
-
-class PosDefDense(nn.Module):
-  """A layer to output  A^T A x + b.
-
-  Args:
-    dim_hidden: the number of output dim_hidden.
-    use_bias: whether to add a bias to the output (default: True).
-    dtype: the dtype of the computation (default: float32).
-    precision: numerical precision of computation see `jax.lax.Precision`
-      for details.
-    kernel_init: initializer function for the weight matrix.
-    bias_init: initializer function for the bias.
-  """
-  dim_hidden: int
-  use_bias: bool = True
-  dtype: Any = jnp.float32
-  precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
-
-  @nn.compact
-  def __call__(self, inputs):
-    """Applies a linear transformation to inputs along the last dimension.
-
-    Args:
-      inputs: The nd-array to be transformed.
-    Returns:
-      The transformed input.
-    """
-    inputs = jnp.asarray(inputs, self.dtype)
-    kernel = self.param(
-        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
-    )
-
-    y = jax.lax.dot_general(
-        inputs,
-        kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-        precision=self.precision
-    )
-    y = jax.lax.dot_general(
-        y,
-        kernel.transpose(), (((inputs.ndim - 1,), (0,)), ((), ())),
-        precision=self.precision
-    )
-    if self.use_bias:
-      bias = self.param("bias", self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
       y = y + bias
     return y

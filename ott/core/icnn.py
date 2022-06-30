@@ -45,7 +45,8 @@ class ICNN(nn.Module):
     act_fn: choice of activation function used in network architecture
       (needs to be convex, default: `nn.leaky_relu`).
     pos_weights: choice to enforce positivity of weight or use regularizer.
-    gaussian_maps: data inputs of source and target measures for
+    dim_data: data dimensionality (default: 2).
+    gaussian_map: data inputs of source and target measures for
       initialization scheme based on Gaussian approximation of input and
       target measure (if None, identity initialization is used).
   """
@@ -56,7 +57,7 @@ class ICNN(nn.Module):
   act_fn: Callable = nn.relu
   pos_weights: bool = True
   dim_data: int = 2
-  gaussian_map: Tuple = None
+  gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
 
   def setup(self):
     self.num_hidden = len(self.dim_hidden)
@@ -65,12 +66,17 @@ class ICNN(nn.Module):
       hid_dense = PositiveDense
       # this function needs to be the inverse map of function
       # used in PositiveDense layers
-      rescale = lambda x: jnp.log(jnp.exp(x) - 1)
+      rescale = hid_dense.inv_rectifier_fn
+      if hid_dense.inv_rectifier_fn(hid_dense.rectifier_fn(0.1)) != 0.1:
+        raise RuntimeError(
+            "Make sure both rectifier and inverse are defined properly."
+        )
     else:
       hid_dense = nn.Dense
       rescale = lambda x: x
     self.use_init = False
     # check if Gaussian map was provided
+    print(self.gaussian_map)
     if self.gaussian_map is not None:
       factor, mean = self.compute_gaussian_map(self.gaussian_map)
     else:
@@ -135,7 +141,7 @@ class ICNN(nn.Module):
 
   def compute_gaussian_map(self, inputs):
 
-    def compute_moments(x, reg=1e-2, sqrt_inv=False):
+    def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
       z = x.reshape(shape[0], -1)
       mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
@@ -173,8 +179,6 @@ class ICNN(nn.Module):
   @nn.compact
   def __call__(self, x):
     for i in range(self.num_hidden + 2):
-      # applies quadratic transform on data
-      # currently this is only (I x + 0), should be T(x) = 2 A x + 2 b
       if i == 0:
         z = self.w_xs[i](x)
       # apply both transform on hidden state and x
