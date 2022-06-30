@@ -349,13 +349,15 @@ class NeuralDual:
     def transport(self, data: jnp.ndarray) -> jnp.ndarray:
         """Transport source data samples with potential g."""
         return jax.vmap(
-            lambda x: jax.grad(self.g.apply_fn, argnums=1)({"params": self.g.params}, x)
+            lambda x: jax.grad(self.g.apply_fn, argnums=1)(
+                {"params": self.g.params}, x)
         )(data)
 
     def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
         """Transport source data samples with potential g."""
         return jax.vmap(
-            lambda x: jax.grad(self.f.apply_fn, argnums=1)({"params": self.f.params}, x)
+            lambda x: jax.grad(self.f.apply_fn, argnums=1)(
+                {"params": self.f.params}, x)
         )(data)
 
     def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
@@ -363,7 +365,8 @@ class NeuralDual:
         f_t = self.f.apply_fn({"params": self.f.params}, target)
 
         grad_g_s = jax.vmap(
-            lambda x: jax.grad(self.g.apply_fn, argnums=1)({"params": self.g.params}, x)
+            lambda x: jax.grad(self.g.apply_fn, argnums=1)(
+                {"params": self.g.params}, x)
         )(source)
 
         f_grad_g_s = self.f.apply_fn({"params": self.f.params}, grad_g_s)
@@ -374,5 +377,6 @@ class NeuralDual:
         t_sq = jnp.sum(target * target, axis=1)
 
         # compute final wasserstein distance
-        dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
+        dist = 2 * jnp.mean(
+            f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
         return dist

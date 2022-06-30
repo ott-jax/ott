@@ -61,7 +61,8 @@ class ICNN(nn.Module):
 
         if self.pos_weights:
             hid_dense = PositiveDense
-            # this function should be inverse map of function used in PositiveDense layers
+            # this function needs to be the inverse map of function
+            # used in PositiveDense layers
             rescale = lambda x: jnp.log(jnp.exp(x) - 1)
         else:
             hid_dense = nn.Dense
@@ -76,13 +77,14 @@ class ICNN(nn.Module):
         w_zs = list()
         # keep track of previous size to normalize accordingly
         normalization = 1
-        # subsequent layers propagate value of potential provided by very first layer in x
-        # normalization factor is rescaled accordingly
+        # subsequent layers propagate value of potential provided by
+        # first layer in x normalization factor is rescaled accordingly
         for i in range(0, self.num_hidden):
             w_zs.append(
                 hid_dense(
                     self.dim_hidden[i],
-                    kernel_init=initializers.constant(rescale(1.0 / normalization)),
+                    kernel_init=initializers.constant(
+                        rescale(1.0 / normalization)),
                     use_bias=False,
                 )
             )
@@ -91,7 +93,8 @@ class ICNN(nn.Module):
         w_zs.append(
             hid_dense(
                 1,
-                kernel_init=initializers.constant(rescale(1.0 / normalization)),
+                kernel_init=initializers.constant(
+                    rescale(1.0 / normalization)),
                 use_bias=False,
             )
         )
@@ -151,7 +154,8 @@ class ICNN(nn.Module):
                 return sigma, mu
 
         source, target = inputs
-        _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
+        _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(
+            source, sqrt_inv=True)
         covt, mut = compute_moments(target, sqrt_inv=False)
 
         mo = sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
@@ -171,11 +175,11 @@ class ICNN(nn.Module):
     def __call__(self, x):
         for i in range(self.num_hidden + 2):
             # applies quadratic transform on data
-            # currently this is only (I x + 0), but should be T(x) = 2 A x + 2 b
+            # currently this is only (I x + 0), should be T(x) = 2 A x + 2 b
             if i == 0:
                 z = self.w_xs[i](x)
             # apply both transform on hidden state and x
-            # notice x is one step ahead, as there is one more hidden layer for x
+            # x is one step ahead as there is one more hidden layer for x
             else:
                 z = jnp.add(self.w_zs[i - 1](z), self.w_xs[i](x))
             if i != 0 or i != self.num_hidden + 1:
