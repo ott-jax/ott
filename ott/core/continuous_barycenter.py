@@ -126,8 +126,11 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     return out
 
   def init_state(
-      self, bar_prob: bar_problems.BarycenterProblem, bar_size: int,
-      x_init: Optional[jnp.ndarray], rng: int
+      self,
+      bar_prob: bar_problems.BarycenterProblem,
+      bar_size: int,
+      x_init: Optional[jnp.ndarray] = None,
+      rng: int = 0,
   ) -> BarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations."""
     if x_init is not None:

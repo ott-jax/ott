@@ -102,7 +102,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   def init_state(
       self,
       problem: GWBarycenterProblem,
-      bar_init: Union[int, jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
+      bar_size: int,
+      bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
+                                                  jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
       seed: int = 0,
   ) -> GWBarycenterState:
@@ -110,9 +112,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     Args:
       problem: The barycenter problem.
+      bar_size: Size of the barycenter.
       bar_init: Initial barycenter value. Can be one of following:
 
-        - :class:`int` - randomly initialize barycenter, see also ``seed``.
+        - ``None`` - randomly initialize the barycenter, see also ``seed``.
         - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[k, k]``.
           Only used in the non-fused case.
         - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
@@ -120,35 +123,30 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
           barycenter feature array. Only used in the fused case.
 
       a: An array of shape ``[k,]`` containing the barycenter weights.
-      seed: Random seed when ``bar_init`` is :class:`int`.
+      seed: Random seed used when ``bar_init = None``.
 
     Returns:
       The initial barycenter state.
     """
-    if isinstance(bar_init, int):
-      if a is None:
-        a = jnp.ones((bar_init,)) / bar_init
+    if a is None:
+      a = jnp.ones((bar_size,)) / bar_size
+    else:
+      assert a.shape == (bar_size,)
 
-      rng = jax.random.PRNGKey(seed)
+    if bar_init is None:
       _, b = problem.segmented_y_b
-      keys = jax.random.split(rng, len(b))
-
+      rng = jax.random.PRNGKey(seed)
+      keys = jax.random.split(rng, problem.num_segments)
       linear_solver = self._quad_solver.linear_ot_solver
-      transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
 
+      transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
       x = problem.update_features(transports, a)
       cost = problem.update_barycenter(transports, a)
     else:
       cost, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
-      bar_size = cost.shape[0]
-
-      if a is None:
-        a = jnp.ones((bar_size,)) / bar_size
       assert cost.shape == (bar_size, bar_size)
-      assert a.shape == (bar_size,)
-
       if problem.is_fused:
-        assert x is not None, "barycenter features are not initialized"
+        assert x is not None, "Barycenter features are not initialized."
         _, _, d = problem.segmented_y_fused.shape
         assert x.shape == (bar_size, d)
 
