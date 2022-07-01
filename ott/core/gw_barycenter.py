@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from ott.core import (
     fixed_point_loop,
     gromov_wasserstein,
-    problems,
+    linear_problems,
     quad_problems,
     was_solver,
 )
@@ -93,9 +93,21 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
     assert not self._quad_solver.is_low_rank, "Low rank is not yet implemented."
 
-  def __call__(self, problem: GWBarycenterProblem, **kwargs: Any):
+  def __call__(
+      self, problem: GWBarycenterProblem, bar_size: int, **kwargs: Any
+  ) -> GWBarycenterState:
+    """Solver the (fused) GW barycenter problem.
+
+    Args:
+      problem: The GW barycenter problem.
+    bar_size: Size of the barycenter.
+    kwargs: Keyword arguments for :meth:`init_state`.
+
+    Returns:
+      The solution.
+    """
     bar_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
-    state = self.init_state(problem, **kwargs)
+    state = self.init_state(problem, bar_size, **kwargs)
     state = bar_fn(solver=self, problem=problem, init_state=state)
     return self.output_from_state(state)
 
@@ -270,7 +282,7 @@ def init_transports(
     solver, key: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
     epsilon: Optional[float]
 ) -> jnp.ndarray:
-  """Initialize random cost matrix and solve the OT problem.
+  """Initialize random 2D point cloud and solve the linear OT problem.
 
   Args:
     solver: Linear OT solver.
@@ -286,7 +298,7 @@ def init_transports(
   x = jax.random.normal(key1, shape=(len(a), 2))
   y = jax.random.normal(key2, shape=(len(b), 2))
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  problem = problems.LinearProblem(geom, a=a, b=b)
+  problem = linear_problems.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 
 

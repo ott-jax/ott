@@ -176,7 +176,7 @@ class GWBarycenterProblem(BarycenterProblem):
     loss: Gromov-Wasserstein loss.
     fused_penalty: Multiplier of the linear term in Fused Gromov-Wasserstein.
       Only used when ``y_fused != None``.
-    scale_cost: Scaling passed to geometries.
+    scale_cost: Scaling of cost matrices passed to geometries.
     kwargs: Keyword arguments for
       :class:`ott.core.bar_problems.BarycenterProblem`.
   """
@@ -194,7 +194,25 @@ class GWBarycenterProblem(BarycenterProblem):
       **kwargs: Any,
   ):
     assert y is None or costs is None, "Cannot specify both `y` and `cost`."
-    super().__init__(y if costs is None else costs, b, weights, **kwargs)
+    y = y if costs is None else costs
+
+    if "_segmented_y_fused" in kwargs:
+      # after unflattening
+      self._segmented_y_fused = kwargs.pop("_segmented_y_fused")
+      super().__init__(y, b, weights, **kwargs)
+    elif y_fused is not None:
+      # call `super().__init__` first since we might need `self._kwargs`
+      super().__init__(y, b, weights, **kwargs)
+      if y_fused.ndim == 3:
+        # already pre-segmented
+        self._segmented_y_fused = y_fused
+      else:
+        self._segmented_y_fused, _, _ = segment.segment_point_cloud(
+            y_fused, None, **self._kwargs
+        )
+    else:
+      self._segmented_y_fused = None
+
     self._y_as_costs = costs is not None
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
@@ -283,13 +301,7 @@ class GWBarycenterProblem(BarycenterProblem):
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
     """Array of shape ``[num_measures, N, D_f]`` used in the fused case."""
-    if self._y_fused is None or self._y_fused.ndim == 3:
-      return self._y_fused
-    segmented_y_fused, _, _ = segment.segment_point_cloud(
-        self._y_fused, None, self._segment_ids, self._num_segments,
-        self._indices_are_sorted, self._num_per_segment, self.max_measure_size
-    )
-    return segmented_y_fused
+    return self._segmented_y_fused
 
   @staticmethod
   def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.GWLoss:
@@ -301,17 +313,22 @@ class GWBarycenterProblem(BarycenterProblem):
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    raise NotImplementedError("FIXME(michalk8)")
-    (y, b, weights), aux = super().tree_flatten()
-    if self._is_cost:
-      children = [None, b, weights, y]
+    (y, b, weights, seg_y, seg_b), aux = super().tree_flatten()
+    if self._y_as_costs:
+      children = [None, b, weights, y, self._segmented_y_fused]
     else:
-      children = [y, b, weights, None]
-    aux["y_fused"] = self._y_fused
+      children = [y, b, weights, None, self._segmented_y_fused]
     aux['fused_penalty'] = self.fused_penalty
     aux['loss'] = self._loss_name
     aux['scale_cost'] = self.scale_cost
     return children, aux
+
+  @classmethod
+  def tree_unflatten(
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "GWBarycenterProblem":
+    *children, seg_y_fused = children
+    return cls(*children, _segmented_y_fused=seg_y_fused, **aux_data)
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
