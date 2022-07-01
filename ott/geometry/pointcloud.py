@@ -15,7 +15,7 @@
 # Lint as: python3
 """A geometry defined using 2 point clouds and a cost function between them."""
 import math
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -352,7 +352,11 @@ class PointCloud(geometry.Geometry):
     )
 
   def apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None, **_: Any
+      self,
+      arr: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
 
@@ -360,26 +364,27 @@ class PointCloud(geometry.Geometry):
     output = C arr (if axis=1)
     output = C' arr (if axis=0)
     where C is [num_a, num_b] matrix resulting from the (optional) elementwise
-    application of fn to each entry of the `cost_matrix`.
+    application of fn to each entry of the :attr:`cost_matrix`.
 
     Args:
       arr: jnp.ndarray [num_a or num_b, batch], vector that will be multiplied
         by the cost matrix.
-      axis: standard cost matrix if axis=1, transpose if 0
+      axis: standard cost matrix if axis=1, transpose if 0.
       fn: function optionally applied to cost matrix element-wise, before the
-        apply
+        apply.
+      is_linear: Whether ``fn`` is a linear function.
+        If true and :attr:`is_squared_euclidean` is ``True``, efficient
+        implementation is used. See :func:`ott.geometry.geometry.is_linear`
+        for a heuristic to help determine if a function is linear.
 
     Returns:
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
-    if fn is None:
-      return self._apply_cost(arr, axis, fn=fn)
-    # Switch to efficient computation for the squared euclidean case.
-    return jax.lax.cond(
-        jnp.logical_and(self.is_squared_euclidean, geometry.is_affine(fn)),
-        lambda: self.vec_apply_cost(arr, axis, fn=fn),
-        lambda: self._apply_cost(arr, axis, fn=fn)
-    )
+    # switch to efficient computation for the squared euclidean case.
+    if self.is_squared_euclidean and (fn is None or is_linear):
+      return self.vec_apply_cost(arr, axis, fn=fn)
+
+    return self._apply_cost(arr, axis, fn=fn)
 
   def _apply_cost(
       self, arr: jnp.ndarray, axis: int = 0, fn=None
@@ -430,19 +435,18 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
-    rank = len(arr.shape)
+    rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx, ny = jnp.array(self._norm_x), jnp.array(self._norm_y)
+    nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
     nx, ny = (nx, ny) if axis == 0 else (ny, nx)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
     cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
     applied_cost += cross_term[:, None] if rank == 1 else cross_term
-    return (
-        fn(applied_cost) * self.inv_scale_cost if fn else applied_cost *
-        self.inv_scale_cost
-    )
+    if fn is not None:
+      applied_cost = fn(applied_cost)
+    return self.inv_scale_cost * applied_cost
 
   def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
     start_indices = [i * self._bs] + (t.ndim - 1) * [0]

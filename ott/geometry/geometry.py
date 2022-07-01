@@ -15,7 +15,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -534,7 +534,7 @@ class Geometry:
       self,
       arr: jnp.ndarray,
       axis: int = 0,
-      fn=None,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       **kwargs: Any
   ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).

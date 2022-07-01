@@ -125,6 +125,31 @@ class LRGeometryTest(parameterized.TestCase):
           rtol=1e-4
       )
 
+  @parameterized.product(fn=[lambda x: x + 10, lambda x: x * 2], axis=[0, 1])
+  def test_apply_affine_function_efficient(self, fn, axis):
+    n, m, d = 21, 13, 3
+    keys = jax.random.split(self.rng, 3)
+    x = jax.random.normal(keys[0], (n, d))
+    y = jax.random.normal(keys[1], (m, d))
+    vec = jax.random.normal(keys[2], (n if axis == 0 else m,))
+
+    geom = pointcloud.PointCloud(x, y)
+
+    res_eff = geom.apply_cost(vec, axis=axis, fn=fn, is_linear=True)
+    res_ineff = geom.apply_cost(vec, axis=axis, fn=fn, is_linear=False)
+
+    if fn(0.0) == 0.0:
+      np.testing.assert_allclose(res_eff, res_ineff, rtol=1e-4, atol=1e-4)
+    else:
+      self.assertRaises(
+          AssertionError,
+          np.testing.assert_allclose,
+          res_ineff,
+          res_eff,
+          rtol=1e-4,
+          atol=1e-4
+      )
+
 
 if __name__ == '__main__':
   absltest.main()
