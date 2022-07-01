@@ -102,16 +102,15 @@ class GaussianInitializer(SinkhornInitializer):
         f_potential = jnp.zeros(n) if init_f is None else init_f
 
         if not isinstance(ot_problem.geom, PointCloud):
+            # warning that init not applied
             return f_potential
-
         else:
             x = ot_problem.geom.x
             y = ot_problem.geom.y
             gaussian_a = Gaussian.from_samples(x, weights=ot_problem.a)
             gaussian_b = Gaussian.from_samples(y, weights=ot_problem.b)
-            f_potential = gaussian_a.f_potential(dest=gaussian_b, points=x)
-
-        return f_potential
+            f_potential = 2*gaussian_a.f_potential(dest=gaussian_b, points=x)
+            return f_potential
 
 class SortingInit(SinkhornInitializer):
 
@@ -148,8 +147,6 @@ class SortingInit(SinkhornInitializer):
         f = jnp.min(modified_cost + f[None, :], axis=1)
         return f
 
-
-    @jax.jit
     def coordinate_update(self, f: jnp.ndarray, modified_cost: jnp.ndarray):
         """_summary_
 
@@ -165,7 +162,6 @@ class SortingInit(SinkhornInitializer):
 
         return jax.lax.fori_loop(0, len(f), body_fn, f)
 
-    @functools.partial(jax.jit, static_argnums=(1, 2, 3))  
     def init_sorting_dual(self, modified_cost: jnp.ndarray, f_potential: jnp.ndarray):
         """_summary_
 
@@ -189,7 +185,7 @@ class SortingInit(SinkhornInitializer):
 
         def cond_fn(state):
             _, diff, it = state
-            return (diff > self.tolerance) & (it < self.mat_iter)
+            return (diff > self.tolerance) & (it < self.matxiter)
 
         f_potential, _, it = jax.lax.while_loop(cond_fun=cond_fn, body_fun=body_fn, init_val=state)
         
