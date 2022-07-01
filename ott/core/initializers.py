@@ -109,6 +109,7 @@ class GaussianInitializer(SinkhornInitializer):
             gaussian_b = Gaussian.from_samples(y, weights=ot_problem.b)
             # Brenier potential for ground cost ||x-y||^2/2, so multiple by two for cost ||x-y||^2
             f_potential = 2*gaussian_a.f_potential(dest=gaussian_b, points=x) 
+            f_potential = f_potential - jnp.mean(f_potential)
             f_potential = f_potential if lse_mode else jnp.exp(f_potential)
             return f_potential
 
@@ -211,9 +212,10 @@ class SortingInit(SinkhornInitializer):
         f_potential = jnp.zeros(n) if init_f is None else init_f
 
         f_potential = self.init_sorting_dual(modified_cost, f_potential)
+        f_potential = f_potential - jnp.mean(f_potential)
 
         f_potential = f_potential if lse_mode else jnp.exp(f_potential)
-
+        
         return f_potential
 
 
