@@ -67,7 +67,6 @@ class BarycenterProblem:
       # after unflattening
       self._segmented_y = kwargs.pop("_segmented_y")
       self._segmented_b = kwargs.pop("_segmented_b")
-      self._num_seg = self._segmented_y.shape[0]
     else:
       if self._y.ndim == 3:
         assert self._y.shape[:2] == self._b.shape
@@ -166,7 +165,7 @@ class GWBarycenterProblem(BarycenterProblem):
     b: Array of shape ``[num_measures, N]`` containing the weights
       (within each measure) of all the points.
     weights: weights of the barycenter problem (size num_segments).
-    cost: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
+    costs: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
       defines padded cost matrices for each measure. Only one of ``y`` and
       ``cost`` can be passed. See :func:`ott.core.segment.pad_along_axis`
       on how to pad cost matrices of different sized.
@@ -187,16 +186,16 @@ class GWBarycenterProblem(BarycenterProblem):
       y: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
-      cost: Optional[jnp.ndarray] = None,
+      costs: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       loss: Literal['sqeucl', 'kl'] = 'sqeucl',
       scale_cost: Optional[Union[float, Literal["mean", "max_cost"]]] = None,
       **kwargs: Any,
   ):
-    assert y is None or cost is None, "Cannot specify both `y` and `cost`."
-    super().__init__(y if cost is None else cost, b, weights, **kwargs)
-    self._is_cost = cost is not None
+    assert y is None or costs is None, "Cannot specify both `y` and `cost`."
+    super().__init__(y if costs is None else costs, b, weights, **kwargs)
+    self._y_as_costs = costs is not None
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
     self.loss, self._loss_name = self._create_loss(loss), loss
@@ -220,7 +219,7 @@ class GWBarycenterProblem(BarycenterProblem):
         y: jnp.ndarray, transport: jnp.ndarray,
         fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
     ) -> jnp.ndarray:
-      if self._is_cost:
+      if self._y_as_costs:
         assert y.shape[0] == y.shape[1], y.shape
         geom = geometry.Geometry(
             y, epsilon=self.epsilon, scale_cost=self.scale_cost
@@ -235,7 +234,7 @@ class GWBarycenterProblem(BarycenterProblem):
       tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
       return transport @ tmp
 
-    fn = None if self._loss_name == 'sqeucl' else self.loss[1][1]
+    fn = None if self._loss_name == 'sqeucl' else self.loss.h2
     y, _ = self.segmented_y_b
     weights = self.weights[:, None, None]
 
@@ -280,6 +279,7 @@ class GWBarycenterProblem(BarycenterProblem):
     """Whether this problem is fused."""
     return self._y_fused is not None
 
+  # TODO(michalk8): refactor me as in `BarycenterProblem`
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
     """Array of shape ``[num_measures, N, D_f]`` used in the fused case."""
@@ -292,7 +292,7 @@ class GWBarycenterProblem(BarycenterProblem):
     return segmented_y_fused
 
   @staticmethod
-  def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.Loss:
+  def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.GWLoss:
     # TODO(michalk8): use namedtuple for in `quad_problems`
     if loss == 'sqeucl':
       return quad_problems.make_square_loss()
@@ -301,6 +301,7 @@ class GWBarycenterProblem(BarycenterProblem):
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    raise NotImplementedError("FIXME(michalk8)")
     (y, b, weights), aux = super().tree_flatten()
     if self._is_cost:
       children = [None, b, weights, y]

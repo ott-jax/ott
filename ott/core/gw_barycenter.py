@@ -188,7 +188,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
 
       geom_xx = geometry.Geometry(state.c, epsilon=eps, scale_cost=scale)
-      if problem._is_cost:
+      if problem._y_as_costs:
         geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale)
       else:
         geom_yy = pointcloud.PointCloud(
