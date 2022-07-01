@@ -19,10 +19,11 @@ from typing import Any, Dict, NamedTuple, Optional, Union
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.core import (
     fixed_point_loop,
-    problems,
+    linear_problems,
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
@@ -97,7 +98,7 @@ class GWState(NamedTuple):
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
-  linear_pb: Optional[problems.LinearProblem] = None
+  linear_pb: Optional[linear_problems.LinearProblem] = None
   # Intermediate values.
   old_transport_mass: float = 1.0
 
@@ -107,7 +108,7 @@ class GWState(NamedTuple):
 
   def update(
       self, iteration: int, linear_sol: LinearOutput,
-      linear_pb: problems.LinearProblem, store_errors: bool,
+      linear_pb: linear_problems.LinearProblem, store_errors: bool,
       old_transport_mass: float
   ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
@@ -333,7 +334,7 @@ def gromov_wasserstein(
     scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    loss: Optional[str] = None,
+    loss: Union[Literal['sqeucl', 'kl'], quad_problems.GWLoss] = 'sqeucl',
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
@@ -362,8 +363,10 @@ def gromov_wasserstein(
 
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
-    loss: str, None defaults to the square Euclidean distance, can also
-      receive 'kl' to define the GW loss.
+    loss: defaults to the square Euclidean distance. Can also pass 'kl'
+      to define the GW loss as KL loss.
+      See :class:`ott.core.gromov_wasserstein.GromovWasserstein` on how to pass
+      custom loss.
     tau_a: float between 0 and 1.0, parameter that controls the strength of the
       KL divergence constraint between the weights and marginals of the
       transport for the first view. If set to 1.0, then it is equivalent to a
@@ -380,8 +383,6 @@ def gromov_wasserstein(
   Returns:
     A GromovWassersteinState named tuple.
   """
-  losses = {'kl': quad_problems.make_kl_loss}
-  loss_fn = losses.get(loss, None)
   prob = quad_problems.QuadraticProblem(
       geom_xx,
       geom_yy,
@@ -390,7 +391,7 @@ def gromov_wasserstein(
       scale_cost=scale_cost,
       a=a,
       b=b,
-      loss=(loss_fn() if loss_fn is not None else None),
+      loss=loss,
       tau_a=tau_a,
       tau_b=tau_b,
       gw_unbalanced_correction=gw_unbalanced_correction

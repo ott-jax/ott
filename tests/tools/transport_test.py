@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 from absl.testing import absltest
 
-from ott.core import problems
+from ott.core import linear_problems
 from ott.geometry import pointcloud
 from ott.tools import transport
 
@@ -61,7 +61,7 @@ class TransportTest(absltest.TestCase):
     geom = pointcloud.PointCloud(x, y, online=True)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
-    pb = problems.LinearProblem(geom, b=b)
+    pb = linear_problems.LinearProblem(geom, b=b)
     ot = transport.solve(pb)
     self.assertEqual(ot.matrix.shape, (num_a, num_b))
     np.testing.assert_allclose(jnp.sum(ot.matrix, axis=1), ot.a, atol=1e-3)

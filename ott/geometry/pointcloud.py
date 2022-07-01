@@ -351,7 +351,9 @@ class PointCloud(geometry.Geometry):
         self._cost_fn, self.power, self.inv_scale_cost
     )
 
-  def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
+  def apply_cost(
+      self, arr: jnp.ndarray, axis: int = 0, fn=None, **_: Any
+  ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
 
     This function applies the geometry's cost matrix, to perform either

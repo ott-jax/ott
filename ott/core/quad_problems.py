@@ -13,16 +13,15 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 # Because Protocol is not available in Python < 3.8
-from typing_extensions import Protocol
+from typing_extensions import Literal, Protocol
 
-from ott.core import problems, sinkhorn_lr
+from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 
@@ -44,18 +43,32 @@ class Transport(Protocol):
     ...
 
 
-LossTerm = Callable[[jnp.ndarray], jnp.ndarray]
-Loss = Tuple[Tuple[LossTerm, LossTerm], Tuple[LossTerm, LossTerm]]
+class Loss(NamedTuple):
+  func: Callable[[jnp.ndarray], jnp.ndarray]
+  is_linear: bool
 
 
-def make_square_loss() -> Loss:
-  return ((lambda x: x ** 2, lambda y: y ** 2),
-          (lambda x: x, lambda y: 2.0 * y))
+class GWLoss(NamedTuple):
+  f1: Loss
+  f2: Loss
+  h1: Loss
+  h2: Loss
 
 
-def make_kl_loss(clipping_value: float = 1e-8) -> Loss:
-  return ((lambda x: -jax.scipy.special.entr(x) - x, lambda y: y),
-          (lambda x: x, lambda y: jnp.log(jnp.clip(y, clipping_value))))
+def make_square_loss() -> GWLoss:
+  f1 = Loss(lambda x: x ** 2, is_linear=False)
+  f2 = Loss(lambda y: y ** 2, is_linear=False)
+  h1 = Loss(lambda x: x, is_linear=True)
+  h2 = Loss(lambda y: 2.0 * y, is_linear=True)
+  return GWLoss(f1, f2, h1, h2)
+
+
+def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
+  f1 = Loss(lambda x: -jax.scipy.special.entr(x) - x, is_linear=False)
+  f2 = Loss(lambda y: y, is_linear=True)
+  h1 = Loss(lambda x: x, is_linear=True)
+  h2 = Loss(lambda y: jnp.log(jnp.clip(y, clipping_value)), is_linear=False)
+  return GWLoss(f1, f2, h1, h2)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -99,11 +112,10 @@ class QuadraticProblem:
       from geom_yy. If None, it will be uniform.
     loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
       part of the loss (see in the pydoc of the class lin1, lin2). The second
-      one is the quadratic part (quad1, quad2). If None is passed, the loss
-      is set as the 4 functions representing the squared euclidean loss, and
+      one is the quadratic part (quad1, quad2). By default, the loss
+      is set as the 4 functions representing the squared Euclidean loss, and
       this property is taken advantage of in subsequent computations. See
-      make_kl_loss for an alternative, no less optimized way of setting the
-      loss.
+      Alternatively, KL loss can be specified in no less optimized way.
     tau_a: if lower that 1.0, defines how much unbalanced the problem is on
       the first marginal.
     tau_b: if lower that 1.0, defines how much unbalanced the problem is on
@@ -122,10 +134,10 @@ class QuadraticProblem:
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
-      loss: Optional[Loss] = None,
+      loss: Union[Literal['sqeucl', 'kl'], GWLoss] = 'sqeucl',
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
-      gw_unbalanced_correction: Optional[bool] = True
+      gw_unbalanced_correction: bool = True
   ):
     assert fused_penalty > 0, fused_penalty
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
@@ -140,11 +152,13 @@ class QuadraticProblem:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.gw_unbalanced_correction = gw_unbalanced_correction
-    if loss is None:
-      self._sq_euc = True
+
+    self._loss_name = loss
+    if self._loss_name == 'sqeucl':
       self.loss = make_square_loss()
+    elif loss == 'kl':
+      self.loss = make_kl_loss()
     else:
-      self._sq_euc = False
       self.loss = loss
 
   @property
@@ -160,12 +174,12 @@ class QuadraticProblem:
     )
 
   @property
-  def linear_loss(self) -> Tuple[LossTerm, LossTerm]:
-    return self.loss[0]
+  def linear_loss(self) -> Tuple[Loss, Loss]:
+    return self.loss.f1, self.loss.f2
 
   @property
-  def quad_loss(self) -> Tuple[LossTerm, LossTerm]:
-    return self.loss[1]
+  def quad_loss(self) -> Tuple[Loss, Loss]:
+    return self.loss.h1, self.loss.h2
 
   @property
   def is_balanced(self) -> bool:
@@ -176,7 +190,7 @@ class QuadraticProblem:
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
         'tau_a': self.tau_a,
         'tau_b': self.tau_b,
-        'loss': self.loss,
+        'loss': self._loss_name,
         'fused_penalty': self.fused_penalty,
         'scale_cost': self.scale_cost,
         'gw_unbalanced_correction': self.gw_unbalanced_correction
@@ -223,12 +237,13 @@ class QuadraticProblem:
     Returns:
       Low-rank geometry.
     """
-    if self._sq_euc:  # quadratic apply
+    if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
     else:
-      tmp1 = self.geom_xx.apply_cost(marginal_1, axis=1, fn=self.linear_loss[0])
-      tmp2 = self.geom_yy.apply_cost(marginal_2, axis=1, fn=self.linear_loss[1])
+      f1, f2 = self.linear_loss
+      tmp1 = apply_cost(self.geom_xx, marginal_1, axis=1, fn=f1)
+      tmp2 = apply_cost(self.geom_yy, marginal_2, axis=1, fn=f2)
     x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
     y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
     return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
@@ -316,7 +331,7 @@ class QuadraticProblem:
   def init_linearization(
       self,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Initialise a linear problem locally around a naive initializer ab'.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0'), the equation of the
@@ -353,7 +368,8 @@ class QuadraticProblem:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
 
     Returns:
-      A problems.LinearProblem, representing local linearization of GW problem.
+      A linear_problems.LinearProblem, representing local linearization of
+      GW problem.
     """
     unbalanced_correction = 0.0
     tmp = self.init_transport()
@@ -368,8 +384,9 @@ class QuadraticProblem:
           tmp, marginal_1, marginal_2, epsilon, 1.0
       )
 
-    tmp = self.geom_xx.apply_cost(tmp, axis=1, fn=self.quad_loss[0])
-    tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
+    h1, h2 = self.quad_loss
+    tmp = apply_cost(self.geom_xx, tmp, axis=1, fn=h1)
+    tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
     cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
 
     # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021).
@@ -380,13 +397,13 @@ class QuadraticProblem:
     cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
 
   def init_lr_linearization(
       self, rank: int = 10, **kwargs: Any
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Linearizes a Quad problem with a predefined initializer."""
     x_ = self.geom_xx.apply_square_cost(self.a)
     y_ = self.geom_yy.apply_square_cost(self.b)
@@ -394,9 +411,9 @@ class QuadraticProblem:
     out = sinkhorn_lr.LRSinkhorn(
         rank=rank, **kwargs
     )(
-        problems.LinearProblem(geom_, self.a, self.b)
+        linear_problems.LinearProblem(geom_, self.a, self.b)
     )
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         self.update_lr_geom(out),
         self.a,
         self.b,
@@ -418,8 +435,9 @@ class QuadraticProblem:
     q, r = q * inv_sqg[None, :], r * inv_sqg[None, :]
 
     # Handle LRC Geometry case.
-    tmp1 = self.geom_xx.apply_cost(q, axis=1, fn=self.quad_loss[0])
-    tmp2 = self.geom_yy.apply_cost(r, axis=1, fn=self.quad_loss[1])
+    h1, h2 = self.quad_loss
+    tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
+    tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
     if self.is_all_geoms_lr:
       geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2)
       geom = low_rank.add_lrc_geom(geom, marginal_cost)
@@ -436,7 +454,7 @@ class QuadraticProblem:
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
       old_transport_mass: float = 1.0
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
@@ -473,25 +491,24 @@ class QuadraticProblem:
       # Updates epsilon for Unbalanced GW.
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
-    tmp = self.geom_xx.apply_cost(
-        transport.matrix, axis=1, fn=self.quad_loss[0]
-    )
-    tmp = self.geom_yy.apply_cost(tmp.T, axis=1, fn=self.quad_loss[1]).T
+    h1, h2 = self.quad_loss
+    tmp = apply_cost(self.geom_xx, transport.matrix, axis=1, fn=h1)
+    tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
     cost_matrix += self.fused_penalty * self._fused_cost_matrix
     cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
 
   def update_lr_linearization(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
-  ) -> problems.LinearProblem:
+  ) -> linear_problems.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
-    return problems.LinearProblem(
+    return linear_problems.LinearProblem(
         self.update_lr_geom(lr_sink),
         self.a,
         self.b,
@@ -518,67 +535,8 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
   return updated_epsilon
 
 
-def make(
-    *args: Union[jnp.ndarray, geometry.Geometry, problems.LinearProblem,
-                 QuadraticProblem],
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    objective: Optional[str] = None,
-    gw_unbalanced_correction: Optional[bool] = True,
-    fused_penalty: Optional[float] = None,
-    scale_cost: Optional[Union[bool, float, str]] = False,
-    **kwargs: Any,
-):
-  """Make a problem from arrays, assuming PointCloud geometries."""
-  if isinstance(args[0], (jnp.ndarray, np.ndarray)):
-    x = args[0]
-    y = args[1] if len(args) > 1 else args[0]
-    if ((objective == 'linear') or
-        (objective is None and x.shape[1] == y.shape[1])):  # noqa: E129
-      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
-      return problems.LinearProblem(geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    elif ((objective == 'quadratic') or
-          (objective is None and x.shape[1] != y.shape[1])):
-      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
-      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
-      return QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=None,
-          scale_cost=scale_cost,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          gw_unbalanced_correction=gw_unbalanced_correction
-      )
-    elif objective == 'fused':
-      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
-      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
-      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
-      return QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=geom_xy,
-          fused_penalty=fused_penalty,
-          scale_cost=scale_cost,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          gw_unbalanced_correction=gw_unbalanced_correction
-      )
-    else:
-      raise ValueError(f'Unknown transport problem `{objective}`')
-  elif isinstance(args[0], geometry.Geometry):
-    if len(args) == 1:
-      return problems.LinearProblem(*args, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-    return QuadraticProblem(
-        *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost
-    )
-  elif isinstance(args[0], (problems.LinearProblem, QuadraticProblem)):
-    return args[0]
-  else:
-    raise ValueError('Cannot instantiate a transport problem.')
+def apply_cost(
+    geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int, fn: Loss
+) -> jnp.ndarray:
+  # TODO(michalk8): handle PCs
+  return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)

@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 from absl.testing import absltest, parameterized
 
-from ott.core import problems, sinkhorn, sinkhorn_lr
+from ott.core import linear_problems, sinkhorn, sinkhorn_lr
 from ott.geometry import geometry, low_rank, pointcloud
 
 
@@ -169,7 +169,7 @@ class ScaleCostTest(parameterized.TestCase):
 
     def apply_sinkhorn(cost1, cost2, scale_cost):
       geom = low_rank.LRCGeometry(cost1, cost2, scale_cost=scale_cost)
-      ot_prob = problems.LinearProblem(geom, self.a, self.b)
+      ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
       solver = sinkhorn_lr.LRSinkhorn(threshold=1e-3, rank=10)
       out = solver(ot_prob)
       return geom, out
