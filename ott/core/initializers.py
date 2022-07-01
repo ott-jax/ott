@@ -23,7 +23,6 @@ from ott.geometry.pointcloud import PointCloud
 
 
 
-@jax.tree_util.register_pytree_node_class
 class SinkhornInitializer():
 
     def init_dual_a(self, ot_problem: LinearProblem, lse_mode: bool = True) -> jnp.ndarray:
