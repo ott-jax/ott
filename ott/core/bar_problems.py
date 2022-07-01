@@ -297,7 +297,6 @@ class GWBarycenterProblem(BarycenterProblem):
     """Whether this problem is fused."""
     return self._y_fused is not None
 
-  # TODO(michalk8): refactor me as in `BarycenterProblem`
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
     """Array of shape ``[num_measures, N, D_f]`` used in the fused case."""
@@ -305,7 +304,6 @@ class GWBarycenterProblem(BarycenterProblem):
 
   @staticmethod
   def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.GWLoss:
-    # TODO(michalk8): use namedtuple for in `quad_problems`
     if loss == 'sqeucl':
       return quad_problems.make_square_loss()
     if loss == 'kl':
