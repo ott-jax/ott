@@ -373,8 +373,9 @@ class PointCloud(geometry.Geometry):
       fn: function optionally applied to cost matrix element-wise, before the
         apply.
       is_efficient: Whether ``fn`` is an affine transformation.
-        If true and :attr:`is_squared_euclidean` is ``True``,
-        efficient implementation is used.
+        If true and :attr:`is_squared_euclidean` is ``True``, efficient
+        implementation is used. See :func:`ott.geometry.geometry.is_affine`
+        for a heuristic that can help determine if a function is affine.
 
     Returns:
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1

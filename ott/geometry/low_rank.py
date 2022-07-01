@@ -140,7 +140,7 @@ class LRCGeometry(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      is_efficient: Optional[bool] = None,
+      is_efficient: bool = False,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
@@ -150,8 +150,8 @@ class LRCGeometry(geometry.Geometry):
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
       is_efficient: Whether ``fn`` is a linear function. If yes, efficient
-        implementation is used. If ``None``, it will be determined by
-        :func:`ott.geometry.geometry.is_linear` at runtime.
+        implementation is used. See :func:`ott.geometry.geometry.is_linear`
+        for a heuristic that can help determine if a function is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
@@ -168,18 +168,8 @@ class LRCGeometry(geometry.Geometry):
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
     if fn is None or is_efficient:
-      return linear_apply(vec, axis, fn)
-
-    # TODO(michalk8): for bwd compatibility only, should be removed once
-    # same principle is used in `LRSinkhorn` and `PointCloud`
-    # yapf: disable
-    return jax.lax.cond(
-        geometry.is_linear(fn),
-        lambda _: linear_apply(vec, axis, fn),
-        lambda g: super(g.__class__, g)._apply_cost_to_vec(vec, axis, fn),
-        self
-    )
-    # yapf: enable
+      return linear_apply(vec, axis, fn=fn)
+    return super()._apply_cost_to_vec(vec, axis, fn=fn)
 
   def compute_max_cost(self) -> float:
     """Compute the maximum of the cost matrix.
