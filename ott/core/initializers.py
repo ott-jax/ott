@@ -18,7 +18,7 @@ import jax
 from jax import numpy as jnp
 from typing import Optional
 
-from ott.core.ot_problems import LinearProblem
+from ott.core.linear_problems import LinearProblem
 from ott.geometry.pointcloud import PointCloud
 
 
