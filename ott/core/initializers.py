@@ -92,24 +92,24 @@ class GaussianInitializer(SinkhornInitializer):
         Returns:
             _type_: _description_
         """
+        # import here due to circular imports
         from ott.tools.gaussian_mixture.gaussian import Gaussian
 
         cost_matrix = ot_problem.geom.cost_matrix
         if self.stop_gradient:
             cost_matrix = jax.lax.stop_gradient(cost_matrix)
 
-        n = cost_matrix.shape[0]
-        f_potential = jnp.zeros(n) if init_f is None else init_f
-
         if not isinstance(ot_problem.geom, PointCloud):
             # warning that init not applied
-            return f_potential
+            return self.default_dual_a(ot_problem, lse_mode)
         else:
             x = ot_problem.geom.x
             y = ot_problem.geom.y
             gaussian_a = Gaussian.from_samples(x, weights=ot_problem.a)
             gaussian_b = Gaussian.from_samples(y, weights=ot_problem.b)
-            f_potential = 2*gaussian_a.f_potential(dest=gaussian_b, points=x)
+            # Brenier potential for ground cost ||x-y||^2/2, so multiple by two for cost ||x-y||^2
+            f_potential = 2*gaussian_a.f_potential(dest=gaussian_b, points=x) 
+            f_potential = f_potential if lse_mode else jnp.exp(f_potential)
             return f_potential
 
 class SortingInit(SinkhornInitializer):
@@ -212,6 +212,7 @@ class SortingInit(SinkhornInitializer):
 
         f_potential = self.init_sorting_dual(modified_cost, f_potential)
 
+        f_potential = f_potential if lse_mode else jnp.exp(f_potential)
 
         return f_potential
 

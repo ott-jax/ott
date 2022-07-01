@@ -121,9 +121,14 @@ def solve(
   linear = isinstance(pb, linear_problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
-  remove_keys = geom_keys + eps_keys if linear else geom_keys
+  
+  init_dual_a = kwargs.get('init_dual_a', None)
+  init_dual_b = kwargs.get('init_dual_b', None)
+  init_keys = ['init_dual_a', 'init_dual_b']
+
+  remove_keys = init_keys + geom_keys + eps_keys if linear else geom_keys
   for key in remove_keys:
     kwargs.pop(key, None)
   solver = solver_fn(**kwargs)
-  output = solver(pb)
+  output = solver(pb, (init_dual_a, init_dual_b))
   return Transport(pb, output)
