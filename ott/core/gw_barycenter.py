@@ -5,20 +5,20 @@ import jax
 import jax.numpy as jnp
 
 from ott.core import (
+    bar_problems,
     fixed_point_loop,
     gromov_wasserstein,
     linear_problems,
     quad_problems,
     was_solver,
 )
-from ott.core.bar_problems import GWBarycenterProblem
 from ott.geometry import geometry, pointcloud
 
 __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
 
 class GWBarycenterState(NamedTuple):
-  """Holds the state of the :class:`ott.core.bar_problems.GWBarycenterProblem`.
+  """Holds the state of the :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
     c: Barycenter cost matrix of shape ``[k, k]``.
@@ -43,10 +43,9 @@ class GWBarycenterState(NamedTuple):
     return self._replace(**kwargs)
 
 
-# TODO(michalk8): add citations
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver.
+  """Gromov-Wasserstein barycenter solver for :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
     epsilon: Entropy regulariser.
@@ -71,7 +70,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       jit: bool = True,
       store_inner_errors: bool = False,
       quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
-      # TODO(michalk8): this maintains the API compatibility with `was_solver`
+      # TODO(michalk8): maintain the API compatibility with `was_solver`
       # but makes passing kwargs with the same name to `quad_solver` impossible
       # will be fixed when refactoring the solvers
       # note that `was_solver` also suffers from this
@@ -94,14 +93,15 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     assert not self._quad_solver.is_low_rank, "Low rank is not yet implemented."
 
   def __call__(
-      self, problem: GWBarycenterProblem, bar_size: int, **kwargs: Any
+      self, problem: bar_problems.GWBarycenterProblem, bar_size: int,
+      **kwargs: Any
   ) -> GWBarycenterState:
     """Solver the (fused) GW barycenter problem.
 
     Args:
       problem: The GW barycenter problem.
-    bar_size: Size of the barycenter.
-    kwargs: Keyword arguments for :meth:`init_state`.
+      bar_size: Size of the barycenter.
+      kwargs: Keyword arguments for :meth:`init_state`.
 
     Returns:
       The solution.
@@ -113,7 +113,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def init_state(
       self,
-      problem: GWBarycenterProblem,
+      problem: bar_problems.GWBarycenterProblem,
       bar_size: int,
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
@@ -187,7 +187,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       state: GWBarycenterState,
       iteration: int,
-      problem: GWBarycenterProblem,
+      problem: bar_problems.GWBarycenterProblem,
       store_errors: bool = True,
   ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
 
@@ -303,8 +303,8 @@ def init_transports(
 
 
 def iterations(
-    solver: GromovWassersteinBarycenter, problem: GWBarycenterProblem,
-    init_state: GWBarycenterState
+    solver: GromovWassersteinBarycenter,
+    problem: bar_problems.GWBarycenterProblem, init_state: GWBarycenterState
 ) -> GWBarycenterState:
 
   def cond_fn(
@@ -316,7 +316,7 @@ def iterations(
 
   def body_fn(
       iteration, constants: Tuple[GromovWassersteinBarycenter,
-                                  GWBarycenterProblem],
+                                  bar_problems.GWBarycenterProblem],
       state: GWBarycenterState, compute_error: bool
   ) -> GWBarycenterState:
     del compute_error  # always assumed true

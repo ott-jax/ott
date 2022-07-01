@@ -28,7 +28,7 @@ __all__ = ["BarycenterProblem", "GWBarycenterProblem", "barycentric_projection"]
 
 @jax.tree_util.register_pytree_node_class
 class BarycenterProblem:
-  """Definition of a linear regularized OT problem and some tools.
+  """Wasserstein barycenter problem :cite:`cuturi:14`.
 
   Args:
     y: a matrix merging the points of all measures.
@@ -150,10 +150,9 @@ class BarycenterProblem:
     return cls(y, b, w, _segmented_y=seg_y, _segmented_b=seg_b, **aux_data)
 
 
-# TODO(michalk8): add citations
 @jax.tree_util.register_pytree_node_class
 class GWBarycenterProblem(BarycenterProblem):
-  """Gromov-Wasserstein barycenter problem, possibly fused.
+  """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
 
   Args:
     y: Array of shape ``[num_measures, N, D]`` containing all points as point
@@ -167,7 +166,7 @@ class GWBarycenterProblem(BarycenterProblem):
     weights: weights of the barycenter problem (size num_segments).
     costs: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
       defines padded cost matrices for each measure. Only one of ``y`` and
-      ``cost`` can be passed. See :func:`ott.core.segment.pad_along_axis`
+      ``cost`` can be passed. See :func:`~ott.core.segment.pad_along_axis`
       on how to pad cost matrices of different sized.
     y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
       of all points used to define the linear term in the fused case.
@@ -178,7 +177,7 @@ class GWBarycenterProblem(BarycenterProblem):
       Only used when ``y_fused != None``.
     scale_cost: Scaling of cost matrices passed to geometries.
     kwargs: Keyword arguments for
-      :class:`ott.core.bar_problems.BarycenterProblem`.
+      :class:`~ott.core.bar_problems.BarycenterProblem`.
   """
 
   def __init__(
@@ -224,6 +223,8 @@ class GWBarycenterProblem(BarycenterProblem):
   ) -> jnp.ndarray:
     """Update the barycenter cost matrix.
 
+    Uses the eq. (14) and (15) of :cite:`peyre:16`.
+
     Args:
       transports: Transport maps of shape ``[num_measures, k, N]``.
       a: Barycenter weights of shape ``[k,]``.
@@ -266,16 +267,17 @@ class GWBarycenterProblem(BarycenterProblem):
 
   def update_features(self, transports: jnp.ndarray,
                       a: jnp.ndarray) -> Optional[jnp.ndarray]:
-    """Update the barycenter features. Only used in the fused cased.
+    """Update the barycenter features in the fused case :cite:`vayer:19`.
 
-    Only implemented for squared :class:`~ott.geometry.costs.Euclidean` cost.
+    Uses the eq. (8) of :cite:`cuturi:14`. and is implemented only
+    for the squared :class:`~ott.geometry.costs.Euclidean` cost.
 
     Args:
       transports: Transport maps of shape ``[num_measures, N, M]``.
       a: Barycenter weights of shape ``[N,]``.
 
     Returns:
-      Array of shape ``[N, D_f]`` containing the update features.
+      Array of features of shape ``[N, D_f]``.
     """
     if not self.is_fused:
       return None

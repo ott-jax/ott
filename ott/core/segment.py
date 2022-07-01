@@ -102,7 +102,7 @@ def pad_along_axis(
     x: Sequence of arrays to pad.
     max_pad_size: Maximum padding size along each axis. Always pads after.
       Each key specifies an axis to pad, value corresponds to its new size.
-      If value is ``None``, maximum value across all arrays is used.
+      If the value is ``None``, maximum value across all arrays is used.
     constant_values: Value to pad with.
     kwargs: Keyword arguments for :func:`jax.numpy.pad`.
 

@@ -54,6 +54,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.bibtex',
     'nbsphinx',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
@@ -75,6 +76,11 @@ autodoc_typehints = 'description'
 pygments_lexer = 'ipython3'
 nbsphinx_execute = 'never'
 
+# bibliography
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+bibtex_default_style = "alpha"
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -87,7 +93,6 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
 
 html_theme = 'sphinx_book_theme'
 html_logo = '_static/logoOTT.png'
