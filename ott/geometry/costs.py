@@ -20,13 +20,22 @@ from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
+from numpy import int16
 
 from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
 
 
 def x_to_means_and_covs(x, dimension):
-  """Extract mean and covariance matrix from raveled d(1 + d) vector."""
+  """Extract means and covariance matrices of Gaussians from raveled vector.
+
+  Args:
+    x: [num_gaussians, dimension, (1 + dimension)] jnp.ndarray of concatenated means and covariances (raveled)
+    dimension: the dimension of the Gaussians
+  Returns:
+    means: [num_gaussians, dimension] jnp.ndarray that holds the means.
+    covariances: [num_gaussians, dimension] jnp.ndarray that holds the covariances.
+  """
   x = jnp.atleast_2d(x)
   means = x[:, 0:dimension]
   covariances = jnp.reshape(
@@ -42,6 +51,50 @@ def mean_and_cov_to_x(mean, covariance, dimension):
 
 
 means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
+
+
+def add_identity(A):
+  return A + jnp.eye(A.shape[0])
+
+
+add_identities = jax.vmap(add_identity, in_axes=0)
+
+
+# TODO(ersi):adapt to use also for initialization of barycenter with Bures cost
+def mean_and_cov_segmenter(
+    x, a, segment_ids, num_segments, num_per_segment, max_measure_size
+):
+  """Segmenter that pads with concatenated zero means and raveled identity covariance matrices."""
+  num, dim = x.shape
+  # obtain the dimension of the Gaussians from the dimension of the pointcloud.
+  dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
+  segmented_a = []
+  segmented_x = []
+  a = jnp.concatenate((a, jnp.zeros((1,))))
+  for i in range(num_segments):
+    # segment the weights a
+    idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
+    idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
+    z = a.at[idx].get()
+    segmented_a.append(z)
+
+    # segment the positions x
+    idx = jnp.where(segment_ids == i)[0]
+    z = x.at[idx, :].get()
+    padding = means_and_covs_to_x(
+        jnp.zeros((max_measure_size - num_per_segment[i], dimension)),
+        add_identities(
+            jnp.zeros(
+                (max_measure_size - num_per_segment[i], dimension, dimension)
+            )
+        ), dimension
+    )
+    z = jnp.vstack((z, padding))
+    segmented_x.append(z)
+
+  segmented_a = jnp.stack(segmented_a)
+  segmented_x = jnp.stack(segmented_x)
+  return segmented_x, segmented_a
 
 
 @jax.tree_util.register_pytree_node_class
@@ -192,11 +245,11 @@ class Bures(CostFn):
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
       cov, _ = state
-      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
-      scaled_cov = jnp.linalg.matrix_power(
-          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+      cov_sqrt = matrix_square_root.sqrtm_only(cov)
+      scaled_cov = jnp.sum(
+          self.scale_covariances(cov_sqrt, covs, lambdas), axis=0
       )
-      next_cov = jnp.matmul(jnp.matmul(cov_inv_sqrt, scaled_cov), cov_inv_sqrt)
+      next_cov = scaled_cov
       diff = self.relative_diff(next_cov, cov)
       return next_cov, diff
 
