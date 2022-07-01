@@ -27,6 +27,7 @@ from . import (
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
+    initializers
 )
 
 # from . import neuraldual
@@ -34,5 +35,6 @@ from .implicit_differentiation import ImplicitDiff
 from .linear_problems import LinearProblem
 from .sinkhorn import Sinkhorn
 from .sinkhorn_lr import LRSinkhorn
+from .initializers import SinkhornInitializer
 
 # pytype: enable=import-error  # kwargs-checking
