@@ -18,7 +18,7 @@ import jax
 from jax import numpy as jnp
 from typing import Optional
 
-from ott.core.linear_problems import LinearProblem
+from ott.core.ot_problems import LinearProblem
 from ott.geometry.pointcloud import PointCloud
 
 
@@ -85,7 +85,7 @@ class GaussianInitializer(SinkhornInitializer):
         self.stop_gradient = stop_gradient
 
     
-    def init_dual_a(self, linear_problem: LinearProblem, init_f: Optional[jnp.ndarray] =None, lse_mode: bool = True) -> jnp.ndarray:
+    def init_dual_a(self, ot_problem: LinearProblem, init_f: Optional[jnp.ndarray] =None, lse_mode: bool = True) -> jnp.ndarray:
 
         """_summary_
 
@@ -94,21 +94,21 @@ class GaussianInitializer(SinkhornInitializer):
         """
         from ott.tools.gaussian_mixture.gaussian import Gaussian
 
-        cost_matrix = linear_problem.geom.cost_matrix
+        cost_matrix = ot_problem.geom.cost_matrix
         if self.stop_gradient:
             cost_matrix = jax.lax.stop_gradient(cost_matrix)
 
         n = cost_matrix.shape[0]
         f_potential = jnp.zeros(n) if init_f is None else init_f
 
-        if not isinstance(linear_problem.geom, PointCloud):
+        if not isinstance(ot_problem.geom, PointCloud):
             return f_potential
 
         else:
-            x = linear_problem.geom.x
-            y = linear_problem.geom.y
-            gaussian_a = Gaussian.from_samples(x, weights=linear_problem.a)
-            gaussian_b = Gaussian.from_samples(y, weights=linear_problem.b)
+            x = ot_problem.geom.x
+            y = ot_problem.geom.y
+            gaussian_a = Gaussian.from_samples(x, weights=ot_problem.a)
+            gaussian_b = Gaussian.from_samples(y, weights=ot_problem.b)
             f_potential = gaussian_a.f_potential(dest=gaussian_b, points=x)
 
         return f_potential
@@ -195,17 +195,17 @@ class SortingInit(SinkhornInitializer):
         
         return f_potential
     
-    def init_dual_a(self, linear_problem: LinearProblem, init_f: jnp.ndarray = None, lse_mode: bool = True) -> jnp.ndarray:
+    def init_dual_a(self, ot_problem: LinearProblem, init_f: jnp.ndarray = None, lse_mode: bool = True) -> jnp.ndarray:
         """
 
         Args:
-            linear_problem (LinearProblem): _description_
+            ot_problem (LinearProblem): _description_
             init_f (jnp.ndarray, optional): _description_. Defaults to None.
 
         Returns:
             jnp.ndarray: _description_
         """
-        cost_matrix = linear_problem.geom.cost_matrix
+        cost_matrix = ot_problem.geom.cost_matrix
         if self.stop_gradient:
             cost_matrix = jax.lax.stop_gradient(cost_matrix)
 
