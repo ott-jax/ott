@@ -410,7 +410,7 @@ class Sinkhorn:
 
     if init_dual_a is None:
       init_dual_a = self.potential_initializer.init_dual_a(ot_problem=ot_prob, lse_mode=self.lse_mode)
-      
+
     if init_dual_b is None:
       init_dual_b = self.potential_initializer.init_dual_b(ot_problem=ot_prob, lse_mode=self.lse_mode)
 
@@ -695,6 +695,7 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
+    potential_initializer: Optional[init_lib.SinkhornInitializer] = init_lib.SinkhornInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""
@@ -729,6 +730,7 @@ def make(
       implicit_diff=implicit_diff,
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
+      potential_initializer=potential_initializer,
       jit=jit
   )
 
