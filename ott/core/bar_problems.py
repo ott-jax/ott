@@ -209,8 +209,9 @@ class GWBarycenterProblem(BarycenterProblem):
       (within each measure) of all the points.
     weights: weights of the barycenter problem (size num_segments).
     cost: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
-      defines padded cost matrices for each measure.
-      Only one of ``y`` and ``cost`` can be passed.
+      defines padded cost matrices for each measure. Only one of ``y`` and
+      ``cost`` can be passed. See :func:`ott.core.segment.pad_along_axis`
+      on how to pad cost matrices of different sized.
     y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
       of all points used to define the linear term in the fused case.
       Similarly to ``y``, can be specified as a stacked array of shape

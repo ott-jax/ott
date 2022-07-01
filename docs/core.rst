@@ -69,12 +69,13 @@ Neural Potentials
     neuraldual.NeuralDualSolver
     neuraldual.NeuralDual
 
-Utilities
----------
+Padding Utilities
+-----------------
 .. autosummary::
     :toctree: _autosummary
 
     segment.segment_point_cloud
+    segment.pad_along_axis
 
 References
 ----------
