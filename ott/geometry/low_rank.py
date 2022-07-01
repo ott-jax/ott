@@ -122,10 +122,10 @@ class LRCGeometry(geometry.Geometry):
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
-    # When applying square of a LRCgeometry, one can either elementwise square
+    # When applying square of a LRCGeometry, one can either elementwise square
     # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
     # and apply it. First is O(nm), the other is O((n+m)r^2).
-    if n * m < (n + m) * r ** 2:  #  better use regular apply
+    if n * m < (n + m) * r ** 2:  # better use regular apply
       return super().apply_square_cost(arr, axis)
     else:
       new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
@@ -140,7 +140,7 @@ class LRCGeometry(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      is_linear: Optional[bool] = None,
+      is_efficient: Optional[bool] = None,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
@@ -149,7 +149,7 @@ class LRCGeometry(geometry.Geometry):
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
-      is_linear: Whether ``fn`` is a linear function. If yes, efficient
+      is_efficient: Whether ``fn`` is a linear function. If yes, efficient
         implementation is used. If ``None``, it will be determined by
         :func:`ott.geometry.geometry.is_linear` at runtime.
 
@@ -167,7 +167,7 @@ class LRCGeometry(geometry.Geometry):
       out = jnp.dot(c1, jnp.dot(c2.T, vec))
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
-    if fn is None or is_linear:
+    if fn is None or is_efficient:
       return linear_apply(vec, axis, fn)
 
     # TODO(michalk8): for bwd compatibility only, should be removed once

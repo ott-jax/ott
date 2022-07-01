@@ -538,5 +538,4 @@ def update_epsilon_unbalanced(epsilon, transport_mass):
 def apply_cost(
     geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int, fn: Loss
 ) -> jnp.ndarray:
-  # TODO(michalk8): handle PCs
-  return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)
+  return geom.apply_cost(arr, axis=axis, fn=fn.func, is_efficient=fn.is_linear)
