@@ -140,7 +140,7 @@ class LRCGeometry(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      is_efficient: bool = False,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
@@ -149,9 +149,9 @@ class LRCGeometry(geometry.Geometry):
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
-      is_efficient: Whether ``fn`` is a linear function. If yes, efficient
-        implementation is used. See :func:`ott.geometry.geometry.is_linear`
-        for a heuristic that can help determine if a function is linear.
+      is_linear: Whether ``fn`` is a linear function to enable efficient
+        implementation. See :func:`ott.geometry.geometry.is_linear`
+        for a heuristic to help determine if a function is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
@@ -167,7 +167,7 @@ class LRCGeometry(geometry.Geometry):
       out = jnp.dot(c1, jnp.dot(c2.T, vec))
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
-    if fn is None or is_efficient:
+    if fn is None or is_linear:
       return linear_apply(vec, axis, fn=fn)
     return super()._apply_cost_to_vec(vec, axis, fn=fn)
 

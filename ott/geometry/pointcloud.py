@@ -356,7 +356,7 @@ class PointCloud(geometry.Geometry):
       arr: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      is_efficient: bool = False,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
 
@@ -372,16 +372,16 @@ class PointCloud(geometry.Geometry):
       axis: standard cost matrix if axis=1, transpose if 0.
       fn: function optionally applied to cost matrix element-wise, before the
         apply.
-      is_efficient: Whether ``fn`` is an affine transformation.
+      is_linear: Whether ``fn`` is a linear function.
         If true and :attr:`is_squared_euclidean` is ``True``, efficient
-        implementation is used. See :func:`ott.geometry.geometry.is_affine`
-        for a heuristic that can help determine if a function is affine.
+        implementation is used. See :func:`ott.geometry.geometry.is_linear`
+        for a heuristic to help determine if a function is linear.
 
     Returns:
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
-    # Switch to efficient computation for the squared euclidean case.
-    if self.is_squared_euclidean and (fn is None or is_efficient):
+    # switch to efficient computation for the squared euclidean case.
+    if self.is_squared_euclidean and (fn is None or is_linear):
       return self.vec_apply_cost(arr, axis, fn=fn)
 
     return self._apply_cost(arr, axis, fn=fn)
@@ -435,19 +435,18 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
-    rank = len(arr.shape)
+    rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx, ny = jnp.array(self._norm_x), jnp.array(self._norm_y)
+    nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
     nx, ny = (nx, ny) if axis == 0 else (ny, nx)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
     cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
     applied_cost += cross_term[:, None] if rank == 1 else cross_term
-    return (
-        fn(applied_cost) * self.inv_scale_cost if fn else applied_cost *
-        self.inv_scale_cost
-    )
+    if fn is not None:
+      applied_cost = fn(applied_cost)
+    return self.inv_scale_cost * applied_cost
 
   def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
     start_indices = [i * self._bs] + (t.ndim - 1) * [0]
