@@ -153,6 +153,15 @@ class Gaussian:
     return delta_mean + delta_sigma
 
   def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+    """_summary_
+
+    Args:
+        dest (Gaussian): _description_
+        points (jnp.ndarray): _description_
+
+    Returns:
+        jnp.ndarray: _description_
+    """
     scale_matrix = self.scale.transport_scale_matrix(dest_scale=dest.scale)
     centered_x =  points - self.loc
     scaled_x = jnp.transpose(jnp.matmul(scale_matrix, jnp.transpose(centered_x)))
@@ -164,6 +173,15 @@ class Gaussian:
 
 
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+    """_summary_
+
+    Args:
+        dest (Gaussian): _description_
+        points (jnp.ndarray): _description_
+
+    Returns:
+        jnp.ndarray: _description_
+    """
     return self.scale.transport(
         dest_scale=dest.scale, points=points - self.loc[None]
     ) + dest.loc[None]

@@ -20,8 +20,6 @@ import numpy as np
 from ott.core import linear_problems, quad_problems
 from ott.geometry import geometry, pointcloud
 
-OTProblem = Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]
-
 def make(
     *args: Union[jnp.ndarray, geometry.Geometry, linear_problems.LinearProblem,
                  quad_problems.QuadraticProblem],

@@ -21,13 +21,13 @@ from typing import Optional
 from ott.core.linear_problems import LinearProblem
 from ott.tools.gaussian_mixture.gaussian import Gaussian
 from ott.geometry.pointcloud import PointCloud
-from ott.core.problems import OTProblem
+
 
 
 @jax.tree_util.register_pytree_node_class
 class SinkhornInitializer():
 
-    def init_dual_a(self, ot_problem: OTProblem, lse_mode: bool = True) -> jnp.ndarray:
+    def init_dual_a(self, ot_problem: LinearProblem, lse_mode: bool = True) -> jnp.ndarray:
         """
         Input:
             ot_problem: OT problem between discrete distributions of size n and m
@@ -40,7 +40,7 @@ class SinkhornInitializer():
         return init_dual_a
 
 
-    def init_dual_b(self, ot_problem: OTProblem, lse_mode: bool = True) -> jnp.ndarray:
+    def init_dual_b(self, ot_problem: LinearProblem, lse_mode: bool = True) -> jnp.ndarray:
         """
         Input:
             ot_problem: OT problem between discrete distributions of size n and m
