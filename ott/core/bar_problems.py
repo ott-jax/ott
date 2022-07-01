@@ -250,7 +250,7 @@ class GWBarycenterProblem(BarycenterProblem):
                       a: jnp.ndarray) -> Optional[jnp.ndarray]:
     """Update the barycenter features. Only used in the fused cased.
 
-    Only implemented for :class:`~ott.geometry.costs.Euclidean` cost.
+    Only implemented for squared :class:`~ott.geometry.costs.Euclidean` cost.
 
     Args:
       transports: Transport maps of shape ``[num_measures, N, M]``.

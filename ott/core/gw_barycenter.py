@@ -21,8 +21,8 @@ class GWBarycenterState(NamedTuple):
   """Holds the state of the :class:`ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
-    x: Barycenter features of shape ``[B, D_f]``. Only used in the fused case.
     c: Barycenter cost matrix of shape ``[B, B]``.
+    x: Barycenter features of shape ``[B, D_f]``. Only used in the fused case.
     a: Weights of the barycenter of shape ``[B,]``.
     errors: Array of shape
       ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
@@ -31,8 +31,8 @@ class GWBarycenterState(NamedTuple):
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
       of all GW problems at each iteration.
   """
+  cost: Optional[jnp.ndarray] = None
   x: Optional[jnp.ndarray] = None
-  c: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
@@ -137,14 +137,14 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
 
       x = problem.update_features(transports, a)
-      c = problem.update_barycenter(transports, a)
+      cost = problem.update_barycenter(transports, a)
     else:
-      c, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
-      bar_size = c.shape[0]
+      cost, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
+      bar_size = cost.shape[0]
 
       if a is None:
         a = jnp.ones((bar_size,)) / bar_size
-      assert c.shape == (bar_size, bar_size)
+      assert cost.shape == (bar_size, bar_size)
       assert a.shape == (bar_size,)
 
       if problem.is_fused:
@@ -165,8 +165,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     costs = -jnp.ones((num_iter,))
     gw_convergence = -jnp.ones((num_iter,))
     return GWBarycenterState(
+        cost=cost,
         x=x,
-        c=c,
         a=a,
         errors=errors,
         costs=costs,
@@ -187,7 +187,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
       eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
 
-      geom_xx = geometry.Geometry(state.c, epsilon=eps, scale_cost=scale)
+      geom_xx = geometry.Geometry(state.cost, epsilon=eps, scale_cost=scale)
       if problem._y_as_costs:
         geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale)
       else:
@@ -235,10 +235,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       errors = None
 
     x_new = problem.update_features(transports, state.a)
-    c_new = problem.update_barycenter(transports, state.a)
+    cost_new = problem.update_barycenter(transports, state.a)
     return state.set(
+        cost=cost_new,
         x=x_new,
-        c=c_new,
         costs=costs,
         errors=errors,
         gw_convergence=gw_convergence
