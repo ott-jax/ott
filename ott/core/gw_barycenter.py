@@ -21,9 +21,9 @@ class GWBarycenterState(NamedTuple):
   """Holds the state of the :class:`ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
-    c: Barycenter cost matrix of shape ``[B, B]``.
-    x: Barycenter features of shape ``[B, D_f]``. Only used in the fused case.
-    a: Weights of the barycenter of shape ``[B,]``.
+    c: Barycenter cost matrix of shape ``[k, k]``.
+    x: Barycenter features of shape ``[k, D_f]``. Only used in the fused case.
+    a: Weights of the barycenter of shape ``[k,]``.
     errors: Array of shape
       ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
       the GW errors at each iteration.
@@ -113,13 +113,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Initial barycenter value. Can be one of following:
 
         - :class:`int` - randomly initialize barycenter, see also ``seed``.
-        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[B, B]``.
+        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[k, k]``.
           Only used in the non-fused case.
         - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
-          corresponds to ``[B, B]`` cost matrix, the 2nd array is ``[B, D_f]``
+          corresponds to ``[k, k]`` cost matrix, the 2nd array is ``[k, D_f]``
           barycenter feature array. Only used in the fused case.
 
-      a: An array of shape ``[B,]`` containing the barycenter weights.
+      a: An array of shape ``[k,]`` containing the barycenter weights.
       seed: Random seed when ``bar_init`` is :class:`int`.
 
     Returns:
@@ -277,15 +277,17 @@ def init_transports(
   Args:
     solver: Linear OT solver.
     key: Random key.
-    a: Source marginals (e.g., for barycenter) of shape ``[B,]``.
+    a: Source marginals (e.g., for barycenter) of shape ``[k,]``.
     b: Target marginals of shape ``[N,]``.
     epsilon: Entropy regularization.
 
   Returns:
-    Transport map of shape ``[B, N]``.
+    Transport map of shape ``[k, N]``.
   """
-  cost = jax.random.uniform(key, shape=(len(a), len(b)), minval=0, maxval=1)
-  geom = geometry.Geometry(cost, epsilon=epsilon)
+  key1, key2 = jax.random.split(key, 2)
+  x = jax.random.normal(key1, shape=(len(a), 2))
+  y = jax.random.normal(key2, shape=(len(b), 2))
+  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   problem = problems.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 

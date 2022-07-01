@@ -207,11 +207,11 @@ class GWBarycenterProblem(BarycenterProblem):
     """Update the barycenter cost matrix.
 
     Args:
-      transports: Transport maps of shape ``[num_measures, B, N]``.
-      a: Barycenter weights of shape ``[B,]``.
+      transports: Transport maps of shape ``[num_measures, k, N]``.
+      a: Barycenter weights of shape ``[k,]``.
 
     Returns:
-      Cost matrix of shape ``[B, B]``.
+      Cost matrix of shape ``[k, k]``.
     """
 
     @partial(jax.vmap, in_axes=[0, 0, None])
