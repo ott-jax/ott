@@ -185,7 +185,7 @@ class SortingInit(SinkhornInitializer):
 
         def cond_fn(state):
             _, diff, it = state
-            return (diff > self.tolerance) & (it < self.matxiter)
+            return (diff > self.tolerance) & (it < self.max_iter)
 
         f_potential, _, it = jax.lax.while_loop(cond_fun=cond_fn, body_fun=body_fn, init_val=state)
         
