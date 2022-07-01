@@ -245,11 +245,11 @@ class Bures(CostFn):
     def body_fn(iteration, constants, state, compute_error):
       del compute_error
       cov, _ = state
-      cov_sqrt = matrix_square_root.sqrtm_only(cov)
-      scaled_cov = jnp.sum(
-          self.scale_covariances(cov_sqrt, covs, lambdas), axis=0
+      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
+      scaled_cov = jnp.linalg.matrix_power(
+          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
       )
-      next_cov = scaled_cov
+      next_cov = jnp.matmul(jnp.matmul(cov_inv_sqrt, scaled_cov), cov_inv_sqrt)
       diff = self.relative_diff(next_cov, cov)
       return next_cov, diff
 
