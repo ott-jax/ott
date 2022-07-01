@@ -12,7 +12,7 @@
 # limitations under the License.
 """Prepare point clouds for parallel computations."""
 
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -25,7 +25,8 @@ def segment_point_cloud(
     num_segments: Optional[int] = None,
     indices_are_sorted: Optional[bool] = None,
     num_per_segment: Optional[jnp.ndarray] = None,
-    max_measure_size: Optional[int] = None
+    max_measure_size: Optional[int] = None,
+    custom_segmenter: Optional[Callable[..., jnp.ndarray]] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
 
@@ -74,17 +75,23 @@ def segment_point_cloud(
   if max_measure_size is None:
     max_measure_size = jnp.max(num_per_segment)
 
-  segmented_a = []
-  segmented_x = []
-  x = jnp.concatenate((x, jnp.zeros((1, dim))))
-  a = jnp.concatenate((a, jnp.zeros((1,))))
-  for i in range(num_segments):
-    idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
-    idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
-    z = a.at[idx].get()
-    segmented_a.append(z)
-    z = x.at[idx].get()
-    segmented_x.append(z)
-  segmented_a = jnp.stack(segmented_a)
-  segmented_x = jnp.stack(segmented_x)
+  if custom_segmenter is None:
+    segmented_a = []
+    segmented_x = []
+    x = jnp.concatenate((x, jnp.zeros((1, dim))))
+    a = jnp.concatenate((a, jnp.zeros((1,))))
+    for i in range(num_segments):
+      idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
+      idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
+      z = a.at[idx].get()
+      segmented_a.append(z)
+      z = x.at[idx].get()
+      segmented_x.append(z)
+    segmented_a = jnp.stack(segmented_a)
+    segmented_x = jnp.stack(segmented_x)
+  else:
+    segmented_x, segmented_a = custom_segmenter(
+        x, a, segment_ids, num_segments, num_per_segment, max_measure_size
+    )
+
   return segmented_x, segmented_a, num_segments
