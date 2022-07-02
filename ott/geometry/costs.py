@@ -61,40 +61,29 @@ add_identities = jax.vmap(add_identity, in_axes=0)
 
 
 # TODO(ersi):adapt to use also for initialization of barycenter with Bures cost
-def mean_and_cov_segmenter(
-    x, a, segment_ids, num_segments, num_per_segment, max_measure_size
+def mean_and_cov_padder(
+    x, segment_ids, curr_segment, num_per_segment, max_measure_size
 ):
-  """Segmenter that pads with concatenated zero means and raveled identity covariance matrices."""
-  num, dim = x.shape
+  """Padder that pads with concatenated zero means and raveled identity covariance matrices."""
+  dim = x.shape[1]
+
   # obtain the dimension of the Gaussians from the dimension of the pointcloud.
   dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
-  segmented_a = []
-  segmented_x = []
-  a = jnp.concatenate((a, jnp.zeros((1,))))
-  for i in range(num_segments):
-    # segment the weights a
-    idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
-    idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
-    z = a.at[idx].get()
-    segmented_a.append(z)
 
-    # segment the positions x
-    idx = jnp.where(segment_ids == i)[0]
-    z = x.at[idx, :].get()
-    padding = means_and_covs_to_x(
-        jnp.zeros((max_measure_size - num_per_segment[i], dimension)),
-        add_identities(
-            jnp.zeros(
-                (max_measure_size - num_per_segment[i], dimension, dimension)
-            )
-        ), dimension
-    )
-    z = jnp.vstack((z, padding))
-    segmented_x.append(z)
-
-  segmented_a = jnp.stack(segmented_a)
-  segmented_x = jnp.stack(segmented_x)
-  return segmented_x, segmented_a
+  # segment the positions x
+  idx = jnp.where(segment_ids == curr_segment)[0]
+  z = x.at[idx, :].get()
+  padding = means_and_covs_to_x(
+      jnp.zeros((max_measure_size - num_per_segment[curr_segment], dimension)),
+      add_identities(
+          jnp.zeros((
+              max_measure_size - num_per_segment[curr_segment], dimension,
+              dimension
+          ))
+      ), dimension
+  )
+  z = jnp.vstack((z, padding))
+  return z
 
 
 @jax.tree_util.register_pytree_node_class
