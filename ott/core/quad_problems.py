@@ -254,7 +254,6 @@ class QuadraticProblem:
       marginal_1: jnp.ndarray,
       marginal_2: jnp.ndarray,
       epsilon: float,
-      rescale_factor: float,
       delta: float = 1e-9
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
@@ -282,7 +281,6 @@ class QuadraticProblem:
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
       epsilon: regulariser.
-      rescale_factor: scaling factor for the transport matrix.
       delta: small quantity to avoid diverging KLs.
 
     Returns:
@@ -290,16 +288,16 @@ class QuadraticProblem:
     """
 
     def regulariser(tau: float) -> float:
-      return tau / (1.0 - tau) if tau != 1.0 else 0
+      return epsilon._target_init * tau / (1.0 - tau) if tau != 1.0 else 0
 
     cost = regulariser(self.tau_a) * jax.scipy.special.xlogy(
-        marginal_1, rescale_factor * marginal_1 / jnp.clip(self.a, a_min=delta)
+        marginal_1,  marginal_1 / jnp.clip(self.a, a_min=delta)
     ).sum()
     cost += regulariser(self.tau_b) * jax.scipy.special.xlogy(
-        marginal_2, rescale_factor * marginal_2 / jnp.clip(self.b, a_min=delta)
+        marginal_2, marginal_2 / jnp.clip(self.b, a_min=delta)
     ).sum()
-    cost += epsilon * jax.scipy.special.xlogy(
-        transport_matrix, rescale_factor * transport_matrix /
+    cost += epsilon._target_init * jax.scipy.special.xlogy(
+        transport_matrix,  transport_matrix /
         jnp.clip(self.a[:, None] * self.b[None, :], a_min=delta)
     ).sum()
     return cost
@@ -380,19 +378,15 @@ class QuadraticProblem:
     marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
 
     if not self.is_balanced:
+      transport_mass = marginal_1.sum()
+      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon, 1.0
-      )
+          tmp, marginal_1, marginal_2, epsilon)
 
     h1, h2 = self.quad_loss
     tmp = apply_cost(self.geom_xx, tmp, axis=1, fn=h1)
     tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
     cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
-
-    # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021).
-    if not self.is_balanced:
-      transport_mass = marginal_1.sum()
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
     cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
@@ -480,24 +474,23 @@ class QuadraticProblem:
     marginal_1 = transport.marginal(axis=1)
     marginal_2 = transport.marginal(axis=0)
     marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
+    transport_matrix = transport.matrix
 
     if not self.is_balanced:
-      # Rescales transport for Unbalanced GW according to Sejourne et al (2021).
+      transport_matrix = transport_matrix * self.a[:, None] * self.b[None, :]
+      # Rescales transport and epsilon for UGW according to Sejourne et al (2021).
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
+      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       rescale_factor = jnp.sqrt(old_transport_mass / transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
-          transport.matrix, marginal_1, marginal_2, epsilon, rescale_factor
-      )
-      # Updates epsilon for Unbalanced GW.
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
+          transport_matrix * rescale_factor, marginal_1, marginal_2, epsilon)
 
     h1, h2 = self.quad_loss
-    tmp = apply_cost(self.geom_xx, transport.matrix, axis=1, fn=h1)
+    tmp = apply_cost(self.geom_xx, transport_matrix * rescale_factor, axis=1, fn=h1)
     tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
     cost_matrix += self.fused_penalty * self._fused_cost_matrix
-    cost_matrix *= rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return linear_problems.LinearProblem(
