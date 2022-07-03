@@ -317,6 +317,25 @@ class GromovWassersteinTest(parameterized.TestCase):
     np.testing.assert_allclose(pred.matrix, gt.matrix)
     np.testing.assert_allclose(pred.costs, gt.costs)
 
+  @parameterized.parameters([0, 1])
+  def test_gw_lr_apply(self, axis: int):
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_xx=geom_x,
+        geom_yy=geom_y,
+        a=self.a,
+        b=self.b,
+        epsilon=.1,
+        rank=2,
+    )
+
+    arr, matrix = (self.x, out.matrix) if axis == 0 else (self.y, out.matrix.T)
+    res_apply = out.apply(arr.T, axis=axis)
+    res_matrix = arr.T @ matrix
+
+    np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
+
 
 if __name__ == '__main__':
   absltest.main()

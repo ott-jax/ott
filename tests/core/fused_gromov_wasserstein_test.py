@@ -371,8 +371,12 @@ def test_fgw_lr_memory(jit: bool):
   ot_gwlr = gromov_wasserstein.gromov_wasserstein(
       geom_x, geom_y, geom_xy, rank=5, jit=jit
   )
+  res0 = ot_gwlr.apply(x.T, axis=0)
+  res1 = ot_gwlr.apply(y.T, axis=1)
 
   assert ot_gwlr.convergence
+  assert res0.shape == (d1, m)
+  assert res1.shape == (d2, n)
 
 
 if __name__ == '__main__':
