@@ -13,7 +13,7 @@
 
 # Lint as: python3
 """Tests for Continuous barycenters."""
-
+import sys
 import jax
 import jax.numpy as jnp
 from absl.testing import absltest, parameterized

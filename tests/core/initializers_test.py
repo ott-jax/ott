@@ -21,11 +21,10 @@ from absl.testing import absltest, parameterized
 
 
 from ott.core.sinkhorn import sinkhorn
+from ott.geometry.geometry import Geometry
 from ott.geometry.pointcloud import PointCloud
 from ott.core import initializers as init_lib
-
-
-
+from ott.core.linear_problems import LinearProblem
 
 
 class InitializerTest(parameterized.TestCase):
@@ -89,6 +88,52 @@ class InitializerTest(parameterized.TestCase):
 
     # check initializer is better
     self.assertTrue(base_num_iter >= sort_num_iter)
+
+  def test_default_initializer(self):
+    """Tests default initializer"""
+
+    # definte ot problem
+    np.random.seed(0)
+    n, d = 1000, 2
+    mu_a = np.array([-1,1])*5
+    mu_b = np.array([0,0])
+
+
+    x = np.random.normal(size=n*d).reshape(n,d) + mu_a
+    y = np.random.normal(size=n*d).reshape(n,d) + mu_b
+
+
+    n = len(x)
+    m = len(y)
+    a = np.ones(n)/n
+    b = np.ones(m)/m
+
+    x_jnp, y_jnp = jnp.array(x), jnp.array(y)
+
+    gaus_init = init_lib.GaussianInitializer()
+
+    geom_kwargs = {'epsilon': 0.01}
+    geom = PointCloud(x_jnp, y_jnp, **geom_kwargs)
+
+    ot_problem = LinearProblem(geom=geom, a=a, b=b)
+    default_potential_a = gaus_init.default_dual_a(ot_problem=ot_problem)
+    default_potential_b = gaus_init.default_dual_b(ot_problem=ot_problem)
+
+    # check default is 0
+    self.assertTrue(( jnp.zeros(n) == default_potential_a).all())
+    self.assertTrue(( jnp.zeros(m) == default_potential_b).all())
+    
+    # check gausian init returns 0 for non point cloud geometry
+    new_geom = Geometry(cost_matrix=geom.cost_matrix,  **geom_kwargs)
+    ot_problem = LinearProblem(geom=new_geom, a=a, b=b)
+    init_potential_a = gaus_init.init_dual_a(ot_problem=ot_problem)
+    init_potential_b = gaus_init.init_dual_a(ot_problem=ot_problem)
+
+    self.assertTrue(( jnp.zeros(n) == init_potential_a).all())
+    self.assertTrue(( jnp.zeros(m) == init_potential_b).all())
+
+
+
 
 
   def test_gaus_initializer(self):

@@ -417,7 +417,8 @@ class Sinkhorn:
     # Cancel dual variables for zero weights.
     init_dual_a, init_dual_b = self.potential_initializer.remove_null_weight_potentials(ot_problem=ot_prob, 
                                                                                  init_dual_a=init_dual_a, 
-                                                                                 init_dual_b=init_dual_b)
+                                                                                 init_dual_b=init_dual_b, 
+                                                                                 lse_mode=self.lse_mode)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
@@ -591,7 +592,7 @@ def run(
     init: Tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
-  iter_fun = _iterations_implicit if solver.implicit_diff else iterations
+  iter_fun = _iterations_implicit if solver else iterations
   out = iter_fun(ot_prob, solver, init)
   # Be careful here, the geom and the cost are injected at the end, where it
   # does not interfere with the implicit differentiation.
