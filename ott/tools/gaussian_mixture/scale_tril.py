@@ -158,10 +158,8 @@ class ScaleTriL:
             cost_fn.pairwise(x0, x1))[...,]
 
   def transport_scale_matrix(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
-    """
-    Scaling matrix used in transport between 0-mean normal, mu, w/ current scale to one w/ dest_scale, nu
-
-    m = Sigma_mu ^{-1/2} [ Sigma_mu ^{1/2} Sigma_nu Sigma_mu ^{1/2}] ^{1/2}Sigma_mu ^{-1/2}
+    """ Scaling matrix used in transport between 0-mean normal, mu, w/ current scale to one w/ dest_scale, nu.
+    m = Sigma_mu ^{-1/2} [ Sigma_mu ^{1/2} Sigma_nu Sigma_mu ^{1/2}] ^{1/2}Sigma_mu ^{-1/2}.
 
     Args:
       dest_scale: destination Scale

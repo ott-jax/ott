@@ -404,7 +404,6 @@ class Sinkhorn:
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""  # noqa: D401
-
     # initialization
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
 
@@ -702,8 +701,8 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
-    potential_initializer: Optional[init_lib.SinkhornInitializer
-                                   ] = init_lib.SinkhornInitializer(),
+    potential_initializer: init_lib.SinkhornInitializer = init_lib
+    .SinkhornInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""

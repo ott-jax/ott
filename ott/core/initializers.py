@@ -27,8 +27,9 @@ class SinkhornInitializer():
       self, ot_problem: LinearProblem, lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Initialzation for Sinkhorn potential f.
+
     Args:
-        ot_problem (LinearProblem): OT problem between discrete distributions of size n and m
+        ot_problem (LinearProblem): OT problem between discrete distributions of size n and m.
         lse_mode (bool, optional): Return log potential. Defaults to True.
     Returns:
         jnp.ndarray:  dual potential, array of size n
@@ -39,6 +40,7 @@ class SinkhornInitializer():
       self, ot_problem: LinearProblem, lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Initialzation for Sinkhorn potential g.
+
     Args:
         ot_problem (LinearProblem): OT problem between discrete distributions of size n and m
         lse_mode (bool, optional): Return log potential. Defaults to True.
@@ -55,6 +57,7 @@ class SinkhornInitializer():
       lse_mode: bool = True
   ) -> Tuple[jnp.ndarray]:
     """ Cancel dual variables for zero weights.
+
     Args:
         ot_problem (LinearProblem):
         init_dual_a (jnp.ndarray): potential f, array of size n
@@ -73,11 +76,12 @@ class SinkhornInitializer():
       self, ot_problem: LinearProblem, lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Return array of size n, with entries 0 is lse_mode is true, otherwise entries of 1s.
+
     Args:
         ot_problem (LinearProblem):
         lse_mode (bool, optional): Return log potentials if true. Defaults to True.
     Returns:
-            jnp.ndarray: potential f, array of size n
+        jnp.ndarray: potential f, array of size n
     """
     a = ot_problem.a
     init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
@@ -87,11 +91,12 @@ class SinkhornInitializer():
       self, ot_problem: LinearProblem, lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Return array of size m, with entries 0 is lse_mode is true, otherwise entries of 1s.
+
     Args:
         ot_problem (LinearProblem):
         lse_mode (bool, optional): Return log potentials if true. Defaults to True.
     Returns:
-            jnp.ndarray: potential fg array of size m
+        jnp.ndarray: potential fg array of size m
     """
     b = ot_problem.b
     init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
@@ -102,6 +107,7 @@ class GaussianInitializer(SinkhornInitializer):
 
   def __init__(self, stop_gradient: Optional[bool] = True) -> None:
     """ GaussianInitializer.
+
     Args:
         stop_gradient (bool, optional): _description_. Defaults to True.
     """
@@ -116,12 +122,13 @@ class GaussianInitializer(SinkhornInitializer):
       lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Gaussian init function.
-      Args:
-          ot_problem (LinearProblem): OT problem description with geometry and weights.
-          init_f (Optional[jnp.ndarray], optional): Pre dual sort initialization, when none sets entries as 0
-          lse_mode (bool, optional): Return log potential if true. Defaults to True.
-      Returns:
-          jnp.ndarray: jnp.ndarray: potential f, array of size n
+
+    Args:
+        ot_problem (LinearProblem): OT problem description with geometry and weights.
+        init_f (Optional[jnp.ndarray], optional): Pre dual sort initialization, when none sets entries as 0.
+        lse_mode (bool, optional): Return log potential if true. Defaults to True.
+    Returns:
+        jnp.ndarray: jnp.ndarray: potential f, array of size n.
     """
     # import here due to circular imports
     from ott.tools.gaussian_mixture.gaussian import Gaussian
@@ -157,6 +164,7 @@ class SortingInit(SinkhornInitializer):
       stop_gradient: Optional[bool] = True
   ) -> None:
     """ Sorting Init class.
+
     Args:
         vector_min (Optional[bool], optional): Use vectorized inner loop if true. Defaults to False.
         tol (Optional[float], optional): DualSort convergence threshold. Defaults to 1e-2.
@@ -174,6 +182,7 @@ class SortingInit(SinkhornInitializer):
       self, f: jnp.ndarray, modified_cost: jnp.ndarray
   ) -> jnp.ndarray:
     """ Inner loop DualSort Update.
+
     Args:
         f (jnp.ndarray): potential f, array of size n
         modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
@@ -187,12 +196,14 @@ class SortingInit(SinkhornInitializer):
       self, f: jnp.ndarray, modified_cost: jnp.ndarray
   ) -> jnp.ndarray:
     """ Coordinate-wise updates within inner loop.
+
     Args:
         f (jnp.ndarray): potential f, array of size n
         modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
     Returns:
         jnp.ndarray: updated potential vector, f
     """
+
     def body_fn(i, f):
       new_f = jnp.min(modified_cost[i, :] + f)
       f = f.at[i].set(new_f)
@@ -204,6 +215,7 @@ class SortingInit(SinkhornInitializer):
       self, modified_cost: jnp.ndarray, f_potential: jnp.ndarray
   ) -> jnp.ndarray:
     """ Run DualSort algorithm.
+
     Args:
         modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
         f_potential (jnp.ndarray): potential f, array of size n
@@ -239,6 +251,7 @@ class SortingInit(SinkhornInitializer):
       lse_mode: bool = True
   ) -> jnp.ndarray:
     """ Apply DualSort algo.
+
     Args:
         ot_problem (LinearProblem): OT problem
         init_f (jnp.ndarray, optional): potential f, array of size n. Defaults to None.
