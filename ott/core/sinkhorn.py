@@ -14,7 +14,6 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from pickle import NONE
 from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
 
 import jax
@@ -24,10 +23,10 @@ import numpy as np
 from ott.core import anderson as anderson_lib
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
+from ott.core import initializers as init_lib
 from ott.core import linear_problems
 from ott.core import momentum as momentum_lib
 from ott.core import unbalanced_functions
-from ott.core import initializers as init_lib
 from ott.geometry import geometry
 
 
@@ -351,7 +350,8 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      potential_initializer: Optional[init_lib.SinkhornInitializer] = init_lib.SinkhornInitializer(),
+      potential_initializer: Optional[init_lib.SinkhornInitializer
+                                     ] = init_lib.SinkhornInitializer(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -409,16 +409,22 @@ class Sinkhorn:
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
 
     if init_dual_a is None:
-      init_dual_a = self.potential_initializer.init_dual_a(ot_problem=ot_prob, lse_mode=self.lse_mode)
+      init_dual_a = self.potential_initializer.init_dual_a(
+          ot_problem=ot_prob, lse_mode=self.lse_mode
+      )
 
     if init_dual_b is None:
-      init_dual_b = self.potential_initializer.init_dual_b(ot_problem=ot_prob, lse_mode=self.lse_mode)
+      init_dual_b = self.potential_initializer.init_dual_b(
+          ot_problem=ot_prob, lse_mode=self.lse_mode
+      )
 
     # Cancel dual variables for zero weights.
-    init_dual_a, init_dual_b = self.potential_initializer.remove_null_weight_potentials(ot_problem=ot_prob, 
-                                                                                 init_dual_a=init_dual_a, 
-                                                                                 init_dual_b=init_dual_b, 
-                                                                                 lse_mode=self.lse_mode)
+    init_dual_a, init_dual_b = self.potential_initializer.remove_null_weight_potentials(
+        ot_problem=ot_prob,
+        init_dual_a=init_dual_a,
+        init_dual_b=init_dual_b,
+        lse_mode=self.lse_mode
+    )
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
@@ -592,7 +598,7 @@ def run(
     init: Tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
-  iter_fun = _iterations_implicit if solver else iterations
+  iter_fun = _iterations_implicit if solver.implicit_diff else iterations
   out = iter_fun(ot_prob, solver, init)
   # Be careful here, the geom and the cost are injected at the end, where it
   # does not interfere with the implicit differentiation.
@@ -696,7 +702,8 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
-    potential_initializer: Optional[init_lib.SinkhornInitializer] = init_lib.SinkhornInitializer(),
+    potential_initializer: Optional[init_lib.SinkhornInitializer
+                                   ] = init_lib.SinkhornInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""

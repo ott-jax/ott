@@ -23,9 +23,11 @@ from ott.tools.gaussian_mixture import scale_tril
 
 LOG2PI = math.log(2. * math.pi)
 
+
 @jax.vmap
 def batch_inner_product(x, y):
-    return x.dot(y)
+  return x.dot(y)
+
 
 @jax.tree_util.register_pytree_node_class
 class Gaussian:
@@ -34,9 +36,11 @@ class Gaussian:
   def __init__(self, loc: jnp.ndarray, scale: scale_tril.ScaleTriL):
     self._loc = loc
     self._scale = scale
-  
+
   @classmethod
-  def from_samples(cls, x:jnp.ndarray, weights: jnp.ndarray = None) -> 'Gaussian':
+  def from_samples(
+      cls, x: jnp.ndarray, weights: jnp.ndarray = None
+  ) -> 'Gaussian':
     """Construct a Gaussian from weighted samples
 
     Args:
@@ -49,7 +53,7 @@ class Gaussian:
 
     if weights is None:
       n = x.shape[0]
-      weights = jnp.ones(n)/ n
+      weights = jnp.ones(n) / n
 
     mean = weights.dot(x)
     scaled_centered_x = (x - mean) * weights.reshape(-1, 1)
@@ -64,7 +68,6 @@ class Gaussian:
       stdev: float = 0.1,
       dtype: Optional[jnp.dtype] = None
   ) -> 'Gaussian':
-
     """Construct a random Gaussian.
 
     Args:
@@ -163,14 +166,15 @@ class Gaussian:
         jnp.ndarray: _description_
     """
     scale_matrix = self.scale.transport_scale_matrix(dest_scale=dest.scale)
-    centered_x =  points - self.loc
-    scaled_x = jnp.transpose(jnp.matmul(scale_matrix, jnp.transpose(centered_x)))
-    return (
-        0.5 * batch_inner_product(points, points)
-        - 0.5 * batch_inner_product(centered_x, scaled_x)
-        - (points).dot(dest.loc)
+    centered_x = points - self.loc
+    scaled_x = jnp.transpose(
+        jnp.matmul(scale_matrix, jnp.transpose(centered_x))
     )
-
+    return (
+        0.5 * batch_inner_product(points, points) -
+        0.5 * batch_inner_product(centered_x, scaled_x) -
+        (points).dot(dest.loc)
+    )
 
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
     """_summary_

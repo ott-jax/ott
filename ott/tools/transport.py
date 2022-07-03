@@ -121,7 +121,7 @@ def solve(
   linear = isinstance(pb, linear_problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
-  
+
   init_dual_a = kwargs.get('init_dual_a', None)
   init_dual_b = kwargs.get('init_dual_b', None)
   init_keys = ['init_dual_a', 'init_dual_b']

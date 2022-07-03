@@ -22,19 +22,19 @@ from . import (
     discrete_barycenter,
     gromov_wasserstein,
     implicit_differentiation,
+    initializers,
     linear_problems,
     momentum,
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
-    initializers
 )
 
 # from . import neuraldual
 from .implicit_differentiation import ImplicitDiff
+from .initializers import SinkhornInitializer
 from .linear_problems import LinearProblem
 from .sinkhorn import Sinkhorn
 from .sinkhorn_lr import LRSinkhorn
-from .initializers import SinkhornInitializer
 
 # pytype: enable=import-error  # kwargs-checking
