@@ -16,13 +16,14 @@
 
 import jax
 import jax.numpy as jnp
+import pytest
 from absl.testing import absltest, parameterized
 
 from ott.core import bar_problems, continuous_barycenter
 from ott.geometry import costs
 
 
-class Barycenter(parameterized.TestCase):
+class TestBarycenter:
 
   def setUp(self):
     super().setUp()
@@ -99,8 +100,18 @@ class Barycenter(parameterized.TestCase):
     self.assertTrue(jnp.all(out.x.ravel() < 2.3))
     self.assertTrue(jnp.all(out.x.ravel() > .7))
 
-  @parameterized.product(
-      lse_mode=[True, False], epsilon=[1e-1, 5e-1], jit=[True, False]
+  # TODO(michalk8): don't use absl-py's asserts anymore
+  @pytest.mark.fast.with_args(
+      lse_mode=[False, True],
+      epsilon=[1e-1, 5e-1],
+      jit=[False, True],
+      # TODO(michalk8): finalize the API
+      # might be beneficial to all for more than 1 test to be selected
+      only_fast={
+          "lse_mode": True,
+          "epsilon": 1e-1,
+          "jit": False
+      }
   )
   def test_bures_barycenter(self, lse_mode, epsilon, jit):
     num_measures = 2
