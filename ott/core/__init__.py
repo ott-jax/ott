@@ -32,7 +32,6 @@ from . import (
 
 # from . import neuraldual
 from .implicit_differentiation import ImplicitDiff
-from .initializers import SinkhornInitializer
 from .linear_problems import LinearProblem
 from .sinkhorn import Sinkhorn
 from .sinkhorn_lr import LRSinkhorn

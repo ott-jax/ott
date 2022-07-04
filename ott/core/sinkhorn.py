@@ -404,7 +404,7 @@ class Sinkhorn:
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""  # noqa: D401
-    # initializationgit s
+    # initialization
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
 
     if init_dual_a is None:
