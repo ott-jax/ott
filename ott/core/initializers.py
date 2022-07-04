@@ -129,7 +129,6 @@ class GaussianInitializer(SinkhornInitializer):
     Returns:
         jnp.ndarray: jnp.ndarray: potential f, array of size n.
     """
-
     if not isinstance(ot_problem.geom, PointCloud):
       # warning that init not applied
       return self.default_dual_a(ot_problem, lse_mode)
