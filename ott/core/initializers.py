@@ -129,21 +129,26 @@ class GaussianInitializer(SinkhornInitializer):
     Returns:
         jnp.ndarray: jnp.ndarray: potential f, array of size n.
     """
-    # import here due to circular imports
-    from ott.tools.gaussian_mixture.gaussian import Gaussian
 
-    cost_matrix = ot_problem.geom.cost_matrix
-    if self.stop_gradient:
-      cost_matrix = jax.lax.stop_gradient(cost_matrix)
 
     if not isinstance(ot_problem.geom, PointCloud):
       # warning that init not applied
       return self.default_dual_a(ot_problem, lse_mode)
     else:
+      # import here due to circular imports
+      from ott.tools.gaussian_mixture.gaussian import Gaussian
       x = ot_problem.geom.x
       y = ot_problem.geom.y
-      gaussian_a = Gaussian.from_samples(x, weights=ot_problem.a)
-      gaussian_b = Gaussian.from_samples(y, weights=ot_problem.b)
+      a = ot_problem.a
+      b = ot_problem.b
+      if self.stop_gradient:
+        x = jax.lax.stop_gradient(x)
+        y = jax.lax.stop_gradient(y)
+        a = jax.lax.stop_gradient(a)
+        b = jax.lax.stop_gradient(b)
+
+      gaussian_a = Gaussian.from_samples(x, weights=a)
+      gaussian_b = Gaussian.from_samples(y, weights=b)
       # Brenier potential for ground cost ||x-y||^2/2, so multiple by two for cost ||x-y||^2
       f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
       f_potential = f_potential - jnp.mean(f_potential)

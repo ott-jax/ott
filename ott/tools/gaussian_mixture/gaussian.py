@@ -155,7 +155,7 @@ class Gaussian:
     return delta_mean + delta_sigma
 
   def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
-    """W2 distance between Gaussians.
+    """Dual a potential for W2 distance between Gaussians.
 
     Args:
         dest (Gaussian): _description_
