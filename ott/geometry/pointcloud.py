@@ -74,7 +74,7 @@ class PointCloud(geometry.Geometry):
     self._axis_norm = 0 if callable(self._cost_fn.norm) else None
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
-    self._bs = batch_size
+    self._batch_size = batch_size
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
@@ -541,7 +541,7 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     return ([self.x, self.y, self._epsilon, self._cost_fn], {
-        'batch_size': self._bs,
+        'batch_size': self._batch_size,
         'power': self.power,
         'scale_cost': self._scale_cost
     })
@@ -590,18 +590,25 @@ class PointCloud(geometry.Geometry):
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
 
   @property
+  def _bs(self) -> Optional[int]:
+    if self._batch_size is None:
+      return None
+    n, m = self.shape
+    return min(n, m, self._batch_size)
+
+  @property
   def _x_nsplit(self) -> Optional[int]:
     if self._bs is None:
       return None
     n, _ = self.shape
-    return int(math.floor(n / min(n, self._bs)))
+    return int(math.floor(n / self._bs))
 
   @property
   def _y_nsplit(self) -> Optional[int]:
     if self._bs is None:
       return None
     _, m = self.shape
-    return int(math.floor(m / min(m, self._bs)))
+    return int(math.floor(m / self._bs))
 
 
 def _apply_lse_kernel_xy(
