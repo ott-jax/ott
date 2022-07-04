@@ -14,6 +14,7 @@ jobs:
       matrix:
         python-version: ['3.8']
         os: [ubuntu-latest]
+        fast: [true, false]
 
     steps:
     - uses: actions/checkout@v2
@@ -27,13 +28,19 @@ jobs:
         python -VV
         pip install --upgrade pip setuptools
         pip install -e '.[test]'
-      shell: bash
 
-    - name: Run tests
+    - name: Print versions
       run: |
-        set -xe
         python -VV
         python -c "import jax; print('jax', jax.__version__)"
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
+
+    - name: Run fast tests
+      if: ${{ matrix.fast }}
+      run: |
+        pytest -m fast --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
+
+    - name: Run all tests
+      if: ${{ ! matrix.fast }}
+      run: |
         pytest --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
-      shell: bash
