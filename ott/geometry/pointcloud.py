@@ -582,9 +582,10 @@ class PointCloud(geometry.Geometry):
             **self._kwargs
         )
       else:
-        self.x *= jnp.sqrt(scale)
-        self.y *= jnp.sqrt(scale)
-        return self
+        (x, y, *children), aux_data = self.tree_flatten()
+        x = x * jnp.sqrt(scale)
+        y = y * jnp.sqrt(scale)
+        return PointCloud.tree_unflatten(aux_data, [x, y] + children)
     else:
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
 
