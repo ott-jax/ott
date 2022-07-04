@@ -55,7 +55,6 @@ class ScaleTriL:
       n_dimensions: number of dimensions
       stdev: desired standard deviation (around 0) for the log eigenvalues
       dtype: data type for the covariance matrix
-
     Returns:
       A ScaleTriL.
     """
@@ -141,7 +140,6 @@ class ScaleTriL:
 
     Args:
       other: Scale for the other Gaussian
-
     Returns:
       The W_2^2 distance
     """
@@ -158,7 +156,8 @@ class ScaleTriL:
             cost_fn.pairwise(x0, x1))[...,]
 
   def transport_scale_matrix(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
-    """ Scaling matrix used in transport between 0-mean normal, mu, w/ current scale to one w/ dest_scale, nu.
+    """Scaling matrix used in transport between 0-mean normalmu, w/ current scale to one w/ dest_scale, nu/.
+
     m = Sigma_mu ^{-1/2} [ Sigma_mu ^{1/2} Sigma_nu Sigma_mu ^{1/2}] ^{1/2}Sigma_mu ^{-1/2}.
 
     Args:
@@ -183,11 +182,9 @@ class ScaleTriL:
     Args:
       dest_scale: destination Scale
       points: points to transport
-
     Returns:
       Points transported to a Gaussian with the new scale.
     """
-
     m = self.transport_scale_matrix(dest_scale)
     return jnp.transpose(jnp.matmul(m, jnp.transpose(points)))
 

@@ -41,7 +41,7 @@ class Gaussian:
   def from_samples(
       cls, x: jnp.ndarray, weights: jnp.ndarray = None
   ) -> 'Gaussian':
-    """Construct a Gaussian from weighted samples
+    """Construct a Gaussian from weighted samples.
 
     Args:
       x: [n x d] array of samples
@@ -50,7 +50,6 @@ class Gaussian:
     Returns:
       Gaussian.
     """
-
     if weights is None:
       n = x.shape[0]
       weights = jnp.ones(n) / n
@@ -156,7 +155,7 @@ class Gaussian:
     return delta_mean + delta_sigma
 
   def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
-    """_summary_
+    """W2 distance between Gaussians.
 
     Args:
         dest (Gaussian): _description_
@@ -177,7 +176,7 @@ class Gaussian:
     )
 
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
-    """_summary_
+    """Transport Gaussian.
 
     Args:
         dest (Gaussian): _description_

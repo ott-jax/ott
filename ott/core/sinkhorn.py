@@ -350,8 +350,8 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      potential_initializer: Optional[init_lib.SinkhornInitializer
-                                     ] = init_lib.SinkhornInitializer(),
+      potential_initializer: init_lib.SinkhornInitializer = init_lib
+      .SinkhornInitializer(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -404,7 +404,7 @@ class Sinkhorn:
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""  # noqa: D401
-    # initialization
+    # initializationgit s
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
 
     if init_dual_a is None:
