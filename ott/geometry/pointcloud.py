@@ -42,10 +42,10 @@ class PointCloud(geometry.Geometry):
     y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
     cost_fn: a CostFn function between two points in dimension d.
     power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
-    online: whether to run the online version of the computation or not. The
-      online computation is particularly useful for big point clouds such that
-      their cost matrix does not fit in memory. This is done by batching
-      :meth:`apply_lse_kernel`. If `True`, batch size of 1024 is used.
+    batch_size: whether to run the online version of the computation or not.
+      The online computation is particularly useful for big point clouds such
+      that their cost matrix does not fit in memory.
+      This is done by batching :meth:`apply_lse_kernel`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
@@ -60,10 +60,10 @@ class PointCloud(geometry.Geometry):
       y: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
-      online: Union[bool, int] = False,
-      scale_cost: Optional[Union[Literal['mean', 'max_norm', 'max_bound',
-                                         'max_cost', 'median'], bool,
-                                 float]] = None,
+      batch_size: Optional[int] = None,
+      scale_cost: Optional[Union[bool, float,
+                                 Literal['mean', 'max_norm', 'max_bound',
+                                         'max_cost', 'median']]] = None,
       **kwargs: Any,
   ):
     self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
@@ -72,21 +72,19 @@ class PointCloud(geometry.Geometry):
     self.x = x
     self.y = self.x if y is None else y
 
-    if online is True:
-      online = 1024
-    if online:
-      assert online > 0, f"`online={online}` must be positive."
+    if batch_size is not None:
+      assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
       n, m = self.shape
       self._bs = min(
-          online, online, *(() + ((n,) if n else ()) + ((m,) if m else ()))
+          batch_size, batch_size,
+          *(() + ((n,) if n else ()) + ((m,) if m else ()))
       )
-      # use `floor` instead of `ceil` and handle the rest seperately
+      # use `floor` instead of `ceil`, handle the rest separately
       self._x_nsplit = int(math.floor(n / self._bs))
       self._y_nsplit = int(math.floor(m / self._bs))
     else:
       self._bs = self._x_nsplit = self._y_nsplit = None
 
-    self._online = online
     self.power = power
     super().__init__(**kwargs)
     self._scale_cost = "mean" if scale_cost is True else scale_cost
@@ -107,14 +105,14 @@ class PointCloud(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> Optional[jnp.ndarray]:
-    if self._online:
+    if self.is_online:
       return None
     cost_matrix = self.compute_cost_matrix()
     return cost_matrix * self.inv_scale_cost
 
   @property
   def kernel_matrix(self) -> Optional[jnp.ndarray]:
-    if self._online:
+    if self.is_online:
       return None
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
@@ -123,13 +121,9 @@ class PointCloud(geometry.Geometry):
     # in the process of flattening/unflattening in vmap, `__init__`
     # can be called with dummy objects
     # we optionally access `shape` in order to get the batch size
-    try:
-      return (
-          self.x.shape[0] if self.x is not None else 0,
-          self.y.shape[0] if self.y is not None else 0
-      )
-    except AttributeError:
+    if self.x is None or self.y is None:
       return 0, 0
+    return self.x.shape[0], self.y.shape[0]
 
   @property
   def is_symmetric(self) -> bool:
@@ -142,9 +136,8 @@ class PointCloud(geometry.Geometry):
     return isinstance(self._cost_fn, costs.Euclidean) and self.power == 2.0
 
   @property
-  def is_online(self) -> Union[bool, int]:
-    # `int` for backward compatibility
-    return self._online is not None and self._online
+  def is_online(self) -> bool:
+    return self._bs is not None
 
   @property
   def inv_scale_cost(self) -> float:
@@ -262,7 +255,7 @@ class PointCloud(geometry.Geometry):
           self._cost_fn, self.power, self.inv_scale_cost
       )
 
-    if not self._online:
+    if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
     app = jax.vmap(
@@ -301,7 +294,7 @@ class PointCloud(geometry.Geometry):
     if eps is None:
       eps = self.epsilon
 
-    if not self._online:
+    if not self.is_online:
       return super().apply_kernel(scaling, eps, axis)
 
     app = jax.vmap(
@@ -322,7 +315,7 @@ class PointCloud(geometry.Geometry):
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray
   ) -> jnp.ndarray:
-    if not self._online:
+    if not self.is_online:
       return super().transport_from_potentials(f, g)
     transport = jax.vmap(
         _transport_from_potentials_xy,
@@ -338,7 +331,7 @@ class PointCloud(geometry.Geometry):
   def transport_from_scalings(
       self, u: jnp.ndarray, v: jnp.ndarray
   ) -> jnp.ndarray:
-    if not self._online:
+    if not self.is_online:
       return super().transport_from_scalings(u, v)
     transport = jax.vmap(
         _transport_from_scalings_xy,
@@ -390,7 +383,7 @@ class PointCloud(geometry.Geometry):
       self, arr: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
     """See :meth:`apply_cost`."""
-    if self._online:
+    if self.is_online:
       app = jax.vmap(
           _apply_cost_xy,
           in_axes=[
@@ -559,8 +552,8 @@ class PointCloud(geometry.Geometry):
     return tuple(cls(*xy, **kwargs) for xy in couples)
 
   def tree_flatten(self):
-    return ((self.x, self.y, self._epsilon, self._cost_fn), {
-        'online': self._online,
+    return ([self.x, self.y, self._epsilon, self._cost_fn], {
+        'batch_size': self._bs,
         'power': self.power,
         'scale_cost': self._scale_cost
     })
@@ -569,8 +562,8 @@ class PointCloud(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    eps, fn = children[2:]
-    return cls(*children[:2], epsilon=eps, cost_fn=fn, **aux_data)
+    x, y, eps, cost_fn = children
+    return cls(x, y, epsilon=eps, cost_fn=cost_fn, **aux_data)
 
   def to_LRCGeometry(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
