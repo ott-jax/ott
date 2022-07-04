@@ -66,27 +66,15 @@ class PointCloud(geometry.Geometry):
                                          'max_cost', 'median']]] = None,
       **kwargs: Any,
   ):
-    self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
-    self._axis_norm = 0 if callable(self._cost_fn.norm) else None
-
+    super().__init__(**kwargs)
     self.x = x
     self.y = self.x if y is None else y
-
+    self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
+    self.power = power
+    self._axis_norm = 0 if callable(self._cost_fn.norm) else None
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
-      n, m = self.shape
-      self._bs = min(
-          batch_size, batch_size,
-          *(() + ((n,) if n else ()) + ((m,) if m else ()))
-      )
-      # use `floor` instead of `ceil`, handle the rest separately
-      self._x_nsplit = int(math.floor(n / self._bs))
-      self._y_nsplit = int(math.floor(m / self._bs))
-    else:
-      self._bs = self._x_nsplit = self._y_nsplit = None
-
-    self.power = power
-    super().__init__(**kwargs)
+    self._bs = batch_size
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
@@ -534,7 +522,7 @@ class PointCloud(geometry.Geometry):
           f'Scaling method {summary} does not exist for online mode.'
       )
 
-  def barycenter(self, weights: jnp.ndarray) -> float:
+  def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights, valid for p=2.0."""
     assert self.power == 2.0, self.power
     return self._cost_fn.barycenter(self.x, weights)
@@ -599,6 +587,20 @@ class PointCloud(geometry.Geometry):
         return self
     else:
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
+
+  @property
+  def _x_nsplit(self) -> Optional[int]:
+    if self._bs is None:
+      return None
+    n, _ = self.shape
+    return int(math.floor(n / min(n, self._bs)))
+
+  @property
+  def _y_nsplit(self) -> Optional[int]:
+    if self._bs is None:
+      return None
+    _, m = self.shape
+    return int(math.floor(m / min(m, self._bs)))
 
 
 def _apply_lse_kernel_xy(
