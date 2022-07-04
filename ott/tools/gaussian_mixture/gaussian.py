@@ -37,7 +37,8 @@ class Gaussian:
       cls,
       key: jnp.ndarray,
       n_dimensions: int,
-      stdev: float = 0.1,
+      stdev_mean: float = 0.1,
+      stdev_cov: float = 0.1,
       offset: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'Gaussian':
@@ -56,9 +57,9 @@ class Gaussian:
     key, subkey0, subkey1 = jax.random.split(key, num=3)
     loc = jax.random.normal(
         key=subkey0, shape=(n_dimensions,), dtype=dtype
-    ) * stdev + offset
+    ) * stdev_mean + offset
     scale = scale_tril.ScaleTriL.from_random(
-        key=subkey1, n_dimensions=n_dimensions, stdev=stdev, dtype=dtype
+        key=subkey1, n_dimensions=n_dimensions, stdev=stdev_cov, dtype=dtype
     )
     return cls(loc=loc, scale=scale)
 

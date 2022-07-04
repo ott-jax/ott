@@ -78,7 +78,9 @@ class GaussianMixture:
       key: jnp.ndarray,
       n_components: int,
       n_dimensions: int,
-      stdev: float = 0.1,
+      stdev_mean: float = 0.1,
+      stdev_cov: float = 0.1,
+      stdev_weights: float = 0.1,
       offset: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'GaussianMixture':
@@ -90,7 +92,8 @@ class GaussianMixture:
       component = gaussian.Gaussian.from_random(
           key=subkey,
           n_dimensions=n_dimensions,
-          stdev=stdev,
+          stdev_mean=stdev_mean,
+          stdev_cov=stdev_cov,
           offset=offset,
           dtype=dtype
       )
@@ -99,7 +102,7 @@ class GaussianMixture:
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        key=subkey, n_dimensions=n_components, stdev=stdev, dtype=dtype
+        key=subkey, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
     )
     return cls(
         loc=loc, scale_params=scale_params, component_weight_ob=weight_ob
