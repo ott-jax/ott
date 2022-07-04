@@ -46,7 +46,7 @@ jobs:
         pytest --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
 
     - name: Upload coverage
-    - uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v3
       with:
         files: ./coverage.xml
         flags: unittests-${{ fast }}
