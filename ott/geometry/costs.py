@@ -16,11 +16,11 @@
 """Several cost/norm functions for relevant vector types."""
 import abc
 import functools
+import math
 from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
-from numpy import int16
 
 from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
@@ -56,7 +56,8 @@ means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
 def mean_and_cov_padding(dim):
   """Padding with concatenated zero means and raveled identity covariance matrice."""
   # obtain the dimension of the Gaussians from the dimension of the pointcloud.
-  dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
+  # dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
+  dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
   padding = mean_and_cov_to_x(
       jnp.zeros((dimension,)), jnp.eye(dimension), dimension
   )

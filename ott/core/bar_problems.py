@@ -94,9 +94,19 @@ class BarycenterProblem:
     if self._y is None or (self._y.ndim == 3 and self._b.ndim == 2):
       return self.add_slice_for_debiased(self._y, self._b)
     else:
+      if isinstance(self.cost_fn, costs.Bures):
+        custom_padding = costs.mean_and_cov_padding
+      else:
+        custom_padding = None
       segmented_y, segmented_b, _ = segment.segment_point_cloud(
-          self._y, self._b, self._segment_ids, self._num_segments,
-          self._indices_are_sorted, self._num_per_segment, self.max_measure_size
+          self._y,
+          self._b,
+          self._segment_ids,
+          self._num_segments,
+          self._indices_are_sorted,
+          self._num_per_segment,
+          self.max_measure_size,
+          custom_padding=custom_padding
       )
     return self.add_slice_for_debiased(segmented_y, segmented_b)
 
