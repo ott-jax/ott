@@ -26,7 +26,7 @@ def segment_point_cloud(
     indices_are_sorted: Optional[bool] = None,
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None,
-    custom_padder: Optional[Callable[..., jnp.ndarray]] = None
+    custom_padding: Optional[Callable[..., jnp.ndarray]] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
 
@@ -78,25 +78,25 @@ def segment_point_cloud(
   segmented_a = []
   segmented_x = []
 
-  if custom_padder is None:
-    x = jnp.concatenate((x, jnp.zeros((1, dim))))
+  if custom_padding is None:
+    padding = jnp.zeros((1, dim))
+  else:
+    padding = custom_padding(dim)
 
+  x = jnp.concatenate((x, padding))
   a = jnp.concatenate((a, jnp.zeros((1,))))
 
   for i in range(num_segments):
-    # segment the weights
     idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
     idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
+
+    # segment the weights
     z = a.at[idx].get()
     segmented_a.append(z)
 
     # segment the positions
-    if custom_padder is None:
-      z = x.at[idx].get()
-      segmented_x.append(z)
-    else:
-      z = custom_padder(x, segment_ids, i, num_per_segment, max_measure_size)
-      segmented_x.append(z)
+    z = x.at[idx].get()
+    segmented_x.append(z)
 
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)

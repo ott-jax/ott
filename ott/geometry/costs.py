@@ -53,37 +53,14 @@ def mean_and_cov_to_x(mean, covariance, dimension):
 means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
-def add_identity(A):
-  return A + jnp.eye(A.shape[0])
-
-
-add_identities = jax.vmap(add_identity, in_axes=0)
-
-
-# TODO(ersi):adapt to use also for initialization of barycenter with Bures cost
-def mean_and_cov_padder(
-    x, segment_ids, curr_segment, num_per_segment, max_measure_size
-):
-  """Padder that pads with concatenated zero means and raveled identity covariance matrices."""
-  dim = x.shape[1]
-
+def mean_and_cov_padding(dim):
+  """Padding with concatenated zero means and raveled identity covariance matrice."""
   # obtain the dimension of the Gaussians from the dimension of the pointcloud.
   dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
-
-  # segment the positions x
-  idx = jnp.where(segment_ids == curr_segment)[0]
-  z = x.at[idx, :].get()
-  padding = means_and_covs_to_x(
-      jnp.zeros((max_measure_size - num_per_segment[curr_segment], dimension)),
-      add_identities(
-          jnp.zeros((
-              max_measure_size - num_per_segment[curr_segment], dimension,
-              dimension
-          ))
-      ), dimension
+  padding = mean_and_cov_to_x(
+      jnp.zeros((dimension,)), jnp.eye(dimension), dimension
   )
-  z = jnp.vstack((z, padding))
-  return z
+  return padding[jnp.newaxis, :]
 
 
 @jax.tree_util.register_pytree_node_class
