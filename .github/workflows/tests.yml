@@ -14,7 +14,7 @@ jobs:
       matrix:
         python-version: ['3.8']
         os: [ubuntu-latest]
-        fast: [true, false]
+        test_mark: [fast, all]
 
     steps:
     - uses: actions/checkout@v2
@@ -36,11 +36,20 @@ jobs:
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
 
     - name: Run fast tests
-      if: ${{ matrix.fast }}
+      if: ${{ matrix.test_mark == 'fast' }}
       run: |
         pytest -m fast --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
 
     - name: Run all tests
-      if: ${{ ! matrix.fast }}
+      if: ${{ matrix.test_mark == 'all' }}
       run: |
         pytest --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
+
+    - name: Upload coverage
+    - uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        flags: unittests-${{ fast }}
+        env_vars: OS,PYTHON
+        fail_ci_if_error: true
+        verbose: true
