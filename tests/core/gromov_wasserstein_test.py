@@ -18,7 +18,6 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 from absl.testing import absltest, parameterized
 
 from ott.core import gromov_wasserstein, quad_problems
@@ -318,26 +317,24 @@ class GromovWassersteinTest(parameterized.TestCase):
     np.testing.assert_allclose(pred.matrix, gt.matrix)
     np.testing.assert_allclose(pred.costs, gt.costs)
 
+  @parameterized.parameters([0, 1])
+  def test_gw_lr_apply(self, axis: int):
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_xx=geom_x,
+        geom_yy=geom_y,
+        a=self.a,
+        b=self.b,
+        epsilon=.1,
+        rank=2,
+    )
 
-# currently works only with `pytest`
-# and mustn't be placed in the class
-# furthermore, can't be used atm with `pytest-xdist`
-# https://github.com/bloomberg/pytest-memray/issues/2
-@pytest.mark.limit_memory("1 GB")
-def test_gw_lr_memory():
-  # Total memory allocated: 925.2MiB (32-bit)
-  rngs = jax.random.split(jax.random.PRNGKey(0), 2)
-  n, m, d1, d2 = 15_000, 10_000, 2, 3
-  x = jax.random.uniform(rngs[0], (n, d1))
-  y = jax.random.uniform(rngs[1], (m, d2))
-  geom_x = pointcloud.PointCloud(x)
-  geom_y = pointcloud.PointCloud(y)
+    arr, matrix = (self.x, out.matrix) if axis == 0 else (self.y, out.matrix.T)
+    res_apply = out.apply(arr.T, axis=axis)
+    res_matrix = arr.T @ matrix
 
-  ot_gwlr = gromov_wasserstein.gromov_wasserstein(
-      geom_x, geom_y, rank=5, jit=False
-  )
-
-  assert ot_gwlr.convergence
+    np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == '__main__':

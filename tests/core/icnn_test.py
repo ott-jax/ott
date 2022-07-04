@@ -52,7 +52,7 @@ class ICNNTest(parameterized.TestCase):
 
     self.assertTrue((jnp.array(out) >= 0).all())
 
-  @parameterized.parameters({'n_samples': 10})
+  @parameterized.parameters({'n_samples': 2})
   def test_icnn_hessian(self, n_samples, dim_hidden=(64, 64)):
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
@@ -60,7 +60,7 @@ class ICNNTest(parameterized.TestCase):
     icnn = ICNN(dim_hidden)
 
     # initialize model
-    params = icnn.init(self.rng, jnp.ones(n_samples,))['params']
+    params = icnn.init(self.rng, jnp.ones(n_samples))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
     data = jax.random.normal(self.rng, (n_samples,))

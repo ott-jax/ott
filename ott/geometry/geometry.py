@@ -15,7 +15,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -530,7 +530,13 @@ class Geometry:
     fn = lambda x: x ** 2
     return self.apply_cost(arr, axis, fn)
 
-  def apply_cost(self, arr: jnp.ndarray, axis: int = 0, fn=None) -> jnp.ndarray:
+  def apply_cost(
+      self,
+      arr: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      **kwargs: Any
+  ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either
@@ -543,20 +549,21 @@ class Geometry:
         the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
+      kwargs: Keyword arguments for :meth:`_apply_cost_to_vec`.
 
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
       return jax.vmap(
-          lambda x: self._apply_cost_to_vec(x, axis, fn),
+          lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
           1,
           1,
       )(
           arr.reshape(-1, 1)
       )
     return jax.vmap(
-        lambda x: self._apply_cost_to_vec(x, axis, fn),
+        lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
         1,
         1,
     )(
@@ -579,7 +586,11 @@ class Geometry:
       self._kernel_matrix **= 1 / factor
 
   def _apply_cost_to_vec(
-      self, vec: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      vec: jnp.ndarray,
+      axis: int = 0,
+      fn=None,
+      **_: Any,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 

@@ -1,9 +1,8 @@
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -69,7 +68,7 @@ class NeuralDualSolver:
       logging: bool = False,
       seed: int = 0,
       pos_weights: bool = True,
-      beta: int = 1.0
+      beta: int = 1.0,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -105,13 +104,13 @@ class NeuralDualSolver:
     # check setting of network architectures
     if (
         neural_f.pos_weights != self.pos_weights or
-        neural_g.pos_weights != self.pos_weights
+        (neural_g.pos_weights != self.pos_weights)
     ):
       warnings.warn(
           f"Setting of ICNN and the positive weights setting of the \
-                      `NeuralDualSolver` are not consistent. Proceeding with \
-                      the `NeuralDualSolver` setting, with positive weigths \
-                      being {self.positive_weights}."
+        `NeuralDualSolver` are not consistent. Proceeding with \
+        the `NeuralDualSolver` setting, with positive weigths \
+        being {self.positive_weights}."
       )
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights
@@ -124,11 +123,11 @@ class NeuralDualSolver:
     )
 
     # define train and valid step functions
-    self.train_step_f = self.get_step_fn(train=True, to_optimize='f')
-    self.valid_step_f = self.get_step_fn(train=False, to_optimize='f')
+    self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
+    self.valid_step_f = self.get_step_fn(train=False, to_optimize="f")
 
-    self.train_step_g = self.get_step_fn(train=True, to_optimize='g')
-    self.valid_step_g = self.get_step_fn(train=False, to_optimize='g')
+    self.train_step_g = self.get_step_fn(train=True, to_optimize="g")
+    self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
 
   def __call__(
       self,
@@ -136,10 +135,12 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> 'NeuralDual':
+  ) -> "NeuralDual":
     logs = self.train_neuraldual(
-        trainloader_source, trainloader_target, validloader_source,
-        validloader_target
+        trainloader_source,
+        trainloader_target,
+        validloader_source,
+        validloader_target,
     )
     if self.logging:
       return NeuralDual(self.state_f, self.state_g), logs
@@ -147,8 +148,11 @@ class NeuralDualSolver:
       return NeuralDual(self.state_f, self.state_g)
 
   def train_neuraldual(
-      self, trainloader_source, trainloader_target, validloader_source,
-      validloader_target
+      self,
+      trainloader_source,
+      trainloader_target,
+      validloader_source,
+      validloader_target,
   ):
     """Implementation of the training and validation script."""  # noqa: D401
     try:
@@ -161,23 +165,23 @@ class NeuralDualSolver:
     valid_batch = {}
 
     # set logging dictionaries
-    train_logs = {'train_loss_f': [], 'train_loss_g': [], 'train_w_dist': []}
-    valid_logs = {'valid_loss_f': [], 'valid_loss_g': [], 'valid_w_dist': []}
+    train_logs = {"train_loss_f": [], "train_loss_g": [], "train_w_dist": []}
+    valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
       # execute training steps
       for _ in range(self.num_inner_iters):
         # get train batch for potential g
-        batch_g['source'] = jnp.array(next(trainloader_source))
-        batch_g['target'] = jnp.array(next(trainloader_target))
+        batch_g["source"] = jnp.array(next(trainloader_source))
+        batch_g["target"] = jnp.array(next(trainloader_target))
 
         self.state_g, loss_g, _ = self.train_step_g(
             self.state_f, self.state_g, batch_g
         )
 
       # get train batch for potential f
-      batch_f['source'] = jnp.array(next(trainloader_source))
-      batch_f['target'] = jnp.array(next(trainloader_target))
+      batch_f["source"] = jnp.array(next(trainloader_source))
+      batch_f["target"] = jnp.array(next(trainloader_target))
 
       self.state_f, loss_f, w_dist = self.train_step_f(
           self.state_f, self.state_g, batch_f
@@ -189,15 +193,15 @@ class NeuralDualSolver:
 
       # log to wandb
       if self.logging and step % self.log_freq == 0:
-        train_logs['train_loss_f'].append(float(loss_f))
-        train_logs['train_loss_g'].append(float(loss_g))
-        train_logs['train_w_dist'].append(float(w_dist))
+        train_logs["train_loss_f"].append(float(loss_f))
+        train_logs["train_loss_g"].append(float(loss_g))
+        train_logs["train_w_dist"].append(float(w_dist))
 
       # report the loss on an validuation dataset periodically
-      if (step != 0 and step % self.valid_freq == 0):
+      if step != 0 and step % self.valid_freq == 0:
         # get batch
-        valid_batch['source'] = jnp.array(next(validloader_source))
-        valid_batch['target'] = jnp.array(next(validloader_target))
+        valid_batch["source"] = jnp.array(next(validloader_source))
+        valid_batch["target"] = jnp.array(next(validloader_target))
 
         valid_loss_f, _ = self.valid_step_f(
             self.state_f, self.state_g, valid_batch
@@ -208,32 +212,32 @@ class NeuralDualSolver:
 
         if self.logging:
           # log training progress
-          valid_logs['valid_loss_f'].append(float(valid_loss_f))
-          valid_logs['valid_loss_g'].append(float(valid_loss_g))
-          valid_logs['valid_w_dist'].append(float(valid_w_dist))
+          valid_logs["valid_loss_f"].append(float(valid_loss_f))
+          valid_logs["valid_loss_g"].append(float(valid_loss_g))
+          valid_logs["valid_w_dist"].append(float(valid_w_dist))
 
-    return {'train_logs': train_logs, 'valid_logs': valid_logs}
+    return {"train_logs": train_logs, "valid_logs": valid_logs}
 
-  def get_step_fn(self, train, to_optimize='g'):
+  def get_step_fn(self, train, to_optimize="g"):
     """Create a one-step training and evaluation function."""
 
     def loss_fn(params_f, params_g, f, g, batch):
       """Loss function for potential f."""
       # get two distributions
-      source, target = batch['source'], batch['target']
+      source, target = batch["source"], batch["target"]
 
       # get loss terms of kantorovich dual
-      f_t = f({'params': params_f}, batch['target'])
+      f_t = f({"params": params_f}, batch["target"])
 
       grad_g_s = jax.vmap(
           lambda x: jax.grad(g, argnums=1)({
-              'params': params_g
+              "params": params_g
           }, x)
       )(
-          batch['source']
+          batch["source"]
       )
 
-      f_grad_g_s = f({'params': params_f}, grad_g_s)
+      f_grad_g_s = f({"params": params_f}, grad_g_s)
 
       s_dot_grad_g_s = jnp.sum(source * grad_g_s, axis=1)
 
@@ -248,33 +252,36 @@ class NeuralDualSolver:
       loss_f = jnp.mean(f_t - f_grad_g_s)
       loss_g = jnp.mean(f_grad_g_s - s_dot_grad_g_s)
 
-      if to_optimize == 'f':
+      if to_optimize == "f":
         return loss_f, dist
-      elif to_optimize == 'g':
+      elif to_optimize == "g":
         if not self.pos_weights:
           penalty = self.penalize_weights_icnn(params_g)
           loss_g += self.beta * penalty
         return loss_g, dist
       else:
-        raise ValueError('Optimization target has been misspecified.')
+        raise ValueError("Optimization target has been misspecified.")
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
       """Step function of either training or validation."""
-      if to_optimize == 'f':
+      if to_optimize == "f":
         grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
         state = state_f
-      elif to_optimize == 'g':
+      elif to_optimize == "g":
         grad_fn = jax.value_and_grad(loss_fn, argnums=1, has_aux=True)
         state = state_g
       else:
-        raise ValueError('Potential to be optimize might be misspecified.')
+        raise ValueError("Potential to be optimize might be misspecified.")
 
       if train:
         # compute loss and gradients
         (loss, dist), grads = grad_fn(
-            state_f.params, state_g.params, state_f.apply_fn, state_g.apply_fn,
-            batch
+            state_f.params,
+            state_g.params,
+            state_f.apply_fn,
+            state_g.apply_fn,
+            batch,
         )
 
         # update state
@@ -283,8 +290,11 @@ class NeuralDualSolver:
       else:
         # compute loss and gradients
         (loss, dist), _ = grad_fn(
-            state_f.params, state_g.params, state_f.apply_fn, state_g.apply_fn,
-            batch
+            state_f.params,
+            state_g.params,
+            state_f.apply_fn,
+            state_g.apply_fn,
+            batch,
         )
 
         # do not update state
@@ -294,7 +304,7 @@ class NeuralDualSolver:
 
   def create_train_state(self, rng, model, optimizer, input):
     """Create initial `TrainState`."""
-    params = model.init(rng, jnp.ones(input))['params']
+    params = model.init(rng, jnp.ones(input))["params"]
     return train_state.TrainState.create(
         apply_fn=model.apply, params=params, tx=optimizer
     )
@@ -303,16 +313,16 @@ class NeuralDualSolver:
   def clip_weights_icnn(params):
     params = params.unfreeze()
     for k in params.keys():
-      if k.startswith('w_z'):
-        params[k]['kernel'] = jnp.clip(params[k]['kernel'], a_min=0)
+      if k.startswith("w_z"):
+        params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
     return freeze(params)
 
   def penalize_weights_icnn(self, params):
     penalty = 0
     for k in params.keys():
-      if (k.startswith('w_z')):
-        penalty += jnp.linalg.norm(jax.nn.relu(-params[k]['kernel']))
+      if k.startswith("w_z"):
+        penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
     return penalty
 
 
@@ -348,7 +358,7 @@ class NeuralDual:
     """Transport source data samples with potential g."""
     return jax.vmap(
         lambda x: jax.grad(self.g.apply_fn, argnums=1)({
-            'params': self.g.params
+            "params": self.g.params
         }, x)
     )(
         data
@@ -358,7 +368,7 @@ class NeuralDual:
     """Transport source data samples with potential g."""
     return jax.vmap(
         lambda x: jax.grad(self.f.apply_fn, argnums=1)({
-            'params': self.f.params
+            "params": self.f.params
         }, x)
     )(
         data
@@ -366,17 +376,17 @@ class NeuralDual:
 
   def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
     """Given potentials f and g, compute the overall distance."""
-    f_t = self.f.apply_fn({'params': self.f.params}, target)
+    f_t = self.f.apply_fn({"params": self.f.params}, target)
 
     grad_g_s = jax.vmap(
         lambda x: jax.grad(self.g.apply_fn, argnums=1)({
-            'params': self.g.params
+            "params": self.g.params
         }, x)
     )(
         source
     )
 
-    f_grad_g_s = self.f.apply_fn({'params': self.f.params}, grad_g_s)
+    f_grad_g_s = self.f.apply_fn({"params": self.f.params}, grad_g_s)
 
     s_dot_grad_g_s = jnp.sum(source * grad_g_s, axis=1)
 
