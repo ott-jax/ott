@@ -36,7 +36,7 @@ class ApplyTest(absltest.TestCase):
     vec0 = jax.random.normal(keys[2], (n, b))
     vec1 = jax.random.normal(keys[3], (m, b))
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), online=False)
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), batch_size=None)
     cost = geom.cost_matrix
     prod0 = geom.apply_cost(vec0, axis=0)
     prod1 = geom.apply_cost(vec1, axis=1)

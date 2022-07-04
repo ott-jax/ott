@@ -49,7 +49,7 @@ class SinkhornOnlineTest(parameterized.TestCase):
   def test_euclidean_point_cloud(self, lse_mode):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-1
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=True)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, batch_size=1024)
     errors = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -62,13 +62,13 @@ class SinkhornOnlineTest(parameterized.TestCase):
     self.assertGreater(threshold, err)
 
   @parameterized.parameters([1], [13], [402], [4000])
-  def test_online_matches_offline_size(self, online: int):
+  def test_online_matches_offline_size(self, batch_size: int):
     threshold, rtol, atol = 1e-1, 1e-6, 1e-6
     geom_offline = pointcloud.PointCloud(
-        self.x, self.y, epsilon=1, online=False
+        self.x, self.y, epsilon=1, batch_size=None
     )
     geom_online = pointcloud.PointCloud(
-        self.x, self.y, epsilon=1, online=online
+        self.x, self.y, epsilon=1, batch_size=batch_size
     )
 
     sol_online = sinkhorn.sinkhorn(
@@ -104,7 +104,7 @@ class SinkhornOnlineTest(parameterized.TestCase):
 
   def test_online_sinkhorn_jit(self):
     threshold = 1e-1
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, online=512)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1, batch_size=512)
     errors = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -121,9 +121,9 @@ class SinkhornOnlineTest(parameterized.TestCase):
   def test_online_external_jit(self):
 
     @partial(jax.jit, static_argnums=1)
-    def callback(epsilon: float, online: int) -> SinkhornOutput:
+    def callback(epsilon: float, batch_size: int) -> SinkhornOutput:
       geom = pointcloud.PointCloud(
-          self.x, self.y, epsilon=epsilon, online=online
+          self.x, self.y, epsilon=epsilon, batch_size=batch_size
       )
       return sinkhorn.sinkhorn(
           geom,
@@ -136,7 +136,7 @@ class SinkhornOnlineTest(parameterized.TestCase):
       )
 
     threshold = 1e-1
-    sol = callback(epsilon=1, online=42)
+    sol = callback(epsilon=1, batch_size=42)
     errors = sol.errors
     err = errors[errors > -1][-1]
 

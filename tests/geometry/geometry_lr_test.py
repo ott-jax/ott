@@ -150,6 +150,24 @@ class LRGeometryTest(parameterized.TestCase):
           atol=1e-4
       )
 
+  @parameterized.parameters([5, 1000])
+  def test_point_cloud_to_lr(self, rank: int):
+    n, m = 1500, 1000
+    scale = 2.0
+    keys = jax.random.split(self.rng, 2)
+    x = jax.random.normal(keys[0], (n, rank))
+    y = jax.random.normal(keys[1], (m, rank))
+
+    geom_pc = pointcloud.PointCloud(x, y)
+    geom_lr = geom_pc.to_LRCGeometry(scale=scale)
+
+    if n * m > (n + m) * rank:
+      self.assertIsInstance(geom_lr, low_rank.LRCGeometry)
+    else:
+      self.assertIsInstance(geom_lr, pointcloud.PointCloud)
+      np.testing.assert_allclose(geom_lr.x, jnp.sqrt(scale) * geom_pc.x)
+      np.testing.assert_allclose(geom_lr.y, jnp.sqrt(scale) * geom_pc.y)
+
 
 if __name__ == '__main__':
   absltest.main()

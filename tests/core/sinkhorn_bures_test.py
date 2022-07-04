@@ -55,16 +55,16 @@ class SinkhornTest(parameterized.TestCase):
     self.b = b / jnp.sum(b)
 
   @parameterized.named_parameters(
-      dict(testcase_name='ker-batch', lse_mode=False, online=False)
+      dict(testcase_name='ker-batch', lse_mode=False, batch_size=None)
   )
-  def test_bures_point_cloud(self, lse_mode, online):
+  def test_bures_point_cloud(self, lse_mode, batch_size):
     """Two point clouds of Gaussians, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(
         self.x,
         self.y,
         cost_fn=costs.Bures(dimension=self.dim, regularization=1e-4),
-        online=online,
+        batch_size=batch_size,
         epsilon=self.eps
     )
     errors = sinkhorn.sinkhorn(

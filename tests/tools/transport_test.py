@@ -45,7 +45,7 @@ class TransportTest(absltest.TestCase):
     num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, online=True)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, batch_size=8)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
     ot = transport.solve(geom, b=b, threshold=1e-3)
@@ -58,7 +58,7 @@ class TransportTest(absltest.TestCase):
     num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, online=True)
+    geom = pointcloud.PointCloud(x, y, batch_size=9)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
     pb = linear_problems.LinearProblem(geom, b=b)
@@ -72,7 +72,7 @@ class TransportTest(absltest.TestCase):
     num_a, num_b = 23, 17
     x = jax.random.uniform(rngs[0], (num_a, 4))
     y = jax.random.uniform(rngs[1], (num_b, 4))
-    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, online=True)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, batch_size=10)
     with self.assertRaisesRegex(AttributeError, r".*has no attribute.*'"):
       transport.solve(geom, x, threshold=1e-3)
 
