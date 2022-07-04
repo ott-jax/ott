@@ -39,7 +39,7 @@ class Gaussian:
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
-      offset: Union[float, jnp.array] = 0,
+      ridge: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'Gaussian':
     """Construct a random Gaussian.
@@ -57,7 +57,7 @@ class Gaussian:
     key, subkey0, subkey1 = jax.random.split(key, num=3)
     loc = jax.random.normal(
         key=subkey0, shape=(n_dimensions,), dtype=dtype
-    ) * stdev_mean + offset
+    ) * stdev_mean + ridge
     scale = scale_tril.ScaleTriL.from_random(
         key=subkey1, n_dimensions=n_dimensions, stdev=stdev_cov, dtype=dtype
     )

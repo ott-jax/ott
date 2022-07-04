@@ -81,7 +81,7 @@ class GaussianMixture:
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
       stdev_weights: float = 0.1,
-      offset: Union[float, jnp.array] = 0,
+      ridge: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'GaussianMixture':
     """Construct a random GMM."""
@@ -94,7 +94,7 @@ class GaussianMixture:
           n_dimensions=n_dimensions,
           stdev_mean=stdev_mean,
           stdev_cov=stdev_cov,
-          offset=offset,
+          ridge=ridge,
           dtype=dtype
       )
       loc.append(component.loc)
