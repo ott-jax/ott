@@ -20,18 +20,20 @@ jobs:
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Build
       run: |
         set -xe
         python -VV
-        pip install --upgrade pip setuptools wheel
+        pip install --upgrade pip setuptools
         pip install -e '.[test]'
       shell: bash
+
     - name: Run tests
       run: |
         set -xe
         python -VV
         python -c "import jax; print('jax', jax.__version__)"
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
-        pytest tests -v --memray
+        pytest --cov=ott --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -v tests/
       shell: bash
