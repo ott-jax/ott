@@ -125,7 +125,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    return self._bs is not None
+    """Whether :attr:`cost_matrix` or :attr:`kernel` is computed on-the-fly."""
+    return self.batch_size is not None
 
   @property
   def inv_scale_cost(self) -> float:
@@ -197,14 +198,14 @@ class PointCloud(geometry.Geometry):
     def body0(carry, i: int):
       f, g, eps, vec = carry
       y = jax.lax.dynamic_slice(
-          self.y, (i * self._bs, 0), (self._bs, self.y.shape[1])
+          self.y, (i * self.batch_size, 0), (self.batch_size, self.y.shape[1])
       )
-      g_ = jax.lax.dynamic_slice(g, (i * self._bs,), (self._bs,))
+      g_ = jax.lax.dynamic_slice(g, (i * self.batch_size,), (self.batch_size,))
       if self._axis_norm is None:
         norm_y = self._norm_y
       else:
         norm_y = jax.lax.dynamic_slice(
-            self._norm_y, (i * self._bs,), (self._bs,)
+            self._norm_y, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
           self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self._cost_fn,
@@ -215,14 +216,14 @@ class PointCloud(geometry.Geometry):
     def body1(carry, i: int):
       f, g, eps, vec = carry
       x = jax.lax.dynamic_slice(
-          self.x, (i * self._bs, 0), (self._bs, self.x.shape[1])
+          self.x, (i * self.batch_size, 0), (self.batch_size, self.x.shape[1])
       )
-      f_ = jax.lax.dynamic_slice(f, (i * self._bs,), (self._bs,))
+      f_ = jax.lax.dynamic_slice(f, (i * self.batch_size,), (self.batch_size,))
       if self._axis_norm is None:
         norm_x = self._norm_x
       else:
         norm_x = jax.lax.dynamic_slice(
-            self._norm_x, (i * self._bs,), (self._bs,)
+            self._norm_x, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
           self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn,
@@ -267,7 +268,7 @@ class PointCloud(geometry.Geometry):
         fun, init=(f, g, eps, vec), xs=jnp.arange(n)
     )
     h_res, h_sign = jnp.concatenate(h_res), jnp.concatenate(h_sign)
-    h_res_rest, h_sign_rest = finalize(n * self._bs)
+    h_res_rest, h_sign_rest = finalize(n * self.batch_size)
     h_res = jnp.concatenate([h_res, h_res_rest])
     h_sign = jnp.concatenate([h_sign, h_sign_rest])
 
@@ -430,8 +431,8 @@ class PointCloud(geometry.Geometry):
     return self.inv_scale_cost * applied_cost
 
   def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
-    start_indices = [i * self._bs] + (t.ndim - 1) * [0]
-    slice_sizes = [self._bs] + list(t.shape[1:])
+    start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
+    slice_sizes = [self.batch_size] + list(t.shape[1:])
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
   def compute_summary_online(
@@ -510,7 +511,7 @@ class PointCloud(geometry.Geometry):
 
     _, val = jax.lax.scan(fun, init=(vec,), xs=jnp.arange(n))
     val = jnp.concatenate(val).squeeze()
-    val_rest = finalize(n * self._bs)
+    val_rest = finalize(n * self.batch_size)
     val_res = jnp.concatenate([val, val_rest])
 
     if summary == 'mean':
@@ -590,7 +591,8 @@ class PointCloud(geometry.Geometry):
       raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
 
   @property
-  def _bs(self) -> Optional[int]:
+  def batch_size(self) -> Optional[int]:
+    """Batch size when :attr:`is_online` is ``True``."""
     if self._batch_size is None:
       return None
     n, m = self.shape
@@ -598,17 +600,17 @@ class PointCloud(geometry.Geometry):
 
   @property
   def _x_nsplit(self) -> Optional[int]:
-    if self._bs is None:
+    if self.batch_size is None:
       return None
     n, _ = self.shape
-    return int(math.floor(n / self._bs))
+    return int(math.floor(n / self.batch_size))
 
   @property
   def _y_nsplit(self) -> Optional[int]:
-    if self._bs is None:
+    if self.batch_size is None:
       return None
     _, m = self.shape
-    return int(math.floor(m / self._bs))
+    return int(math.floor(m / self.batch_size))
 
 
 def _apply_lse_kernel_xy(
