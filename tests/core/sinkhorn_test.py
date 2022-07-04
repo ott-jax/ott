@@ -18,9 +18,10 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from absl.testing import absltest, parameterized
 
-from ott.core import sinkhorn
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import costs, geometry, pointcloud
 
 
@@ -444,6 +445,25 @@ class SinkhornTest(parameterized.TestCase):
     self.assertGreater(err, errors_restarted[0])
     # check only one iteration suffices when restarting with same data.
     self.assertEqual(num_iter_restarted, 1)
+
+
+@pytest.mark.limit_memory("90 MB")
+@pytest.mark.parametrize("batch_size", [500, 1000])
+def test_sinkhorn_online_memory(batch_size: int):
+  # offline: Total memory allocated: 240.1MiB
+  # online (500): Total memory allocated: 33.4MiB
+  # online (1000): Total memory allocated: 45.6MiB
+  rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+  n, m = 5000, 4000
+  x = jax.random.uniform(rngs[0], (n, 2))
+  y = jax.random.uniform(rngs[1], (m, 2))
+  geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
+  problem = linear_problems.LinearProblem(geom)
+  solver = sinkhorn.Sinkhorn()
+
+  out = solver(problem)
+
+  assert out.converged
 
 
 if __name__ == '__main__':
