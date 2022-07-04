@@ -69,14 +69,21 @@ class GWOutput(NamedTuple):
   @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix."""
-    rescale_factor = jnp.sqrt(
-        self.old_transport_mass / self.linear_state.transport_mass()
-    )
-    return self.linear_state.matrix * rescale_factor
+    return self._rescale_factor * self.linear_state.matrix
+
+  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Apply the transport to an array; axis=1 for its transpose."""
+    return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
 
   @property
   def reg_gw_cost(self) -> float:
     return self.linear_state.reg_ot_cost
+
+  @property
+  def _rescale_factor(self) -> float:
+    return jnp.sqrt(
+        self.old_transport_mass / self.linear_state.transport_mass()
+    )
 
 
 class GWState(NamedTuple):
