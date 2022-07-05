@@ -114,8 +114,12 @@ class InitializerTest(parameterized.TestCase):
     geom = PointCloud(x_jnp, y_jnp, **geom_kwargs)
 
     ot_problem = LinearProblem(geom=geom, a=a, b=b)
-    default_potential_a = gaus_init.default_dual_a(ot_problem=ot_problem)
-    default_potential_b = gaus_init.default_dual_b(ot_problem=ot_problem)
+    default_potential_a = init_lib.default_dual_a(
+        ot_problem=ot_problem, lse_mode=True
+    )
+    default_potential_b = init_lib.default_dual_b(
+        ot_problem=ot_problem, lse_mode=True
+    )
 
     # check default is 0
     self.assertTrue((jnp.zeros(n) == default_potential_a).all())
@@ -124,8 +128,12 @@ class InitializerTest(parameterized.TestCase):
     # check gausian init returns 0 for non point cloud geometry
     new_geom = Geometry(cost_matrix=geom.cost_matrix, **geom_kwargs)
     ot_problem = LinearProblem(geom=new_geom, a=a, b=b)
-    init_potential_a = gaus_init.init_dual_a(ot_problem=ot_problem)
-    init_potential_b = gaus_init.init_dual_a(ot_problem=ot_problem)
+    init_potential_a = gaus_init.init_dual_a(
+        ot_problem=ot_problem, lse_mode=True
+    )
+    init_potential_b = gaus_init.init_dual_b(
+        ot_problem=ot_problem, lse_mode=True
+    )
 
     self.assertTrue((jnp.zeros(n) == init_potential_a).all())
     self.assertTrue((jnp.zeros(m) == init_potential_b).all())

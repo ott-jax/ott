@@ -469,14 +469,13 @@ class SinkhornTest(parameterized.TestCase):
     num_iter_restarted = jnp.sum(errors_restarted > -1)
 
     # check we can only improve on error
-    # num_iter = jnp.sum(errors>-1)
-    # self.assertGreater(num_iter, num_iter_restarted)
+    num_iter = jnp.sum(errors > -1)
+    self.assertGreater(num_iter, num_iter_restarted)
 
     # check we can only improve on error
     self.assertGreater(err + threshold, err_restarted)
 
     # # check first error in restart does at least as well as previous best
-    self.assertGreater(err + threshold, errors_restarted[2])
     self.assertGreater(err + threshold, errors_restarted[0])
 
     # check only one iteration suffices when restarting with same data.

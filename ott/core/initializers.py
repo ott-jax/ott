@@ -12,142 +12,163 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
-from typing import Optional, Tuple
+from typing import Tuple
 
 import jax
-from jax import numpy as jnp
+import jax.numpy as jnp
 
-from ott.core.linear_problems import LinearProblem
+from ott.core import linear_problems
 from ott.geometry.pointcloud import PointCloud
 
 
-class SinkhornInitializer():
+def default_dual_a(
+    ot_problem: linear_problems.LinearProblem, lse_mode: bool
+) -> jnp.ndarray:
+  """Return dual potential vector, f.
+
+  Args:
+    ot_problem:
+    lse_mode: Return log potentials if true. Defaults to True.
+
+  Returns:
+    potential f, array of size n
+  """
+  a = ot_problem.a
+  init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
+  return init_dual_a
+
+
+def default_dual_b(
+    ot_problem: linear_problems.LinearProblem, lse_mode: bool
+) -> jnp.ndarray:
+  """Return dual potential vector, g.
+
+  Args:
+    ot_problem:
+    lse_mode: Return log potentials if true. Defaults to True.
+
+  Returns:
+    potential g, array of size m
+  """
+  b = ot_problem.b
+  init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
+  return init_dual_b
+
+
+def remove_weight_potential(
+    weights: jnp.ndarray, init_dual: jnp.ndarray, lse_mode: bool
+) -> Tuple[jnp.ndarray]:
+  """Cancel dual variables for zero weights.
+
+  Args:
+    weights: array of probability masses
+    init_dual: dual potential array
+    lse_mode: Return log potentials if true. Defaults to True.
+
+  Returns:
+    potential
+  """
+  return jnp.where(weights > 0, init_dual, -jnp.inf if lse_mode else 0.0)
+
+
+def remove_weight_potentials(
+    weights_a: jnp.ndarray, weights_b: jnp.ndarray, init_dual_a: jnp.ndarray,
+    init_dual_b: jnp.ndarray, lse_mode: bool
+) -> Tuple[jnp.ndarray]:
+  """Cancel dual variables for zero weights.
+
+  Args:
+    weights_a: array of probability masses, array of size n
+    weights_b: array of probability masses, array of size m
+    init_dual_a: potential f, array of size n
+    init_dual_b: potential g, array of size m
+    lse_mode: Return log potentials if true. Defaults to True.
+
+  Returns:
+    potentials (f,g)
+  """
+  init_dual_a = remove_weight_potential(weights_a, init_dual_a, lse_mode)
+  init_dual_b = remove_weight_potential(weights_b, init_dual_b, lse_mode)
+  return init_dual_a, init_dual_b
+
+
+class SinkhornInitializer:
+  """Initialzation for Sinkhorn potential f.
+
+  Args:
+    ot_problem: OT problem between discrete distributions of size n and m.
+    lse_mode: Return log potential. Defaults to True.
+
+  Returns:
+    dual potential, array of size n
+  """
 
   def init_dual_a(
-      self, ot_problem: LinearProblem, lse_mode: bool = True
+      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialzation for Sinkhorn potential f.
 
-    Args:
-        ot_problem (LinearProblem): OT problem between discrete distributions of size n and m.
-        lse_mode (bool, optional): Return log potential. Defaults to True.
-    Returns:
-        jnp.ndarray: dual potential, array of size n
-    """
-    return self.default_dual_a(ot_problem=ot_problem, lse_mode=lse_mode)
+    return default_dual_a(ot_problem=ot_problem, lse_mode=lse_mode)
 
   def init_dual_b(
-      self, ot_problem: LinearProblem, lse_mode: bool = True
+      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
     """Initialzation for Sinkhorn potential g.
 
     Args:
-        ot_problem (LinearProblem): OT problem between discrete distributions of size n and m.
-        lse_mode (bool, optional): Return log potential. Defaults to True.
+      ot_problem: OT problem between discrete distributions of size n and m.
+      lse_mode: Return log potential. Defaults to True.
+
     Returns:
-        jnp.ndarray:  dual potential, array of size m
+      dual potential, array of size m
     """
-    return self.default_dual_b(ot_problem=ot_problem, lse_mode=lse_mode)
-
-  def remove_null_weight_potentials(
-      self,
-      ot_problem: LinearProblem,
-      init_dual_a: jnp.ndarray,
-      init_dual_b: jnp.ndarray,
-      lse_mode: bool = True
-  ) -> Tuple[jnp.ndarray]:
-    """Cancel dual variables for zero weights.
-
-    Args:
-        ot_problem (LinearProblem):
-        init_dual_a (jnp.ndarray): potential f, array of size n
-        init_dual_b (jnp.ndarray): potential g, array of size m
-        lse_mode (bool, optional): Return log potentials if true. Defaults to True.
-    Returns:
-        Union[jnp.ndarray]:  potentials (f,g)
-    """
-    a, b = ot_problem.a, ot_problem.b
-    init_dual_a = jnp.where(a > 0, init_dual_a, -jnp.inf if lse_mode else 0.0)
-    init_dual_b = jnp.where(b > 0, init_dual_b, -jnp.inf if lse_mode else 0.0)
-    return init_dual_a, init_dual_b
-
-  def default_dual_a(
-      self, ot_problem: LinearProblem, lse_mode: bool = True
-  ) -> jnp.ndarray:
-    """Return array of size n, with entries 0 is lse_mode is true, otherwise entries of 1s.
-
-    Args:
-        ot_problem (LinearProblem):
-        lse_mode (bool, optional): Return log potentials if true. Defaults to True.
-    Returns:
-        jnp.ndarray: potential f, array of size n
-    """
-    a = ot_problem.a
-    init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
-    return init_dual_a
-
-  def default_dual_b(
-      self, ot_problem: LinearProblem, lse_mode: bool = True
-  ) -> jnp.ndarray:
-    """Return array of size m, with entries 0 is lse_mode is true, otherwise entries of 1s.
-
-    Args:
-        ot_problem (LinearProblem):
-        lse_mode (bool, optional): Return log potentials if true. Defaults to True.
-    Returns:
-        jnp.ndarray: potential fg array of size m
-    """
-    b = ot_problem.b
-    init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
-    return init_dual_b
+    return default_dual_b(ot_problem=ot_problem, lse_mode=lse_mode)
 
 
 class GaussianInitializer(SinkhornInitializer):
+  """GaussianInitializer.
 
-  def __init__(self, stop_gradient: Optional[bool] = True) -> None:
-    """GaussianInitializer.
+  Args:
+    stop_gradient: Defaults to True.
+  """
 
-    Args:
-        stop_gradient (bool, optional): _description_. Defaults to True.
-    """
+  def __init__(self, stop_gradient: bool = True) -> None:
+
     super().__init__()
 
     self.stop_gradient = stop_gradient
 
   def init_dual_a(
       self,
-      ot_problem: LinearProblem,
-      init_f: Optional[jnp.ndarray] = None,
-      lse_mode: bool = True
+      ot_problem: linear_problems.LinearProblem,
+      lse_mode: bool,
   ) -> jnp.ndarray:
     """Gaussian init function.
 
     Args:
-        ot_problem (LinearProblem): OT problem description with geometry and weights.
-        init_f (Optional[jnp.ndarray], optional): Pre dual sort initialization, when none sets entries as 0.
-        lse_mode (bool, optional): Return log potential if true. Defaults to True.
+      ot_problem: OT problem description with geometry and weights.
+      init_f: Pre dual sort initialization, when none sets entries as 0.
+      lse_mode: Return log potential if true. Defaults to True.
+
     Returns:
-        jnp.ndarray: jnp.ndarray: potential f, array of size n.
+      potential f, array of size n.
     """
+    # import here due to circular imports
+    from ott.tools.gaussian_mixture.gaussian import Gaussian
+
     if not isinstance(ot_problem.geom, PointCloud):
       # warning that init not applied
-      return self.default_dual_a(ot_problem, lse_mode)
+      return default_dual_a(ot_problem, lse_mode)
     else:
-      # import here due to circular imports
-      from ott.tools.gaussian_mixture.gaussian import Gaussian
-      x = ot_problem.geom.x
-      y = ot_problem.geom.y
-      a = ot_problem.a
-      b = ot_problem.b
+
+      x, y = ot_problem.geom.x, ot_problem.geom.y
+      a, b = ot_problem.a, ot_problem.b
       if self.stop_gradient:
-        x = jax.lax.stop_gradient(x)
-        y = jax.lax.stop_gradient(y)
-        a = jax.lax.stop_gradient(a)
-        b = jax.lax.stop_gradient(b)
+        x, y = jax.lax.stop_gradient(x), jax.lax.stop_gradient(y)
+        a, b = jax.lax.stop_gradient(a), jax.lax.stop_gradient(b)
 
       gaussian_a = Gaussian.from_samples(x, weights=a)
       gaussian_b = Gaussian.from_samples(y, weights=b)
-      # Brenier potential for ground cost ||x-y||^2/2, so multiple by two for cost ||x-y||^2
+      # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
       f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
       f_potential = f_potential - jnp.mean(f_potential)
       f_potential = f_potential if lse_mode else ot_problem.scaling_from_potential(
@@ -157,22 +178,23 @@ class GaussianInitializer(SinkhornInitializer):
 
 
 class SortingInit(SinkhornInitializer):
+  """Sorting Init class.
+
+  Args:
+    vector_min: Use vectorized inner loop if true. Defaults to False.
+    tol: DualSort convergence threshold. Defaults to 1e-2.
+    max_iter: Max DualSort steps. Defaults to 100.
+    stop_gradient: Do not trace gradient. Defaults to True.
+  """
 
   def __init__(
       self,
-      vector_min: Optional[bool] = False,
-      tol: Optional[float] = 1e-2,
-      max_iter: Optional[int] = 100,
-      stop_gradient: Optional[bool] = True
+      vector_min: bool = False,
+      tol: float = 1e-2,
+      max_iter: int = 100,
+      stop_gradient: bool = True
   ) -> None:
-    """Sorting Init class.
 
-    Args:
-        vector_min (Optional[bool], optional): Use vectorized inner loop if true. Defaults to False.
-        tol (Optional[float], optional): DualSort convergence threshold. Defaults to 1e-2.
-        max_iter (Optional[int], optional): Max DualSort steps. Defaults to 100.
-        stop_gradient (Optional[bool], optional): Do not trace gradient through the initializer. Defaults to True.
-    """
     super().__init__()
 
     self.tolerance = tol
@@ -186,10 +208,11 @@ class SortingInit(SinkhornInitializer):
     """Inner loop DualSort Update.
 
     Args:
-        f (jnp.ndarray): potential f, array of size n
-        modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
+      f : potential f, array of size n.
+      modified_cost: cost matrix minus diagonal column-wise.
+
     Returns:
-        jnp.ndarray: updated potential vector, f
+      updated potential vector, f.
     """
     f = jnp.min(modified_cost + f[None, :], axis=1)
     return f
@@ -200,10 +223,11 @@ class SortingInit(SinkhornInitializer):
     """Coordinate-wise updates within inner loop.
 
     Args:
-        f (jnp.ndarray): potential f, array of size n
-        modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
+      f: potential f, array of size n.
+      modified_cost: cost matrix minus diagonal column-wise.
+
     Returns:
-        jnp.ndarray: updated potential vector, f
+      updated potential vector, f.
     """
 
     def body_fn(i, f):
@@ -219,10 +243,11 @@ class SortingInit(SinkhornInitializer):
     """Run DualSort algorithm.
 
     Args:
-        modified_cost (jnp.ndarray): cost matrix minus diagonal of cost matrix across each column
-        f_potential (jnp.ndarray): potential f, array of size n
+      modified_cost:  cost matrix minus diagonal column-wise.
+      f_potential: potential f, array of size n.
+
     Returns:
-        jnp.ndarray: potential f, array of size n
+      potential f, array of size n.
     """
     it = 0
     diff = self.tolerance + 1.0
@@ -238,7 +263,7 @@ class SortingInit(SinkhornInitializer):
 
     def cond_fn(state):
       _, diff, it = state
-      return (diff > self.tolerance) & (it < self.max_iter)
+      return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
 
     f_potential, _, it = jax.lax.while_loop(
         cond_fun=cond_fn, body_fun=body_fn, init_val=state
@@ -248,17 +273,18 @@ class SortingInit(SinkhornInitializer):
 
   def init_dual_a(
       self,
-      ot_problem: LinearProblem,
+      ot_problem: linear_problems.LinearProblem,
+      lse_mode: bool,
       init_f: jnp.ndarray = None,
-      lse_mode: bool = True
   ) -> jnp.ndarray:
     """Apply DualSort algo.
 
     Args:
-        ot_problem (LinearProblem): OT problem
-        init_f (jnp.ndarray, optional): potential f, array of size n. Defaults to None.
+      ot_problem: OT problem.
+      init_f: potential f, array of size n. Defaults to None.
+
     Returns:
-        jnp.ndarray: potential f, array of size n
+      potential f, array of size n.
     """
     cost_matrix = ot_problem.geom.cost_matrix
     if self.stop_gradient:

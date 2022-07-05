@@ -39,24 +39,24 @@ class Gaussian:
 
   @classmethod
   def from_samples(
-      cls, x: jnp.ndarray, weights: jnp.ndarray = None
+      cls, points: jnp.ndarray, weights: jnp.ndarray = None
   ) -> 'Gaussian':
     """Construct a Gaussian from weighted samples.
 
     Args:
-      x: [n x d] array of samples
+      points: [n x d] array of samples
       weights: [n] array of weights
 
     Returns:
       Gaussian.
     """
     if weights is None:
-      n = x.shape[0]
+      n = points.shape[0]
       weights = jnp.ones(n) / n
 
-    mean = weights.dot(x)
-    scaled_centered_x = (x - mean) * weights.reshape(-1, 1)
-    cov = (scaled_centered_x).T.dot(scaled_centered_x) / weights.T.dot(weights)
+    mean = weights.dot(points)
+    scaled_centered_x = (points - mean) * weights.reshape(-1, 1)
+    cov = scaled_centered_x.T.dot(scaled_centered_x) / weights.T.dot(weights)
     return cls.from_mean_and_cov(mean=mean, cov=cov)
 
   @classmethod
@@ -158,11 +158,11 @@ class Gaussian:
     """Dual a potential for W2 distance between Gaussians.
 
     Args:
-        dest (Gaussian): _description_
-        points (jnp.ndarray): _description_
+      dest: Gaussian object
+      points: samples
 
     Returns:
-        jnp.ndarray: _description_
+      Dual potential, f
     """
     scale_matrix = self.scale.transport_scale_matrix(dest_scale=dest.scale)
     centered_x = points - self.loc
@@ -171,19 +171,18 @@ class Gaussian:
     )
     return (
         0.5 * batch_inner_product(points, points) -
-        0.5 * batch_inner_product(centered_x, scaled_x) -
-        (points).dot(dest.loc)
+        0.5 * batch_inner_product(centered_x, scaled_x) - points.dot(dest.loc)
     )
 
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
     """Transport Gaussian.
 
     Args:
-        dest (Gaussian): _description_
-        points (jnp.ndarray): _description_
+      dest: Gaussian object
+      points: samples
 
     Returns:
-        jnp.ndarray: _description_
+      Transported samples
     """
     return self.scale.transport(
         dest_scale=dest.scale, points=points - self.loc[None]

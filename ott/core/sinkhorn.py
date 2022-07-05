@@ -418,8 +418,9 @@ class Sinkhorn:
       )
 
     # Cancel dual variables for zero weights.
-    init_dual_a, init_dual_b = self.potential_initializer.remove_null_weight_potentials(
-        ot_problem=ot_prob,
+    init_dual_a, init_dual_b = init_lib.remove_weight_potentials(
+        weights_a=ot_prob.a,
+        weights_b=ot_prob.b,
         init_dual_a=init_dual_a,
         init_dual_b=init_dual_b,
         lse_mode=self.lse_mode
