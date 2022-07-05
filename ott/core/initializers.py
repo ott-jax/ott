@@ -249,10 +249,6 @@ class SortingInit(SinkhornInitializer):
     Returns:
       potential f, array of size n.
     """
-    it = 0
-    diff = self.tolerance + 1.0
-
-    state = (f_potential, diff, it)
 
     def body_fn(state):
       prev_f, _, it = state
@@ -264,6 +260,10 @@ class SortingInit(SinkhornInitializer):
     def cond_fn(state):
       _, diff, it = state
       return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
+
+    it = 0
+    diff = self.tolerance + 1.0
+    state = (f_potential, diff, it)
 
     f_potential, _, it = jax.lax.while_loop(
         cond_fun=cond_fn, body_fun=body_fn, init_val=state
