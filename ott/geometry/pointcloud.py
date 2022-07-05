@@ -561,23 +561,20 @@ class PointCloud(geometry.Geometry):
   def to_LRCGeometry(
       self,
       scale: float = 1.0,
-      rank: Optional[int] = None,
-      tol: float = 1e-2,
-      seed: int = 0
+      **kwargs: Any,
   ) -> Union[low_rank.LRCGeometry, 'PointCloud']:
     """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
-        return self._sqeucl_to_low_rank(scale)
+        return self._sqeucl_to_lr(scale)
       (x, y, *children), aux_data = self.tree_flatten()
       x = x * jnp.sqrt(scale)
       y = y * jnp.sqrt(scale)
       return PointCloud.tree_unflatten(aux_data, [x, y] + children)
+    return super().to_LRCGeometry(**kwargs)
 
-    raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
-
-  def _sqeucl_to_low_rank(self, scale: float = 1.0) -> low_rank.LRCGeometry:
+  def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     assert self.is_squared_euclidean, "Geometry must be squared Euclidean."
     n, m = self.shape
     cost_1 = jnp.concatenate((
@@ -603,6 +600,16 @@ class PointCloud(geometry.Geometry):
         scale_cost=self._scale_cost,
         **self._kwargs
     )
+
+  def subset(
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+  ) -> "PointCloud":
+    (x, y, *children), aux_data = self.tree_flatten()
+    if src_ixs is not None:
+      x = x[jnp.atleast_1d(src_ixs), :]
+    if tgt_ixs is not None:
+      y = y[jnp.atleast_1d(tgt_ixs), :]
+    return PointCloud.tree_unflatten(aux_data, [x, y] + children)
 
   @property
   def batch_size(self) -> Optional[int]:

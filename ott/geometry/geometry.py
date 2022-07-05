@@ -614,7 +614,6 @@ class Geometry:
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
 
-  @functools.partial(jax.jit, static_argnums=(1, 2, 3))
   def to_LRCGeometry(self, rank: int, tol: float = 1e-2, seed: int = 0):
     from ott.geometry import low_rank
 
@@ -623,18 +622,19 @@ class Geometry:
     n, m = self.shape
     n_subset = int(rank / tol)
 
-    cost = self.cost_matrix
     i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
     j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-    ci_star = cost[i_star, :] ** 2
-    cj_star = cost[:, j_star] ** 2
+    # TODO(michalk8): this will fail when `batch_size!=None`
+    ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2
+    cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2
 
     p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)
     p_row /= jnp.sum(p_row)
     row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
 
-    S = cost[row_ixs] / jnp.sqrt(n_subset * p_row[row_ixs][:, None])
+    S = self.subset(row_ixs, None).cost_matrix
+    S /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
     p_col = jnp.sum(S ** 2, axis=0)
     p_col /= jnp.sum(p_col)
@@ -656,11 +656,44 @@ class Geometry:
 
     B = (U[row_ixs, :] @ v * inv_scale).T
     M = jnp.linalg.inv(B @ B.T)
-    alpha = (M @ B) @ (cost[:, row_ixs].T * inv_scale)
+    c = self.subset(None, row_ixs).cost_matrix
+    alpha = (M @ B) @ (c.T * inv_scale)
     V = v @ alpha
 
-    geom = low_rank.LRCGeometry(U, V.T, scale_cost=self._scale_cost)
-    return geom.copy_epsilon(self)
+    return low_rank.LRCGeometry(
+        cost_1=U,
+        cost_2=V.T,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+        scale=self._scale_epsilon,
+        scale_cost=self._scale_cost,
+        **self._kwargs
+    )
+
+  def subset(
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+  ) -> "Geometry":
+
+    def sub(
+        arr: jnp.ndarray, src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray]
+    ) -> jnp.ndarray:
+      if src_ixs is not None:
+        arr = arr[src_ixs, :]
+      if tgt_ixs is not None:
+        arr = arr[:, tgt_ixs]
+      return arr
+
+    (cost, kernel, *children), aux_data = self.tree_flatten()
+    src_ixs = None if src_ixs is None else jnp.atleast_1d(src_ixs)
+    tgt_ixs = None if tgt_ixs is None else jnp.atleast_1d(tgt_ixs)
+
+    if cost is not None:
+      cost = sub(cost, src_ixs, tgt_ixs)
+    if kernel is not None:
+      kernel = sub(kernel, src_ixs, tgt_ixs)
+
+    return Geometry.tree_unflatten(aux_data, [cost, kernel] + children)
 
   def tree_flatten(self):
     return (

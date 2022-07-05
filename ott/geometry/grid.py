@@ -309,6 +309,11 @@ class Grid(geometry.Geometry):
         ' cloud geometry instead'
     )
 
+  def subset(
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+  ) -> NoReturn:
+    raise NotImplementedError("Subsetting grid is not implemented.")
+
   @classmethod
   def prepare_divergences(
       cls,
