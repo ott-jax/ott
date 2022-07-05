@@ -16,7 +16,6 @@
 """Several cost/norm functions for relevant vector types."""
 import abc
 import functools
-import math
 from typing import Any, Callable, Optional, Union
 
 import jax
@@ -51,17 +50,6 @@ def mean_and_cov_to_x(mean, covariance, dimension):
 
 
 means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
-
-
-def mean_and_cov_padding(dim):
-  """Padding with concatenated zero means and raveled identity covariance matrice."""
-  # obtain the dimension of the Gaussians from the dimension of the pointcloud.
-  # dimension = jnp.array((-1 + jnp.sqrt(1 + 4 * dim)) / 2, dtype=int16)
-  dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
-  padding = mean_and_cov_to_x(
-      jnp.zeros((dimension,)), jnp.eye(dimension), dimension
-  )
-  return padding[jnp.newaxis, :]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -116,6 +104,9 @@ class CostFn(abc.ABC):
 
   def tree_flatten(self):
     return (), None
+
+  def padding_vector(self, dim: int):
+    return jnp.zeros((1, dim))
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -262,6 +253,13 @@ class Bures(CostFn):
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
+
+  def padding_vector(self, _):
+    """Padding with concatenated zero means and raveled identity covariance matrix."""
+    padding = mean_and_cov_to_x(
+        jnp.zeros((self._dimension,)), jnp.eye(self._dimension), self._dimension
+    )
+    return padding[jnp.newaxis, :]
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
