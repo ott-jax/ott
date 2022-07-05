@@ -15,10 +15,14 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+  from ott.geometry import low_rank
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, ops
@@ -614,55 +618,71 @@ class Geometry:
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
 
-  def to_LRCGeometry(self, rank: int, tol: float = 1e-2, seed: int = 0):
+  def to_LRCGeometry(
+      self,
+      rank: int,
+      tol: float = 1e-2,
+      seed: int = 0
+  ) -> 'low_rank.LRCGeometry':
+    """TODO(michalk8): cite.
+
+    Args:
+      rank: TODO.
+      tol: TODO.
+      seed: TODO.
+
+    Returns:
+      TODO.
+    """
     from ott.geometry import low_rank
 
     rng = jax.random.PRNGKey(seed)
     key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+    # TODO(michalk8): default for some small shape directly to SVD?
     n, m = self.shape
-    n_subset = int(rank / tol)
+    n_subset = min(int(rank / tol), n, m)
 
     i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
     j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-    # TODO(michalk8): this will fail when `batch_size!=None`
-    ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2
-    cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2
+    # TODO(michalk8): this will fail when `batch_size != None` for PC
+    ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
+    cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
 
-    p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)
+    p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
     p_row /= jnp.sum(p_row)
     row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
 
-    S = self.subset(row_ixs, None).cost_matrix
+    S = self.subset(row_ixs, None).cost_matrix  # (n_subset, m)
     S /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
-    p_col = jnp.sum(S ** 2, axis=0)
+    p_col = jnp.sum(S ** 2, axis=0)  # (m,)
     p_col /= jnp.sum(p_col)
+    # (n_subset,)
     col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+    # (n_subset, n_subset)
+    W = S[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
 
-    W = S[:, col_ixs]
-    W /= jnp.sqrt(n_subset * p_col[col_ixs][None, :])
-
-    U, _, V = jnp.linalg.svd(W)
-    U = U[:, :rank]
-    U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)
+    U, _, V = jsp.linalg.svd(W)
+    U = U[:, :rank]  # (n_subset, rank)
+    U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)  # (m, rank)
 
     # lls
-    row_ixs = jax.random.choice(key5, n, shape=(n_subset,))
+    d, v = jnp.linalg.eigh(U.T @ U)  # (k,), (k, k)
+    v /= jnp.sqrt(d)[None, :]
+
     inv_scale = (1. / jnp.sqrt(n_subset))
+    col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
 
-    d, v = jnp.linalg.eigh(U.T @ U)
-    v /= jnp.sqrt(d)
-
-    B = (U[row_ixs, :] @ v * inv_scale).T
-    M = jnp.linalg.inv(B @ B.T)
-    c = self.subset(None, row_ixs).cost_matrix
-    alpha = (M @ B) @ (c.T * inv_scale)
-    V = v @ alpha
+    # (n, n_subset)
+    A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
+    B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
+    M = jnp.linalg.inv(B.T @ B)  # (k, k)
+    V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
 
     return low_rank.LRCGeometry(
-        cost_1=U,
-        cost_2=V.T,
+        cost_1=V,
+        cost_2=U,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
