@@ -212,7 +212,7 @@ class Geometry:
     aux_data["scale_cost"] = scale_cost
     return type(self).tree_unflatten(aux_data, children)
 
-  def copy_epsilon(self, other: epsilon_scheduler.Epsilon) -> "Geometry":
+  def copy_epsilon(self, other: 'Geometry') -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
     scheduler = other._epsilon
     self._epsilon_init = scheduler._target_init
@@ -613,6 +613,54 @@ class Geometry:
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
+
+  @functools.partial(jax.jit, static_argnums=(1, 2, 3))
+  def to_LRCGeometry(self, rank: int, tol: float = 1e-2, seed: int = 0):
+    from ott.geometry import low_rank
+
+    rng = jax.random.PRNGKey(seed)
+    key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+    n, m = self.shape
+    n_subset = int(rank / tol)
+
+    cost = self.cost_matrix
+    i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
+    j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+
+    ci_star = cost[i_star, :] ** 2
+    cj_star = cost[:, j_star] ** 2
+
+    p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)
+    p_row /= jnp.sum(p_row)
+    row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+
+    S = cost[row_ixs] / jnp.sqrt(n_subset * p_row[row_ixs][:, None])
+
+    p_col = jnp.sum(S ** 2, axis=0)
+    p_col /= jnp.sum(p_col)
+    col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+
+    W = S[:, col_ixs]
+    W /= jnp.sqrt(n_subset * p_col[col_ixs][None, :])
+
+    U, _, V = jnp.linalg.svd(W)
+    U = U[:, :rank]
+    U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)
+
+    # lls
+    row_ixs = jax.random.choice(key5, n, shape=(n_subset,))
+    inv_scale = (1. / jnp.sqrt(n_subset))
+
+    d, v = jnp.linalg.eigh(U.T @ U)
+    v /= jnp.sqrt(d)
+
+    B = (U[row_ixs, :] @ v * inv_scale).T
+    M = jnp.linalg.inv(B @ B.T)
+    alpha = (M @ B) @ (cost[:, row_ixs].T * inv_scale)
+    V = v @ alpha
+
+    geom = low_rank.LRCGeometry(U, V.T, scale_cost=self._scale_cost)
+    return geom.copy_epsilon(self)
 
   def tree_flatten(self):
     return (
