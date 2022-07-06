@@ -14,7 +14,7 @@
 """Implements the sinkhorn divergence."""
 
 import collections
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 import jax
 from jax import numpy as jnp
@@ -148,6 +148,7 @@ def _sinkhorn_divergence(
 def segment_sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
+    padding_vector: Optional[Callable[..., jnp.ndarray]] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
@@ -173,6 +174,7 @@ def segment_sinkhorn_divergence(
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
+    cost_fn:
     segment_ids_x: (1st interface) The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: (1st interface) The segment ID for which each row of y
@@ -214,13 +216,23 @@ def segment_sinkhorn_divergence(
     assert num_per_segment_y is not None
 
   segmented_x, segmented_weights_x, num_segments_x = segment.segment_point_cloud(
-      x, weights_x, segment_ids_x, num_segments, indices_are_sorted,
-      num_per_segment_x
+      x,
+      weights_x,
+      segment_ids_x,
+      num_segments,
+      indices_are_sorted,
+      num_per_segment_x,
+      padding_vector=padding_vector
   )
 
   segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
-      y, weights_y, segment_ids_y, num_segments, indices_are_sorted,
-      num_per_segment_y
+      y,
+      weights_y,
+      segment_ids_y,
+      num_segments,
+      indices_are_sorted,
+      num_per_segment_y,
+      padding_vector=padding_vector
   )
 
   assert num_segments_x == num_segments_y

@@ -16,6 +16,7 @@
 """Several cost/norm functions for relevant vector types."""
 import abc
 import functools
+import math
 from typing import Any, Callable, Optional, Union
 
 import jax
@@ -75,6 +76,10 @@ class CostFn(abc.ABC):
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
+  @classmethod
+  def padding_vector(self, dim: int) -> jnp.ndarray:
+    pass
+
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     return self.pairwise(
         x, y
@@ -105,9 +110,6 @@ class CostFn(abc.ABC):
   def tree_flatten(self):
     return (), None
 
-  def padding_vector(self, dim: int):
-    return jnp.zeros((1, dim))
-
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     del aux_data
@@ -130,6 +132,10 @@ class Euclidean(CostFn):
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return jnp.average(xs, weights=weights, axis=0)
 
+  @classmethod
+  def padding_vector(self, dim: int) -> jnp.ndarray:
+    return jnp.zeros((1, dim))
+
 
 @jax.tree_util.register_pytree_node_class
 class Cosine(CostFn):
@@ -147,6 +153,10 @@ class Cosine(CostFn):
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
     return cosine_distance
+
+  @classmethod
+  def padding_vector(self, dim: int) -> jnp.ndarray:
+    return jnp.ones((1, dim))
 
 
 @jax.tree_util.register_pytree_node_class
@@ -254,10 +264,12 @@ class Bures(CostFn):
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
 
-  def padding_vector(self, _):
+  @classmethod
+  def padding_vector(self, dim):
     """Padding with concatenated zero means and raveled identity covariance matrix."""
+    dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
-        jnp.zeros((self._dimension,)), jnp.eye(self._dimension), self._dimension
+        jnp.zeros((dimension,)), jnp.eye(dimension), dimension
     )
     return padding[jnp.newaxis, :]
 
