@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
-from typing import Tuple
+from typing import Tuple, Optional
 
 import jax
 import jax.numpy as jnp
@@ -275,7 +275,7 @@ class SortingInit(SinkhornInitializer):
       self,
       ot_problem: linear_problems.LinearProblem,
       lse_mode: bool,
-      init_f: jnp.ndarray = None,
+      init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Apply DualSort algo.
 
