@@ -527,8 +527,7 @@ class Geometry:
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1.
     """
-    fn = lambda x: x ** 2
-    return self.apply_cost(arr, axis, fn)
+    return self.apply_cost(arr, axis=axis, fn=lambda x: x ** 2)
 
   def apply_cost(
       self,
@@ -555,20 +554,10 @@ class Geometry:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
-      return jax.vmap(
-          lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
-          1,
-          1,
-      )(
-          arr.reshape(-1, 1)
-      )
-    return jax.vmap(
-        lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
-        1,
-        1,
-    )(
-        arr
-    )
+      arr = arr.reshape(-1, 1)
+
+    app = functools.partial(self._apply_cost_to_vec, axis=axis, fn=fn, **kwargs)
+    return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def rescale_cost_fn(self, factor: float) -> None:
     """Rescale the cost or kernel matrix using a factor.

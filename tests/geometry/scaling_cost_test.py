@@ -82,14 +82,14 @@ class ScaleCostTest(parameterized.TestCase):
 
     def apply_sinkhorn(x, y, a, b, scale_cost):
       geom = pointcloud.PointCloud(
-          x, y, epsilon=self.eps, scale_cost=scale_cost, online=4
+          x, y, epsilon=self.eps, scale_cost=scale_cost, batch_size=4
       )
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=1.0, online=4
+        self.x, self.y, epsilon=self.eps, scale_cost=1.0, batch_size=4
     )
 
     geom, out, transport = jax.jit(
@@ -111,16 +111,16 @@ class ScaleCostTest(parameterized.TestCase):
     )
 
   @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
-  def test_online_matches_notonline_pointcloud(self, scale):
+  def test_online_matches_offline_pointcloud(self, scale):
     """Tests that the scale factors for online matches the ones without."""
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=4
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=4
     )
     geom1 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=False
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=None
     )
     geom2 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=1024
     )
     np.testing.assert_allclose(
         geom0.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
