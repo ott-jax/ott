@@ -18,10 +18,12 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from ott.core.icnn import ICNN
 
 
+@pytest.mark.fast
 class TestICNN:
 
   def test_icnn_convexity(self, rng: jnp.ndarray):
