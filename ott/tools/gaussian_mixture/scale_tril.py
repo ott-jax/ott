@@ -55,7 +55,7 @@ class ScaleTriL:
       n_dimensions: number of dimensions
       stdev: desired standard deviation (around 0) for the log eigenvalues
       dtype: data type for the covariance matrix
-      
+
     Returns:
       A ScaleTriL.
     """

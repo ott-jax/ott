@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
