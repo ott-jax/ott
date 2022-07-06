@@ -24,6 +24,7 @@ import jax.numpy as jnp
 
 from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
+from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 def x_to_means_and_covs(x, dimension):
@@ -77,7 +78,7 @@ class CostFn(abc.ABC):
     pass
 
   @classmethod
-  def padding_vector(self, dim: int) -> jnp.ndarray:
+  def padding_vector(cls, dim: int) -> jnp.ndarray:
     pass
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
@@ -133,7 +134,7 @@ class Euclidean(CostFn):
     return jnp.average(xs, weights=weights, axis=0)
 
   @classmethod
-  def padding_vector(self, dim: int) -> jnp.ndarray:
+  def padding_vector(cls, dim: int) -> jnp.ndarray:
     return jnp.zeros((1, dim))
 
 
@@ -155,7 +156,7 @@ class Cosine(CostFn):
     return cosine_distance
 
   @classmethod
-  def padding_vector(self, dim: int) -> jnp.ndarray:
+  def padding_vector(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
 
 
@@ -264,8 +265,17 @@ class Bures(CostFn):
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
 
+  def barycenter_init(self, bar_size, key):
+    gmm_generator_init_bary = gaussian_mixture.GaussianMixture.from_random(
+        key, n_components=bar_size, n_dimensions=self._dimension
+    )
+    x_init_means = gmm_generator_init_bary.loc
+    x_init_covs = gmm_generator_init_bary.covariance
+    x_init = means_and_covs_to_x(x_init_means, x_init_covs, self._dimension)
+    return x_init
+
   @classmethod
-  def padding_vector(self, dim):
+  def padding_vector(cls, dim):
     """Padding with concatenated zero means and raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
