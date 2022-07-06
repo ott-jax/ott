@@ -25,7 +25,9 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 
     opt = str(metafunc.config.getoption("-m"))
     if "fast" in opt:  # filter if `-m fast` was passed
-      if isinstance(selected, dict):
+      if selected is None:
+        combinations = argvalues
+      elif isinstance(selected, dict):
         combinations = []
         for vs in argvalues:
           if selected == dict(zip(argnames, vs)):
