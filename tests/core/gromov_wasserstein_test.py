@@ -337,3 +337,138 @@ class TestGromovWasserstein:
     res_matrix = arr.T @ matrix
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
+
+
+class TestGromovWassersteinUnbalanced:
+
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    d_x = 2
+    d_y = 3
+    self.n, self.m = 5, 6
+    keys = jax.random.split(rng, 7)
+    self.x = jax.random.uniform(keys[0], (self.n, d_x))
+    self.y = jax.random.uniform(keys[1], (self.m, d_y))
+    a = jax.random.uniform(keys[2], (self.n,)) + 0.1
+    b = jax.random.uniform(keys[3], (self.m,)) + 0.1
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
+    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+    self.tau_a = 0.8
+    self.tau_b = 0.9
+
+  @pytest.mark.fast
+  def test_gromov_wasserstein_pointcloud(self):
+    """Test basic computations pointclouds."""
+
+    def reg_gw(x, y, a, b):
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          epsilon=1.0,
+          max_iterations=10
+      ).reg_gw_cost
+
+    cost = reg_gw(self.x, self.y, self.a, self.b)
+    assert not jnp.isnan(cost)
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_gradient_gromov_wasserstein_pointcloud(
+      self, gw_unbalanced_correction: bool
+  ):
+    """Test gradient w.r.t. pointclouds."""
+
+    def reg_gw(x, y, a, b, implicit):
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      sinkhorn_kwargs = {
+          'implicit_differentiation': implicit,
+          'max_iterations': 1001
+      }
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction,
+          epsilon=1.0,
+          max_iterations=10,
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
+
+    grad_matrices = [None, None]
+    for i, implicit in enumerate([True, False]):
+      reg_gw_and_grad = jax.value_and_grad(
+          reg_gw, argnums=(
+              0,
+              1,
+          )
+      )
+      _, grad_reg_gw = reg_gw_and_grad(self.x, self.y, self.a, self.b, implicit)
+      grad_matrices[i] = grad_reg_gw
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_gradient_gromov_wasserstein_geometry(
+      self, gw_unbalanced_correction: bool
+  ):
+    """Test gradient w.r.t. cost matrices."""
+
+    def reg_gw(cx, cy, a, b, implicit):
+      geom_x = geometry.Geometry(cost_matrix=cx)
+      geom_y = geometry.Geometry(cost_matrix=cy)
+      sinkhorn_kwargs = {
+          'implicit_differentiation': implicit,
+          'max_iterations': 1001
+      }
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction,
+          epsilon=1.0,
+          max_iterations=10,
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
+
+    grad_matrices = [None, None]
+    for i, implicit in enumerate([True, False]):
+      reg_gw_and_grad = jax.value_and_grad(
+          reg_gw, argnums=(
+              0,
+              1,
+          )
+      )
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.cx, self.cy, self.a, self.b, implicit
+      )
+      grad_matrices[i] = grad_reg_gw
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
