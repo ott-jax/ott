@@ -17,30 +17,28 @@
 
 import jax
 import jax.numpy as jnp
-from absl.testing import absltest, parameterized
+import numpy as np
 
 from ott.core.icnn import ICNN
 
 
-class ICNNTest(parameterized.TestCase):
+class TestICNN:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-
-  @parameterized.parameters({'n_samples': 10, 'n_features': 2})
-  def test_icnn_convexity(self, n_samples, n_features, dim_hidden=(64, 64)):
+  def test_icnn_convexity(self, rng: jnp.ndarray):
     """Tests convexity of ICNN."""
+    n_samples, n_features = 10, 2
+    dim_hidden = (64, 64)
 
     # define icnn model
     icnn = ICNN(dim_hidden)
 
     # initialize model
-    params = icnn.init(self.rng, jnp.ones(n_features))['params']
+    key1, key2, key3 = jax.random.split(rng, 3)
+    params = icnn.init(key1, jnp.ones(n_features))['params']
 
     # check convexity
-    x = jax.random.normal(self.rng, (n_samples, n_features)) * 0.1
-    y = jax.random.normal(self.rng, (n_samples, n_features))
+    x = jax.random.normal(key1, (n_samples, n_features)) * 0.1
+    y = jax.random.normal(key2, (n_samples, n_features))
 
     out_x = icnn.apply({'params': params}, x)
     out_y = icnn.apply({'params': params}, y)
@@ -50,20 +48,22 @@ class ICNNTest(parameterized.TestCase):
       out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
       out.append((t * out_x + (1 - t) * out_y) - out_xy)
 
-    self.assertTrue((jnp.array(out) >= 0).all())
+    np.testing.assert_array_equal(jnp.asarray(out) >= 0, True)
 
-  @parameterized.parameters({'n_samples': 2})
-  def test_icnn_hessian(self, n_samples, dim_hidden=(64, 64)):
+  def test_icnn_hessian(self, rng: jnp.ndarray):
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model
+    n_samples = 2
+    dim_hidden = (64, 64)
     icnn = ICNN(dim_hidden)
 
     # initialize model
-    params = icnn.init(self.rng, jnp.ones(n_samples))['params']
+    key1, key2 = jax.random.split(rng)
+    params = icnn.init(key1, jnp.ones(n_samples))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
-    data = jax.random.normal(self.rng, (n_samples,))
+    data = jax.random.normal(key2, (n_samples,))
 
     # compute Hessian
     hessian = jax.jacfwd(jax.jacrev(icnn.apply, argnums=1), argnums=1)
@@ -72,8 +72,4 @@ class ICNNTest(parameterized.TestCase):
     # compute eigenvalues
     w, _ = jnp.linalg.eig(icnn_hess)
 
-    self.assertTrue((w >= 0).all())
-
-
-if __name__ == '__main__':
-  absltest.main()
+    np.testing.assert_array_equal(w >= 0, True)
