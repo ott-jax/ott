@@ -1,6 +1,6 @@
-import collections
+import collections.abc
 import itertools
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 import jax
 import pytest
@@ -15,13 +15,18 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
   fast_marks = [m for m in metafunc.function.pytestmark if m.name == "fast"]
   if fast_marks:
     mark, = fast_marks
-    # TODO(michalk8): handle mark.args?
     selected: Optional[Mapping[str, Any]] = mark.kwargs.pop("only_fast", None)
-    argnames = tuple(mark.kwargs.keys())
-    argvalues = [(vs,) if not isinstance(vs,
-                                         (str, collections.Iterable)) else vs
-                 for vs in mark.kwargs.values()]
-    argvalues = list(itertools.product(*argvalues))
+    ids: Optional[Sequence[str]] = mark.kwargs.pop("ids", None)
+
+    if mark.args:
+      argnames, argvalues = mark.args
+    else:
+      argnames = tuple(mark.kwargs.keys())
+      argvalues = [
+          (vs,) if not isinstance(vs, (str, collections.abc.Iterable)) else vs
+          for vs in mark.kwargs.values()
+      ]
+      argvalues = list(itertools.product(*argvalues))
 
     opt = str(metafunc.config.getoption("-m"))
     if "fast" in opt:  # filter if `-m fast` was passed
@@ -32,16 +37,19 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
         for vs in argvalues:
           if selected == dict(zip(argnames, vs)):
             combinations.append(vs)
+      elif isinstance(selected, (tuple, list)):
+        # TODO(michalk8): support passing ids?
+        combinations = [argvalues[s] for s in selected]
+        ids = None if ids is None else [ids[s] for s in selected]
       elif isinstance(selected, int):
-        # TODO(michalk8): limit only when 1 parametrized value
-        # convenient way of specifying by indexing
         combinations = [argvalues[selected]]
+        ids = None if ids is None else [ids[selected]]
       else:
         raise TypeError(f"Invalid fast selection type `{type(selected)}`.")
     else:
       combinations = argvalues
 
-    metafunc.parametrize(argnames, combinations)
+    metafunc.parametrize(argnames, combinations, ids=ids)
 
 
 @pytest.fixture(scope="session")
