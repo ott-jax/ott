@@ -14,6 +14,7 @@
 
 # Lint as: python3
 """Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
+import functools
 from typing import Tuple
 
 import jax
@@ -22,7 +23,8 @@ import numpy as np
 import pytest
 
 from ott.core import sinkhorn
-from ott.geometry import geometry, pointcloud
+from ott.geometry import geometry, grid, pointcloud
+from ott.tools import transport
 
 
 class TestSinkhornJacobian:
@@ -226,3 +228,193 @@ class TestSinkhornJacobian:
 
     gradient = jax.grad(reg_ot_cost)(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
+
+
+@pytest.mark.fast
+class TestSinkhornGradGrid:
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_diff_sinkhorn_x_grid_x_perturbation(
+      self, rng: jnp.ndarray, lse_mode: bool
+  ):
+    """Test gradient w.r.t. probability weights."""
+    eps = 1e-3  # perturbation magnitude
+    keys = jax.random.split(rng, 6)
+    x = (
+        jnp.array([.0, 1.0]), jnp.array([.3, .4,
+                                         .7]), jnp.array([1.0, 1.3, 2.4, 3.7])
+    )
+    grid_size = tuple(xs.shape[0] for xs in x)
+    a = jax.random.uniform(keys[0], grid_size) + 1.0
+    b = jax.random.uniform(keys[1], grid_size) + 1.0
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
+
+    def reg_ot(x):
+      geom = grid.Grid(x=x, epsilon=1.0)
+      return sinkhorn.sinkhorn(
+          geom, a=a, b=b, threshold=0.1, lse_mode=lse_mode
+      ).reg_ot_cost
+
+    reg_ot_and_grad = jax.value_and_grad(reg_ot)
+    _, grad_reg_ot = reg_ot_and_grad(x)
+    delta = [jax.random.uniform(keys[i], (g,)) for i, g in enumerate(grid_size)]
+
+    x_p_delta = [(xs + eps * delt) for xs, delt in zip(x, delta)]
+    x_m_delta = [(xs - eps * delt) for xs, delt in zip(x, delta)]
+
+    # center perturbation
+    reg_ot_delta_plus = reg_ot(x_p_delta)
+    reg_ot_delta_minus = reg_ot(x_m_delta)
+    delta_dot_grad = jnp.sum(
+        jnp.array([
+            jnp.sum(delt * gr, axis=None)
+            for delt, gr in zip(delta, grad_reg_ot)
+        ])
+    )
+    np.testing.assert_allclose(
+        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+        rtol=1e-03,
+        atol=1e-02
+    )
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_diff_sinkhorn_x_grid_weights_perturbation(
+      self, rng: jnp.ndarray, lse_mode: bool
+  ):
+    """Test gradient w.r.t. probability weights."""
+    eps = 1e-4  # perturbation magnitude
+    keys = jax.random.split(rng, 3)
+    # yapf: disable
+    x = (
+        jnp.asarray([.0, 1.0]),
+        jnp.asarray([.3, .4, .7]),
+        jnp.asarray([1.0, 1.3, 2.4, 3.7])
+    )
+    # yapf: enable
+    grid_size = tuple(xs.shape[0] for xs in x)
+    a = jax.random.uniform(keys[0], grid_size) + 1
+    b = jax.random.uniform(keys[1], grid_size) + 1
+    a = a.ravel() / jnp.sum(a)
+    b = b.ravel() / jnp.sum(b)
+    geom = grid.Grid(x=x, epsilon=1)
+
+    def reg_ot(a, b):
+      return sinkhorn.sinkhorn(
+          geom, a=a, b=b, threshold=0.001, lse_mode=lse_mode
+      ).reg_ot_cost
+
+    reg_ot_and_grad = jax.value_and_grad(reg_ot)
+    _, grad_reg_ot = reg_ot_and_grad(a, b)
+    delta = jax.random.uniform(keys[2], grid_size).ravel()
+    delta = delta - jnp.mean(delta)
+
+    # center perturbation
+    reg_ot_delta_plus = reg_ot(a + eps * delta, b)
+    reg_ot_delta_minus = reg_ot(a - eps * delta, b)
+    delta_dot_grad = jnp.sum(delta * grad_reg_ot)
+    np.testing.assert_allclose(
+        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
+        rtol=1e-03,
+        atol=1e-02
+    )
+
+
+class TestSinkhornJacobianPreconditioning:
+
+  @pytest.mark.fast.with_args(
+      lse_mode=[True, False],
+      tau_a=[1.0, .94],
+      tau_b=[1.0, .91],
+      shape=[(18, 19), (27, 18), (275, 414)],
+      arg=[0, 1],
+      only_fast=[0, -1],
+  )
+  def test_potential_jacobian_sinkhorn(
+      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
+      shape: Tuple[int, int], arg: int
+  ):
+    """Test Jacobian of optimal potential w.r.t. weights and locations."""
+    n, m = shape
+    dim = 3
+    rngs = jax.random.split(rng, 7)
+    x = jax.random.uniform(rngs[0], (n, dim))
+    y = jax.random.uniform(rngs[1], (m, dim))
+    a = jax.random.uniform(rngs[2], (n,)) + .2
+    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
+    b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
+    random_dir = jax.random.uniform(rngs[4], (n,)) / n
+    # center projection direction so that < potential , random_dir>
+    # is invariant w.r.t additive shifts.
+    random_dir = random_dir - jnp.mean(random_dir)
+    delta_a = jax.random.uniform(rngs[5], (n,))
+    if tau_a == 1.0:
+      delta_a = delta_a - jnp.mean(delta_a)
+    delta_x = jax.random.uniform(rngs[6], (n, dim))
+
+    # As expected, lse_mode False has a harder time with small epsilon when
+    # differentiating.
+    epsilon = 0.01 if lse_mode else 0.1
+
+    def loss_from_potential(
+        a, x, precondition_fun=None, linear_solve_kwargs=None
+    ):
+      if linear_solve_kwargs is None:
+        linear_solve_kwargs = {}
+      out = transport.solve(
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          lse_mode=lse_mode,
+          precondition_fun=precondition_fun,
+          **linear_solve_kwargs
+      )
+      return jnp.sum(random_dir * out.solver_output.f)
+
+    # Compute implicit gradient
+    loss_imp_no_precond = jax.jit(
+        jax.value_and_grad(
+            functools.partial(
+                loss_from_potential,
+                precondition_fun=lambda x: x,
+                linear_solve_kwargs={'implicit_solver_symmetric': True}
+            ),
+            argnums=arg
+        )
+    )
+
+    loss_imp_log_precond = jax.jit(
+        jax.value_and_grad(loss_from_potential, argnums=arg)
+    )
+
+    _, g_imp_np = loss_imp_no_precond(a, x)
+    imp_dif_np = jnp.sum(g_imp_np * (delta_a if arg == 0 else delta_x))
+
+    _, g_imp_lp = loss_imp_log_precond(a, x)
+    imp_dif_lp = jnp.sum(g_imp_lp * (delta_a if arg == 0 else delta_x))
+
+    # Compute finite difference
+    perturb_scale = 1e-4
+    a_p = a + perturb_scale * delta_a if arg == 0 else a
+    x_p = x if arg == 0 else x + perturb_scale * delta_x
+    a_m = a - perturb_scale * delta_a if arg == 0 else a
+    x_m = x if arg == 0 else x - perturb_scale * delta_x
+
+    val_p, _ = loss_imp_no_precond(a_p, x_p)
+    val_m, _ = loss_imp_no_precond(a_m, x_m)
+    fin_dif = (val_p - val_m) / (2 * perturb_scale)
+    np.testing.assert_allclose(fin_dif, imp_dif_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif_np, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(imp_dif_np, imp_dif_lp, atol=1e-2, rtol=1e-2)
+
+    # center both if balanced problem testing gradient w.r.t weights
+    if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
+      g_imp_np = g_imp_np - jnp.mean(g_imp_np)
+      g_imp_lp = g_imp_lp - jnp.mean(g_imp_lp)
+
+    np.testing.assert_allclose(g_imp_np, g_imp_lp, atol=1e-2, rtol=1e-2)
