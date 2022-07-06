@@ -19,10 +19,11 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from ott.core import sinkhorn
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 
 
 class TestSinkhornAnderson:
@@ -34,13 +35,7 @@ class TestSinkhornAnderson:
       tau_b=[1.0, .985],
       shape=[(237, 153)],
       refresh_anderson_frequency=[1, 3],
-      only_fast={
-          "lse_mode": True,
-          "tau_a": 1.0,
-          "tau_b": 1.0,
-          "shape": (237, 153),
-          "refresh_anderson_frequency": 1
-      }
+      only_fast=0,
   )
   def test_anderson(
       self, rng: jnp.ndarray, lse_mode: float, tau_a: float, tau_b: float,
@@ -100,3 +95,58 @@ class TestSinkhornAnderson:
     # Check Anderson acceleration speeds up execution when compared to none.
     for i in range(1, len(anderson_memory)):
       assert iterations_anderson[0] > iterations_anderson[i]
+
+
+@pytest.mark.fast
+class TestSinkhornBures:
+
+  @pytest.fixture(autouse=True)
+  def initialize(self):
+    self.eps = 1.0
+    self.n = 11
+    self.m = 13
+    self.dim = 7
+    self.rngs = jax.random.split(jax.random.PRNGKey(0), 6)
+
+    x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
+    y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))
+
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1)))
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1)))
+
+    m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
+    m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
+
+    self.x = jnp.concatenate(
+        (m_x.reshape((self.n, -1)), sig_x.reshape((self.n, -1))), axis=1
+    )
+    self.y = jnp.concatenate(
+        (m_y.reshape((self.m, -1)), sig_y.reshape((self.m, -1))), axis=1
+    )
+    a = jax.random.uniform(self.rngs[4], (self.n,)) + .1
+    b = jax.random.uniform(self.rngs[5], (self.m,)) + .1
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+
+  def test_bures_point_cloud(self):
+    """Two point clouds of Gaussians, tested with various parameters."""
+    threshold = 1e-3
+    geom = pointcloud.PointCloud(
+        self.x,
+        self.y,
+        cost_fn=costs.Bures(dimension=self.dim, regularization=1e-4),
+        epsilon=self.eps
+    )
+    errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b, lse_mode=False).errors
+    err = errors[errors > -1][-1]
+    assert threshold > err
+
+  def test_regularized_unbalanced_bures(self):
+    """Tests Regularized Unbalanced Bures."""
+    x = jnp.concatenate((jnp.array([0.9]), self.x[0, :]))
+    y = jnp.concatenate((jnp.array([1.1]), self.y[0, :]))
+
+    rub = costs.UnbalancedBures(self.dim, 1, 0.8)
+    assert not jnp.any(jnp.isnan(rub(x, y)))
+    assert not jnp.any(jnp.isnan(rub(y, x)))
+    np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=5e-3, atol=5e-3)
