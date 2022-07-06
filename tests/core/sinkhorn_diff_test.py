@@ -317,17 +317,18 @@ class TestSinkhornJacobian:
   def test_autoepsilon_differentiability(self, rng: jnp.ndarray):
     cost = jax.random.uniform(rng, (15, 17))
 
-    def reg_ot_cost(c: jnp.ndarray):
+    def reg_ot_cost(c: jnp.ndarray) -> float:
       geom = geometry.Geometry(c, epsilon=None)  # auto epsilon
       return sinkhorn.sinkhorn(geom).reg_ot_cost
 
     gradient = jax.grad(reg_ot_cost)(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
+  @pytest.mark.fast
   def test_differentiability_with_jit(self, rng: jnp.ndarray):
     cost = jax.random.uniform(rng, (15, 17))
 
-    def reg_ot_cost(c: jnp.ndarray):
+    def reg_ot_cost(c: jnp.ndarray) -> float:
       geom = geometry.Geometry(c, epsilon=1e-2)
       return sinkhorn.sinkhorn(geom, jit=True).reg_ot_cost
 
@@ -341,7 +342,7 @@ class TestSinkhornJacobian:
       shape=[(237, 153)],
       arg=[0, 1],
       axis=[0, 1],
-      only_fast=[0]
+      only_fast=0,
   )
   def test_apply_transport_jacobian(
       self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
@@ -445,6 +446,91 @@ class TestSinkhornJacobian:
         j_imp = j_imp - jnp.mean(j_imp, axis=1)[:, None]
         j_back = j_back - jnp.mean(j_imp, axis=1)[:, None]
       np.testing.assert_allclose(j_imp, j_back, atol=atol, rtol=1e-1)
+
+  @pytest.mark.fast.with_args(
+      lse_mode=[True, False],
+      tau_a=[1.0, .93],
+      tau_b=[1.0, .91],
+      shape=[(12, 15), (27, 18)],
+      arg=[0, 1],
+      only_fast=0,
+  )
+  def test_potential_jacobian_sinkhorn(
+      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
+      shape: Tuple[int, int], arg: int
+  ):
+    """Test Jacobian of optimal potential w.r.t. weights and locations."""
+    n, m = shape
+    dim = 3
+    rngs = jax.random.split(rng, 7)
+    x = jax.random.uniform(rngs[0], (n, dim))
+    y = jax.random.uniform(rngs[1], (m, dim))
+    a = jax.random.uniform(rngs[2], (n,)) + .2
+    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
+    b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
+    random_dir = jax.random.uniform(rngs[4], (n,)) / n
+    # center projection direction so that < potential , random_dir>
+    # is invariant w.r.t additive shifts.
+    random_dir = random_dir - jnp.mean(random_dir)
+    delta_a = jax.random.uniform(rngs[5], (n,))
+    if tau_a == 1.0:
+      delta_a = delta_a - jnp.mean(delta_a)
+    delta_x = jax.random.uniform(rngs[6], (n, dim))
+
+    # As expected, lse_mode False has a harder time with small epsilon when
+    # differentiating.
+    epsilon = 0.01 if lse_mode else 0.1
+
+    def loss_from_potential(a, x, implicit):
+      out = transport.solve(
+          x,
+          y,
+          epsilon=epsilon,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          lse_mode=lse_mode,
+          implicit_differentiation=implicit
+      )
+      return jnp.sum(random_dir * out.solver_output.f)
+
+    # Compute implicit gradient
+    loss_imp = jax.jit(
+        jax.value_and_grad(
+            lambda a, x: loss_from_potential(a, x, True), argnums=arg
+        )
+    )
+    _, g_imp = loss_imp(a, x)
+    imp_dif = jnp.sum(g_imp * (delta_a if arg == 0 else delta_x))
+    # Compute backprop (unrolling) gradient
+
+    loss_back = jax.jit(
+        jax.grad(lambda a, x: loss_from_potential(a, x, False), argnums=arg)
+    )
+    g_back = loss_back(a, x)
+    back_dif = jnp.sum(g_back * (delta_a if arg == 0 else delta_x))
+
+    # Compute finite difference
+    perturb_scale = 1e-4
+    a_p = a + perturb_scale * delta_a if arg == 0 else a
+    x_p = x if arg == 0 else x + perturb_scale * delta_x
+    a_m = a - perturb_scale * delta_a if arg == 0 else a
+    x_m = x if arg == 0 else x - perturb_scale * delta_x
+
+    val_p, _ = loss_imp(a_p, x_p)
+    val_m, _ = loss_imp(a_m, x_m)
+    fin_dif = (val_p - val_m) / (2 * perturb_scale)
+
+    np.testing.assert_allclose(fin_dif, back_dif, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif, atol=1e-2, rtol=1e-2)
+
+    # center g_imp, g_back if balanced problem testing gradient w.r.t weights
+    if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
+      g_imp = g_imp - jnp.mean(g_imp)
+      g_back = g_back - jnp.mean(g_back)
+    np.testing.assert_allclose(g_imp, g_back, atol=5e-2, rtol=1e-2)
 
 
 @pytest.mark.fast
