@@ -53,6 +53,13 @@ def mean_and_cov_to_x(mean, covariance, dimension):
 means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
+def compute_weighted_mean(x, weights):
+  return jnp.average(x, weights=weights, axis=0)
+
+
+compute_weighted_means = jax.vmap(compute_weighted_mean, in_axes=(None, 0))
+
+
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
   """A generic cost function, taking two vectors as input.
@@ -130,7 +137,7 @@ class Euclidean(CostFn):
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     """Output barycenter of vectors when using squared-Euclidean distance."""
-    return jnp.average(xs, weights=weights, axis=0)
+    return compute_weighted_mean(xs, weights)
 
   @classmethod
   def padding_vector(cls, dim: int) -> jnp.ndarray:
@@ -272,6 +279,23 @@ class Bures(CostFn):
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
     )
     return padding[jnp.newaxis, :]
+
+  def barycenter_init(self, ys, bar_size, key):
+    """Initialization of the barycenter with means random convex combinations of the means of the input measures and covariances random psd matrices."""
+    keys = jax.random.split(key, num=2)
+    means, _ = x_to_means_and_covs(ys, self._dimension)
+    x_init_means = compute_weighted_means(
+        means, jax.random.uniform(keys[0], shape=(bar_size, ys.shape[0]))
+    )
+    x_init_covs = jax.vmap(
+        lambda a: a @ jnp.transpose(a), in_axes=0
+    )(
+        jax.random.uniform(
+            keys[1], (bar_size, self._dimension, self._dimension)
+        )
+    )
+    bary_init = means_and_covs_to_x(x_init_means, x_init_covs, self._dimension)
+    return bary_init
 
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
