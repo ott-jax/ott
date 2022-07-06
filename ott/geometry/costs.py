@@ -57,9 +57,6 @@ def compute_weighted_mean(x, weights):
   return jnp.average(x, weights=weights, axis=0)
 
 
-compute_weighted_means = jax.vmap(compute_weighted_mean, in_axes=(None, 0))
-
-
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
   """A generic cost function, taking two vectors as input.
@@ -284,9 +281,9 @@ class Bures(CostFn):
     """Initialization of the barycenter with means random convex combinations of the means of the input measures and covariances random psd matrices."""
     keys = jax.random.split(key, num=2)
     means, _ = x_to_means_and_covs(ys, self._dimension)
-    x_init_means = compute_weighted_means(
-        means, jax.random.uniform(keys[0], shape=(bar_size, ys.shape[0]))
-    )
+    x_init_means = jax.vmap(
+        compute_weighted_mean, in_axes=(None, 0)
+    )(means, jax.random.uniform(keys[0], shape=(bar_size, ys.shape[0])))
     x_init_covs = jax.vmap(
         lambda a: a @ jnp.transpose(a), in_axes=0
     )(
