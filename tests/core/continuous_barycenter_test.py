@@ -20,7 +20,6 @@ from absl.testing import absltest, parameterized
 
 from ott.core import bar_problems, continuous_barycenter
 from ott.geometry import costs
-from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 class Barycenter(parameterized.TestCase):
@@ -129,13 +128,6 @@ class Barycenter(parameterized.TestCase):
     y = jnp.concatenate((y1, y2))
     b = jnp.concatenate((b1, b2))
 
-    gmm_generator = gaussian_mixture.GaussianMixture.from_random(
-        self.rng, n_components=bar_size, n_dimensions=dimension
-    )
-    x_init_means = gmm_generator.loc
-    x_init_covs = gmm_generator.covariance
-    x_init = costs.means_and_covs_to_x(x_init_means, x_init_covs, dimension)
-
     bar_p = bar_problems.BarycenterProblem(
         y,
         b,
@@ -151,7 +143,7 @@ class Barycenter(parameterized.TestCase):
         lse_mode=lse_mode, jit=jit
     )
 
-    out = solver(bar_p, bar_size=bar_size, x_init=x_init)
+    out = solver(bar_p, bar_size=bar_size)
     barycenter = out.x
 
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dimension)
