@@ -150,3 +150,87 @@ class TestSinkhornBures:
     assert not jnp.any(jnp.isnan(rub(x, y)))
     assert not jnp.any(jnp.isnan(rub(y, x)))
     np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=5e-3, atol=5e-3)
+
+
+class TestSinkhornOnline:
+
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    self.dim = 3
+    self.n = 1000
+    self.m = 402
+    self.rng, *rngs = jax.random.split(rng, 5)
+    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
+    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
+    a = jax.random.uniform(rngs[2], (self.n,))
+    b = jax.random.uniform(rngs[3], (self.m,))
+    #  adding zero weights to test proper handling
+    a = a.at[0].set(0)
+    b = b.at[3].set(0)
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+
+  @pytest.mark.fast.with_args("batch_size", [1, 13, 402, 1000], only_fast=-1)
+  def test_online_matches_offline_size(self, batch_size: int):
+    threshold, rtol, atol = 1e-1, 1e-6, 1e-6
+    geom_offline = pointcloud.PointCloud(
+        self.x, self.y, epsilon=1, batch_size=None
+    )
+    geom_online = pointcloud.PointCloud(
+        self.x, self.y, epsilon=1, batch_size=batch_size
+    )
+
+    sol_online = sinkhorn.sinkhorn(
+        geom_online,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=True,
+        implicit_differentiation=True
+    )
+    errors_online = sol_online.errors
+    err_online = errors_online[errors_online > -1][-1]
+    assert threshold > err_online
+
+    sol_offline = sinkhorn.sinkhorn(
+        geom_offline,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        lse_mode=True,
+        implicit_differentiation=True
+    )
+
+    np.testing.assert_allclose(
+        sol_online.matrix, sol_offline.matrix, rtol=rtol, atol=atol
+    )
+    np.testing.assert_allclose(
+        sol_online.a, sol_offline.a, rtol=rtol, atol=atol
+    )
+    np.testing.assert_allclose(
+        sol_online.b, sol_offline.b, rtol=rtol, atol=atol
+    )
+
+  @pytest.mark.parametrize("outer_jit", [False, True])
+  def test_online_sinkhorn_jit(self, outer_jit: bool):
+
+    def callback(epsilon: float, batch_size: int) -> sinkhorn.SinkhornOutput:
+      geom = pointcloud.PointCloud(
+          self.x, self.y, epsilon=epsilon, batch_size=batch_size
+      )
+      return sinkhorn.sinkhorn(
+          geom,
+          a=self.a,
+          b=self.b,
+          threshold=threshold,
+          jit=True,
+          lse_mode=True,
+          implicit_differentiation=True
+      )
+
+    threshold = 1e-1
+    fun = jax.jit(callback, static_argnums=(1,)) if outer_jit else callback
+
+    errors = fun(epsilon=1.0, batch_size=42).errors
+    err = errors[errors > -1][-1]
+    assert threshold > err
