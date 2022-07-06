@@ -24,7 +24,6 @@ import jax.numpy as jnp
 
 from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
-from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 def x_to_means_and_covs(x, dimension):
@@ -264,15 +263,6 @@ class Bures(CostFn):
     cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
-
-  def barycenter_init(self, bar_size, key):
-    gmm_generator_init_bary = gaussian_mixture.GaussianMixture.from_random(
-        key, n_components=bar_size, n_dimensions=self._dimension
-    )
-    x_init_means = gmm_generator_init_bary.loc
-    x_init_covs = gmm_generator_init_bary.covariance
-    x_init = means_and_covs_to_x(x_init_means, x_init_covs, self._dimension)
-    return x_init
 
   @classmethod
   def padding_vector(cls, dim):
