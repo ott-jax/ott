@@ -175,6 +175,12 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     if x_init is not None:
       assert bar_size == x_init.shape[0]
       x = x_init
+    elif hasattr(bar_prob.cost_fn, 'barycenter_init'):
+      x = bar_prob.cost_fn.barycenter_init(
+          ys=bar_prob.flattened_y,
+          bar_size=bar_size,
+          key=jax.random.PRNGKey(rng)
+      )
     else:
       # sample randomly points in the support of the y measures
       indices_subset = jax.random.choice(
