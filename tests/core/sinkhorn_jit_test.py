@@ -13,11 +13,12 @@
 # limitations under the License.
 """Jitting test for Sinkhorn."""
 import functools
+from typing import Callable
 
 import chex
 import jax
 import jax.numpy as jnp
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.core import sinkhorn
 from ott.geometry import geometry
@@ -25,23 +26,15 @@ from ott.geometry import geometry
 non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
 
-def assert_output_close(x, y):
-  """Asserst SinkhornOutputs are close."""
-  x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
-  y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
-  return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
-
-
-class SinkhornTest(parameterized.TestCase):
+class TestSinkhornJIT:
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 3
     self.n = 10
     self.m = 11
-    self.rng, *rngs = jax.random.split(self.rng, 10)
+    self.rng, *rngs = jax.random.split(rng, 10)
     self.rngs = rngs
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -60,21 +53,34 @@ class SinkhornTest(parameterized.TestCase):
         epsilon=self.epsilon
     )
 
+  @pytest.mark.fast
   def test_jit_vs_non_jit_fwd(self):
-    jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
-    non_jitted_result = non_jitted_sinkhorn(self.geometry, self.a, self.b)
 
-    def f(g, a, b):
+    def assert_output_close(x: jnp.ndarray, y: jnp.ndarray) -> None:
+      """Asserst SinkhornOutputs are close."""
+      x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
+      y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
+      return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
+
+    def f(
+        g: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray
+    ) -> sinkhorn.SinkhornOutput:
       return non_jitted_sinkhorn(g, a, b)
 
+    jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
+    non_jitted_result = non_jitted_sinkhorn(self.geometry, self.a, self.b)
     user_jitted_result = jax.jit(f)(self.geometry, self.a, self.b)
+
     assert_output_close(jitted_result, non_jitted_result)
     assert_output_close(jitted_result, user_jitted_result)
 
-  @parameterized.parameters([True, False])
-  def test_jit_vs_non_jit_bwd(self, implicit):
+  @pytest.mark.parametrize("implicit", [False, True])
+  def test_jit_vs_non_jit_bwd(self, implicit: bool):
 
-    def loss(a, x, fun):
+    def loss(
+        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[[...],
+                                                      sinkhorn.SinkhornOutput]
+    ):
       out = fun(
           geometry.Geometry(
               cost_matrix=(
@@ -94,7 +100,7 @@ class SinkhornTest(parameterized.TestCase):
       )
       return out.reg_ot_cost
 
-    def value_and_grad(a, x):
+    def value_and_grad(a: jnp.ndarray, x: jnp.ndarray):
       return jax.value_and_grad(loss)(a, x, non_jitted_sinkhorn)
 
     jitted_loss, jitted_grad = jax.value_and_grad(loss)(
@@ -109,7 +115,3 @@ class SinkhornTest(parameterized.TestCase):
     chex.assert_tree_all_close(jitted_grad, non_jitted_grad, atol=1e-6, rtol=0)
     chex.assert_tree_all_close(user_jitted_loss, jitted_loss, atol=1e-6, rtol=0)
     chex.assert_tree_all_close(user_jitted_grad, jitted_grad, atol=1e-6, rtol=0)
-
-
-if __name__ == '__main__':
-  absltest.main()
