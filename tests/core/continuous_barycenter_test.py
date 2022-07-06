@@ -39,8 +39,11 @@ class TestBarycenter:
           "init_random": False
       },
   )
-  def test_euclidean_barycenter(self, rank, epsilon, jit, init_random):
-    rngs = jax.random.split(jax.random.PRNGKey(0), 20)
+  def test_euclidean_barycenter(
+      self, rng: jnp.ndarray, rank: int, epsilon: float, jit: bool,
+      init_random: bool
+  ):
+    rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
     y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
@@ -112,7 +115,9 @@ class TestBarycenter:
           "jit": False
       }
   )
-  def test_bures_barycenter(self, lse_mode, epsilon, jit):
+  def test_bures_barycenter(
+      self, rng: jnp.ndarray, lse_mode: bool, epsilon: float, jit: bool
+  ):
     num_measures = 2
     num_components = 2
     dimension = 2
@@ -138,8 +143,7 @@ class TestBarycenter:
     y = jnp.concatenate((y1, y2))
     b = jnp.concatenate((b1, b2))
 
-    key = jax.random.PRNGKey(0)
-    keys = jax.random.split(key, num=2)
+    keys = jax.random.split(rng, num=2)
     x_init_means = jax.random.uniform(keys[0], (bar_size, dimension))
     x_init_covs = jax.vmap(
         lambda a: a @ jnp.transpose(a), in_axes=0

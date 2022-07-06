@@ -2,6 +2,8 @@ import collections
 import itertools
 from typing import Any, Mapping, Optional
 
+import jax
+import pytest
 from _pytest.python import Metafunc
 
 
@@ -27,3 +29,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       combinations = argvalues
 
     metafunc.parametrize(argnames, combinations)
+
+
+@pytest.fixture(scope="session")
+def rng():
+  return jax.random.PRNGKey(0)
