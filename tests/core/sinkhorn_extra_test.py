@@ -234,3 +234,42 @@ class TestSinkhornOnline:
     errors = fun(epsilon=1.0, batch_size=42).errors
     err = errors[errors > -1][-1]
     assert threshold > err
+
+
+@pytest.mark.fast
+class TestSinkhornUnbalanced:
+
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    self.dim = 4
+    self.n = 17
+    self.m = 23
+    self.rng, *rngs = jax.random.split(rng, 5)
+    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
+    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
+    a = jax.random.uniform(rngs[2], (self.n,))
+    b = jax.random.uniform(rngs[3], (self.m,))
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+
+  @pytest.mark.parametrize("momentum", [1.0, 1.5])
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_sinkhorn_unbalanced(self, lse_mode: bool, momentum: float):
+    """Two point clouds, tested with various parameters."""
+    threshold = 1e-3
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    errors = sinkhorn.sinkhorn(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        momentum=momentum,
+        inner_iterations=10,
+        norm_error=1,
+        lse_mode=lse_mode,
+        tau_a=0.8,
+        tau_b=0.9
+    ).errors
+    err = errors[errors > -1][-1]
+    assert threshold > err
+    assert err > 0
