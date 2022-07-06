@@ -15,30 +15,36 @@
 # Lint as: python3
 """Tests Anderson acceleration for sinkhorn."""
 
+from typing import Tuple
+
 import jax
 import jax.numpy as jnp
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.core import sinkhorn
 from ott.geometry import pointcloud
 
 
-class SinkhornAndersonTest(parameterized.TestCase):
+class TestSinkhornAnderson:
   """Tests for Anderson acceleration."""
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-
-  @parameterized.product(
+  @pytest.mark.fast.with_args(
       lse_mode=[True, False],
       tau_a=[1.0, .98],
       tau_b=[1.0, .985],
       shape=[(237, 153)],
-      refresh_anderson_frequency=[1, 3]
+      refresh_anderson_frequency=[1, 3],
+      only_fast={
+          "lse_mode": True,
+          "tau_a": 1.0,
+          "tau_b": 1.0,
+          "shape": (237, 153),
+          "refresh_anderson_frequency": 1
+      }
   )
   def test_anderson(
-      self, lse_mode, tau_a, tau_b, shape, refresh_anderson_frequency
+      self, rng: jnp.ndarray, lse_mode: float, tau_a: float, tau_b: float,
+      shape: Tuple[int, int], refresh_anderson_frequency: int
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -52,7 +58,7 @@ class SinkhornAndersonTest(parameterized.TestCase):
     """
     n, m = shape
     dim = 4
-    rngs = jax.random.split(self.rng, 9)
+    rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
     y = jax.random.uniform(rngs[1], (m, dim)) / dim + .2
     a = jax.random.uniform(rngs[2], (n,))
@@ -87,14 +93,10 @@ class SinkhornAndersonTest(parameterized.TestCase):
       errors = out.errors
       clean_errors = errors[errors > -1]
       # Check convergence
-      self.assertGreater(threshold, clean_errors[-1])
+      assert threshold > clean_errors[-1]
       # Record number of inner_iterations needed to converge.
       iterations_anderson.append(jnp.size(clean_errors))
 
     # Check Anderson acceleration speeds up execution when compared to none.
     for i in range(1, len(anderson_memory)):
-      self.assertGreater(iterations_anderson[0], iterations_anderson[i])
-
-
-if __name__ == '__main__':
-  absltest.main()
+      assert iterations_anderson[0] > iterations_anderson[i]
