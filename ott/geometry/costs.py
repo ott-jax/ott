@@ -50,8 +50,8 @@ class CostFn(abc.ABC):
     pass
 
   @classmethod
-  def padding_vector(cls, dim: int) -> jnp.ndarray:
-    pass
+  def padder(cls, dim: int) -> jnp.ndarray:
+    return jnp.zeros((1, dim))
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     return self.pairwise(
@@ -106,7 +106,7 @@ class Euclidean(CostFn):
     return compute_weighted_mean(xs, weights)
 
   @classmethod
-  def padding_vector(cls, dim: int) -> jnp.ndarray:
+  def padder(cls, dim: int) -> jnp.ndarray:
     return jnp.zeros((1, dim))
 
 
@@ -128,7 +128,7 @@ class Cosine(CostFn):
     return cosine_distance
 
   @classmethod
-  def padding_vector(cls, dim: int) -> jnp.ndarray:
+  def padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
 
 
@@ -238,7 +238,7 @@ class Bures(CostFn):
     return barycenter
 
   @classmethod
-  def padding_vector(cls, dim):
+  def padder(cls, dim):
     """Padding with concatenated zero means and raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
