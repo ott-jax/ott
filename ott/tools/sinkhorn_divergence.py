@@ -148,7 +148,7 @@ def _sinkhorn_divergence(
 def segment_sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
-    padding_vector: Optional[Callable[..., jnp.ndarray]] = None,
+    padder: Optional[Callable[..., jnp.ndarray]] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
@@ -174,7 +174,6 @@ def segment_sinkhorn_divergence(
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
-    cost_fn:
     segment_ids_x: (1st interface) The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: (1st interface) The segment ID for which each row of y
@@ -222,7 +221,7 @@ def segment_sinkhorn_divergence(
       num_segments,
       indices_are_sorted,
       num_per_segment_x,
-      padding_vector=padding_vector
+      padder=padder
   )
 
   segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
@@ -232,7 +231,7 @@ def segment_sinkhorn_divergence(
       num_segments,
       indices_are_sorted,
       num_per_segment_y,
-      padding_vector=padding_vector
+      padder=padder
   )
 
   assert num_segments_x == num_segments_y

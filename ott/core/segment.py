@@ -28,7 +28,7 @@ def segment_point_cloud(
     indices_are_sorted: Optional[bool] = None,
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None,
-    padding_vector: Callable[..., jnp.ndarray] = None
+    padder: Callable[..., jnp.ndarray] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
 
@@ -77,15 +77,15 @@ def segment_point_cloud(
   if max_measure_size is None:
     max_measure_size = jnp.max(num_per_segment)
 
-  if padding_vector is None:
-    padding = costs.Euclidean().padding_vector(dim=dim)
+  if padder is None:
+    padding_vector = costs.Euclidean().padder(dim=dim)
   else:
-    padding = padding_vector(dim)
+    padding_vector = padder(dim)
 
   segmented_a = []
   segmented_x = []
 
-  x = jnp.concatenate((x, padding))
+  x = jnp.concatenate((x, padding_vector))
   a = jnp.concatenate((a, jnp.zeros((1,))))
 
   for i in range(num_segments):
