@@ -15,7 +15,7 @@
 
 import jax
 import jax.numpy as jnp
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.tools.gaussian_mixture import (
     fit_gmm,
@@ -25,10 +25,10 @@ from ott.tools.gaussian_mixture import (
 )
 
 
-class FitGmmPairTest(parameterized.TestCase):
+class TestFitGmmPair:
 
-  def setUp(self):
-    super().setUp()
+  @pytest.fixture(autouse=True)
+  def initialize(self):
     mean_generator0 = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                 [[0.5, 0.4], [0.4, 0.5]]])
@@ -62,13 +62,12 @@ class FitGmmPairTest(parameterized.TestCase):
 
     key = jax.random.PRNGKey(0)
     self.key, subkey0, subkey1 = jax.random.split(key, num=3)
-    self.samples_gmm0 = gmm_generator0.sample(key=subkey0, size=2000)
+    self.samples_gmm0 = gmm_generator0.sample(key=subkey0, size=200)
     self.samples_gmm1 = gmm_generator1.sample(key=subkey1, size=2000)
 
-  @parameterized.named_parameters(('balanced_unweighted', True, False),
-                                  ('balanced_weighted', True, True),
-                                  ('unbalanced_unweighted', False, False),
-                                  ('unbalanced_weighted', False, True))
+  @pytest.mark.fast.with_args(
+      balanced=[False, True], weighted=[False, True], only_fast=0
+  )
   def test_fit_gmm(self, balanced, weighted):
     # dumb integration test that makes sure nothing crashes
     if balanced:
@@ -114,7 +113,3 @@ class FitGmmPairTest(parameterized.TestCase):
         m_steps=10,
         verbose=False
     )
-
-
-if __name__ == '__main__':
-  absltest.main()
