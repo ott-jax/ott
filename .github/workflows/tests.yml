@@ -49,7 +49,7 @@ jobs:
       uses: codecov/codecov-action@v3
       with:
         files: ./coverage.xml
-        flags: unittests-${{ test_mark }}
+        flags: unittests-${{ matrix.test_mark }}
         env_vars: OS,PYTHON
         fail_ci_if_error: true
         verbose: true
