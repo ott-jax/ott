@@ -13,8 +13,7 @@
 # limitations under the License.
 """Implements the sinkhorn divergence."""
 
-import collections
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -22,10 +21,14 @@ from jax import numpy as jnp
 from ott.core import segment, sinkhorn
 from ott.geometry import geometry, pointcloud
 
-SinkhornDivergenceOutput = collections.namedtuple(
-    'SinkhornDivergenceOutput',
-    ['divergence', 'potentials', 'geoms', 'errors', 'converged']
-)
+
+class SinkhornDivergenceOutput(NamedTuple):
+  divergence: float
+  potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
+  geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
+  errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]]
+  converged: Tuple[bool, bool, bool]
 
 
 def sinkhorn_divergence(
@@ -37,7 +40,7 @@ def sinkhorn_divergence(
     static_b: bool = False,
     share_epsilon: bool = True,
     **kwargs: Any,
-):
+) -> SinkhornDivergenceOutput:
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
@@ -82,10 +85,13 @@ def sinkhorn_divergence(
 
 
 def _sinkhorn_divergence(
-    geometry_xy: geometry.Geometry, geometry_xx: geometry.Geometry,
-    geometry_yy: Optional[geometry.Geometry], a: jnp.ndarray, b: jnp.ndarray,
-    **kwargs
-):
+    geometry_xy: geometry.Geometry,
+    geometry_xx: geometry.Geometry,
+    geometry_yy: Optional[geometry.Geometry],
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    **kwargs: Any,
+) -> SinkhornDivergenceOutput:
   """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
@@ -159,7 +165,7 @@ def segment_sinkhorn_divergence(
     sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
     static_b: bool = False,
     share_epsilon: bool = True,
-    **kwargs
+    **kwargs: Any
 ) -> jnp.ndarray:
   """Compute Sinkhorn divergence between subsets of data with point cloud.
 
