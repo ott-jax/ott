@@ -49,7 +49,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
     else:
       combinations = argvalues
 
-    metafunc.parametrize(argnames, combinations, ids=ids)
+    if argnames:
+      metafunc.parametrize(argnames, combinations, ids=ids)
 
 
 @pytest.fixture(scope="session")
