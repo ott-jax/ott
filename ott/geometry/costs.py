@@ -135,6 +135,9 @@ class Cosine(CostFn):
     cosine_distance = 1.0 - cosine_similarity
     return cosine_distance
 
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+    raise NotImplementedError("Barycenter for cosine cost not yet implemented.")
+
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
