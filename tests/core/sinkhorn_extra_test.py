@@ -15,7 +15,7 @@
 # Lint as: python3
 """Tests Anderson acceleration for sinkhorn."""
 import functools
-from typing import Callable, Tuple
+from typing import Any, Callable, Tuple
 
 import chex
 import jax
@@ -330,7 +330,7 @@ class TestSinkhornJIT:
   def test_jit_vs_non_jit_bwd(self, implicit: bool):
 
     def loss(
-        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[[...],
+        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[[Any],
                                                       sinkhorn.SinkhornOutput]
     ):
       out = fun(
