@@ -49,6 +49,18 @@ class CostFn(abc.ABC):
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
+  def barycenter_init(self, ys, bs, bar_size, key):
+    # sample randomly points in the support of the y measures
+    indices_subset = jax.random.choice(
+        jax.random.PRNGKey(key),
+        a=ys.shape[0],
+        shape=(bar_size,),
+        eplace=False,
+        p=bs
+    )
+    x = ys[indices_subset, :]
+    return x
+
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
     return jnp.zeros((1, dim))
@@ -246,7 +258,7 @@ class Bures(CostFn):
     )
     return padding[jnp.newaxis, :]
 
-  def barycenter_init(self, ys, bar_size, key):
+  def barycenter_init(self, ys, _, bar_size, key):
     """Initialization of the barycenter with means random convex combinations of the means of the input measures and covariances random psd matrices."""
     keys = jax.random.split(key, num=2)
     means, _ = x_to_means_and_covs(ys, self._dimension)
