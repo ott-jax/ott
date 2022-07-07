@@ -26,37 +26,6 @@ from ott.core import fixed_point_loop
 from ott.geometry import matrix_square_root
 
 
-def x_to_means_and_covs(x, dimension):
-  """Extract means and covariance matrices of Gaussians from raveled vector.
-
-  Args:
-    x: [num_gaussians, dimension, (1 + dimension)] jnp.ndarray of concatenated means and covariances (raveled)
-    dimension: the dimension of the Gaussians
-  Returns:
-    means: [num_gaussians, dimension] jnp.ndarray that holds the means.
-    covariances: [num_gaussians, dimension] jnp.ndarray that holds the covariances.
-  """
-  x = jnp.atleast_2d(x)
-  means = x[:, 0:dimension]
-  covariances = jnp.reshape(
-      x[:, dimension:dimension + dimension ** 2], (-1, dimension, dimension)
-  )
-  return jnp.squeeze(means), jnp.squeeze(covariances)
-
-
-def mean_and_cov_to_x(mean, covariance, dimension):
-  """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
-  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
-  return x
-
-
-means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
-
-
-def compute_weighted_mean(x, weights):
-  return jnp.average(x, weights=weights, axis=0)
-
-
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
   """A generic cost function, taking two vectors as input.
@@ -391,3 +360,34 @@ class UnbalancedBures(CostFn):
   def tree_unflatten(cls, aux_data, children):
     del children
     return cls(aux_data[0], aux_data[1], aux_data[2], **aux_data[3])
+
+
+def x_to_means_and_covs(x, dimension):
+  """Extract means and covariance matrices of Gaussians from raveled vector.
+
+  Args:
+    x: [num_gaussians, dimension, (1 + dimension)] jnp.ndarray of concatenated means and covariances (raveled)
+    dimension: the dimension of the Gaussians
+  Returns:
+    means: [num_gaussians, dimension] jnp.ndarray that holds the means.
+    covariances: [num_gaussians, dimension] jnp.ndarray that holds the covariances.
+  """
+  x = jnp.atleast_2d(x)
+  means = x[:, 0:dimension]
+  covariances = jnp.reshape(
+      x[:, dimension:dimension + dimension ** 2], (-1, dimension, dimension)
+  )
+  return jnp.squeeze(means), jnp.squeeze(covariances)
+
+
+def mean_and_cov_to_x(mean, covariance, dimension):
+  """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
+  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
+  return x
+
+
+means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
+
+
+def compute_weighted_mean(x, weights):
+  return jnp.average(x, weights=weights, axis=0)
