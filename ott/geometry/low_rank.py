@@ -221,6 +221,12 @@ class LRCGeometry(geometry.Geometry):
     max_value = jnp.max(jnp.concatenate((out, last_slice.reshape(-1))))
     return max_value + self._bias
 
+  def to_LRCGeometry(
+      self, rank: int, tol: float = 1e-2, seed: int = 0
+  ) -> 'LRCGeometry':
+    """Return self."""
+    return self
+
   def tree_flatten(self):
     return (self._cost_1, self._cost_2, self._kwargs), {
         'bias': self._bias,
