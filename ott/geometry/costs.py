@@ -52,11 +52,7 @@ class CostFn(abc.ABC):
   def barycenter_init(self, ys, bs, bar_size, key):
     # sample randomly points in the support of the y measures
     indices_subset = jax.random.choice(
-        jax.random.PRNGKey(key),
-        a=ys.shape[0],
-        shape=(bar_size,),
-        eplace=False,
-        p=bs
+        key, a=ys.shape[0], shape=(bar_size,), replace=False, p=bs
     )
     x = ys[indices_subset, :]
     return x
