@@ -55,3 +55,13 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 @pytest.fixture(scope="session")
 def rng():
   return jax.random.PRNGKey(0)
+
+
+@pytest.fixture()
+def enable_x64():
+  previous_value = jax.config.jax_enable_x64
+  jax.config.update("jax_enable_x64", True)
+  try:
+    yield
+  finally:
+    jax.config.update("jax_enable_x64", previous_value)
