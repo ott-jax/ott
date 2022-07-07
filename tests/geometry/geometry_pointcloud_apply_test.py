@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 
 
 @pytest.mark.fast
@@ -68,16 +68,30 @@ class TestPointCloudApply:
     np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
     np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 
-  def test_shape_with_jnp_ndarrays(self):
-    n = 11
-    d = 17
-    x = jnp.zeros((n, d))
-    pc = pointcloud.PointCloud(x=x)
-    np.testing.assert_array_equal(pc.shape, (n, n))
+  def test_general_cost_fn(self, rng: jnp.ndarray):
+    """Test non-vec cost apply to vec."""
+    n, m, p, b = 5, 8, 10, 7
+    keys = jax.random.split(rng, 5)
+    x = jax.random.normal(keys[0], (n, p))
+    y = jax.random.normal(keys[1], (m, p)) + 1
+    vec0 = jax.random.normal(keys[2], (n, b))
+    vec1 = jax.random.normal(keys[3], (m, b))
 
-  def test_shape_with_np_ndarrays(self):
-    n = 11
-    d = 17
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), batch_size=None)
+    cost = geom.cost_matrix
+    prod0 = geom.apply_cost(vec0, axis=0)
+    prod1 = geom.apply_cost(vec1, axis=1)
+
+    geom = geometry.Geometry(cost)
+    prod0_geom = geom.apply_cost(vec0, axis=0)
+    prod1_geom = geom.apply_cost(vec1, axis=1)
+
+    np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-03, atol=1e-02)
+
+  def test_correct_shape(self):
+    n, m, d = 11, 12, 17
     x = jnp.zeros((n, d))
-    pc = pointcloud.PointCloud(x=x)
-    np.testing.assert_array_equal(pc.shape, (n, n))
+    y = jnp.zeros((m, d))
+    pc = pointcloud.PointCloud(x=x, y=y)
+    np.testing.assert_array_equal(pc.shape, (n, m))
