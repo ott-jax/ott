@@ -18,20 +18,19 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest
+import pytest
 
 from ott.geometry import pointcloud
 from ott.tools import sinkhorn_divergence
 
 
-class SinkhornDivergenceGradTest(absltest.TestCase):
+class TestSinkhornDivergenceGrad:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     self._dim = 3
     self._num_points = 13, 12
-    self.rng, *rngs = jax.random.split(self.rng, 3)
+    self.rng, *rngs = jax.random.split(rng, 3)
     a = jax.random.uniform(rngs[0], (self._num_points[0],))
     b = jax.random.uniform(rngs[1], (self._num_points[1],))
     self._a = a / jnp.sum(a)
@@ -62,9 +61,9 @@ class SinkhornDivergenceGradTest(absltest.TestCase):
     loss_value, grad_loss = loss_and_grad(x, y)
     custom_grad = jnp.sum(delta * grad_loss)
 
-    self.assertIsNot(loss_value, jnp.nan)
-    self.assertEqual(grad_loss.shape, x.shape)
-    self.assertFalse(jnp.any(jnp.isnan(grad_loss)))
+    assert not jnp.isnan(loss_value)
+    np.testing.assert_array_equal(grad_loss.shape, x.shape)
+    np.testing.assert_array_equal(jnp.isnan(grad_loss), False)
 
     # second calculation of gradient
     loss_delta_plus = loss_fn(x + eps * delta, y)
@@ -74,7 +73,3 @@ class SinkhornDivergenceGradTest(absltest.TestCase):
     np.testing.assert_allclose(
         custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
     )
-
-
-if __name__ == '__main__':
-  absltest.main()
