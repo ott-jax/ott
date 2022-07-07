@@ -259,7 +259,7 @@ class Bures(CostFn):
     return padding[jnp.newaxis, :]
 
   def barycenter_init(self, ys, _, bar_size, key):
-    """Initialization of the barycenter with means random convex combinations of the means of the input measures and covariances random psd matrices."""
+    """Initialization of the barycenter with as a GMM with means random convex combinations of the means of the input measures and covariances random psd matrices."""
     keys = jax.random.split(key, num=2)
     means, _ = x_to_means_and_covs(ys, self._dimension)
     x_init_means = jax.vmap(
