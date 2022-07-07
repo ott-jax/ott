@@ -11,78 +11,64 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for google3.experimental.users.geoffd.contour.clustering.ot.parameters.scale_tril_params."""
+"""Tests for ScaleTriL."""
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest
+import pytest
 
 from ott.geometry import matrix_square_root
 from ott.tools.gaussian_mixture import scale_tril
 
 
-def get_w2_dist(
-    scale0: scale_tril.ScaleTriL, scale1: scale_tril.ScaleTriL
-) -> jnp.ndarray:
-  """Get Wasserstein distance W_2^2 to another Gaussian with same mean."""
-  sigma0 = scale0.covariance()
-  sigma1 = scale1.covariance()
-  sqrt0 = scale0.covariance_sqrt()
-  m = matrix_square_root.sqrtm_only(
-      jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
-  )
-  return jnp.trace(sigma0 + sigma1 - 2. * m, axis1=-2, axis2=-1)
+@pytest.fixture()
+def chol() -> scale_tril.ScaleTriL:
+  params = jnp.array([0., 2., jnp.log(3.)])
+  return scale_tril.ScaleTriL(params=params, size=2)
 
 
-class ScaleTriLTest(absltest.TestCase):
+@pytest.mark.fast
+class TestScaleTriL:
 
-  def setUp(self):
-    super().setUp()
-    # note there is a little slop because of the diag_shift parameter in
-    # the tfp.bijectors.FillScaleTriL bijector
-    params = jnp.array([0., 2., jnp.log(3.)])
-    self.chol = scale_tril.ScaleTriL(params=params, size=2)
-    self.m_chol = jnp.array([[1., 0.], [2., 3.]])
-    self.m_cov = jnp.matmul(self.m_chol, self.m_chol.T)
-    self.key = jax.random.PRNGKey(seed=0)
+  def test_cholesky(self, chol: scale_tril.ScaleTriL):
+    expected = jnp.array([[1., 0.], [2., 3.]])
+    np.testing.assert_allclose(chol.cholesky(), expected, atol=1e-4, rtol=1e-4)
 
-  def test_cholesky(self):
-    np.testing.assert_allclose(
-        self.m_chol, self.chol.cholesky(), atol=1e-4, rtol=1e-4
-    )
+  def test_covariance(self, chol: scale_tril.ScaleTriL):
+    expected = jnp.array([[1., 0.], [2., 3.]])
+    np.testing.assert_allclose(chol.covariance(), expected @ expected.T)
 
-  def test_covariance(self):
-    np.testing.assert_allclose(self.m_cov, self.chol.covariance())
-
-  def test_covariance_sqrt(self):
-    actual = self.chol.covariance_sqrt()
-    expected = matrix_square_root.sqrtm_only(self.chol.covariance())
+  def test_covariance_sqrt(self, chol: scale_tril.ScaleTriL):
+    actual = chol.covariance_sqrt()
+    expected = matrix_square_root.sqrtm_only(chol.covariance())
     np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
-  def test_log_det_covariance(self):
-    expected = jnp.log(jnp.linalg.det(self.chol.covariance()))
-    actual = self.chol.log_det_covariance()
-    self.assertAlmostEqual(actual, expected)
+  def test_log_det_covariance(self, chol: scale_tril.ScaleTriL):
+    expected = jnp.log(jnp.linalg.det(chol.covariance()))
+    actual = chol.log_det_covariance()
+    np.testing.assert_almost_equal(actual, expected)
 
-  def test_from_random(self):
+  def test_from_random(self, rng: jnp.ndarray):
     n_dimensions = 4
     cov = scale_tril.ScaleTriL.from_random(
-        key=self.key, n_dimensions=n_dimensions, stdev=0.1
+        key=rng, n_dimensions=n_dimensions, stdev=0.1
     )
-    self.assertEqual(cov.cholesky().shape, (n_dimensions, n_dimensions))
+    np.testing.assert_array_equal(
+        cov.cholesky().shape, (n_dimensions, n_dimensions)
+    )
 
-  def test_from_cholesky(self):
+  def test_from_cholesky(self, rng: jnp.ndarray):
     n_dimensions = 4
     cholesky = scale_tril.ScaleTriL.from_random(
-        key=self.key, n_dimensions=n_dimensions, stdev=1.
+        key=rng, n_dimensions=n_dimensions, stdev=1.
     ).cholesky()
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
     np.testing.assert_allclose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
 
-  def test_w2_dist(self):
+  def test_w2_dist(self, rng: jnp.ndarray):
     # make sure distance between a random normal and itself is 0
-    key, subkey = jax.random.split(self.key)
+    key, subkey = jax.random.split(rng)
     s = scale_tril.ScaleTriL.from_random(key=subkey, n_dimensions=3)
     w2 = s.w2_dist(s)
     expected = 0.
@@ -101,9 +87,9 @@ class ScaleTriLTest(absltest.TestCase):
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
     np.testing.assert_allclose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
-  def test_transport(self):
+  def test_transport(self, rng: jnp.ndarray):
     size = 4
-    key, subkey0, subkey1 = jax.random.split(self.key, num=3)
+    key, subkey0, subkey1 = jax.random.split(rng, num=3)
     diag0 = jnp.exp(jax.random.normal(key=subkey0, shape=(size,)))
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     diag1 = jnp.exp(jax.random.normal(key=subkey1, shape=(size,)))
@@ -115,18 +101,14 @@ class ScaleTriLTest(absltest.TestCase):
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
     np.testing.assert_allclose(expected, transported, atol=1e-4, rtol=1e-4)
 
-  def test_flatten_unflatten(self):
-    scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
+  def test_flatten_unflatten(self, rng: jnp.ndarray):
+    scale = scale_tril.ScaleTriL.from_random(key=rng, n_dimensions=3)
     children, aux_data = jax.tree_util.tree_flatten(scale)
     scale_new = jax.tree_util.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(scale.params, scale_new.params)
-    self.assertEqual(scale, scale_new)
+    assert scale == scale_new
 
-  def test_pytree_mapping(self):
-    scale = scale_tril.ScaleTriL.from_random(key=self.key, n_dimensions=3)
+  def test_pytree_mapping(self, rng: jnp.ndarray):
+    scale = scale_tril.ScaleTriL.from_random(key=rng, n_dimensions=3)
     scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
     np.testing.assert_allclose(2. * scale.params, scale_x_2.params)
-
-
-if __name__ == '__main__':
-  absltest.main()
