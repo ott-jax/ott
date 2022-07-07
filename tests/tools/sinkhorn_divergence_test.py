@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 from absl.testing import absltest, parameterized
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 from ott.tools import sinkhorn_divergence
 
 
@@ -249,7 +249,8 @@ class SinkhornDivergenceTest(parameterized.TestCase):
 
     np.testing.assert_allclose(true_divergence.repeat(2), segmented_divergences)
 
-  def test_segment_sinkhorn_different_segment_sizes(self):
+  @parameterized.parameters([costs.Euclidean(), costs.Bures(2)])
+  def test_segment_sinkhorn_different_segment_sizes(self, cost):
 
     # Test other array sizes
     x1 = jnp.arange(10)[:, None].repeat(2, axis=1)
@@ -262,6 +263,7 @@ class SinkhornDivergenceTest(parameterized.TestCase):
     segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
+        padder=cost.padder,
         num_per_segment_x=jnp.array([10, 12]),
         num_per_segment_y=jnp.array([11, 13]),
         epsilon=0.01
