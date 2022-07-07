@@ -50,6 +50,7 @@ class CostFn(abc.ABC):
     pass
 
   def barycenter_init(self, ys, bs, bar_size, key):
+    """Initialization for continuous barycenter."""
     # sample randomly points in the support of the y measures
     indices_subset = jax.random.choice(
         key, a=ys.shape[0], shape=(bar_size,), replace=False, p=bs
@@ -112,10 +113,6 @@ class Euclidean(CostFn):
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return compute_weighted_mean(xs, weights)
-
-  @classmethod
-  def padder(cls, dim: int) -> jnp.ndarray:
-    return jnp.zeros((1, dim))
 
 
 @jax.tree_util.register_pytree_node_class
