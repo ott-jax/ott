@@ -18,23 +18,19 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.core import sinkhorn
 from ott.geometry import grid, pointcloud
 
 
-class SinkhornGridTest(parameterized.TestCase):
+class TestSinkhornGrid:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-
-  @parameterized.parameters([True], [False])
-  def test_separable_grid(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_separable_grid(self, rng: jnp.ndarray, lse_mode: bool):
     """Two histograms in a grid of size 5 x 6 x 7  in the hypercube^3."""
     grid_size = (5, 6, 7)
-    keys = jax.random.split(self.rng, 2)
+    keys = jax.random.split(rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     #  adding zero weights  to test proper handling, then ravel.
@@ -49,12 +45,12 @@ class SinkhornGridTest(parameterized.TestCase):
         geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode, jit=False
     ).errors
     err = errors[jnp.isfinite(errors)][-1]
-    self.assertGreater(threshold, err)
+    assert threshold > err
 
-  @parameterized.parameters([True], [False])
-  def test_grid_vs_euclidean(self, lse_mode):
+  @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
+  def test_grid_vs_euclidean(self, rng: jnp.ndarray, lse_mode: bool):
     grid_size = (5, 6, 7)
-    keys = jax.random.split(self.rng, 2)
+    keys = jax.random.split(rng, 2)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     a = a.ravel() / jnp.sum(a)
@@ -73,13 +69,13 @@ class SinkhornGridTest(parameterized.TestCase):
     )
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     np.testing.assert_allclose(
-        out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1E-5, atol=1E-5
+        out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1e-5, atol=1e-5
     )
 
-  @parameterized.parameters([True], [False])
-  def test_apply_transport_grid(self, lse_mode):
+  @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
+  def test_apply_transport_grid(self, rng: jnp.ndarray, lse_mode: bool):
     grid_size = (5, 6, 7)
-    keys = jax.random.split(self.rng, 3)
+    keys = jax.random.split(rng, 3)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     a = a.ravel() / jnp.sum(a)
@@ -118,14 +114,15 @@ class SinkhornGridTest(parameterized.TestCase):
     )
 
     np.testing.assert_allclose(
-        mat_transport_t_vec_a, grid_transport_t_vec_a, rtol=1E-5, atol=1E-5
+        mat_transport_t_vec_a, grid_transport_t_vec_a, rtol=1e-5, atol=1e-5
     )
     np.testing.assert_allclose(
-        mat_transport_vec_b, grid_transport_vec_b, rtol=1E-5, atol=1E-5
+        mat_transport_vec_b, grid_transport_vec_b, rtol=1e-5, atol=1e-5
     )
-    self.assertIsNot(jnp.any(jnp.isnan(mat_transport_t_vec_a)), True)
+    np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
-  def test_apply_cost(self):
+  @pytest.mark.fast
+  def test_apply_cost(self, rng: jnp.ndarray):
     grid_size = (5, 6, 7)
 
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
@@ -137,7 +134,7 @@ class SinkhornGridTest(parameterized.TestCase):
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
 
-    vec = jax.random.uniform(self.rng, grid_size).ravel()
+    vec = jax.random.uniform(rng, grid_size).ravel()
     np.testing.assert_allclose(
         geom_mat.apply_cost(vec),
         geom_grid.apply_cost(vec),
@@ -151,7 +148,3 @@ class SinkhornGridTest(parameterized.TestCase):
         rtol=1e-4,
         atol=1e-4
     )
-
-
-if __name__ == '__main__':
-  absltest.main()

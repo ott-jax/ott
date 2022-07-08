@@ -16,15 +16,16 @@
 import jax
 import jax.numpy as jnp
 import jax.test_util
-from absl.testing import absltest
+import pytest
 
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
-class FitGmmTest(absltest.TestCase):
+@pytest.mark.fast
+class TestFitGmm:
 
-  def setUp(self):
-    super().setUp()
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     mean_generator = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                [[0.5, 0.4], [0.4, 0.5]]])
@@ -38,8 +39,7 @@ class FitGmmTest(absltest.TestCase):
         )
     )
 
-    key = jax.random.PRNGKey(0)
-    self.key, subkey = jax.random.split(key)
+    self.key, subkey = jax.random.split(rng)
     self.samples = gmm_generator.sample(key=subkey, size=2000)
 
   def test_integration(self):
@@ -56,7 +56,3 @@ class FitGmmTest(absltest.TestCase):
     _ = fit_gmm.fit_model_em(
         gmm=gmm_init, points=self.samples, point_weights=None, steps=20
     )
-
-
-if __name__ == '__main__':
-  absltest.main()

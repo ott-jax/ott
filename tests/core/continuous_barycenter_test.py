@@ -16,32 +16,38 @@
 
 import jax
 import jax.numpy as jnp
-from absl.testing import absltest, parameterized
+import numpy as np
+import pytest
 
 from ott.core import bar_problems, continuous_barycenter
 from ott.geometry import costs
 
 
-class Barycenter(parameterized.TestCase):
+class TestBarycenter:
+  DIM = 4
+  N_POINTS = 113
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-    self._dim = 4
-    self._num_points = 113
-
-  @parameterized.product(
+  @pytest.mark.fast.with_args(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
       jit=[True, False],
-      init_random=[True, False]
+      init_random=[True, False],
+      only_fast={
+          "rank": -1,
+          "epsilon": 1e-1,
+          "jit": True,
+          "init_random": False
+      },
   )
-  def test_euclidean_barycenter(self, rank, epsilon, jit, init_random):
-    rngs = jax.random.split(self.rng, 20)
+  def test_euclidean_barycenter(
+      self, rng: jnp.ndarray, rank: int, epsilon: float, jit: bool,
+      init_random: bool
+  ):
+    rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
-    y1 = jax.random.uniform(rngs[0], (self._num_points, self._dim))
-    y2 = jax.random.uniform(rngs[1], (self._num_points, self._dim)) + 2
+    y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
+    y2 = jax.random.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
     # Merge them
     y = jnp.concatenate((y1, y2))
 
@@ -53,7 +59,6 @@ class Barycenter(parameterized.TestCase):
       c = jax.random.uniform(rngs[i], (num_per_segment[i],))
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
-    print(b.shape)
     # Set a barycenter problem with 8 measures, of irregular sizes.
 
     bar_prob = bar_problems.BarycenterProblem(
@@ -80,29 +85,39 @@ class Barycenter(parameterized.TestCase):
     # initialization consists in selecting randomly points in the y's.
     if init_random:
       # choose points randomly in area relevant to the problem.
-      x_init = 3 * jax.random.uniform(rngs[-1], (bar_size, self._dim))
+      x_init = 3 * jax.random.uniform(rngs[-1], (bar_size, self.DIM))
       out = solver(bar_prob, bar_size=bar_size, x_init=x_init)
     else:
       out = solver(bar_prob, bar_size=bar_size)
 
     # Check shape is as expected
-    self.assertTrue(out.x.shape == (bar_size, self._dim))
+    np.testing.assert_array_equal(out.x.shape, (bar_size, self.DIM))
 
     # Check convergence by looking at cost evolution.
-    costs = out.costs
-    costs = costs[costs > -1]
-    self.assertTrue(jnp.isclose(costs[-2], costs[-1], rtol=threshold))
+    c = out.costs[out.costs > -1]
+    assert jnp.isclose(c[-2], c[-1], rtol=threshold)
 
     # Check barycenter has all points roughly in [1,2]^4.
     # (this is because sampled points were equally set in either [0,1]^4
     # or [2,3]^4)
-    self.assertTrue(jnp.all(out.x.ravel() < 2.3))
-    self.assertTrue(jnp.all(out.x.ravel() > .7))
+    assert jnp.all(out.x.ravel() < 2.3)
+    assert jnp.all(out.x.ravel() > .7)
 
-  @parameterized.product(
-      lse_mode=[True, False], epsilon=[1e-1, 5e-1], jit=[True, False]
+  @pytest.mark.fast.with_args(
+      lse_mode=[False, True],
+      epsilon=[1e-1, 5e-1],
+      jit=[False, True],
+      # TODO(michalk8): finalize the API
+      # might be beneficial to all for more than 1 test to be selected
+      only_fast={
+          "lse_mode": True,
+          "epsilon": 1e-1,
+          "jit": False
+      }
   )
-  def test_bures_barycenter(self, lse_mode, epsilon, jit):
+  def test_bures_barycenter(
+      self, rng: jnp.ndarray, lse_mode: bool, epsilon: float, jit: bool
+  ):
     num_measures = 2
     num_components = 2
     dimension = 2
@@ -128,8 +143,7 @@ class Barycenter(parameterized.TestCase):
     y = jnp.concatenate((y1, y2))
     b = jnp.concatenate((b1, b2))
 
-    key = jax.random.PRNGKey(0)
-    keys = jax.random.split(key, num=2)
+    keys = jax.random.split(rng, num=2)
     x_init_means = jax.random.uniform(keys[0], (bar_size, dimension))
     x_init_covs = jax.vmap(
         lambda a: a @ jnp.transpose(a), in_axes=0
@@ -159,32 +173,24 @@ class Barycenter(parameterized.TestCase):
 
     means_bary, covs_bary = bures_cost.x_to_means_and_covs(barycenter)
 
-    self.assertTrue(
-        jnp.logical_or(
-            jnp.allclose(
-                means_bary,
-                jnp.array([[0., 1.], [0., -1.]]),
-                rtol=1e-02,
-                atol=1e-02
-            ),
-            jnp.allclose(
-                means_bary,
-                jnp.array([[0., -1.], [0., 1.]]),
-                rtol=1e-02,
-                atol=1e-02
-            )
-        )
-    )
-
-    self.assertTrue(
+    assert jnp.logical_or(
         jnp.allclose(
-            covs_bary,
-            jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
-            rtol=1e-05,
-            atol=1e-05
+            means_bary,
+            jnp.array([[0., 1.], [0., -1.]]),
+            rtol=1e-02,
+            atol=1e-02
+        ),
+        jnp.allclose(
+            means_bary,
+            jnp.array([[0., -1.], [0., 1.]]),
+            rtol=1e-02,
+            atol=1e-02
         )
     )
 
-
-if __name__ == '__main__':
-  absltest.main()
+    assert jnp.allclose(
+        covs_bary,
+        jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
+        rtol=1e-05,
+        atol=1e-05
+    )
