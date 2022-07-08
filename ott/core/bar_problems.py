@@ -102,7 +102,7 @@ class BarycenterProblem:
           self._indices_are_sorted,
           self._num_per_segment,
           self.max_measure_size,
-          padder=self.cost_fn.padder
+          padding_vector=self.cost_fn.padder(self._y.shape[1])
       )
     return self.add_slice_for_debiased(segmented_y, segmented_b)
 
@@ -173,7 +173,7 @@ class BarycenterProblem:
           self._indices_are_sorted,
           self._num_per_segment,
           self.max_measure_size,
-          padder=self.cost_fn.padder
+          padding_vector=self.cost_fn.padder(self._y.shape[1])
       )
     return num_segments
 
