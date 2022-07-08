@@ -14,13 +14,13 @@
 """Implements the sinkhorn divergence."""
 
 import collections
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 import jax
 from jax import numpy as jnp
 
 from ott.core import segment, sinkhorn
-from ott.geometry import geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 
 SinkhornDivergenceOutput = collections.namedtuple(
     'SinkhornDivergenceOutput',
@@ -148,7 +148,6 @@ def _sinkhorn_divergence(
 def segment_sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
-    padder: Optional[Callable[..., jnp.ndarray]] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
@@ -165,11 +164,9 @@ def segment_sinkhorn_divergence(
   """Compute Sinkhorn divergence between subsets of data with point cloud.
 
   The second interface assumes `x` and `y` are segmented contiguously.
-
   In all cases, both `x` and `y` should contain the same number of segments.
   Each segment will be separately run through the sinkhorn divergence using
   array padding.
-
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
@@ -203,10 +200,13 @@ def segment_sinkhorn_divergence(
       matrix.
     kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
-
   Returns:
     An array of sinkhorn divergence values for each segment.
   """
+  dim = x.shape[1]
+  cost_fn = kwargs.pop('cost_fn', costs.Euclidean())
+  padding_vector = cost_fn.padder(dim=dim)
+
   use_segment_ids = segment_ids_x is not None
   if use_segment_ids:
     assert segment_ids_y is not None
@@ -221,7 +221,7 @@ def segment_sinkhorn_divergence(
       num_segments,
       indices_are_sorted,
       num_per_segment_x,
-      padder=padder
+      padding_vector=padding_vector
   )
 
   segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
@@ -231,7 +231,7 @@ def segment_sinkhorn_divergence(
       num_segments,
       indices_are_sorted,
       num_per_segment_y,
-      padder=padder
+      padding_vector=padding_vector
   )
 
   assert num_segments_x == num_segments_y
