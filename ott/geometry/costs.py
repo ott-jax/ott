@@ -16,6 +16,7 @@
 """Several cost/norm functions for relevant vector types."""
 import abc
 import functools
+import math
 from typing import Any, Callable, Optional, Union
 
 import jax
@@ -244,14 +245,14 @@ class Bures(CostFn):
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
 
-  # @classmethod
-  # def padder(cls, dim):
-  #   """Padding with concatenated zero means and raveled identity covariance matrix."""
-  #   dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
-  #   padding = mean_and_cov_to_x(
-  #       jnp.zeros((dimension,)), jnp.eye(dimension), dimension
-  #   )
-  #   return padding[jnp.newaxis, :]
+  @classmethod
+  def padder(cls, dim):
+    """Padding with concatenated zero means and raveled identity covariance matrix."""
+    dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
+    padding = mean_and_cov_to_x(
+        jnp.zeros((dimension,)), jnp.eye(dimension), dimension
+    )
+    return padding[jnp.newaxis, :]
 
   def barycenter_init(self, ys, _, bar_size, key):
     """Initialization of the barycenter with as a GMM with means random convex combinations of the means of the input measures and covariances random psd matrices."""
