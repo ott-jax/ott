@@ -14,25 +14,25 @@
 
 # Lint as: python3
 """Tests for the Gromov Wasserstein."""
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.core import gromov_wasserstein, quad_problems
 from ott.geometry import geometry, pointcloud
 
 
-class GromovWassersteinTest(parameterized.TestCase):
+class TestGromovWasserstein:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
     self.n, self.m = 5, 6
-    keys = jax.random.split(self.rng, 8)
+    keys = jax.random.split(rng, 8)
     self.x = jax.random.uniform(keys[0], (self.n, d_x))
     self.y = jax.random.uniform(keys[1], (self.m, d_y))
     a = jax.random.uniform(keys[2], (self.n,)) + 0.1
@@ -52,7 +52,7 @@ class GromovWassersteinTest(parameterized.TestCase):
     out = gromov_wasserstein.gromov_wasserstein(
         geom_xx=geom_x, geom_yy=geom_y, a=self.a, b=self.b, epsilon=.1
     ).errors
-    self.assertIsNone(out)
+    assert out is None
 
     out = gromov_wasserstein.gromov_wasserstein(
         geom_xx=geom_x,
@@ -68,11 +68,11 @@ class GromovWassersteinTest(parameterized.TestCase):
 
     out = out[jnp.sum(out > 0, axis=1) > 0, :]
     last_errors = out[-1, :]
-    self.assertGreater(threshold_sinkhorn, last_errors[last_errors > -1][-1])
-    self.assertEqual(out.ndim, 2)
+    assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
+    assert out.ndim == 2
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_marginals_gromov_wasserstein(self, jit):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_gradient_marginals_gromov_wasserstein(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -102,14 +102,15 @@ class GromovWassersteinTest(parameterized.TestCase):
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)
       grad_manual_b = aux[1] - jnp.log(self.b)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
       np.testing.assert_allclose(
           grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2
       )
       np.testing.assert_allclose(
           grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2
       )
+
     np.testing.assert_allclose(
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
     )
@@ -117,6 +118,7 @@ class GromovWassersteinTest(parameterized.TestCase):
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
+  @pytest.mark.fast
   def test_gromov_wasserstein_pointcloud(self):
     """Test basic computations pointclouds."""
 
@@ -127,10 +129,10 @@ class GromovWassersteinTest(parameterized.TestCase):
           geom_x, geom_y, a=a, b=b, epsilon=1.0, max_iterations=10
       ).reg_gw_cost
 
-    self.assertIsNot(jnp.isnan(reg_gw(self.x, self.y, self.a, self.b)), True)
+    assert not jnp.isnan(reg_gw(self.x, self.y, self.a, self.b))
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_gromov_wasserstein_pointcloud(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gradient_gromov_wasserstein_pointcloud(self, lse_mode: bool):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, a, b, implicit):
@@ -161,8 +163,9 @@ class GromovWassersteinTest(parameterized.TestCase):
       )
       _, grad_reg_gw = reg_gw_and_grad(self.x, self.y, self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
     np.testing.assert_allclose(
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
     )
@@ -170,8 +173,8 @@ class GromovWassersteinTest(parameterized.TestCase):
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_gromov_wasserstein_geometry(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gradient_gromov_wasserstein_geometry(self, lse_mode: bool):
     """Test gradient w.r.t. cost matrices."""
 
     def reg_gw(cx, cy, a, b, implicit):
@@ -204,8 +207,8 @@ class GromovWassersteinTest(parameterized.TestCase):
           self.cx, self.cy, self.a, self.b, implicit
       )
       grad_matrices[i] = grad_reg_gw
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
     np.testing.assert_allclose(
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
     )
@@ -228,12 +231,13 @@ class GromovWassersteinTest(parameterized.TestCase):
           threshold=threshold
       ).reg_gw_cost
 
-    self.assertGreater(loss_thre(.1), loss_thre(.001))
-    self.assertGreater(loss_thre(.001), loss_thre(.00001))
+    assert loss_thre(1e-1), loss_thre(1e-3)
+    assert loss_thre(1e-3), loss_thre(1e-5)
 
-  def test_gw_lr(self):
+  @pytest.mark.fast
+  def test_gw_lr(self, rng: jnp.ndarray):
     """Checking LR and Entropic have similar outputs on same problem."""
-    rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+    rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 24, 17, 2, 3
     x = jax.random.uniform(rngs[0], (n, d1))
     y = jax.random.uniform(rngs[1], (m, d2))
@@ -251,9 +255,9 @@ class GromovWassersteinTest(parameterized.TestCase):
     ot_gw = solver(prob)
     np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
 
-  def test_gw_lr_fused(self):
+  def test_gw_lr_fused(self, rng: jnp.ndarray):
     """Checking LR and Entropic have similar outputs on same fused problem."""
-    rngs = jax.random.split(jax.random.PRNGKey(0), 5)
+    rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
     x = jax.random.uniform(rngs[0], (n, d1))
     y = jax.random.uniform(rngs[1], (m, d2))
@@ -277,15 +281,13 @@ class GromovWassersteinTest(parameterized.TestCase):
     ot_gw = solver(prob)
 
     # Test solutions look alike
-    self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix))
-    self.assertGreater(0.1, jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix))
+    assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
+    assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
     # Test at least some difference when adding bigger entropic regularization
-    self.assertGreater(
-        jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix), 1e-3
-    )
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
-  @parameterized.parameters([True, "mean", "max_cost"])
-  def test_gw_fused_scale_cost(self, scale_cost):
+  @pytest.mark.parametrize("scale_cost", [True, "mean", "max_cost"])
+  def test_gw_fused_scale_cost(self, scale_cost: Union[bool, str]):
     epsilon = 0.1
     fused_penalty = 1
     geom_x = pointcloud.PointCloud(self.x, scale_cost=None)
@@ -317,7 +319,7 @@ class GromovWassersteinTest(parameterized.TestCase):
     np.testing.assert_allclose(pred.matrix, gt.matrix)
     np.testing.assert_allclose(pred.costs, gt.costs)
 
-  @parameterized.parameters([0, 1])
+  @pytest.mark.parametrize("axis", [0, 1])
   def test_gw_lr_apply(self, axis: int):
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -337,5 +339,136 @@ class GromovWassersteinTest(parameterized.TestCase):
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
 
-if __name__ == '__main__':
-  absltest.main()
+class TestGromovWassersteinUnbalanced:
+
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    d_x = 2
+    d_y = 3
+    self.n, self.m = 5, 6
+    keys = jax.random.split(rng, 7)
+    self.x = jax.random.uniform(keys[0], (self.n, d_x))
+    self.y = jax.random.uniform(keys[1], (self.m, d_y))
+    a = jax.random.uniform(keys[2], (self.n,)) + 0.1
+    b = jax.random.uniform(keys[3], (self.m,)) + 0.1
+    self.a = a / jnp.sum(a)
+    self.b = b / jnp.sum(b)
+    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
+    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+    self.tau_a = 0.8
+    self.tau_b = 0.9
+
+  @pytest.mark.fast
+  def test_gromov_wasserstein_pointcloud(self):
+    """Test basic computations pointclouds."""
+
+    def reg_gw(x, y, a, b):
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          epsilon=1.0,
+          max_iterations=10
+      ).reg_gw_cost
+
+    cost = reg_gw(self.x, self.y, self.a, self.b)
+    assert not jnp.isnan(cost)
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_gradient_gromov_wasserstein_pointcloud(
+      self, gw_unbalanced_correction: bool
+  ):
+    """Test gradient w.r.t. pointclouds."""
+
+    def reg_gw(x, y, a, b, implicit):
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      sinkhorn_kwargs = {
+          'implicit_differentiation': implicit,
+          'max_iterations': 1001
+      }
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction,
+          epsilon=1.0,
+          max_iterations=10,
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
+
+    grad_matrices = [None, None]
+    for i, implicit in enumerate([True, False]):
+      reg_gw_and_grad = jax.value_and_grad(
+          reg_gw, argnums=(
+              0,
+              1,
+          )
+      )
+      _, grad_reg_gw = reg_gw_and_grad(self.x, self.y, self.a, self.b, implicit)
+      grad_matrices[i] = grad_reg_gw
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_gradient_gromov_wasserstein_geometry(
+      self, gw_unbalanced_correction: bool
+  ):
+    """Test gradient w.r.t. cost matrices."""
+
+    def reg_gw(cx, cy, a, b, implicit):
+      geom_x = geometry.Geometry(cost_matrix=cx)
+      geom_y = geometry.Geometry(cost_matrix=cy)
+      sinkhorn_kwargs = {
+          'implicit_differentiation': implicit,
+          'max_iterations': 1001
+      }
+      return gromov_wasserstein.gromov_wasserstein(
+          geom_x,
+          geom_y,
+          a=a,
+          b=b,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction,
+          epsilon=1.0,
+          max_iterations=10,
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
+
+    grad_matrices = [None, None]
+    for i, implicit in enumerate([True, False]):
+      reg_gw_and_grad = jax.value_and_grad(
+          reg_gw, argnums=(
+              0,
+              1,
+          )
+      )
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.cx, self.cy, self.a, self.b, implicit
+      )
+      grad_matrices[i] = grad_reg_gw
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
