@@ -103,7 +103,7 @@ class Euclidean(CostFn):
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Output barycenter of vectors when using squared-Euclidean distance."""
-    return compute_weighted_mean(xs, weights)
+    return jnp.average(xs, weights=weights, axis=0)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -366,7 +366,3 @@ def mean_and_cov_to_x(mean, covariance, dimension):
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
   x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
   return x
-
-
-def compute_weighted_mean(x, weights):
-  return jnp.average(x, weights=weights, axis=0)
