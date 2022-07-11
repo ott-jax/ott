@@ -416,7 +416,7 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
-    assert self.is_squared_euclidean, "Cost matrix must be a squared Euclidean."
+    assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
     nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
