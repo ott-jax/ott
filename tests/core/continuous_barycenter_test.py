@@ -136,8 +136,12 @@ class TestBarycenter:
         jnp.eye(dimension) for i in range(num_components)
     ])
 
-    y1 = costs.means_and_covs_to_x(means1, covs1, dimension)
-    y2 = costs.means_and_covs_to_x(means2, covs2, dimension)
+    means_and_covs_to_x = jax.vmap(
+        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
+    )
+
+    y1 = means_and_covs_to_x(means1, covs1, dimension)
+    y2 = means_and_covs_to_x(means2, covs2, dimension)
 
     b1 = b2 = jnp.ones(num_components) / num_components
 
@@ -151,9 +155,7 @@ class TestBarycenter:
     x_init_means = gmm_generator.loc
     x_init_covs = gmm_generator.covariance
 
-    x_init = jax.vmap(
-        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
-    )(x_init_means, x_init_covs, dimension)
+    x_init = means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
     bar_p = bar_problems.BarycenterProblem(
         y,
