@@ -12,25 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for the option to scale the cost matrix."""
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.core import linear_problems, sinkhorn, sinkhorn_lr
 from ott.geometry import geometry, low_rank, pointcloud
 
 
-class ScaleCostTest(parameterized.TestCase):
+class TestScaleCost:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 4
     self.n = 7
     self.m = 9
-    self.rng, *rngs = jax.random.split(self.rng, 8)
+    self.rng, *rngs = jax.random.split(rng, 8)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
     self.a = jax.random.uniform(rngs[2], (self.n,))
@@ -42,19 +42,29 @@ class ScaleCostTest(parameterized.TestCase):
     self.cost_lr = jnp.max(jnp.dot(self.cost1, self.cost2.T))
     self.eps = 5e-2
 
-  @parameterized.parameters([
-      'median', 'mean', 'max_cost', 'max_norm', 'max_bound', 100.
-  ])
-  def test_scale_cost_pointcloud(self, scale):
+  @pytest.mark.fast.with_args(
+      scale=["median", "mean", "max_cost", "max_norm", "max_bound", 100.],
+      batch_size=[None, 4],
+      only_fast=[0, -3],
+  )
+  def test_scale_cost_pointcloud(
+      self, scale: Union[str, float], batch_size: Optional[int]
+  ):
     """Test various scale cost options for pointcloud."""
 
-    def apply_sinkhorn(x, y, a, b, scale_cost):
+    def apply_sinkhorn(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        scale_cost: Union[str, float]
+    ):
       geom = pointcloud.PointCloud(
           x, y, epsilon=self.eps, scale_cost=scale_cost
       )
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
+
+    if scale == "median" and batch_size is not None:
+      pytest.skip("Median scaling for online is not implemented")
 
     geom0, _, _ = apply_sinkhorn(self.x, self.y, self.a, self.b, scale_cost=1.0)
 
@@ -76,51 +86,19 @@ class ScaleCostTest(parameterized.TestCase):
         rtol=1e-4
     )
 
-  @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
-  def test_scale_cost_pointcloud_online(self, scale):
-    """Test various scale cost options for point cloud with online option."""
-
-    def apply_sinkhorn(x, y, a, b, scale_cost):
-      geom = pointcloud.PointCloud(
-          x, y, epsilon=self.eps, scale_cost=scale_cost, online=4
-      )
-      out = sinkhorn.sinkhorn(geom, a, b)
-      transport = geom.transport_from_potentials(out.f, out.g)
-      return geom, out, transport
-
-    geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=1.0, online=4
-    )
-
-    geom, out, transport = jax.jit(
-        apply_sinkhorn, static_argnums=4
-    )(self.x, self.y, self.a, self.b, scale_cost=scale)
-
-    apply_cost_vec = geom.apply_cost(self.vec, axis=1)
-    apply_transport_vec = geom.apply_transport_from_potentials(
-        out.f, out.g, self.vec, axis=1
-    )
-
-    np.testing.assert_allclose(
-        jnp.matmul(transport, self.vec), apply_transport_vec, rtol=1e-4
-    )
-    np.testing.assert_allclose(
-        geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
-        apply_cost_vec,
-        rtol=1e-4
-    )
-
-  @parameterized.parameters(['mean', 'max_cost', 'max_norm', 'max_bound', 100.])
-  def test_online_matches_notonline_pointcloud(self, scale):
+  @pytest.mark.parametrize(
+      "scale", ["mean", "max_cost", "max_norm", "max_bound", 100.]
+  )
+  def test_online_matches_offline_pointcloud(self, scale: Union[str, float]):
     """Tests that the scale factors for online matches the ones without."""
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=4
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=4
     )
     geom1 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=False
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=None
     )
     geom2 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, online=True
+        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=1024
     )
     np.testing.assert_allclose(
         geom0.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
@@ -133,11 +111,16 @@ class ScaleCostTest(parameterized.TestCase):
     elif scale == 'max_cost':
       np.testing.assert_allclose(1.0, geom1.cost_matrix.max(), rtol=1e-4)
 
-  @parameterized.parameters(['median', 'mean', 'max_cost', 100.])
-  def test_scale_cost_geometry(self, scale):
+  @pytest.mark.fast.with_args(
+      "scale", ["median", "mean", "max_cost", 100.], only_fast=1
+  )
+  def test_scale_cost_geometry(self, scale: Union[str, float]):
     """Test various scale cost options for geometry."""
 
-    def apply_sinkhorn(cost, a, b, scale_cost):
+    def apply_sinkhorn(
+        cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        scale_cost: Union[str, float]
+    ):
       geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
       out = sinkhorn.sinkhorn(geom, a, b)
       transport = geom.transport_from_potentials(out.f, out.g)
@@ -163,8 +146,10 @@ class ScaleCostTest(parameterized.TestCase):
         rtol=1e-4
     )
 
-  @parameterized.parameters(['mean', 'max_bound', 'max_cost', 100.])
-  def test_scale_cost_low_rank(self, scale):
+  @pytest.mark.fast.with_args(
+      "scale", ["mean", "max_bound", "max_cost", 100.], only_fast=2
+  )
+  def test_scale_cost_low_rank(self, scale: Union[str, float]):
     """Test various scale cost options for low rank."""
 
     def apply_sinkhorn(cost1, cost2, scale_cost):
@@ -198,8 +183,8 @@ class ScaleCostTest(parameterized.TestCase):
     if scale == 'max_cost':
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
-  @parameterized.parameters([5, 12])
-  def test_max_scale_cost_low_rank_with_batch(self, batch_size):
+  @pytest.mark.parametrize("batch_size", [5, 12])
+  def test_max_scale_cost_low_rank_with_batch(self, batch_size: int):
     """Test max_cost options for low rank with batch_size fixed."""
 
     geom0 = low_rank.LRCGeometry(
@@ -223,7 +208,3 @@ class ScaleCostTest(parameterized.TestCase):
     np.testing.assert_allclose(
         geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4
     )
-
-
-if __name__ == '__main__':
-  absltest.main()

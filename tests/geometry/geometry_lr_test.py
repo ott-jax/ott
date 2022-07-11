@@ -14,25 +14,23 @@
 
 # Lint as: python3
 """Test Low-Rank Geometry."""
+from typing import Callable, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
+import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
 
 
-class LRGeometryTest(parameterized.TestCase):
+@pytest.mark.fast
+class TestLRGeometry:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-
-  def test_apply(self):
+  def test_apply(self, rng: jnp.ndarray):
     """Test application of cost to vec or matrix."""
     n, m, r = 17, 11, 7
-    keys = jax.random.split(self.rng, 5)
+    keys = jax.random.split(rng, 5)
     c1 = jax.random.normal(keys[0], (n, r))
     c2 = jax.random.normal(keys[1], (m, r))
     c = jnp.matmul(c1, c2.T)
@@ -48,18 +46,20 @@ class LRGeometryTest(parameterized.TestCase):
             rtol=1e-4
         )
 
-  @parameterized.parameters(['mean', 'max_cost', 'max_bound', 42.])
-  def test_conversion_pointcloud(self, scale_cost):
+  @pytest.mark.parametrize("scale_cost", ['mean', 'max_cost', 'max_bound', 42.])
+  def test_conversion_pointcloud(
+      self, rng: jnp.ndarray, scale_cost: Union[str, float]
+  ):
     """Test conversion from PointCloud to LRCGeometry."""
     n, m, d = 17, 11, 3
-    keys = jax.random.split(self.rng, 3)
+    keys = jax.random.split(rng, 3)
     x = jax.random.normal(keys[0], (n, d))
     y = jax.random.normal(keys[1], (m, d))
 
     geom = pointcloud.PointCloud(x, y, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
 
-    self.assertEqual(geom._scale_cost, geom_lr._scale_cost)
+    assert geom._scale_cost == geom_lr._scale_cost
     np.testing.assert_allclose(
         geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
     )
@@ -72,10 +72,10 @@ class LRGeometryTest(parameterized.TestCase):
             rtol=1e-4
         )
 
-  def test_apply_squared(self):
+  def test_apply_squared(self, rng: jnp.ndarray):
     """Test application of squared cost to vec or matrix."""
     n, m = 27, 25
-    keys = jax.random.split(self.rng, 5)
+    keys = jax.random.split(rng, 5)
     for r in [3, 15]:
       c1 = jax.random.normal(keys[0], (n, r))
       c2 = jax.random.normal(keys[1], (m, r))
@@ -94,10 +94,10 @@ class LRGeometryTest(parameterized.TestCase):
               geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
           )
 
-  def test_add_lr_geoms(self):
+  def test_add_lr_geoms(self, rng: jnp.ndarray):
     """Test application of cost to vec or matrix."""
     n, m, r, q = 17, 11, 7, 2
-    keys = jax.random.split(self.rng, 5)
+    keys = jax.random.split(rng, 5)
     c1 = jax.random.normal(keys[0], (n, r))
     c2 = jax.random.normal(keys[1], (m, r))
     d1 = jax.random.normal(keys[0], (n, q))
@@ -125,6 +125,43 @@ class LRGeometryTest(parameterized.TestCase):
           rtol=1e-4
       )
 
+  @pytest.mark.parametrize("axis", [0, 1])
+  @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])
+  def test_apply_affine_function_efficient(
+      self, rng: jnp.ndarray, fn: Callable[[jnp.ndarray], jnp.ndarray],
+      axis: int
+  ):
+    n, m, d = 21, 13, 3
+    keys = jax.random.split(rng, 3)
+    x = jax.random.normal(keys[0], (n, d))
+    y = jax.random.normal(keys[1], (m, d))
+    vec = jax.random.normal(keys[2], (n if axis == 0 else m,))
 
-if __name__ == '__main__':
-  absltest.main()
+    geom = pointcloud.PointCloud(x, y)
+
+    res_eff = geom.apply_cost(vec, axis=axis, fn=fn, is_linear=True)
+    res_ineff = geom.apply_cost(vec, axis=axis, fn=fn, is_linear=False)
+
+    if fn(0.0) == 0.0:
+      np.testing.assert_allclose(res_eff, res_ineff, rtol=1e-4, atol=1e-4)
+    else:
+      with pytest.raises(AssertionError):
+        np.testing.assert_allclose(res_ineff, res_eff, rtol=1e-4, atol=1e-4)
+
+  @pytest.mark.parametrize("rank", [5, 1000])
+  def test_point_cloud_to_lr(self, rng: jnp.ndarray, rank: int):
+    n, m = 1500, 1000
+    scale = 2.0
+    keys = jax.random.split(rng, 2)
+    x = jax.random.normal(keys[0], (n, rank))
+    y = jax.random.normal(keys[1], (m, rank))
+
+    geom_pc = pointcloud.PointCloud(x, y)
+    geom_lr = geom_pc.to_LRCGeometry(scale=scale)
+
+    if n * m > (n + m) * rank:
+      assert isinstance(geom_lr, low_rank.LRCGeometry)
+    else:
+      assert isinstance(geom_lr, pointcloud.PointCloud)
+      np.testing.assert_allclose(geom_lr.x, jnp.sqrt(scale) * geom_pc.x)
+      np.testing.assert_allclose(geom_lr.y, jnp.sqrt(scale) * geom_pc.y)

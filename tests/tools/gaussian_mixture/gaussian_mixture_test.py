@@ -18,20 +18,19 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest
+import pytest
 
 from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 
 
-class GaussianMixtureTest(absltest.TestCase):
+@pytest.mark.fast
+class TestGaussianMixture:
 
-  def setUp(self):
-    super().setUp()
-    self.key = jax.random.PRNGKey(seed=0)
-
-  def test_get_summary_stats_from_points_and_assignment_probs(self):
+  def test_get_summary_stats_from_points_and_assignment_probs(
+      self, rng: jnp.ndarray
+  ):
     n = 50
-    key, subkey0, subkey1 = jax.random.split(self.key, num=3)
+    key, subkey0, subkey1 = jax.random.split(rng, num=3)
     points0 = jax.random.normal(key=subkey0, shape=(n, 2))
     points1 = (
         2. * jax.random.normal(key=subkey1, shape=(n, 2)) + jnp.array([6., 8.])
@@ -61,14 +60,13 @@ class GaussianMixtureTest(absltest.TestCase):
     np.testing.assert_allclose(expected_cov, cov, atol=1e-4, rtol=1e-4)
     np.testing.assert_allclose(expected_wt, comp_wt, atol=1e-4, rtol=1e-4)
 
-  def test_from_random(self):
+  def test_from_random(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=self.key, n_components=3, n_dimensions=2
+        key=rng, n_components=3, n_dimensions=2
     )
-    self.assertEqual(3, gmm.n_components)
-    self.assertEqual(2, gmm.n_dimensions)
+    np.testing.assert_array_equal([gmm.n_components, gmm.n_dimensions], (3, 2))
 
-  def test_from_mean_cov_component_weights(self):
+  def test_from_mean_cov_component_weights(self,):
     mean = jnp.array([[1., 2], [3., 4.], [5, 6.]])
     cov = jnp.array([[[1., 0.], [0., 2.]], [[3., 0.], [0., 4.]],
                      [[5., 0.], [0., 6.]]])
@@ -85,9 +83,9 @@ class GaussianMixtureTest(absltest.TestCase):
         comp_wts, gmm.component_weights, atol=1e-4, rtol=1e-4
     )
 
-  def test_covariance(self):
+  def test_covariance(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=self.key, n_components=3, n_dimensions=2
+        key=rng, n_components=3, n_dimensions=2
     )
     cov = gmm.covariance
     for i, component in enumerate(gmm.components()):
@@ -95,15 +93,16 @@ class GaussianMixtureTest(absltest.TestCase):
           cov[i], component.covariance(), atol=1e-4, rtol=1e-4
       )
 
-  def test_sample(self):
+  def test_sample(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
         mean=jnp.array([[-1., 0.], [1., 0.]]),
         cov=jnp.array([[[0.01, 0.], [0., 0.01]], [[0.01, 0.], [0., 0.01]]]),
         component_weights=jnp.array([0.2, 0.8])
     )
-    samples = gmm.sample(key=self.key, size=10000)
-    self.assertEqual(samples.shape, (10000, 2))
+    samples = gmm.sample(key=rng, size=10000)
     frac_pos = jnp.mean(samples[:, 0] > 0.)
+
+    np.testing.assert_array_equal(samples.shape, (10000, 2))
     np.testing.assert_allclose(frac_pos, 0.8, atol=0.015)
     np.testing.assert_allclose(
         jnp.mean(samples[samples[:, 0] > 0.], axis=0),
@@ -116,10 +115,10 @@ class GaussianMixtureTest(absltest.TestCase):
         atol=1.e-1
     )
 
-  def test_log_prob(self):
+  def test_log_prob(self, rng: jnp.ndarray):
     n_components = 3
     size = 100
-    subkey0, subkey1 = jax.random.split(self.key, num=2)
+    subkey0, subkey1 = jax.random.split(rng, num=2)
     gmm = gaussian_mixture.GaussianMixture.from_random(
         key=subkey0,
         n_components=3,
@@ -137,32 +136,35 @@ class GaussianMixtureTest(absltest.TestCase):
           gmm.component_weights[i] * jnp.exp(gmm.components()[i].log_prob(x))
       )
     expected = jnp.log(prob)
+
     np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
-  def test_log_component_posterior(self):
+  def test_log_component_posterior(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=self.key, n_components=3, n_dimensions=2
+        key=rng, n_components=3, n_dimensions=2
     )
     x = jnp.zeros(shape=(1, 2))
     px_c = jnp.exp(gmm.conditional_log_prob(x))
     pc = gmm.component_weights
     posterior = (px_c * pc) / jnp.sum(px_c * pc)
     expected = jnp.log(posterior)
+
     np.testing.assert_allclose(
         expected, gmm.get_log_component_posterior(x), atol=1e-4, rtol=1e-4
     )
 
-  def test_flatten_unflatten(self):
+  def test_flatten_unflatten(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=self.key, n_components=3, n_dimensions=2
+        key=rng, n_components=3, n_dimensions=2
     )
     children, aux_data = jax.tree_util.tree_flatten(gmm)
     gmm_new = jax.tree_util.tree_unflatten(aux_data, children)
-    self.assertEqual(gmm, gmm_new)
 
-  def test_pytree_mapping(self):
+    assert gmm == gmm_new
+
+  def test_pytree_mapping(self, rng: jnp.ndarray):
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=self.key, n_components=3, n_dimensions=2
+        key=rng, n_components=3, n_dimensions=2
     )
     gmm_x_2 = jax.tree_map(lambda x: 2 * x, gmm)
     np.testing.assert_allclose(2. * gmm.loc, gmm_x_2.loc, atol=1e-4, rtol=1e-4)
@@ -175,7 +177,3 @@ class GaussianMixtureTest(absltest.TestCase):
         atol=1e-4,
         rtol=1e-4
     )
-
-
-if __name__ == '__main__':
-  absltest.main()

@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A class describing low-rank geometries."""
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -122,10 +122,10 @@ class LRCGeometry(geometry.Geometry):
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
-    # When applying square of a LRCgeometry, one can either elementwise square
+    # When applying square of a LRCGeometry, one can either elementwise square
     # the cost matrix, or instantiate an augmented (rank^2) LRCGeometry
     # and apply it. First is O(nm), the other is O((n+m)r^2).
-    if n * m < (n + m) * r ** 2:  #  better use regular apply
+    if n * m < (n + m) * r ** 2:  # better use regular apply
       return super().apply_square_cost(arr, axis)
     else:
       new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
@@ -136,7 +136,11 @@ class LRCGeometry(geometry.Geometry):
       ).apply_cost(arr, axis)
 
   def _apply_cost_to_vec(
-      self, vec: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      vec: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
@@ -145,12 +149,17 @@ class LRCGeometry(geometry.Geometry):
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
+      is_linear: Whether ``fn`` is a linear function to enable efficient
+        implementation. See :func:`ott.geometry.geometry.is_linear`
+        for a heuristic to help determine if a function is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
 
-    def efficient_apply(vec, axis, fn):
+    def linear_apply(
+        vec: jnp.ndarray, axis: int, fn: Callable[[jnp.ndarray], jnp.ndarray]
+    ) -> jnp.ndarray:
       c1 = self.cost_1 if axis == 1 else self.cost_2
       c2 = self.cost_2 if axis == 1 else self.cost_1
       c2 = fn(c2) if fn is not None else c2
@@ -158,12 +167,9 @@ class LRCGeometry(geometry.Geometry):
       out = jnp.dot(c1, jnp.dot(c2.T, vec))
       return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
-    return jax.lax.cond(
-        fn is None or geometry.is_linear(fn),
-        lambda _: efficient_apply(vec, axis, fn),
-        lambda obj: super(obj.__class__, obj)._apply_cost_to_vec(vec, axis, fn),
-        self
-    )
+    if fn is None or is_linear:
+      return linear_apply(vec, axis, fn=fn)
+    return super()._apply_cost_to_vec(vec, axis, fn=fn)
 
   def compute_max_cost(self) -> float:
     """Compute the maximum of the cost matrix.

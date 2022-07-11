@@ -110,7 +110,7 @@ class Euclidean(CostFn):
     """Compute minus twice the dot-product between vectors."""
     return -2 * jnp.vdot(x, y)
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return compute_weighted_mean(xs, weights)
 

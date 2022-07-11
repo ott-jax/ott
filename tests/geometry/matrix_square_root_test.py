@@ -19,8 +19,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
-from jax.config import config
+import pytest
 
 from ott.geometry import matrix_square_root
 
@@ -71,20 +70,18 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
   return sqrtm[0] + sqrtm[1]
 
 
-class MatrixSquareRootTest(parameterized.TestCase):
+class TestMatrixSquareRoot:
 
-  def setUp(self):
-    super().setUp()
-    key = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 13
     self.batch = 3
-
     # Values for testing the Sylvester solver
     # Sylvester equations have the form AX - XB = C
     # Shapes: A = (m, m), B = (n, n), C = (m, n), X = (m, n)
     m = 3
     n = 2
-    key, subkey0, subkey1, subkey2 = jax.random.split(key, 4)
+    key, subkey0, subkey1, subkey2 = jax.random.split(rng, 4)
     self.a = jax.random.normal(key=subkey0, shape=(2, m, m))
     self.b = jax.random.normal(key=subkey1, shape=(2, n, n))
     self.x = jax.random.normal(key=subkey2, shape=(2, m, n))
@@ -106,7 +103,7 @@ class MatrixSquareRootTest(parameterized.TestCase):
           x, min_iterations=self.dim, threshold=threshold
       )
       err = errors[errors > -1][-1]
-      self.assertGreater(threshold, err)
+      assert threshold > err
       np.testing.assert_allclose(
           x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3
       )
@@ -119,6 +116,7 @@ class MatrixSquareRootTest(parameterized.TestCase):
           atol=1e-2
       )
 
+  @pytest.mark.fast
   def test_sqrtm_batch(self):
     """Check sqrtm on larger of matrices."""
     batch_dim0 = 2
@@ -136,7 +134,7 @@ class MatrixSquareRootTest(parameterized.TestCase):
     )
 
     err = errors[errors > -1][-1]
-    self.assertGreater(threshold, err)
+    assert threshold > err
 
     eye = jnp.eye(self.dim)
     for i in range(batch_dim0):
@@ -173,63 +171,27 @@ class MatrixSquareRootTest(parameterized.TestCase):
     )
     np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
 
-  @parameterized.named_parameters(
-      dict(
-          testcase_name='test_sqrtm_sqrtm',
-          fn=lambda x: matrix_square_root.sqrtm(x)[0],
-          n_tests=3,
-          dim=3,
-          epsilon=1.e-6,
-          atol=1.e-6,
-          rtol=1.e-6,
-      ),
-      dict(
-          testcase_name='test_sqrtm_inv_sqrtm',
-          fn=lambda x: matrix_square_root.sqrtm(x)[1],
-          n_tests=3,
-          dim=3,
-          epsilon=1.e-6,
-          atol=1.e-8,
-          rtol=1.e-8,
-      ),
-      dict(
-          testcase_name='test_sqrtm_sqrtm_plus_inv_sqrtm',
-          fn=_sqrt_plus_inv_sqrt,
-          n_tests=3,
-          dim=3,
-          epsilon=1.e-6,
-          atol=1.e-8,
-          rtol=1.e-8,
-      ),
-      dict(
-          testcase_name='test_sqrtm_only',
-          fn=matrix_square_root.sqrtm_only,
-          n_tests=3,
-          dim=3,
-          epsilon=1.e-6,
-          atol=1.e-8,
-          rtol=1.e-8,
-      ),
-      dict(
-          testcase_name='test_inv_sqrtm_only',
-          fn=matrix_square_root.inv_sqrtm_only,
-          n_tests=3,
-          dim=2,
-          epsilon=1.e-6,
-          atol=1.e-8,
-          rtol=1.e-8,
-      ),
+  @pytest.mark.fast.with_args(
+      "fn,n_tests,dim,epsilon,atol,rtol",
+      [(lambda x: matrix_square_root.sqrtm(x)[0], 3, 3, 1e-6, 1e-6, 1e-6),
+       (lambda x: matrix_square_root.sqrtm(x)[1], 3, 3, 1e-6, 1e-8, 1e-8),
+       (_sqrt_plus_inv_sqrt, 3, 3, 1e-6, 1e-8, 1e-8),
+       (matrix_square_root.sqrtm_only, 3, 3, 1e-6, 1e-8, 1e-8),
+       (matrix_square_root.inv_sqrtm_only, 3, 2, 1e-6, 1e-8, 1e-8)],
+      ids=[
+          "sqrtm_sqrtm", "sqrtm_inv_sqrtm", "sqrtm_sqrtm_plus_inv_sqrtm",
+          "sqrtm_only", "inv_sqrtm_only"
+      ],
+      only_fast=-1,
   )
-  def test_grad(self, fn, n_tests, dim, epsilon, atol, rtol):
-    config.update('jax_enable_x64', True)
+  def test_grad(
+      self, enable_x64, fn: Callable, n_tests: int, dim: int, epsilon: float,
+      atol: float, rtol: float
+  ):
     key = self.rng
     for _ in range(n_tests):
       key, subkey = jax.random.split(key)
       test_fn = _get_test_fn(fn, dim=dim, key=subkey)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
       actual = jax.grad(test_fn)(0.)
-      np.testing.assert_allclose(expected, actual, atol=atol, rtol=rtol)
-
-
-if __name__ == '__main__':
-  absltest.main()
+      np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)
