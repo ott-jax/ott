@@ -17,8 +17,6 @@ from typing import Optional, Tuple
 import jax
 from jax import numpy as jnp
 
-from ott.geometry import costs
-
 
 def segment_point_cloud(
     x: jnp.ndarray,
@@ -78,7 +76,7 @@ def segment_point_cloud(
     max_measure_size = jnp.max(num_per_segment)
 
   if padding_vector is None:
-    padding_vector = costs.Euclidean().padder(dim=dim)
+    padding_vector = jnp.ones((1, dim))
 
   segmented_a = []
   segmented_x = []
