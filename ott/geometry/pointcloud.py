@@ -82,18 +82,16 @@ class PointCloud(geometry.Geometry):
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
-  def _norm_x(self) -> jnp.ndarray:
+  def _norm_x(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.x)
-    elif self._axis_norm is None:
-      return jnp.zeros(self.x.shape[0])
+    return 0.
 
   @property
-  def _norm_y(self) -> jnp.ndarray:
+  def _norm_y(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.y)
-    elif self._axis_norm is None:
-      return jnp.zeros(self.y.shape[0])
+    return 0.
 
   @property
   def cost_matrix(self) -> Optional[jnp.ndarray]:
@@ -158,10 +156,7 @@ class PointCloud(geometry.Geometry):
         )
     elif self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
-        return 1.0 / jnp.maximum(
-            self._cost_fn.norm(self.x).max(),
-            self._cost_fn.norm(self.y).max()
-        )
+        return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
       else:
         return 1.0
     elif self._scale_cost == 'max_bound':
@@ -421,6 +416,7 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
+    assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
     nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)

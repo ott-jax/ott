@@ -95,3 +95,22 @@ class TestPointCloudApply:
     y = jnp.zeros((m, d))
     pc = pointcloud.PointCloud(x=x, y=y)
     np.testing.assert_array_equal(pc.shape, (n, m))
+
+  @pytest.mark.parametrize("axis", [0, 1])
+  def test_apply_cost_without_norm(self, rng: jnp.ndarray, axis: 1):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(17, 3))
+    y = jax.random.normal(key2, shape=(12, 3))
+    pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
+    arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
+
+    assert pc._cost_fn.norm is None
+    with pytest.raises(
+        AssertionError, match=r"Cost matrix is not a squared Euclidean\."
+    ):
+      _ = pc.vec_apply_cost(arr, axis=axis)
+
+    expected = pc.cost_matrix @ arr if axis == 1 else pc.cost_matrix.T @ arr
+    actual = pc.apply_cost(arr, axis=axis).squeeze()
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
