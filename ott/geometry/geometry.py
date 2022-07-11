@@ -624,7 +624,7 @@ class Geometry:
       tol: float = 1e-2,
       seed: int = 0
   ) -> 'low_rank.LRCGeometry':
-    """TODO(michalk8): cite.
+    """Factorize :attr:`cost_matrix` TODO.
 
     Args:
       rank: Target rank of the :attr:`cost_matrix`.
@@ -636,16 +636,16 @@ class Geometry:
     """
     from ott.geometry import low_rank
 
+    assert rank > 0, f"Rank must be positive, got {rank}."
     rng = jax.random.PRNGKey(seed)
     key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
-    # TODO(michalk8): default for some small shape directly to SVD?
     n, m = self.shape
     n_subset = min(int(rank / tol), n, m)
 
     i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
     j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-    # force `batch_size=None`
+    # force `batch_size=None` since `cost_matrix` would be `None`
     ci_star = self.subset(
         i_star, None, batch_size=None
     ).cost_matrix.ravel() ** 2  # (m,)
@@ -679,7 +679,9 @@ class Geometry:
     col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
 
     # (n, n_subset)
-    A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
+    A_trans = self.subset(
+        None, col_ixs, batch_size=None
+    ).cost_matrix * inv_scale
     B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
     M = jnp.linalg.inv(B.T @ B)  # (k, k)
     V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
