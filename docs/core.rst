@@ -63,8 +63,6 @@ Neural Potentials
     neuraldual.NeuralDualSolver
     neuraldual.NeuralDual
 
-
-
 References
 ----------
 .. [#] M. Cuturi, `Sinkhorn Distances: Lightspeed Computation of Optimal Transport <https://papers.nips.cc/paper/2013/hash/af21d0c97db2e27e13572cbf59eb343d-Abstract.html>`_ , NIPS 2013.
