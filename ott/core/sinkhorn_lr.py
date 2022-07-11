@@ -164,7 +164,8 @@ class LRSinkhornOutput(NamedTuple):
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a ndarray; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    inputs = inputs.reshape(-1, r.shape[0])  # (batch, ...)
+    if inputs.ndim == 1:
+      inputs = inputs.reshape((1, -1))
     return jnp.dot(q, jnp.dot(inputs, r).T / self.g.reshape(-1, 1)).T.squeeze()
 
   def marginal(self, axis: int) -> jnp.ndarray:

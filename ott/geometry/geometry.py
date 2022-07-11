@@ -15,7 +15,7 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -527,14 +527,13 @@ class Geometry:
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1.
     """
-    fn = lambda x: x ** 2
-    return self.apply_cost(arr, axis, fn)
+    return self.apply_cost(arr, axis=axis, fn=lambda x: x ** 2)
 
   def apply_cost(
       self,
       arr: jnp.ndarray,
       axis: int = 0,
-      fn=None,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       **kwargs: Any
   ) -> jnp.ndarray:
     """Apply cost matrix to array (vector or matrix).
@@ -555,20 +554,10 @@ class Geometry:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
-      return jax.vmap(
-          lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
-          1,
-          1,
-      )(
-          arr.reshape(-1, 1)
-      )
-    return jax.vmap(
-        lambda x: self._apply_cost_to_vec(x, axis, fn, **kwargs),
-        1,
-        1,
-    )(
-        arr
-    )
+      arr = arr.reshape(-1, 1)
+
+    app = functools.partial(self._apply_cost_to_vec, axis=axis, fn=fn, **kwargs)
+    return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def rescale_cost_fn(self, factor: float) -> None:
     """Rescale the cost or kernel matrix using a factor.

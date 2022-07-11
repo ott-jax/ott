@@ -18,17 +18,17 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest, parameterized
+import pytest
 
-from ott.core import sinkhorn
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import costs, geometry, pointcloud
 
 
-class SinkhornTest(parameterized.TestCase):
+class TestSinkhorn:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    self.rng = rng
     self.dim = 4
     self.n = 17
     self.m = 29
@@ -44,39 +44,12 @@ class SinkhornTest(parameterized.TestCase):
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @parameterized.named_parameters(
-      dict(
-          testcase_name='lse-Leh-mom',
-          lse_mode=True,
-          momentum=1.0,
-          chg_momentum_from=29,
-          inner_iterations=10,
-          norm_error=1
-      ),
-      dict(
-          testcase_name='scal-Leh-mom',
-          lse_mode=False,
-          momentum=1.00,
-          chg_momentum_from=30,
-          inner_iterations=10,
-          norm_error=1
-      ),
-      dict(
-          testcase_name='lse-Leh-1',
-          lse_mode=True,
-          momentum=1.0,
-          chg_momentum_from=60,
-          inner_iterations=1,
-          norm_error=2
-      ),
-      dict(
-          testcase_name='lse-Leh-24',
-          lse_mode=True,
-          momentum=1.0,
-          chg_momentum_from=12,
-          inner_iterations=24,
-          norm_error=4,
-      )
+  @pytest.mark.fast.with_args(
+      "lse_mode,momentum,chg_momentum_from,inner_iterations,norm_error",
+      [(True, 1.0, 29, 10, 1), (False, 1.0, 30, 10, 1), (True, 1.0, 60, 1, 2),
+       (True, 1.0, 12, 24, 4)],
+      ids=["lse-Leh-mom", "scal-Leh-mom", "lse-Leh-1", "lse-Leh-24"],
+      only_fast=[0, -1],
   )
   def test_euclidean_point_cloud(
       self, lse_mode, momentum, chg_momentum_from, inner_iterations, norm_error
@@ -97,11 +70,11 @@ class SinkhornTest(parameterized.TestCase):
     )
     errors = out.errors
     err = errors[errors > -1][-1]
-    self.assertGreater(threshold, err)
+    assert threshold > err
 
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
     cost_other = out.cost_at_geom(other_geom)
-    self.assertIsNot(jnp.isnan(cost_other), True)
+    assert not jnp.isnan(cost_other)
 
   def test_autoepsilon(self):
     """Check that with auto-epsilon, dual potentials scale."""
@@ -136,14 +109,18 @@ class SinkhornTest(parameterized.TestCase):
 
     np.testing.assert_allclose(f_1 * scale ** 2, f_2, rtol=1e-3, atol=1e-3)
 
-  @parameterized.product(
-      lse_mode=[True, False],
+  @pytest.mark.fast.with_args(
+      lse_mode=[False, True],
       init=[5],
       decay=[.9],
       tau_a=[1.0, .93],
-      tau_b=[1.0, .91]
+      tau_b=[1.0, .91],
+      only_fast=0
   )
-  def test_autoepsilon_with_decay(self, lse_mode, init, decay, tau_a, tau_b):
+  def test_autoepsilon_with_decay(
+      self, lse_mode: bool, init: float, decay: float, tau_a: float,
+      tau_b: float
+  ):
     """Check that variations in init/decay work, and result in same solution."""
     geom = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
     out_1 = sinkhorn.sinkhorn(
@@ -153,6 +130,7 @@ class SinkhornTest(parameterized.TestCase):
         tau_a=tau_a,
         tau_b=tau_b,
         jit=True,
+        lse_mode=lse_mode,
         threshold=1e-5
     )
 
@@ -164,6 +142,7 @@ class SinkhornTest(parameterized.TestCase):
         tau_a=tau_a,
         tau_b=tau_b,
         jit=True,
+        lse_mode=lse_mode,
         threshold=1e-5
     )
     # recenter if problem is balanced, since in that case solution is only
@@ -176,6 +155,7 @@ class SinkhornTest(parameterized.TestCase):
         atol=1e-4
     )
 
+  @pytest.mark.fast
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
@@ -189,11 +169,11 @@ class SinkhornTest(parameterized.TestCase):
         implicit_differentiation=False
     ).errors
     err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
-    self.assertGreater(threshold, err)
-    self.assertEqual(jnp.inf, errors[0])
-    self.assertEqual(jnp.inf, errors[1])
-    self.assertEqual(jnp.inf, errors[2])
-    self.assertGreater(errors[3], 0)
+    assert threshold > err
+    assert errors[0] == jnp.inf
+    assert errors[1] == jnp.inf
+    assert errors[2] == jnp.inf
+    assert errors[3] > 0
 
   def test_geom_vs_point_cloud(self):
     """Two point clouds vs. simple cost_matrix execution of sinkorn."""
@@ -206,46 +186,29 @@ class SinkhornTest(parameterized.TestCase):
     f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
     f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
 
-    np.testing.assert_allclose(f_1, f_2, rtol=1E-5, atol=1E-5)
+    np.testing.assert_allclose(f_1, f_2, rtol=1e-5, atol=1e-5)
 
-  @parameterized.parameters([True], [False])
-  def test_euclidean_point_cloud_parallel_weights(self, lse_mode):
-    """Two point clouds, parallel execution for batched histograms."""
-    self.rng, *rngs = jax.random.split(self.rng, 2)
-    batch = 4
-    a = jax.random.uniform(rngs[0], (batch, self.n))
-    b = jax.random.uniform(rngs[0], (batch, self.m))
-    a = a / jnp.sum(a, axis=1)[:, jnp.newaxis]
-    b = b / jnp.sum(b, axis=1)[:, jnp.newaxis]
-    threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, online=True)
-    errors = sinkhorn.sinkhorn(
-        geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
-    ).errors
-    err = errors[errors > -1][-1]
-    self.assertGreater(jnp.min(threshold - err), 0)
-
-  @parameterized.parameters([True], [False])
-  def test_online_euclidean_point_cloud(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_online_euclidean_point_cloud(self, lse_mode: bool):
     """Testing the online way to handle geometry."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, online=True)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, batch_size=5)
     errors = sinkhorn.sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
     ).errors
     err = errors[errors > -1][-1]
-    self.assertGreater(threshold, err)
+    assert threshold > err
 
-  @parameterized.parameters([True], [False])
-  def test_online_vs_batch_euclidean_point_cloud(self, lse_mode):
+  @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
+  def test_online_vs_batch_euclidean_point_cloud(self, lse_mode: bool):
     """Comparing online vs batch geometry."""
     threshold = 1e-3
     eps = 0.1
     online_geom = pointcloud.PointCloud(
-        self.x, self.y, epsilon=eps, online=True
+        self.x, self.y, epsilon=eps, batch_size=7
     )
     online_geom_euc = pointcloud.PointCloud(
-        self.x, self.y, cost_fn=costs.Euclidean(), epsilon=eps, online=True
+        self.x, self.y, cost_fn=costs.Euclidean(), epsilon=eps, batch_size=10
     )
 
     batch_geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
@@ -280,8 +243,8 @@ class SinkhornTest(parameterized.TestCase):
     np.testing.assert_allclose(
         online_geom.transport_from_potentials(out_online.f, out_online.g),
         batch_geom.transport_from_potentials(out_batch.f, out_batch.g),
-        rtol=1E-5,
-        atol=1E-5
+        rtol=1e-5,
+        atol=1e-5
     )
 
     np.testing.assert_allclose(
@@ -291,8 +254,8 @@ class SinkhornTest(parameterized.TestCase):
         batch_geom_euc.transport_from_potentials(
             out_batch_euc.f, out_batch_euc.g
         ),
-        rtol=1E-5,
-        atol=1E-5
+        rtol=1e-5,
+        atol=1e-5
     )
 
     np.testing.assert_allclose(
@@ -300,8 +263,8 @@ class SinkhornTest(parameterized.TestCase):
         batch_geom_euc.transport_from_potentials(
             out_batch_euc.f, out_batch_euc.g
         ),
-        rtol=1E-5,
-        atol=1E-5
+        rtol=1e-5,
+        atol=1e-5
     )
 
   def test_apply_transport_geometry_from_potentials(self):
@@ -324,8 +287,8 @@ class SinkhornTest(parameterized.TestCase):
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
-      for i, online in enumerate([True, False]):
-        geom = pointcloud.PointCloud(x, y, online=online, epsilon=0.2)
+      for i, batch_size in enumerate([16, None]):
+        geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
         sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
 
         transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_potentials(
@@ -378,8 +341,8 @@ class SinkhornTest(parameterized.TestCase):
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
-      for i, online in enumerate([True, False]):
-        geom = pointcloud.PointCloud(x, y, online=online, epsilon=0.2)
+      for i, batch_size in enumerate([64, None]):
+        geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
         sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
 
         u = geom.scaling_from_potential(sink.f)
@@ -406,7 +369,10 @@ class SinkhornTest(parameterized.TestCase):
             rtol=1e-3,
             atol=1e-3
         )
-        self.assertIsNot(jnp.any(jnp.isnan(transport_t_vec_a[i + 2 * j])), True)
+        np.testing.assert_array_equal(
+            jnp.isnan(transport_t_vec_a[i + 2 * j]), False
+        )
+
     for i in range(4):
       np.testing.assert_allclose(
           transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3
@@ -415,8 +381,8 @@ class SinkhornTest(parameterized.TestCase):
           transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3
       )
 
-  @parameterized.parameters([True], [False])
-  def test_restart(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_restart(self, lse_mode: bool):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-4
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.01)
@@ -430,7 +396,7 @@ class SinkhornTest(parameterized.TestCase):
     )
     errors = out.errors
     err = errors[errors > -1][-1]
-    self.assertGreater(threshold, err)
+    assert threshold > err
 
     # recover solution from previous and ensure faster convergence.
     if lse_mode:
@@ -452,16 +418,29 @@ class SinkhornTest(parameterized.TestCase):
     )
     errors_restarted = out_restarted.errors
     err_restarted = errors_restarted[errors_restarted > -1][-1]
-    self.assertGreater(threshold, err_restarted)
+    assert threshold > err_restarted
 
     num_iter_restarted = jnp.sum(errors_restarted > -1)
     # check we can only improve on error
-    self.assertGreater(err, err_restarted)
+    assert err > err_restarted
     # check first error in restart does at least as well as previous best
-    self.assertGreater(err, errors_restarted[0])
+    assert err > errors_restarted[0]
     # check only one iteration suffices when restarting with same data.
-    self.assertEqual(num_iter_restarted, 1)
+    assert num_iter_restarted == 1
 
+  @pytest.mark.limit_memory("90 MB")
+  @pytest.mark.fast.with_args("batch_size", [500, 1000], only_fast=0)
+  def test_sinkhorn_online_memory(self, batch_size: int):
+    # offline: Total memory allocated: 240.1MiB
+    # online (500): Total memory allocated: 33.4MiB
+    # online (1000): Total memory allocated: 45.6MiB
+    rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+    n, m = 5000, 4000
+    x = jax.random.uniform(rngs[0], (n, 2))
+    y = jax.random.uniform(rngs[1], (m, 2))
+    geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
+    problem = linear_problems.LinearProblem(geom)
+    solver = sinkhorn.Sinkhorn()
 
-if __name__ == '__main__':
-  absltest.main()
+    out = solver(problem)
+    assert out.converged

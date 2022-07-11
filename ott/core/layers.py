@@ -50,10 +50,14 @@ class PositiveDense(nn.Module):
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   def setup(self):
-    if round(self.inv_rectifier_fn(self.rectifier_fn(0.1)), 3) != 0.1:
-      raise RuntimeError(
-          "Make sure both rectifier and inverse are defined properly."
-      )
+    try:
+      if round(self.inv_rectifier_fn(self.rectifier_fn(0.1)), 3) != 0.1:
+        raise RuntimeError(
+            "Make sure both rectifier and inverse are defined properly."
+        )
+    except TypeError as e:
+      if "doesn't define __round__ method" not in str(e):
+        raise  # not comparing tracer values, raise
 
   @nn.compact
   def __call__(self, inputs):

@@ -18,37 +18,33 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from absl.testing import absltest
+import pytest
 
 from ott.geometry import costs
 
 
-class CostFnTest(absltest.TestCase):
+@pytest.mark.fast
+class TestCostFn:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
-
-  def test_cosine(self):
+  def test_cosine(self, rng: jnp.ndarray):
     """Test the cosine cost function."""
-
-    x = jnp.array([0, 0], dtype=jnp.float32)
-    y = jnp.array([0, 0], dtype=jnp.float32)
+    x = jnp.array([0, 0])
+    y = jnp.array([0, 0])
     dist_x_y = costs.Cosine().pairwise(x, y)
-    np.testing.assert_allclose(dist_x_y, 1.0 - 0.0, rtol=1E-5, atol=1E-5)
+    np.testing.assert_allclose(dist_x_y, 1.0 - 0.0, rtol=1e-5, atol=1e-5)
 
-    x = jnp.array([1.0, 0], dtype=jnp.float32)
-    y = jnp.array([1.0, 0], dtype=jnp.float32)
+    x = jnp.array([1.0, 0])
+    y = jnp.array([1.0, 0])
     dist_x_y = costs.Cosine().pairwise(x, y)
-    np.testing.assert_allclose(dist_x_y, 1.0 - 1.0, rtol=1E-5, atol=1E-5)
+    np.testing.assert_allclose(dist_x_y, 1.0 - 1.0, rtol=1e-5, atol=1e-5)
 
-    x = jnp.array([1.0, 0], dtype=jnp.float32)
-    y = jnp.array([-1.0, 0], dtype=jnp.float32)
+    x = jnp.array([1.0, 0])
+    y = jnp.array([-1.0, 0])
     dist_x_y = costs.Cosine().pairwise(x, y)
-    np.testing.assert_allclose(dist_x_y, 1.0 - -1.0, rtol=1E-5, atol=1E-5)
+    np.testing.assert_allclose(dist_x_y, 1.0 - -1.0, rtol=1e-5, atol=1e-5)
 
     n, m, d = 10, 12, 7
-    keys = jax.random.split(self.rng, 2)
+    keys = jax.random.split(rng, 2)
     x = jax.random.normal(keys[0], (n, d))
     y = jax.random.normal(keys[1], (m, d))
 
@@ -61,15 +57,13 @@ class CostFnTest(absltest.TestCase):
         np.testing.assert_allclose(
             cosine_fn.pairwise(x[i], y[j]),
             exp_dist_xi_yj,
-            rtol=1E-5,
-            atol=1E-5
+            rtol=1e-5,
+            atol=1e-5
         )
 
     all_pairs = cosine_fn.all_pairs(x, y)
     for i in range(n):
       for j in range(m):
-        self.assertEqual(cosine_fn.pairwise(x[i], y[j]), all_pairs[i, j])
-
-
-if __name__ == '__main__':
-  absltest.main()
+        np.testing.assert_allclose(
+            cosine_fn.pairwise(x[i], y[j]), all_pairs[i, j]
+        )
