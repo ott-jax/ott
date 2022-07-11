@@ -70,6 +70,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     geometry
     core
     tools
+    references
 
 Indices and tables
 ==================

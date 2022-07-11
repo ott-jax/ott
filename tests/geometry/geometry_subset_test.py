@@ -27,7 +27,7 @@ class TestSubsetPointCloud:
     y = jax.random.normal(key2, shape=(20, 3))
 
     if clazz is geometry.Geometry:
-      geom = clazz(x @ y.T, scale_cost="mean")
+      geom = clazz(cost_matrix=x @ y.T, scale_cost="mean")
     else:
       geom = clazz(x, y, scale_cost="max_cost", batch_size=5)
     n = geom.shape[0] if src_ixs is None else 1 if isinstance(

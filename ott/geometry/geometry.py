@@ -624,15 +624,23 @@ class Geometry:
       tol: float = 1e-2,
       seed: int = 0
   ) -> 'low_rank.LRCGeometry':
-    """Factorize :attr:`cost_matrix` TODO.
+    r"""Factorize the cost matrix in sublinear time :cite:`indyk:19`.
+
+    Uses the implementation of :cite:`scetbon:21`, algorithm 4.
+
+    It holds that with probability *0.99*,
+    :math:`||A - UV||_F^2 \leq || A - A_k ||_F^2 + tol \cdot ||A||_F^2`,
+    where :math:`A` is ``n x m`` cost matrix, :math:`UV` the factorization
+    computed in sublinear time and :math:`A_k` the best rank-k approximation.
 
     Args:
       rank: Target rank of the :attr:`cost_matrix`.
-      tol: TODO.
+      tol: Tolerance of the error. The total number of sampled points is
+        :math:`min(n, m,\frac{rank}{tol})`.
       seed: Random seed.
 
     Returns:
-      Low-rank approximation of a geometry.
+      Low-rank geometry.
     """
     from ott.geometry import low_rank
 
