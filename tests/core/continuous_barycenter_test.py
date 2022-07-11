@@ -151,7 +151,7 @@ class TestBarycenter:
         jax.random.uniform(keys[1], (bar_size, dimension, dimension))
     )
 
-    x_init = bures_cost.means_and_covs_to_x(x_init_means, x_init_covs)
+    x_init = costs.means_and_covs_to_x(x_init_means, x_init_covs)
 
     bar_p = bar_problems.BarycenterProblem(
         y,
