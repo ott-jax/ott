@@ -21,6 +21,7 @@ import pytest
 
 from ott.core import bar_problems, continuous_barycenter
 from ott.geometry import costs
+from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 class TestBarycenter:
@@ -143,15 +144,16 @@ class TestBarycenter:
     y = jnp.concatenate((y1, y2))
     b = jnp.concatenate((b1, b2))
 
-    keys = jax.random.split(rng, num=2)
-    x_init_means = jax.random.uniform(keys[0], (bar_size, dimension))
-    x_init_covs = jax.vmap(
-        lambda a: a @ jnp.transpose(a), in_axes=0
-    )(
-        jax.random.uniform(keys[1], (bar_size, dimension, dimension))
+    gmm_generator = gaussian_mixture.GaussianMixture.from_random(
+        self.rng, n_components=bar_size, n_dimensions=dimension
     )
 
-    x_init = costs.means_and_covs_to_x(x_init_means, x_init_covs, dimension)
+    x_init_means = gmm_generator.loc
+    x_init_covs = gmm_generator.covariance
+
+    x_init = jax.vmap(
+        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
+    )(x_init_means, x_init_covs, dimension)
 
     bar_p = bar_problems.BarycenterProblem(
         y,

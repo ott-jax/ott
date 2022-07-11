@@ -176,10 +176,15 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       assert bar_size == x_init.shape[0]
       x = x_init
     else:
-      x = bar_prob.cost_fn.barycenter_init(
-          bar_prob.flattened_y, bar_prob.flattened_b, bar_size,
-          jax.random.PRNGKey(rng)
+      # sample randomly points in the support of the y measures
+      indices_subset = jax.random.choice(
+          jax.random.PRNGKey(rng),
+          a=bar_prob.flattened_y.shape[0],
+          shape=(bar_size,),
+          replace=False,
+          p=bar_prob.flattened_b
       )
+      x = bar_prob.flattened_y[indices_subset, :]
 
     # TODO(cuturi) expand to non-uniform weights for barycenter.
     a = jnp.ones((bar_size,)) / bar_size

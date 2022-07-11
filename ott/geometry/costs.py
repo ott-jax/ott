@@ -49,15 +49,6 @@ class CostFn(abc.ABC):
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
-  def barycenter_init(self, ys, bs, bar_size, key):
-    """Initialization for continuous barycenter."""
-    # sample randomly points in the support of the y measures
-    indices_subset = jax.random.choice(
-        key, a=ys.shape[0], shape=(bar_size,), replace=False, p=bs
-    )
-    x = ys[indices_subset, :]
-    return x
-
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
     return jnp.zeros((1, dim))
@@ -254,23 +245,6 @@ class Bures(CostFn):
     )
     return padding[jnp.newaxis, :]
 
-  def barycenter_init(self, ys, _, bar_size, key):
-    """Initialization of the barycenter with as a GMM with means random convex combinations of the means of the input measures and covariances random psd matrices."""
-    keys = jax.random.split(key, num=2)
-    means, _ = x_to_means_and_covs(ys, self._dimension)
-    x_init_means = jax.vmap(
-        compute_weighted_mean, in_axes=(None, 0)
-    )(means, jax.random.uniform(keys[0], shape=(bar_size, ys.shape[0])))
-    x_init_covs = jax.vmap(
-        lambda a: a @ jnp.transpose(a), in_axes=0
-    )(
-        jax.random.uniform(
-            keys[1], (bar_size, self._dimension, self._dimension)
-        )
-    )
-    bary_init = means_and_covs_to_x(x_init_means, x_init_covs, self._dimension)
-    return bary_init
-
   def tree_flatten(self):
     return (), (self._dimension, self._sqrtm_kw)
 
@@ -392,9 +366,6 @@ def mean_and_cov_to_x(mean, covariance, dimension):
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
   x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
   return x
-
-
-means_and_covs_to_x = jax.vmap(mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
 def compute_weighted_mean(x, weights):
