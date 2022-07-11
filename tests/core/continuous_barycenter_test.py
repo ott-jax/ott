@@ -149,7 +149,7 @@ class TestBarycenter:
     b = jnp.concatenate((b1, b2))
 
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
-        self.rng, n_components=bar_size, n_dimensions=dimension
+        rng, n_components=bar_size, n_dimensions=dimension
     )
 
     x_init_means = gmm_generator.loc
