@@ -602,14 +602,27 @@ class PointCloud(geometry.Geometry):
     )
 
   def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any
   ) -> "PointCloud":
+    """Subset rows and/or columns of a geometry.
+
+    Args:
+      src_ixs: Source indices. If ``None``, use all rows.
+      tgt_ixs: Target indices. If ``None``, use all columns.
+      kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
+
+    Returns:
+      The subsetted geometry.
+    """
     (x, y, *children), aux_data = self.tree_flatten()
     if src_ixs is not None:
       x = x[jnp.atleast_1d(src_ixs), :]
     if tgt_ixs is not None:
       y = y[jnp.atleast_1d(tgt_ixs), :]
-    return PointCloud.tree_unflatten(aux_data, [x, y] + children)
+
+    aux_data = {**aux_data, **kwargs}
+    return type(self).tree_unflatten(aux_data, [x, y] + children)
 
   @property
   def batch_size(self) -> Optional[int]:

@@ -627,12 +627,12 @@ class Geometry:
     """TODO(michalk8): cite.
 
     Args:
-      rank: TODO.
+      rank: Target rank of the :attr:`cost_matrix`.
       tol: TODO.
-      seed: TODO.
+      seed: Random seed.
 
     Returns:
-      TODO.
+      Low-rank approximation of a geometry.
     """
     from ott.geometry import low_rank
 
@@ -645,15 +645,19 @@ class Geometry:
     i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
     j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-    # TODO(michalk8): this will fail when `batch_size != None` for PC
-    ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
-    cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
+    # force `batch_size=None`
+    ci_star = self.subset(
+        i_star, None, batch_size=None
+    ).cost_matrix.ravel() ** 2  # (m,)
+    cj_star = self.subset(
+        None, j_star, batch_size=None
+    ).cost_matrix.ravel() ** 2  # (n,)
 
     p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
     p_row /= jnp.sum(p_row)
     row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
-
-    S = self.subset(row_ixs, None).cost_matrix  # (n_subset, m)
+    # (n_subset, m)
+    S = self.subset(row_ixs, None, batch_size=None).cost_matrix
     S /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
     p_col = jnp.sum(S ** 2, axis=0)  # (m,)
@@ -691,29 +695,40 @@ class Geometry:
     )
 
   def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any,
   ) -> "Geometry":
+    """Subset rows and/or columns of a geometry.
+
+    Args:
+      src_ixs: Source indices. If ``None``, use all rows.
+      tgt_ixs: Target indices. If ``None``, use all columns.
+      kwargs: Keyword arguments for :class:`ott.geometry.geometry.Geometry`.
+
+    Returns:
+      Subset of a geometry.
+    """
 
     def sub(
         arr: jnp.ndarray, src_ixs: Optional[jnp.ndarray],
         tgt_ixs: Optional[jnp.ndarray]
     ) -> jnp.ndarray:
       if src_ixs is not None:
-        arr = arr[src_ixs, :]
+        arr = arr[jnp.atleast_1d(src_ixs), :]
       if tgt_ixs is not None:
-        arr = arr[:, tgt_ixs]
+        arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
     (cost, kernel, *children), aux_data = self.tree_flatten()
-    src_ixs = None if src_ixs is None else jnp.atleast_1d(src_ixs)
-    tgt_ixs = None if tgt_ixs is None else jnp.atleast_1d(tgt_ixs)
-
     if cost is not None:
       cost = sub(cost, src_ixs, tgt_ixs)
     if kernel is not None:
       kernel = sub(kernel, src_ixs, tgt_ixs)
 
-    return Geometry.tree_unflatten(aux_data, [cost, kernel] + children)
+    aux_data = {**aux_data, **kwargs}
+    return type(self).tree_unflatten(aux_data, [cost, kernel] + children)
 
   def tree_flatten(self):
     return (

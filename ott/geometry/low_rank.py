@@ -227,6 +227,29 @@ class LRCGeometry(geometry.Geometry):
     """Return self."""
     return self
 
+  def subset(
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any
+  ) -> "LRCGeometry":
+    """Subset rows and/or columns of a geometry.
+
+    Args:
+      src_ixs: Source indices. If ``None``, use all rows.
+      tgt_ixs: Target indices. If ``None``, use all columns.
+      kwargs: Keyword arguments for :class:`ott.geometry.low_rank.LRCGeometry`.
+
+    Returns:
+      The subsetted geometry.
+    """
+    (c1, c2, *children), aux_data = self.tree_flatten()
+    if src_ixs is not None:
+      c1 = c1[jnp.atleast_1d(src_ixs), :]
+    if tgt_ixs is not None:
+      c2 = c2[jnp.atleast_1d(tgt_ixs), :]
+
+    aux_data = {**aux_data, **kwargs}
+    return type(self).tree_unflatten(aux_data, [c1, c2] + children)
+
   def tree_flatten(self):
     return (self._cost_1, self._cost_2, self._kwargs), {
         'bias': self._bias,
