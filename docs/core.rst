@@ -52,6 +52,7 @@ Gromov-Wasserstein (Entropic and LR)
     :toctree: _autosummary
 
     gromov_wasserstein.gromov_wasserstein
+    gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
 
 Neural Potentials

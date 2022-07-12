@@ -29,7 +29,7 @@ from ott.core import (
     sinkhorn_lr,
     was_solver,
 )
-from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
+from ott.geometry import epsilon_scheduler, geometry
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -138,30 +138,47 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
-  """A Gromov Wasserstein solver, built on generic template."""
+  """A Gromov Wasserstein solver, built on generic template.
+
+  Args:
+    args:  Positional arguments for
+      :class:`~ott.core.was_solver.WasserSteinSolver`.
+    cost_rank: Rank of the cost matrix, see
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`.
+      Used when geometries are not :class:`~ott.geometry.pointcloud.PointCloud`
+      with `'sqeucl'` cost function.
+    cost_tol: Tolerance used when converting geometries to low-rank.
+      Used when geometries are not :class:`~ott.geometry.pointcloud.PointCloud`
+      with `'sqeucl'` cost function.
+    kwargs: Keyword arguments for
+      :class:`~ott.core.was_solver.WasserSteinSolver`.
+  """
+
+  def __init__(
+      self,
+      *args: Any,
+      cost_rank: int = -1,
+      cost_tol: float = 1e-2,
+      **kwargs: Any
+  ):
+    super().__init__(*args, **kwargs)
+    self.cost_rank = cost_rank
+    self.cost_tol = cost_tol
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
     # Consider converting problem first if using low-rank solver
     if self.is_low_rank:
-      convert = (
-          isinstance(prob.geom_xx, pointcloud.PointCloud) and
-          prob.geom_xx.is_squared_euclidean and
-          isinstance(prob.geom_yy, pointcloud.PointCloud) and
-          prob.geom_yy.is_squared_euclidean
+      prob.geom_xx = prob.geom_xx.to_LRCGeometry(
+          rank=self.cost_rank, tol=self.cost_tol
       )
-      # Consider converting
-      if convert:
-        if not prob.is_fused or isinstance(prob.geom_xy, low_rank.LRCGeometry):
-          prob.geom_xx = prob.geom_xx.to_LRCGeometry()
-          prob.geom_yy = prob.geom_yy.to_LRCGeometry()
-        else:
-          if (
-              isinstance(prob.geom_xy, pointcloud.PointCloud) and
-              prob.geom_xy.is_squared_euclidean
-          ):
-            prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
-            prob.geom_xx = prob.geom_xx.to_LRCGeometry()
-            prob.geom_yy = prob.geom_yy.to_LRCGeometry()
+      prob.geom_yy = prob.geom_yy.to_LRCGeometry(
+          rank=self.cost_rank, tol=self.cost_tol
+      )
+      if prob.geom_xy is not None:
+        # pass `fused_penalty` in case `geom_xy` is a sqeucl point cloud
+        prob.geom_xy = prob.geom_xy.to_LRCGeometry(
+            prob.fused_penalty, rank=self.rank, tol=self.cost_tol
+        )
 
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
