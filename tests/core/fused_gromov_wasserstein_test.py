@@ -20,8 +20,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import gromov_wasserstein
-from ott.geometry import geometry, pointcloud
+from ott.core import gromov_wasserstein, quad_problems
+from ott.geometry import geometry, low_rank, pointcloud
 
 
 class TestFusedGromovWasserstein:
@@ -374,3 +374,34 @@ class TestFusedGromovWasserstein:
     assert ot_gwlr.convergence
     assert res0.shape == (d1, m)
     assert res1.shape == (d2, n)
+
+  @pytest.mark.parametrize("cost_rank", [-1, 4])
+  def test_gw_lr_generic_cost_matrix(self, rng: jnp.ndarray, cost_rank: int):
+    n, m = 70, 100
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+    x = jax.random.normal(key1, shape=(n, 7))
+    y = jax.random.normal(key2, shape=(m, 6))
+    xx = jax.random.normal(key3, shape=(n, 5))
+    yy = jax.random.normal(key4, shape=(m, 5))
+
+    geom_x = geometry.Geometry(cost_matrix=x @ x.T)
+    geom_y = geometry.Geometry(cost_matrix=y @ y.T)
+    geom_xy = geometry.Geometry(cost_matrix=xx @ yy.T)
+
+    problem = quad_problems.QuadraticProblem(geom_x, geom_y, geom_xy)
+    solver = gromov_wasserstein.GromovWasserstein(
+        rank=5, cost_rank=cost_rank, cost_tol=5e-1, epsilon=1
+    )
+    out = solver(problem)
+
+    assert solver.rank == 5
+    for geom in [problem.geom_xx, problem.geom_yy, problem.geom_xy]:
+      if cost_rank != -1:
+        assert isinstance(geom, low_rank.LRCGeometry)
+        assert geom.cost_rank == cost_rank
+      else:
+        assert isinstance(geom, geometry.Geometry)
+
+    assert out.convergence
+    assert out.reg_gw_cost > 0
+    np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
