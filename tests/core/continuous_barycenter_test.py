@@ -23,10 +23,24 @@ from ott.core import bar_problems, continuous_barycenter
 from ott.geometry import costs
 from ott.tools.gaussian_mixture import gaussian_mixture
 
+means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
+
+
+def is_positive_semidefinite(c: jnp.ndarray) -> bool:
+  w = jnp.linalg.eigvals(c)
+  return jnp.all(w >= 0)
+
 
 class TestBarycenter:
   DIM = 4
   N_POINTS = 113
+
+  def multiply_matrices(self, a, b):
+    return jnp.matmul(a, b)
+
+  def is_positive_semidefinite(self, c):
+    w = jnp.linalg.eigvals(c)
+    return jnp.all(w >= 0)
 
   @pytest.mark.fast.with_args(
       rank=[-1, 6],
@@ -136,10 +150,6 @@ class TestBarycenter:
         jnp.eye(dimension) for i in range(num_components)
     ])
 
-    means_and_covs_to_x = jax.vmap(
-        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
-    )
-
     y1 = means_and_covs_to_x(means1, covs1, dimension)
     y2 = means_and_covs_to_x(means2, covs2, dimension)
 
@@ -197,4 +207,110 @@ class TestBarycenter:
         jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
         rtol=1e-05,
         atol=1e-05
+    )
+
+  @pytest.mark.fast.with_args(
+      alpha=[50., 1.],
+      epsilon=[1e-2, 1e-1],
+      jit=[False, True],
+      dim=[4, 10],
+      only_fast={
+          "alpha": 50,
+          "epsilon": 1e-1,
+          "jit": False,
+          "dim": 4
+      }
+  )
+  def test_bures_barycenter_different_number_of_components(
+      self, rng: jnp.ndarray, dim: int, alpha: float, epsilon: float, jit: bool
+  ):
+    n_components = jnp.array([3, 4])  # the number of components of the GMMs
+    num_measures = n_components.size
+    bar_size = 5  # the size of the barycenter
+    max_measure_size = jnp.max(n_components)
+
+    # Create an instance of the Bures cost class.
+    b_cost = costs.Bures(dimension=dim)
+
+    # keys for random number generation
+    keys = jax.random.split(rng, num=4)
+
+    # test for non-uniform barycentric weights
+    barycentric_weights = jax.random.dirichlet(
+        keys[0], alpha=jnp.ones(num_measures) * alpha
+    )
+
+    ridges = jnp.array([jnp.ones(dim), 5 * jnp.ones(dim)])
+    stdev_means = 0.1 * jnp.mean(ridges, axis=1)
+    stdev_covs = jax.random.uniform(
+        keys[1], shape=(num_measures,), minval=0., maxval=10.
+    )
+
+    seeds = jax.random.randint(
+        keys[2], shape=(num_measures,), minval=0, maxval=100
+    )
+
+    gmm_generators = [
+        gaussian_mixture.GaussianMixture.from_random(
+            jax.random.PRNGKey(seeds[i]),
+            n_components=n_components[i],
+            n_dimensions=dim,
+            stdev_cov=stdev_covs[i],
+            stdev_mean=stdev_means[i],
+            ridge=ridges[i]
+        ) for i in range(num_measures)
+    ]
+
+    means_covs = [(gmm_generators[i].loc, gmm_generators[i].covariance)
+                  for i in range(num_measures)]
+
+    # positions of mass of the measures
+    ys = jnp.vstack(
+        means_and_covs_to_x(means_covs[i][0], means_covs[i][1], dim)
+        for i in range(num_measures)
+    )
+
+    # mass distribution of the measures
+    weights = [
+        gmm_generators[i].component_weight_ob.probs()
+        for i in range(num_measures)
+    ]
+    bs = jnp.hstack(jnp.array(weights[i]) for i in range(num_measures))
+
+    # random initialization of the barycenter
+    gmm_generator = gaussian_mixture.GaussianMixture.from_random(
+        keys[3], n_components=bar_size, n_dimensions=dim
+    )
+    x_init_means = gmm_generator.loc
+    x_init_covs = gmm_generator.covariance
+    x_init = means_and_covs_to_x(x_init_means, x_init_covs, dim)
+
+    # test second interface for segmentation
+    seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
+    bar_p = bar_problems.BarycenterProblem(
+        ys,
+        bs,
+        weights=barycentric_weights,
+        segment_ids=seg_ids,
+        num_segments=num_measures,  # needed for jit compilation
+        max_measure_size=max_measure_size,
+        cost_fn=b_cost,
+        epsilon=epsilon
+    )
+
+    solver = continuous_barycenter.WassersteinBarycenter(lse_mode=True, jit=jit)
+
+    # Compute the barycenter.
+    out = solver(bar_p, bar_size=bar_size, x_init=x_init)
+    barycenter = out.x
+
+    means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dim)
+
+    # check the values of the means
+    assert jnp.all(means_bary.ravel() < 5.)
+    assert jnp.all(means_bary.ravel() > 1.)
+
+    # check that covariances of barycenter are psd
+    assert jnp.all(
+        jax.vmap(is_positive_semidefinite, in_axes=0, out_axes=0)(covs_bary)
     )
