@@ -116,14 +116,18 @@ class LRSinkhornOutput(NamedTuple):
     return self._replace(**kwargs)
 
   def set_cost(
-      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool,
-      use_danskin: bool
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      lse_mode: bool,
+      use_danskin: bool = False
   ) -> 'LRSinkhornOutput':
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
   def compute_reg_ot_cost(
-      self, ot_prob: linear_problems.LinearProblem, use_danskin: bool
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      use_danskin: bool = False,
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
@@ -533,7 +537,9 @@ def run(
 ) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
-  out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
+  out = out.set_cost(
+      ot_prob, lse_mode=solver.lse_mode, use_danskin=solver.use_danskin
+  )
   return out.set(ot_prob=ot_prob)
 
 
