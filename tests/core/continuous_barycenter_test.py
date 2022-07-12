@@ -300,10 +300,11 @@ class TestBarycenter:
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dim)
 
     # check the values of the means
-    assert jnp.all(means_bary.ravel() < 5.)
-    assert jnp.all(means_bary.ravel() > 1.)
+    np.testing.assert_array_equal(means_bary < 5., True)
+    np.testing.assert_array_equal(means_bary > 1., True)
 
-    # check that covariances of barycenter are psd
-    assert jnp.all(
-        jax.vmap(is_positive_semidefinite, in_axes=0, out_axes=0)(covs_bary)
+    # check that covariances of barycenter are all psd
+    np.testing.assert_array_equal(
+        jax.vmap(is_positive_semidefinite, in_axes=0, out_axes=0)(covs_bary),
+        True
     )
