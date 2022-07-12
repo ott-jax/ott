@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
+from pickle import TRUE
 from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 
 from ott.core import linear_problems
-from ott.geometry.pointcloud import PointCloud
-
+from ott.geometry import pointcloud
 
 def default_dual_a(
     ot_problem: linear_problems.LinearProblem, lse_mode: bool
@@ -28,7 +28,7 @@ def default_dual_a(
 
   Args:
     ot_problem:
-    lse_mode: Return log potentials if true. Defaults to True.
+    lse_mode: Return potentials if true, scaling if false.
 
   Returns:
     potential f, array of size n
@@ -45,7 +45,7 @@ def default_dual_b(
 
   Args:
     ot_problem:
-    lse_mode: Return log potentials if true. Defaults to True.
+    lse_mode: Return potentials if true, scaling if false.
 
   Returns:
     potential g, array of size m
@@ -63,8 +63,7 @@ def remove_weight_potential(
   Args:
     weights: array of probability masses
     init_dual: dual potential array
-    lse_mode: Return log potentials if true. Defaults to True.
-
+    lse_mode: Return potentials if true, scaling if false.
   Returns:
     potential
   """
@@ -82,7 +81,7 @@ def remove_weight_potentials(
     weights_b: array of probability masses, array of size m
     init_dual_a: potential f, array of size n
     init_dual_b: potential g, array of size m
-    lse_mode: Return log potentials if true. Defaults to True.
+    lse_mode: Return potentials if true, scaling if false.
 
   Returns:
     potentials (f,g)
@@ -93,11 +92,11 @@ def remove_weight_potentials(
 
 
 class SinkhornInitializer:
-  """Initialzation for Sinkhorn potential f.
+  """Initialization.
 
   Args:
     ot_problem: OT problem between discrete distributions of size n and m.
-    lse_mode: Return log potential. Defaults to True.
+    lse_mode: Return potential if true, scaling if false.
 
   Returns:
     dual potential, array of size n
@@ -106,6 +105,15 @@ class SinkhornInitializer:
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
+    """Initialzation for Sinkhorn potential f.
+
+    Args:
+      ot_problem: OT problem between discrete distributions of size n and m.
+      lse_mode: Return potential if true, scaling if false.
+
+    Returns:
+      dual potential, array of size n
+    """
 
     return default_dual_a(ot_problem=ot_problem, lse_mode=lse_mode)
 
@@ -116,7 +124,7 @@ class SinkhornInitializer:
 
     Args:
       ot_problem: OT problem between discrete distributions of size n and m.
-      lse_mode: Return log potential. Defaults to True.
+      lse_mode: Return potential if true, scaling if false.
 
     Returns:
       dual potential, array of size m
@@ -126,6 +134,12 @@ class SinkhornInitializer:
 
 class GaussianInitializer(SinkhornInitializer):
   """GaussianInitializer.
+  
+  From https://arxiv.org/abs/2206.07630.
+  Compute Gaussian approximations of each pointcloud, then compute closed from
+  Kantorovic potential betwen Gaussian approximations using Brenier's theorem
+  (adapt convex/ Brenier potential to Kantoroic). Use this Gaussian potential to
+  initialize Sinkhorn potentials.
 
   Args:
     stop_gradient: Defaults to True.
@@ -147,15 +161,15 @@ class GaussianInitializer(SinkhornInitializer):
     Args:
       ot_problem: OT problem description with geometry and weights.
       init_f: Pre dual sort initialization, when none sets entries as 0.
-      lse_mode: Return log potential if true. Defaults to True.
+      lse_mode: Return potential if true, scaling if false. 
 
     Returns:
       potential f, array of size n.
     """
-    # import here due to circular imports
-    from ott.tools.gaussian_mixture.gaussian import Gaussian
+    # import Gaussian here due to circular imports
+    from ott.tools.gaussian_mixture import gaussian   
 
-    if not isinstance(ot_problem.geom, PointCloud):
+    if not isinstance(ot_problem.geom, pointcloud.PointCloud):
       # warning that init not applied
       return default_dual_a(ot_problem, lse_mode)
     else:
@@ -166,8 +180,8 @@ class GaussianInitializer(SinkhornInitializer):
         x, y = jax.lax.stop_gradient(x), jax.lax.stop_gradient(y)
         a, b = jax.lax.stop_gradient(a), jax.lax.stop_gradient(b)
 
-      gaussian_a = Gaussian.from_samples(x, weights=a)
-      gaussian_b = Gaussian.from_samples(y, weights=b)
+      gaussian_a = gaussian.Gaussian.from_samples(x, weights=a)
+      gaussian_b = gaussian.Gaussian.from_samples(y, weights=b)
       # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
       f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
       f_potential = f_potential - jnp.mean(f_potential)
@@ -180,8 +194,13 @@ class GaussianInitializer(SinkhornInitializer):
 class SortingInit(SinkhornInitializer):
   """Sorting Init class.
 
+  DualSort algorithm from https://arxiv.org/abs/2206.07630, solve 
+  non-regularized OT problem via sorting, then compute potential through 
+  iterated minimum on C-transform and use this potentials to initialize 
+  regularized potential
+
   Args:
-    vector_min: Use vectorized inner loop if true. Defaults to False.
+    vector_min: Use vectorized inner loop if true. Defaults to True.
     tol: DualSort convergence threshold. Defaults to 1e-2.
     max_iter: Max DualSort steps. Defaults to 100.
     stop_gradient: Do not trace gradient. Defaults to True.
@@ -189,7 +208,7 @@ class SortingInit(SinkhornInitializer):
 
   def __init__(
       self,
-      vector_min: bool = False,
+      vector_min: bool = True,
       tol: float = 1e-2,
       max_iter: int = 100,
       stop_gradient: bool = True
@@ -281,7 +300,8 @@ class SortingInit(SinkhornInitializer):
 
     Args:
       ot_problem: OT problem.
-      init_f: potential f, array of size n. Defaults to None.
+      lse_mode: Return potential if true, scaling if false.
+      init_f: potential f, array of size n.
 
     Returns:
       potential f, array of size n.

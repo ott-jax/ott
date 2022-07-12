@@ -69,7 +69,7 @@ class ScaleTriL:
     )
 
     # random positive definite matrix
-    sigma = jnp.matmul(jnp.expand_dims(eigs, -2) * q, jnp.transpose(q))
+    sigma = q * jnp.expand_dims(eigs, -2)  @  q.T
 
     # cholesky factorization
     chol = jnp.linalg.cholesky(sigma)
@@ -117,7 +117,7 @@ class ScaleTriL:
   def covariance(self) -> jnp.ndarray:
     """Get the covariance matrix."""
     cholesky = self.cholesky()
-    return jnp.matmul(cholesky, jnp.transpose(cholesky))
+    return cholesky @ cholesky.T
 
   def covariance_sqrt(self) -> jnp.ndarray:
     """Get the square root of the covariance matrix."""
@@ -134,7 +134,7 @@ class ScaleTriL:
 
   def z_to_centered(self, z: jnp.ndarray) -> jnp.ndarray:
     """Scale standardized points to points with the specified covariance."""
-    return jnp.transpose(jnp.matmul(self.cholesky(), jnp.transpose(z)))
+    return (self.cholesky() @ z.T).T
 
   def w2_dist(self, other: 'ScaleTriL') -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian with same mean.
@@ -181,7 +181,7 @@ class ScaleTriL:
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray
   ) -> jnp.ndarray:
-    """Transport between 0-mean normal w/ current scale to one w/ dest_scale.
+    """Apply Monge map between 0-mean Gaussians.
 
     Args:
       dest_scale: destination Scale
@@ -191,7 +191,7 @@ class ScaleTriL:
       Points transported to a Gaussian with the new scale.
     """
     m = self.transport_scale_matrix(dest_scale)
-    return jnp.transpose(jnp.matmul(m, jnp.transpose(points)))
+    return (m @ points.T).T
 
   def tree_flatten(self):
     children = (self.params,)
