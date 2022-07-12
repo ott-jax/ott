@@ -15,10 +15,14 @@
 # Lint as: python3
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+  from ott.geometry import low_rank
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, ops
@@ -212,7 +216,7 @@ class Geometry:
     aux_data["scale_cost"] = scale_cost
     return type(self).tree_unflatten(aux_data, children)
 
-  def copy_epsilon(self, other: epsilon_scheduler.Epsilon) -> "Geometry":
+  def copy_epsilon(self, other: 'Geometry') -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
     scheduler = other._epsilon
     self._epsilon_init = scheduler._target_init
@@ -613,6 +617,128 @@ class Geometry:
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
         for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
     )
+
+  def to_LRCGeometry(
+      self,
+      rank: int,
+      tol: float = 1e-2,
+      seed: int = 0
+  ) -> 'low_rank.LRCGeometry':
+    r"""Factorize the cost matrix in sublinear time :cite:`indyk:19`.
+
+    Uses the implementation of :cite:`scetbon:21`, algorithm 4.
+
+    It holds that with probability *0.99*,
+    :math:`||A - UV||_F^2 \leq || A - A_k ||_F^2 + tol \cdot ||A||_F^2`,
+    where :math:`A` is ``n x m`` cost matrix, :math:`UV` the factorization
+    computed in sublinear time and :math:`A_k` the best rank-k approximation.
+
+    Args:
+      rank: Target rank of the :attr:`cost_matrix`.
+      tol: Tolerance of the error. The total number of sampled points is
+        :math:`min(n, m,\frac{rank}{tol})`.
+      seed: Random seed.
+
+    Returns:
+      Low-rank geometry.
+    """
+    from ott.geometry import low_rank
+
+    assert rank > 0, f"Rank must be positive, got {rank}."
+    rng = jax.random.PRNGKey(seed)
+    key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+    n, m = self.shape
+    n_subset = min(int(rank / tol), n, m)
+
+    i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
+    j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+
+    # force `batch_size=None` since `cost_matrix` would be `None`
+    ci_star = self.subset(
+        i_star, None, batch_size=None
+    ).cost_matrix.ravel() ** 2  # (m,)
+    cj_star = self.subset(
+        None, j_star, batch_size=None
+    ).cost_matrix.ravel() ** 2  # (n,)
+
+    p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
+    p_row /= jnp.sum(p_row)
+    row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+    # (n_subset, m)
+    S = self.subset(row_ixs, None, batch_size=None).cost_matrix
+    S /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
+
+    p_col = jnp.sum(S ** 2, axis=0)  # (m,)
+    p_col /= jnp.sum(p_col)
+    # (n_subset,)
+    col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+    # (n_subset, n_subset)
+    W = S[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
+
+    U, _, V = jsp.linalg.svd(W)
+    U = U[:, :rank]  # (n_subset, rank)
+    U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)  # (m, rank)
+
+    # lls
+    d, v = jnp.linalg.eigh(U.T @ U)  # (k,), (k, k)
+    v /= jnp.sqrt(d)[None, :]
+
+    inv_scale = (1. / jnp.sqrt(n_subset))
+    col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+
+    # (n, n_subset)
+    A_trans = self.subset(
+        None, col_ixs, batch_size=None
+    ).cost_matrix * inv_scale
+    B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
+    M = jnp.linalg.inv(B.T @ B)  # (k, k)
+    V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
+
+    return low_rank.LRCGeometry(
+        cost_1=V,
+        cost_2=U,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+        scale=self._scale_epsilon,
+        scale_cost=self._scale_cost,
+        **self._kwargs
+    )
+
+  def subset(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any,
+  ) -> "Geometry":
+    """Subset rows and/or columns of a geometry.
+
+    Args:
+      src_ixs: Source indices. If ``None``, use all rows.
+      tgt_ixs: Target indices. If ``None``, use all columns.
+      kwargs: Keyword arguments for :class:`ott.geometry.geometry.Geometry`.
+
+    Returns:
+      Subset of a geometry.
+    """
+
+    def sub(
+        arr: jnp.ndarray, src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray]
+    ) -> jnp.ndarray:
+      if src_ixs is not None:
+        arr = arr[jnp.atleast_1d(src_ixs), :]
+      if tgt_ixs is not None:
+        arr = arr[:, jnp.atleast_1d(tgt_ixs)]
+      return arr
+
+    (cost, kernel, *children), aux_data = self.tree_flatten()
+    if cost is not None:
+      cost = sub(cost, src_ixs, tgt_ixs)
+    if kernel is not None:
+      kernel = sub(kernel, src_ixs, tgt_ixs)
+
+    aux_data = {**aux_data, **kwargs}
+    return type(self).tree_unflatten(aux_data, [cost, kernel] + children)
 
   def tree_flatten(self):
     return (

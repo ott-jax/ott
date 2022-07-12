@@ -54,6 +54,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.bibtex',
     'nbsphinx',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
@@ -74,6 +75,11 @@ autosummary_generate = True
 autodoc_typehints = 'description'
 pygments_lexer = 'ipython3'
 nbsphinx_execute = 'never'
+
+# bibliography
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+bibtex_default_style = "alpha"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
