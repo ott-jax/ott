@@ -35,13 +35,6 @@ class TestBarycenter:
   DIM = 4
   N_POINTS = 113
 
-  def multiply_matrices(self, a, b):
-    return jnp.matmul(a, b)
-
-  def is_positive_semidefinite(self, c):
-    w = jnp.linalg.eigvals(c)
-    return jnp.all(w >= 0)
-
   @pytest.mark.fast.with_args(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
