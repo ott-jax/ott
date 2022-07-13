@@ -38,7 +38,7 @@ class Gaussian:
   ) -> 'Gaussian':
     """Construct a Gaussian from weighted samples.
 
-    Unbiased, weighted covariance formular from https://en.wikipedia.org/wiki/Sample_mean_and_covariance#Weighted_samples
+    Unbiased, weighted covariance formula from https://en.wikipedia.org/wiki/Sample_mean_and_covariance#Weighted_samples
     and https://www.gnu.org/software/gsl/doc/html/statistics.html?highlight=weighted#weighted-samples
 
     Args:
@@ -50,12 +50,12 @@ class Gaussian:
     """
     n = points.shape[0]
     if weights is None:
-      weights = jnp.ones(n) / n 
-    
+      weights = jnp.ones(n) / n
+
     mean = weights.dot(points)
     centered_x = (points - mean)
     scaled_centered_x = centered_x * weights.reshape(-1, 1)
-    cov = scaled_centered_x.T.dot(centered_x) / (1-weights.dot(weights))
+    cov = scaled_centered_x.T.dot(centered_x) / (1 - weights.dot(weights))
     return cls.from_mean_and_cov(mean=mean, cov=cov)
 
   @classmethod
@@ -154,7 +154,7 @@ class Gaussian:
     return delta_mean + delta_sigma
 
   def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
-    """Evaluate optimal dual potential for W2 distance between Gaussians.
+    """Optimal potential for W2 distance between Gaussians. Evaluated on points.
 
     Args:
       dest: Gaussian object
@@ -163,12 +163,9 @@ class Gaussian:
     Returns:
       Dual potential, f
     """
-    scale_matrix = self.scale.transport_scale_matrix(dest_scale=dest.scale)
+    scale_matrix = self.scale.gaussian_map(dest_scale=dest.scale)
     centered_x = points - self.loc
-    # scaled_x = jnp.transpose(
-    #     jnp.matmul(scale_matrix, jnp.transpose(centered_x))
-    # )
-    scaled_x =  (scale_matrix @ centered_x.T)
+    scaled_x = (scale_matrix @ centered_x.T)
 
     @jax.vmap
     def batch_inner_product(x, y):
@@ -176,7 +173,8 @@ class Gaussian:
 
     return (
         0.5 * batch_inner_product(points, points) -
-        0.5 * batch_inner_product(centered_x, scaled_x.T) - points.dot(dest.loc)
+        0.5 * batch_inner_product(centered_x, scaled_x.T) -
+        points.dot(dest.loc)
     )
 
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:

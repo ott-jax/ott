@@ -124,7 +124,6 @@ def solve(
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
 
-
   remove_keys = geom_keys + eps_keys if linear else geom_keys
   for key in remove_keys:
     kwargs.pop(key, None)

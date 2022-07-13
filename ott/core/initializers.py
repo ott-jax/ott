@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
-from pickle import TRUE
 from typing import Optional, Tuple
 
 import jax
@@ -21,7 +20,8 @@ import jax.numpy as jnp
 from ott.core import linear_problems
 from ott.geometry import pointcloud
 
-def default_dual_a(
+
+def _default_dual_a(
     ot_problem: linear_problems.LinearProblem, lse_mode: bool
 ) -> jnp.ndarray:
   """Return dual potential vector, f.
@@ -38,7 +38,7 @@ def default_dual_a(
   return init_dual_a
 
 
-def default_dual_b(
+def _default_dual_b(
     ot_problem: linear_problems.LinearProblem, lse_mode: bool
 ) -> jnp.ndarray:
   """Return dual potential vector, g.
@@ -55,7 +55,7 @@ def default_dual_b(
   return init_dual_b
 
 
-def remove_weight_potential(
+def _remove_single_weight_potential(
     weights: jnp.ndarray, init_dual: jnp.ndarray, lse_mode: bool
 ) -> Tuple[jnp.ndarray]:
   """Cancel dual variables for zero weights.
@@ -86,13 +86,17 @@ def remove_weight_potentials(
   Returns:
     potentials (f,g)
   """
-  init_dual_a = remove_weight_potential(weights_a, init_dual_a, lse_mode)
-  init_dual_b = remove_weight_potential(weights_b, init_dual_b, lse_mode)
+  init_dual_a = _remove_single_weight_potential(
+      weights_a, init_dual_a, lse_mode
+  )
+  init_dual_b = _remove_single_weight_potential(
+      weights_b, init_dual_b, lse_mode
+  )
   return init_dual_a, init_dual_b
 
 
 class SinkhornInitializer:
-  """Initialization.
+  """Initialization of Sinkhorn dual potentials.
 
   Args:
     ot_problem: OT problem between discrete distributions of size n and m.
@@ -114,8 +118,7 @@ class SinkhornInitializer:
     Returns:
       dual potential, array of size n
     """
-
-    return default_dual_a(ot_problem=ot_problem, lse_mode=lse_mode)
+    return _default_dual_a(ot_problem=ot_problem, lse_mode=lse_mode)
 
   def init_dual_b(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
@@ -129,12 +132,12 @@ class SinkhornInitializer:
     Returns:
       dual potential, array of size m
     """
-    return default_dual_b(ot_problem=ot_problem, lse_mode=lse_mode)
+    return _default_dual_b(ot_problem=ot_problem, lse_mode=lse_mode)
 
 
 class GaussianInitializer(SinkhornInitializer):
   """GaussianInitializer.
-  
+
   From https://arxiv.org/abs/2206.07630.
   Compute Gaussian approximations of each pointcloud, then compute closed from
   Kantorovic potential betwen Gaussian approximations using Brenier's theorem
@@ -161,17 +164,17 @@ class GaussianInitializer(SinkhornInitializer):
     Args:
       ot_problem: OT problem description with geometry and weights.
       init_f: Pre dual sort initialization, when none sets entries as 0.
-      lse_mode: Return potential if true, scaling if false. 
+      lse_mode: Return potential if true, scaling if false.
 
     Returns:
       potential f, array of size n.
     """
     # import Gaussian here due to circular imports
-    from ott.tools.gaussian_mixture import gaussian   
+    from ott.tools.gaussian_mixture import gaussian
 
     if not isinstance(ot_problem.geom, pointcloud.PointCloud):
       # warning that init not applied
-      return default_dual_a(ot_problem, lse_mode)
+      return _default_dual_a(ot_problem, lse_mode)
     else:
 
       x, y = ot_problem.geom.x, ot_problem.geom.y
@@ -194,9 +197,9 @@ class GaussianInitializer(SinkhornInitializer):
 class SortingInit(SinkhornInitializer):
   """Sorting Init class.
 
-  DualSort algorithm from https://arxiv.org/abs/2206.07630, solve 
-  non-regularized OT problem via sorting, then compute potential through 
-  iterated minimum on C-transform and use this potentials to initialize 
+  DualSort algorithm from https://arxiv.org/abs/2206.07630, solve
+  non-regularized OT problem via sorting, then compute potential through
+  iterated minimum on C-transform and use this potentials to initialize
   regularized potential
 
   Args:
@@ -219,7 +222,9 @@ class SortingInit(SinkhornInitializer):
     self.tolerance = tol
     self.stop_gradient = stop_gradient
     self.max_iter = max_iter
-    self.update_fn = self.vectorized_update if vector_min else self.coordinate_update
+    self.update_fn = lambda f, mod_cost: jax.lax.cond(
+        vector_min, self.vectorized_update, self.coordinate_update, f, mod_cost
+    )
 
   def vectorized_update(
       self, f: jnp.ndarray, modified_cost: jnp.ndarray

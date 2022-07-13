@@ -69,7 +69,7 @@ class ScaleTriL:
     )
 
     # random positive definite matrix
-    sigma = q * jnp.expand_dims(eigs, -2)  @  q.T
+    sigma = q * jnp.expand_dims(eigs, -2) @ q.T
 
     # cholesky factorization
     chol = jnp.linalg.cholesky(sigma)
@@ -157,7 +157,7 @@ class ScaleTriL:
     return (cost_fn.norm(x0) + cost_fn.norm(x1) +
             cost_fn.pairwise(x0, x1))[...,]
 
-  def transport_scale_matrix(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
+  def gaussian_map(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
     """Scaling matrix used in transport between 0-mean Gaussians.
 
     Sigma_mu^{-1/2} @
@@ -168,7 +168,7 @@ class ScaleTriL:
       dest_scale: destination Scale
 
     Returns:
-      Gaussian scaling matrix, same dimension as self.covaraince()
+      Gaussian scaling matrix, same dimension as self.covaraince
     """
     sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
     sigma1 = dest_scale.covariance()
@@ -181,7 +181,7 @@ class ScaleTriL:
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray
   ) -> jnp.ndarray:
-    """Apply Monge map between 0-mean Gaussians.
+    """Apply Monge map, computed between two 0-mean Gaussians, to points.
 
     Args:
       dest_scale: destination Scale
@@ -190,7 +190,7 @@ class ScaleTriL:
     Returns:
       Points transported to a Gaussian with the new scale.
     """
-    m = self.transport_scale_matrix(dest_scale)
+    m = self.gaussian_map(dest_scale)
     return (m @ points.T).T
 
   def tree_flatten(self):
