@@ -21,8 +21,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 from ott.tools import sinkhorn_divergence
+from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 class TestSinkhornDivergence:
@@ -268,6 +269,71 @@ class TestSinkhornDivergence:
     ])
     np.testing.assert_allclose(segmented_divergences, true_divergences)
 
+  @pytest.mark.fast
+  def test_sinkhorn_divergence_segment_custom_padding(self):
+    key = jax.random.PRNGKey(0)
+    keys = jax.random.split(key, num=4)
+
+    dim = 3
+    b_cost = costs.Bures(dim)
+
+    n_components = jnp.array([5, 2, 3, 4])
+    num_segments = 2
+
+    n_components_x = n_components[0:num_segments]
+    n_components_y = n_components[num_segments:]
+
+    seg_ids_x = jnp.repeat(jnp.arange(num_segments), n_components_x)
+    seg_ids_y = jnp.repeat(jnp.arange(num_segments), n_components_y)
+
+    gmm_generators = [
+        gaussian_mixture.GaussianMixture.from_random(
+            keys[i], n_components=n_components[i], n_dimensions=dim
+        ) for i in range(n_components.size)
+    ]
+
+    x1 = means_and_covs_to_x(
+        gmm_generators[0].loc, gmm_generators[0].covariance, dim
+    )
+    x2 = means_and_covs_to_x(
+        gmm_generators[1].loc, gmm_generators[1].covariance, dim
+    )
+    y1 = means_and_covs_to_x(
+        gmm_generators[2].loc, gmm_generators[2].covariance, dim
+    )
+    y2 = means_and_covs_to_x(
+        gmm_generators[3].loc, gmm_generators[3].covariance, dim
+    )
+
+    true_divergences = jnp.array([
+        sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud,
+            x,
+            y,
+            sinkhorn_kwargs={
+                'lse_mode': True
+            },
+            epsilon=0.1,
+            cost_fn=b_cost
+        ).divergence for x, y in zip((x1, x2), (y1, y2))
+    ])
+
+    x = jnp.vstack((x1, x2))
+    y = jnp.vstack((y1, y2))
+
+    segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+        x,
+        y,
+        segment_ids_x=seg_ids_x,
+        segment_ids_y=seg_ids_y,
+        num_segments=num_segments,
+        sinkhorn_kwargs={'lse_mode': True},
+        epsilon=0.1,
+        cost_fn=b_cost
+    )
+
+    np.testing.assert_allclose(segmented_divergences, true_divergences)
+
   # yapf: disable
   @pytest.mark.fast.with_args(
       "sinkhorn_kwargs,epsilon", [
@@ -355,3 +421,6 @@ class TestSinkhornDivergenceGrad:
     np.testing.assert_allclose(
         custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
     )
+
+
+means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
