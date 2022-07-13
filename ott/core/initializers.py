@@ -194,7 +194,7 @@ class GaussianInitializer(SinkhornInitializer):
       return f_potential
 
 
-class SortingInit(SinkhornInitializer):
+class SortingInitializer(SinkhornInitializer):
   """Sorting Init class.
 
   DualSort algorithm from https://arxiv.org/abs/2206.07630, solve

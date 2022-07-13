@@ -15,7 +15,6 @@
 
 import jax
 import jax.numpy as jnp
-import jax.test_util
 import numpy as np
 from absl.testing import absltest, parameterized
 
@@ -29,7 +28,7 @@ from ott.geometry import geometry, pointcloud
 @jax.jit
 def run_sinkhorn_sort_init(x, y, a=None, b=None, epsilon=0.01, vector_min=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  sort_init = init_lib.SortingInit(vector_min=vector_min)
+  sort_init = init_lib.SortingInitializer(vector_min=vector_min)
   out = sinkhorn(geom, a=a, b=b, jit=True, potential_initializer=sort_init)
   return out
 
@@ -64,13 +63,12 @@ class InitializerTest(parameterized.TestCase):
     # definte ot problem
     x_init = jnp.array([-1., 0, .22])
     y_init = jnp.array([0., 0, 1.1])
+    x_rng, y_rng = jax.random.split(self.rng)
 
-    x = jnp.concatenate([
-        x_init, 10 + jnp.abs(jax.random.normal(self.rng, (n,)))
-    ]) * 5
-    y = jnp.concatenate([
-        y_init, 10 + jnp.abs(jax.random.normal(self.rng, (n,)))
-    ]) * 5
+    x = jnp.concatenate([x_init, 10 + jnp.abs(jax.random.normal(x_rng,
+                                                                (n,)))]) * 5
+    y = jnp.concatenate([y_init, 10 + jnp.abs(jax.random.normal(y_rng,
+                                                                (n,)))]) * 5
 
     x = np.sort(x)
     y = np.sort(y)
@@ -89,13 +87,13 @@ class InitializerTest(parameterized.TestCase):
 
   def create_ot_problem(self, n, m, d, epsilon=0.01):
     # definte ot problem
-    np.random.seed(0)
+    x_rng, y_rng = jax.random.split(self.rng)
 
     mu_a = np.array([-1, 1]) * 5
     mu_b = np.array([0, 0])
 
-    x = jax.random.normal(self.rng, (n, d)) + mu_a
-    y = jax.random.normal(self.rng, (m, d)) + mu_b
+    x = jax.random.normal(x_rng, (n, d)) + mu_a
+    y = jax.random.normal(y_rng, (m, d)) + mu_b
 
     a = np.ones(n) / n
     b = np.ones(m) / m
@@ -111,8 +109,8 @@ class InitializerTest(parameterized.TestCase):
   def test_sorting_init(self, vector_min):
     """Tests sorting dual initializer."""
 
-    n = 500
-    epsilon = 0.01
+    n = 100
+    epsilon = 0.001
 
     ot_problem = self.create_sorting_problem(n=n, epsilon=epsilon)
     # run sinkhorn
@@ -135,8 +133,8 @@ class InitializerTest(parameterized.TestCase):
     )
     sort_num_iter = jnp.sum(sink_out.errors > -1)
 
-    # check initializer is better
-    self.assertTrue(base_num_iter >= sort_num_iter)
+    # check initializer is better or equal
+    self.assertGreaterEqual(base_num_iter, sort_num_iter)
 
   def test_default_initializer(self):
     """Tests default initializer"""
@@ -155,8 +153,8 @@ class InitializerTest(parameterized.TestCase):
     )
 
     # check default is 0
-    self.assertTrue((jnp.zeros(n) == default_potential_a).all())
-    self.assertTrue((jnp.zeros(m) == default_potential_b).all())
+    np.testing.assert_array_equal(jnp.zeros(n), default_potential_a)
+    np.testing.assert_array_equal(jnp.zeros(m), default_potential_b)
 
     # check gausian init returns 0 for non point cloud geometry
     # init initializer
@@ -174,8 +172,8 @@ class InitializerTest(parameterized.TestCase):
         ot_problem=ot_problem, lse_mode=True
     )
 
-    self.assertTrue((jnp.zeros(n) == init_potential_a).all())
-    self.assertTrue((jnp.zeros(m) == init_potential_b).all())
+    np.testing.assert_array_equal(jnp.zeros(n), init_potential_a)
+    np.testing.assert_array_equal(jnp.zeros(m), init_potential_b)
 
   def test_gaus_initializer(self):
     """Tests Gaussian initializer"""
@@ -207,7 +205,7 @@ class InitializerTest(parameterized.TestCase):
     gaus_num_iter = jnp.sum(sink_out.errors > -1)
 
     # check initializer is better
-    self.assertTrue(base_num_iter >= gaus_num_iter)
+    self.assertGreaterEqual(base_num_iter, gaus_num_iter)
 
 
 if __name__ == '__main__':

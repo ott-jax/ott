@@ -448,8 +448,14 @@ class SinkhornTest(parameterized.TestCase):
       default_a = jnp.ones_like(init_dual_a)
       default_b = jnp.ones_like(init_dual_b)
 
-    self.assertTrue((default_a != init_dual_a).all())
-    self.assertTrue((default_b != init_dual_b).all())
+    self.assertRaises(
+        AssertionError,
+        lambda: np.testing.assert_allclose(default_a, init_dual_a)
+    )
+    self.assertRaises(
+        AssertionError,
+        lambda: np.testing.assert_allclose(default_b, init_dual_b)
+    )
 
     out_restarted = sinkhorn.sinkhorn(
         geom,
@@ -466,20 +472,19 @@ class SinkhornTest(parameterized.TestCase):
     err_restarted = errors_restarted[errors_restarted > -1][-1]
     self.assertGreater(threshold, err_restarted)
 
+    # check we  improve num iter
     num_iter_restarted = jnp.sum(errors_restarted > -1)
-
-    # check we can only improve on error
     num_iter = jnp.sum(errors > -1)
     self.assertGreater(num_iter, num_iter_restarted)
+
+    # check only one iteration suffices when restarting with same data.
+    self.assertEqual(num_iter_restarted, 1)
 
     # check we can only improve on error
     self.assertGreater(err + threshold, err_restarted)
 
-    # # check first error in restart does at least as well as previous best
+    # check first error in restart does at least as well as previous best
     self.assertGreater(err + threshold, errors_restarted[0])
-
-    # check only one iteration suffices when restarting with same data.
-    self.assertEqual(num_iter_restarted, 1)
 
 
 if __name__ == '__main__':
