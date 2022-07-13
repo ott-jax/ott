@@ -24,8 +24,9 @@ git commit --no-verify -m "The commit message"
 ## Running tests
 In order to run tests, you can:
 ```bash
-pytest  # uses all cores by default
-pytest tests/sinkhorn_test.py  # only test within a specific file
+pytest  # run all tests
+pytest -m fast  # run only fast tests
+pytest tests/core/sinkhorn_test.py  # only test within a specific file
 pytest -k "test_euclidean_point_cloud"  # only tests which contain the expression
 ```
 
