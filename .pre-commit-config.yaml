@@ -11,6 +11,13 @@ repos:
   hooks:
   - id: yapf
     additional_dependencies: [toml]
+- repo: https://github.com/psf/black
+  rev: 22.6.0
+  hooks:
+  - id: black
+    alias: black-notebooks
+    args: [docs/notebooks]
+    additional_dependencies: ['.[jupyter]']
 - repo: https://github.com/PyCQA/isort
   rev: 5.10.1
   hooks:
