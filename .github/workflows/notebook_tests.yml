@@ -1,4 +1,4 @@
-name: tests
+name: notebook tests
 
 on:
   push:
@@ -14,7 +14,6 @@ jobs:
       matrix:
         python-version: ['3.8']
         os: [ubuntu-latest]
-        test_mark: [fast, all]
 
     steps:
     - uses: actions/checkout@v2
@@ -27,7 +26,6 @@ jobs:
         set -xe
         python -VV
         pip install --upgrade pip
-        pip install pytest-memray
         pip install -e '.[test]'
 
     - name: Print versions
@@ -36,21 +34,6 @@ jobs:
         python -c "import jax; print('jax', jax.__version__)"
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
 
-    - name: Run fast tests
-      if: ${{ matrix.test_mark == 'fast' }}
+    - name: Run notebook tests
       run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -m fast -n auto
-
-    - name: Run all tests
-      if: ${{ matrix.test_mark == 'all' }}
-      run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray
-
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./coverage.xml
-        flags: unittests-${{ matrix.test_mark }}
-        env_vars: OS,PYTHON
-        fail_ci_if_error: true
-        verbose: true
+        python -m pytest --nbval docs/notebooks/ --current-env
