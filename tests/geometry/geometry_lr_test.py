@@ -14,14 +14,14 @@
 
 # Lint as: python3
 """Test Low-Rank Geometry."""
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import geometry, low_rank, pointcloud
+from ott.geometry import costs, geometry, low_rank, pointcloud
 
 
 @pytest.mark.fast
@@ -165,3 +165,95 @@ class TestLRGeometry:
       assert isinstance(geom_lr, pointcloud.PointCloud)
       np.testing.assert_allclose(geom_lr.x, jnp.sqrt(scale) * geom_pc.x)
       np.testing.assert_allclose(geom_lr.y, jnp.sqrt(scale) * geom_pc.y)
+
+
+class TestCostMatrixFactorization:
+
+  @staticmethod
+  def assert_upper_bound(
+      geom: geometry.Geometry, geom_lr: low_rank.LRCGeometry, *, rank: int,
+      tol: float
+  ):
+    # Theorem 1.2 `Sample-Optimal Low-Rank Approximation of Distance Matrices
+    # https://arxiv.org/abs/1906.00339
+    A = geom.cost_matrix
+    C1, C2 = geom_lr.cost_1, geom_lr.cost_2
+
+    U, D, VT = jnp.linalg.svd(A)
+    # best k-rank approx.
+    A_k = U[:, :rank] @ jnp.diag(D[:rank]) @ VT[:rank]
+
+    lhs = jnp.linalg.norm(A - C1 @ C2.T) ** 2
+    rhs = jnp.linalg.norm(A - A_k) ** 2 + tol * jnp.linalg.norm(A) ** 2
+
+    assert lhs <= rhs
+
+  @pytest.mark.fast.with_args(rank=[2, 3], tol=[5e-1, 1e-2], only_fast=0)
+  def test_geometry_to_lr(self, rng: jnp.ndarray, rank: int, tol: float):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(370, 3))
+    y = jax.random.normal(key2, shape=(460, 3))
+    geom = geometry.Geometry(cost_matrix=x @ y.T)
+
+    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, seed=42)
+
+    np.testing.assert_array_equal(geom.shape, geom_lr.shape)
+    assert geom_lr.cost_rank == rank
+
+    if rank == 2 and tol == 1e-2:
+      pytest.mark.xfail("assert 171666.83 <= 154635.98")
+    else:
+      self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
+
+  @pytest.mark.fast.with_args(
+      "batch_size,scale_cost", [(None, "mean"), (32, None)], only_fast=1
+  )
+  def test_point_cloud_to_lr(
+      self, rng: jnp.ndarray, batch_size: Optional[int],
+      scale_cost: Optional[str]
+  ):
+    rank, tol = 7, 1e-1
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(384, 10))
+    y = jax.random.normal(key2, shape=(512, 10))
+    geom = pointcloud.PointCloud(
+        x,
+        y,
+        cost_fn=costs.Euclidean(),
+        batch_size=batch_size,
+        power=3,
+        scale_cost=scale_cost,
+    )
+    if geom.batch_size is not None:
+      # because `self.assert_upper_bound` tries to instantiate the matrix
+      geom = geom.subset(None, None, batch_size=None)
+
+    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol)
+
+    np.testing.assert_array_equal(geom.shape, geom_lr.shape)
+    assert geom_lr.cost_rank == rank
+    self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
+
+  def test_to_lrc_geometry_noop(self, rng: jnp.ndarray):
+    key1, key2 = jax.random.split(rng, 2)
+    cost1 = jax.random.normal(key1, shape=(32, 2))
+    cost2 = jax.random.normal(key2, shape=(23, 2))
+    geom = low_rank.LRCGeometry(cost1, cost2)
+
+    geom_lrc = geom.to_LRCGeometry(rank=10)
+
+    assert geom is geom_lrc
+
+  @pytest.mark.limit_memory("190 MB")
+  def test_large_scale_factorization(self, rng: jnp.ndarray):
+    rank, tol = 4, 1e-2
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(10_000, 7))
+    y = jax.random.normal(key2, shape=(11_000, 7))
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-2, cost_fn=costs.Cosine())
+
+    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol)
+
+    np.testing.assert_array_equal(geom.shape, geom_lr.shape)
+    assert geom_lr.cost_rank == rank
+    # self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)

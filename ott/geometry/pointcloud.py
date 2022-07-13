@@ -82,18 +82,16 @@ class PointCloud(geometry.Geometry):
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
-  def _norm_x(self) -> jnp.ndarray:
+  def _norm_x(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.x)
-    elif self._axis_norm is None:
-      return jnp.zeros(self.x.shape[0])
+    return 0.
 
   @property
-  def _norm_y(self) -> jnp.ndarray:
+  def _norm_y(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self._cost_fn.norm(self.y)
-    elif self._axis_norm is None:
-      return jnp.zeros(self.y.shape[0])
+    return 0.
 
   @property
   def cost_matrix(self) -> Optional[jnp.ndarray]:
@@ -158,10 +156,7 @@ class PointCloud(geometry.Geometry):
         )
     elif self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
-        return 1.0 / jnp.maximum(
-            self._cost_fn.norm(self.x).max(),
-            self._cost_fn.norm(self.y).max()
-        )
+        return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
       else:
         return 1.0
     elif self._scale_cost == 'max_bound':
@@ -421,6 +416,7 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
+    assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
     nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
@@ -558,41 +554,71 @@ class PointCloud(geometry.Geometry):
     x, y, eps, cost_fn = children
     return cls(x, y, epsilon=eps, cost_fn=cost_fn, **aux_data)
 
-  def to_LRCGeometry(self, scale: float = 1.0) -> low_rank.LRCGeometry:
+  def to_LRCGeometry(
+      self,
+      scale: float = 1.0,
+      **kwargs: Any,
+  ) -> Union[low_rank.LRCGeometry, 'PointCloud']:
     """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
-        cost_1 = jnp.concatenate((
-            jnp.sum(self.x ** 2, axis=1, keepdims=True),
-            jnp.ones((self.shape[0], 1)), -jnp.sqrt(2) * self.x
-        ),
-                                 axis=1)
-        cost_2 = jnp.concatenate((
-            jnp.ones(
-                (self.shape[1], 1)
-            ), jnp.sum(self.y ** 2, axis=1, keepdims=True), jnp.sqrt(2) * self.y
-        ),
-                                 axis=1)
-        cost_1 *= jnp.sqrt(scale)
-        cost_2 *= jnp.sqrt(scale)
+        return self._sqeucl_to_lr(scale)
+      (x, y, *children), aux_data = self.tree_flatten()
+      x = x * jnp.sqrt(scale)
+      y = y * jnp.sqrt(scale)
+      return PointCloud.tree_unflatten(aux_data, [x, y] + children)
+    return super().to_LRCGeometry(**kwargs)
 
-        return low_rank.LRCGeometry(
-            cost_1=cost_1,
-            cost_2=cost_2,
-            epsilon=self._epsilon_init,
-            relative_epsilon=self._relative_epsilon,
-            scale=self._scale_epsilon,
-            scale_cost=self._scale_cost,
-            **self._kwargs
-        )
-      else:
-        (x, y, *children), aux_data = self.tree_flatten()
-        x = x * jnp.sqrt(scale)
-        y = y * jnp.sqrt(scale)
-        return PointCloud.tree_unflatten(aux_data, [x, y] + children)
-    else:
-      raise ValueError('Cannot turn non-sq-Euclidean geometry into low-rank')
+  def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
+    assert self.is_squared_euclidean, "Geometry must be squared Euclidean."
+    n, m = self.shape
+    cost_1 = jnp.concatenate((
+        jnp.sum(self.x ** 2, axis=1, keepdims=True), jnp.ones(
+            (n, 1)
+        ), -jnp.sqrt(2) * self.x
+    ),
+                             axis=1)
+    cost_2 = jnp.concatenate((
+        jnp.ones((m, 1)), jnp.sum(self.y ** 2, axis=1,
+                                  keepdims=True), jnp.sqrt(2) * self.y
+    ),
+                             axis=1)
+    cost_1 *= jnp.sqrt(scale)
+    cost_2 *= jnp.sqrt(scale)
+
+    return low_rank.LRCGeometry(
+        cost_1=cost_1,
+        cost_2=cost_2,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+        scale=self._scale_epsilon,
+        scale_cost=self._scale_cost,
+        **self._kwargs
+    )
+
+  def subset(
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any
+  ) -> "PointCloud":
+    """Subset rows and/or columns of a geometry.
+
+    Args:
+      src_ixs: Source indices. If ``None``, use all rows.
+      tgt_ixs: Target indices. If ``None``, use all columns.
+      kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
+
+    Returns:
+      The subsetted geometry.
+    """
+    (x, y, *children), aux_data = self.tree_flatten()
+    if src_ixs is not None:
+      x = x[jnp.atleast_1d(src_ixs), :]
+    if tgt_ixs is not None:
+      y = y[jnp.atleast_1d(tgt_ixs), :]
+
+    aux_data = {**aux_data, **kwargs}
+    return type(self).tree_unflatten(aux_data, [x, y] + children)
 
   @property
   def batch_size(self) -> Optional[int]:

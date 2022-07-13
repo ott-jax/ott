@@ -27,6 +27,7 @@ jobs:
         set -xe
         python -VV
         pip install --upgrade pip setuptools
+        pip install pytest-memray
         pip install -e '.[test]'
 
     - name: Print versions
@@ -38,7 +39,7 @@ jobs:
     - name: Run fast tests
       if: ${{ matrix.test_mark == 'fast' }}
       run: |
-        pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -m fast
+        pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -m fast -n auto
 
     - name: Run all tests
       if: ${{ matrix.test_mark == 'all' }}

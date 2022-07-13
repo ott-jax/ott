@@ -107,8 +107,6 @@ class TestBarycenter:
       lse_mode=[False, True],
       epsilon=[1e-1, 5e-1],
       jit=[False, True],
-      # TODO(michalk8): finalize the API
-      # might be beneficial to all for more than 1 test to be selected
       only_fast={
           "lse_mode": True,
           "epsilon": 1e-1,
