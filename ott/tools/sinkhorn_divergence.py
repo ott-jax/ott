@@ -210,7 +210,7 @@ def segment_sinkhorn_divergence(
     An array of sinkhorn divergence values for each segment.
   """
   dim = x.shape[1]
-  cost_fn = kwargs.pop('cost_fn', costs.Euclidean())
+  cost_fn = kwargs.get('cost_fn', costs.Euclidean())
   padding_vector = cost_fn.padder(dim=dim)
 
   use_segment_ids = segment_ids_x is not None
