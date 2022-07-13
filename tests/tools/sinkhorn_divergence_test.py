@@ -269,11 +269,8 @@ class TestSinkhornDivergence:
     ])
     np.testing.assert_allclose(segmented_divergences, true_divergences)
 
-  @pytest.mark.fast
-  def test_sinkhorn_divergence_segment_custom_padding(self):
-    key = jax.random.PRNGKey(0)
-    keys = jax.random.split(key, num=4)
-
+  def test_sinkhorn_divergence_segment_custom_padding(self, rng):
+    keys = jax.random.split(rng, num=4)
     dim = 3
     b_cost = costs.Bures(dim)
 
