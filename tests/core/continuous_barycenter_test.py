@@ -300,8 +300,10 @@ class TestBarycenter:
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dim)
 
     # check the values of the means
-    np.testing.assert_array_equal(means_bary < 5., True)
-    np.testing.assert_array_equal(means_bary > 1., True)
+    # Beacause of the way the means are generated with gaussian_mixture.GaussianMixture.from_random, for the selected ridges, the elements of the mean of the barycenter will be in the range (0.9, 6.5) almost surely. Due to the fact that the barycentric weights tested are not extreme (as in not [0, 1] or [1, 0]) this test should always pass.
+
+    np.testing.assert_array_equal(means_bary < 6.5, True)
+    np.testing.assert_array_equal(means_bary > 0.9, True)
 
     # check that covariances of barycenter are all psd
     np.testing.assert_array_equal(
