@@ -76,7 +76,7 @@ def segment_point_cloud(
     max_measure_size = jnp.max(num_per_segment)
 
   if padding_vector is None:
-    padding_vector = jnp.ones((1, dim))
+    padding_vector = jnp.zeros((1, dim))
 
   segmented_a = []
   segmented_x = []
