@@ -76,6 +76,7 @@ class WassersteinSolver:
 
   @property
   def is_low_rank(self) -> bool:
+    """Whether the solver is low-rank."""
     return self.rank > 0
 
   def tree_flatten(self):

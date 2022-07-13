@@ -2,7 +2,8 @@
 
 # Optimal Transport Tools (OTT).
 
-![Tests](https://github.com/ott-jax/ott/actions/workflows/tests.yml/badge.svg)
+![Tests](https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main)
+![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)
 
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
