@@ -351,7 +351,7 @@ class Sinkhorn:
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
       potential_initializer: init_lib.SinkhornInitializer = init_lib
-      .SinkhornInitializer(),
+      .DefaultInitializer(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -418,13 +418,13 @@ class Sinkhorn:
       )
 
     # Cancel dual variables for zero weights.
-    init_dual_a, init_dual_b = init_lib.remove_weight_potentials(
-        weights_a=ot_prob.a,
-        weights_b=ot_prob.b,
-        init_dual_a=init_dual_a,
-        init_dual_b=init_dual_b,
-        lse_mode=self.lse_mode
+    init_dual_a = jnp.where(
+        ot_prob.a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0
     )
+    init_dual_b = jnp.where(
+        ot_prob.b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
+    )
+
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
@@ -703,7 +703,7 @@ def make(
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
     potential_initializer: init_lib.SinkhornInitializer = init_lib
-    .SinkhornInitializer(),
+    .DefaultInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""

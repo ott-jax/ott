@@ -32,7 +32,7 @@ Sinkhorn
     sinkhorn.SinkhornOutput
 
 Sinkhorn Dual Initializers
---------
+--------------------------
 .. autosummary::
     :toctree: _autosummary
 

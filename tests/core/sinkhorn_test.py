@@ -414,14 +414,11 @@ class TestSinkhorn:
       default_a = jnp.ones_like(init_dual_a)
       default_b = jnp.ones_like(init_dual_b)
 
-    np.testing.assert_raises(
-        AssertionError,
-        lambda: np.testing.assert_allclose(default_a, init_dual_a)
-    )
-    np.testing.assert_raises(
-        AssertionError,
-        lambda: np.testing.assert_allclose(default_b, init_dual_b)
-    )
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(default_a, init_dual_a)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(default_b, init_dual_b)
 
     out_restarted = sinkhorn.sinkhorn(
         geom,
