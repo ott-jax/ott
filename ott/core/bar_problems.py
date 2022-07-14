@@ -95,8 +95,14 @@ class BarycenterProblem:
       return self.add_slice_for_debiased(self._y, self._b)
     else:
       segmented_y, segmented_b, _ = segment.segment_point_cloud(
-          self._y, self._b, self._segment_ids, self._num_segments,
-          self._indices_are_sorted, self._num_per_segment, self.max_measure_size
+          self._y,
+          self._b,
+          self._segment_ids,
+          self._num_segments,
+          self._indices_are_sorted,
+          self._num_per_segment,
+          self.max_measure_size,
+          padding_vector=self.cost_fn.padder(self._y.shape[1])
       )
     return self.add_slice_for_debiased(segmented_y, segmented_b)
 
@@ -160,8 +166,14 @@ class BarycenterProblem:
       return self._y.shape[0]
     else:
       _, _, num_segments = segment.segment_point_cloud(
-          self._y, self._b, self._segment_ids, self._num_segments,
-          self._indices_are_sorted, self._num_per_segment, self.max_measure_size
+          self._y,
+          self._b,
+          self._segment_ids,
+          self._num_segments,
+          self._indices_are_sorted,
+          self._num_per_segment,
+          self.max_measure_size,
+          padding_vector=self.cost_fn.padder(self._y.shape[1])
       )
     return num_segments
 
