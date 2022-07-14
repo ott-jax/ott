@@ -35,9 +35,7 @@ class SinkhornInitializer:
 
 
 class DefaultInitializer(SinkhornInitializer):
-  """Default Initialization of Sinkhorn dual potentials/ primal scalings.
-
-  """
+  """Default Initialization of Sinkhorn dual potentials/ primal scalings."""
 
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
@@ -127,13 +125,13 @@ class SortingInitializer(DefaultInitializer):
 
   DualSort algorithm from https://arxiv.org/abs/2206.07630, solve
   non-regularized OT problem via sorting, then compute potential through
-  iterated minimum on C-transform and use this potentials to initialize
+  iterated minimum on C-transform and use this potential to initialize
   regularized potential
 
   Args:
-    vectorized_update: Use vectorized inner loop if true. Defaults to True.
-    tol: DualSort convergence threshold. Defaults to 1e-2.
-    max_iter: Max DualSort steps. Defaults to 100.
+    vectorized_update: Use vectorized inner loop if true.
+    tolerance: DualSort convergence threshold.
+    max_iter: Max DualSort steps.
   """
 
   def __init__(
@@ -152,13 +150,14 @@ class SortingInitializer(DefaultInitializer):
     )
 
   def init_sorting_dual(
-      self, modified_cost: jnp.ndarray, f_potential: jnp.ndarray
+      self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
   ) -> jnp.ndarray:
     """Run DualSort algorithm.
 
     Args:
       modified_cost:  cost matrix minus diagonal column-wise.
-      f_potential: potential f, array of size n.
+      init_f: potential f, array of size n. This is the starting potential,
+      which is then updated to make the init potential, so an init of an init.
 
     Returns:
       potential f, array of size n.
@@ -177,7 +176,7 @@ class SortingInitializer(DefaultInitializer):
 
     it = 0
     diff = self.tolerance + 1.0
-    state = (f_potential, diff, it)
+    state = (init_f, diff, it)
 
     f_potential, _, it = jax.lax.while_loop(
         cond_fun=cond_fn, body_fun=body_fn, init_val=state
@@ -202,20 +201,24 @@ class SortingInitializer(DefaultInitializer):
     Returns:
       potential/ scaling f_u, array of size n.
     """
-    cost_matrix = ot_problem.geom.cost_matrix
-    modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
+    if ot_problem.geom.is_online:
+      # raise error/ warning?
+      return super().init_dual_a(ot_problem, lse_mode)
+    else:
+      cost_matrix = ot_problem.geom.cost_matrix
+      modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
 
-    n = cost_matrix.shape[0]
-    f_potential = jnp.zeros(n) if init_f is None else init_f
+      n = cost_matrix.shape[0]
+      init_f = jnp.zeros(n) if init_f is None else init_f
 
-    f_potential = self.init_sorting_dual(modified_cost, f_potential)
-    f_potential = f_potential - jnp.mean(f_potential)
+      f_potential = self.init_sorting_dual(modified_cost, init_f)
+      f_potential = f_potential - jnp.mean(f_potential)
 
-    f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
-        f_potential
-    )
+      f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
+          f_potential
+      )
 
-    return f_u
+      return f_u
 
 
 def _vectorized_update(
