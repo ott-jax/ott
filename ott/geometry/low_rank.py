@@ -40,7 +40,7 @@ class LRCGeometry(geometry.Geometry):
       ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
       batch size is set to 1024 or to the largest number of samples between
       ``cost_1`` and ``cost_2`` if smaller than 1024.
-    kwargs: additional kwargs to :class:`ott.geometry.geometry.Geometry`.
+    kwargs: Additional kwargs to :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(

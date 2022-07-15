@@ -20,7 +20,7 @@ import jax.numpy as jnp
 
 
 def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Legendre transform of KL, https://arxiv.org/pdf/1910.12958.pdf p.9."""
+  """Legendre transform of KL, :cite:`sejourne:19`, p. 9."""
   return rho * (jnp.exp(h / rho) - 1)
 
 
@@ -35,9 +35,8 @@ def grad_of_marginal_fit(
 ) -> jnp.ndarray:
   """Compute grad of terms linked to marginals in objective.
 
-  Computes gradient w.r.t. f ( or g) of terms in
-  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
-  (terms involving phi_star)
+  Computes gradient w.r.t. f ( or g) of terms in :cite:`sejourne:19`,
+  left-hand-side of eq. 15 terms involving phi_star).
 
   Args:
     c: jnp.ndarray, first target marginal (either a or b in practice)
@@ -66,9 +65,8 @@ def diag_jacobian_of_marginal_fit(
 ):
   """Compute grad of terms linked to marginals in objective.
 
-  Computes second derivative w.r.t. f ( or g) of terms in
-  https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 32
-  (terms involving phi_star)
+  Computes second derivative w.r.t. f ( or g) of terms in :cite:`sejourne:19`,
+  left-hand-side of eq. 32 (terms involving phi_star)
 
   Args:
     c: jnp.ndarray, first target marginal (either a or b in practice)

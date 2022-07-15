@@ -49,7 +49,7 @@ class ImplicitDiff:
                       jnp.ndarray], ot_prob: linear_problems.LinearProblem,
       f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
   ):
-    r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
+    r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
     outputs, notably optimal potentials ``f`` and ``g``. That differentiation
@@ -76,8 +76,7 @@ class ImplicitDiff:
     first order conditions is no longer symmetric (except if ``a==b``), and
     has now a structure as :math:`[A, B; C, D]`. That system can
     be still inverted more generic solvers. By default, :math:`h = \epsilon
-    \log`,
-    as proposed in https://arxiv.org/pdf/2002.03229.pdf.
+    \log`, as proposed in :cite:`cuturi:20a`.
 
     In both cases :math:`A` and :math:`D` are diagonal matrices, equal to the
     row and

@@ -76,9 +76,7 @@ class QuadraticProblem:
   """Definition of the quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
-  have the form given in Eq. 4 from
-
-  http://proceedings.mlr.press/v48/peyre16.pdf
+  have the form given in :cite:`peyre:16`, eq. 4.
 
   The two geometries below parameterize matrices C and bar{C} in that equation.
   The function L (of two real values) in that equation is assumed
@@ -216,8 +214,7 @@ class QuadraticProblem:
   ) -> low_rank.LRCGeometry:
     r"""Initialise cost term that depends on the marginals of the transport.
 
-    Uses the first term in Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
+    Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
     Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
     from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
@@ -259,9 +256,9 @@ class QuadraticProblem:
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
 
-    In the unbalanced setting (i.e. tau_a<1.0 or tau_b<1.0), the
-    introduction of a quadratic divergence (see Sejourne et al. Neurips 2021)
-    adds a term to the GW local cost.
+    In the unbalanced setting (``tau_a < 1.0 or tau_b < 1.0``), the
+    introduction of a quadratic divergence :cite:`sejourne:21` adds a term
+    to the GW local cost.
 
     Let :math:`a` [num_a,] be the target weights for samples
     from geom_xx and :math:`b` [num_b,] be the target weights
@@ -334,19 +331,19 @@ class QuadraticProblem:
   ) -> linear_problems.LinearProblem:
     """Initialise a linear problem locally around a naive initializer ab'.
 
-    If the problem is balanced (`tau_a=1.0 and tau_b=1.0'), the equation of the
-    cost follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
+    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
+    the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
+
     If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
-    possible cases. A first possibility is to introduce a
-    quadratic KL divergence on the marginals in the objective as done
-    in Sejourne et al. 2021 (https://arxiv.org/abs/2009.04266)
-    (`gw_unbalanced_correction=True`), which in turns modifies the local cost
-    matrix.
-    Alternatively, it could be possible to leave
-    the formulation of the local cost unchanged, i.e. follow Equation 6 of
-    Proposition 1 (`gw_unbalanced_correction=False`) and include the
-    unbalanced terms at the level of the linear problem only.
+    possible cases. A first possibility is to introduce a quadratic KL
+    divergence on the marginals in the objective as done in :cite:`sejourne:21`
+    (``gw_unbalanced_correction = True``), which in turns modifies the
+    local cost matrix.
+
+    Alternatively, it could be possible to leave the formulation of the
+    local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
+    (``gw_unbalanced_correction = False``) and include the unbalanced terms
+    at the level of the linear problem only.
 
     Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
     cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
@@ -362,7 +359,6 @@ class QuadraticProblem:
     When working with the fused problem, a linear term is added to the cost
     matrix:
     `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
-
 
     Args:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
@@ -457,13 +453,14 @@ class QuadraticProblem:
   ) -> linear_problems.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
-    If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
-    follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf. If the problem is unbalanced
-    (`tau_a<1.0 or tau_b<1.0`), two cases are possible, as explained in the
-    pydoc of `init_linearization` above. Finally, it is also possible to
-    consider a Fused Gromov Wasserstein problem. Details about the resulting
-    cost matrix are given in the pydoc of `init_linearization`.
+    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``), the equation
+    follows eq. 6, p. 1 of :cite:`peyre:16`.
+
+    If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
+    possible, as explained in :meth:`init_linearization` above.
+    Finally, it is also possible to consider a Fused Gromov Wasserstein problem.
+    Details about the resulting cost matrix are also given in
+    :meth:`init_linearization`.
 
     Args:
       transport: Solution of the linearization of the quadratic problem.

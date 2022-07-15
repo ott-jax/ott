@@ -49,20 +49,20 @@ class Geometry:
     kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
       x m kernel values.
     epsilon: a regularization parameter.
-      If a :class:`ott.geometry.epsilon_scheduler.Epsilon` object is passed,
+      If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
       other parameters below are ignored in practice. If the
       parameter is a float, then this is understood to be the regularization
       that is needed, unless ``relative_epsilon`` below is ``True``, in which
       case ``epsilon`` is understood as a normalized quantity, to be scaled by
-      the mean value of the ``cost_matrix``.
+      the mean value of the :attr:`cost_matrix`.
     relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood as mean value of ``cost_matrix``.
+      here understood as mean value of :attr:`cost_matrix`.
     scale_epsilon: the scale multiplier for epsilon.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    kwargs: additional kwargs to epsilon.
+    kwargs: additional kwargs to epsilon scheduler.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to
