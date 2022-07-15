@@ -12,3 +12,8 @@ profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
 skip_glob = ["docs/*"]
+
+[tool.black]
+line-length = 80
+target-version = ['py38']
+include = '\.ipynb$'
