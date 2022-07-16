@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import jax
@@ -21,13 +22,15 @@ from ott.core import linear_problems
 from ott.geometry import pointcloud
 
 
-class SinkhornInitializer:
+class SinkhornInitializer(ABC):
 
+  @abstractmethod
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/ scaling f_u."""
 
+  @abstractmethod
   def init_dual_b(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
@@ -73,7 +76,7 @@ class DefaultInitializer(SinkhornInitializer):
 class GaussianInitializer(DefaultInitializer):
   """GaussianInitializer.
 
-  From https://arxiv.org/abs/2206.07630.
+  From :cite:`thornton2022rethinking:22`.
   Compute Gaussian approximations of each pointcloud, then compute closed from
   Kantorovich potential betwen Gaussian approximations using Brenier's theorem
   (adapt convex/ Brenier potential to Kantorovich). Use this Gaussian potential to
@@ -123,7 +126,7 @@ class GaussianInitializer(DefaultInitializer):
 class SortingInitializer(DefaultInitializer):
   """Sorting Init class.
 
-  DualSort algorithm from https://arxiv.org/abs/2206.07630, solve
+  DualSort algorithm from :cite:`thornton2022rethinking:22`, solve
   non-regularized OT problem via sorting, then compute potential through
   iterated minimum on C-transform and use this potential to initialize
   regularized potential
@@ -140,9 +143,7 @@ class SortingInitializer(DefaultInitializer):
       tolerance: float = 1e-2,
       max_iter: int = 100
   ):
-
     super().__init__()
-
     self.tolerance = tolerance
     self.max_iter = max_iter
     self.update_fn = lambda f, mod_cost: jax.lax.cond(

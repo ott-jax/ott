@@ -101,18 +101,15 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01):
 
 class TestInitializers:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self):
-    self.rng = jax.random.PRNGKey(42)
-
   @pytest.mark.fast.with_args("vector_min", [False, True])
   def test_sorting_init(self, vector_min):
     """Tests sorting dual initializer."""
 
     n = 500
     epsilon = 0.01
+    rng = jax.random.PRNGKey(42)
 
-    ot_problem = create_sorting_problem(rng=self.rng, n=n, epsilon=epsilon)
+    ot_problem = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
     # run sinkhorn
     sink_out_base = run_sinkhorn(
         x=ot_problem.geom.x,
@@ -143,8 +140,9 @@ class TestInitializers:
     m = 200
     d = 2
     epsilon = 0.01
+    rng = jax.random.PRNGKey(42)
 
-    ot_problem = create_ot_problem(self.rng, n, m, d)
+    ot_problem = create_ot_problem(rng, n, m, d)
 
     default_potential_a = init_lib.DefaultInitializer().init_dual_a(
         ot_problem=ot_problem, lse_mode=True
@@ -184,8 +182,9 @@ class TestInitializers:
     m = 200
     d = 2
     epsilon = 0.01
+    rng = jax.random.PRNGKey(42)
 
-    ot_problem = create_ot_problem(self.rng, n, m, d)
+    ot_problem = create_ot_problem(rng, n, m, d)
 
     # run sinkhorn
     sink_out = run_sinkhorn(
