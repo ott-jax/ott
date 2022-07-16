@@ -78,6 +78,8 @@ def solve(
     *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
+    init_dual_a: Optional[jnp.ndarray] = None,
+    init_dual_b: Optional[jnp.ndarray] = None,
     objective: Optional[Literal['linear', 'quadratic', 'fused']] = None,
     **kwargs: Any
 ) -> Transport:
@@ -121,9 +123,10 @@ def solve(
   linear = isinstance(pb, linear_problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
+
   remove_keys = geom_keys + eps_keys if linear else geom_keys
   for key in remove_keys:
     kwargs.pop(key, None)
   solver = solver_fn(**kwargs)
-  output = solver(pb)
+  output = solver(pb, (init_dual_a, init_dual_b))
   return Transport(pb, output)

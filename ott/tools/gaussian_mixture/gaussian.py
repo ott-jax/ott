@@ -33,6 +33,32 @@ class Gaussian:
     self._scale = scale
 
   @classmethod
+  def from_samples(
+      cls, points: jnp.ndarray, weights: jnp.ndarray = None
+  ) -> 'Gaussian':
+    """Construct a Gaussian from weighted samples.
+
+    Unbiased, weighted covariance formula from https://en.wikipedia.org/wiki/Sample_mean_and_covariance#Weighted_samples
+    and https://www.gnu.org/software/gsl/doc/html/statistics.html?highlight=weighted#weighted-samples
+
+    Args:
+      points: [n x d] array of samples
+      weights: [n] array of weights
+
+    Returns:
+      Gaussian.
+    """
+    n = points.shape[0]
+    if weights is None:
+      weights = jnp.ones(n) / n
+
+    mean = weights.dot(points)
+    centered_x = (points - mean)
+    scaled_centered_x = centered_x * weights.reshape(-1, 1)
+    cov = scaled_centered_x.T.dot(centered_x) / (1 - weights.dot(weights))
+    return cls.from_mean_and_cov(mean=mean, cov=cov)
+
+  @classmethod
   def from_random(
       cls,
       key: jnp.ndarray,
@@ -129,7 +155,40 @@ class Gaussian:
     delta_sigma = self.scale.w2_dist(other.scale)
     return delta_mean + delta_sigma
 
+  def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+    """Optimal potential for W2 distance between Gaussians. Evaluated on points.
+
+    Args:
+      dest: Gaussian object
+      points: samples
+
+    Returns:
+      Dual potential, f
+    """
+    scale_matrix = self.scale.gaussian_map(dest_scale=dest.scale)
+    centered_x = points - self.loc
+    scaled_x = (scale_matrix @ centered_x.T)
+
+    @jax.vmap
+    def batch_inner_product(x, y):
+      return x.dot(y)
+
+    return (
+        0.5 * batch_inner_product(points, points) -
+        0.5 * batch_inner_product(centered_x, scaled_x.T) -
+        points.dot(dest.loc)
+    )
+
   def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+    """Transport points according to map between two Gaussian measures.
+
+    Args:
+      dest: Gaussian object
+      points: samples
+
+    Returns:
+      Transported samples
+    """
     return self.scale.transport(
         dest_scale=dest.scale, points=points - self.loc[None]
     ) + dest.loc[None]
