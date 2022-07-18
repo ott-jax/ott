@@ -74,7 +74,10 @@ class BarycenterProblem:
       else:
         assert self._b is None or (self._y.shape[0],) == self._b.shape
         self._segmented_y, self._segmented_b, _ = segment.segment_point_cloud(
-            self._y, self._b, **kwargs
+            self._y,
+            self._b,
+            padding_vector=self.cost_fn.padder(self._y.shape[1]),
+            **kwargs
         )
     self._kwargs = kwargs
 

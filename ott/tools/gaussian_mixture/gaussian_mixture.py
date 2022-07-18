@@ -15,7 +15,7 @@
 # Lint as: python 3
 """Pytree for a Gaussian mixture model."""
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -78,7 +78,10 @@ class GaussianMixture:
       key: jnp.ndarray,
       n_components: int,
       n_dimensions: int,
-      stdev: float = 0.1,
+      stdev_mean: float = 0.1,
+      stdev_cov: float = 0.1,
+      stdev_weights: float = 0.1,
+      ridge: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'GaussianMixture':
     """Construct a random GMM."""
@@ -87,14 +90,19 @@ class GaussianMixture:
     for _ in range(n_components):
       key, subkey = jax.random.split(key)
       component = gaussian.Gaussian.from_random(
-          key=subkey, n_dimensions=n_dimensions, stdev=stdev, dtype=dtype
+          key=subkey,
+          n_dimensions=n_dimensions,
+          stdev_mean=stdev_mean,
+          stdev_cov=stdev_cov,
+          ridge=ridge,
+          dtype=dtype
       )
       loc.append(component.loc)
       scale_params.append(component.scale.params)
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        key=subkey, n_dimensions=n_components, stdev=stdev, dtype=dtype
+        key=subkey, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
     )
     return cls(
         loc=loc, scale_params=scale_params, component_weight_ob=weight_ob

@@ -62,6 +62,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     notebooks/fairness.ipynb
     notebooks/neural_dual.ipynb
     notebooks/icnn_inits.ipynb
+    notebooks/wasserstein_barycenters_gmms.ipynb
 
 .. toctree::
     :maxdepth: 1
