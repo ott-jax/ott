@@ -213,6 +213,7 @@ class GWBarycenterProblem(BarycenterProblem):
             y_fused, None, **self._kwargs
         )
     else:
+      super().__init__(y, b, weights, **kwargs)
       self._segmented_y_fused = None
 
     self._y_as_costs = costs is not None
