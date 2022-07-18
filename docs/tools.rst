@@ -1,3 +1,5 @@
+.. _tools:
+
 ott.tools package
 =================
 .. currentmodule:: ott.tools

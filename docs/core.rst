@@ -1,3 +1,5 @@
+.. _core:
+
 ott.core package
 ================
 .. currentmodule:: ott.core

@@ -1,3 +1,5 @@
+.. _geometry:
+
 ott.geometry package
 ====================
 .. currentmodule:: ott.geometry

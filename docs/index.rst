@@ -19,17 +19,17 @@ Packages
 --------
 There are currently three packages, ``geometry``, ``core`` and ``tools``, playing the following roles:
 
-- `<geometry>`_ defines classes that describe *two point clouds* paired with a *cost* function (simpler geometries
+- :ref:`geometry` defines classes that describe *two point clouds* paired with a *cost* function (simpler geometries
   are also implemented, such as that defined by points supported on a multi-dimensional grids with a separable
   cost :cite:`solomon:15`). The design choice in OTT is to state that cost functions and algorithms should operate
   independently: if a particular cost function allows for faster computations
   (e.g. squared-Euclidean distance when comparing grids), this should not be taken advantage of at the level of
   optimizers, but at the level of the problems description. Geometry objects are therefore only considered as
   arguments to describe OT problem handled in ``core``, using subroutines provided by geometries;
-- `<core>`_ help define first an OT problem (linear, quadratic, barycenters). These problems are then solved using
+- :ref:`core` help define first an OT problem (linear, quadratic, barycenters). These problems are then solved using
   Sinkhorn algorithm and its variants, the main workhorse to solve OT in this package, as well as variants that
   can comppute Gromov-Wasserstein distances or barycenters of several measures;
-- `<tools>`_ provides an interface to exploit OT solutions, as produced by ``core`` functions. Such tasks include
+- :ref:`tools` provides an interface to exploit OT solutions, as produced by ``core`` functions. Such tasks include
   instantiating OT matrices, computing approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
   or computing differentiable sort and quantile operations :cite:`cuturi:19`.
 
