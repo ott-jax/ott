@@ -152,7 +152,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       linear_solver = self._quad_solver.linear_ot_solver
 
       transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
-      x = problem.update_features(transports, a)
+      x = problem.update_features(transports, a) if problem.is_fused else None
       cost = problem.update_barycenter(transports, a)
     else:
       cost, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
@@ -244,11 +244,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     else:
       errors = None
 
-    x_new = problem.update_features(transports, state.a)
-    cost_new = problem.update_barycenter(transports, state.a)
+    if problem.is_fused:
+      x = problem.update_features(transports, state.a)
+    cost = problem.update_barycenter(transports, state.a)
     return state.set(
-        cost=cost_new,
-        x=x_new,
+        cost=cost,
+        x=x,
         costs=costs,
         errors=errors,
         gw_convergence=gw_convergence

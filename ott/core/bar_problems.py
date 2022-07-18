@@ -272,7 +272,7 @@ class GWBarycenterProblem(BarycenterProblem):
                       a: jnp.ndarray) -> Optional[jnp.ndarray]:
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
-    Uses the eq. (8) of :cite:`cuturi:14`. and is implemented only
+    Uses :cite:`cuturi:14` eq. 8, and is implemented only
     for the squared :class:`~ott.geometry.costs.Euclidean` cost.
 
     Args:
@@ -282,10 +282,12 @@ class GWBarycenterProblem(BarycenterProblem):
     Returns:
       Array of features of shape ``[N, D_f]``.
     """
-    if not self.is_fused:
-      return None
-
     y_fused = self.segmented_y_fused
+    if y_fused is None:
+      raise RuntimeError(
+          "Feature updates are available only in the fused case."
+      )
+
     weights = self.weights[:, None, None]
     divide_a = jnp.where(a > 0, 1.0 / a, 1.0)
     transports = transports * divide_a[None, :, None]
