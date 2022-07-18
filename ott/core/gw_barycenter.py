@@ -244,8 +244,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     else:
       errors = None
 
-    if problem.is_fused:
-      x = problem.update_features(transports, state.a)
+    x = problem.update_features(
+        transports, state.a
+    ) if problem.is_fused else state.x
     cost = problem.update_barycenter(transports, state.a)
     return state.set(
         cost=cost,
