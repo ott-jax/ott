@@ -34,7 +34,12 @@ jobs:
         python -c "import jax; print('jax', jax.__version__)"
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
 
+    - name: Intall Jupyter kernel
+      run: |
+        pip install ipykernel
+        python -m ipykernel install --user --name=ott
+
     - name: Run notebook tests
       timeout-minutes: 60
       run: |
-        python -m pytest -m notebook --notebook-cell-timeout=3600 --kernel-name=python
+        python -m pytest -m notebook  --kernel-name=ott --notebook-cell-timeout=3600
