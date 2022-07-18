@@ -14,7 +14,7 @@
 """Classes defining OT problem(s) (objective function + utilities)."""
 import functools
 from functools import partial
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -239,8 +239,9 @@ class GWBarycenterProblem(BarycenterProblem):
 
     @partial(jax.vmap, in_axes=[0, 0, None])
     def project(
-        y: jnp.ndarray, transport: jnp.ndarray,
-        fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]]
+        y: jnp.ndarray,
+        transport: jnp.ndarray,
+        fn: Optional[quad_problems.Loss],
     ) -> jnp.ndarray:
       if self._y_as_costs:
         assert y.shape[0] == y.shape[1], y.shape
@@ -254,7 +255,9 @@ class GWBarycenterProblem(BarycenterProblem):
             epsilon=self.epsilon,
             scale_cost=self.scale_cost
         )
-      tmp = geom.apply_cost(transport.T, axis=0, fn=fn)
+      tmp = geom.apply_cost(
+          transport.T, axis=0, fn=fn.func, is_linear=fn.is_linear
+      )
       return transport @ tmp
 
     fn = None if self._loss_name == 'sqeucl' else self.loss.h2
