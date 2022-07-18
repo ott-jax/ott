@@ -255,8 +255,12 @@ class GWBarycenterProblem(BarycenterProblem):
             epsilon=self.epsilon,
             scale_cost=self.scale_cost
         )
+      fn, lin = (None, True) if fn is None else (fn, fn.is_linear)
       tmp = geom.apply_cost(
-          transport.T, axis=0, fn=fn.func, is_linear=fn.is_linear
+          transport.T,
+          axis=0,
+          fn=fn,
+          is_linear=lin,
       )
       return transport @ tmp
 
