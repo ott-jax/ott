@@ -35,5 +35,6 @@ jobs:
         python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
 
     - name: Run notebook tests
+      timeout-minutes: 60
       run: |
-        python -m pytest --nbval-lax docs/notebooks/ --current-env
+        python -m pytest -m notebook --notebook-cell-timeout=3600
