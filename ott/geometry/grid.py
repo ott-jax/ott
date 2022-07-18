@@ -120,9 +120,11 @@ class Grid(geometry.Geometry):
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
       cost_matrix = jax.vmap(
-          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # pylint: disable=cell-var-from-loop
-          (x_values)
-      )(x_values)  # pylint: disable=cell-var-from-loop
+          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # noqa: B023
+          (x_values)  # noqa: B023
+      )(
+          x_values
+      )
       cost_matrices.append(cost_matrix)
     return cost_matrices
 
