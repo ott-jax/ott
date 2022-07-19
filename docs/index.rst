@@ -73,11 +73,13 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     tools
     references
 
-Indices and tables
-==================
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. toctree::
+    :maxdepth: 1
+    :caption: References:
+
+    references
+
+.. TODO(michalk8): convert below to bibtex entries in the future
 
 References
 ==========
