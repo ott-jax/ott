@@ -21,6 +21,7 @@ from . import (
     dataclasses,
     discrete_barycenter,
     gromov_wasserstein,
+    gw_barycenter,
     implicit_differentiation,
     linear_problems,
     momentum,

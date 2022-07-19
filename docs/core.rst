@@ -23,6 +23,7 @@ OT Problems
     linear_problems.LinearProblem
     quad_problems.QuadraticProblem
     bar_problems.BarycenterProblem
+    bar_problems.GWBarycenterProblem
 
 Sinkhorn
 --------
@@ -47,6 +48,10 @@ Barycenters (Entropic and LR)
     :toctree: _autosummary
 
     discrete_barycenter.discrete_barycenter
+    continuous_barycenter.WassersteinBarycenter
+    continuous_barycenter.BarycenterState
+    gw_barycenter.GromovWassersteinBarycenter
+    gw_barycenter.GWBarycenterState
 
 Gromov-Wasserstein (Entropic and LR)
 ------------------------------------
@@ -65,3 +70,11 @@ Neural Potentials
     icnn.ICNN
     neuraldual.NeuralDualSolver
     neuraldual.NeuralDual
+
+Padding Utilities
+-----------------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment.segment_point_cloud
+    segment.pad_along_axis

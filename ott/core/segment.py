@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Prepare point clouds for parallel computations."""
-
-from typing import Optional, Tuple
+from types import MappingProxyType
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -45,7 +45,7 @@ def segment_point_cloud(
     TODO.
 
   Returns:
-    TODO.
+    Segmented ``x``, ``y`` and the number segments.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -100,3 +100,46 @@ def segment_point_cloud(
   segmented_x = jnp.stack(segmented_x)
 
   return segmented_x, segmented_a, num_segments
+
+
+def pad_along_axis(
+    x: Sequence[jnp.ndarray],
+    max_pad_size: Mapping[int, Optional[int]] = MappingProxyType({}),
+    constant_values: Any = 0.0,
+    **kwargs: Any,
+) -> jnp.ndarray:
+  """Pad and stack sequence of arrays.
+
+  Args:
+    x: Sequence of arrays to pad.
+    max_pad_size: Maximum padding size along each axis. Always pads after.
+      Each key specifies an axis to pad, value corresponds to its new size.
+      If the value is ``None``, maximum value across all arrays is used.
+    constant_values: Value to pad with.
+    kwargs: Keyword arguments for :func:`jax.numpy.pad`.
+
+  Returns:
+    The padded array.
+  """
+  shapes = jnp.asarray([arr.shape for arr in x])
+  res = []
+
+  for arr in x:
+    pad_width = []
+    # TODO(michalk8): handle negative axes
+    for dim in range(arr.ndim):
+      max_size = max_pad_size.get(dim, arr.shape[dim])
+      if max_size is None:
+        max_size = jnp.max(shapes[:, dim])
+      # if negative, `jnp.pad` will raise
+      pad_width.append((0, max_size - arr.shape[dim]))
+    padded = jnp.pad(
+        arr,
+        pad_width=pad_width,
+        mode='constant',
+        constant_values=constant_values,
+        **kwargs
+    )
+    res.append(padded)
+
+  return jnp.asarray(res)
