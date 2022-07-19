@@ -1,0 +1,4 @@
+prune docs
+prune .github
+prune images
+prune tests

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,28 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for fit_gmm_pair."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import jax.test_util
+import pytest
 
-from ott.tools.gaussian_mixture import fit_gmm
-from ott.tools.gaussian_mixture import gaussian_mixture
+from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
-class FitGmmTest(absltest.TestCase):
+@pytest.mark.fast
+class TestFitGmm:
 
-  def setUp(self):
-    super().setUp()
-    mean_generator = jnp.array([[2., -1.],
-                                [-2., 0.],
-                                [4., 3.]])
-    cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]],
-                               [[0.6, 0.], [0., 0.3]],
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
+    mean_generator = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
+    cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                [[0.5, 0.4], [0.4, 0.5]]])
     weights_generator = jnp.array([0.3, 0.3, 0.4])
 
@@ -41,10 +35,11 @@ class FitGmmTest(absltest.TestCase):
         gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
             mean=mean_generator,
             cov=cov_generator,
-            component_weights=weights_generator))
+            component_weights=weights_generator
+        )
+    )
 
-    key = jax.random.PRNGKey(0)
-    self.key, subkey = jax.random.split(key)
+    self.key, subkey = jax.random.split(rng)
     self.samples = gmm_generator.sample(key=subkey, size=2000)
 
   def test_integration(self):
@@ -56,12 +51,8 @@ class FitGmmTest(absltest.TestCase):
         points=self.samples,
         point_weights=None,
         n_components=3,
-        verbose=False)
+        verbose=False
+    )
     _ = fit_gmm.fit_model_em(
-        gmm=gmm_init,
-        points=self.samples,
-        point_weights=None,
-        steps=20)
-
-if __name__ == '__main__':
-  absltest.main()
+        gmm=gmm_init, points=self.samples, point_weights=None, steps=20
+    )

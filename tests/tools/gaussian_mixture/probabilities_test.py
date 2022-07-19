@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,40 +11,43 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for probabilities."""
-
-from absl.testing import absltest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+
 from ott.tools.gaussian_mixture import probabilities
 
 
-class ProbabilitiesTest(absltest.TestCase):
+@pytest.mark.fast
+class TestProbabilities:
 
   def test_probs(self):
     pp = probabilities.Probabilities(jnp.array([1., 2.]))
     probs = pp.probs()
-    self.assertEqual(probs.shape, (3,))
-    self.assertAlmostEqual(jnp.sum(probs), 1., places=6)
-    self.assertTrue(jnp.all(probs > 0.))
+    np.testing.assert_array_equal(probs.shape, (3,))
+    np.testing.assert_allclose(jnp.sum(probs), 1.0)
+    np.testing.assert_array_equal(probs > 0., True)
 
   def test_log_probs(self):
     pp = probabilities.Probabilities(jnp.array([1., 2.]))
     log_probs = pp.log_probs()
-    self.assertEqual(log_probs.shape, (3,))
     probs = jnp.exp(log_probs)
-    self.assertAlmostEqual(jnp.sum(probs), 1., places=6)
-    self.assertTrue(jnp.all(probs > 0.))
+
+    np.testing.assert_array_equal(log_probs.shape, (3,))
+    np.testing.assert_array_equal(probs.shape, (3,))
+    np.testing.assert_allclose(jnp.sum(probs), 1.0)
+    np.testing.assert_array_equal(probs > 0., True)
 
   def test_from_random(self):
     n_dimensions = 4
     key = jax.random.PRNGKey(0)
     pp = probabilities.Probabilities.from_random(
-        key=key, n_dimensions=n_dimensions, stdev=0.1)
-    self.assertEqual(pp.probs().shape, (4,))
+        key=key, n_dimensions=n_dimensions, stdev=0.1
+    )
+    np.testing.assert_array_equal(pp.probs().shape, (4,))
 
   def test_from_probs(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
@@ -66,13 +68,10 @@ class ProbabilitiesTest(absltest.TestCase):
     children, aux_data = jax.tree_util.tree_flatten(pp)
     pp_new = jax.tree_util.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(pp.params, pp_new.params)
-    self.assertEqual(pp, pp_new)
+    assert pp == pp_new
 
   def test_pytree_mapping(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
     pp = probabilities.Probabilities.from_probs(probs)
     pp_x_2 = jax.tree_map(lambda x: 2 * x, pp)
     np.testing.assert_allclose(2. * pp.params, pp_x_2.params)
-
-if __name__ == '__main__':
-  absltest.main()

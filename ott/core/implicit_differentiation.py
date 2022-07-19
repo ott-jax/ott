@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,17 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Functions entering the implicit differentiation of Sinkhorn."""
 
 from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
-from ott.core import dataclasses
-from ott.core import problems
-from ott.core import unbalanced_functions
+
+from ott.core import dataclasses, linear_problems, unbalanced_functions
 
 
 @dataclasses.register_pytree_node
@@ -41,6 +37,7 @@ class ImplicitDiff:
       at the moment, needs to be set manually by the user in the more favorable
       case where the system is guaranteed to be symmetric.
   """
+
   solver_fun: Callable = jax.scipy.sparse.linalg.cg  # pylint: disable=g-bare-generic
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
@@ -48,13 +45,11 @@ class ImplicitDiff:
   precondition_fun: Optional[Callable[[float], float]] = None
 
   def solve(
-      self,
-      gr: Tuple[np.ndarray],
-      ot_prob: problems.LinearProblem,
-      f: np.ndarray,
-      g: np.ndarray,
-      lse_mode: bool):
-    r"""Applies minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
+      self, gr: Tuple[jnp.ndarray,
+                      jnp.ndarray], ot_prob: linear_problems.LinearProblem,
+      f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
+  ):
+    r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
     outputs, notably optimal potentials ``f`` and ``g``. That differentiation
@@ -126,7 +121,7 @@ class ImplicitDiff:
     its transpose before solving the system).
 
     Args:
-      gr: 2-uple, (vector of size ``n``, vector of size ``m``).
+      gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
       ot_prob: the instantiation of the regularizad transport problem.
       f: potential, w.r.t marginal a.
       g: potential, w.r.t marginal b.
@@ -137,7 +132,8 @@ class ImplicitDiff:
     """
     geom = ot_prob.geom
     marginal_a, marginal_b, app_transport = (
-        ot_prob.get_transport_functions(lse_mode))
+        ot_prob.get_transport_functions(lse_mode)
+    )
 
     # elementwise vmap apply of derivative of precondition_fun. No vmapping
     # can be problematic here.
@@ -150,24 +146,32 @@ class ImplicitDiff:
     n, m = geom.shape
     # pylint: disable=g-long-lambda
     vjp_fg = lambda z: app_transport(
-        f, g, z * derivative(marginal_b(f, g)), axis=1) / geom.epsilon
+        f, g, z * derivative(marginal_b(f, g)), axis=1
+    ) / geom.epsilon
     vjp_gf = lambda z: app_transport(
-        f, g, z * derivative(marginal_a(f, g)), axis=0) / geom.epsilon
+        f, g, z * derivative(marginal_a(f, g)), axis=0
+    ) / geom.epsilon
 
     if not self.symmetric:
       vjp_fgt = lambda z: app_transport(
-          f, g, z, axis=0) * derivative(marginal_b(f, g)) / geom.epsilon
+          f, g, z, axis=0
+      ) * derivative(marginal_b(f, g)) / geom.epsilon
       vjp_gft = lambda z: app_transport(
-          f, g, z, axis=1) * derivative(marginal_a(f, g)) / geom.epsilon
+          f, g, z, axis=1
+      ) * derivative(marginal_a(f, g)) / geom.epsilon
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
         unbalanced_functions.diag_jacobian_of_marginal_fit(
-            ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative))
+            ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative
+        )
+    )
     diag_hess_b = (
         marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
         unbalanced_functions.diag_jacobian_of_marginal_fit(
-            ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative))
+            ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
+        )
+    )
 
     n, m = geom.shape
     # Remove ridge on kernel space if problem is balanced.
@@ -182,12 +186,15 @@ class ImplicitDiff:
 
       if self.symmetric:
         schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z)
+            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+        )
       else:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
         g0, g1 = schur_t(g0), schur_t(g1)
-        schur = lambda z: (schur_t(schur_(z)) + ridge_kernel * jnp.sum(z)
-                           + self.ridge_identity * z)
+        schur = lambda z: (
+            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
+            * z
+        )
 
       sch_f = self.solver_fun(schur, g0)[0]
       sch_g = self.solver_fun(schur, g1)[0]
@@ -200,13 +207,16 @@ class ImplicitDiff:
       g0, g1 = vjp_fg(inv_vjp_gg(gr[1])), gr[0]
 
       if self.symmetric:
-        schur = lambda z: (schur_(z) + self.ridge_kernel * jnp.sum(z)
-                           + self.ridge_identity * z)
+        schur = lambda z: (
+            schur_(z) + self.ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+        )
       else:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
         g0, g1 = schur_t(g0), schur_t(g1)
-        schur = lambda z: (schur_t(schur_(z)) + self.ridge_kernel * jnp.sum(z)
-                           + self.ridge_identity * z)
+        schur = lambda z: (
+            schur_t(schur_(z)) + self.ridge_kernel * jnp.sum(z) + self.
+            ridge_identity * z
+        )
       # pylint: enable=g-long-lambda
       sch_g = self.solver_fun(schur, g0)[0]
       sch_f = self.solver_fun(schur, g1)[0]
@@ -216,8 +226,9 @@ class ImplicitDiff:
     return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
   def first_order_conditions(
-      self, prob, f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool):
-    r"""Computes vector of first order conditions for the reg-OT problem.
+      self, prob, f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
+  ):
+    r"""Compute vector of first order conditions for the reg-OT problem.
 
     The output of this vector should be close to zero at optimality.
     Upon completion of the Sinkhorn forward pass, its norm (using the norm
@@ -239,23 +250,32 @@ class ImplicitDiff:
     """
     geom = prob.geom
     marginal_a, marginal_b, _ = prob.get_transport_functions(lse_mode)
-    grad_a = unbalanced_functions.grad_of_marginal_fit(prob.a, f, prob.tau_a,
-                                                       geom.epsilon)
-    grad_b = unbalanced_functions.grad_of_marginal_fit(prob.b, g, prob.tau_b,
-                                                       geom.epsilon)
+    grad_a = unbalanced_functions.grad_of_marginal_fit(
+        prob.a, f, prob.tau_a, geom.epsilon
+    )
+    grad_b = unbalanced_functions.grad_of_marginal_fit(
+        prob.b, g, prob.tau_b, geom.epsilon
+    )
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
     else:
       precond_fun = self.precondition_fun
 
     result_a = jnp.where(
-        prob.a > 0, precond_fun(marginal_a(f, g)) - precond_fun(grad_a), 0.0)
+        prob.a > 0,
+        precond_fun(marginal_a(f, g)) - precond_fun(grad_a), 0.0
+    )
     result_b = jnp.where(
-        prob.b > 0, precond_fun(marginal_b(f, g)) - precond_fun(grad_b), 0.0)
+        prob.b > 0,
+        precond_fun(marginal_b(f, g)) - precond_fun(grad_b), 0.0
+    )
     return jnp.concatenate((result_a, result_b))
 
-  def gradient(self, prob, f, g, lse_mode, gr) -> problems.LinearProblem:
-    """Applies vjp to recover gradient in reverse mode differentiation."""
+  def gradient(
+      self, prob: linear_problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
+      lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> linear_problems.LinearProblem:
+    """Apply vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 

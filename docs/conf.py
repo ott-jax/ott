@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,21 +23,24 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#
+from datetime import datetime
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('../'))
 
+import ott  # noqa: 402
 
 # -- Project information -----------------------------------------------------
+needs_sphinx = "4.0"
 
-project = 'ott'
-copyright = '2021, the OTT authors'
-author = 'Marco Cuturi, Laetitia Papaxanthos, Olivier Teboul'
+project = "ott"
+author = "OTT authors"
+copyright = f"2021-{datetime.now():%Y}, {author}"
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.0'
-
+release = ott.__version__
+version = release
 
 # -- General configuration ---------------------------------------------------
 
@@ -52,21 +54,32 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'matplotlib.sphinxext.plot_directive',
+    'sphinxcontrib.bibtex',
     'nbsphinx',
+    'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
     'recommonmark',
-    'sphinx_rtd_theme',
 ]
 
-source_suffix = ['.rst', '.md']
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "flax": ("https://flax.readthedocs.io/en/latest/", None),
+}
+
+master_doc = 'index'
+source_suffix = ['.rst']
 
 autosummary_generate = True
 
-master_doc = 'index'
-
 autodoc_typehints = 'description'
-nbsphinx_codecell_lexer = 'ipython3'
+pygments_lexer = 'ipython3'
+nbsphinx_execute = 'never'
+
+# bibliography
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+bibtex_default_style = "alpha"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -74,8 +87,7 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
-
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -83,9 +95,9 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-html_theme = 'sphinx_rtd_theme'
-html_logo = 'logoOTT.png'
-html_favicon = 'logoOTT.ico'
+html_theme = 'sphinx_book_theme'
+html_logo = '_static/logoOTT.png'
+html_favicon = '_static/logoOTT.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

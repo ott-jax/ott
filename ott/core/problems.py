@@ -1,5 +1,4 @@
-# coding=utf-8
-# Copyright 2022 Google LLC.
+# Copyright 2022 The OTT Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,86 +11,83 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Utility to make a problem class from arrays."""
+from typing import Any, Optional, Union
 
-"""Classes defining OT problem(s) (objective function + utilities)."""
-
-from typing import Optional, Tuple
-import jax
 import jax.numpy as jnp
-from ott.geometry import geometry
+import numpy as np
+
+from ott.core import linear_problems, quad_problems
+from ott.geometry import geometry, pointcloud
 
 
-@jax.tree_util.register_pytree_node_class
-class LinearProblem:
-  """Holds the definition of a linear regularized OT problem and some tools."""
-
-  def __init__(self,
-               geom: geometry.Geometry,
-               a: Optional[jnp.ndarray] = None,
-               b: Optional[jnp.ndarray] = None,
-               tau_a: float = 1.0,
-               tau_b: float = 1.0):
-    """Initializes the LinearProblem.
-
-    min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
-
-    Args:
-      geom: the geometry.Geometry object defining the ground geometry / cost of
-        the linear problem.
-      a: jnp.ndarray[n] representing the first marginal. If None, it will be
-        uniform.
-      b: jnp.ndarray[n] representing the first marginal. If None, it will be
-        uniform.
-      tau_a: if lower that 1.0, defines how much unbalanced the problem is on
-        the first marginal.
-      tau_b: if lower that 1.0, defines how much unbalanced the problem is on
-        the second marginal.
-    """
-    self.geom = geom
-    self._a = a
-    self._b = b
-    self.tau_a = tau_a
-    self.tau_b = tau_b
-
-  def tree_flatten(self):
-    return ([self.geom, self._a, self._b],
-            {'tau_a': self.tau_a, 'tau_b': self.tau_b})
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    return cls(*children, **aux_data)
-
-  @property
-  def a(self):
-    num_a = self.geom.shape[0]
-    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
-
-  @property
-  def b(self):
-    num_b = self.geom.shape[1]
-    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
-
-  @property
-  def is_balanced(self):
-    return self.tau_a == 1.0 and self.tau_b == 1.0
-
-  @property
-  def epsilon(self):
-    return self.geom.epsilon
-
-  def get_transport_functions(self, lse_mode: bool):
-    """Instantiates useful functions for Sinkhorn depending on lse_mode."""
-    geom = self.geom
-    if lse_mode:
-      marginal_a = lambda f, g: geom.marginal_from_potentials(f, g, 1)
-      marginal_b = lambda f, g: geom.marginal_from_potentials(f, g, 0)
-      app_transport = geom.apply_transport_from_potentials
+def make(
+    *args: Union[jnp.ndarray, geometry.Geometry, linear_problems.LinearProblem,
+                 quad_problems.QuadraticProblem],
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    objective: Optional[str] = None,
+    gw_unbalanced_correction: Optional[bool] = True,
+    fused_penalty: Optional[float] = None,
+    scale_cost: Optional[Union[bool, float, str]] = False,
+    **kwargs: Any,
+):
+  """Make a problem from arrays, assuming PointCloud geometries."""
+  if isinstance(args[0], (jnp.ndarray, np.ndarray)):
+    x = args[0]
+    y = args[1] if len(args) > 1 else args[0]
+    if ((objective == 'linear') or
+        (objective is None and x.shape[1] == y.shape[1])):  # noqa: E129
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return linear_problems.LinearProblem(
+          geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b
+      )
+    elif ((objective == 'quadratic') or
+          (objective is None and x.shape[1] != y.shape[1])):
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      return quad_problems.QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=None,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
+    elif objective == 'fused':
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return quad_problems.QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=geom_xy,
+          fused_penalty=fused_penalty,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
     else:
-      marginal_a = lambda f, g: geom.marginal_from_scalings(
-          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 1)
-      marginal_b = lambda f, g: geom.marginal_from_scalings(
-          geom.scaling_from_potential(f), geom.scaling_from_potential(g), 0)
-      app_transport = lambda f, g, z, axis: geom.apply_transport_from_scalings(
-          geom.scaling_from_potential(f),
-          geom.scaling_from_potential(g), z, axis)
-    return marginal_a, marginal_b, app_transport
+      raise ValueError(f'Unknown transport problem `{objective}`')
+  elif isinstance(args[0], geometry.Geometry):
+    if len(args) == 1:
+      return linear_problems.LinearProblem(
+          *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b
+      )
+    return quad_problems.QuadraticProblem(
+        *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost
+    )
+  elif isinstance(
+      args[0], (linear_problems.LinearProblem, quad_problems.QuadraticProblem)
+  ):
+    return args[0]
+  else:
+    raise ValueError('Cannot instantiate a transport problem.')

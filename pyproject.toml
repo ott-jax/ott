@@ -1,6 +1,14 @@
 [build-system]
 requires = [
-  "setuptools >= 40.9.0",
-  "wheel",
+    "setuptools>=45",
+    "setuptools-scm[toml]>=6.2",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+
+[tool.isort]
+profile = "black"
+include_trailing_comma = true
+multi_line_output = 3
+skip_glob = ["docs/*"]

@@ -1,0 +1,55 @@
+[flake8]
+max-line-length = 80
+ignore =
+    # line break before a binary operator -> black does not adhere to PEP8
+    W503
+    # line break occured after a binary operator -> black does not adhere to PEP8
+    W504
+    # line too long -> we accept long comment lines; black gets rid of long code lines
+    E501
+    # whitespace before : -> black does not adhere to PEP8
+    E203
+    # missing whitespace after ,', ';', or ':' -> black does not adhere to PEP8
+    E231
+    # continuation line over-indented for hanging indent -> black does not adhere to PEP8
+    E126
+    # E266 too many leading '#' for block comment -> this is fine for indicating sections
+    E262
+    # Do not assign a lambda expression, use a def -> lambda expression assignments are convenient
+    E731
+    # allow I, O, l as variable names -> I is the identity matrix, i, j, k, l is reasonable indexing notation
+    E741
+    # Missing docstring in public package
+    D104
+    # ... imported but unused
+    F401
+    # Missing docstring in public module
+    D100
+    # Missing docstring in __init__
+    D107
+    # Do not perform function calls in argument defaults.
+    B008
+    # line break before binary operator
+    W503
+    # Missing docstring in magic method
+    D105
+    # whitespace before ':'
+    E203
+    # format string does contain unindexed parameters
+    P101
+    # indentation is not a multiple of 4
+    E111, E114
+    # Missing blank line before section
+    D411
+    # TODO(michalk8): fix D10{1,2,3}
+    # D101 Missing docstring in public class
+    D101
+    # Missing docstring in public method
+    D102
+    # Missing docstring in public function
+    D103
+exclude = .git,__pycache__,build,docs/_build,dist
+# C409: Unnecessary <dict/list/tuple> call - rewrite as a literal.
+per-file-ignores =
+    tests/*: D,C408
+    */__init__.py: F401

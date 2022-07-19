@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pytree for a lower triangular Cholesky factored covariance matrix."""
 
 from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-from ott.geometry import costs
-from ott.geometry import matrix_square_root
+
+from ott.geometry import costs, matrix_square_root
 from ott.tools.gaussian_mixture import linalg
 
 
@@ -37,7 +35,7 @@ class ScaleTriL:
       cls,
       points: jnp.ndarray,
       weights: jnp.ndarray,
-  )  -> Tuple[jnp.ndarray, 'ScaleTriL']:
+  ) -> Tuple[jnp.ndarray, 'ScaleTriL']:
     """Get a mean and a ScaleTriL from a set of points and weights."""
     mean, cov = linalg.get_mean_and_cov(points=points, weights=weights)
     return mean, cls.from_covariance(cov)
@@ -67,11 +65,11 @@ class ScaleTriL:
 
     # generate random eigenvalues
     eigs = stdev * jnp.exp(
-        jax.random.normal(key=key, shape=(n_dimensions,), dtype=dtype))
+        jax.random.normal(key=key, shape=(n_dimensions,), dtype=dtype)
+    )
 
     # random positive definite matrix
-    sigma = jnp.matmul(
-        jnp.expand_dims(eigs, -2) * q, jnp.transpose(q))
+    sigma = jnp.matmul(jnp.expand_dims(eigs, -2) * q, jnp.transpose(q))
 
     # cholesky factorization
     chol = jnp.linalg.cholesky(sigma)
@@ -81,10 +79,7 @@ class ScaleTriL:
     return cls(params=flat, size=n_dimensions)
 
   @classmethod
-  def from_cholesky(
-      cls,
-      cholesky: jnp.ndarray
-  ) -> 'ScaleTriL':
+  def from_cholesky(cls, cholesky: jnp.ndarray) -> 'ScaleTriL':
     """Construct ScaleTriL from a Cholesky factor of a covariance matrix."""
     m = linalg.apply_to_diag(cholesky, jnp.log)
     flat = linalg.tril_to_flat(m)
@@ -101,7 +96,7 @@ class ScaleTriL:
 
   @property
   def params(self) -> jnp.ndarray:
-    """Internal representation."""
+    """Internal representation."""  # noqa: D401
     return self._params
 
   @property
@@ -111,7 +106,7 @@ class ScaleTriL:
 
   @property
   def dtype(self):
-    """Data type of the covariance matrix."""
+    """Data type of the covariance matrix."""  # noqa: D401
     return self._params.dtype
 
   def cholesky(self) -> jnp.ndarray:
@@ -135,16 +130,13 @@ class ScaleTriL:
 
   def centered_to_z(self, x_centered: jnp.ndarray) -> jnp.ndarray:
     """Map centered points to standardized centered points (i.e. cov(z) = I)."""
-    return linalg.invmatvectril(
-        m=self.cholesky(), x=x_centered, lower=True)
+    return linalg.invmatvectril(m=self.cholesky(), x=x_centered, lower=True)
 
   def z_to_centered(self, z: jnp.ndarray) -> jnp.ndarray:
     """Scale standardized points to points with the specified covariance."""
     return jnp.transpose(jnp.matmul(self.cholesky(), jnp.transpose(z)))
 
-  def w2_dist(
-      self,
-      other: 'ScaleTriL') -> jnp.ndarray:
+  def w2_dist(self, other: 'ScaleTriL') -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian with same mean.
 
     Args:
@@ -163,12 +155,10 @@ class ScaleTriL:
     x1 = _flatten_cov(other.covariance())
     cost_fn = costs.Bures(dimension=dimension)
     return (cost_fn.norm(x0) + cost_fn.norm(x1) +
-            cost_fn.pairwise(x0, x1))[..., 0]
+            cost_fn.pairwise(x0, x1))[...,]
 
   def transport(
-      self,
-      dest_scale: 'ScaleTriL',
-      points: jnp.ndarray
+      self, dest_scale: 'ScaleTriL', points: jnp.ndarray
   ) -> jnp.ndarray:
     """Transport between 0-mean normal w/ current scale to one w/ dest_scale.
 
@@ -182,7 +172,8 @@ class ScaleTriL:
     sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
     sigma1 = dest_scale.covariance()
     m = matrix_square_root.sqrtm_only(
-        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0)))
+        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
+    )
     m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
     return jnp.transpose(jnp.matmul(m, jnp.transpose(points)))
 
@@ -200,7 +191,8 @@ class ScaleTriL:
     children, aux = self.tree_flatten()
     return '{}({})'.format(
         class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()]))
+                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    )
 
   def __hash__(self):
     return jax.tree_util.tree_flatten(self).__hash__()

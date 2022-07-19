@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,15 +19,19 @@ from typing import Any, Dict, NamedTuple, Optional, Union
 
 import jax
 import jax.numpy as jnp
-from ott.core import fixed_point_loop
-from ott.core import problems
-from ott.core import quad_problems
-from ott.core import sinkhorn
-from ott.core import sinkhorn_lr
-from ott.geometry import epsilon_scheduler
-from ott.geometry import geometry
-from ott.geometry import low_rank
-from ott.geometry import pointcloud
+from typing_extensions import Literal
+
+from ott.core import (
+    fixed_point_loop,
+    linear_problems,
+    quad_problems,
+    sinkhorn,
+    sinkhorn_lr,
+    was_solver,
+)
+from ott.geometry import epsilon_scheduler, geometry, pointcloud
+
+LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 
 class GWOutput(NamedTuple):
@@ -49,29 +52,38 @@ class GWOutput(NamedTuple):
     transport: The transport matrix.
     reg_gw_cost: Regularized optimal transport cost of the linearization.
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   convergence: bool = False
   errors: Optional[jnp.ndarray] = None
-  linear_state: Any = None
-  geom: geometry.Geometry = None
+  linear_state: Optional[LinearOutput] = None
+  geom: Optional[geometry.Geometry] = None
   # Intermediate values.
-  old_transport_mass: Optional[float] = 1.0
+  old_transport_mass: float = 1.0
 
-  def set(self, **kwargs) -> 'GWOutput':
-    """Returns a copy of self, possibly with overwrites."""
+  def set(self, **kwargs: Any) -> 'GWOutput':
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   @property
-  def matrix(self):
+  def matrix(self) -> jnp.ndarray:
     """Transport matrix."""
-    rescale_factor = jnp.sqrt(
-        self.old_transport_mass / self.linear_state.transport_mass())
-    return self.linear_state.matrix * rescale_factor
+    return self._rescale_factor * self.linear_state.matrix
+
+  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Apply the transport to an array; axis=1 for its transpose."""
+    return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
 
   @property
-  def reg_gw_cost(self):
+  def reg_gw_cost(self) -> float:
     return self.linear_state.reg_ot_cost
+
+  @property
+  def _rescale_factor(self) -> float:
+    return jnp.sqrt(
+        self.old_transport_mass / self.linear_state.transport_mass()
+    )
 
 
 class GWState(NamedTuple):
@@ -89,132 +101,89 @@ class GWState(NamedTuple):
     linear_pb: Local linearization of the quadratic GW problem.
     old_transport_mass: Intermediary value of the mass of the transport matrix.
   """
+
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
-  linear_state: Any = None
-  linear_pb: Optional[problems.LinearProblem] = None
+  linear_state: Optional[LinearOutput] = None
+  linear_pb: Optional[linear_problems.LinearProblem] = None
   # Intermediate values.
-  old_transport_mass: Optional[float] = 1.0
+  old_transport_mass: float = 1.0
 
-  def set(self, **kwargs) -> 'GWState':
-    """Returns a copy of self, possibly with overwrites."""
+  def set(self, **kwargs: Any) -> 'GWState':
+    """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
-  def update(self, iteration: int, linear_sol, linear_pb, store_errors: bool,
-             old_transport_mass: float):
+  def update(
+      self, iteration: int, linear_sol: LinearOutput,
+      linear_pb: linear_problems.LinearProblem, store_errors: bool,
+      old_transport_mass: float
+  ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
     errors = None
     if store_errors and self.errors is not None:
       errors = self.errors.at[iteration, :].set(linear_sol.errors)
     linear_convergence = self.linear_convergence.at[iteration].set(
-        linear_sol.converged)
-    return self.set(linear_state=linear_sol,
-                    linear_pb=linear_pb,
-                    costs=costs,
-                    linear_convergence=linear_convergence,
-                    errors=errors,
-                    old_transport_mass=old_transport_mass)
+        linear_sol.converged
+    )
+    return self.set(
+        linear_state=linear_sol,
+        linear_pb=linear_pb,
+        costs=costs,
+        linear_convergence=linear_convergence,
+        errors=errors,
+        old_transport_mass=old_transport_mass
+    )
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWasserstein:
-  """A Gromov Wasserstein solver."""
+class GromovWasserstein(was_solver.WassersteinSolver):
+  """A Gromov Wasserstein solver, built on generic template.
 
-  def __init__(self,
-               epsilon: Optional[float] = None,
-               rank: int = -1,
-               linear_ot_solver: Any = None,
-               min_iterations: int = 5,
-               max_iterations: int = 50,
-               threshold: float = 1e-3,
-               jit: bool = True,
-               store_inner_errors: bool = False,
-               **kwargs):
-    default_epsilon = 1.0
-    # Set epsilon value to default if needed, but keep track of whether None was
-    # passed to handle the case where a linear_ot_solver is passed or not.
-    self.epsilon = epsilon if epsilon is not None else default_epsilon
-    self.rank = rank
-    self.linear_ot_solver = linear_ot_solver
-    if self.linear_ot_solver is None:
-      # Detect if user requests low-rank solver. In that case the
-      # default_epsilon makes little sense, since it was designed for GW.
-      if self.is_low_rank:
-        if epsilon is None:
-          # Use default entropic regularization in LRSinkhorn if None was passed
-          self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-            rank=self.rank, **kwargs)
-        else:
-          # If epsilon is passed, use it to replace the default LRSinkhorn value
-          self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-            rank=self.rank,
-            epsilon=self.epsilon, **kwargs)
-      else:
-        # When using Entropic GW, epsilon is not handled inside Sinkhorn, 
-        # but rather added back to the Geometry object reinstantiated 
-        # when linearizing the problem. Therefore no need to pass it to solver.
-        self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
+  Args:
+    args:  Positional arguments for
+      :class:`~ott.core.was_solver.WassersteinSolver`.
+    cost_rank: Rank of the cost matrix, see
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost function. If `-1`, these geometries will not be converted
+      to low-rank.
+    cost_tol: Tolerance used when converting geometries to low-rank. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost function.
+    kwargs: Keyword arguments for
+      :class:`~ott.core.was_solver.WassersteinSolver`.
+  """
 
-    self.min_iterations = min_iterations
-    self.max_iterations = max_iterations
-    self.threshold = threshold
-    self.jit = jit
-    self.store_inner_errors = store_inner_errors
-    self._kwargs = kwargs
-
-  @property
-  def is_low_rank(self):
-    return self.rank > 0
-
-  def tree_flatten(self):
-    return ([self.epsilon, self.rank,
-             self.linear_ot_solver, self.threshold],
-            dict(
-                min_iterations=self.min_iterations,
-                max_iterations=self.max_iterations,
-                jit=self.jit,
-                store_inner_errors=self.store_inner_errors,
-                **self._kwargs))
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    return cls(
-        epsilon=children[0],
-        rank=children[1],
-        linear_ot_solver=children[2],
-        threshold=children[3],
-        **aux_data)
-
-  def not_converged(self, state, iteration):
-    costs, i, tol = state.costs, iteration, self.threshold
-    return jnp.logical_or(
-        i <= 2,
-        jnp.logical_and(
-            jnp.isfinite(costs[i - 1]),
-            jnp.logical_not(jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol))))
+  def __init__(
+      self,
+      *args: Any,
+      cost_rank: int = -1,
+      cost_tol: float = 1e-2,
+      **kwargs: Any
+  ):
+    super().__init__(*args, **kwargs)
+    self.cost_rank = cost_rank
+    self.cost_tol = cost_tol
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
-    # Consider converting problem first is using low-rank solver
-    if self.is_low_rank:
-      convert = (
-          isinstance(prob.geom_xx, pointcloud.PointCloud) and
-          prob.geom_xx.is_squared_euclidean and
-          isinstance(prob.geom_yy, pointcloud.PointCloud) and
-          prob.geom_yy.is_squared_euclidean
-          )
-      # Consider converting
-      if convert:
-        if not prob.is_fused or isinstance(prob.geom_xy,
-                                           low_rank.LRCGeometry):
-          prob.geom_xx = prob.geom_xx.to_LRCGeometry()
-          prob.geom_yy = prob.geom_yy.to_LRCGeometry()
+    # Consider converting problem first if using low-rank solver
+    if self.is_low_rank and self._convert_geoms_to_lr(prob):
+      prob.geom_xx = prob.geom_xx.to_LRCGeometry(
+          rank=self.cost_rank, tol=self.cost_tol
+      )
+      prob.geom_yy = prob.geom_yy.to_LRCGeometry(
+          rank=self.cost_rank, tol=self.cost_tol
+      )
+      if prob.geom_xy is not None:
+        if isinstance(
+            prob.geom_xy, pointcloud.PointCloud
+        ) and prob.geom_xy.is_squared_euclidean:
+          prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
         else:
-          if (isinstance(prob.geom_xy, pointcloud.PointCloud) and
-              prob.geom_xy.is_squared_euclidean):
-            prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
-            prob.geom_xx = prob.geom_xx.to_LRCGeometry()
-            prob.geom_yy = prob.geom_yy.to_LRCGeometry()
+          prob.geom_xy = prob.geom_xy.to_LRCGeometry(
+              rank=self.cost_rank, tol=self.cost_tol
+          )
 
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
@@ -223,23 +192,26 @@ class GromovWasserstein:
     gromov_fn = jax.jit(iterations_fn) if self.jit else iterations_fn
     out = gromov_fn(self, prob)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
-    if self.rank > 0:
+    if self.is_low_rank:
       linearization = prob.update_lr_linearization(
-          jax.lax.stop_gradient(out.linear_state))
+          jax.lax.stop_gradient(out.linear_state)
+      )
     else:
       linearization = prob.update_linearization(
-          jax.lax.stop_gradient(out.linear_state),
-          self.epsilon,
-          jax.lax.stop_gradient(out.old_transport_mass))
+          jax.lax.stop_gradient(out.linear_state), self.epsilon,
+          jax.lax.stop_gradient(out.old_transport_mass)
+      )
     linear_state = out.linear_state.set_cost(linearization, True, True)
-    iteration = jnp.sum(out.costs != 0)
-    convergence = jnp.logical_not(self.not_converged(out, iteration))
-    return out.set(linear_state=linear_state,
-                   convergence=convergence)
+    iteration = jnp.sum(out.costs != -1)
+    convergence = jnp.logical_and(
+        iteration < self.max_iterations, jnp.all(out.linear_convergence)
+    )
+    return out.set(linear_state=linear_state, convergence=convergence)
 
-  def init_state(self, prob: quad_problems.QuadraticProblem,
-                 rank: int) -> GWState:
-    """Initializes the state of the Gromov-Wasserstein iterations."""
+  def init_state(
+      self, prob: quad_problems.QuadraticProblem, rank: int
+  ) -> GWState:
+    """Initialize the state of the Gromov-Wasserstein iterations."""
     if rank > 0:
       linearization = prob.init_lr_linearization(rank)
     else:
@@ -252,10 +224,12 @@ class GromovWasserstein:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
-    return GWState(-jnp.ones((num_iter,)), -jnp.ones((num_iter,)),
-                   errors, linear_state, linearization, transport_mass)
+    return GWState(
+        -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, linear_state,
+        linearization, transport_mass
+    )
 
-  def output_from_state(self, state):
+  def output_from_state(self, state: GWState) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
@@ -265,41 +239,60 @@ class GromovWasserstein:
       A GWOutput.
     """
     geom = state.linear_pb.geom
-    return GWOutput(costs=state.costs,
-                    linear_convergence=state.linear_convergence,
-                    errors=state.errors,
-                    linear_state=state.linear_state,
-                    geom=geom,
-                    old_transport_mass=state.old_transport_mass)
+    return GWOutput(
+        costs=state.costs,
+        linear_convergence=state.linear_convergence,
+        errors=state.errors,
+        linear_state=state.linear_state,
+        geom=geom,
+        old_transport_mass=state.old_transport_mass
+    )
+
+  def _convert_geoms_to_lr(self, prob: quad_problems.QuadraticProblem) -> bool:
+
+    def is_sqeucl_pc(geom: geometry.Geometry) -> bool:
+      return isinstance(
+          geom, pointcloud.PointCloud
+      ) and geom.is_squared_euclidean
+
+    geom_xx, geom_yy, geom_xy = prob.geom_xx, prob.geom_yy, prob.geom_xy
+    return self.cost_rank != -1 or (
+        is_sqeucl_pc(geom_xx) and is_sqeucl_pc(geom_yy) and
+        (geom_xy is None or is_sqeucl_pc(geom_xy))
+    )
 
 
-def iterations(solver: GromovWasserstein,
-               prob: quad_problems.QuadraticProblem,
-               rank: int) -> GWOutput:
-  """A jittable Gromov-Wasserstein outer loop."""
+def iterations(
+    solver: GromovWasserstein, prob: quad_problems.QuadraticProblem, rank: int
+) -> GWOutput:
+  """Jittable Gromov-Wasserstein outer loop."""
 
-  def cond_fn(iteration, constants, state):
+  def cond_fn(
+      iteration: int, constants: GromovWasserstein, state: GWState
+  ) -> bool:
     solver = constants
-    return solver.not_converged(state, iteration)
+    return solver._continue(state, iteration)
 
-  def body_fn(iteration, constants, state, compute_error):
+  def body_fn(
+      iteration: int, constants: GromovWasserstein, state: GWState,
+      compute_error: bool
+  ) -> GWState:
     del compute_error  # Always assumed True for outer loop of GW.
     solver = constants
     if rank > 0:
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
-      linear_pb = prob.update_linearization(state.linear_state, solver.epsilon,
-                                            state.old_transport_mass)
+      linear_pb = prob.update_linearization(
+          state.linear_state, solver.epsilon, state.old_transport_mass
+      )
 
     out = solver.linear_ot_solver(linear_pb)
     old_transport_mass = jax.lax.stop_gradient(
-        state.linear_state.transport_mass())
+        state.linear_state.transport_mass()
+    )
     return state.update(
-        iteration,
-        out,
-        linear_pb,
-        solver.store_inner_errors,
-        old_transport_mass)
+        iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
+    )
 
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
@@ -308,7 +301,8 @@ def iterations(solver: GromovWasserstein,
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=solver.init_state(prob, rank))
+      state=solver.init_state(prob, rank)
+  )
 
   return solver.output_from_state(state)
 
@@ -323,13 +317,14 @@ def make(
     linear_ot_solver_kwargs: Optional[Dict[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
-    **kwargs) -> GromovWasserstein:
-  """Creates a GromovWasserstein solver.
+    **kwargs: Any,
+) -> GromovWasserstein:
+  """Create a GromovWasserstein solver.
 
   Args:
     epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
     rank: integer used to constrain the rank of GW solutions if >0.
-    max_iterations: int32, the maximum number of outer iterations for
+    max_iterations: the maximum number of outer iterations for
       Gromov Wasserstein.
     jit: bool, if True, jits the function.
     warm_start: deprecated.
@@ -339,7 +334,7 @@ def make(
       arguments for the linear OT solver (e.g. sinkhorn)
     threshold: threshold (progress between two iterate costs) used to stop GW.
     min_iterations: see fixed_point_loop.
-    **kwargs: additional kwargs for epsilon.
+    kwargs: additional kwargs for epsilon.
 
   Returns:
     A GromovWasserstein solver.
@@ -358,28 +353,37 @@ def make(
     linear_ot_solver_kwargs.pop('rank', None)
     linear_ot_solver_kwargs.pop('epsilon', None)
     sink = sinkhorn_lr.make(
-        rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs)
+        rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs
+    )
 
   return GromovWasserstein(
-      epsilon, rank, max_iterations=max_iterations,
-      jit=jit, linear_ot_solver=sink, threshold=threshold,
+      epsilon,
+      rank,
+      max_iterations=max_iterations,
+      jit=jit,
+      linear_ot_solver=sink,
+      threshold=threshold,
       store_inner_errors=store_inner_errors,
-      min_iterations=min_iterations, **kwargs)
+      min_iterations=min_iterations,
+      **kwargs
+  )
 
 
 def gromov_wasserstein(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
-    fused_penalty: Optional[float] = None,
+    fused_penalty: float = 1.0,
+    scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    loss: Optional[str] = None,
+    loss: Union[Literal['sqeucl', 'kl'], quad_problems.GWLoss] = 'sqeucl',
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
-    **kwargs) -> GWOutput:
-  """Wrapper to solve a Gromov Wasserstein problem.
+    **kwargs: Any,
+) -> GWOutput:
+  """Solve a Gromov Wasserstein problem.
 
   Wrapper that instantiates a quadratic problem (possibly with linear term
   if the problem is fused) and calls a solver to output a solution.
@@ -389,12 +393,23 @@ def gromov_wasserstein(
     geom_yy: a second Geometry object for the second view.
     geom_xy: a Geometry object representing the linear cost in FGW.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-      i.e. loss = quadratic_loss + fused_penalty * linear_loss. If geom_xy is
-      None fused_penalty will be ignored, i.e. fused_penalty = 0
+      i.e. loss = quadratic_loss + fused_penalty * linear_loss.
+      Ignored if ``geom_xy`` is not specified.
+    scale_cost: option to rescale the cost matrices:
+
+      - if `True`, use the default for each geometry.
+      - if `False`, keep the original scaling in geometries.
+      - if :class:`str`, use a specific method available in
+        :class:`ott.geometry.geometry.Geometry` or
+        :class:`ott.geometry.pointcloud.PointCloud`.
+      - if `None`, do not scale the cost matrices.
+
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
-    loss: str, None defaults to the square Euclidean distance, can also
-      receive 'kl' to define the GW loss.
+    loss: defaults to the square Euclidean distance. Can also pass 'kl'
+      to define the GW loss as KL loss.
+      See :class:`ott.core.gromov_wasserstein.GromovWasserstein` on how to pass
+      custom loss.
     tau_a: float between 0 and 1.0, parameter that controls the strength of the
       KL divergence constraint between the weights and marginals of the
       transport for the first view. If set to 1.0, then it is equivalent to a
@@ -406,23 +421,23 @@ def gromov_wasserstein(
     gw_unbalanced_correction: True (default) if the unbalanced version of
       Sejourne et al (Neurips 2021) is used, False if tau_a and tau_b
       only affect the inner Sinhkorn loop.
-    **kwargs: keyword arguments to make.
+    kwargs: keyword arguments to make.
 
   Returns:
     A GromovWassersteinState named tuple.
   """
-  losses = {'kl': quad_problems.make_kl_loss}
-  loss_fn = losses.get(loss, None)
   prob = quad_problems.QuadraticProblem(
       geom_xx,
       geom_yy,
       geom_xy=geom_xy,
       fused_penalty=fused_penalty,
+      scale_cost=scale_cost,
       a=a,
       b=b,
-      loss=(loss_fn() if loss_fn is not None else None),
+      loss=loss,
       tau_a=tau_a,
       tau_b=tau_b,
-      gw_unbalanced_correction=gw_unbalanced_correction)
+      gw_unbalanced_correction=gw_unbalanced_correction
+  )
   solver = make(**kwargs)
   return solver(prob)

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 r"""Fit 2 GMMs to 2 point clouds using likelihood and (approx) W2 distance.
 
 Suppose we have two large point clouds and want to estimate a coupling and a
@@ -87,16 +85,14 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from ott.tools.gaussian_mixture import fit_gmm
-from ott.tools.gaussian_mixture import gaussian_mixture
-from ott.tools.gaussian_mixture import gaussian_mixture_pair
-
+from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture, gaussian_mixture_pair
 
 LOG2 = math.log(2)
 
 
 class Observations(NamedTuple):
   """Weighted observations and their E-step assignment probabilities."""
+
   points: jnp.ndarray
   point_weights: jnp.ndarray
   assignment_probs: jnp.ndarray
@@ -106,8 +102,8 @@ class Observations(NamedTuple):
 
 
 def get_q(
-    gmm: gaussian_mixture.GaussianMixture,
-    obs: Observations) -> jnp.ndarray:
+    gmm: gaussian_mixture.GaussianMixture, obs: Observations
+) -> jnp.ndarray:
   r"""Get Q(\Theta|\Theta^{(t)}).
 
   Here Q is the log likelihood for our observations based on the current
@@ -127,20 +123,23 @@ def get_q(
   # Here P(Z|X, theta^(t)) is the set of assignment probabilities
   # we computed in the E step.
   # log p(X, Z| theta) is given by
-  log_p_x_z = (gmm.conditional_log_prob(obs.points) +  # p(X | Z, theta)
-               gmm.log_component_weights())  # p(Z | theta)
+  log_p_x_z = (
+      gmm.conditional_log_prob(obs.points) +  # p(X | Z, theta)
+      gmm.log_component_weights()
+  )  # p(Z | theta)
   return (
       jnp.sum(
           obs.point_weights *
           jnp.sum(log_p_x_z * obs.assignment_probs, axis=-1),
-          axis=0) /
-      jnp.sum(obs.point_weights, axis=0))
+          axis=0
+      ) / jnp.sum(obs.point_weights, axis=0)
+  )
 
 
 # Objective function
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_objective_fn(weight_transport: float):
   """Get the total loss function with static parameters in a closure.
 
@@ -150,6 +149,7 @@ def get_objective_fn(weight_transport: float):
   Returns:
     A function that returns the objective for a GaussianMixturePair.
   """
+
   def _objective_fn(
       pair: gaussian_mixture_pair.GaussianMixturePair,
       obs0: Observations,
@@ -176,11 +176,10 @@ def get_objective_fn(weight_transport: float):
 
 
 def print_losses(
-    iteration: int,
-    weight_transport: float,
-    pair: gaussian_mixture_pair.GaussianMixturePair,
-    obs0: Observations,
-    obs1: Observations):
+    iteration: int, weight_transport: float,
+    pair: gaussian_mixture_pair.GaussianMixturePair, obs0: Observations,
+    obs1: Observations
+):
   """Print the loss components for diagnostic purposes."""
   q0 = get_q(gmm=pair.gmm0, obs=obs0)
   q1 = get_q(gmm=pair.gmm1, obs=obs1)
@@ -189,9 +188,11 @@ def print_losses(
   transport_penalty = sinkhorn_output.reg_ot_cost
   objective = q0 + q1 - weight_transport * transport_penalty
 
-  print((f'{iteration:3d} {q0:.3f} {q1:.3f} '
-         f'transport:{transport_penalty:.3f} '
-         f'objective:{objective:.3f}'),
+  print((
+      f'{iteration:3d} {q0:.3f} {q1:.3f} '
+      f'transport:{transport_penalty:.3f} '
+      f'objective:{objective:.3f}'
+  ),
         flush=True)
 
 
@@ -206,18 +207,17 @@ def do_e_step(
     point_weights: jnp.ndarray,
 ) -> Observations:
   assignment_probs = e_step_fn(gmm, points)
-  return Observations(points=points,
-                      point_weights=point_weights,
-                      assignment_probs=assignment_probs)
+  return Observations(
+      points=points,
+      point_weights=point_weights,
+      assignment_probs=assignment_probs
+  )
 
 
 # The M-step
 
 
-def get_m_step_fn(
-    learning_rate: float,
-    objective_fn,
-    jit: bool):
+def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
   """Get a function that performs the M-step of the EM algorithm.
 
   We precompile and precompute a few quantities that we put into a closure.
@@ -270,6 +270,7 @@ def get_m_step_fn(
         if gmm.has_nans():
           raise ValueError(f'NaN in gmm{j}')
     return params[0]
+
   return _m_step_fn
 
 
@@ -277,7 +278,7 @@ def get_fit_model_em_fn(
     weight_transport: float,
     learning_rate: float = 0.001,
     jit: bool = True,
-    ):
+):
   """Get a function that performs penalized EM.
 
   We precompile and precompute a few quantities that we put into a closure.
@@ -298,9 +299,8 @@ def get_fit_model_em_fn(
     e_step_fn = jax.jit(e_step_fn)
 
   m_step_fn = get_m_step_fn(
-      learning_rate=learning_rate,
-      objective_fn=objective_fn,
-      jit=jit)
+      learning_rate=learning_rate, objective_fn=objective_fn, jit=jit
+  )
 
   def _fit_model_em(
       pair: gaussian_mixture_pair.GaussianMixturePair,
@@ -311,7 +311,7 @@ def get_fit_model_em_fn(
       em_steps: int,
       m_steps: int = 50,
       verbose: bool = False,
-      ) -> Tuple[gaussian_mixture_pair.GaussianMixturePair, float]:
+  ) -> Tuple[gaussian_mixture_pair.GaussianMixturePair, float]:
     """Optimize a GaussianMixturePair using penalized EM.
 
     Args:
@@ -327,7 +327,6 @@ def get_fit_model_em_fn(
     Returns:
       An updated GaussianMixturePair and the final loss.
     """
-
     if point_weights0 is None:
       point_weights0 = jnp.ones(points0.shape[0])
     if point_weights1 is None:
@@ -338,7 +337,8 @@ def get_fit_model_em_fn(
           e_step_fn=e_step_fn,
           gmm=pair.gmm1,
           points=points1,
-          point_weights=point_weights1)
+          point_weights=point_weights1
+      )
 
     for i in range(em_steps):
       # E-step
@@ -346,13 +346,15 @@ def get_fit_model_em_fn(
           e_step_fn=e_step_fn,
           gmm=pair.gmm0,
           points=points0,
-          point_weights=point_weights0)
+          point_weights=point_weights0
+      )
       if not pair.lock_gmm1:
         obs1 = do_e_step(
             e_step_fn=e_step_fn,
             gmm=pair.gmm1,
             points=points1,
-            point_weights=point_weights1)
+            point_weights=point_weights1
+        )
 
       # print current losses
       if verbose:
@@ -361,7 +363,8 @@ def get_fit_model_em_fn(
             weight_transport=weight_transport,
             pair=pair,
             obs0=obs0,
-            obs1=obs1)
+            obs1=obs1
+        )
 
       # the M-step
       pair = m_step_fn(pair=pair, obs0=obs0, obs1=obs1, steps=m_steps)
@@ -371,13 +374,15 @@ def get_fit_model_em_fn(
         e_step_fn=e_step_fn,
         gmm=pair.gmm0,
         points=points0,
-        point_weights=point_weights0)
+        point_weights=point_weights0
+    )
     if not pair.lock_gmm1:
       obs1 = do_e_step(
           e_step_fn=e_step_fn,
           gmm=pair.gmm1,
           points=points1,
-          point_weights=point_weights1)
+          point_weights=point_weights1
+      )
 
     loss = objective_fn(pair=pair, obs0=obs0, obs1=obs1)
     return pair, loss

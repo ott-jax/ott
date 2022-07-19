@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +14,7 @@
 
 # Lint as: python3
 """Functions useful to define unbalanced OT problems."""
+from typing import Callable
 
 import jax.numpy as jnp
 
@@ -26,12 +26,14 @@ def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
 
 # TODO(cuturi): use jax.grad directly.
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Derivative of Legendre transform of phi_starKL, see phi_star."""
+  """Derivative of Legendre transform of phi_starKL, see phi_star."""  # noqa: D401
   return jnp.exp(f / rho)
 
 
-def grad_of_marginal_fit(c, h, tau, epsilon):
-  """Computes grad of terms linked to marginals in objective.
+def grad_of_marginal_fit(
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
+) -> jnp.ndarray:
+  """Compute grad of terms linked to marginals in objective.
 
   Computes gradient w.r.t. f ( or g) of terms in
   https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 15
@@ -58,8 +60,11 @@ def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   return jnp.exp(f / rho) / rho
 
 
-def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
-  """Computes grad of terms linked to marginals in objective.
+def diag_jacobian_of_marginal_fit(
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float,
+    derivative: Callable[[jnp.ndarray, float], jnp.ndarray]
+):
+  """Compute grad of terms linked to marginals in objective.
 
   Computes second derivative w.r.t. f ( or g) of terms in
   https://arxiv.org/pdf/1910.12958.pdf, left-hand-side of Eq. 32
@@ -80,7 +85,8 @@ def diag_jacobian_of_marginal_fit(c, h, tau, epsilon, derivative):
   else:
     rho = epsilon * tau / (1 - tau)
     # here no minus sign because we are taking derivative w.r.t -h
-    return jnp.where(c > 0,
-                     c * second_derivative_phi_star(-h, rho) * derivative(
-                         c * derivative_phi_star(-h, rho)),
-                     0.0)
+    return jnp.where(
+        c > 0,
+        c * second_derivative_phi_star(-h, rho) *
+        derivative(c * derivative_phi_star(-h, rho)), 0.0
+    )

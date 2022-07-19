@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,38 +11,43 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Implements the sinkhorn divergence."""
 
-import collections
-from typing import Any, Dict, Mapping, Optional, Type
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 from jax import numpy as jnp
-from ott.core import sinkhorn
-from ott.geometry import geometry
-from ott.geometry import pointcloud
 
-SinkhornDivergenceOutput = collections.namedtuple(
-    'SinkhornDivergenceOutput',
-    ['divergence', 'potentials', 'geoms', 'errors', 'converged'])
+from ott.core import segment, sinkhorn
+from ott.geometry import costs, geometry, pointcloud
+
+
+class SinkhornDivergenceOutput(NamedTuple):
+  divergence: float
+  potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
+  geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
+  errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]]
+  converged: Tuple[bool, bool, bool]
 
 
 def sinkhorn_divergence(
-    geom: Type[geometry.Geometry],
-    *args,
+    geom: geometry.Geometry,
+    *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
     static_b: bool = False,
     share_epsilon: bool = True,
-    **kwargs):
-  """Computes Sinkhorn divergence defined by a geometry, weights, parameters.
+    **kwargs: Any,
+) -> SinkhornDivergenceOutput:
+  """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
     geom: a geometry class.
-    *args: arguments to the prepare_divergences method that is specific to each
-      geometry.
+    args: arguments to
+      :meth:`ott.geometry.geometry.Geometry.prepare_divergences` that is
+      specific to each geometry.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
       all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
@@ -58,7 +62,7 @@ def sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    **kwargs: keywords arguments to the generic class. This is specific to each
+    kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
   Returns:
@@ -69,8 +73,10 @@ def sinkhorn_divergence(
 
   geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
   if share_epsilon:
-    for geom in filter(None, geometries[1:(2 if static_b else 3)]):
-      geom.copy_epsilon(geometries[0])
+    geometries = (geometries[0],) + tuple(
+        geom.copy_epsilon(geometries[0]) if geom is not None else None
+        for geom in geometries[1:(2 if static_b else 3)]
+    )
 
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
@@ -84,8 +90,9 @@ def _sinkhorn_divergence(
     geometry_yy: Optional[geometry.Geometry],
     a: jnp.ndarray,
     b: jnp.ndarray,
-    **kwargs):
-  """Computes the (unbalanced) sinkhorn divergence for the wrapper function.
+    **kwargs: Any,
+) -> SinkhornDivergenceOutput:
+  """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
     measure, as defined in https://arxiv.org/pdf/1910.12958.pdf (15).
@@ -101,7 +108,8 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
-    **kwargs: Arguments to sinkhorn.
+    kwargs: Keyword arguments to sinkhorn.
+
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
@@ -121,7 +129,8 @@ def _sinkhorn_divergence(
       momentum=0.5,
       chg_momentum_from=0,
       anderson_acceleration=0,
-      implicit_solver_symmetric=True)
+      implicit_solver_symmetric=True
+  )
 
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
@@ -130,13 +139,16 @@ def _sinkhorn_divergence(
   else:
     out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
 
-  div = (out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost)
-         + 0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b))**2)
+  div = (
+      out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
+      0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
+  )
   out = (out_xy, out_xx, out_yy)
-  return SinkhornDivergenceOutput(div, tuple([s.f, s.g] for s in out),
-                                  (geometry_xy, geometry_xx, geometry_yy),
-                                  tuple(s.errors for s in out),
-                                  tuple(s.converged for s in out))
+  return SinkhornDivergenceOutput(
+      div, tuple([s.f, s.g] for s in out),
+      (geometry_xy, geometry_xx, geometry_yy), tuple(s.errors for s in out),
+      tuple(s.converged for s in out)
+  )
 
 
 def segment_sinkhorn_divergence(
@@ -153,19 +165,14 @@ def segment_sinkhorn_divergence(
     sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
     static_b: bool = False,
     share_epsilon: bool = True,
-    **kwargs) -> jnp.ndarray:
-  """Computes Sinkhorn divergence between subsets of data with pointcloud.
+    **kwargs: Any
+) -> jnp.ndarray:
+  """Compute Sinkhorn divergence between subsets of data with point cloud.
 
-  There are two interfaces: either use `segment_ids_x`, `segment_ids_y`, and
-  optionally `num_segments` and `indices_are_sorted`, OR use `num_per_segment_x`
-  and `num_per_segment_y`. If using the first interface, `num_segments` is
-  required for JIT compilation. Assumes range(0, `num_segments`) are the segment
-  ids. The second interface assumes `x` and `y` are segmented contiguously.
-
+  The second interface assumes `x` and `y` are segmented contiguously.
   In all cases, both `x` and `y` should contain the same number of segments.
   Each segment will be separately run through the sinkhorn divergence using
   array padding.
-
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
@@ -197,71 +204,47 @@ def segment_sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    **kwargs: keywords arguments to the generic class. This is specific to each
+    kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
-
   Returns:
     An array of sinkhorn divergence values for each segment.
   """
+  dim = x.shape[1]
+  cost_fn = kwargs.get('cost_fn', costs.Euclidean())
+  padding_vector = cost_fn.padder(dim=dim)
 
   use_segment_ids = segment_ids_x is not None
-
   if use_segment_ids:
     assert segment_ids_y is not None
   else:
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  if use_segment_ids:
-    if num_segments is None:
-      num_segments = jnp.max(segment_ids_x) + 1
-      assert num_segments == jnp.max(segment_ids_y) + 1
+  segmented_x, segmented_weights_x, num_segments_x = segment.segment_point_cloud(
+      x,
+      weights_x,
+      segment_ids_x,
+      num_segments,
+      indices_are_sorted,
+      num_per_segment_x,
+      padding_vector=padding_vector
+  )
 
-    if indices_are_sorted is None:
-      indices_are_sorted = False
+  segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
+      y,
+      weights_y,
+      segment_ids_y,
+      num_segments,
+      indices_are_sorted,
+      num_per_segment_y,
+      padding_vector=padding_vector
+  )
 
-    num_per_segment_x = jax.ops.segment_sum(
-        jnp.ones_like(segment_ids_x),
-        segment_ids_x,
-        num_segments=num_segments,
-        indices_are_sorted=indices_are_sorted)
-    num_per_segment_y = jax.ops.segment_sum(
-        jnp.ones_like(segment_ids_y),
-        segment_ids_y,
-        num_segments=num_segments,
-        indices_are_sorted=indices_are_sorted)
-  else:
-    assert num_segments is None
-    assert num_per_segment_x is not None
-    num_segments = num_per_segment_x.shape[0]
-    segment_ids_x = jnp.arange(num_segments).repeat(num_per_segment_x)
-    segment_ids_y = jnp.arange(num_segments).repeat(num_per_segment_y)
+  assert num_segments_x == num_segments_y
 
-  num_x = x.shape[0]
-  num_y = y.shape[0]
-
-  if weights_x is None:
-    weights_x = (1 / num_per_segment_x).repeat(
-        num_per_segment_x, total_repeat_length=num_x)
-
-  if weights_y is None:
-    weights_y = (1 / num_per_segment_y).repeat(
-        num_per_segment_y, total_repeat_length=num_y)
-
-  segmented_x = jnp.stack(
-      [x * (segment_ids_x == i)[:, None] for i in range(num_segments)])
-
-  segmented_y = jnp.stack(
-      [y * (segment_ids_y == i)[:, None] for i in range(num_segments)])
-
-  segmented_weights_x = jnp.stack(
-      [weights_x * (segment_ids_x == i) for i in range(num_segments)])
-
-  segmented_weights_y = jnp.stack(
-      [weights_y * (segment_ids_y == i) for i in range(num_segments)])
-
-  def single_segment_sink_div(padded_x, padded_y, padded_weight_x,
-                              padded_weight_y):
+  def single_segment_sink_div(
+      padded_x, padded_y, padded_weight_x, padded_weight_y
+  ):
     return sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
@@ -271,10 +254,12 @@ def segment_sinkhorn_divergence(
         sinkhorn_kwargs=sinkhorn_kwargs,
         static_b=static_b,
         share_epsilon=share_epsilon,
-        **kwargs).divergence
+        **kwargs
+    ).divergence
 
   v_sink_div = jax.vmap(single_segment_sink_div, in_axes=[0, 0, 0, 0])
 
-  segmented_divergences = v_sink_div(segmented_x, segmented_y,
-                                     segmented_weights_x, segmented_weights_y)
+  segmented_divergences = v_sink_div(
+      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y
+  )
   return segmented_divergences

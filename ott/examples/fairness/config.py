@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Configuration to train a fairness aware classifier on the adult dataset."""
 
 import ml_collections
 
 
 def get_config():
-  """Returns a ConfigDict."""
-
+  """Return a ConfigDict."""
   config = ml_collections.ConfigDict()
   config.folder = '/tmp/adult_dataset/'
   config.training_filename = 'adult.data'

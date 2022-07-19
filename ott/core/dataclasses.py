@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """pytree_nodes Dataclasses."""
 
 import dataclasses
+
 import jax
 
 
-def register_pytree_node(cls):
-  """Decorator to register dataclasses as pytree_nodes."""
+def register_pytree_node(cls: type) -> type:
+  """Register dataclasses as pytree_nodes."""
   cls = dataclasses.dataclass()(cls)
   flatten = lambda obj: jax.tree_flatten(dataclasses.asdict(obj))
   unflatten = lambda d, children: cls(**d.unflatten(children))

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,26 +15,25 @@
 # Lint as: python3
 """Tests for the Fused Gromov Wasserstein."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ott.core import gromov_wasserstein
-from ott.geometry import geometry
-from ott.geometry import pointcloud
+import pytest
+
+from ott.core import gromov_wasserstein, quad_problems
+from ott.geometry import geometry, low_rank, pointcloud
 
 
-class FusedGromovWassersteinTest(parameterized.TestCase):
+class TestFusedGromovWasserstein:
 
-  def setUp(self):
-    super().setUp()
-    self.rng = jax.random.PRNGKey(0)
+  # TODO(michalk8): refactor me in the future
+  @pytest.fixture(autouse=True)
+  def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
     d_xy = 4
     self.n, self.m = 5, 6
-    keys = jax.random.split(self.rng, 7)
+    keys = jax.random.split(rng, 7)
     self.x = jax.random.uniform(keys[0], (self.n, d_x))
     self.y = jax.random.uniform(keys[1], (self.m, d_y))
     self.x_2 = jax.random.uniform(keys[0], (self.n, d_xy))
@@ -56,37 +54,38 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
-    fused_penalty = self.fused_penalty
     out = gromov_wasserstein.gromov_wasserstein(
         geom_xx=geom_x,
         geom_yy=geom_y,
         geom_xy=geom_xy,
-        fused_penalty=fused_penalty,
+        fused_penalty=self.fused_penalty,
         a=self.a,
         b=self.b,
-        epsilon=.1).errors
-    self.assertIsNone(out)
+        epsilon=.1
+    ).errors
+    assert out is None
 
     out = gromov_wasserstein.gromov_wasserstein(
         geom_xx=geom_x,
         geom_yy=geom_y,
         geom_xy=geom_xy,
-        fused_penalty=fused_penalty,
+        fused_penalty=self.fused_penalty,
         a=self.a,
         b=self.b,
         epsilon=.1,
         store_inner_errors=True,
         sinkhorn_kwargs={
             'threshold': threshold_sinkhorn
-        }).errors
-
+        }
+    ).errors
     out = out[jnp.sum(out > 0, axis=1) > 0, :]
     last_errors = out[-1, :]
-    self.assertGreater(threshold_sinkhorn, last_errors[last_errors > -1][-1])
-    self.assertEqual(out.ndim, 2)
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_marginals_fused_gromov_wasserstein(self, jit):
+    assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
+    assert out.ndim == 2
+
+  @pytest.mark.fast.with_args(jit=[False, True], only_fast=1)
+  def test_gradient_marginals_fused_gromov_wasserstein(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -94,8 +93,10 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
     fused_penalty = self.fused_penalty
 
     def reg_gw(a, b, implicit):
-      sinkhorn_kwargs = {'implicit_differentiation': implicit,
-                         'max_iterations': 1001}
+      sinkhorn_kwargs = {
+          'implicit_differentiation': implicit,
+          'max_iterations': 1001
+      }
       out = gromov_wasserstein.gromov_wasserstein(
           geom_x,
           geom_y,
@@ -105,31 +106,36 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           b=b,
           epsilon=1.0,
           loss='sqeucl',
-          max_iterations=10, jit=jit,
-          sinkhorn_kwargs=sinkhorn_kwargs)
+          max_iterations=10,
+          jit=jit,
+          sinkhorn_kwargs=sinkhorn_kwargs
+      )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
-      reg_gw_and_grad = jax.value_and_grad(
-          reg_gw, has_aux=True, argnums=(0, 1))
+      reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True, argnums=(0, 1))
       (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)
       grad_manual_b = aux[1] - jnp.log(self.b)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
       np.testing.assert_allclose(
-          grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2)
+          grad_manual_a, grad_reg_gw[0], rtol=1e-2, atol=1e-2
+      )
       np.testing.assert_allclose(
-          grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2)
+          grad_manual_b, grad_reg_gw[1], rtol=1e-2, atol=1e-2
+      )
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
     np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
 
-  @parameterized.parameters([True], [False])
-  def test_fused_gromov_wasserstein_pointcloud(self, lse_mode):
+  @pytest.mark.fast.with_args(lse_mode=[False, True], only_fast=1)
+  def test_fused_gromov_wasserstein_pointcloud(self, lse_mode: bool):
     """Test basic computations pointclouds."""
 
     def reg_gw(x, y, x_2, y_2, fused_penalty, a, b):
@@ -144,15 +150,19 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           a=a,
           b=b,
           epsilon=1.0,
-          max_iterations=10).reg_gw_cost
+          max_iterations=10,
+          sinkhorn_kwargs={
+              "lse_mode": lse_mode
+          },
+      ).reg_gw_cost
 
-    self.assertIsNot(
-        jnp.isnan(
-            reg_gw(self.x, self.y, self.x_2, self.y_2, self.fused_penalty,
-                   self.a, self.b)), True)
+    cost = reg_gw(
+        self.x, self.y, self.x_2, self.y_2, self.fused_penalty, self.a, self.b
+    )
+    assert cost is not None
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_fused_gromov_wasserstein_pointcloud(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gradient_fused_gromov_wasserstein_pointcloud(self, lse_mode: bool):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, x_2, y_2, fused_penalty, a, b, implicit):
@@ -173,25 +183,29 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           b=b,
           epsilon=1.0,
           max_iterations=10,
-          sinkhorn_kwargs=sinkhorn_kwargs).reg_gw_cost
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
-      reg_gw_and_grad = jax.value_and_grad(
-          reg_gw, argnums=(0, 1))
-      _, grad_reg_gw = reg_gw_and_grad(self.x, self.y, self.x_2, self.y_2,
-                                       self.fused_penalty, self.a, self.b,
-                                       implicit)
+      reg_gw_and_grad = jax.value_and_grad(reg_gw, argnums=(0, 1))
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.x, self.y, self.x_2, self.y_2, self.fused_penalty, self.a,
+          self.b, implicit
+      )
       grad_matrices[i] = grad_reg_gw
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
-    np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
-    np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_fused_gromov_wasserstein_geometry(self, lse_mode):
+    np.testing.assert_allclose(
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
+    np.testing.assert_allclose(
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gradient_fused_gromov_wasserstein_geometry(self, lse_mode: bool):
     """Test gradient w.r.t. cost matrices."""
 
     def reg_gw(cx, cy, cxy, fused_penalty, a, b, implicit):
@@ -212,32 +226,38 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           b=b,
           epsilon=1.0,
           max_iterations=10,
-          sinkhorn_kwargs=sinkhorn_kwargs).reg_gw_cost
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
-      reg_gw_and_grad = jax.value_and_grad(
-          reg_gw, argnums=(0, 1, 2))
-      _, grad_reg_gw = reg_gw_and_grad(self.cx, self.cy, self.cxy,
-                                       self.fused_penalty, self.a, self.b,
-                                       implicit)
+      reg_gw_and_grad = jax.value_and_grad(reg_gw, argnums=(0, 1, 2))
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.cx, self.cy, self.cxy, self.fused_penalty, self.a, self.b,
+          implicit
+      )
       grad_matrices[i] = grad_reg_gw
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[1])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
+      assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
+
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
     np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+    )
     np.testing.assert_allclose(
-        grad_matrices[0][2], grad_matrices[1][2], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][2], grad_matrices[1][2], rtol=1e-02, atol=1e-02
+    )
 
   def test_adaptive_threshold_fused(self):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(self.x, self.x)
     geom_y = pointcloud.PointCloud(self.y, self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
+
     # without warm start for calls to sinkhorn
-    def loss_thre(threshold):
+    def loss_thre(threshold: float) -> float:
       return gromov_wasserstein.gromov_wasserstein(
           geom_xx=geom_x,
           geom_yy=geom_y,
@@ -246,13 +266,14 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           a=self.a,
           b=self.b,
           epsilon=.1,
-          threshold=threshold).reg_gw_cost
+          threshold=threshold
+      ).reg_gw_cost
 
-    self.assertGreater(loss_thre(.1), loss_thre(.001))
-    self.assertGreater(loss_thre(.001), loss_thre(.00001))
+    assert loss_thre(1e-1) > loss_thre(1e-3)
+    assert loss_thre(1e-3) > loss_thre(1e-5)
 
-  @parameterized.parameters([True], [False])
-  def test_gradient_fused_gromov_wasserstein_penalty(self, lse_mode):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gradient_fused_gromov_wasserstein_penalty(self, lse_mode: bool):
     """Test gradient w.r.t. penalty."""
 
     def reg_gw(cx, cy, cxy, fused_penalty, a, b, implicit):
@@ -273,18 +294,21 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           b=b,
           epsilon=1.0,
           max_iterations=10,
-          sinkhorn_kwargs=sinkhorn_kwargs).reg_gw_cost
+          sinkhorn_kwargs=sinkhorn_kwargs
+      ).reg_gw_cost
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, argnums=(3,))
-      _, grad_reg_gw = reg_gw_and_grad(self.cx, self.cy, self.cxy,
-                                       self.fused_penalty, self.a, self.b,
-                                       implicit)
+      _, grad_reg_gw = reg_gw_and_grad(
+          self.cx, self.cy, self.cxy, self.fused_penalty, self.a, self.b,
+          implicit
+      )
       grad_matrices[i] = grad_reg_gw
-      self.assertIsNot(jnp.any(jnp.isnan(grad_reg_gw[0])), True)
+      assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02)
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+    )
 
   def test_effect_fused_penalty(self):
 
@@ -301,7 +325,8 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           a=a,
           b=b,
           epsilon=1.0,
-          sinkhorn_kwargs=sinkhorn_kwargs)
+          sinkhorn_kwargs=sinkhorn_kwargs
+      )
 
     def reg_gw(x, y, a, b):
       geom_x = pointcloud.PointCloud(x)
@@ -313,15 +338,70 @@ class FusedGromovWassersteinTest(parameterized.TestCase):
           a=a,
           b=b,
           epsilon=1.0,
-          sinkhorn_kwargs=sinkhorn_kwargs)
+          sinkhorn_kwargs=sinkhorn_kwargs
+      )
 
-    fgw_output = reg_fgw(self.x, self.y, self.x_2, self.y_2, self.fused_penalty,
-                         self.a, self.b)
+    fgw_output = reg_fgw(
+        self.x, self.y, self.x_2, self.y_2, self.fused_penalty, self.a, self.b
+    )
     gw_output = reg_gw(self.x, self.y, self.a, self.b)
-    self.assertGreater(fgw_output.reg_gw_cost, gw_output.reg_gw_cost)
-    self.assertNotAlmostEqual(fgw_output.matrix[0, 0],
-                              gw_output.matrix[0, 0])
+    assert fgw_output.reg_gw_cost > gw_output.reg_gw_cost
+    with pytest.raises(AssertionError):
+      np.testing.assert_array_almost_equal(
+          fgw_output.matrix[0, 0], gw_output.matrix[0, 0]
+      )
 
+  @pytest.mark.limit_memory("200 MB")
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
+    # Total memory allocated: 108.7MiB (32-bit)
+    rngs = jax.random.split(rng, 4)
+    n, m, d1, d2 = 15_000, 10_000, 2, 3
+    x = jax.random.uniform(rngs[0], (n, d1))
+    y = jax.random.uniform(rngs[1], (m, d2))
+    xx = jax.random.uniform(rngs[2], (n, d2))
+    yy = jax.random.uniform(rngs[3], (m, d2))
+    geom_x = pointcloud.PointCloud(x)
+    geom_y = pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(xx, yy)
 
-if __name__ == '__main__':
-  absltest.main()
+    ot_gwlr = gromov_wasserstein.gromov_wasserstein(
+        geom_x, geom_y, geom_xy, rank=5, jit=jit
+    )
+    res0 = ot_gwlr.apply(x.T, axis=0)
+    res1 = ot_gwlr.apply(y.T, axis=1)
+
+    assert ot_gwlr.convergence
+    assert res0.shape == (d1, m)
+    assert res1.shape == (d2, n)
+
+  @pytest.mark.parametrize("cost_rank", [-1, 4])
+  def test_gw_lr_generic_cost_matrix(self, rng: jnp.ndarray, cost_rank: int):
+    n, m = 70, 100
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+    x = jax.random.normal(key1, shape=(n, 7))
+    y = jax.random.normal(key2, shape=(m, 6))
+    xx = jax.random.normal(key3, shape=(n, 5))
+    yy = jax.random.normal(key4, shape=(m, 5))
+
+    geom_x = geometry.Geometry(cost_matrix=x @ x.T)
+    geom_y = geometry.Geometry(cost_matrix=y @ y.T)
+    geom_xy = geometry.Geometry(cost_matrix=xx @ yy.T)
+
+    problem = quad_problems.QuadraticProblem(geom_x, geom_y, geom_xy)
+    solver = gromov_wasserstein.GromovWasserstein(
+        rank=5, cost_rank=cost_rank, cost_tol=5e-1, epsilon=1
+    )
+    out = solver(problem)
+
+    assert solver.rank == 5
+    for geom in [problem.geom_xx, problem.geom_yy, problem.geom_xy]:
+      if cost_rank != -1:
+        assert isinstance(geom, low_rank.LRCGeometry)
+        assert geom.cost_rank == cost_rank
+      else:
+        assert isinstance(geom, geometry.Geometry)
+
+    assert out.convergence
+    assert out.reg_gw_cost > 0
+    np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
