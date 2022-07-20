@@ -42,7 +42,15 @@ def segment_point_cloud(
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    TODO.
+    y: a matrix merging the points of all measures.
+    a: a vector containing the weights (within each measure) of all the points.
+    segment_ids: describe for each point to which measure it belongs.
+    num_segments: total number of measures.
+    indices_are_sorted: flag indicating indices in segment_ids are sorted.
+    num_per_segment: number of points in each segment, if contiguous.
+    max_measure_size: max number of points in each segment (for efficient jit)
+    padding_vector: Vector of shape ``[1, dim]`` used for padding.
+      If ``None``, use a vector of 0s.
 
   Returns:
     Segmented ``x``, ``y`` and the number segments.
