@@ -15,7 +15,7 @@
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
 from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
-
+ 
 import jax
 import jax.numpy as jnp
 import numpy as np

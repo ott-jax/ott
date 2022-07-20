@@ -21,7 +21,8 @@ import jax.numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import fixed_point_loop, linear_problems, sinkhorn
-from ott.geometry import geometry
+from ott.tools import k_means
+from ott.geometry import geometry, pointcloud
 
 
 class LRSinkhornState(NamedTuple):
@@ -30,11 +31,20 @@ class LRSinkhornState(NamedTuple):
   q: Optional[jnp.ndarray] = None
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
+  q_prev: Optional[jnp.ndarray] = None
+  r_prev: Optional[jnp.ndarray] = None
+  g_prev: Optional[jnp.ndarray] = None
+  gamma: Optional[float] = None
   costs: Optional[jnp.ndarray] = None
+  criterion: Optional[float] = None
+  count_escape: Optional[int] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornState':
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
+
+  def compute_crit(self) -> float:
+    return compute_criterion(self.q, self.r, self.g, self.q_prev, self.r_prev, self.g_prev,self.gamma)
 
   def reg_ot_cost(
       self,
@@ -99,6 +109,19 @@ def solution_error(
   ) ** (1.0 / norm_error)
 
   return err
+
+
+def compute_criterion(q: jnp.ndarray,r: jnp.ndarray,g: jnp.ndarray,q_prev: jnp.ndarray,r_prev: jnp.ndarray,g_prev: jnp.ndarray,gamma: float):
+  err_1 = ((1 / gamma) ** 2) * (kl(q,q_prev) + kl(q_prev,q))
+  err_2 = ((1 / gamma) ** 2) * (kl(r, r_prev) + kl(r_prev,r))
+  err_3 = ((1 / gamma) ** 2) * (kl(g, g_prev) + kl(g_prev,g))
+  criterion = err_1 + err_2 + err_3
+  return criterion
+
+
+def kl(q1,q2):
+  ratio = jnp.log(q1) - jnp.log(q2)
+  return jnp.sum(q1 * ratio)
 
 
 class LRSinkhornOutput(NamedTuple):
@@ -209,6 +232,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   Args:
     rank: the rank constraint on the coupling to minimize the linear OT problem
     gamma: the (inverse of) gradient stepsize used by mirror descent.
+    gamma_init: TODO.
     epsilon: entropic regularization added on top of low-rank problem.
     init_type: TODO.
     lse_mode: whether to run computations in lse or kernel mode. At this moment,
@@ -232,9 +256,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __init__(
       self,
       rank: int = 10,
-      gamma: float = 1.0,
-      epsilon: float = 1e-4,
-      init_type: Literal['random', 'rank_2'] = 'random',
+      gamma: float = 10.0,
+      gamma_init: Literal['rescale', 'not_recale'] = 'rescale',
+      epsilon: float = 0.0,
+      init_type: Literal['random', 'rank_2', 'kmeans'] = 'kmeans',
       lse_mode: bool = True,
       threshold: float = 1e-3,
       norm_error: int = 1,
@@ -250,6 +275,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # TODO(michalk8): this should call super
     self.rank = rank
     self.gamma = gamma
+    self.gamma_init = gamma_init
     self.epsilon = epsilon
     self.init_type = init_type
     self.lse_mode = lse_mode
@@ -275,7 +301,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Main interface to run LR sinkhorn."""  # noqa: D401
     init_q, init_r, init_g = (init if init is not None else (None, None, None))
     # Random initialization for q, r, g using rng_key
-    rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 3)
+    rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 5)
     a, b = ot_prob.a, ot_prob.b
     if self.init_type == 'random':
       if init_g is None:
@@ -306,6 +332,29 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       if init_r is None:
         init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
         init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
+    elif self.init_type == 'kmeans':
+      x = ot_prob.geom.x
+      y = ot_prob.geom.y
+      if init_g is None:
+        init_g = jnp.ones((self.rank,)) / self.rank
+      if init_q is None:
+        kmeans_x = jax.jit(k_means.kmeans, static_argnums=(2, 3, 4, 5)) if self.jit else k_means.kmeans
+        kmeans_x = kmeans_x(rng[3],x,self.rank)
+        z_x = kmeans_x[0]
+        geom_x = pointcloud.PointCloud(x,z_x,epsilon=0.1,scale_cost='max_cost')
+        ot_prob_x = linear_problems.LinearProblem(geom_x, a, init_g)
+        solver_x = sinkhorn.Sinkhorn(norm_error=self.norm_error,lse_mode=self.lse_mode,jit=self.jit,implicit_diff=self.implicit_diff,use_danskin=self.use_danskin)
+        ot_sink_x = solver_x(ot_prob_x)
+        init_q = ot_sink_x.matrix
+      if init_r is None:
+        kmeans_y = jax.jit(k_means.kmeans, static_argnums=(2, 3, 4, 5)) if self.jit else k_means.kmeans
+        kmeans_y = kmeans_y(rng[4],y,self.rank)
+        z_y = kmeans_y[0]
+        geom_y = pointcloud.PointCloud(y,z_y,epsilon=0.1,scale_cost='max_cost')
+        ot_prob_y = linear_problems.LinearProblem(geom_y, b, init_g)
+        solver_y = sinkhorn.Sinkhorn(norm_error=self.norm_error,lse_mode=self.lse_mode,jit=self.jit,implicit_diff=self.implicit_diff,use_danskin=self.use_danskin)
+        ot_sink_y = solver_y(ot_prob_y)
+        init_r = ot_sink_y.matrix
     else:
       raise NotImplementedError(self.init_type)
     run_fn = jax.jit(run) if self.jit else run
@@ -316,13 +365,23 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return (self._norm_error,)
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
-    costs, i, tol = state.costs, iteration, self.threshold
-    return jnp.logical_and(
-        i >= 2, jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
-    )
+    criterion, count_escape, i, tol = state.criterion, state.count_escape, iteration, self.threshold
+    if i >= 2:
+      if criterion > tol / 1e-1:
+        err = criterion
+      else:
+        count_escape = count_escape + 1
+        state.set(count_escape=count_escape)
+        if count_escape != iteration:
+          err = criterion
+        else:
+          err = jnp.inf
+    else:
+      err = jnp.inf
+    return jnp.logical_and(i >= 2, err < tol)
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
-    return jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
+    return jnp.logical_or(jnp.logical_not(jnp.isfinite(state.criterion)),jnp.logical_not(jnp.isfinite(state.costs[iteration - 1])))
 
   def _continue(self, state: LRSinkhornState, iteration: int) -> bool:
     """Continue while not(converged) and not(diverged)."""
@@ -338,15 +397,28 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    c_q += (self.epsilon - 1 / self.gamma) * jnp.log(state.q)
-    c_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    c_r += (self.epsilon - 1 / self.gamma) * jnp.log(state.r)
+    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
+    grad_q = jnp.where(self.epsilon != 0., grad_q + self.epsilon * jnp.log(state.q),grad_q)
+    if self.gamma_init == "rescale":
+      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
+    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
+    grad_r = jnp.where(self.epsilon != 0., grad_r + self.epsilon * jnp.log(state.r),grad_r)
+    if self.gamma_init == "rescale":
+      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
     diag_qcr = jnp.sum(
         state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
     )
+    grad_g = - diag_qcr / state.g ** 2
+    grad_g = jnp.where(self.epsilon != 0., grad_g + self.epsilon * jnp.log(state.g),grad_g)
+    if self.gamma_init == "rescale":
+      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
+    if self.gamma_init == "rescale":
+      self.gamma = self.gamma / max(norm_q, norm_r, norm_g)
     h = diag_qcr / state.g ** 2 - (self.epsilon -
                                    1 / self.gamma) * jnp.log(state.g)
+    c_q = grad_q - (1 / self.gamma) * jnp.log(state.q)
+    c_r = grad_r - (1 / self.gamma) * jnp.log(state.r)
+    h = - grad_g + (1 / self.gamma) * jnp.log(state.g)
     return c_q, c_r, h
 
   def dysktra_update(
@@ -358,10 +430,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state: LRSinkhornState,
       iteration: int,
       min_entry_value: float = 1e-6,
-      tolerance: float = 1e-4,
+      tolerance: float = 1e-3,
       min_iter: int = 0,
       inner_iter: int = 10,
-      max_iter: int = 200
+      max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     # shortcuts for problem's definition.
     r = self.rank
@@ -458,11 +530,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
+    q_prev, r_prev, g_prev = state.q, state.r, state.g
     c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
+    gamma = self.gamma
     q, r, g = self.dysktra_update(
         c_q, c_r, h, ot_prob, state, iteration, **self.kwargs_dys
     )
-    return state.set(q=q, g=g, r=r)
+    return state.set(q=q,g=g,r=r,q_prev=q_prev,g_prev=g_prev,r_prev=r_prev,gamma=gamma)
 
   def kernel_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
@@ -496,22 +570,28 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       state = self.kernel_step(ot_prob, state, iteration)
 
+    # compute the criterion
+    criterion = state.compute_crit()
+
     # re-computes error if compute_error is True, else set it to inf.
     cost = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         state.reg_ot_cost(ot_prob), jnp.inf
     )
     costs = state.costs.at[iteration // self.inner_iterations].set(cost)
-    return state.set(costs=costs)
+    return state.set(costs=costs,criterion=criterion)
 
   def init_state(
       self, ot_prob: linear_problems.LinearProblem,
       init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
+    gamma = self.gamma
     q, r, g = init
     costs = -jnp.ones(self.outer_iterations)
-    return LRSinkhornState(q=q, r=r, g=g, costs=costs)
+    criterion = 0.0
+    count_escape = 1
+    return LRSinkhornState(q=q,r=r,g=g,q_prev=q,r_prev=r,g_prev=g,gamma=gamma,costs=costs,criterion=criterion,count_escape=count_escape)
 
   def output_from_state(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState
