@@ -36,8 +36,7 @@ def sqrtm(
 ) -> jnp.ndarray:
   """Higham algorithm to compute matrix square root of p.d. matrix.
 
-  See reference below, eq. 2.6.b
-  http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.6.8799&rep=rep1&type=pdf
+  See :cite:`higham:97`, eq. 2.6b
 
   Args:
     x: a (batch of) square p.s.d. matrices of the same size.
@@ -183,7 +182,7 @@ def sqrtm_bwd(
     regularization: float,
     residual: Tuple[jnp.ndarray, jnp.ndarray],
     cotangent: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
-) -> Tuple[jnp.ndarray,]:
+) -> Tuple[jnp.ndarray]:
   """Compute the derivative by solving a Sylvester equation."""
   del threshold, min_iterations, inner_iterations, max_iterations, regularization
   sqrt_x, inv_sqrt_x = residual
@@ -262,7 +261,7 @@ sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
 
 
 @jax.custom_vjp
-def inv_sqrtm_only(x: jnp.ndarray,) -> jnp.ndarray:
+def inv_sqrtm_only(x: jnp.ndarray) -> jnp.ndarray:
   return sqrtm(x)[1]
 
 

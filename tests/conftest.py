@@ -3,7 +3,9 @@ import itertools
 from typing import Any, Mapping, Optional, Sequence
 
 import jax
+import jax.numpy as jnp
 import pytest
+from _pytest.config.argparsing import Parser
 from _pytest.python import Metafunc
 
 
@@ -53,8 +55,22 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
+def pytest_addoption(parser: Parser) -> None:
+  parser.addoption(
+      "--kernel-name",
+      default="python3",
+      help="Jupyter kernel name when executing notebook tests."
+  )
+  parser.addoption(
+      "--notebook-cell-timeout",
+      type=int,
+      default=60,
+      help="Execution timeout in seconds for notebook cells."
+  )
+
+
 @pytest.fixture(scope="session")
-def rng():
+def rng() -> jnp.ndarray:
   return jax.random.PRNGKey(0)
 
 

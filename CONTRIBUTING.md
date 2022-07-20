@@ -30,6 +30,13 @@ pytest tests/core/sinkhorn_test.py  # only test within a specific file
 pytest -k "test_euclidean_point_cloud"  # only tests which contain the expression
 ```
 
+In order to run memory related tests (used for low-rank solvers/geometries and online point clouds), we utilize
+[pytest-memray](https://github.com/bloomberg/pytest-memray) (current available only on Linux).
+Whenever running the ``pytest`` commands mentioned above, the ``--memray`` option needs to be specified as well.
+
+Lastly, to the run notebook regression tests, use ``pytest -m notebook``. Cell execution limit can be adjusted
+using ``--notebook-cell-timeout=...`` (in seconds), Jupyter kernel name can be set using ``--kernel-name=...``.
+
 ## Building documentation
 From the root of the repository, run:
 ```bash

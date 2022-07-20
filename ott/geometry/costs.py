@@ -140,14 +140,14 @@ class Bures(CostFn):
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x):
+  def norm(self, x: jnp.ndarray):
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
     mean, cov = x_to_means_and_covs(x, self._dimension)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x, y):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -196,7 +196,7 @@ class Bures(CostFn):
     def init_state():
       cov_init = jnp.eye(self._dimension)
       diff = jnp.inf
-      return (cov_init, diff)
+      return cov_init, diff
 
     state = fixed_point_loop.fixpoint_iter(
         cond_fn=cond_fn,
@@ -211,12 +211,12 @@ class Bures(CostFn):
     cov, _ = state
     return cov
 
-  def barycenter(self, weights, xs):
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
-    Implements the fixed point approach proposed in
-    https://arxiv.org/abs/1511.05355 for the computation of the mean and the
-    covariance of the barycenter of weighted Gaussian distributions.
+    Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
+    for the computation of the mean and the covariance of the barycenter of
+    weighted Gaussian distributions.
 
     Args:
       weights: The barycentric weights.
@@ -225,8 +225,7 @@ class Bures(CostFn):
         covariance (raveled).
 
     Returns:
-      barycenter: A concatenation of the mean and the covariance (raveled) of
-        the barycenter.
+      A concatenation of the mean and the raveled covariance of the barycenter.
     """
     # Ensure that barycentric weights sum to 1.
     weights = weights / jnp.sum(weights)
@@ -237,8 +236,9 @@ class Bures(CostFn):
     return barycenter
 
   @classmethod
-  def padder(cls, dim):
-    """Padding with concatenated zero means and raveled identity covariance matrix."""
+  def padder(cls, dim: int) -> jnp.ndarray:
+    """Pad with concatenated zero means and \
+      raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
@@ -258,9 +258,9 @@ class Bures(CostFn):
 class UnbalancedBures(CostFn):
   """Regularized/unbalanced Bures dist between two triplets of (mass,mean,cov).
 
-  This cost implements the value defined in https://arxiv.org/pdf/2006.02572.pdf
-  Equation 37, 39, 40. We follow their notations. It is assumed inputs are given
-  as triplets (mass, mean, covariance) raveled as vectors, in that order.
+  This cost implements the value defined in :cite:`janati:20`, eq. 37, 39, 40.
+  We follow their notations. It is assumed inputs are given as
+  triplets (mass, mean, covariance) raveled as vectors, in that order.
   """
 
   def __init__(
@@ -344,15 +344,16 @@ class UnbalancedBures(CostFn):
     return cls(aux_data[0], aux_data[1], aux_data[2], **aux_data[3])
 
 
-def x_to_means_and_covs(x, dimension):
+def x_to_means_and_covs(x: jnp.ndarray, dimension: jnp.ndarray) -> jnp.ndarray:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:
-    x: [num_gaussians, dimension, (1 + dimension)] jnp.ndarray of concatenated means and covariances (raveled)
-    dimension: the dimension of the Gaussians
+    x: [num_gaussians, dimension, (1 + dimension)] array of concatenated means
+    and covariances (raveled) dimension: the dimension of the Gaussians.
+
   Returns:
-    means: [num_gaussians, dimension] jnp.ndarray that holds the means.
-    covariances: [num_gaussians, dimension] jnp.ndarray that holds the covariances.
+    means: [num_gaussians, dimension] array that holds the means.
+    covariances: [num_gaussians, dimension] array that holds the covariances.
   """
   x = jnp.atleast_2d(x)
   means = x[:, 0:dimension]
@@ -362,7 +363,9 @@ def x_to_means_and_covs(x, dimension):
   return jnp.squeeze(means), jnp.squeeze(covariances)
 
 
-def mean_and_cov_to_x(mean, covariance, dimension):
+def mean_and_cov_to_x(
+    mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
+) -> jnp.ndarray:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
   x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
   return x

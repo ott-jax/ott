@@ -37,7 +37,7 @@ LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
-  Attributes:
+  Args:
     costs: Holds the sequence of regularized GW costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
@@ -49,8 +49,6 @@ class GWOutput(NamedTuple):
       linearization of GW.
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
-    transport: The transport matrix.
-    reg_gw_cost: Regularized optimal transport cost of the linearization.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -77,6 +75,7 @@ class GWOutput(NamedTuple):
 
   @property
   def reg_gw_cost(self) -> float:
+    """Regularized optimal transport cost of the linearization."""
     return self.linear_state.reg_ot_cost
 
   @property
