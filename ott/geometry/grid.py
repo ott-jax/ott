@@ -120,9 +120,11 @@ class Grid(geometry.Geometry):
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
       cost_matrix = jax.vmap(
-          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # pylint: disable=cell-var-from-loop
-          (x_values)
-      )(x_values)  # pylint: disable=cell-var-from-loop
+          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # noqa: B023
+          (x_values)  # noqa: B023
+      )(
+          x_values
+      )
       cost_matrices.append(cost_matrix)
     return cost_matrices
 
@@ -160,7 +162,7 @@ class Grid(geometry.Geometry):
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
     then expands the outputs as vectors.
 
-    More implementation details in https://arxiv.org/pdf/1708.01955.pdf
+    More implementation details in :cite:`schmitz:18`.
 
     Args:
       f: jnp.ndarray, a vector of potentials
@@ -268,7 +270,7 @@ class Grid(geometry.Geometry):
     Reshapes scaling vector as a grid, applies kernels onto each slice, and
     then ravels backs the output as a vector.
 
-    More implementation details in https://arxiv.org/pdf/1708.01955.pdf
+    More implementation details in :cite:`schmitz:18`,
 
     Args:
       scaling: jnp.ndarray, a vector of scaling (>0) values.

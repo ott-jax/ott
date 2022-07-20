@@ -26,9 +26,8 @@ class GaussianMixturePair:
   """Pytree for a coupled pair of Gaussian mixture models.
 
   Includes methods used in estimating an optimal pairing between GMM components
-  using the Wasserstein-like method described in
-  https://arxiv.org/abs/1907.05254 as well as generalization that allows for
-  the re-weighting of components.
+  using the Wasserstein-like method described in :cite:`delon:20`,
+  as well as generalization that allows for the re-weighting of components.
 
   The Delon & Desolneux paper above proposes fitting a pair of GMMs to a pair
   of point clouds in such a way that the sum of the log likelihood of the
@@ -56,9 +55,8 @@ class GaussianMixturePair:
     """Constructor.
 
     When fitting a pair of coupled GMMs with *no* reweighting of components
-    using the algorithm in https://arxiv.org/abs/1907.05254, set tau = 1. The
-    coupling between components will be determined via the balanced Sinkhorn
-    algorithm.
+    using the algorithm in :cite:`delon:20`, set tau = 1. The coupling between
+    components will be determined via the balanced Sinkhorn algorithm.
 
     When fitting a pair of coupled GMMs in which reweighting of components is
     allowed, set tau to a value in (0, 1). The resulting coupling will penalize

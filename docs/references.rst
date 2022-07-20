@@ -1,5 +1,5 @@
-References
-==========
+Bibliography
+============
 
 .. bibliography::
     :cited:
