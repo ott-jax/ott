@@ -266,6 +266,7 @@ def segment_sinkhorn_divergence(
   v_sink_div = jax.vmap(single_segment_sink_div, in_axes=[0] * 6)
 
   segmented_divergences = v_sink_div(
-      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y
+      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y,
+      mask_x, mask_y
   )
   return segmented_divergences
