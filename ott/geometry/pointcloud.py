@@ -133,33 +133,37 @@ class PointCloud(geometry.Geometry):
   @property
   def inv_scale_cost(self) -> float:
     """Compute the factor to scale the cost matrix."""
+    self = self._masked_geom
+
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_cost':
+
+    if self._scale_cost == 'max_cost':
       if self.is_online:
-        return self.compute_summary_online(self._scale_cost)
-      else:
-        return 1.0 / jnp.max(self.compute_cost_matrix())
-    elif self._scale_cost == 'mean':
+        return self._compute_summary_online(self._scale_cost)
+      return 1.0 / jnp.max(self.compute_cost_matrix())
+
+    if self._scale_cost == 'mean':
       if self.is_online:
-        return self.compute_summary_online(self._scale_cost)
-      else:
-        if isinstance(self.shape[0], int) and (self.shape[0] > 0):
-          return 1.0 / jnp.mean(self.compute_cost_matrix())
-    elif self._scale_cost == 'median':
+        return self._compute_summary_online(self._scale_cost)
+      if self.shape[0] > 0:
+        return 1.0 / jnp.mean(self.compute_cost_matrix())
+      return 1.0
+
+    if self._scale_cost == 'median':
       if not self.is_online:
         return 1.0 / jnp.median(self.compute_cost_matrix())
-      else:
-        raise NotImplementedError(
-            """Using the median as scaling factor for
-            the cost matrix with the online mode is not implemented."""
-        )
-    elif self._scale_cost == 'max_norm':
+      raise NotImplementedError(
+          "Using the median as scaling factor for "
+          "the cost matrix with the online mode is not implemented."
+      )
+
+    if self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
         return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
-      else:
-        return 1.0
-    elif self._scale_cost == 'max_bound':
+      return 1.0
+
+    if self._scale_cost == 'max_bound':
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(self._norm_x)
         y_argmax = jnp.argmax(self._norm_y)
@@ -168,16 +172,15 @@ class PointCloud(geometry.Geometry):
             2 * jnp.sqrt(self._norm_x[x_argmax] * self._norm_y[y_argmax])
         )
         return 1.0 / max_bound
-      else:
-        raise NotImplementedError(
-            """Using max_bound as scaling factor for
-            the cost matrix when the cost is not squared euclidean is not
-            implemented."""
-        )
-    elif isinstance(self._scale_cost, str):
+      raise NotImplementedError(
+          "Using max_bound as scaling factor for "
+          "the cost matrix when the cost is not squared euclidean "
+          "is not implemented."
+      )
+
+    if isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    else:
-      return 1.0
+    return 1.0
 
   def compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
@@ -394,7 +397,10 @@ class PointCloud(geometry.Geometry):
       return super().apply_cost(arr, axis, fn)
 
   def vec_apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      arr: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
   ) -> jnp.ndarray:
     """Apply the geometry's cost matrix in a vectorised way.
 
@@ -430,12 +436,12 @@ class PointCloud(geometry.Geometry):
       applied_cost = fn(applied_cost)
     return self.inv_scale_cost * applied_cost
 
-  def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
+  def _leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
     start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
     slice_sizes = [self.batch_size] + list(t.shape[1:])
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
-  def compute_summary_online(
+  def _compute_summary_online(
       self, summary: Literal['mean', 'max_cost']
   ) -> float:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
@@ -450,11 +456,11 @@ class PointCloud(geometry.Geometry):
 
     def body0(carry, i: int):
       vec, = carry
-      y = self.leading_slice(self.y, i)
+      y = self._leading_slice(self.y, i)
       if self._axis_norm is None:
         norm_y = self._norm_y
       else:
-        norm_y = self.leading_slice(self._norm_y, i)
+        norm_y = self._leading_slice(self._norm_y, i)
       h_res = app(
           self.x, y, self._norm_x, norm_y, vec, self._cost_fn, self.power,
           scale_cost
@@ -463,11 +469,11 @@ class PointCloud(geometry.Geometry):
 
     def body1(carry, i: int):
       vec, = carry
-      x = self.leading_slice(self.x, i)
+      x = self._leading_slice(self.x, i)
       if self._axis_norm is None:
         norm_x = self._norm_x
       else:
-        norm_x = self.leading_slice(self._norm_x, i)
+        norm_x = self._leading_slice(self._norm_x, i)
       h_res = app(
           self.y, x, self._norm_y, norm_x, vec, self._cost_fn, self.power,
           scale_cost
@@ -541,7 +547,10 @@ class PointCloud(geometry.Geometry):
     return tuple(cls(*xy, **kwargs) for xy in couples)
 
   def tree_flatten(self):
-    return ([self.x, self.y, self._epsilon, self._cost_fn], {
+    return ([
+        self.x, self.y, self._src_ixs, self._tgt_ixs, self._epsilon_init,
+        self._relative_epsilon, self._scale_epsilon, self._cost_fn
+    ], {
         'batch_size': self._batch_size,
         'power': self.power,
         'scale_cost': self._scale_cost
@@ -551,8 +560,18 @@ class PointCloud(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    x, y, eps, cost_fn = children
-    return cls(x, y, epsilon=eps, cost_fn=cost_fn, **aux_data)
+    x, y, src_ixs, tgt_ixs, init_eps, rel_eps, scale_eps, cost_fn = children
+    return cls(
+        x,
+        y,
+        epsilon=init_eps,
+        relative_epsilon=rel_eps,
+        scale_epsilon=scale_eps,
+        cost_fn=cost_fn,
+        src_ixs=src_ixs,
+        tgt_ixs=tgt_ixs,
+        **aux_data
+    )
 
   def to_LRCGeometry(
       self,

@@ -146,10 +146,10 @@ class Geometry:
   @property
   def mean_cost_matrix(self) -> float:
     """Mean of cost matrix."""
-    geom = self._masked_geom
-    n, m = geom.shape
+    self = self._masked_geom
+    n, m = self.shape
     if n > 0:
-      return jnp.sum(geom.apply_cost(jnp.ones((n,)))) / (n * m)
+      return jnp.sum(self.apply_cost(jnp.ones((n,)))) / (n * m)
     return 1.0
 
   @property
@@ -195,17 +195,17 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    geom = self._masked_geom
-    if isinstance(geom._scale_cost, float):
-      return 1.0 / geom._scale_cost
-    if geom._scale_cost == 'max_cost':
-      return 1.0 / jnp.max(geom._cost_matrix)
-    if geom._scale_cost == 'mean':
-      return 1.0 / jnp.mean(geom._cost_matrix)
-    if geom._scale_cost == 'median':
-      return 1.0 / jnp.median(geom._cost_matrix)
-    if isinstance(geom._scale_cost, str):
-      raise ValueError(f'Scaling {geom._scale_cost} not implemented.')
+    self = self._masked_geom
+    if isinstance(self._scale_cost, float):
+      return 1.0 / self._scale_cost
+    if self._scale_cost == 'max_cost':
+      return 1.0 / jnp.max(self._cost_matrix)
+    if self._scale_cost == 'mean':
+      return 1.0 / jnp.mean(self._cost_matrix)
+    if self._scale_cost == 'median':
+      return 1.0 / jnp.median(self._cost_matrix)
+    if isinstance(self._scale_cost, str):
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     return 1.0
 
   def _set_scale_cost(
@@ -761,7 +761,8 @@ class Geometry:
   def tree_flatten(self):
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._src_ixs, self._tgt_ixs, self._kwargs
+        self._relative_epsilon, self._scale_epsilon, self._src_ixs,
+        self._tgt_ixs, self._kwargs
     ), {
         'scale_cost': self._scale_cost
     }
