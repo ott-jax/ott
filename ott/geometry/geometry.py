@@ -78,6 +78,8 @@ class Geometry:
       epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
       relative_epsilon: Optional[bool] = None,
       scale_epsilon: Optional[float] = None,
+      src_ixs: Optional[jnp.ndarray] = None,
+      tgt_ixs: Optional[jnp.ndarray] = None,
       scale_cost: Optional[Union[Literal['mean', 'max_cost', 'median'], bool,
                                  float]] = None,
       **kwargs: Any,
@@ -88,6 +90,8 @@ class Geometry:
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
     self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._src_ixs = src_ixs
+    self._tgt_ixs = tgt_ixs
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -137,17 +141,16 @@ class Geometry:
   @property
   def median_cost_matrix(self) -> float:
     """Median of cost matrix."""
-    return jnp.median(self.cost_matrix)
+    return jnp.median(self._masked_geom.cost_matrix)
 
   @property
   def mean_cost_matrix(self) -> float:
     """Mean of cost matrix."""
-    if isinstance(self.shape[0], int) and (self.shape[0] > 0):
-      return jnp.sum(self.apply_cost(jnp.ones((self.shape[0],)))) / (
-          self.shape[0] * self.shape[1]
-      )
-    else:
-      return 1.0
+    geom = self._masked_geom
+    n, m = geom.shape
+    if n > 0:
+      return jnp.sum(geom.apply_cost(jnp.ones((n,)))) / (n * m)
+    return 1.0
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
@@ -169,7 +172,7 @@ class Geometry:
     )
     if mat is not None:
       return mat.shape
-    return (0, 0)
+    return 0, 0
 
   @property
   def is_squared_euclidean(self) -> bool:
@@ -192,18 +195,18 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost, float):
-      return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_cost':
-      return 1.0 / jnp.max(self._cost_matrix)
-    elif self._scale_cost == 'mean':
-      return 1.0 / jnp.mean(self._cost_matrix)
-    elif self._scale_cost == 'median':
-      return 1.0 / jnp.median(self._cost_matrix)
-    elif isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    else:
-      return 1.0
+    geom = self._masked_geom
+    if isinstance(geom._scale_cost, float):
+      return 1.0 / geom._scale_cost
+    if geom._scale_cost == 'max_cost':
+      return 1.0 / jnp.max(geom._cost_matrix)
+    if geom._scale_cost == 'mean':
+      return 1.0 / jnp.mean(geom._cost_matrix)
+    if geom._scale_cost == 'median':
+      return 1.0 / jnp.median(geom._cost_matrix)
+    if isinstance(geom._scale_cost, str):
+      raise ValueError(f'Scaling {geom._scale_cost} not implemented.')
+    return 1.0
 
   def _set_scale_cost(
       self, scale_cost: Optional[Union[bool, float, str]]
@@ -708,6 +711,7 @@ class Geometry:
       self,
       src_ixs: Optional[jnp.ndarray],
       tgt_ixs: Optional[jnp.ndarray],
+      propagate_mask: bool = True,
       **kwargs: Any,
   ) -> "Geometry":
     """Subset rows and/or columns of a geometry.
@@ -715,6 +719,7 @@ class Geometry:
     Args:
       src_ixs: Source indices. If ``None``, use all rows.
       tgt_ixs: Target indices. If ``None``, use all columns.
+      propagate_mask: TODO.
       kwargs: Keyword arguments for :class:`ott.geometry.geometry.Geometry`.
 
     Returns:
@@ -731,26 +736,40 @@ class Geometry:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
-    (cost, kernel, *children), aux_data = self.tree_flatten()
+    (cost, kernel, *children, old_src_ixs, old_tgt_ixs,
+     kws), aux_data = self.tree_flatten()
     if cost is not None:
       cost = sub(cost, src_ixs, tgt_ixs)
     if kernel is not None:
       kernel = sub(kernel, src_ixs, tgt_ixs)
+    if old_src_ixs is not None:
+      old_src_ixs = sub(old_src_ixs, src_ixs, None) if propagate_mask else None
+    if old_tgt_ixs is not None:
+      old_tgt_ixs = sub(old_tgt_ixs, tgt_ixs, None) if propagate_mask else None
 
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [cost, kernel] + children)
+    return type(self).tree_unflatten(
+        aux_data, [cost, kernel] + children + [old_src_ixs, old_tgt_ixs, kws]
+    )
+
+  @property
+  def _masked_geom(self) -> "Geometry":
+    if self._src_ixs is None and self._tgt_ixs is None:
+      return self
+    return self.subset(self._src_ixs, self._tgt_ixs, propagate_mask=False)
 
   def tree_flatten(self):
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._kwargs
+        self._relative_epsilon, self._src_ixs, self._tgt_ixs, self._kwargs
     ), {
         'scale_cost': self._scale_cost
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:-1], **children[-1], **aux_data)
+    *args, kwargs = children
+    return cls(*args, **kwargs, **aux_data)
 
 
 def is_affine(fn) -> bool:
