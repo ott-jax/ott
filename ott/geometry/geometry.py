@@ -727,29 +727,27 @@ class Geometry:
     """
 
     def sub(
-        arr: jnp.ndarray, src_ixs: Optional[jnp.ndarray],
+        arr: Optional[jnp.ndarray], src_ixs: Optional[jnp.ndarray],
         tgt_ixs: Optional[jnp.ndarray]
     ) -> jnp.ndarray:
+      if arr is None:
+        return None
       if src_ixs is not None:
-        arr = arr[jnp.atleast_1d(src_ixs), :]
+        arr = arr[jnp.atleast_1d(src_ixs)]
       if tgt_ixs is not None:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
-    (cost, kernel, *children, old_src_ixs, old_tgt_ixs,
+    (cost, kernel, *children, src_mask, tgt_mask,
      kws), aux_data = self.tree_flatten()
-    if cost is not None:
-      cost = sub(cost, src_ixs, tgt_ixs)
-    if kernel is not None:
-      kernel = sub(kernel, src_ixs, tgt_ixs)
-    if old_src_ixs is not None:
-      old_src_ixs = sub(old_src_ixs, src_ixs, None) if propagate_mask else None
-    if old_tgt_ixs is not None:
-      old_tgt_ixs = sub(old_tgt_ixs, tgt_ixs, None) if propagate_mask else None
+    cost = sub(cost, src_ixs, tgt_ixs)
+    kernel = sub(kernel, src_ixs, tgt_ixs)
+    src_mask = sub(src_mask, src_ixs, None) if propagate_mask else None
+    tgt_mask = sub(tgt_mask, tgt_ixs, None) if propagate_mask else None
 
     aux_data = {**aux_data, **kwargs}
     return type(self).tree_unflatten(
-        aux_data, [cost, kernel] + children + [old_src_ixs, old_tgt_ixs, kws]
+        aux_data, [cost, kernel] + children + [src_mask, tgt_mask, kws]
     )
 
   @property

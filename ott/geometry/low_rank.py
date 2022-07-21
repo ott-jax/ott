@@ -97,27 +97,25 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
+    self = self._masked_geom
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_bound':
+    if self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
-    elif self._scale_cost == 'mean':
-      factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
-      factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
-      mean = (
-          jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1]) +
-          self._bias
-      )
+    if self._scale_cost == 'mean':
+      n, m = self.shape
+      factor1 = jnp.dot(jnp.ones(n), self._cost_1)
+      factor2 = jnp.dot(self._cost_2.T, jnp.ones(m))
+      mean = jnp.dot(factor1, factor2) / (n * m) + self._bias
       return 1.0 / mean
-    elif self._scale_cost == 'max_cost':
+    if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
-    elif isinstance(self._scale_cost, str):
+    if isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not provided.')
-    else:
-      return 1.0
+    return 1.0
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""

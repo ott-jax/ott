@@ -134,22 +134,18 @@ class PointCloud(geometry.Geometry):
   def inv_scale_cost(self) -> float:
     """Compute the factor to scale the cost matrix."""
     self = self._masked_geom
-
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
-
     if self._scale_cost == 'max_cost':
       if self.is_online:
         return self._compute_summary_online(self._scale_cost)
       return 1.0 / jnp.max(self.compute_cost_matrix())
-
     if self._scale_cost == 'mean':
       if self.is_online:
         return self._compute_summary_online(self._scale_cost)
       if self.shape[0] > 0:
         return 1.0 / jnp.mean(self.compute_cost_matrix())
       return 1.0
-
     if self._scale_cost == 'median':
       if not self.is_online:
         return 1.0 / jnp.median(self.compute_cost_matrix())
@@ -157,12 +153,10 @@ class PointCloud(geometry.Geometry):
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
       )
-
     if self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
         return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
       return 1.0
-
     if self._scale_cost == 'max_bound':
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(self._norm_x)
@@ -177,7 +171,6 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean "
           "is not implemented."
       )
-
     if isinstance(self._scale_cost, str):
       raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     return 1.0
@@ -613,11 +606,16 @@ class PointCloud(geometry.Geometry):
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
+        src_ixs=self._src_ixs,
+        tgt_ixs=self._tgt_ixs,
         **self._kwargs
     )
 
   def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      propagate_mask: bool = True,
       **kwargs: Any
   ) -> "PointCloud":
     """Subset rows and/or columns of a geometry.
@@ -625,19 +623,28 @@ class PointCloud(geometry.Geometry):
     Args:
       src_ixs: Source indices. If ``None``, use all rows.
       tgt_ixs: Target indices. If ``None``, use all columns.
+      propagate_mask: TODO.
       kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
 
     Returns:
       The subsetted geometry.
     """
-    (x, y, *children), aux_data = self.tree_flatten()
-    if src_ixs is not None:
-      x = x[jnp.atleast_1d(src_ixs), :]
-    if tgt_ixs is not None:
-      y = y[jnp.atleast_1d(tgt_ixs), :]
+
+    def sub(
+        arr: Optional[jnp.ndarray], ixs: Optional[jnp.ndarray]
+    ) -> jnp.ndarray:
+      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
+
+    (x, y, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
+    x = sub(x, src_ixs)
+    y = sub(y, tgt_ixs)
+    src_mask = sub(src_mask, src_ixs) if propagate_mask else None
+    tgt_mask = sub(tgt_mask, tgt_ixs) if propagate_mask else None
 
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [x, y] + children)
+    return type(self).tree_unflatten(
+        aux_data, [x, y, src_mask, tgt_mask] + children
+    )
 
   @property
   def batch_size(self) -> Optional[int]:
