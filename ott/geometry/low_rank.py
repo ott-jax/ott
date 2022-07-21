@@ -271,7 +271,10 @@ class LRCGeometry(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:-1], **children[-1], **aux_data)
+    c1, c2, src_mask, tgt_mask, kwargs = children
+    return cls(
+        c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data
+    )
 
 
 def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry) -> LRCGeometry:
