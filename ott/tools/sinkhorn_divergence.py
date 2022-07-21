@@ -46,7 +46,7 @@ def sinkhorn_divergence(
   Args:
     geom: Type of the geometry.
     args: arguments to
-      :meth:`ott.geometry.geometry.Geometry.prepare_divergences` that is
+      :meth:`~ott.geometry.geometry.Geometry.prepare_divergences` that is
       specific to each geometry.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
       all elements of b must match that of a to converge.
@@ -66,7 +66,7 @@ def sinkhorn_divergence(
       geometry.
 
   Returns:
-    tuple: (sinkhorn divergence value, three pairs of potentials, three costs)
+    Sinkhorn divergence value, three pairs of potentials, three costs.
   """
   geometries = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   num_a, num_b = geometries[0].shape
@@ -108,7 +108,7 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
-    kwargs: Keyword arguments to sinkhorn.
+    kwargs: Keyword arguments to :func:`ott.core.sinkhorn.sinkhorn`.
 
   Returns:
     SinkhornDivergenceOutput named tuple.
@@ -173,6 +173,7 @@ def segment_sinkhorn_divergence(
   In all cases, both `x` and `y` should contain the same number of segments.
   Each segment will be separately run through the sinkhorn divergence using
   array padding.
+
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
@@ -206,6 +207,7 @@ def segment_sinkhorn_divergence(
       matrix.
     kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
+
   Returns:
     An array of sinkhorn divergence values for each segment.
   """
