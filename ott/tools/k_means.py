@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 The implementation in this file is based on the example provided by
 Sabrina J. Mielke
@@ -19,43 +18,44 @@ in https://colab.research.google.com/drive/1AwS4haUx6swF82w3nXr6QKhajdF8aSvA#scr
 """
 
 from typing import NamedTuple
-from jax import lax, jit, vmap, random
+
 import jax.numpy as jnp
+from jax import jit, lax, random, vmap
 from jax.numpy.linalg import norm
 
 
 class KMeansState(NamedTuple):
-    """The state for K-means algorithm"""
+  """The state for K-means algorithm"""
 
-    centroids: jnp.ndarray
-    """Current set of centroids"""
-    assignment: jnp.ndarray
-    """Current assignment of points to centroids"""
-    distortion: float
-    """ Current mean distance"""
-    prev_distortion: float
-    """ Previous mean distance"""
-    iterations: int
-    """The number of iterations it took to complete"""
+  centroids: jnp.ndarray
+  """Current set of centroids"""
+  assignment: jnp.ndarray
+  """Current assignment of points to centroids"""
+  distortion: float
+  """ Current mean distance"""
+  prev_distortion: float
+  """ Previous mean distance"""
+  iterations: int
+  """The number of iterations it took to complete"""
 
 
 class KMeansSolution(NamedTuple):
-    """The solution for K-means algorithm"""
+  """The solution for K-means algorithm"""
 
-    centroids: jnp.ndarray
-    """Current set of centroids"""
-    assignment: jnp.ndarray
-    """Current assignment of points to centroids"""
-    distortion: float
-    """ Current mean distance"""
-    key: jnp.ndarray
-    """ The PRNG key seed for the k-means run with least distortion"""
-    iterations: int
-    """The number of iterations it took to complete"""
+  centroids: jnp.ndarray
+  """Current set of centroids"""
+  assignment: jnp.ndarray
+  """Current assignment of points to centroids"""
+  distortion: float
+  """ Current mean distance"""
+  key: jnp.ndarray
+  """ The PRNG key seed for the k-means run with least distortion"""
+  iterations: int
+  """The number of iterations it took to complete"""
 
 
 def find_nearest(point, centroids):
-    """Returns the index of the nearest centroid for a specific point
+  """Returns the index of the nearest centroid for a specific point
 
     Args:
         point (jax.numpy.ndarray) : A specific point
@@ -64,14 +64,14 @@ def find_nearest(point, centroids):
     Returns:
         (int) : The index of the nearest centroid
     """
-    return jnp.argmin(vmap(norm)(centroids - point))
+  return jnp.argmin(vmap(norm)(centroids - point))
 
 
 find_nearest_jit = jit(find_nearest)
 
 
 def find_assignment(points, centroids):
-    """Finds the assignment of each point to a specific centroid
+  """Finds the assignment of each point to a specific centroid
 
     Args:
         points (jax.numpy.ndarray) : Each row of the points matrix is a point.
@@ -83,57 +83,53 @@ def find_assignment(points, centroids):
         #. An assignment array of each point to a cluster
         #. Distance of each point from corresponding cluster centroid
     """
-    assignment = vmap(lambda point: find_nearest(point, centroids))(points)
-    errors = centroids[assignment, :] - points
-    distances = vmap(norm)(errors)
-    return assignment, distances
+  assignment = vmap(lambda point: find_nearest(point, centroids))(points)
+  errors = centroids[assignment, :] - points
+  distances = vmap(norm)(errors)
+  return assignment, distances
 
 
 find_assignment_jit = jit(find_assignment)
 
 
 def assignment_counts(assignment, k):
-    """Returns the number of points in each cluster based on the current assignment
+  """Returns the number of points in each cluster based on the current assignment
 
     If a cluster has no points, we return 1.
     """
-    return (
-        (assignment[jnp.newaxis, :] == jnp.arange(k)[:, jnp.newaxis])
-        .sum(axis=1, keepdims=True)
-        .clip(min=1)
-    )
+  return ((assignment[jnp.newaxis, :] == jnp.arange(k)[:, jnp.newaxis]
+          ).sum(axis=1, keepdims=True).clip(min=1))
 
 
 def find_new_centroids(assignment, points, k):
-    """Finds new centroids based on current assignment
+  """Finds new centroids based on current assignment
 
     Args:
         assignment (jax.numpy.ndarray) : current assignment of each point to a specific cluster
         points (jax.numpy.ndarray) : Each row of the points matrix is a point.
         k (int): The number of clusters
     """
-    counts = assignment_counts(assignment, k)
-    new_centroids = (
-        jnp.sum(
-            jnp.where(
-                # axes: (data points, clusters, data dimension)
-                assignment[:, jnp.newaxis, jnp.newaxis]
-                == jnp.arange(k)[jnp.newaxis, :, jnp.newaxis],
-                points[:, jnp.newaxis, :],
-                0.0,
-            ),
-            axis=0,
-        )
-        / counts
-    )
-    return new_centroids
+  counts = assignment_counts(assignment, k)
+  new_centroids = (
+      jnp.sum(
+          jnp.where(
+              # axes: (data points, clusters, data dimension)
+              assignment[:, jnp.newaxis, jnp.newaxis]
+              == jnp.arange(k)[jnp.newaxis, :, jnp.newaxis],
+              points[:, jnp.newaxis, :],
+              0.0,
+          ),
+          axis=0,
+      ) / counts
+  )
+  return new_centroids
 
 
 find_new_centroids_jit = jit(find_new_centroids, static_argnums=(2,))
 
 
 def kmeans_with_seed(key, points, k, thresh=1e-5, max_iters=100):
-    """Runs the k-means algorithm for a specific random initialization
+  """Runs the k-means algorithm for a specific random initialization
 
     Args:
         key: a PRNG key used as the random key for choosing initial centroids
@@ -148,60 +144,60 @@ def kmeans_with_seed(key, points, k, thresh=1e-5, max_iters=100):
         current distorition, previous distortion, number of iterations
         for convergence.
     """
-    # number of points
-    n = points.shape[0]
+  # number of points
+  n = points.shape[0]
 
-    def init():
-        # select k points as initial centroids randomly
-        indices = random.permutation(key, jnp.arange(n))[:k]
-        # the initial centroids
-        centroids = points[indices, :]
-        # assign all points to centroids and compute distances
-        assignment, distances = find_assignment(points, centroids)
-        distortion = jnp.mean(distances)
-        # algorithm state
-        return KMeansState(
-            centroids=centroids,
-            assignment=assignment,
-            distortion=distortion,
-            prev_distortion=jnp.inf,
-            iterations=0,
-        )
+  def init():
+    # select k points as initial centroids randomly
+    indices = random.permutation(key, jnp.arange(n))[:k]
+    # the initial centroids
+    centroids = points[indices, :]
+    # assign all points to centroids and compute distances
+    assignment, distances = find_assignment(points, centroids)
+    distortion = jnp.mean(distances)
+    # algorithm state
+    return KMeansState(
+        centroids=centroids,
+        assignment=assignment,
+        distortion=distortion,
+        prev_distortion=jnp.inf,
+        iterations=0,
+    )
 
-    def body(state):
-        # update centroids
-        centroids = find_new_centroids(state.assignment, points, k)
-        # update assignment
-        assignment, distances = find_assignment(points, centroids)
-        # mean distance
-        distortion = jnp.mean(distances)
-        # algorithm state
-        return KMeansState(
-            centroids=centroids,
-            assignment=assignment,
-            distortion=distortion,
-            prev_distortion=state.distortion,
-            iterations=state.iterations + 1,
-        )
+  def body(state):
+    # update centroids
+    centroids = find_new_centroids(state.assignment, points, k)
+    # update assignment
+    assignment, distances = find_assignment(points, centroids)
+    # mean distance
+    distortion = jnp.mean(distances)
+    # algorithm state
+    return KMeansState(
+        centroids=centroids,
+        assignment=assignment,
+        distortion=distortion,
+        prev_distortion=state.distortion,
+        iterations=state.iterations + 1,
+    )
 
-    def cond(state):
-        # check if the mean distance has updated enough
-        gap = state.prev_distortion - state.distortion
-        # print(state.prev_distortion, state.distortion, gap, thresh, gap > thresh)
-        return jnp.logical_and(gap > thresh, state.iterations < max_iters)
+  def cond(state):
+    # check if the mean distance has updated enough
+    gap = state.prev_distortion - state.distortion
+    # print(state.prev_distortion, state.distortion, gap, thresh, gap > thresh)
+    return jnp.logical_and(gap > thresh, state.iterations < max_iters)
 
-    # state = init()
-    # while cond(state):
-    #     state = body(state)
-    state = lax.while_loop(cond, body, init())
-    return state
+  # state = init()
+  # while cond(state):
+  #     state = body(state)
+  state = lax.while_loop(cond, body, init())
+  return state
 
 
 kmeans_with_seed_jit = jit(kmeans_with_seed, static_argnums=(2, 3))
 
 
 def kmeans(key, points, k, iter=20, thresh=1e-5, max_iters=100):
-    r"""Clusters points using k-means algorithm
+  r"""Clusters points using k-means algorithm
 
     Args:
         key: a PRNG key used as the random key
@@ -236,20 +232,20 @@ def kmeans(key, points, k, iter=20, thresh=1e-5, max_iters=100):
 
     The distortion is given by the mean of all the distances.
     """
-    # keys for each restart of kmeans algorithm
-    keys = random.split(key, iter)
-    # individual run of k-means algorithm
-    kmeans_core = lambda key: kmeans_with_seed(
-        key, points, k, thresh=thresh, max_iters=max_iters
-    )
-    # Run all restarts of kmeans using vmap
-    results = vmap(kmeans_core, 0, 0)(keys)
-    # Find the run with the least distortion
-    i = jnp.argmin(results.distortion)
-    return KMeansSolution(
-        centroids=results.centroids[i],
-        assignment=results.assignment[i],
-        distortion=results.distortion[i],
-        key=keys[i],
-        iterations=results.iterations[i],
-    )
+  # keys for each restart of kmeans algorithm
+  keys = random.split(key, iter)
+  # individual run of k-means algorithm
+  kmeans_core = lambda key: kmeans_with_seed(
+      key, points, k, thresh=thresh, max_iters=max_iters
+  )
+  # Run all restarts of kmeans using vmap
+  results = vmap(kmeans_core, 0, 0)(keys)
+  # Find the run with the least distortion
+  i = jnp.argmin(results.distortion)
+  return KMeansSolution(
+      centroids=results.centroids[i],
+      assignment=results.assignment[i],
+      distortion=results.distortion[i],
+      key=keys[i],
+      iterations=results.iterations[i],
+  )
