@@ -541,7 +541,7 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     return ([
-        self.x, self.y, self._src_ixs, self._tgt_ixs, self._epsilon_init,
+        self.x, self.y, self._src_mask, self._tgt_mask, self._epsilon_init,
         self._relative_epsilon, self._scale_epsilon, self._cost_fn
     ], {
         'batch_size': self._batch_size,
@@ -553,7 +553,7 @@ class PointCloud(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    x, y, src_ixs, tgt_ixs, init_eps, rel_eps, scale_eps, cost_fn = children
+    x, y, src_mask, tgt_mask, init_eps, rel_eps, scale_eps, cost_fn = children
     return cls(
         x,
         y,
@@ -561,8 +561,8 @@ class PointCloud(geometry.Geometry):
         relative_epsilon=rel_eps,
         scale_epsilon=scale_eps,
         cost_fn=cost_fn,
-        src_ixs=src_ixs,
-        tgt_ixs=tgt_ixs,
+        src_mask=src_mask,
+        tgt_mask=tgt_mask,
         **aux_data
     )
 
@@ -606,8 +606,8 @@ class PointCloud(geometry.Geometry):
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
-        src_ixs=self._src_ixs,
-        tgt_ixs=self._tgt_ixs,
+        src_mask=self._src_mask,
+        tgt_mask=self._tgt_mask,
         **self._kwargs
     )
 

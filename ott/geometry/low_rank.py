@@ -226,7 +226,10 @@ class LRCGeometry(geometry.Geometry):
     return self
 
   def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      propagate_mask: bool = True,
       **kwargs: Any
   ) -> "LRCGeometry":
     """Subset rows and/or columns of a geometry.
@@ -234,22 +237,33 @@ class LRCGeometry(geometry.Geometry):
     Args:
       src_ixs: Source indices. If ``None``, use all rows.
       tgt_ixs: Target indices. If ``None``, use all columns.
+      propagate_mask: TODO.
       kwargs: Keyword arguments for :class:`ott.geometry.low_rank.LRCGeometry`.
 
     Returns:
       The subsetted geometry.
     """
-    (c1, c2, *children), aux_data = self.tree_flatten()
-    if src_ixs is not None:
-      c1 = c1[jnp.atleast_1d(src_ixs), :]
-    if tgt_ixs is not None:
-      c2 = c2[jnp.atleast_1d(tgt_ixs), :]
+
+    def sub(
+        arr: Optional[jnp.ndarray], ixs: Optional[jnp.ndarray]
+    ) -> jnp.ndarray:
+      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
+
+    (c1, c2, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
+    c1 = sub(c1, src_ixs)
+    c2 = sub(c2, tgt_ixs)
+    src_mask = sub(src_mask, src_ixs) if propagate_mask else None
+    tgt_mask = sub(tgt_mask, tgt_ixs) if propagate_mask else None
 
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [c1, c2] + children)
+    return type(self).tree_unflatten(
+        aux_data, [c1, c2, src_mask, tgt_mask] + children
+    )
 
   def tree_flatten(self):
-    return (self._cost_1, self._cost_2, self._kwargs), {
+    return (
+        self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
+    ), {
         'bias': self._bias,
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size

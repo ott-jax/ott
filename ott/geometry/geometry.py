@@ -78,8 +78,8 @@ class Geometry:
       epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
       relative_epsilon: Optional[bool] = None,
       scale_epsilon: Optional[float] = None,
-      src_ixs: Optional[jnp.ndarray] = None,
-      tgt_ixs: Optional[jnp.ndarray] = None,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
       scale_cost: Optional[Union[Literal['mean', 'max_cost', 'median'], bool,
                                  float]] = None,
       **kwargs: Any,
@@ -90,8 +90,8 @@ class Geometry:
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
     self._scale_cost = "mean" if scale_cost is True else scale_cost
-    self._src_ixs = src_ixs
-    self._tgt_ixs = tgt_ixs
+    self._src_mask = src_mask
+    self._tgt_mask = tgt_mask
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -752,15 +752,15 @@ class Geometry:
 
   @property
   def _masked_geom(self) -> "Geometry":
-    if self._src_ixs is None and self._tgt_ixs is None:
+    if self._src_mask is None and self._tgt_mask is None:
       return self
-    return self.subset(self._src_ixs, self._tgt_ixs, propagate_mask=False)
+    return self.subset(self._src_mask, self._tgt_mask, propagate_mask=False)
 
   def tree_flatten(self):
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._scale_epsilon, self._src_ixs,
-        self._tgt_ixs, self._kwargs
+        self._relative_epsilon, self._scale_epsilon, self._src_mask,
+        self._tgt_mask, self._kwargs
     ), {
         'scale_cost': self._scale_cost
     }

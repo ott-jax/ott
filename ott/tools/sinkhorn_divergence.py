@@ -13,7 +13,7 @@
 # limitations under the License.
 """Implements the sinkhorn divergence."""
 
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple, Type
 
 import jax
 from jax import numpy as jnp
@@ -32,7 +32,7 @@ class SinkhornDivergenceOutput(NamedTuple):
 
 
 def sinkhorn_divergence(
-    geom: geometry.Geometry,
+    geom: Type[geometry.Geometry],
     *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
@@ -44,7 +44,7 @@ def sinkhorn_divergence(
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
-    geom: a geometry class.
+    geom: Type of the geometry.
     args: arguments to
       :meth:`ott.geometry.geometry.Geometry.prepare_divergences` that is
       specific to each geometry.
