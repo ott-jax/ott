@@ -23,7 +23,7 @@ def segment_point_cloud(
     a: Optional[jnp.ndarray] = None,
     segment_ids: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
-    indices_are_sorted: Optional[bool] = None,
+    indices_are_sorted: bool = False,
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None,
     padding_vector: Optional[jnp.ndarray] = None
@@ -60,8 +60,6 @@ def segment_point_cloud(
   if use_segment_ids:
     if num_segments is None:
       num_segments = jnp.max(segment_ids) + 1
-    if indices_are_sorted is None:
-      indices_are_sorted = False
 
     num_per_segment = jax.ops.segment_sum(
         jnp.ones_like(segment_ids),

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Implements the sinkhorn divergence."""
-
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple, Type
+from types import MappingProxyType
+from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
 import jax
 from jax import numpy as jnp
@@ -36,7 +36,7 @@ def sinkhorn_divergence(
     *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     **kwargs: Any,
@@ -52,10 +52,9 @@ def sinkhorn_divergence(
       all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
       all elements of b must match that of a to converge.
-    sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the `sinkhorn` function, that is called twice if static_b else
-      three times.
-    static_b: if True, divergence of measure b against itself is NOT computed
+    sinkhorn_kwargs: keywords arguments for :func:`ott.core.sinkhorn.sinkhorn`
+      that is called twice if ``static_b = True`` else 3 times.
+    static_b: if True, divergence of measure b against itself is NOT computed.
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
       will be by default that used when comparing x to y (contained in the first
@@ -80,8 +79,7 @@ def sinkhorn_divergence(
 
   a = jnp.ones((num_a,)) / num_a if a is None else a
   b = jnp.ones((num_b,)) / num_b if b is None else b
-  div_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
-  return _sinkhorn_divergence(*geometries, a, b, **div_kwargs)
+  return _sinkhorn_divergence(*geometries, a, b, **sinkhorn_kwargs)
 
 
 def _sinkhorn_divergence(
@@ -157,12 +155,12 @@ def segment_sinkhorn_divergence(
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
-    indices_are_sorted: Optional[bool] = None,
+    indices_are_sorted: bool = False,
     num_per_segment_x: Optional[jnp.ndarray] = None,
     num_per_segment_y: Optional[jnp.ndarray] = None,
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
-    sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     **kwargs: Any
@@ -195,10 +193,9 @@ def segment_sinkhorn_divergence(
       order as `x`.
     weights_y: Weights of each input points, arranged in the same segmented
       order as `y`.
-    sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the `sinkhorn` function, that is called twice if static_b else
-      three times.
-    static_b: if True, divergence of measure b against itself is NOT computed
+    sinkhorn_kwargs: keywords arguments for :func:`ott.core.sinkhorn.sinkhorn`
+      that is called twice if ``static_b = True`` else 3 times.
+    static_b: if True, divergence of measure b against itself is NOT computed.
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
       will be by default that used when comparing x to y (contained in the first
@@ -245,8 +242,9 @@ def segment_sinkhorn_divergence(
   assert num_segments_x == num_segments_y
 
   def single_segment_sink_div(
-      padded_x, padded_y, padded_weight_x, padded_weight_y
-  ):
+      padded_x: jnp.ndarray, padded_y: jnp.ndarray,
+      padded_weight_x: jnp.ndarray, padded_weight_y: jnp.ndarray
+  ) -> float:
     return sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
