@@ -530,16 +530,27 @@ class PointCloud(geometry.Geometry):
   @classmethod
   def prepare_divergences(
       cls,
-      *args: Any,
+      x: jnp.ndarray,
+      y: jnp.ndarray,
       static_b: bool = False,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
       **kwargs: Any
   ) -> Tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
-    x, y = args
-    couples = [(x, y), (x, x)] if static_b else [(x, y), (x, x), (y, y)]
-    return tuple(cls(*xy, **kwargs) for xy in couples)
+    couples = [(x, y), (x, x)]
+    masks = [(src_mask, tgt_mask), (src_mask, src_mask)]
+    if static_b:
+      couples += [(y, y)]
+      masks += [(tgt_mask, tgt_mask)]
+
+    return tuple(
+        cls(x, y, src_mask=x_mask, tgt_mask=y_mask, **kwargs)
+        for ((x, y), (x_mask, y_mask)) in zip(couples, masks)
+    )
 
   def tree_flatten(self):
+    # passing self.power in aux_data to be able to condition on it.
     return ([
         self.x, self.y, self._src_mask, self._tgt_mask, self._epsilon_init,
         self._relative_epsilon, self._scale_epsilon, self._cost_fn
@@ -548,8 +559,6 @@ class PointCloud(geometry.Geometry):
         'power': self.power,
         'scale_cost': self._scale_cost
     })
-
-  # Passing self.power in aux_data to be able to condition on it.
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -579,7 +588,7 @@ class PointCloud(geometry.Geometry):
       (x, y, *children), aux_data = self.tree_flatten()
       x = x * jnp.sqrt(scale)
       y = y * jnp.sqrt(scale)
-      return PointCloud.tree_unflatten(aux_data, [x, y] + children)
+      return type(self).tree_unflatten(aux_data, [x, y] + children)
     return super().to_LRCGeometry(**kwargs)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:

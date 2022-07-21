@@ -219,7 +219,7 @@ def segment_sinkhorn_divergence(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x, num_segments_x = segment.segment_point_cloud(
+  segmented_x, segmented_weights_x, mask_x, num_segments_x = segment.segment_point_cloud(
       x,
       weights_x,
       segment_ids_x,
@@ -229,7 +229,7 @@ def segment_sinkhorn_divergence(
       padding_vector=padding_vector
   )
 
-  segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
+  segmented_y, segmented_weights_y, mask_y, num_segments_y = segment.segment_point_cloud(
       y,
       weights_y,
       segment_ids_y,
@@ -242,8 +242,12 @@ def segment_sinkhorn_divergence(
   assert num_segments_x == num_segments_y
 
   def single_segment_sink_div(
-      padded_x: jnp.ndarray, padded_y: jnp.ndarray,
-      padded_weight_x: jnp.ndarray, padded_weight_y: jnp.ndarray
+      padded_x: jnp.ndarray,
+      padded_y: jnp.ndarray,
+      padded_weight_x: jnp.ndarray,
+      padded_weight_y: jnp.ndarray,
+      mask_x: jnp.ndarray,
+      mask_y: jnp.ndarray,
   ) -> float:
     return sinkhorn_divergence(
         pointcloud.PointCloud,
@@ -254,10 +258,12 @@ def segment_sinkhorn_divergence(
         sinkhorn_kwargs=sinkhorn_kwargs,
         static_b=static_b,
         share_epsilon=share_epsilon,
+        src_mask=mask_x,
+        tgt_mask=mask_y,
         **kwargs
     ).divergence
 
-  v_sink_div = jax.vmap(single_segment_sink_div, in_axes=[0, 0, 0, 0])
+  v_sink_div = jax.vmap(single_segment_sink_div, in_axes=[0] * 6)
 
   segmented_divergences = v_sink_div(
       segmented_x, segmented_y, segmented_weights_x, segmented_weights_y

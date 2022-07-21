@@ -27,7 +27,7 @@ def segment_point_cloud(
     num_per_segment: Optional[jnp.ndarray] = None,
     max_measure_size: Optional[int] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces: either use `segment_ids`, and optionally
@@ -53,7 +53,7 @@ def segment_point_cloud(
       If ``None``, use a vector of 0s.
 
   Returns:
-    Segmented ``x``, ``y`` and the number segments.
+    Segmented ``y``, ``a``, mask and the number of segments.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -84,11 +84,11 @@ def segment_point_cloud(
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
 
-  segmented_a = []
-  segmented_x = []
+  segmented_a, segmented_x, segmented_mask = [], [], []
 
   x = jnp.concatenate((x, padding_vector))
   a = jnp.concatenate((a, jnp.zeros((1,))))
+  mask = jnp.zeros_like(a, dtype=bool)
 
   for i in range(num_segments):
     idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
@@ -97,15 +97,16 @@ def segment_point_cloud(
     # segment the weights
     z = a.at[idx].get()
     segmented_a.append(z)
-
     # segment the positions
     z = x.at[idx].get()
     segmented_x.append(z)
+    segmented_mask.append(mask.at[idx].set(True))
 
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
+  segmented_mask = jnp.stack(segmented_mask)
 
-  return segmented_x, segmented_a, num_segments
+  return segmented_x, segmented_a, segmented_mask, num_segments
 
 
 def pad_along_axis(

@@ -730,6 +730,7 @@ class Geometry:
         arr: Optional[jnp.ndarray], src_ixs: Optional[jnp.ndarray],
         tgt_ixs: Optional[jnp.ndarray]
     ) -> jnp.ndarray:
+      # TODO(michalk8): dynamic slice might be necessary
       if arr is None:
         return None
       if src_ixs is not None:
