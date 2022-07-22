@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """Tests for the Gromov Wasserstein."""
-from typing import Union
+from typing import Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,7 +22,68 @@ import numpy as np
 import pytest
 
 from ott.core import gromov_wasserstein, quad_problems
-from ott.geometry import geometry, pointcloud
+from ott.geometry import geometry, low_rank, pointcloud
+
+
+@pytest.mark.fast
+class TestQuadraticProblem:
+
+  @pytest.mark.parametrize("as_pc", [False, True])
+  @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
+  def test_quad_to_low_rank(
+      self, rng: jnp.ndarray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+  ):
+    n, m, d1, d2, d = 200, 300, 20, 25, 30
+    k1, k2, k3, k4 = jax.random.split(rng, 4)
+    x = jax.random.normal(k1, (n, d1))
+    y = jax.random.normal(k2, (m, d2))
+    xx = jax.random.normal(k3, (n, d))
+    yy = jax.random.normal(k4, (m, d))
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(xx, yy)
+    if not as_pc:
+      geom_xx = geometry.Geometry(geom_xx.cost_matrix)
+      geom_yy = geometry.Geometry(geom_yy.cost_matrix)
+      geom_xy = geometry.Geometry(geom_xy.cost_matrix)
+
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, geom_xy, ranks=rank)
+    assert not prob.is_low_rank
+
+    # point clouds are always converted, if possible
+    if not as_pc and rank == -1:
+      with pytest.raises(AssertionError, match=r"Rank must be positive"):
+        _ = prob.to_low_rank()
+      return
+    lr_prob = prob.to_low_rank()
+    geoms = lr_prob.geom_xx, lr_prob.geom_yy, lr_prob.geom_xy
+
+    if rank == -1:
+      if as_pc:
+        assert lr_prob.is_low_rank
+      else:
+        assert not lr_prob.is_low_rank
+    else:
+      rank = (rank,) * 3 if isinstance(rank, int) else rank
+      for r, actual_geom, expected_geom in zip(
+          rank, geoms, [geom_xx, geom_yy, geom_xy]
+      ):
+        if r == -1:
+          assert actual_geom is expected_geom
+        else:
+          assert isinstance(actual_geom, low_rank.LRCGeometry)
+          if as_pc:
+            assert actual_geom.cost_rank == expected_geom.x.shape[1] + 2
+          else:
+            assert actual_geom.cost_rank == r
+
+      if -1 in rank:
+        assert not lr_prob.is_low_rank
+      else:
+        assert lr_prob.is_low_rank
+        assert not lr_prob._should_convert_to_low_rank
+        assert lr_prob.to_low_rank() is lr_prob
 
 
 class TestGromovWasserstein:

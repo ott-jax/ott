@@ -29,7 +29,7 @@ from ott.core import (
     sinkhorn_lr,
     was_solver,
 )
-from ott.geometry import epsilon_scheduler, geometry, pointcloud
+from ott.geometry import epsilon_scheduler, geometry
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -137,52 +137,11 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
-  """A Gromov Wasserstein solver, built on generic template.
-
-  Args:
-    args:  Positional arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
-    cost_rank: Rank of the cost matrix, see
-      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function. If `-1`, these geometries will not be converted
-      to low-rank.
-    cost_tol: Tolerance used when converting geometries to low-rank. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function.
-    kwargs: Keyword arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
-  """
-
-  def __init__(
-      self,
-      *args: Any,
-      cost_rank: int = -1,
-      cost_tol: float = 1e-2,
-      **kwargs: Any
-  ):
-    super().__init__(*args, **kwargs)
-    self.cost_rank = cost_rank
-    self.cost_tol = cost_tol
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
-    # Consider converting problem first if using low-rank solver
-    if self.is_low_rank and self._convert_geoms_to_lr(prob):
-      prob.geom_xx = prob.geom_xx.to_LRCGeometry(
-          rank=self.cost_rank, tol=self.cost_tol
-      )
-      prob.geom_yy = prob.geom_yy.to_LRCGeometry(
-          rank=self.cost_rank, tol=self.cost_tol
-      )
-      if prob.geom_xy is not None:
-        if isinstance(
-            prob.geom_xy, pointcloud.PointCloud
-        ) and prob.geom_xy.is_squared_euclidean:
-          prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
-        else:
-          prob.geom_xy = prob.geom_xy.to_LRCGeometry(
-              rank=self.cost_rank, tol=self.cost_tol
-          )
+    # consider converting problem first if using low-rank solver
+    if self.is_low_rank and prob._should_convert_to_low_rank:
+      prob = prob.to_low_rank()
 
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
@@ -245,19 +204,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linear_state=state.linear_state,
         geom=geom,
         old_transport_mass=state.old_transport_mass
-    )
-
-  def _convert_geoms_to_lr(self, prob: quad_problems.QuadraticProblem) -> bool:
-
-    def is_sqeucl_pc(geom: geometry.Geometry) -> bool:
-      return isinstance(
-          geom, pointcloud.PointCloud
-      ) and geom.is_squared_euclidean
-
-    geom_xx, geom_yy, geom_xy = prob.geom_xx, prob.geom_yy, prob.geom_xy
-    return self.cost_rank != -1 or (
-        is_sqeucl_pc(geom_xx) and is_sqeucl_pc(geom_yy) and
-        (geom_xy is None or is_sqeucl_pc(geom_xy))
     )
 
 

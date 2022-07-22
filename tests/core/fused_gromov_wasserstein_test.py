@@ -14,6 +14,7 @@
 
 # Lint as: python3
 """Tests for the Fused Gromov Wasserstein."""
+from typing import Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -375,8 +376,10 @@ class TestFusedGromovWasserstein:
     assert res0.shape == (d1, m)
     assert res1.shape == (d2, n)
 
-  @pytest.mark.parametrize("cost_rank", [-1, 4])
-  def test_gw_lr_generic_cost_matrix(self, rng: jnp.ndarray, cost_rank: int):
+  @pytest.mark.parametrize("cost_rank", [-1, 4, (2, 3, 4)])
+  def test_gw_lr_generic_cost_matrix(
+      self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
+  ):
     n, m = 70, 100
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     x = jax.random.normal(key1, shape=(n, 7))
@@ -388,19 +391,22 @@ class TestFusedGromovWasserstein:
     geom_y = geometry.Geometry(cost_matrix=y @ y.T)
     geom_xy = geometry.Geometry(cost_matrix=xx @ yy.T)
 
-    problem = quad_problems.QuadraticProblem(geom_x, geom_y, geom_xy)
-    solver = gromov_wasserstein.GromovWasserstein(
-        rank=5, cost_rank=cost_rank, cost_tol=5e-1, epsilon=1
+    problem = quad_problems.QuadraticProblem(
+        geom_x, geom_y, geom_xy, ranks=cost_rank, tolerances=5e-1
     )
+    lr_prob = problem.to_low_rank()
+    if cost_rank == -1:
+      assert not lr_prob.is_low_rank
+    else:
+      assert lr_prob.is_low_rank
+
+    solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=1)
     out = solver(problem)
 
     assert solver.rank == 5
+    # make sure we don't modify the problem in-place
     for geom in [problem.geom_xx, problem.geom_yy, problem.geom_xy]:
-      if cost_rank != -1:
-        assert isinstance(geom, low_rank.LRCGeometry)
-        assert geom.cost_rank == cost_rank
-      else:
-        assert isinstance(geom, geometry.Geometry)
+      assert not isinstance(geom, low_rank.LRCGeometry)
 
     assert out.convergence
     assert out.reg_gw_cost > 0
