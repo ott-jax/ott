@@ -571,7 +571,7 @@ class QuadraticProblem:
     ) -> Tuple[Union[int, float], ...]:
       size = 2 + self.is_fused
       if isinstance(vals, (int, float)):
-        return (vals,) * size
+        return (vals,) * 3
       assert len(vals) == size, vals
       return vals + (None,) * (3 - size)
 
