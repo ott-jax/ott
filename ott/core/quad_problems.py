@@ -542,18 +542,19 @@ class QuadraticProblem:
   @property
   def _should_convert_to_low_rank(self) -> bool:
 
-    def is_sqeucl_pc(geom: geometry.Geometry) -> bool:
-      return isinstance(
-          geom, pointcloud.PointCloud
-      ) and geom.is_squared_euclidean
+    def convertible(geom: geometry.Geometry) -> bool:
+      return isinstance(geom, low_rank.LRCGeometry) or (
+          isinstance(geom, pointcloud.PointCloud) and geom.is_squared_euclidean
+      )
 
     if self.is_low_rank:
       return False
 
     geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
+    # either explicitly requested or implicitly convertible
     return self.ranks != -1 or (
-        is_sqeucl_pc(geom_xx) and is_sqeucl_pc(geom_yy) and
-        (geom_xy is None or is_sqeucl_pc(geom_xy))
+        convertible(geom_xx) and convertible(geom_yy) and
+        (geom_xy is None or convertible(geom_xy))
     )
 
   def to_low_rank(self, seed: int = 0) -> "QuadraticProblem":
