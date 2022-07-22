@@ -15,7 +15,7 @@
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 import functools
-from typing import Any, Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -326,6 +326,8 @@ def gromov_wasserstein(
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
+    ranks: Union[int, Tuple[int, ...]] = -1,
+    tolerances: Union[float, Tuple[float, ...]] = 1e-2,
     **kwargs: Any,
 ) -> GWOutput:
   """Solve a Gromov Wasserstein problem.
@@ -366,6 +368,14 @@ def gromov_wasserstein(
     gw_unbalanced_correction: True (default) if the unbalanced version of
       Sejourne et al (Neurips 2021) is used, False if tau_a and tau_b
       only affect the inner Sinhkorn loop.
+    ranks: Ranks of the cost matrices, see
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost function. If `-1`, the geometries will not be converted
+      to low-rank. If :class:`int`, rank shared across all geometries.
+    tolerances: Tolerances used when converting geometries to low-rank. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
     kwargs: keyword arguments to make.
 
   Returns:
@@ -382,7 +392,9 @@ def gromov_wasserstein(
       loss=loss,
       tau_a=tau_a,
       tau_b=tau_b,
-      gw_unbalanced_correction=gw_unbalanced_correction
+      gw_unbalanced_correction=gw_unbalanced_correction,
+      ranks=ranks,
+      tolerances=tolerances
   )
   solver = make(**kwargs)
   return solver(prob)
