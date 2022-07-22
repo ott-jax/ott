@@ -140,7 +140,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
     # consider converting problem first if using low-rank solver
-    if self.is_low_rank and prob._should_convert_to_low_rank:
+    if self.is_low_rank and prob._is_low_rank_convertible:
       prob = prob.to_low_rank()
 
     # Possibly jit iteration functions and run. Closure on rank to

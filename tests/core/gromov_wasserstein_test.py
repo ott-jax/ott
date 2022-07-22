@@ -82,7 +82,7 @@ class TestQuadraticProblem:
         assert not lr_prob.is_low_rank
       else:
         assert lr_prob.is_low_rank
-        assert not lr_prob._should_convert_to_low_rank
+        assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
   def test_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
@@ -97,7 +97,7 @@ class TestQuadraticProblem:
     prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, ranks=-1)
     lr_prob = prob.to_low_rank()
 
-    assert prob._should_convert_to_low_rank
+    assert prob._is_low_rank_convertible
     assert lr_prob.is_low_rank
     assert prob.geom_yy is lr_prob.geom_yy
 

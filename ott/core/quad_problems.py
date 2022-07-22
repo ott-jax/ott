@@ -540,7 +540,7 @@ class QuadraticProblem:
     return self.geom_xy.cost_matrix
 
   @property
-  def _should_convert_to_low_rank(self) -> bool:
+  def _is_low_rank_convertible(self) -> bool:
 
     def convertible(geom: geometry.Geometry) -> bool:
       return isinstance(geom, low_rank.LRCGeometry) or (
@@ -548,11 +548,11 @@ class QuadraticProblem:
       )
 
     if self.is_low_rank:
-      return False
+      return True
 
     geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
-    # either explicitly requested or implicitly convertible
-    return self.ranks != -1 or (
+    # either explicitly via cost factorization or implicitly (e.g., a PC)
+    return self.ranks != 1 or (
         convertible(geom_xx) and convertible(geom_yy) and
         (geom_xy is None or convertible(geom_xy))
     )

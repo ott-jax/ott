@@ -376,7 +376,7 @@ class TestFusedGromovWasserstein:
     assert res0.shape == (d1, m)
     assert res1.shape == (d2, n)
 
-  @pytest.mark.parametrize("cost_rank", [-1, 4, (2, 3, 4)])
+  @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_gw_lr_generic_cost_matrix(
       self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
@@ -394,11 +394,9 @@ class TestFusedGromovWasserstein:
     problem = quad_problems.QuadraticProblem(
         geom_x, geom_y, geom_xy, ranks=cost_rank, tolerances=5e-1
     )
+    assert problem._is_low_rank_convertible
     lr_prob = problem.to_low_rank()
-    if cost_rank == -1:
-      assert not lr_prob.is_low_rank
-    else:
-      assert lr_prob.is_low_rank
+    assert lr_prob.is_low_rank
 
     solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=1)
     out = solver(problem)
@@ -407,6 +405,11 @@ class TestFusedGromovWasserstein:
     # make sure we don't modify the problem in-place
     for geom in [problem.geom_xx, problem.geom_yy, problem.geom_xy]:
       assert not isinstance(geom, low_rank.LRCGeometry)
+    ranks = (cost_rank,) * 3 if isinstance(cost_rank, int) else cost_rank
+    for rank, geom in zip(
+        ranks, [lr_prob.geom_xx, lr_prob.geom_yy, lr_prob.geom_xy]
+    ):
+      assert geom.cost_rank == rank
 
     assert out.convergence
     assert out.reg_gw_cost > 0
