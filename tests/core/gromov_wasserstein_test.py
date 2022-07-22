@@ -85,6 +85,22 @@ class TestQuadraticProblem:
         assert not lr_prob._should_convert_to_low_rank
         assert lr_prob.to_low_rank() is lr_prob
 
+  def test_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
+    n, m, d1, d2 = 200, 300, 20, 25
+    k1, k2 = jax.random.split(rng, 2)
+    x = jax.random.normal(k1, (n, d1))
+    y = jax.random.normal(k2, (m, d2))
+
+    geom_xx = pointcloud.PointCloud(x)
+    geom_yy = pointcloud.PointCloud(y).to_LRCGeometry()
+
+    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, ranks=-1)
+    lr_prob = prob.to_low_rank()
+
+    assert prob._should_convert_to_low_rank
+    assert lr_prob.is_low_rank
+    assert prob.geom_yy is lr_prob.geom_yy
+
 
 class TestGromovWasserstein:
 
