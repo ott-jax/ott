@@ -567,7 +567,7 @@ class PointCloud(geometry.Geometry):
       (x, y, *children), aux_data = self.tree_flatten()
       x = x * jnp.sqrt(scale)
       y = y * jnp.sqrt(scale)
-      return PointCloud.tree_unflatten(aux_data, [x, y] + children)
+      return type(self).tree_unflatten(aux_data, [x, y] + children)
     return super().to_LRCGeometry(**kwargs)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
