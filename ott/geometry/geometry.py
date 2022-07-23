@@ -679,9 +679,8 @@ class Geometry:
     U = U[:, :rank]  # (n_subset, rank)
     U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)  # (m, rank)
 
-    # lls
-    d, v = jnp.linalg.eigh(U.T @ U)  # (k,), (k, k)
-    v /= jnp.sqrt(d)[None, :]
+    _, d, v = jnp.linalg.svd(U.T @ U)  # (k,), (k, k)
+    v = v.T / jnp.sqrt(d)[None, :]
 
     inv_scale = (1. / jnp.sqrt(n_subset))
     col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
