@@ -289,6 +289,10 @@ class TestSinkhornDivergence:
         ) for i in range(n_components.size)
     ]
 
+    means_and_covs_to_x = jax.vmap(
+        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
+    )
+
     x1 = means_and_covs_to_x(
         gmm_generators[0].loc, gmm_generators[0].covariance, dim
     )
@@ -418,6 +422,3 @@ class TestSinkhornDivergenceGrad:
     np.testing.assert_allclose(
         custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
     )
-
-
-means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
