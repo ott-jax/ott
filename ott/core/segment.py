@@ -58,7 +58,6 @@ def segment_point_cloud(
       to be zero, but can be adjusted to be other values to avoid errors or
       over/underflow in cost matrix that could be problematic (even these values
       are not supposed to be taken given their corresponding masses are 0).
-
   Returns:
     Segmented ``x``, `a`` and the number segments.
   """
