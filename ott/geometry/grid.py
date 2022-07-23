@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, ops
+from ott.geometry import costs, geometry, ops, pointcloud
 
 
 @jax.tree_util.register_pytree_node_class
@@ -119,11 +119,9 @@ class Grid(geometry.Geometry):
         range(self.grid_dimension), self.cost_fns, fillvalue=self.cost_fns[-1]
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
-      cost_matrix = jax.vmap(
-          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))(x_values)
-      )(
-          x_values
-      )
+      cost_matrix = pointcloud.PointCloud(
+          x_values, cost_fn=cost_fn, power=1.0
+      ).cost_matrix
       cost_matrices.append(cost_matrix)
     return cost_matrices
 
