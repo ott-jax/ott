@@ -119,10 +119,9 @@ class Grid(geometry.Geometry):
         range(self.grid_dimension), self.cost_fns, fillvalue=self.cost_fns[-1]
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
-      cost_matrix = pointcloud.PointCloud(
-          x_values, cost_fn=cost_fn, power=1.0
-      ).cost_matrix
-      cost_matrices.append(cost_matrix)
+      cost_matrices.append(
+          pointcloud.PointCloud(x_values, cost_fn=cost_fn).cost_matrix
+      )
     return cost_matrices
 
   @property
