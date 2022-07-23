@@ -15,7 +15,6 @@
 
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
-import jax
 from jax import numpy as jnp
 
 from ott.core import segment, sinkhorn
@@ -154,6 +153,7 @@ def _sinkhorn_divergence(
 def segment_sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
+    cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
@@ -167,16 +167,28 @@ def segment_sinkhorn_divergence(
     share_epsilon: bool = True,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Compute Sinkhorn divergence between subsets of data with point cloud.
+  """Compute sinkhorn divergence between subsets of vectors given in `x` & `y`.
 
-  The second interface assumes `x` and `y` are segmented contiguously.
-  In all cases, both `x` and `y` should contain the same number of segments.
-  Each segment will be separately run through the sinkhorn divergence using
-  array padding.
+  Helper function designed to compute Sinkhorn divergences between several point
+  clouds of varying size, in parallel, using padding for efficieny.
+  In practice, The inputs `x` and `y` (and their weight vectors `weights_x` and
+  `weights_y`) are assumed to be large weighted point clouds, that describe
+  points taken from multiple measures. To extract several subsets of points, we
+  provide two interfaces. The first interface assumes that a vector of id's is
+  passed, describing for each point of `x` (resp. `y`) to which measure the
+  point belongs to. The second interface assumes that `x` and `y` were simply
+  formed by concatenating several measures contiguously, and that only indices
+  that segment these groups are needed to recover them.
+
+  For both interfaces, both `x` and `y` should contain the same total number of
+  segments. Each segment will be padded as necessary, all segments rearranged as
+  a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
+
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
+    cost_fn: a :class:`ott.geometry.costs.CostFn` Cost. Defaults to sqEuclidean.
     segment_ids_x: (1st interface) The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: (1st interface) The segment ID for which each row of y
@@ -195,8 +207,10 @@ def segment_sinkhorn_divergence(
     weights_y: Weights of each input points, arranged in the same segmented
       order as `y`.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the `sinkhorn` function, that is called twice if static_b else
-      three times.
+      calls to the `sinkhorn` function, called three times to evaluate for each
+      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
+      `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
+      evaluated)
     static_b: if True, divergence of measure b against itself is NOT computed
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
@@ -204,47 +218,22 @@ def segment_sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    kwargs: keywords arguments to the generic class. This is specific to each
-      geometry.
+    kwargs: keywords arguments passed to form
+      :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
+      subsets of points and masses selected in `x` and `y`, this could be for
+      instance entropy regularization float, scheduler or normalization.
   Returns:
     An array of sinkhorn divergence values for each segment.
   """
+  # Instatiate padding vector.
   dim = x.shape[1]
-  cost_fn = kwargs.get('cost_fn', costs.Euclidean())
-  padding_vector = cost_fn.padder(dim=dim)
-
-  use_segment_ids = segment_ids_x is not None
-  if use_segment_ids:
-    assert segment_ids_y is not None
+  if cost_fn is None:
+    # Default padder.
+    padding_vector = costs.CostFn.padder(dim=dim)
   else:
-    assert num_per_segment_x is not None
-    assert num_per_segment_y is not None
+    padding_vector = cost_fn.padder(dim=dim)
 
-  segmented_x, segmented_weights_x, num_segments_x = segment.segment_point_cloud(
-      x,
-      weights_x,
-      segment_ids_x,
-      num_segments,
-      indices_are_sorted,
-      num_per_segment_x,
-      padding_vector=padding_vector
-  )
-
-  segmented_y, segmented_weights_y, num_segments_y = segment.segment_point_cloud(
-      y,
-      weights_y,
-      segment_ids_y,
-      num_segments,
-      indices_are_sorted,
-      num_per_segment_y,
-      padding_vector=padding_vector
-  )
-
-  assert num_segments_x == num_segments_y
-
-  def single_segment_sink_div(
-      padded_x, padded_y, padded_weight_x, padded_weight_y
-  ):
+  def eval_fn(padded_x, padded_y, padded_weight_x, padded_weight_y):
     return sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
@@ -254,12 +243,21 @@ def segment_sinkhorn_divergence(
         sinkhorn_kwargs=sinkhorn_kwargs,
         static_b=static_b,
         share_epsilon=share_epsilon,
+        cost_fn=cost_fn,
         **kwargs
     ).divergence
 
-  v_sink_div = jax.vmap(single_segment_sink_div, in_axes=[0, 0, 0, 0])
-
-  segmented_divergences = v_sink_div(
-      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y
+  return segment._segment_interface(
+      x,
+      y,
+      eval_fn,
+      segment_ids_x=segment_ids_x,
+      segment_ids_y=segment_ids_y,
+      num_segments=num_segments,
+      indices_are_sorted=indices_are_sorted,
+      num_per_segment_x=num_per_segment_x,
+      num_per_segment_y=num_per_segment_y,
+      weights_x=weights_x,
+      weights_y=weights_y,
+      padding_vector=padding_vector
   )
-  return segmented_divergences

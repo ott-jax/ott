@@ -1,0 +1,121 @@
+# Copyright 2022 The OTT Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Segmented sinkhorn utility."""
+
+from typing import Any, Mapping, Optional
+
+from jax import numpy as jnp
+
+from ott.core import segment, sinkhorn
+from ott.geometry import costs, pointcloud
+
+
+def segment_sinkhorn(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    cost_fn: Optional[costs.CostFn] = None,
+    segment_ids_x: Optional[jnp.ndarray] = None,
+    segment_ids_y: Optional[jnp.ndarray] = None,
+    num_segments: Optional[int] = None,
+    indices_are_sorted: Optional[bool] = None,
+    num_per_segment_x: Optional[jnp.ndarray] = None,
+    num_per_segment_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[jnp.ndarray] = None,
+    weights_y: Optional[jnp.ndarray] = None,
+    sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+    share_epsilon: bool = True,
+    **kwargs: Any
+) -> jnp.ndarray:
+  """Compute `reg_ot_cost` between subsets of vectors described in `x` & `y`.
+
+  Helper function designed to compute Sinkhorn regularized OT cost between
+  several point clouds of varying size, in parallel, using padding.
+  In practice, The inputs `x` and `y` (and their weight vectors `weights_x` and
+  `weights_y`) are assumed to be large weighted point clouds, that describe
+  points taken from multiple measures. To extract several subsets of points, we
+  provide two interfaces. The first interface assumes that a vector of id's is
+  passed, describing for each point of `x` (resp. `y`) to which measure the
+  point belongs to. The second interface assumes that `x` and `y` were simply
+  formed by concatenating several measures contiguously, and that only indices
+  that segment these groups are needed to recover them.
+
+  For both interfaces, both `x` and `y` should contain the same total number of
+  segments. Each segment will be padded as necessary, all segments rearranged as
+  a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
+
+  Args:
+    x: Array of input points, of shape [num_x, feature]. Multiple segments are
+      held in this single array.
+    y: Array of target points, of shape [num_y, feature].
+    segment_ids_x: (1st interface) The segment ID for which each row of x
+      belongs. This is a similar interface to `jax.ops.segment_sum`.
+    segment_ids_y: (1st interface) The segment ID for which each row of y
+      belongs.
+    num_segments: (1st interface) Number of segments. This is required for JIT
+      compilation to work. If not given, it will be computed from the data as
+      the max segment ID.
+    indices_are_sorted: (1st interface) Whether `segment_ids_x` and
+      `segment_ids_y` are sorted. Default false.
+    num_per_segment_x: (2nd interface) Number of points in each segment in `x`.
+      For example, [100, 20, 30] would imply that `x` is segmented into three
+      arrays of length `[100]`, `[20]`, and `[30]` respectively.
+    num_per_segment_y: (2nd interface) Number of points in each segment in `y`.
+    weights_x: Weights of each input points, arranged in the same segmented
+      order as `x`.
+    weights_y: Weights of each input points, arranged in the same segmented
+      order as `y`.
+    sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
+      calls to the `sinkhorn` function, called three times to evaluate for each
+      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
+      `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
+      evaluated).
+    kwargs: keywords arguments passed to form
+      :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
+      subsets of points and masses selected in `x` and `y`, possibly a
+      :class:`ott.geometry.costs.CostFn` or and entropy regularizer.
+  Returns:
+    An array of sinkhorn reg_ot_cost for each segment.
+  """
+  # Instatiate padding vector.
+  dim = x.shape[1]
+  if cost_fn is None:
+    # Default padder.
+    padding_vector = costs.CostFn.padder(dim=dim)
+  else:
+    padding_vector = cost_fn.padder(dim=dim)
+
+  sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
+
+  def eval_fn(padded_x, padded_y, padded_weight_x, padded_weight_y):
+    return sinkhorn.sinkhorn(
+        pointcloud.PointCloud(padded_x, padded_y, cost_fn=cost_fn, **kwargs),
+        a=padded_weight_x,
+        b=padded_weight_y,
+        **sinkhorn_kwargs
+    ).reg_ot_cost
+
+  return segment._segment_interface(
+      x,
+      y,
+      eval_fn,
+      segment_ids_x=segment_ids_x,
+      segment_ids_y=segment_ids_y,
+      num_segments=num_segments,
+      indices_are_sorted=indices_are_sorted,
+      num_per_segment_x=num_per_segment_x,
+      num_per_segment_y=num_per_segment_y,
+      weights_x=weights_x,
+      weights_y=weights_y,
+      padding_vector=padding_vector
+  )
