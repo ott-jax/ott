@@ -119,13 +119,15 @@ class QuadraticProblem:
     tau_b: if lower that 1.0, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: True (default) if the unbalanced version of
-      Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
-      only affect the inner Sinhkorn loop.
+      :cite:`sejourne:21` is used, False if tau_a and tau_b
+      only affect the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
       `'sqeucl'` cost function. If `-1`, the geometries will not be converted
-      to low-rank. If :class:`int`, rank shared across all geometries.
+      to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
+      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
+      across all geometries.
     tolerances: Tolerances used when converting geometries to low-rank. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
       `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
