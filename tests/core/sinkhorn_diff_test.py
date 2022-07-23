@@ -85,13 +85,13 @@ class TestSinkhornImplicit:
     for loss in [loss_g, loss_pcg]:
       loss_and_grad_imp = jax.jit(
           jax.value_and_grad(
-              lambda a, x: loss(a, x, True),  # noqa: B023
+              lambda a, x: loss(a, x, True),
               argnums=(0, 1)
           )
       )
       loss_and_grad_auto = jax.jit(
           jax.value_and_grad(
-              lambda a, x: loss(a, x, False),  # noqa: B023
+              lambda a, x: loss(a, x, False),
               argnums=(0, 1)
           )
       )
