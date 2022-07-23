@@ -368,16 +368,20 @@ def gromov_wasserstein(
     gw_unbalanced_correction: True (default) if the unbalanced version of
       :cite:`sejourne:21` is used, False if tau_a and tau_b
       only affect the inner Sinkhorn loop.
-    ranks: Ranks of the cost matrices, see
-      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function. If `-1`, the geometries will not be converted
-      to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
-      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
-      across all geometries.
+    ranks: Switch to a low rank approximation of all cost matrices, using
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`, to gain speed.
+      This is only relevant if the geometries of interest are *not* 
+      :class:`~ott.geometry.pointcloud.PointCloud` with `'sqeucl'` cost
+      function, in which case they would be low-rank by construction (as long
+      as the sizes of these point clouds is larger than dimension).
+      If `-1`, geometries are left as they are, and not converted. 
+      If :class:`tuple`, these 2 or 3 `int` specify the ranks of ``geom_xx``,
+      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, all 3 
+      geometries are converted using that rank.
     tolerances: Tolerances used when converting geometries to low-rank. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
+      `'sqeucl'` cost. If :class:`float`, that tolerance is shared across all
+      3 geometries.
     kwargs: keyword arguments to make.
 
   Returns:
