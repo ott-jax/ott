@@ -121,3 +121,34 @@ class TestSubsetPointCloud:
       np.testing.assert_allclose(
           geom.median_cost_matrix, masked.median_cost_matrix
       )
+
+  @pytest.mark.parametrize("stat", ["mean", "median"])
+  def test_masked_permutation(
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], stat: str,
+      rng: jnp.ndarray
+  ):
+    key1, key2 = jax.random.split(rng)
+    geom, _ = geom_masked
+    n, m = geom.shape
+
+    # nullify the mask
+    geom._src_mask = None
+    geom._tgt_mask = None
+    assert geom._masked_geom is geom
+    children, aux_data = geom.tree_flatten()
+    gt_geom = type(geom).tree_unflatten(aux_data, children)
+
+    geom._src_mask = jax.random.permutation(key1, jnp.arange(n))
+    geom._tgt_mask = jax.random.permutation(key2, jnp.arange(m))
+    assert geom._masked_geom is not geom
+    assert geom._masked_geom.shape == geom.shape
+    assert geom._masked_geom.shape == gt_geom.shape
+
+    if stat == "mean":
+      np.testing.assert_allclose(
+          geom.mean_cost_matrix, gt_geom.mean_cost_matrix
+      )
+    else:
+      np.testing.assert_allclose(
+          geom.median_cost_matrix, gt_geom.median_cost_matrix
+      )
