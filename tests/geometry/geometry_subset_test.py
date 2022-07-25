@@ -82,8 +82,13 @@ class TestSubsetPointCloud:
       # test overriding some argument
       assert geom_sub._batch_size == new_batch_size
 
-  def test_masked_geometry_shape(self):
-    pass
+  def test_masked_geometry_shape(
+      self, pc_masked: Tuple[Geom_t, pointcloud.PointCloud]
+  ):
+    pc, masked = pc_masked
+
+    assert masked._masked_geom is masked
+    assert masked._masked_geom.shape == (3, 3)
 
   @pytest.mark.parametrize("stat", ["mean", "median"])
   def test_masked_summary(
