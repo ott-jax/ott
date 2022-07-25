@@ -7,6 +7,8 @@ import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
 
+Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
+
 
 @pytest.fixture()
 def pc_masked(rng: jnp.ndarray) -> Tuple[pointcloud.PointCloud, Tuple]:
@@ -21,8 +23,25 @@ def pc_masked(rng: jnp.ndarray) -> Tuple[pointcloud.PointCloud, Tuple]:
 
   pc = pointcloud.PointCloud(x, y, src_mask=src_mask, tgt_mask=tgt_mask)
   masked = pointcloud.PointCloud(x[src_mask], y[tgt_mask])
-
   return pc, masked
+
+
+@pytest.fixture(params=["geometry", "point_cloud", "low_rank"])
+def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
+  pc, masked = pc_masked
+  if request.param == "point_cloud":
+    geom = pc
+  elif request.param == "geometry":
+    geom = geometry.Geometry(
+        cost_matrix=pc.cost_matrix,
+        src_mask=pc._src_mask,
+        tgt_mask=pc._tgt_mask
+    )
+  elif request.param == "low_rank":
+    geom = pc.to_LRCGeometry()
+  else:
+    raise NotImplementedError(request.param)
+  return geom, masked
 
 
 @pytest.mark.fast
@@ -63,29 +82,14 @@ class TestSubsetPointCloud:
       # test overriding some argument
       assert geom_sub._batch_size == new_batch_size
 
-  @pytest.mark.parametrize(
-      "geom_t",
-      [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
-  )
+  def test_masked_geometry_shape(self):
+    pass
+
   @pytest.mark.parametrize("stat", ["mean", "median"])
   def test_masked_summary(
-      self, pc_masked: Tuple[pointcloud.PointCloud, pointcloud.PointCloud],
-      stat: str, geom_t: Type[geometry.Geometry]
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], stat: str
   ):
-    pc, masked = pc_masked
-    if geom_t is pointcloud.PointCloud:
-      geom = pc
-    elif geom_t is geometry.Geometry:
-      geom = geometry.Geometry(
-          cost_matrix=pc.cost_matrix,
-          src_mask=pc._src_mask,
-          tgt_mask=pc._tgt_mask
-      )
-    elif geom_t is low_rank.LRCGeometry:
-      geom = pc.to_LRCGeometry()
-    else:
-      raise NotImplementedError(geom_t)
-
+    geom, masked = geom_masked
     if stat == "mean":
       np.testing.assert_allclose(geom.mean_cost_matrix, masked.mean_cost_matrix)
     else:
