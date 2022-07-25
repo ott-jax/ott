@@ -540,7 +540,7 @@ class PointCloud(geometry.Geometry):
     """Instantiate the geometries used for a divergence computation."""
     couples = [(x, y), (x, x)]
     masks = [(src_mask, tgt_mask), (src_mask, src_mask)]
-    if static_b:
+    if not static_b:
       couples += [(y, y)]
       masks += [(tgt_mask, tgt_mask)]
 
