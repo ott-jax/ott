@@ -44,12 +44,15 @@ class TestLRSinkhorn:
 
   @pytest.mark.fast.with_args(
       use_lrcgeom=[True, False],
-      init_type=["rank_2", "random"],
+      init_type=["rank_2", "random", "kmeans"],
+      gamma_rescale=['True', 'False'],
       only_fast=0,
   )
-  def test_euclidean_point_cloud(self, use_lrcgeom: bool, init_type: str):
-    """Two point clouds, tested with 2 different initializations."""
-    threshold = 1e-6
+  def test_euclidean_point_cloud(
+      self, use_lrcgeom: bool, init_type: str, gamma_rescale: bool
+  ):
+    """Two point clouds, tested with 3 different initializations."""
+    threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y)
     # This test to check LR can work both with LRCGeometries and regular ones
     if use_lrcgeom:
@@ -62,15 +65,20 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=10,
         epsilon=0.0,
+        gamma_rescale=gamma_rescale,
         init_type=init_type,
     )
     solved = solver(ot_prob)
     costs = solved.costs
     costs = costs[costs > -1]
 
+    criterions = solved.criterions
+    criterions = criterions[criterions > -1]
+
     # Check convergence
     assert solved.converged
     assert jnp.isclose(costs[-2], costs[-1], rtol=threshold)
+    assert jnp.where(criterions[-1] < threshold)
 
     # Store cost value.
     cost_1 = costs[-1]
@@ -80,6 +88,7 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=14,
         epsilon=0.0,
+        gamma_rescale=gamma_rescale,
         init_type=init_type,
     )
     out = solver(ot_prob)
@@ -100,6 +109,7 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=14,
         epsilon=1e-1,
+        gamma_rescale=gamma_rescale,
         init_type=init_type,
     )
     out = solver(ot_prob)
@@ -110,7 +120,7 @@ class TestLRSinkhorn:
   @pytest.mark.parametrize("axis", [0, 1])
   def test_output_apply_batch_size(self, axis: int):
     n_stack = 3
-    threshold = 1e-6
+    threshold = 1e-3
     data = self.a if axis == 0 else self.b
 
     geom = pointcloud.PointCloud(self.x, self.y)
