@@ -52,9 +52,9 @@ Currently implements the following classes and functions:
         -   In its generic `Geometry` implementation, as in [geometry.py](ott/geometry/geometry.py), an object can be initialized with either a `cost_matrix` along with an `epsilon` regularization parameter (or scheduler), or with a `kernel_matrix`.
 
         -   If one wishes to compute OT between two weighted point clouds $x=\left(x_1, \ldots, x_n\right)$ and  $y=\left(y_1, \ldots, y_m\right)$  endowed with a
-            given cost function (e.g. Euclidean) $c$, the `PointCloud`
-            class in [pointcloud.py](ott/geometry/grid.py) can be used to define the corresponding kernel
-            $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When the number of these points grows very large, this geometry can be instantiated with an `online=True` parameter, to avoid storing the kernel matrix and choose instead to recompute the matrix on the fly at each application.
+            cost function (e.g. Euclidean) $c$, the `PointCloud`
+            class in [pointcloud.py](ott/geometry/grid.py) can be used to define the corresponding cost and kernel matrices 
+            $C_{i j}=c\left(x_{i}, y_{j}\right)$ and $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When $n$ and $m$ are very large, this geometry can be instantiated with a `batch_size=True` parameter, to avoid storing the kernel matrix and choose instead to recompute these matrix on the fly, `batch_size` lines at a time, at each application.
 
         -   Simlarly, if all measures to be considered are supported on a
             separable grid (e.g. $\\{1, \ldots, n\\}^{d}$), and the cost is separable
