@@ -370,13 +370,13 @@ def gromov_wasserstein(
       only affect the inner Sinkhorn loop.
     ranks: Switch to a low rank approximation of all cost matrices, using
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`, to gain speed.
-      This is only relevant if the geometries of interest are *not* 
+      This is only relevant if the geometries of interest are *not*
       :class:`~ott.geometry.pointcloud.PointCloud` with `'sqeucl'` cost
       function, in which case they would be low-rank by construction (as long
       as the sizes of these point clouds is larger than dimension).
-      If `-1`, geometries are left as they are, and not converted. 
-      If :class:`tuple`, these 2 or 3 :class:`int` specify the ranks of 
-      ``geom_xx``, ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, 
+      If `-1`, geometries are left as they are, and not converted.
+      If :class:`tuple`, these 2 or 3 :class:`int` specify the ranks of
+      ``geom_xx``, ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`,
       all 3 geometries are converted using that rank.
     tolerances: Tolerances used when converting geometries to low-rank. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
