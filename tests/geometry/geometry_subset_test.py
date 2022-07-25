@@ -90,6 +90,26 @@ class TestSubsetPointCloud:
     assert masked._masked_geom is masked
     assert masked._masked_geom.shape == (3, 3)
 
+  @pytest.mark.parametrize(
+      "scale_cost", ["mean", "max_cost", "median", "max_norm", "max_bound"]
+  )
+  def test_masked_inverse_scaling(
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], scale_cost: str
+  ):
+    geom, masked = geom_masked
+    geom = geom._set_scale_cost(scale_cost)
+    masked = masked._set_scale_cost(scale_cost)
+
+    try:
+      desired = masked.inv_scale_cost
+      actual = geom.inv_scale_cost
+    except ValueError as e:
+      if "not implemented" not in str(e):
+        raise
+      pytest.mark.xfail(str(e))
+    else:
+      np.testing.assert_allclose(actual, desired, rtol=1e-6, atol=1e-6)
+
   @pytest.mark.parametrize("stat", ["mean", "median"])
   def test_masked_summary(
       self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], stat: str

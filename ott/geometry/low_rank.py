@@ -114,7 +114,7 @@ class LRCGeometry(geometry.Geometry):
     if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
     if isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not provided.')
+      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     return 1.0
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
