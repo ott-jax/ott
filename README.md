@@ -90,7 +90,7 @@ Currently implements the following classes and functions:
 
 ## Citation
 
-If you have found this work useful, please consider citing us:
+If you have found this work useful, please consider citing this reference:
 
 ```
 @article{cuturi2022optimal,
