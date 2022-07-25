@@ -551,10 +551,10 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     # passing self.power in aux_data to be able to condition on it.
-    return ([
-        self.x, self.y, self._src_mask, self._tgt_mask, self._epsilon_init,
-        self._relative_epsilon, self._scale_epsilon, self._cost_fn
-    ], {
+    return ([self.x, self.y, self._src_mask, self._tgt_mask, self._cost_fn], {
+        'epsilon': self._epsilon_init,
+        'relative_epsilon': self._relative_epsilon,
+        'scale_epsilon': self._scale_epsilon,
         'batch_size': self._batch_size,
         'power': self.power,
         'scale_cost': self._scale_cost
@@ -562,17 +562,9 @@ class PointCloud(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    x, y, src_mask, tgt_mask, init_eps, rel_eps, scale_eps, cost_fn = children
+    x, y, src_mask, tgt_mask, cost_fn = children
     return cls(
-        x,
-        y,
-        epsilon=init_eps,
-        relative_epsilon=rel_eps,
-        scale_epsilon=scale_eps,
-        cost_fn=cost_fn,
-        src_mask=src_mask,
-        tgt_mask=tgt_mask,
-        **aux_data
+        x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
     )
 
   def to_LRCGeometry(
