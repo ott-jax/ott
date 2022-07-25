@@ -354,6 +354,8 @@ class TestSinkhornDivergence:
     threshold = 3.2e-3
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    sinkhorn_kwargs["threshold"] = threshold
+
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
@@ -361,7 +363,7 @@ class TestSinkhornDivergence:
         epsilon=epsilon,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs=sinkhorn_kwargs.update({'threshold': threshold})
+        sinkhorn_kwargs=sinkhorn_kwargs,
     )
     assert div.divergence > 0.0
     assert threshold > div.errors[0][-1]
