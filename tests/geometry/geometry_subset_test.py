@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Type, Union
+from typing import Optional, Sequence, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
@@ -6,6 +6,23 @@ import numpy as np
 import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
+
+
+@pytest.fixture()
+def pc_masked(rng: jnp.ndarray) -> Tuple[pointcloud.PointCloud, Tuple]:
+  n, m = 20, 30
+  key1, key2 = jax.random.split(rng, 2)
+  # x = jnp.full((n,), fill_value=1.)
+  # y = jnp.full((m,), fill_value=2.)
+  x = jax.random.normal(key1, shape=(n, 3))
+  y = jax.random.normal(key1, shape=(m, 3))
+  src_mask = jnp.asarray([0, 2, 1])
+  tgt_mask = jnp.asarray([3, 5, 6])
+
+  pc = pointcloud.PointCloud(x, y, src_mask=src_mask, tgt_mask=tgt_mask)
+  masked = pointcloud.PointCloud(x[src_mask], y[tgt_mask])
+
+  return pc, masked
 
 
 @pytest.mark.fast
@@ -45,3 +62,33 @@ class TestSubsetPointCloud:
     if clazz is pointcloud.PointCloud:
       # test overriding some argument
       assert geom_sub._batch_size == new_batch_size
+
+  @pytest.mark.parametrize(
+      "geom_t",
+      [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
+  )
+  @pytest.mark.parametrize("stat", ["mean", "median"])
+  def test_masked_summary(
+      self, pc_masked: Tuple[pointcloud.PointCloud, pointcloud.PointCloud],
+      stat: str, geom_t: Type[geometry.Geometry]
+  ):
+    pc, masked = pc_masked
+    if geom_t is pointcloud.PointCloud:
+      geom = pc
+    elif geom_t is geometry.Geometry:
+      geom = geometry.Geometry(
+          cost_matrix=pc.cost_matrix,
+          src_mask=pc._src_mask,
+          tgt_mask=pc._tgt_mask
+      )
+    elif geom_t is low_rank.LRCGeometry:
+      geom = pc.to_LRCGeometry()
+    else:
+      raise NotImplementedError(geom_t)
+
+    if stat == "mean":
+      np.testing.assert_allclose(geom.mean_cost_matrix, masked.mean_cost_matrix)
+    else:
+      np.testing.assert_allclose(
+          geom.median_cost_matrix, masked.median_cost_matrix
+      )
