@@ -553,8 +553,8 @@ class Sinkhorn:
 
     Note:
       When differentiating the regularized OT cost, and assuming Sinkhorn has
-      run to convergence, Danskin's (or the enveloppe) theorem
-      https://en.wikipedia.org/wiki/Danskin%27s_theorem
+      run to convergence, Danskin's (or the envelope)
+      `theorem <https://en.wikipedia.org/wiki/Danskin%27s_theorem>`_
       states that the resulting OT cost as a function of any of the inputs
       (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
       potentials were frozen and did not vary with those inputs.
@@ -914,12 +914,12 @@ def sinkhorn(
       depending on the architecture, linear solves may require higher ridge
       parameters to remain stable). The optimality conditions in Sinkhorn can be
       analyzed as satisfying a ``z=z'`` condition, which are then
-      differentiated. It might be beneficial (e.g. as in
-      https://arxiv.org/abs/2002.03229) to use a preconditionning function
-      ``precondition_fun`` to differentiate instead ``h(z)=h(z')``.
+      differentiated. It might be beneficial (e.g., as in :cite:`cuturi:20a`)
+      to use a preconditioning function ``precondition_fun`` to differentiate
+      instead ``h(z) = h(z')``.
 
-    - The objective ``reg_ot_cost`` returned by Sinkhon uses the so-called
-      enveloppe (or Danskin's) theorem. In that case, because it is assumed that
+    - The objective ``reg_ot_cost`` returned by Sinkhorn uses the so-called
+      envelope (or Danskin's) theorem. In that case, because it is assumed that
       the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual
       objective are zero (reflecting the fact that they are optimal), small
       variations in ``f_u`` and ``g_v`` due to changes in inputs (such as
@@ -1007,12 +1007,12 @@ def sinkhorn(
     momentum:
       a float in [0,2].
     chg_momentum_from: if positive, momentum is recomputed using the
-      adaptive rule provided in https://arxiv.org/pdf/2012.12562v1.pdf after
-      that number of iterations.
+      adaptive rule provided in :cite:`lehmann:21`
+      after that number of iterations.
     anderson_acceleration: int, if 0 (default), no acceleration. If positive,
       use Anderson acceleration on the dual sinkhorn (in log/potential form), as
-      described in https://en.wikipedia.org/wiki/Anderson_acceleration and
-      advocated in https://arxiv.org/abs/2006.08172, with a memory of size equal
+      described `here <https://en.wikipedia.org/wiki/Anderson_acceleration>`_
+      and advocated in :cite:`chizat:20`, with a memory of size equal
       to ``anderson_acceleration``. In that case, differentiation is
       necessarily handled implicitly (``implicit_differentiation`` is set to
       ``True``) and all ``momentum`` related parameters are ignored.
@@ -1030,14 +1030,14 @@ def sinkhorn(
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
     use_danskin: when ``True``, it is assumed the entropy regularized cost is
-      is evaluated using optimal potentials that are freezed, i.e. whose
+      is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
     jit: if True, automatically jits the function upon first call.
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
-      should be jitted by the user)
+      should be jitted by the user).
     kwargs: Additional keyword arguments (see above).
 
   Returns:

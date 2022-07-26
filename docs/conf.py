@@ -40,7 +40,7 @@ copyright = f"2021-{datetime.now():%Y}, {author}"
 
 # The full version, including alpha/beta/rc tags
 release = ott.__version__
-version = release
+version = ott.__version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -73,8 +73,6 @@ source_suffix = ['.rst']
 autosummary_generate = True
 
 autodoc_typehints = 'description'
-pygments_lexer = 'ipython3'
-nbsphinx_execute = 'never'
 
 # bibliography
 bibtex_bibfiles = ["references.bib"]
@@ -93,7 +91,6 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
 
 html_theme = 'sphinx_book_theme'
 html_logo = '_static/logoOTT.png'
@@ -103,3 +100,17 @@ html_favicon = '_static/logoOTT.ico'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+nbsphinx_codecell_lexer = "ipython3"
+nbsphinx_execute = 'never'
+nbsphinx_prolog = r"""
+{% set docname = 'docs/' + env.doc2path(env.docname, base=None) %}
+.. raw:: html
+
+    <div class="docutils container">
+        <a class="reference external"
+           href="https://colab.research.google.com/github/ott-jax/ott/blob/main/{{ docname|e }}">
+        <img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" width="125px">
+        </a>
+    </div>
+"""

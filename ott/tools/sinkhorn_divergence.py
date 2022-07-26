@@ -95,7 +95,7 @@ def _sinkhorn_divergence(
   """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
-    measure, as defined in https://arxiv.org/pdf/1910.12958.pdf (15).
+    measure, as defined in :sejourne:19:, eq. 15.
 
   Args:
     geometry_xy: a Cost object able to apply kernels with a certain epsilon,

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""OTT core libraries: the engines behind most computations happening in OTT."""
+"""OTT core libraries: the engine behind most computations happening in OTT."""
 
 # pytype: disable=import-error  # kwargs-checking
 from . import (
@@ -21,6 +21,7 @@ from . import (
     dataclasses,
     discrete_barycenter,
     gromov_wasserstein,
+    gw_barycenter,
     implicit_differentiation,
     linear_problems,
     momentum,

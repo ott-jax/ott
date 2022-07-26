@@ -215,15 +215,8 @@ class LRSinkhornOutput(NamedTuple):
 class LRSinkhorn(sinkhorn.Sinkhorn):
   r"""A Low-Rank Sinkhorn solver for linear reg-OT problems.
 
-  A Low-Rank Sinkhorn solver takes a linear OT problem as an input, to return
-  a LRSinkhornOutput object.
-
-  The algorithm is described in:
-  Low-Rank Sinkhorn Factorization, Scetbon-Cuturi-Peyre, ICML'21.
-  http://proceedings.mlr.press/v139/scetbon21a/scetbon21a.pdf
-
-  and the implementation contained here is adapted from that of:
-  https://github.com/meyerscetbon/LOT
+  The algorithm is described in :cite:`scetbon:21` and the implementation
+  contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Initialization is random by default,
