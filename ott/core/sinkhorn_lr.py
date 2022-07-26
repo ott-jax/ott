@@ -22,7 +22,6 @@ from typing_extensions import Literal
 
 from ott.core import fixed_point_loop, linear_problems, sinkhorn
 from ott.geometry import geometry, pointcloud
-from ott.tools import k_means
 
 
 class LRSinkhornState(NamedTuple):
@@ -295,6 +294,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
                            Optional[jnp.ndarray]]] = None
   ) -> LRSinkhornOutput:
     """Main interface to run LR sinkhorn."""  # noqa: D401
+    from ott.tools import k_means
     init_q, init_r, init_g = (init if init is not None else (None, None, None))
     # Random initialization for q, r, g using rng_key
     rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 5)
