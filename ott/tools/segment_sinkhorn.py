@@ -34,7 +34,6 @@ def segment_sinkhorn(
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
-    share_epsilon: bool = True,
     **kwargs: Any
 ) -> jnp.ndarray:
   """Compute `reg_ot_cost` between subsets of vectors described in `x` & `y`.
