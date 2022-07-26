@@ -170,7 +170,7 @@ def segment_sinkhorn_divergence(
   """Compute sinkhorn divergence between subsets of vectors given in `x` & `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
-  clouds of varying size, in parallel, using padding for efficieny.
+  clouds of varying size, in parallel, using padding for efficiency.
   In practice, The inputs `x` and `y` (and their weight vectors `weights_x` and
   `weights_y`) are assumed to be large weighted point clouds, that describe
   points taken from multiple measures. To extract several subsets of points, we
