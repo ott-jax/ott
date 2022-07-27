@@ -82,8 +82,8 @@ class Geometry:
       scale_epsilon: Optional[float] = None,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
-      scale_cost: Optional[Union[Literal['mean', 'max_cost', 'median'], bool,
-                                 float]] = None,
+      scale_cost: Optional[Union[bool, int, float, Literal['mean', 'max_cost',
+                                                           'median']]] = None,
       **kwargs: Any,
   ):
     self._cost_matrix = cost_matrix
@@ -196,18 +196,16 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    self = self._masked_geom()
-    if isinstance(self._scale_cost, float):
-      return 1.0 / self._scale_cost
+    self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == 'max_cost':
-      return 1.0 / jnp.max(self._cost_matrix)
+      return 1.0 / jnp.nanmax(self._cost_matrix)
     if self._scale_cost == 'mean':
-      return 1.0 / jnp.mean(self._cost_matrix)
+      return 1.0 / jnp.nanmean(self._cost_matrix)
     if self._scale_cost == 'median':
-      return 1.0 / jnp.median(self._cost_matrix)
-    if isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    return 1.0
+      return 1.0 / jnp.nanmedian(self._cost_matrix)
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def _set_scale_cost(
       self, scale_cost: Optional[Union[bool, float, str]]

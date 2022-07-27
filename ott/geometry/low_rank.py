@@ -48,8 +48,8 @@ class LRCGeometry(geometry.Geometry):
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
       bias: float = 0.0,
-      scale_cost: Optional[Union[Literal['mean', 'max_bound', 'max_cost'], bool,
-                                 float]] = None,
+      scale_cost: Optional[Union[bool, int, float, Literal['mean', 'max_bound',
+                                                           'max_cost']]] = None,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
@@ -98,8 +98,6 @@ class LRCGeometry(geometry.Geometry):
   @property
   def inv_scale_cost(self) -> float:
     self = self._masked_geom()
-    if isinstance(self._scale_cost, float):
-      return 1.0 / self._scale_cost
     if self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
@@ -112,9 +110,9 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / mean
     if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
-    if isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    return 1.0
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""

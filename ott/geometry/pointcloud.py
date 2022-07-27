@@ -65,7 +65,7 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
       batch_size: Optional[int] = None,
-      scale_cost: Optional[Union[bool, float,
+      scale_cost: Optional[Union[bool, int, float,
                                  Literal['mean', 'max_norm', 'max_bound',
                                          'max_cost', 'median']]] = None,
       **kwargs: Any,
@@ -134,8 +134,6 @@ class PointCloud(geometry.Geometry):
   def inv_scale_cost(self) -> float:
     """Compute the factor to scale the cost matrix."""
     self = self._masked_geom()
-    if isinstance(self._scale_cost, float):
-      return 1.0 / self._scale_cost
     if self._scale_cost == 'max_cost':
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
@@ -173,9 +171,9 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean "
           "is not implemented."
       )
-    if isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    return 1.0
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   # TODO(michalk8): make private
   def compute_cost_matrix(self) -> jnp.ndarray:
