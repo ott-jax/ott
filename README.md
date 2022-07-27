@@ -53,7 +53,7 @@ Currently implements the following classes and functions:
 
         -   If one wishes to compute OT between two weighted point clouds $x=\left(x_1, \ldots, x_n\right)$ and  $y=\left(y_1, \ldots, y_m\right)$  endowed with a
             cost function (e.g. Euclidean) $c$, the `PointCloud`
-            class in [pointcloud.py](ott/geometry/grid.py) can be used to define the corresponding cost and kernel matrices
+            class in [pointcloud.py](ott/geometry/pointcloud.py) can be used to define the corresponding cost and kernel matrices
             $C_{i j}=c\left(x_{i}, y_{j}\right)$ and $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When $n$ and $m$ are very large, this geometry can be instantiated with a `batch_size` parameter, to avoid storing the cost and/or kernel matrices, to recompute instead these matrices on the fly as needed, `batch_size` lines at a time, at each application.
 
         -   Simlarly, if all measures to be considered are supported on a

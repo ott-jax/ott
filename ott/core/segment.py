@@ -20,12 +20,12 @@ from jax import numpy as jnp
 
 def segment_point_cloud(
     x: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
     a: Optional[jnp.ndarray] = None,
     segment_ids: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
     indices_are_sorted: bool = False,
-    num_per_segment: Optional[jnp.ndarray] = None,
-    max_measure_size: Optional[int] = None,
+    num_per_segment: Optional[Tuple[int]] = None,
     padding_vector: Optional[jnp.ndarray] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
@@ -44,17 +44,17 @@ def segment_point_cloud(
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
+    num_segments: Number of segments. This is required for JIT compilation
+      to work.
+    max_measure_size: Overall size of padding. This argument is needed
+      when jitting.
     segment_ids: (1st interface) The segment ID for which each row of x
-      belongs. This is a similar interface to `jax.ops.segment_sum`.
-    num_segments: (1st interface) Number of segments. This is required for JIT
-      compilation to work. If not given, it will be computed from the data as
-      the max segment ID.
+      belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
     num_per_segment: (2nd interface) Number of points in each segment in `x`.
       For example, [100, 20, 30] would imply that `x` is segmented into three
-      arrays of length `[100]`, `[20]`, and `[30]` respectively.
-    max_measure_size: Overall size of padding, set to maximum of all support
-      sizes seen in the num_segment measures by default. This argument is needed
-      when jitting.
+      arrays of length `[100]`, `[20]`, and `[30]` respectively. Must be a tuple
+      and not a `jnp.ndarray` to allow jitting. This means changes in
+      `num_per_segment` will re-trigger compilation.
     padding_vector: vector to be used to pad point cloud matrices. Most likely
       to be zero, but can be adjusted to be other values to avoid errors or
       over/underflow in cost matrix that could be problematic (even these values
@@ -65,9 +65,6 @@ def segment_point_cloud(
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
   if use_segment_ids:
-    if num_segments is None:
-      num_segments = jnp.max(segment_ids) + 1
-
     num_per_segment = jax.ops.segment_sum(
         jnp.ones_like(segment_ids),
         segment_ids,
@@ -76,17 +73,19 @@ def segment_point_cloud(
     )
   else:
     assert num_per_segment is not None
-    assert num_segments is None or num_segments == num_per_segment.shape[0]
-    num_segments = num_per_segment.shape[0]
+    assert num_segments == len(num_per_segment)
+    num_per_segment = jnp.asarray(num_per_segment)  # force conversion.
     segment_ids = jnp.arange(num_segments).repeat(
         num_per_segment, total_repeat_length=num
     )
 
   if a is None:
-    a = (1 / num_per_segment).repeat(num_per_segment)
+    a = (1 / num_per_segment).repeat(num_per_segment, total_repeat_length=num)
 
-  if max_measure_size is None:
-    max_measure_size = jnp.max(num_per_segment)
+  # # Check max_measure_size is largest than largest measure.
+  # checkify.check(
+  #   max_measure_size >= jnp.max(num_per_segment) and max_measure_size < num,
+  #   "max_measure_size not large enough, or too small")
 
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
@@ -112,23 +111,23 @@ def segment_point_cloud(
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
 
-  return segmented_x, segmented_a, num_segments
+  return segmented_x, segmented_a
 
 
 def _segment_interface(
     x: jnp.ndarray,
     y: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
     eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
                       jnp.ndarray],
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
     indices_are_sorted: bool = False,
     num_per_segment_x: Optional[jnp.ndarray] = None,
     num_per_segment_y: Optional[jnp.ndarray] = None,
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
-    max_measure_size: Optional[int] = None,
     padding_vector: Optional[jnp.ndarray] = None,
 ) -> jnp.ndarray:
   """Wrapper to segment two point clouds and return parallel evaluations.
@@ -144,29 +143,27 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x, num_segments_x = segment_point_cloud(
+  segmented_x, segmented_weights_x = segment_point_cloud(
       x,
+      num_segments,
+      max_measure_size,
       weights_x,
       segment_ids=segment_ids_x,
-      num_segments=num_segments,
       indices_are_sorted=indices_are_sorted,
       num_per_segment=num_per_segment_x,
-      max_measure_size=max_measure_size,
       padding_vector=padding_vector
   )
 
-  segmented_y, segmented_weights_y, num_segments_y = segment_point_cloud(
+  segmented_y, segmented_weights_y = segment_point_cloud(
       y,
+      num_segments,
+      max_measure_size,
       weights_y,
       segment_ids=segment_ids_y,
-      num_segments=num_segments,
       indices_are_sorted=indices_are_sorted,
       num_per_segment=num_per_segment_y,
-      max_measure_size=max_measure_size,
       padding_vector=padding_vector
   )
-
-  assert num_segments_x == num_segments_y
 
   v_eval = jax.vmap(eval_fn, in_axes=[0, 0, 0, 0])
 

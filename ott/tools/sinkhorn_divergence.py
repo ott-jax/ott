@@ -153,10 +153,11 @@ def _sinkhorn_divergence(
 def segment_sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
     cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
     indices_are_sorted: Optional[bool] = None,
     num_per_segment_x: Optional[jnp.ndarray] = None,
     num_per_segment_y: Optional[jnp.ndarray] = None,
@@ -188,14 +189,17 @@ def segment_sinkhorn_divergence(
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
+    num_segments: Number of segments contained in x and y. Providing this number
+      is required for JIT compilation to work.
+    max_measure_size: Total size of measures after padding. Should ideally be
+      set to an upper bound on points clouds processed with the segment
+      interface. Should also be smaller than total length of `x` or `y`.
+      Providing this number is required for JIT compilation to work.
     cost_fn: a :class:`ott.geometry.costs.CostFn` Cost. Defaults to sqEuclidean.
     segment_ids_x: (1st interface) The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: (1st interface) The segment ID for which each row of y
       belongs.
-    num_segments: (1st interface) Number of segments. This is required for JIT
-      compilation to work. If not given, it will be computed from the data as
-      the max segment ID.
     indices_are_sorted: (1st interface) Whether `segment_ids_x` and
       `segment_ids_y` are sorted. Default false.
     num_per_segment_x: (2nd interface) Number of points in each segment in `x`.
@@ -250,10 +254,11 @@ def segment_sinkhorn_divergence(
   return segment._segment_interface(
       x,
       y,
+      num_segments,
+      max_measure_size,
       eval_fn,
       segment_ids_x=segment_ids_x,
       segment_ids_y=segment_ids_y,
-      num_segments=num_segments,
       indices_are_sorted=indices_are_sorted,
       num_per_segment_x=num_per_segment_x,
       num_per_segment_y=num_per_segment_y,

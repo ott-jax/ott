@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Segmented sinkhorn utility."""
-
-from typing import Any, Mapping, Optional
+from types import MappingProxyType
+from typing import Any, Mapping, Optional, Tuple
 
 from jax import numpy as jnp
 
@@ -24,16 +24,17 @@ from ott.geometry import costs, pointcloud
 def segment_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
     cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
     indices_are_sorted: Optional[bool] = None,
-    num_per_segment_x: Optional[jnp.ndarray] = None,
-    num_per_segment_y: Optional[jnp.ndarray] = None,
+    num_per_segment_x: Tuple[int] = None,
+    num_per_segment_y: Tuple[int] = None,
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
-    sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
 ) -> jnp.ndarray:
   """Compute `reg_ot_cost` between subsets of vectors described in `x` & `y`.
@@ -57,13 +58,16 @@ def segment_sinkhorn(
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
+    num_segments: Number of segments contained in x and y. Providing this number
+      is required for JIT compilation to work.
+    max_measure_size: Total size of measures after padding. Should ideally be
+      set to an upper bound on points clouds processed with the segment
+      interface. Providing this number is required for JIT
+      compilation to work.
     segment_ids_x: (1st interface) The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: (1st interface) The segment ID for which each row of y
       belongs.
-    num_segments: (1st interface) Number of segments. This is required for JIT
-      compilation to work. If not given, it will be computed from the data as
-      the max segment ID.
     indices_are_sorted: (1st interface) Whether `segment_ids_x` and
       `segment_ids_y` are sorted. Default false.
     num_per_segment_x: (2nd interface) Number of points in each segment in `x`.
@@ -107,10 +111,11 @@ def segment_sinkhorn(
   return segment._segment_interface(
       x,
       y,
+      num_segments,
+      max_measure_size,
       eval_fn,
       segment_ids_x=segment_ids_x,
       segment_ids_y=segment_ids_y,
-      num_segments=num_segments,
       indices_are_sorted=indices_are_sorted,
       num_per_segment_x=num_per_segment_x,
       num_per_segment_y=num_per_segment_y,

@@ -32,6 +32,7 @@ class TestSegmentSinkhorn:
   def setUp(self, rng: jnp.ndarray):
     self._dim = 4
     self._num_points = 13, 17
+    self._max_measure_size = 20
     self.rng, *rngs = jax.random.split(rng, 3)
     a = jax.random.uniform(rngs[0], (self._num_points[0],))
     b = jax.random.uniform(rngs[1], (self._num_points[1],))
@@ -78,6 +79,8 @@ class TestSegmentSinkhorn:
     segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
         x_copied,
         y_copied,
+        2,
+        self._max_measure_size,
         segment_ids_x=segment_ids_x,
         segment_ids_y=segment_ids_y,
         indices_are_sorted=False,
@@ -98,11 +101,17 @@ class TestSegmentSinkhorn:
     x2 = jnp.arange(12)[:, None].repeat(2, axis=1)
     y2 = 2 * jnp.arange(13)[:, None].repeat(2, axis=1) + 0.1
 
-    segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
+    sink = jax.jit(
+        segment_sinkhorn.segment_sinkhorn,
+        static_argnames=['num_segments', 'max_measure_size'],
+    )
+    segmented_regotcost = sink(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
-        num_per_segment_x=jnp.array([10, 12]),
-        num_per_segment_y=jnp.array([11, 13]),
+        num_segments=2,
+        max_measure_size=14,
+        num_per_segment_x=(10, 12),
+        num_per_segment_y=(11, 13),
         epsilon=0.01
     )
 
@@ -119,41 +128,25 @@ class TestSegmentSinkhorn:
     )
 
   def test_sinkhorn_divergence_segment_custom_padding(self, rng):
-    keys = jax.random.split(rng, num=4)
+    rngs = jax.random.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
 
-    n_components = jnp.array([5, 2, 3, 4])
-    num_segments = 2
-
-    n_components_x = n_components[0:num_segments]
-    n_components_y = n_components[num_segments:]
-
-    seg_ids_x = jnp.repeat(jnp.arange(num_segments), n_components_x)
-    seg_ids_y = jnp.repeat(jnp.arange(num_segments), n_components_y)
-
-    gmm_generators = [
-        gaussian_mixture.GaussianMixture.from_random(
-            keys[i], n_components=n_components[i], n_dimensions=dim
-        ) for i in range(n_components.size)
-    ]
+    num_per_segment_x = (5, 2)
+    num_per_segment_y = (3, 5)
+    ns = num_per_segment_x + num_per_segment_y
 
     means_and_covs_to_x = jax.vmap(
         costs.mean_and_cov_to_x, in_axes=[0, 0, None]
     )
 
-    x1 = means_and_covs_to_x(
-        gmm_generators[0].loc, gmm_generators[0].covariance, dim
-    )
-    x2 = means_and_covs_to_x(
-        gmm_generators[1].loc, gmm_generators[1].covariance, dim
-    )
-    y1 = means_and_covs_to_x(
-        gmm_generators[2].loc, gmm_generators[2].covariance, dim
-    )
-    y2 = means_and_covs_to_x(
-        gmm_generators[3].loc, gmm_generators[3].covariance, dim
-    )
+    def g(rng, n):
+      out = gaussian_mixture.GaussianMixture.from_random(
+          rng, n_components=n, n_dimensions=dim
+      )
+      return means_and_covs_to_x(out.loc, out.covariance, dim)
+
+    x1, x2, y1, y2 = (g(rngs[i], ns[i]) for i in range(4))
 
     true_regotcost = jnp.array([
         sinkhorn.sinkhorn(
@@ -167,10 +160,11 @@ class TestSegmentSinkhorn:
     segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
         x,
         y,
+        num_segments=2,
+        max_measure_size=5,
         cost_fn=b_cost,
-        segment_ids_x=seg_ids_x,
-        segment_ids_y=seg_ids_y,
-        num_segments=num_segments,
+        num_per_segment_x=num_per_segment_x,
+        num_per_segment_y=num_per_segment_y,
         sinkhorn_kwargs={'lse_mode': True},
         epsilon=0.1,
     )
