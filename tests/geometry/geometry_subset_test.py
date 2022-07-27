@@ -18,7 +18,7 @@ def pc_masked(rng: jnp.ndarray) -> Tuple[pointcloud.PointCloud, Tuple]:
   # y = jnp.full((m,), fill_value=2.)
   x = jax.random.normal(key1, shape=(n, 3))
   y = jax.random.normal(key1, shape=(m, 3))
-  src_mask = jnp.asarray([0, 2, 1])
+  src_mask = jnp.asarray([0, 1, 2])
   tgt_mask = jnp.asarray([3, 5, 6])
 
   pc = pointcloud.PointCloud(x, y, src_mask=src_mask, tgt_mask=tgt_mask)
@@ -33,9 +33,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
     geom = pc
   elif request.param == "geometry":
     geom = geometry.Geometry(
-        cost_matrix=pc.cost_matrix,
-        src_mask=pc._src_mask,
-        tgt_mask=pc._tgt_mask
+        cost_matrix=pc.cost_matrix, src_mask=pc.src_mask, tgt_mask=pc.tgt_mask
     )
   elif request.param == "low_rank":
     geom = pc.to_LRCGeometry()
@@ -44,16 +42,15 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
   return geom, masked
 
 
-@pytest.mark.skip("Under reconstruction")
 @pytest.mark.fast
-class TestSubsetPointCloud:
+class TestMaskPointCloud:
 
   @pytest.mark.parametrize("tgt_ixs", [7, jnp.arange(5)])
   @pytest.mark.parametrize("src_ixs", [None, (3, 3)])
   @pytest.mark.parametrize(
       "clazz", [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
   )
-  def test_subset(
+  def test_mask(
       self, rng: jnp.ndarray, clazz: Type[geometry.Geometry],
       src_ixs: Optional[Union[int, Sequence[int]]],
       tgt_ixs: Optional[Union[int, Sequence[int]]]
@@ -83,18 +80,10 @@ class TestSubsetPointCloud:
       # test overriding some argument
       assert geom_sub._batch_size == new_batch_size
 
-  def test_masked_geometry_shape(
-      self, pc_masked: Tuple[Geom_t, pointcloud.PointCloud]
-  ):
-    pc, masked = pc_masked
-
-    assert masked._masked_geom is masked
-    assert masked._masked_geom.shape == (3, 3)
-
   @pytest.mark.parametrize(
       "scale_cost", ["mean", "max_cost", "median", "max_norm", "max_bound"]
   )
-  def test_masked_inverse_scaling(
+  def test_mask_inverse_scaling(
       self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], scale_cost: str
   ):
     geom, masked = geom_masked
@@ -102,14 +91,18 @@ class TestSubsetPointCloud:
     masked = masked._set_scale_cost(scale_cost)
 
     try:
-      desired = masked.inv_scale_cost
       actual = geom.inv_scale_cost
+      desired = masked.inv_scale_cost
     except ValueError as e:
       if "not implemented" not in str(e):
         raise
       pytest.mark.xfail(str(e))
     else:
       np.testing.assert_allclose(actual, desired, rtol=1e-6, atol=1e-6)
+      geom_subset = geom.subset(geom.src_mask, geom.tgt_mask)
+      np.testing.assert_allclose(
+          geom_subset.cost_matrix, masked.cost_matrix, rtol=1e-6, atol=1e-6
+      )
 
   @pytest.mark.parametrize("stat", ["mean", "median"])
   def test_masked_summary(
@@ -123,10 +116,8 @@ class TestSubsetPointCloud:
           geom.median_cost_matrix, masked.median_cost_matrix
       )
 
-  @pytest.mark.parametrize("stat", ["mean", "median"])
-  def test_masked_permutation(
-      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], stat: str,
-      rng: jnp.ndarray
+  def test_mask_permutation(
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
   ):
     key1, key2 = jax.random.split(rng)
     geom, _ = geom_masked
@@ -135,21 +126,55 @@ class TestSubsetPointCloud:
     # nullify the mask
     geom._src_mask = None
     geom._tgt_mask = None
-    assert geom._masked_geom is geom
+    assert geom._masked_geom() is geom
     children, aux_data = geom.tree_flatten()
     gt_geom = type(geom).tree_unflatten(aux_data, children)
 
     geom._src_mask = jax.random.permutation(key1, jnp.arange(n))
     geom._tgt_mask = jax.random.permutation(key2, jnp.arange(m))
-    assert geom._masked_geom is not geom
-    assert geom._masked_geom.shape == geom.shape
-    assert geom._masked_geom.shape == gt_geom.shape
 
-    if stat == "mean":
-      np.testing.assert_allclose(
-          geom.mean_cost_matrix, gt_geom.mean_cost_matrix
-      )
-    else:
-      np.testing.assert_allclose(
-          geom.median_cost_matrix, gt_geom.median_cost_matrix
-      )
+    np.testing.assert_allclose(geom.mean_cost_matrix, gt_geom.mean_cost_matrix)
+    np.testing.assert_allclose(
+        geom.median_cost_matrix, gt_geom.median_cost_matrix
+    )
+
+  def test_boolean_mask(
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
+  ):
+    key1, key2 = jax.random.split(rng)
+    p = jnp.array([0.5, 0.5])
+    geom, _ = geom_masked
+    n, m = geom.shape
+
+    src_mask = jax.random.choice(key1, jnp.array([False, True]), (n,), p=p)
+    tgt_mask = jax.random.choice(key1, jnp.array([False, True]), (m,), p=p)
+    geom._src_mask = src_mask
+    geom._tgt_mask = tgt_mask
+    gt_cost = geom.cost_matrix[src_mask, :][:, tgt_mask]
+
+    np.testing.assert_allclose(
+        geom.mean_cost_matrix, jnp.mean(gt_cost), rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        geom.median_cost_matrix, jnp.median(gt_cost), rtol=1e-6, atol=1e-6
+    )
+
+  def test_subset_mask(
+      self,
+      geom_masked: Tuple[Geom_t, pointcloud.PointCloud],
+  ):
+    geom, masked = geom_masked
+    assert masked.shape < geom.shape
+    geom = geom.subset(geom.src_mask, geom.tgt_mask)
+
+    assert geom.shape == masked.shape
+    assert geom.src_mask.shape == (geom.shape[0],)
+    assert geom.tgt_mask.shape == (geom.shape[1],)
+
+    np.testing.assert_allclose(geom.mean_cost_matrix, masked.mean_cost_matrix)
+    np.testing.assert_allclose(
+        geom.median_cost_matrix, masked.median_cost_matrix
+    )
+    np.testing.assert_allclose(
+        geom.cost_matrix, masked.cost_matrix, rtol=1e-6, atol=1e-6
+    )

@@ -82,8 +82,8 @@ class Geometry:
       scale_epsilon: Optional[float] = None,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
-      scale_cost: Optional[Union[bool, int, float, Literal['mean', 'max_cost',
-                                                           'median']]] = None,
+      scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
+                                                  'median']] = 1.0,
       **kwargs: Any,
   ):
     self._cost_matrix = cost_matrix
@@ -92,8 +92,8 @@ class Geometry:
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
     self._scale_cost = "mean" if scale_cost is True else scale_cost
-    self._sm = src_mask  # TODO(michalk8): rename me
-    self._tm = tgt_mask
+    self._src_mask = src_mask
+    self._tgt_mask = tgt_mask
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -715,7 +715,6 @@ class Geometry:
         src_ixs: Optional[jnp.ndarray],
         tgt_ixs: Optional[jnp.ndarray],
     ) -> Optional[jnp.ndarray]:
-      # TODO(michalk8): dynamic slice might be necessary
       if arr is None:
         return None
       if src_ixs is not None:
@@ -750,6 +749,7 @@ class Geometry:
         arr = jnp.where(tgt_ixs, arr, mask_value)
       return arr
 
+    # TODO(michalk8): allow integer mask
     return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
 
   def _helper(
@@ -784,30 +784,37 @@ class Geometry:
     return mask
 
   @property
-  def _src_mask(self) -> Optional[jnp.ndarray]:
-    if self._sm is None:
+  def src_mask(self) -> Optional[jnp.ndarray]:
+    """Mask of shape ``(n,)`` used to compute :attr:`mean_cost_matrix`, \
+      :attr:`median_cost_matrix` and :attr:`inv_scale_cost`."""
+    if self._src_mask is None:
       return None
-    return self._normalize_mask(self._sm, self.shape[0])
+    return self._normalize_mask(self._src_mask, self.shape[0])
 
   @property
-  def _tgt_mask(self) -> Optional[jnp.ndarray]:
-    if self._tm is None:
+  def tgt_mask(self) -> Optional[jnp.ndarray]:
+    """Mask of shape ``(m,)`` used to compute :attr:`mean_cost_matrix`, \
+      :attr:`median_cost_matrix` and :attr:`inv_scale_cost`."""
+    if self._tgt_mask is None:
       return None
-    return self._normalize_mask(self._tm, self.shape[1])
+    return self._normalize_mask(self._tgt_mask, self.shape[1])
 
   def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
-    if self._src_mask is None and self._tgt_mask is None:
+    src_mask, tgt_mask = self.src_mask, self.tgt_mask
+    if src_mask is None and tgt_mask is None:
       return self
-    return self.mask(self._src_mask, self._tgt_mask, mask_value=mask_value)
+    return self.mask(src_mask, tgt_mask, mask_value=mask_value)
 
   @property
   def _n_normed_ones(self) -> jnp.ndarray:
-    arr = jnp.ones(self.shape[0]) if self._src_mask is None else self._src_mask
+    mask = self.src_mask
+    arr = jnp.ones(self.shape[0]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @property
   def _m_normed_ones(self) -> jnp.ndarray:
-    arr = jnp.ones(self.shape[1]) if self._tgt_mask is None else self._tgt_mask
+    mask = self.tgt_mask
+    arr = jnp.ones(self.shape[1]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   def tree_flatten(self):

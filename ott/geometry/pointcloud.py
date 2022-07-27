@@ -65,9 +65,9 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
       batch_size: Optional[int] = None,
-      scale_cost: Optional[Union[bool, int, float,
-                                 Literal['mean', 'max_norm', 'max_bound',
-                                         'max_cost', 'median']]] = None,
+      scale_cost: Union[bool, int, float,
+                        Literal['mean', 'max_norm', 'max_bound', 'max_cost',
+                                'median']] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -552,7 +552,7 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     # passing self.power in aux_data to be able to condition on it.
-    return ([self.x, self.y, self._src_mask, self._tgt_mask, self._cost_fn], {
+    return ([self.x, self.y, self.src_mask, self.tgt_mask, self._cost_fn], {
         'epsilon': self._epsilon_init,
         'relative_epsilon': self._relative_epsilon,
         'scale_epsilon': self._scale_epsilon,
@@ -608,8 +608,8 @@ class PointCloud(geometry.Geometry):
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
-        src_mask=self._src_mask,
-        tgt_mask=self._tgt_mask,
+        src_mask=self.src_mask,
+        tgt_mask=self.tgt_mask,
         **self._kwargs
     )
 

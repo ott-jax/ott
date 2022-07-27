@@ -48,8 +48,8 @@ class LRCGeometry(geometry.Geometry):
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
       bias: float = 0.0,
-      scale_cost: Optional[Union[bool, int, float, Literal['mean', 'max_bound',
-                                                           'max_cost']]] = None,
+      scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
+                                                  'max_cost']] = 1.0,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
@@ -86,7 +86,7 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def shape(self) -> Tuple[int, int]:
-    return (self._cost_1.shape[0], self._cost_2.shape[0])
+    return self._cost_1.shape[0], self._cost_2.shape[0]
 
   @property
   def is_symmetric(self) -> bool:
@@ -300,7 +300,7 @@ class LRCGeometry(geometry.Geometry):
 
   def tree_flatten(self):
     return (
-        self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
+        self._cost_1, self._cost_2, self.src_mask, self.tgt_mask, self._kwargs
     ), {
         'bias': self._bias,
         'scale_cost': self._scale_cost,
