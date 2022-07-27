@@ -15,7 +15,7 @@
 # Lint as: python3
 """jheek@ backprop-friendly implementation of fixed point loop."""
 from typing import Any, Callable
- 
+
 import jax
 import numpy as np
 from jax import numpy as jnp

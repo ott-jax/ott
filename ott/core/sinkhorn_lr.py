@@ -117,7 +117,7 @@ def solution_error(
   return err
 
 
-def kl(q1, q2, clipping_value=1e-8):
+def kl(q1: jnp.ndarray, q2: jnp.ndarray, clipping_value: float = 1e-8) -> float:
   res_1 = -jax.scipy.special.entr(q1)
   res_2 = q1 * jnp.log(jnp.clip(q2, clipping_value))
   res = res_1 - res_2
@@ -252,7 +252,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      is_entropic: bool = False,
       init_type: Literal['random', 'rank_2', 'kmeans'] = 'kmeans',
       lse_mode: bool = True,
       threshold: float = 1e-3,
@@ -271,7 +270,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self.is_entropic = is_entropic
     self.init_type = init_type
     self.lse_mode = lse_mode
     assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
@@ -373,7 +371,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         init_r = ot_sink_y.matrix
     else:
       raise NotImplementedError(self.init_type)
-    self.is_entropic = (self.epsilon != 0.0)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_q, init_r, init_g))
 
@@ -381,23 +378,26 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def norm_error(self) -> Tuple[int]:
     return (self._norm_error,)
 
+  @property
+  def is_entropy(self) -> bool:
+    return self.epsilon != 0.0
+
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
-    criterion, count_escape, i, tol = state.criterion, state.count_escape, iteration, self.threshold
-    if jnp.logical_not(i < 2):
-      if jnp.logical_not(criterion <= tol / 1e-1):
-        err = criterion
-      else:
-        if count_escape != iteration:
-          err = criterion
-        else:
-          err = jnp.inf
-    else:
-      err = jnp.inf
+    criterions, count_escape, i, tol = state.criterions, state.count_escape, iteration, self.threshold
+    criterion = criterions[i - 1]
+    cond_1 = jnp.logical_and(
+        jnp.logical_not(i < 2), jnp.logical_not(criterion <= tol / 1e-1)
+    )
+    cond_2 = jnp.logical_and(
+        jnp.logical_not(i < 2), jnp.logical_not(criterion > tol / 1e-1),
+        jnp.logical_not(count_escape == iteration)
+    )
+    err = jnp.where(jnp.logical_or(cond_1, cond_2), criterion, jnp.inf)
     return jnp.logical_and(i >= 2, err < tol)
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
     return jnp.logical_or(
-        jnp.logical_not(jnp.isfinite(state.criterion)),
+        jnp.logical_not(jnp.isfinite(state.criterions[iteration - 1])),
         jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
     )
 
@@ -416,23 +416,25 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     log_q, log_r, log_g = jnp.log(state.q), jnp.log(state.r), jnp.log(state.g)
+
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    grad_q = jnp.where(self.is_entropic, grad_q + self.epsilon * log_q, grad_q)
-    if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
+    grad_q = jnp.where(self.is_entropy, grad_q + self.epsilon * log_q, grad_q)
+
     grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    grad_r = jnp.where(self.is_entropic, grad_r + self.epsilon * log_r, grad_r)
-    if self.gamma_rescale:
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+    grad_r = jnp.where(self.is_entropy, grad_r + self.epsilon * log_r, grad_r)
+
     diag_qcr = jnp.sum(
         state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
     )
     grad_g = -(diag_qcr) / (state.g ** 2)
-    grad_g = jnp.where(self.is_entropic, grad_g + self.epsilon * log_g, grad_g)
+    grad_g = jnp.where(self.is_entropy, grad_g + self.epsilon * log_g, grad_g)
+
     if self.gamma_rescale:
+      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-    if self.gamma_rescale:
       self.gamma = self.gamma / jnp.max(norm_q, norm_r, norm_g)
+
     c_q = grad_q - (1 / self.gamma) * log_q
     c_r = grad_r - (1 / self.gamma) * log_r
     h = -grad_g + (1 / self.gamma) * log_g
@@ -595,9 +597,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     # compute count_escape
     tol = self.threshold
-    if iteration >= 2:
-      if criterion <= tol / 1e-1:
-        count_escape = state.count_escape + 1
+    count_escape = state.count_escape + jnp.logical_and(
+        iteration >= 2, criterion <= tol * 10.
+    )
 
     # re-computes error if compute_error is True, else set it to inf.
     cost = jnp.where(
