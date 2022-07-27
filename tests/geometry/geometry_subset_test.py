@@ -44,6 +44,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
   return geom, masked
 
 
+@pytest.mark.skip("Under reconstruction")
 @pytest.mark.fast
 class TestSubsetPointCloud:
 

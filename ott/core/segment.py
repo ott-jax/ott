@@ -86,9 +86,11 @@ def segment_point_cloud(
 
   segmented_a, segmented_x, segmented_mask = [], [], []
 
+  mask = jnp.concatenate(
+      (jnp.ones_like(a, dtype=bool), jnp.zeros(1, dtype=bool))
+  )
   x = jnp.concatenate((x, padding_vector))
   a = jnp.concatenate((a, jnp.zeros((1,))))
-  mask = jnp.zeros_like(a, dtype=bool)
 
   for i in range(num_segments):
     idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
@@ -100,7 +102,7 @@ def segment_point_cloud(
     # segment the positions
     z = x.at[idx].get()
     segmented_x.append(z)
-    segmented_mask.append(mask.at[idx].set(True))
+    segmented_mask.append(mask.at[idx].get())
 
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)

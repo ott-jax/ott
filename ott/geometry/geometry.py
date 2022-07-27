@@ -62,6 +62,8 @@ class Geometry:
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
+    src_mask: TODO.
+    tgt_mask: TODO.
     kwargs: additional kwargs to epsilon scheduler.
 
   Note:
@@ -90,8 +92,8 @@ class Geometry:
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
     self._scale_cost = "mean" if scale_cost is True else scale_cost
-    self._src_mask = src_mask
-    self._tgt_mask = tgt_mask
+    self._sm = src_mask  # TODO(michalk8): rename me
+    self._tm = tgt_mask
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -141,16 +143,15 @@ class Geometry:
   @property
   def median_cost_matrix(self) -> float:
     """Median of cost matrix."""
-    return jnp.median(self._masked_geom.cost_matrix)
+    # TODO(michalk8): will fail for online point cloud
+    geom = self._masked_geom(mask_value=jnp.nan)
+    return jnp.nanmedian(geom.cost_matrix)
 
   @property
   def mean_cost_matrix(self) -> float:
     """Mean of cost matrix."""
-    self = self._masked_geom
-    n, m = self.shape
-    if n > 0:
-      return jnp.sum(self.apply_cost(jnp.ones((n,)))) / (n * m)
-    return 1.0
+    tmp = self._masked_geom().apply_cost(self._n_normed_ones).squeeze()
+    return jnp.sum(tmp * self._m_normed_ones)
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
@@ -195,7 +196,7 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    self = self._masked_geom
+    self = self._masked_geom()
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     if self._scale_cost == 'max_cost':
@@ -707,28 +708,15 @@ class Geometry:
     )
 
   def subset(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      propagate_mask: bool = True,
-      **kwargs: Any,
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any
   ) -> "Geometry":
-    """Subset rows and/or columns of a geometry.
 
-    Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      propagate_mask: TODO.
-      kwargs: Keyword arguments for :class:`ott.geometry.geometry.Geometry`.
-
-    Returns:
-      Subset of a geometry.
-    """
-
-    def sub(
-        arr: Optional[jnp.ndarray], src_ixs: Optional[jnp.ndarray],
-        tgt_ixs: Optional[jnp.ndarray]
-    ) -> jnp.ndarray:
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
       # TODO(michalk8): dynamic slice might be necessary
       if arr is None:
         return None
@@ -738,23 +726,91 @@ class Geometry:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
+    return self._helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
+
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "Geometry":
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None:
+        return arr
+      if src_ixs is not None:
+        assert jnp.issubdtype(src_ixs.dtype, bool), src_ixs.dtype
+        arr = jnp.where(src_ixs, arr.T, mask_value).T
+      if tgt_ixs is not None:
+        assert jnp.issubdtype(tgt_ixs.dtype, bool), tgt_ixs.dtype
+        arr = jnp.where(tgt_ixs, arr, mask_value)
+      return arr
+
+    return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
+
+  def _helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[
+          [Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
+          Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "Geometry":
     (cost, kernel, *children, src_mask, tgt_mask,
      kws), aux_data = self.tree_flatten()
-    cost = sub(cost, src_ixs, tgt_ixs)
-    kernel = sub(kernel, src_ixs, tgt_ixs)
-    src_mask = sub(src_mask, src_ixs, None) if propagate_mask else None
-    tgt_mask = sub(tgt_mask, tgt_ixs, None) if propagate_mask else None
+    cost = fn(cost, src_ixs, tgt_ixs)
+    kernel = fn(kernel, src_ixs, tgt_ixs)
+    if propagate_mask:
+      src_mask = fn(src_mask, src_ixs, None)
+      tgt_mask = fn(tgt_mask, tgt_ixs, None)
 
     aux_data = {**aux_data, **kwargs}
     return type(self).tree_unflatten(
         aux_data, [cost, kernel] + children + [src_mask, tgt_mask, kws]
     )
 
+  @staticmethod
+  def _normalize_mask(mask: Union[int, jnp.ndarray], size: int) -> jnp.ndarray:
+    mask = jnp.atleast_1d(mask)
+    if not jnp.issubdtype(mask, bool):
+      mask = jnp.isin(jnp.arange(size), mask)
+    return mask
+
   @property
-  def _masked_geom(self) -> "Geometry":
+  def _src_mask(self) -> Optional[jnp.ndarray]:
+    if self._sm is None:
+      return None
+    return self._normalize_mask(self._sm, self.shape[0])
+
+  @property
+  def _tgt_mask(self) -> Optional[jnp.ndarray]:
+    if self._tm is None:
+      return None
+    return self._normalize_mask(self._tm, self.shape[1])
+
+  def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
     if self._src_mask is None and self._tgt_mask is None:
       return self
-    return self.subset(self._src_mask, self._tgt_mask, propagate_mask=False)
+    return self.mask(self._src_mask, self._tgt_mask, mask_value=mask_value)
+
+  @property
+  def _n_normed_ones(self) -> jnp.ndarray:
+    arr = jnp.ones(self.shape[0]) if self._src_mask is None else self._src_mask
+    return arr / jnp.sum(arr)
+
+  @property
+  def _m_normed_ones(self) -> jnp.ndarray:
+    arr = jnp.ones(self.shape[1]) if self._tgt_mask is None else self._tgt_mask
+    return arr / jnp.sum(arr)
 
   def tree_flatten(self):
     return (

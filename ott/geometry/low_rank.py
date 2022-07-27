@@ -97,7 +97,7 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
-    self = self._masked_geom
+    self = self._masked_geom()
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     if self._scale_cost == 'max_bound':
@@ -106,10 +106,9 @@ class LRCGeometry(geometry.Geometry):
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
     if self._scale_cost == 'mean':
-      n, m = self.shape
-      factor1 = jnp.dot(jnp.ones(n), self._cost_1)
-      factor2 = jnp.dot(self._cost_2.T, jnp.ones(m))
-      mean = jnp.dot(factor1, factor2) / (n * m) + self._bias
+      factor1 = jnp.dot(self._n_normed_ones, self._cost_1)
+      factor2 = jnp.dot(self._cost_2.T, self._m_normed_ones)
+      mean = jnp.dot(factor1, factor2) + self._bias
       return 1.0 / mean
     if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
@@ -237,23 +236,64 @@ class LRCGeometry(geometry.Geometry):
     Args:
       src_ixs: Source indices. If ``None``, use all rows.
       tgt_ixs: Target indices. If ``None``, use all columns.
-      propagate_mask: TODO.
       kwargs: Keyword arguments for :class:`ott.geometry.low_rank.LRCGeometry`.
 
     Returns:
       The subsetted geometry.
     """
 
-    def sub(
-        arr: Optional[jnp.ndarray], ixs: Optional[jnp.ndarray]
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        ixs: Optional[jnp.ndarray],
     ) -> jnp.ndarray:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
+    return self._helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
+
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "LRCGeometry":
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None or mask is None:
+        return arr
+      assert jnp.issubdtype(mask, bool), mask.dtype
+      assert mask.ndim == 1, mask.ndim
+      return jnp.where(mask[:, None], arr, mask_value)
+
+    n, m = self.shape
+    if src_mask is not None and not jnp.issubdtype(src_mask, bool):
+      src_mask = jnp.isin(jnp.arange(n), src_mask)
+    if tgt_mask is not None and not jnp.issubdtype(tgt_mask, bool):
+      tgt_mask = jnp.isin(jnp.arange(m), tgt_mask)
+
+    return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
+
+  # TODO(michalk8): rename me
+  def _helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
+                   Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "LRCGeometry":
     (c1, c2, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
-    c1 = sub(c1, src_ixs)
-    c2 = sub(c2, tgt_ixs)
-    src_mask = sub(src_mask, src_ixs) if propagate_mask else None
-    tgt_mask = sub(tgt_mask, tgt_ixs) if propagate_mask else None
+    c1 = fn(c1, src_ixs)
+    c2 = fn(c2, tgt_ixs)
+    if propagate_mask:
+      src_mask = fn(src_mask, src_ixs)
+      tgt_mask = fn(tgt_mask, tgt_ixs)
 
     aux_data = {**aux_data, **kwargs}
     return type(self).tree_unflatten(

@@ -133,22 +133,24 @@ class PointCloud(geometry.Geometry):
   @property
   def inv_scale_cost(self) -> float:
     """Compute the factor to scale the cost matrix."""
-    self = self._masked_geom
+    self = self._masked_geom()
     if isinstance(self._scale_cost, float):
       return 1.0 / self._scale_cost
     if self._scale_cost == 'max_cost':
       if self.is_online:
-        return self._compute_summary_online(self._scale_cost)
+        return 1.0 / self._compute_summary_online(self._scale_cost)
       return 1.0 / jnp.max(self.compute_cost_matrix())
     if self._scale_cost == 'mean':
       if self.is_online:
-        return self._compute_summary_online(self._scale_cost)
+        return 1.0 / self._compute_summary_online(self._scale_cost)
       if self.shape[0] > 0:
-        return 1.0 / jnp.mean(self.compute_cost_matrix())
+        geom = self._masked_geom(mask_value=jnp.nan).compute_cost_matrix()
+        return 1.0 / jnp.nanmean(geom)
       return 1.0
     if self._scale_cost == 'median':
       if not self.is_online:
-        return 1.0 / jnp.median(self.compute_cost_matrix())
+        geom = self._masked_geom(mask_value=jnp.nan)
+        return 1.0 / jnp.nanmedian(geom.compute_cost_matrix())
       raise NotImplementedError(
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
@@ -175,6 +177,7 @@ class PointCloud(geometry.Geometry):
       raise ValueError(f'Scaling {self._scale_cost} not implemented.')
     return 1.0
 
+  # TODO(michalk8): make private
   def compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
@@ -502,11 +505,11 @@ class PointCloud(geometry.Geometry):
     if batch_for_y:
       fun = body0
       n = self._y_nsplit
-      vec = jnp.ones(self.shape[0]) / (self.shape[1] * self.shape[0])
+      vec, other = self._n_normed_ones, self._m_normed_ones
     else:
       fun = body1
       n = self._x_nsplit
-      vec = jnp.ones(self.shape[1]) / (self.shape[1] * self.shape[0])
+      vec, other = self._m_normed_ones, self._n_normed_ones
 
     _, val = jax.lax.scan(fun, init=(vec,), xs=jnp.arange(n))
     val = jnp.concatenate(val).squeeze()
@@ -514,13 +517,13 @@ class PointCloud(geometry.Geometry):
     val_res = jnp.concatenate([val, val_rest])
 
     if summary == 'mean':
-      return 1.0 / jnp.sum(val_res)
-    elif summary == 'max_cost':
-      return 1.0 / jnp.max(val_res)
-    else:
-      raise ValueError(
-          f'Scaling method {summary} does not exist for online mode.'
-      )
+      return jnp.sum(val_res * other)
+    if summary == 'max_cost':
+      # TODO(michalk8): explain why scaling is not needed
+      return jnp.max(val_res)
+    raise ValueError(
+        f'Scaling method {summary} does not exist for online mode.'
+    )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights, valid for p=2.0."""
@@ -624,25 +627,60 @@ class PointCloud(geometry.Geometry):
     Args:
       src_ixs: Source indices. If ``None``, use all rows.
       tgt_ixs: Target indices. If ``None``, use all columns.
-      propagate_mask: TODO.
       kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
 
     Returns:
       The subsetted geometry.
     """
 
-    def sub(
-        arr: Optional[jnp.ndarray], ixs: Optional[jnp.ndarray]
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        ixs: Optional[jnp.ndarray],
     ) -> jnp.ndarray:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
-    (x, y, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
-    x = sub(x, src_ixs)
-    y = sub(y, tgt_ixs)
-    src_mask = sub(src_mask, src_ixs) if propagate_mask else None
-    tgt_mask = sub(tgt_mask, tgt_ixs) if propagate_mask else None
+    return self._helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
 
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "PointCloud":
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None or mask is None:
+        return arr
+      assert jnp.issubdtype(mask, bool), mask.dtype
+      assert mask.ndim == 1, mask.ndim
+      return jnp.where(mask[:, None], arr, mask_value)
+
+    return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
+
+  # TODO(michalk8): rename me
+  def _helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
+                   Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "PointCloud":
+    (x, y, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
+    x = fn(x, src_ixs)
+    y = fn(y, tgt_ixs)
+    if propagate_mask:
+      src_mask = fn(src_mask, src_ixs)
+      tgt_mask = fn(tgt_mask, tgt_ixs)
     aux_data = {**aux_data, **kwargs}
+
     return type(self).tree_unflatten(
         aux_data, [x, y, src_mask, tgt_mask] + children
     )
