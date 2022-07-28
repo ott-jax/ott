@@ -74,18 +74,17 @@ def segment_point_cloud(
   else:
     assert num_per_segment is not None
     assert num_segments == len(num_per_segment)
-    num_per_segment = jnp.asarray(num_per_segment)  # force conversion.
+    # conversion to facilitate computation of default weight below.
+    num_per_segment = jnp.array(num_per_segment)
     segment_ids = jnp.arange(num_segments).repeat(
         num_per_segment, total_repeat_length=num
     )
 
   if a is None:
-    a = (1 / num_per_segment).repeat(num_per_segment, total_repeat_length=num)
-
-  # # Check max_measure_size is largest than largest measure.
-  # checkify.check(
-  #   max_measure_size >= jnp.max(num_per_segment) and max_measure_size < num,
-  #   "max_measure_size not large enough, or too small")
+    a = jnp.array(
+        (1.0 /
+         num_per_segment).repeat(num_per_segment, total_repeat_length=num)
+    )
 
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
