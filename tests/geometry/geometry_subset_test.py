@@ -178,3 +178,20 @@ class TestMaskPointCloud:
     np.testing.assert_allclose(
         geom.cost_matrix, masked.cost_matrix, rtol=1e-6, atol=1e-6
     )
+
+  def test_mask_as_nonunique_indices(
+      self,
+      geom_masked: Tuple[Geom_t, pointcloud.PointCloud],
+  ):
+    geom, _ = geom_masked
+    n, m = geom.shape
+    src_ixs, tgt_ixs = [0, 2], [3, 1]
+    geom._src_mask = jnp.asarray(src_ixs * 11)  # numbers chosen arbitrarily
+    geom._tgt_mask = jnp.asarray(tgt_ixs * 13)
+
+    np.testing.assert_array_equal(
+        geom.src_mask, jnp.isin(jnp.arange(n), jnp.asarray(src_ixs))
+    )
+    np.testing.assert_array_equal(
+        geom.tgt_mask, jnp.isin(jnp.arange(m), jnp.asarray(tgt_ixs))
+    )
