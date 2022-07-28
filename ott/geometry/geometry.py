@@ -196,6 +196,8 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == 'max_cost':
       return 1.0 / jnp.nanmax(self._cost_matrix)
@@ -203,8 +205,6 @@ class Geometry:
       return 1.0 / jnp.nanmean(self._cost_matrix)
     if self._scale_cost == 'median':
       return 1.0 / jnp.nanmedian(self._cost_matrix)
-    if isinstance(self._scale_cost, (int, float)):
-      return 1.0 / self._scale_cost
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def _set_scale_cost(

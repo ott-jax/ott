@@ -133,6 +133,8 @@ class PointCloud(geometry.Geometry):
   @property
   def inv_scale_cost(self) -> float:
     """Compute the factor to scale the cost matrix."""
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_cost':
       if self.is_online:
@@ -171,8 +173,6 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean "
           "is not implemented."
       )
-    if isinstance(self._scale_cost, (int, float)):
-      return 1.0 / self._scale_cost
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   # TODO(michalk8): make private

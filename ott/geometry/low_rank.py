@@ -97,6 +97,8 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
+    if isinstance(self._scale_cost, (int, float)):
+      return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
@@ -110,8 +112,6 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / mean
     if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
-    if isinstance(self._scale_cost, (int, float)):
-      return 1.0 / self._scale_cost
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
