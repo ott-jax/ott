@@ -16,12 +16,21 @@ Optimal Transport
 
     transport.Transport
 
+Segmented Sinkhorn
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment_sinkhorn.segment_sinkhorn
+
+
 Sinkhorn Divergence
 -------------------
 .. autosummary::
     :toctree: _autosummary
 
     sinkhorn_divergence.sinkhorn_divergence
+    sinkhorn_divergence.segment_sinkhorn_divergence
 
 Soft Sorting Algorithms
 -----------------------
