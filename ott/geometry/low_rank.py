@@ -37,9 +37,9 @@ class LRCGeometry(geometry.Geometry):
       ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
     batch_size: optional size of the batch to compute online (without
       instantiating the matrix) the scale factor ``scale_cost`` of the
-      ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
+      ``cost_matrix`` when ``scale_cost='max_cost'``. If set to ``None``, the
       batch size is set to 1024 or to the largest number of samples between
-      ``cost_1`` and ``cost_2`` if smaller than 1024.
+      ``cost_1`` and ``cost_2`` if smaller than `1024`.
     kwargs: Additional kwargs to :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -64,15 +64,18 @@ class LRCGeometry(geometry.Geometry):
     self.batch_size = batch_size
 
   @property
-  def cost_1(self):
+  def cost_1(self) -> jnp.ndarray:
+    """First factor of the :attr:`cost_matrix`."""
     return self._cost_1 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def cost_2(self):
+  def cost_2(self) -> jnp.ndarray:
+    """Second factor of the :attr:`cost_matrix`."""
     return self._cost_2 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def bias(self):
+  def bias(self) -> float:
+    """Constant offset added to the entire :attr:`cost_matrix`."""
     return self._bias * self.inv_scale_cost
 
   @property
@@ -81,7 +84,7 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    """Return the cost matrix if requested."""
+    """Materialize the cost matrix."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
@@ -167,7 +170,7 @@ class LRCGeometry(geometry.Geometry):
     return super()._apply_cost_to_vec(vec, axis, fn=fn)
 
   def compute_max_cost(self) -> float:
-    """Compute the maximum of the cost matrix.
+    """Compute the maximum of the :attr:`cost_matrix`.
 
     Three cases are taken into account:
 
@@ -223,22 +226,9 @@ class LRCGeometry(geometry.Geometry):
     return self
 
   def subset(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      propagate_mask: bool = True,
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "LRCGeometry":
-    """Subset rows and/or columns of a geometry.
-
-    Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      kwargs: Keyword arguments for :class:`ott.geometry.low_rank.LRCGeometry`.
-
-    Returns:
-      The subsetted geometry.
-    """
 
     def subset_fn(
         arr: Optional[jnp.ndarray],
@@ -246,7 +236,7 @@ class LRCGeometry(geometry.Geometry):
     ) -> jnp.ndarray:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
-    return self._helper(
+    return self._mask_subset_helper(
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
     )
 
@@ -263,20 +253,15 @@ class LRCGeometry(geometry.Geometry):
     ) -> Optional[jnp.ndarray]:
       if arr is None or mask is None:
         return arr
-      assert jnp.issubdtype(mask, bool), mask.dtype
-      assert mask.ndim == 1, mask.ndim
       return jnp.where(mask[:, None], arr, mask_value)
 
-    n, m = self.shape
-    if src_mask is not None and not jnp.issubdtype(src_mask, bool):
-      src_mask = jnp.isin(jnp.arange(n), src_mask)
-    if tgt_mask is not None and not jnp.issubdtype(tgt_mask, bool):
-      tgt_mask = jnp.isin(jnp.arange(m), tgt_mask)
+    src_mask = self._normalize_mask(src_mask, self.shape[0])
+    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+    return self._mask_subset_helper(
+        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
+    )
 
-    return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
-
-  # TODO(michalk8): rename me
-  def _helper(
+  def _mask_subset_helper(
       self,
       src_ixs: Optional[jnp.ndarray],
       tgt_ixs: Optional[jnp.ndarray],

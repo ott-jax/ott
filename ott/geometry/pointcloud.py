@@ -97,7 +97,7 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self) -> Optional[jnp.ndarray]:
     if self.is_online:
       return None
-    cost_matrix = self.compute_cost_matrix()
+    cost_matrix = self._compute_cost_matrix()
     return cost_matrix * self.inv_scale_cost
 
   @property
@@ -127,30 +127,30 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    """Whether :attr:`cost_matrix` or :attr:`kernel` is computed on-the-fly."""
+    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` \
+      is computed on-the-fly."""
     return self.batch_size is not None
 
   @property
   def inv_scale_cost(self) -> float:
-    """Compute the factor to scale the cost matrix."""
     if isinstance(self._scale_cost, (int, float)):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_cost':
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self.compute_cost_matrix())
+      return 1.0 / jnp.max(self._compute_cost_matrix())
     if self._scale_cost == 'mean':
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
       if self.shape[0] > 0:
-        geom = self._masked_geom(mask_value=jnp.nan).compute_cost_matrix()
+        geom = self._masked_geom(mask_value=jnp.nan)._compute_cost_matrix()
         return 1.0 / jnp.nanmean(geom)
       return 1.0
     if self._scale_cost == 'median':
       if not self.is_online:
         geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom.compute_cost_matrix())
+        return 1.0 / jnp.nanmedian(geom._compute_cost_matrix())
       raise NotImplementedError(
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
@@ -175,8 +175,7 @@ class PointCloud(geometry.Geometry):
       )
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
-  # TODO(michalk8): make private
-  def compute_cost_matrix(self) -> jnp.ndarray:
+  def _compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
@@ -620,16 +619,6 @@ class PointCloud(geometry.Geometry):
       propagate_mask: bool = True,
       **kwargs: Any
   ) -> "PointCloud":
-    """Subset rows and/or columns of a geometry.
-
-    Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
-
-    Returns:
-      The subsetted geometry.
-    """
 
     def subset_fn(
         arr: Optional[jnp.ndarray],
@@ -637,7 +626,7 @@ class PointCloud(geometry.Geometry):
     ) -> jnp.ndarray:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
-    return self._helper(
+    return self._mask_subset_helper(
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
     )
 
@@ -654,14 +643,15 @@ class PointCloud(geometry.Geometry):
     ) -> Optional[jnp.ndarray]:
       if arr is None or mask is None:
         return arr
-      assert jnp.issubdtype(mask, bool), mask.dtype
-      assert mask.ndim == 1, mask.ndim
       return jnp.where(mask[:, None], arr, mask_value)
 
-    return self._helper(src_mask, tgt_mask, fn=mask_fn, propagate_mask=False)
+    src_mask = self._normalize_mask(src_mask, self.shape[0])
+    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+    return self._mask_subset_helper(
+        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
+    )
 
-  # TODO(michalk8): rename me
-  def _helper(
+  def _mask_subset_helper(
       self,
       src_ixs: Optional[jnp.ndarray],
       tgt_ixs: Optional[jnp.ndarray],
@@ -685,7 +675,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def batch_size(self) -> Optional[int]:
-    """Batch size when :attr:`is_online` is ``True``."""
+    """Batch size for online mode."""
     if self._batch_size is None:
       return None
     n, m = self.shape
