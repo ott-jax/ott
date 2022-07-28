@@ -71,11 +71,10 @@ class TestBarycenter:
 
     bar_prob = bar_problems.BarycenterProblem(
         y,
-        b,
+        num_measures=8,
+        max_measure_size=35,
+        b=b,
         num_per_segment=num_per_segment,
-        num_segments=num_per_segment.shape[0],
-        max_measure_size=jnp.max(num_per_segment) +
-        3,  # +3 set with no purpose.
         epsilon=epsilon
     )
 
@@ -160,11 +159,11 @@ class TestBarycenter:
 
     bar_p = bar_problems.BarycenterProblem(
         y,
-        b,
+        num_measures=num_measures,
+        max_measure_size=num_components,
+        b=b,
         weights=barycentric_weights,
         num_per_segment=jnp.asarray([num_components, num_components]),
-        num_segments=num_measures,
-        max_measure_size=num_components,
         cost_fn=bures_cost,
         epsilon=epsilon
     )
@@ -218,7 +217,7 @@ class TestBarycenter:
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
     bar_size = 5  # the size of the barycenter
-    max_measure_size = jnp.max(n_components)
+    int(jnp.max(n_components))
 
     # Create an instance of the Bures cost class.
     b_cost = costs.Bures(dimension=dim)
@@ -280,11 +279,11 @@ class TestBarycenter:
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
     bar_p = bar_problems.BarycenterProblem(
         ys,
-        bs,
+        num_measures=num_measures,
+        max_measure_size=4,
+        b=bs,
         weights=barycentric_weights,
         segment_ids=seg_ids,
-        num_segments=num_measures,  # needed for jit compilation
-        max_measure_size=max_measure_size,
         cost_fn=b_cost,
         epsilon=epsilon
     )

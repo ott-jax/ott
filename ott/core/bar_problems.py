@@ -32,8 +32,11 @@ class BarycenterProblem:
 
   Args:
     y: a matrix merging the points of all measures.
-    b: a vector containing the weights (within each measure) of all the points.
-    weights: weights of the barycenter problem (size num_segments).
+    num_measures: the total number of measures (used for jitting)
+    max_measure_size: maximum of support sizes of these measures (used for jit)
+    b: a vector containing all the weights of all the points within the
+      `num_measures` measures that defint the barycenter problem.
+    weights: weights of the barycenter problem (size `num_measures`).
     cost_fn: cost function used.
     epsilon: epsilon regularization used to solve reg-OT problems.
     debiased: whether the problem is debiased, in the sense that
@@ -43,12 +46,15 @@ class BarycenterProblem:
       than the max_measure_size parameter below, for parallelization to
       operate efficiently. Currently not implemented.
     kwargs: Keyword arguments for :func:`ott.core.segment.segment_point_cloud`.
-      Only used when ``y`` is not already pre-segmented.
+      Only used when ``y`` is not already pre-segmented, i.e. provided as a
+      tensor.
   """
 
   def __init__(
       self,
       y: jnp.ndarray,
+      num_measures: int,
+      max_measure_size: int,
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
@@ -57,28 +63,36 @@ class BarycenterProblem:
       **kwargs: Any,
   ):
     self._y = y
+    self._num_measures = num_measures
+    self._max_measure_size = max_measure_size
     self._b = b
     self._weights = weights
     self.cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
     self.epsilon = epsilon
     self.debiased = debiased
-
     if "_segmented_y" in kwargs and "_segmented_b" in kwargs:
       # after unflattening
       self._segmented_y = kwargs.pop("_segmented_y")
       self._segmented_b = kwargs.pop("_segmented_b")
     else:
       if self._y.ndim == 3:
-        assert self._y.shape[:2] == self._b.shape
+        if self._b is None:
+          self._b = jnp.ones(self._y.shape[0:1]) / self._y.shape[1]
         self._segmented_y, self._segmented_b = self._y, self._b
       else:
         assert self._b is None or (self._y.shape[0],) == self._b.shape
-        self._segmented_y, self._segmented_b, *_ = segment.segment_point_cloud(
-            self._y,
-            self._b,
+        self._segmented_y, self._segmented_b = segment.segment_point_cloud(
+            x=self._y,
+            num_segments=self._num_measures,
+            max_measure_size=self._max_measure_size,
+            a=self._b,
             padding_vector=self.cost_fn.padder(self._y.shape[1]),
             **kwargs
         )
+      assert self._segmented_y.shape[:2] == self._segmented_b.shape
+      assert self._segmented_y.shape[0] == num_measures
+      assert self._segmented_y.shape[1] <= max_measure_size
+
     self._kwargs = kwargs
 
   @property
@@ -158,6 +172,8 @@ class GWBarycenterProblem(BarycenterProblem):
   """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
 
   Args:
+    num_measures: the total number of measures (used for jitting)
+    max_measure_size: maximum of support sizes of these measures (used for jit)
     y: Array of shape ``[num_measures, N, D]`` containing all points as point
       clouds. Alternatively, stacked array of shape ``[num_total_points, D]``
       can also be specified that will be reshaped to ``[num_measures, N, D]``
@@ -185,6 +201,8 @@ class GWBarycenterProblem(BarycenterProblem):
 
   def __init__(
       self,
+      num_measures: int,
+      max_measure_size: int,
       y: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
@@ -201,19 +219,19 @@ class GWBarycenterProblem(BarycenterProblem):
     if "_segmented_y_fused" in kwargs:
       # after unflattening
       self._segmented_y_fused = kwargs.pop("_segmented_y_fused")
-      super().__init__(y, b, weights, **kwargs)
+      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
     elif y_fused is not None:
       # call `super().__init__` first since we might need `self._kwargs`
-      super().__init__(y, b, weights, **kwargs)
+      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
       if y_fused.ndim == 3:
         # already pre-segmented
         self._segmented_y_fused = y_fused
       else:
-        self._segmented_y_fused, *_ = segment.segment_point_cloud(
-            y_fused, **self._kwargs
+        self._segmented_y_fused, _, _ = segment.segment_point_cloud(
+            y_fused, num_measures, max_measure_size, None, **self._kwargs
         )
     else:
-      super().__init__(y, b, weights, **kwargs)
+      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
       self._segmented_y_fused = None
 
     self._y_as_costs = costs is not None

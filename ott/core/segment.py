@@ -12,7 +12,7 @@
 # limitations under the License.
 """Prepare point clouds for parallel computations."""
 from types import MappingProxyType
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -20,12 +20,12 @@ from jax import numpy as jnp
 
 def segment_point_cloud(
     x: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
     a: Optional[jnp.ndarray] = None,
     segment_ids: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
     indices_are_sorted: bool = False,
-    num_per_segment: Optional[jnp.ndarray] = None,
-    max_measure_size: Optional[int] = None,
+    num_per_segment: Optional[Tuple[int]] = None,
     padding_vector: Optional[jnp.ndarray] = None
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, int]:
   """Segment and pad as needed the entries of a point cloud.
@@ -42,25 +42,29 @@ def segment_point_cloud(
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    y: a matrix merging the points of all measures.
-    a: a vector containing the weights (within each measure) of all the points.
-    segment_ids: describe for each point to which measure it belongs.
-    num_segments: total number of measures.
-    indices_are_sorted: flag indicating indices in segment_ids are sorted.
-    num_per_segment: number of points in each segment, if contiguous.
-    max_measure_size: max number of points in each segment (for efficient jit)
-    padding_vector: Vector of shape ``[1, dim]`` used for padding.
-      If ``None``, use a vector of 0s.
-
+    x: Array of input points, of shape [num_x, feature]. Multiple segments are
+      held in this single array.
+    num_segments: Number of segments. This is required for JIT compilation
+      to work.
+    max_measure_size: Overall size of padding. This argument is needed
+      when jitting.
+    segment_ids: (1st interface) The segment ID for which each row of x
+      belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
+    num_per_segment: (2nd interface) Number of points in each segment in `x`.
+      For example, [100, 20, 30] would imply that `x` is segmented into three
+      arrays of length `[100]`, `[20]`, and `[30]` respectively. Must be a tuple
+      and not a `jnp.ndarray` to allow jitting. This means changes in
+      `num_per_segment` will re-trigger compilation.
+    padding_vector: vector to be used to pad point cloud matrices. Most likely
+      to be zero, but can be adjusted to be other values to avoid errors or
+      over/underflow in cost matrix that could be problematic (even these values
+      are not supposed to be taken given their corresponding masses are 0).
   Returns:
-    Segmented ``y``, ``a``, mask and the number of segments.
+    Segmented ``x``, `a`` and the number segments.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
   if use_segment_ids:
-    if num_segments is None:
-      num_segments = jnp.max(segment_ids) + 1
-
     num_per_segment = jax.ops.segment_sum(
         jnp.ones_like(segment_ids),
         segment_ids,
@@ -69,17 +73,18 @@ def segment_point_cloud(
     )
   else:
     assert num_per_segment is not None
-    assert num_segments is None or num_segments == num_per_segment.shape[0]
-    num_segments = num_per_segment.shape[0]
+    assert num_segments == len(num_per_segment)
+    # conversion to facilitate computation of default weight below.
+    num_per_segment = jnp.array(num_per_segment)
     segment_ids = jnp.arange(num_segments).repeat(
         num_per_segment, total_repeat_length=num
     )
 
   if a is None:
-    a = (1 / num_per_segment).repeat(num_per_segment)
-
-  if max_measure_size is None:
-    max_measure_size = jnp.max(num_per_segment)
+    a = jnp.array(
+        (1.0 /
+         num_per_segment).repeat(num_per_segment, total_repeat_length=num)
+    )
 
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
@@ -108,7 +113,65 @@ def segment_point_cloud(
   segmented_x = jnp.stack(segmented_x)
   segmented_mask = jnp.stack(segmented_mask)
 
-  return segmented_x, segmented_a, segmented_mask, num_segments
+  return segmented_x, segmented_a
+
+
+def _segment_interface(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    num_segments: int,
+    max_measure_size: int,
+    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
+                      jnp.ndarray],
+    segment_ids_x: Optional[jnp.ndarray] = None,
+    segment_ids_y: Optional[jnp.ndarray] = None,
+    indices_are_sorted: bool = False,
+    num_per_segment_x: Optional[jnp.ndarray] = None,
+    num_per_segment_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[jnp.ndarray] = None,
+    weights_y: Optional[jnp.ndarray] = None,
+    padding_vector: Optional[jnp.ndarray] = None,
+) -> jnp.ndarray:
+  """Wrapper to segment two point clouds and return parallel evaluations.
+
+  Utility function that segments two point clouds using the approach outlined
+  in `segment_point_cloud` and evaluates `eval_fn` on pairs of segmented point
+  clouds.
+  """
+  use_segment_ids = segment_ids_x is not None
+  if use_segment_ids:
+    assert segment_ids_y is not None
+  else:
+    assert num_per_segment_x is not None
+    assert num_per_segment_y is not None
+
+  segmented_x, segmented_weights_x = segment_point_cloud(
+      x,
+      num_segments,
+      max_measure_size,
+      weights_x,
+      segment_ids=segment_ids_x,
+      indices_are_sorted=indices_are_sorted,
+      num_per_segment=num_per_segment_x,
+      padding_vector=padding_vector
+  )
+
+  segmented_y, segmented_weights_y = segment_point_cloud(
+      y,
+      num_segments,
+      max_measure_size,
+      weights_y,
+      segment_ids=segment_ids_y,
+      indices_are_sorted=indices_are_sorted,
+      num_per_segment=num_per_segment_y,
+      padding_vector=padding_vector
+  )
+
+  v_eval = jax.vmap(eval_fn, in_axes=[0, 0, 0, 0])
+
+  return v_eval(
+      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y
+  )
 
 
 def pad_along_axis(

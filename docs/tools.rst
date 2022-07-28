@@ -16,6 +16,14 @@ Optimal Transport
 
     transport.Transport
 
+Segmented Sinkhorn
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment_sinkhorn.segment_sinkhorn
+
+
 Sinkhorn Divergence
 -------------------
 .. autosummary::
