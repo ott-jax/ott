@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Prepare point clouds for parallel computations."""
-from types import MappingProxyType
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Optional, Tuple
 
 import jax
 from jax import numpy as jnp
@@ -27,7 +26,7 @@ def segment_point_cloud(
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, int]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces: either use `segment_ids`, and optionally
@@ -60,7 +59,7 @@ def segment_point_cloud(
       over/underflow in cost matrix that could be problematic (even these values
       are not supposed to be taken given their corresponding masses are 0).
   Returns:
-    Segmented ``x``, `a`` and the number segments.
+    Segmented ``x``, `a`` and the mask.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -113,7 +112,7 @@ def segment_point_cloud(
   segmented_x = jnp.stack(segmented_x)
   segmented_mask = jnp.stack(segmented_mask)
 
-  return segmented_x, segmented_a
+  return segmented_x, segmented_a, segmented_mask
 
 
 def _segment_interface(
@@ -121,8 +120,10 @@ def _segment_interface(
     y: jnp.ndarray,
     num_segments: int,
     max_measure_size: int,
-    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
-                      jnp.ndarray],
+    eval_fn: Callable[[
+        jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp
+        .ndarray
+    ], jnp.ndarray],
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
@@ -145,7 +146,7 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x = segment_point_cloud(
+  segmented_x, segmented_weights_x, mask_x = segment_point_cloud(
       x,
       num_segments,
       max_measure_size,
@@ -156,7 +157,7 @@ def _segment_interface(
       padding_vector=padding_vector
   )
 
-  segmented_y, segmented_weights_y = segment_point_cloud(
+  segmented_y, segmented_weights_y, mask_y = segment_point_cloud(
       y,
       num_segments,
       max_measure_size,
@@ -167,51 +168,9 @@ def _segment_interface(
       padding_vector=padding_vector
   )
 
-  v_eval = jax.vmap(eval_fn, in_axes=[0, 0, 0, 0])
+  v_eval = jax.vmap(eval_fn, in_axes=[0] * 6)
 
   return v_eval(
-      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y
+      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y,
+      mask_x, mask_y
   )
-
-
-def pad_along_axis(
-    x: Sequence[jnp.ndarray],
-    max_pad_size: Mapping[int, Optional[int]] = MappingProxyType({}),
-    constant_values: Any = 0.0,
-    **kwargs: Any,
-) -> jnp.ndarray:
-  """Pad and stack sequence of arrays.
-
-  Args:
-    x: Sequence of arrays to pad.
-    max_pad_size: Maximum padding size along each axis. Always pads after.
-      Each key specifies an axis to pad, value corresponds to its new size.
-      If the value is ``None``, maximum value across all arrays is used.
-    constant_values: Value to pad with.
-    kwargs: Keyword arguments for :func:`jax.numpy.pad`.
-
-  Returns:
-    The padded array.
-  """
-  shapes = jnp.asarray([arr.shape for arr in x])
-  res = []
-
-  for arr in x:
-    pad_width = []
-    # TODO(michalk8): handle negative axes
-    for dim in range(arr.ndim):
-      max_size = max_pad_size.get(dim, arr.shape[dim])
-      if max_size is None:
-        max_size = jnp.max(shapes[:, dim])
-      # if negative, `jnp.pad` will raise
-      pad_width.append((0, max_size - arr.shape[dim]))
-    padded = jnp.pad(
-        arr,
-        pad_width=pad_width,
-        mode='constant',
-        constant_values=constant_values,
-        **kwargs
-    )
-    res.append(padded)
-
-  return jnp.asarray(res)

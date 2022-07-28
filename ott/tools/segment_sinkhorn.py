@@ -100,9 +100,20 @@ def segment_sinkhorn(
 
   sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
-  def eval_fn(padded_x, padded_y, padded_weight_x, padded_weight_y):
+  def eval_fn(
+      padded_x: jnp.ndarray, padded_y: jnp.ndarray,
+      padded_weight_x: jnp.ndarray, padded_weight_y: jnp.ndarray,
+      mask_x: jnp.ndarray, mask_y: jnp.ndarray
+  ) -> float:
     return sinkhorn.sinkhorn(
-        pointcloud.PointCloud(padded_x, padded_y, cost_fn=cost_fn, **kwargs),
+        pointcloud.PointCloud(
+            padded_x,
+            padded_y,
+            cost_fn=cost_fn,
+            src_mask=mask_x,
+            tgt_mask=mask_y,
+            **kwargs
+        ),
         a=padded_weight_x,
         b=padded_weight_y,
         **sinkhorn_kwargs

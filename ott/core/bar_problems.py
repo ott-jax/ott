@@ -81,7 +81,8 @@ class BarycenterProblem:
         self._segmented_y, self._segmented_b = self._y, self._b
       else:
         assert self._b is None or (self._y.shape[0],) == self._b.shape
-        self._segmented_y, self._segmented_b = segment.segment_point_cloud(
+        # TODO(michalk8): handle mask
+        self._segmented_y, self._segmented_b, _ = segment.segment_point_cloud(
             x=self._y,
             num_segments=self._num_measures,
             max_measure_size=self._max_measure_size,
@@ -227,8 +228,13 @@ class GWBarycenterProblem(BarycenterProblem):
         # already pre-segmented
         self._segmented_y_fused = y_fused
       else:
-        self._segmented_y_fused, _, _ = segment.segment_point_cloud(
-            y_fused, num_measures, max_measure_size, None, **self._kwargs
+        # TODO(michalk8): test me
+        self._segmented_y_fused, *_ = segment.segment_point_cloud(
+            x=y_fused,
+            num_segments=self._num_measures,
+            max_measure_size=self._max_measure_size,
+            padding_vector=self.cost_fn.padder(y_fused.shape[1]),
+            **self._kwargs
         )
     else:
       super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)

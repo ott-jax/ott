@@ -77,4 +77,3 @@ Padding Utilities
     :toctree: _autosummary
 
     segment.segment_point_cloud
-    segment.pad_along_axis
