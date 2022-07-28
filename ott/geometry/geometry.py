@@ -787,6 +787,8 @@ class Geometry:
     cost = fn(cost, src_ixs, tgt_ixs)
     kernel = fn(kernel, src_ixs, tgt_ixs)
     if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
       src_mask = fn(src_mask, src_ixs, None)
       tgt_mask = fn(tgt_mask, tgt_ixs, None)
 
@@ -851,7 +853,7 @@ class Geometry:
     mask = jnp.atleast_1d(mask)
     if not jnp.issubdtype(mask, (bool, jnp.bool_)):
       mask = jnp.isin(jnp.arange(size), mask)
-    assert mask.ndim == 1, mask.ndim
+    assert mask.shape == (size,)
     return mask
 
   def tree_flatten(self):

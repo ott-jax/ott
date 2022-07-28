@@ -551,7 +551,7 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     # passing self.power in aux_data to be able to condition on it.
-    return ([self.x, self.y, self.src_mask, self.tgt_mask, self._cost_fn], {
+    return ([self.x, self.y, self._src_mask, self._tgt_mask, self._cost_fn], {
         'epsilon': self._epsilon_init,
         'relative_epsilon': self._relative_epsilon,
         'scale_epsilon': self._scale_epsilon,
@@ -613,10 +613,7 @@ class PointCloud(geometry.Geometry):
     )
 
   def subset(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      propagate_mask: bool = True,
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "PointCloud":
 
@@ -665,6 +662,8 @@ class PointCloud(geometry.Geometry):
     x = fn(x, src_ixs)
     y = fn(y, tgt_ixs)
     if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
       src_mask = fn(src_mask, src_ixs)
       tgt_mask = fn(tgt_mask, tgt_ixs)
     aux_data = {**aux_data, **kwargs}

@@ -275,6 +275,8 @@ class LRCGeometry(geometry.Geometry):
     c1 = fn(c1, src_ixs)
     c2 = fn(c2, tgt_ixs)
     if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
       src_mask = fn(src_mask, src_ixs)
       tgt_mask = fn(tgt_mask, tgt_ixs)
 
@@ -285,7 +287,7 @@ class LRCGeometry(geometry.Geometry):
 
   def tree_flatten(self):
     return (
-        self._cost_1, self._cost_2, self.src_mask, self.tgt_mask, self._kwargs
+        self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
     ), {
         'bias': self._bias,
         'scale_cost': self._scale_cost,
