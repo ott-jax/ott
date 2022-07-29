@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import quad_problems, segment
+from ott.core import quad_problems
 from ott.geometry import costs, geometry, pointcloud
 
 __all__ = ["BarycenterProblem", "GWBarycenterProblem", "barycentric_projection"]
@@ -30,10 +30,13 @@ __all__ = ["BarycenterProblem", "GWBarycenterProblem", "barycentric_projection"]
 class BarycenterProblem:
   """Wasserstein barycenter problem :cite:`cuturi:14`.
 
+  Assumes ``y`` and ``b`` are already pre-segmented using
+  :func:`~ott.core.segment.segment_point_cloud`.
+
   Args:
     y: Array of shape ``[num_measures, max_measure_size, ndim]`` containing
       the padded measures. See :func:`ott.core.segment.segment_point_cloud`
-      for how to pad the arrays.
+      for how to segment the data.
     b: Array of shape ``[num_measures, max_measure_size]`` containing
       all the weights of all the points within the measures that define
       the barycenter problem.
@@ -70,7 +73,7 @@ class BarycenterProblem:
     assert self._y.shape[:2] == self._b.shape
 
   @property
-  def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Tuple of arrays containing the segmented measures and weights.
 
     Additional segment may be added when the problem is debiased.
@@ -152,27 +155,24 @@ class GWBarycenterProblem(BarycenterProblem):
   """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
 
   Args:
-    num_measures: the total number of measures (used for jitting)
-    max_measure_size: maximum of support sizes of these measures (used for jit)
-    y: Array of shape ``[num_measures, N, D]`` containing all points as point
-      clouds. Alternatively, stacked array of shape ``[num_total_points, D]``
-      can also be specified that will be reshaped to ``[num_measures, N, D]``
-      where ``N`` larger or equal to the maximum number of points within all
-      measures. See :class:`~ott.core.bar_problems.BarycenterProblem` or
-      :func:`~ott.core.segment.segment_point_cloud` for more information.
-    b: Array of shape ``[num_measures, N]`` containing the weights
-      (within each measure) of all the points.
-    weights: weights of the barycenter problem (size num_segments).
-    costs: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
-      defines padded cost matrices for each measure. Only one of ``y`` and
-      ``cost`` can be passed.
-    y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
-      of all points used to define the linear term in the fused case.
-      Similarly to ``y``, can be specified as a stacked array of shape
-      ``[num_total_points, D_f]``.
-    loss: Gromov-Wasserstein loss.
-    fused_penalty: Multiplier of the linear term in Fused Gromov-Wasserstein.
-      Only used when ``y_fused != None``.
+    y: Array of shape ``[num_measures, max_measure_size, ndim]`` containing
+      the padded measures. See :func:`ott.core.segment.segment_point_cloud`
+      for how to segment the data.
+    b: Array of shape ``[num_measures, max_measure_size]`` containing
+      all the weights of all the points within the measures that define
+      the barycenter problem.
+    weights: Array of shape ``[num_measures,]`` containing the weights of the
+      barycenter problem.
+    costs: Alternative to ``y``, an array of shape
+      ``[num_measures, max_measure_size, max_measure_size]`` that defines padded
+      cost matrices for each measure. Used in the quadratic term.
+      Only one of ``y`` and ``cost`` can be specified.
+    y_fused: Array of shape ``[num_measures, max_measure_size, ndim_fused]``
+      containing the features of all points used to define the linear term
+      in the fused case.
+    gw_loss: Gromov-Wasserstein loss.
+    fused_penalty: Multiplier of the linear term. Only used when
+      ``y_fused != None``.
     scale_cost: Scaling of cost matrices passed to geometries.
     kwargs: Keyword arguments for
       :class:`~ott.core.bar_problems.BarycenterProblem`.
@@ -186,45 +186,35 @@ class GWBarycenterProblem(BarycenterProblem):
       costs: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
-      loss: Literal['sqeucl', 'kl'] = 'sqeucl',
-      scale_cost: Optional[Union[float, Literal["mean", "max_cost"]]] = None,
+      gw_loss: Literal['sqeucl', 'kl'] = 'sqeucl',
+      scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
   ):
-    assert y is None or costs is None, "Cannot specify both `y` and `cost`."
+    assert y is None or costs is None, "Cannot specify both `y` and `costs`."
     y = y if costs is None else costs
 
-    super().__init__(y, b=b, weights=weights, **kwargs)
+    super().__init__(y, b, weights=weights, **kwargs)
 
-    self._y_as_costs = costs is not None
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
-    self.loss, self._loss_name = self._create_loss(loss), loss
+    self.gw_loss, self._loss_name = self._create_loss(gw_loss), gw_loss
     self.scale_cost = scale_cost
-
-    if y_fused is None or y_fused.ndim == 3:
-      self._segmented_y_fused = y_fused
-    else:
-      self._segmented_y_fused, _ = segment.segment_point_cloud(
-          x=y_fused,
-          num_segments=self.num_measures,
-          max_measure_size=self.max_measure_size,
-          padding_vector=self.cost_fn.padder(y_fused.shape[1]),
-          **self._kwargs
-      )
+    self._y_as_costs = costs is not None
 
   def update_barycenter(
       self, transports: jnp.ndarray, a: jnp.ndarray
   ) -> jnp.ndarray:
     """Update the barycenter cost matrix.
 
-    Uses the eq. (14) and (15) of :cite:`peyre:16`.
+    Uses the eq. 14 and 15 of :cite:`peyre:16`.
 
     Args:
-      transports: Transport maps of shape ``[num_measures, k, N]``.
-      a: Barycenter weights of shape ``[k,]``.
+      transports: Transport maps of shape
+        ``[num_measures, bar_size, max_measure_size]``.
+      a: Barycenter weights of shape ``[bar_size,]``.
 
     Returns:
-      Cost matrix of shape ``[k, k]``.
+      Update cost matrix of shape ``[bar_size, bar_size]``.
     """
 
     @partial(jax.vmap, in_axes=[0, 0, None])
@@ -254,9 +244,9 @@ class GWBarycenterProblem(BarycenterProblem):
       )
       return transport @ tmp
 
-    fn = None if self._loss_name == 'sqeucl' else self.loss.h2
+    fn = None if self._loss_name == 'sqeucl' else self.gw_loss.h2
     # TODO(michalk8): handle mask?
-    y, _, _ = self.segmented_y_b_mask
+    y, _ = self.segmented_y_b
     weights = self.weights[:, None, None]
 
     barycenter = jnp.sum(weights * project(y, transports, fn), axis=0)
@@ -275,11 +265,12 @@ class GWBarycenterProblem(BarycenterProblem):
     for the squared :class:`~ott.geometry.costs.Euclidean` cost.
 
     Args:
-      transports: Transport maps of shape ``[num_measures, N, M]``.
-      a: Barycenter weights of shape ``[N,]``.
+      transports: Transport maps of shape
+        ``[num_measures, bar_size, max_measure_size]``.
+      a: Barycenter weights of shape ``[bar_size,]``.
 
     Returns:
-      Array of features of shape ``[N, D_f]``.
+      Updated features of shape ``[bar_size, ndim_fused]``.
     """
     y_fused = self.segmented_y_fused
     if y_fused is None:
@@ -300,13 +291,20 @@ class GWBarycenterProblem(BarycenterProblem):
 
   @property
   def is_fused(self) -> bool:
-    """Whether this problem is fused."""
+    """Whether the problem is fused."""
     return self._y_fused is not None
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
-    """Array of shape ``[num_measures, N, D_f]`` used in the fused case."""
-    return self._segmented_y_fused
+    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` \
+    used in the in the fused case."""
+    return self._y_fused
+
+  @property
+  def ndim_fused(self) -> Optional[int]:
+    """Number of dimensions of the fused term."""
+    y_fused = self.segmented_y_fused
+    return None if y_fused is None else y_fused.shape[2]
 
   @staticmethod
   def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.GWLoss:
@@ -317,13 +315,14 @@ class GWBarycenterProblem(BarycenterProblem):
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    (y, b, weights, seg_y, seg_b), aux = super().tree_flatten()
+    (y, b, weights), aux = super().tree_flatten()
     if self._y_as_costs:
-      children = [None, b, weights, y, self._segmented_y_fused]
+      children = (None, b, weights, y)
     else:
-      children = [y, b, weights, None, self._segmented_y_fused]
+      children = (y, b, weights, None)
+    children += (self.segmented_y_fused,)
     aux['fused_penalty'] = self.fused_penalty
-    aux['loss'] = self._loss_name
+    aux['gw_loss'] = self._loss_name
     aux['scale_cost'] = self.scale_cost
     return children, aux
 
@@ -331,8 +330,10 @@ class GWBarycenterProblem(BarycenterProblem):
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GWBarycenterProblem":
-    *children, seg_y_fused = children
-    return cls(*children, _segmented_y_fused=seg_y_fused, **aux_data)
+    y, b, weights, costs, y_fused = children
+    return cls(
+        y=y, b=b, weights=weights, costs=costs, y_fused=y_fused, **aux_data
+    )
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])

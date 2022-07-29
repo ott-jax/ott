@@ -21,9 +21,10 @@ class GWBarycenterState(NamedTuple):
   """Holds the state of the :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
-    c: Barycenter cost matrix of shape ``[k, k]``.
-    x: Barycenter features of shape ``[k, D_f]``. Only used in the fused case.
-    a: Weights of the barycenter of shape ``[k,]``.
+    c: Barycenter cost matrix of shape ``[bar_size, bar_size]``.
+    x: Barycenter features of shape ``[bar_size, ndim_fused]``.
+      Only used in the fused case.
+    a: Weights of the barycenter of shape ``[bar_size,]``.
     errors: Array of shape
       ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
       the GW errors at each iteration.
@@ -45,7 +46,8 @@ class GWBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver for :class:`~ott.core.bar_problems.GWBarycenterProblem`.
+  """Gromov-Wasserstein barycenter solver for \
+  :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
     epsilon: Entropy regulariser.
@@ -57,7 +59,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
     kwargs: Keyword argument for
-      :class:`ott.core.gromov_wasserstein.GromovWasserstein`.
+      :class:`~ott.core.gromov_wasserstein.GromovWasserstein`.
       Only used when ``quad_solver = None``.
   """
 
@@ -90,7 +92,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # TODO(michalk8): store only GW errors?
       kwargs["store_inner_errors"] = store_inner_errors
       self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
-    assert not self._quad_solver.is_low_rank, "Low rank is not yet implemented."
 
   def __call__(
       self, problem: bar_problems.GWBarycenterProblem, bar_size: int,
@@ -127,14 +128,16 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_size: Size of the barycenter.
       bar_init: Initial barycenter value. Can be one of following:
 
-        - ``None`` - randomly initialize the barycenter, see also ``seed``.
-        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[k, k]``.
+        - ``None`` - randomly initialize the barycenter.
+        - :class:`jax.numpy.ndarray` - barycenter cost matrix of shape
+          ``[bar_size, bar_size]``.
           Only used in the non-fused case.
         - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
-          corresponds to ``[k, k]`` cost matrix, the 2nd array is ``[k, D_f]``
-          barycenter feature array. Only used in the fused case.
+          corresponds to ``[bar_size, bar_size]`` cost matrix,
+          the 2nd array is ``[bar_size, ndim_fused]`` a feature matrix used in
+          the fused case.
 
-      a: An array of shape ``[k,]`` containing the barycenter weights.
+      a: An array of shape ``[bar_size,]`` containing the barycenter weights.
       seed: Random seed used when ``bar_init = None``.
 
     Returns:
@@ -159,8 +162,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert cost.shape == (bar_size, bar_size)
       if problem.is_fused:
         assert x is not None, "Barycenter features are not initialized."
-        _, _, d = problem.segmented_y_fused.shape
-        assert x.shape == (bar_size, d)
+        assert x.shape == (bar_size, problem.ndim_fused)
 
     num_iter = self.max_iterations
     if self.store_inner_errors:
@@ -196,17 +198,38 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         f: Optional[jnp.ndarray]
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
       eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
+      bar_mask = state.a > 0.0
+      y_mask = b > 0.0
 
-      geom_xx = geometry.Geometry(state.cost, epsilon=eps, scale_cost=scale)
+      geom_xx = geometry.Geometry(
+          state.cost,
+          src_mask=bar_mask,
+          tgt_mask=bar_mask,
+          epsilon=eps,
+          scale_cost=scale
+      )
       if problem._y_as_costs:
-        geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale)
+        geom_yy = geometry.Geometry(
+            y, src_mask=y_mask, tgt_mask=y_mask, epsilon=eps, scale_cost=scale
+        )
       else:
         geom_yy = pointcloud.PointCloud(
-            y, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
+            y,
+            src_mask=y_mask,
+            tgt_mask=y_mask,
+            cost_fn=cost_fn,
+            epsilon=eps,
+            scale_cost=scale
         )
       if problem.is_fused:
         geom_xy = pointcloud.PointCloud(
-            state.x, f, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
+            x=state.x,
+            y=f,
+            src_mask=bar_mask,
+            tgt_mask=y_mask,
+            cost_fn=cost_fn,
+            epsilon=eps,
+            scale_cost=scale
         )
       else:
         geom_xy = None
@@ -230,7 +253,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     in_axes += [0] if problem.is_fused else [None]
     solve_fn = jax.vmap(solve_gw, in_axes=in_axes)
 
-    # TODO(michalk8)
     y, b = problem.segmented_y_b
     y_f = problem.segmented_y_fused
     costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
