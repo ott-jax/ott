@@ -146,9 +146,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert a.shape == (bar_size,)
 
     if bar_init is None:
-      _, b = problem.segmented_y_b
+      # TODO(michalk8)
+      _, b = problem.segmented_y_b_mask
       rng = jax.random.PRNGKey(seed)
-      keys = jax.random.split(rng, problem.num_segments)
+      keys = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
 
       transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
@@ -166,7 +167,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     if self.store_inner_errors:
       # TODO(michalk8): in the future, think about how to do this in general
       errors = -jnp.ones((
-          num_iter, problem.num_segments, self._quad_solver.max_iterations,
+          num_iter, problem.num_measures, self._quad_solver.max_iterations,
           self._quad_solver.linear_ot_solver.outer_iterations
       ))
     else:
@@ -230,7 +231,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     in_axes += [0] if problem.is_fused else [None]
     solve_fn = jax.vmap(solve_gw, in_axes=in_axes)
 
-    y, b = problem.segmented_y_b
+    # TODO(michalk8)
+    y, b = problem.segmented_y_b_mask
     y_f = problem.segmented_y_fused
     costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
 

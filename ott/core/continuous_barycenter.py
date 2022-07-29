@@ -56,14 +56,21 @@ class BarycenterState(NamedTuple):
       self, iteration: int, bar_prob: bar_problems.BarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
   ) -> 'BarycenterState':
-    segmented_y, segmented_b = bar_prob.segmented_y_b
+    seg_y, seg_b, seg_mask = bar_prob.segmented_y_b_mask
 
-    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-    def solve_linear_ot(a, x, b, y):
+    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0, 0])
+    def solve_linear_ot(
+        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray,
+        y: jnp.ndarray, tgt_mask: jnp.ndarray
+    ):
       out = linear_ot_solver(
           linear_problems.LinearProblem(
               pointcloud.PointCloud(
-                  x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
+                  x,
+                  y,
+                  tgt_mask=tgt_mask,
+                  cost_fn=bar_prob.cost_fn,
+                  epsilon=bar_prob.epsilon
               ), a, b
           )
       )
@@ -79,7 +86,7 @@ class BarycenterState(NamedTuple):
       )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-        self.a, self.x, segmented_b, segmented_y
+        self.a, self.x, seg_b, seg_y, seg_mask
     )
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)
@@ -95,7 +102,7 @@ class BarycenterState(NamedTuple):
     # Approximation of barycenter as barycenter of barycenters per measure.
 
     barycenters_per_measure = bar_problems.barycentric_projection(
-        matrices, segmented_y, bar_prob.cost_fn
+        matrices, seg_y, bar_prob.cost_fn
     )
 
     x_new = jax.vmap(
@@ -152,7 +159,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     num_iter = self.max_iterations
     if self.store_inner_errors:
       errors = -jnp.ones((
-          num_iter, bar_prob.num_segments,
+          num_iter, bar_prob.num_measures,
           self.linear_ot_solver.outer_iterations
       ))
     else:
