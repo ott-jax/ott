@@ -146,8 +146,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert a.shape == (bar_size,)
 
     if bar_init is None:
-      # TODO(michalk8)
-      _, b = problem.segmented_y_b_mask
+      _, b = problem.segmented_y_b
       rng = jax.random.PRNGKey(seed)
       keys = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
@@ -232,7 +231,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     solve_fn = jax.vmap(solve_gw, in_axes=in_axes)
 
     # TODO(michalk8)
-    y, b = problem.segmented_y_b_mask
+    y, b = problem.segmented_y_b
     y_f = problem.segmented_y_fused
     costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
 

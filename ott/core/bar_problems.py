@@ -31,102 +31,96 @@ class BarycenterProblem:
   """Wasserstein barycenter problem :cite:`cuturi:14`.
 
   Args:
-    y: a matrix merging the points of all measures.
-    num_measures: the total number of measures (used for jitting)
-    max_measure_size: maximum of support sizes of these measures (used for jit)
-    b: a vector containing all the weights of all the points within the
-      `num_measures` measures that define the barycenter problem.
-    weights: weights of the barycenter problem (size `num_measures`).
-    mask: TODO.
-    cost_fn: cost function used.
-    epsilon: epsilon regularization used to solve reg-OT problems.
-    debiased: whether the problem is debiased, in the sense that
+    y: Array of shape ``[num_measures, max_measure_size, ndim]`` containing
+      the padded measures. See :func:`ott.core.segment.segment_point_cloud`
+      for how to pad the arrays.
+    b: Array of shape ``[num_measures, max_measure_size]`` containing
+      all the weights of all the points within the measures that define
+      the barycenter problem.
+    weights: Array of shape ``[num_measures,]`` containing the weights of the
+      barycenter problem.
+    cost_fn: Cost function used. If ``None``, use
+      :class:`~ott.geometry.costs.Euclidean`.
+    epsilon: Epsilon regularization used to solve reg-OT problems.
+    debiased: **Currently not implemented.**
+      Whether the problem is debiased, in the sense that
       the regularized transportation cost of barycenter to itself will
       be considered when computing gradient. Note that if the debiased option
-      is used, the barycenter size (used in call function) needs to be smaller
-      than the max_measure_size parameter below, for parallelization to
-      operate efficiently. Currently not implemented.
-    kwargs: Keyword arguments for :func:`ott.core.segment.segment_point_cloud`.
-      Only used when ``y`` is not already pre-segmented, i.e. provided as a
-      tensor.
+      is used, the barycenter size in
+      :meth:`~ott.core.continuous_barycenter.WassersteinBarycenter.init_state`
+      needs to be smaller than the maximum measure size for parallelization to
+      operate efficiently.
   """
 
   def __init__(
       self,
       y: jnp.ndarray,
-      num_measures: int,
-      max_measure_size: int,
-      b: Optional[jnp.ndarray] = None,
+      b: jnp.ndarray,
       weights: Optional[jnp.ndarray] = None,
-      mask: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       epsilon: Optional[jnp.ndarray] = None,
       debiased: bool = False,
-      **kwargs: Any,
   ):
     self._y = y
     self._b = b
     self._weights = weights
-    self._segmented_mask = mask
     self.cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
     self.epsilon = epsilon
     self.debiased = debiased
-    self._kwargs = kwargs
-
-    if self._y.ndim == 3:
-      self._handle_presegmented()
-    else:
-      self._handle_segmentation(num_measures, max_measure_size)
-    self._assert_shapes_match()
+    assert self._y.shape[:2] == self._b.shape
 
   @property
-  def segmented_y_b_mask(self) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Tuple of arrays containing the segmented measures and weights.
+
+    Additional segment may be added when the problem is debiased.
+
+    - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
+    - Segmented weights of shape ``[num_measures, max_measure_size]``.
+    """
     if self.debiased:
       return self._add_slice_for_debiased()
-    return self._segmented_y, self._segmented_b, self._segmented_mask
+    return self._y, self._b
 
   def _add_slice_for_debiased(
       self
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    y, b, mask = self._segmented_y, self._segmented_b, self._segmented_mask
+    y, b = self._y, self._b
     n = y.shape[1]  # (num_measures, max_measure_size, dim)
     # yapf: disable
     y = jnp.concatenate((y, jnp.zeros((1, n, self.ndim))), axis=0)
     b = jnp.concatenate((b, jnp.zeros((1, n))), axis=0)
-    mask = jnp.concatenate((mask, jnp.zeros((1, n), dtype=bool)), axis=0)
     # yapf: enable
-    return y, b, mask
+    return y, b
 
   @property
   def flattened_y(self) -> jnp.ndarray:
-    """Array of shape ``[num_measures * (N_1 + N_2 + ...), D]``."""
-    if self._y.ndim == 3:
-      return self._y.reshape((-1, self._y.shape[-1]))
-    return self._y
+    """Array of shape ``[num_measures * (N_1 + N_2 + ...), ndim]``."""
+    return self._y.reshape((-1, self._y.shape[-1]))
 
   @property
   def flattened_b(self) -> Optional[jnp.ndarray]:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
-    return None if self._b is None else self._b.ravel()
+    return self._b.ravel()
 
   @property
   def num_measures(self) -> int:
     """Number of measures."""
-    return self._segmented_y.shape[0]
+    return self._y.shape[0]
 
   @property
   def max_measure_size(self) -> int:
     """Maximum number of points across all measures."""
-    return self._segmented_y.shape[1]
+    return self._y.shape[1]
 
   @property
   def ndim(self) -> int:
     """Number of dimensions of the data."""
-    return self._y.shape[1]
+    return self._y.shape[2]
 
   @property
   def weights(self) -> jnp.ndarray:
-    """Array of shape ``[num_measures,]`` that sums to 1."""
+    """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
     if self._weights is None:
       weights = jnp.ones((self.num_measures,)) / self.num_measures
     else:
@@ -138,55 +132,19 @@ class BarycenterProblem:
       weights = jnp.concatenate((weights, jnp.array([-0.5])))
     return weights
 
-  def _handle_presegmented(self) -> None:
-    assert self._y.ndim == 3
-    assert self._b is None or self._y.shape[:2] == self._b.shape
-    num_measures, max_measure_size = self.num_measures, self.max_measure_size
-
-    self._segmented_y, self._segmented_b = self._y, self._b
-    if self._segmented_mask is None:
-      self._segmented_mask = jnp.ones((num_measures, max_measure_size),
-                                      dtype=bool)
-    if self._segmented_b is None:
-      self._segmented_b = jnp.ones((num_measures, max_measure_size)
-                                  ) / max_measure_size
-
-  def _handle_segmentation(
-      self, num_measures: int, max_measure_size: int
-  ) -> None:
-    assert self._b is None or (self._y.shape[0],) == self._b.shape
-    self._segmented_y, self._segmented_b, self._segmented_mask = segment.segment_point_cloud(
-        x=self._y,
-        num_segments=num_measures,
-        max_measure_size=max_measure_size,
-        a=self._b,
-        padding_vector=self.cost_fn.padder(self.ndim),
-        **self._kwargs
-    )
-
-  def _assert_shapes_match(self) -> None:
-    assert self._segmented_y.shape[:2] == self._segmented_b.shape
-    assert self._segmented_y.shape[:2] == self._segmented_mask.shape
-    # TODO(michalk8): remove or uncomment?
-    # assert self._segmented_y.shape[0] == self._num_measures
-    # assert self._segmented_y.shape[1] <= self._max_measure_size
-
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return ([self._y, self._b, self._weights, self._segmented_mask], {
-        'num_measures': self.num_measures,
-        'max_measure_size': self.max_measure_size,
+    return ([self._y, self._b, self._weights], {
         'cost_fn': self.cost_fn,
         'epsilon': self.epsilon,
         'debiased': self.debiased,
-        **self._kwargs,
     })
 
   @classmethod
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "BarycenterProblem":
-    y, b, weights, mask = children
-    return cls(y, b=b, weights=weights, mask=mask, **aux_data)
+    y, b, weights = children
+    return cls(y=y, b=b, weights=weights, **aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -207,8 +165,7 @@ class GWBarycenterProblem(BarycenterProblem):
     weights: weights of the barycenter problem (size num_segments).
     costs: Alternative to ``y``, an array of shape ``[num_measures, N, N]`` that
       defines padded cost matrices for each measure. Only one of ``y`` and
-      ``cost`` can be passed. See :func:`~ott.core.segment.pad_along_axis`
-      on how to pad cost matrices of different sized.
+      ``cost`` can be passed.
     y_fused: Array of shape ``[num_measures, N, D_f]`` containing the features
       of all points used to define the linear term in the fused case.
       Similarly to ``y``, can be specified as a stacked array of shape
@@ -223,8 +180,6 @@ class GWBarycenterProblem(BarycenterProblem):
 
   def __init__(
       self,
-      num_measures: int,
-      max_measure_size: int,
       y: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
@@ -238,35 +193,24 @@ class GWBarycenterProblem(BarycenterProblem):
     assert y is None or costs is None, "Cannot specify both `y` and `cost`."
     y = y if costs is None else costs
 
-    # TODO(michalk8): simplify me
-    if "_segmented_y_fused" in kwargs:
-      # after unflattening
-      self._segmented_y_fused = kwargs.pop("_segmented_y_fused")
-      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
-    elif y_fused is not None:
-      # call `super().__init__` first since we might need `self._kwargs`
-      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
-      if y_fused.ndim == 3:
-        # already pre-segmented
-        self._segmented_y_fused = y_fused
-      else:
-        # TODO(michalk8): test me
-        self._segmented_y_fused, *_ = segment.segment_point_cloud(
-            x=y_fused,
-            num_segments=self._num_measures,
-            max_measure_size=self._max_measure_size,
-            padding_vector=self.cost_fn.padder(y_fused.shape[1]),
-            **self._kwargs
-        )
-    else:
-      super().__init__(y, num_measures, max_measure_size, b, weights, **kwargs)
-      self._segmented_y_fused = None
+    super().__init__(y, b=b, weights=weights, **kwargs)
 
     self._y_as_costs = costs is not None
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
     self.loss, self._loss_name = self._create_loss(loss), loss
     self.scale_cost = scale_cost
+
+    if y_fused is None or y_fused.ndim == 3:
+      self._segmented_y_fused = y_fused
+    else:
+      self._segmented_y_fused, _ = segment.segment_point_cloud(
+          x=y_fused,
+          num_segments=self.num_measures,
+          max_measure_size=self.max_measure_size,
+          padding_vector=self.cost_fn.padder(y_fused.shape[1]),
+          **self._kwargs
+      )
 
   def update_barycenter(
       self, transports: jnp.ndarray, a: jnp.ndarray

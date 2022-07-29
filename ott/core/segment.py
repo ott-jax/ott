@@ -24,42 +24,49 @@ def segment_point_cloud(
     a: Optional[jnp.ndarray] = None,
     segment_ids: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
-    num_per_segment: Optional[Tuple[int]] = None,
+    num_per_segment: Optional[Tuple[int, ...]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
-  There are two interfaces: either use `segment_ids`, and optionally
-  `num_segments` and `indices_are_sorted`, to describe for each
-  data point in the matrix to which segment each point corresponds to,
-  OR use `num_per_segment`, which describes contiguous segments.
+  There are two interfaces:
 
-  If using the first interface, `num_segments` is required for JIT compilation.
-  Assumes range(0, `num_segments`) are the segment ids.
+  1. use ``segment_ids``, and optionally ``indices_are_sorted`` to describe
+     for each data point in the matrix to which segment it belongs to.
+  2. use ``num_per_segment`` which describes contiguous segments.
 
-  In both cases, jitting requires defining a max_measure_size, the
+  If using the 1st interface, ``num_segments`` is required for JIT compilation.
+  Assumes ``range(0, num_segments)`` are the segment ids.
+
+  In both cases, jitting requires defining a ``max_measure_size``, the
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    x: Array of input points, of shape [num_x, feature]. Multiple segments are
-      held in this single array.
-    num_segments: Number of segments. This is required for JIT compilation
-      to work.
-    max_measure_size: Overall size of padding. This argument is needed
-      when jitting.
-    segment_ids: (1st interface) The segment ID for which each row of x
+    x: Array of input points, of shape ``[num_x, ndim]``.
+      Multiple segments are held in this single array.
+    num_segments: Number of segments. Required for jitting.
+    max_measure_size: Overall size of padding. Required for jitting.
+    a: Array of shape ``[num_x,]`` containing the weights (within each measure)
+      of all the points.
+    segment_ids: **1st interface** The segment ids for which each row of ``x``
       belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
-    num_per_segment: (2nd interface) Number of points in each segment in `x`.
-      For example, [100, 20, 30] would imply that `x` is segmented into three
-      arrays of length `[100]`, `[20]`, and `[30]` respectively. Must be a tuple
-      and not a `jnp.ndarray` to allow jitting. This means changes in
-      `num_per_segment` will re-trigger compilation.
+    indices_are_sorted: **1st interface** Whether ``segment_ids`` are sorted.
+    num_per_segment: **2nd interface** Number of points in each segment.
+      For example, `[100, 20, 30]` would imply that ``x`` is segmented into 3
+      arrays of length `[100]`, `[20]`, and `[30]`, respectively.
+      Must be a tuple and not a :class:`jax.numpy.ndarray` to allow jitting.
+      This means changes in ``num_per_segment`` will re-trigger compilation.
     padding_vector: vector to be used to pad point cloud matrices. Most likely
       to be zero, but can be adjusted to be other values to avoid errors or
       over/underflow in cost matrix that could be problematic (even these values
       are not supposed to be taken given their corresponding masses are 0).
+      See also :func:`ott.geometry.costs.CostFn.padder`.
+      If ``None``, vector of 0s of shape ``[1, ndim]`` is used.
+
   Returns:
-    Segmented ``x``, `a`` and the mask.
+    Segmented ``x`` as an array of shape
+    ``[num_measures, max_measure_size, ndim]`` and ``a`` as an array of shape
+    ``[num_measures, max_measure_size]``.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -88,31 +95,23 @@ def segment_point_cloud(
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
 
-  segmented_a, segmented_x, segmented_mask = [], [], []
-
-  mask = jnp.concatenate(
-      (jnp.ones_like(a, dtype=bool), jnp.zeros(1, dtype=bool))
-  )
   x = jnp.concatenate((x, padding_vector))
   a = jnp.concatenate((a, jnp.zeros((1,))))
+  segmented_a, segmented_x = [], []
 
   for i in range(num_segments):
     idx = jnp.where(segment_ids == i, jnp.arange(num), num + 1)
     idx = jax.lax.dynamic_slice(jnp.sort(idx), (0,), (max_measure_size,))
 
     # segment the weights
-    z = a.at[idx].get()
-    segmented_a.append(z)
+    segmented_a.append(a.at[idx].get())
     # segment the positions
-    z = x.at[idx].get()
-    segmented_x.append(z)
-    segmented_mask.append(mask.at[idx].get())
+    segmented_x.append(x.at[idx].get())
 
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
-  segmented_mask = jnp.stack(segmented_mask)
 
-  return segmented_x, segmented_a, segmented_mask
+  return segmented_x, segmented_a
 
 
 def _segment_interface(
@@ -146,7 +145,7 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x, mask_x = segment_point_cloud(
+  segmented_x, segmented_weights_x = segment_point_cloud(
       x,
       num_segments,
       max_measure_size,
@@ -156,8 +155,9 @@ def _segment_interface(
       num_per_segment=num_per_segment_x,
       padding_vector=padding_vector
   )
+  mask_x = segmented_weights_x != 0.0
 
-  segmented_y, segmented_weights_y, mask_y = segment_point_cloud(
+  segmented_y, segmented_weights_y = segment_point_cloud(
       y,
       num_segments,
       max_measure_size,
@@ -167,9 +167,9 @@ def _segment_interface(
       num_per_segment=num_per_segment_y,
       padding_vector=padding_vector
   )
+  mask_y = segmented_weights_y != 0.0
 
   v_eval = jax.vmap(eval_fn, in_axes=[0] * 6)
-
   return v_eval(
       segmented_x, segmented_y, segmented_weights_x, segmented_weights_y,
       mask_x, mask_y

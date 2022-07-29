@@ -56,19 +56,19 @@ class BarycenterState(NamedTuple):
       self, iteration: int, bar_prob: bar_problems.BarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
   ) -> 'BarycenterState':
-    seg_y, seg_b, seg_mask = bar_prob.segmented_y_b_mask
+    seg_y, seg_b = bar_prob.segmented_y_b
 
-    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0, 0])
+    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
-        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray,
-        y: jnp.ndarray, tgt_mask: jnp.ndarray
+        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
     ):
       out = linear_ot_solver(
           linear_problems.LinearProblem(
               pointcloud.PointCloud(
                   x,
                   y,
-                  tgt_mask=tgt_mask,
+                  src_mask=a != 0.0,
+                  tgt_mask=b != 0.0,
                   cost_fn=bar_prob.cost_fn,
                   epsilon=bar_prob.epsilon
               ), a, b
@@ -86,7 +86,7 @@ class BarycenterState(NamedTuple):
       )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-        self.a, self.x, seg_b, seg_y, seg_mask
+        self.a, self.x, seg_b, seg_y
     )
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)

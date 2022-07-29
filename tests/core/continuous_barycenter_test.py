@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import bar_problems, continuous_barycenter
+from ott.core import bar_problems, continuous_barycenter, segment
 from ott.geometry import costs
 from ott.tools.gaussian_mixture import gaussian_mixture
 
@@ -69,14 +69,15 @@ class TestBarycenter:
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
 
-    bar_prob = bar_problems.BarycenterProblem(
+    seg_y, seg_b = segment.segment_point_cloud(
         y,
-        num_measures=8,
+        num_segments=8,
         max_measure_size=35,
-        b=b,
+        a=b,
         num_per_segment=num_per_segment,
-        epsilon=epsilon
+        padding_vector=costs.Euclidean.padder(self.DIM),
     )
+    bar_prob = bar_problems.BarycenterProblem(seg_y, seg_b, epsilon=epsilon)
 
     # Define solver
     threshold = 1e-3
@@ -134,10 +135,10 @@ class TestBarycenter:
     means2 = jnp.array([[1., 1.], [1., -1.]])
     sigma = 0.01
     covs1 = sigma * jnp.asarray([
-        jnp.eye(dimension) for i in range(num_components)
+        jnp.eye(dimension) for _ in range(num_components)
     ])
     covs2 = sigma * jnp.asarray([
-        jnp.eye(dimension) for i in range(num_components)
+        jnp.eye(dimension) for _ in range(num_components)
     ])
 
     y1 = means_and_covs_to_x(means1, covs1, dimension)
@@ -146,7 +147,7 @@ class TestBarycenter:
     b1 = b2 = jnp.ones(num_components) / num_components
 
     y = jnp.concatenate((y1, y2))
-    b = jnp.concatenate((b1, b2))
+    jnp.concatenate((b1, b2))
 
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
         rng, n_components=bar_size, n_dimensions=dimension
@@ -157,13 +158,17 @@ class TestBarycenter:
 
     x_init = means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
-    bar_p = bar_problems.BarycenterProblem(
+    seg_y, seg_b = segment.segment_point_cloud(
         y,
-        num_measures=num_measures,
+        num_segments=num_measures,
         max_measure_size=num_components,
-        b=b,
+        num_per_segment=(num_components, num_components),
+        padding_vector=bures_cost.padder(y.shape[1]),
+    )
+    bar_p = bar_problems.BarycenterProblem(
+        seg_y,
+        seg_b,
         weights=barycentric_weights,
-        num_per_segment=jnp.asarray([num_components, num_components]),
         cost_fn=bures_cost,
         epsilon=epsilon
     )
@@ -192,7 +197,7 @@ class TestBarycenter:
         )
     )
 
-    assert jnp.allclose(
+    np.testing.assert_allclose(
         covs_bary,
         jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
         rtol=1e-05,
@@ -217,7 +222,6 @@ class TestBarycenter:
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
     bar_size = 5  # the size of the barycenter
-    int(jnp.max(n_components))
 
     # Create an instance of the Bures cost class.
     b_cost = costs.Bures(dimension=dim)
@@ -277,13 +281,18 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    bar_p = bar_problems.BarycenterProblem(
+    seg_y, seg_b = segment.segment_point_cloud(
         ys,
-        num_measures=num_measures,
+        a=bs,
+        num_segments=num_measures,
         max_measure_size=4,
-        b=bs,
-        weights=barycentric_weights,
         segment_ids=seg_ids,
+        padding_vector=b_cost.padder(ys.shape[1]),
+    )
+    bar_p = bar_problems.BarycenterProblem(
+        seg_y,
+        seg_b,
+        weights=barycentric_weights,
         cost_fn=b_cost,
         epsilon=epsilon
     )
