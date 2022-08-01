@@ -137,9 +137,23 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: bar_problems.BarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
+      # TODO(michalk8): change the API to pass the PRNG key directly
       rng: int = 0,
   ) -> BarycenterState:
-    """Initialize the state of the Wasserstein barycenter iterations."""
+    """Initialize the state of the Wasserstein barycenter iterations.
+
+    Args:
+      bar_prob: The barycenter problem.
+      bar_size: Size of the barycenter.
+      x_init: Initial barycenter estimate of shape ``[bar_size, ndim]``.
+        If `None`, ``bar_size`` points will be sampled from the input
+        measures according to their weights
+        :attr:`~ott.core.bar_problems.BarycenterProblem.flattened_y`.
+      rng: Seed for :func:`jax.random.PRNGKey`.
+
+    Returns:
+      The initial barycenter state.
+    """
     if x_init is not None:
       assert bar_size == x_init.shape[0]
       x = x_init

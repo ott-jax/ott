@@ -68,16 +68,17 @@ class TestBarycenter:
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
-
-    seg_y, seg_b = segment.segment_point_cloud(
+    bar_prob = bar_problems.BarycenterProblem(
         y,
+        b,
+        epsilon=epsilon,
         num_segments=8,
         max_measure_size=35,
-        a=b,
-        num_per_segment=num_per_segment,
-        padding_vector=costs.Euclidean.padder(self.DIM),
+        num_per_segment=num_per_segment
     )
-    bar_prob = bar_problems.BarycenterProblem(seg_y, seg_b, epsilon=epsilon)
+    assert bar_prob.num_measures == 8
+    assert bar_prob.max_measure_size == 35
+    assert bar_prob.ndim == self.DIM
 
     # Define solver
     threshold = 1e-3
@@ -172,6 +173,9 @@ class TestBarycenter:
         cost_fn=bures_cost,
         epsilon=epsilon
     )
+    assert bar_p.num_measures == seg_y.shape[0]
+    assert bar_p.max_measure_size == seg_y.shape[1]
+    assert bar_p.ndim == seg_y.shape[2]
 
     solver = continuous_barycenter.WassersteinBarycenter(
         lse_mode=lse_mode, jit=jit
@@ -281,21 +285,19 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    seg_y, seg_b = segment.segment_point_cloud(
-        ys,
-        a=bs,
+    bar_p = bar_problems.BarycenterProblem(
+        y=ys,
+        b=bs,
+        weights=barycentric_weights,
+        cost_fn=b_cost,
+        epsilon=epsilon,
         num_segments=num_measures,
         max_measure_size=4,
         segment_ids=seg_ids,
-        padding_vector=b_cost.padder(ys.shape[1]),
     )
-    bar_p = bar_problems.BarycenterProblem(
-        seg_y,
-        seg_b,
-        weights=barycentric_weights,
-        cost_fn=b_cost,
-        epsilon=epsilon
-    )
+    assert bar_p.max_measure_size == 4
+    assert bar_p.num_measures == num_measures
+    assert bar_p.ndim == ys.shape[-1]
 
     solver = continuous_barycenter.WassersteinBarycenter(lse_mode=True, jit=jit)
 
