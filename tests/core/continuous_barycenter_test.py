@@ -377,4 +377,7 @@ class TestBarycenter:
 
 
 class TestGWBarycenter:
-  pass
+
+  @pytest.mark.parametrize("y_as_costs", [False, True])
+  def test_fgw_costs(self, y_as_costs: bool):
+    pass
