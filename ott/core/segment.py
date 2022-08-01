@@ -19,9 +19,9 @@ from jax import numpy as jnp
 
 def segment_point_cloud(
     x: jnp.ndarray,
-    num_segments: int,
-    max_measure_size: int,
     a: Optional[jnp.ndarray] = None,
+    num_segments: Optional[int] = None,
+    max_measure_size: Optional[int] = None,
     segment_ids: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
@@ -44,10 +44,14 @@ def segment_point_cloud(
   Args:
     x: Array of input points, of shape ``[num_x, ndim]``.
       Multiple segments are held in this single array.
-    num_segments: Number of segments. Required for jitting.
-    max_measure_size: Overall size of padding. Required for jitting.
     a: Array of shape ``[num_x,]`` containing the weights (within each measure)
       of all the points.
+    num_segments: Number of segments. Required for jitting.
+      If `None` and using the 2nd interface, it will be computed as
+      ``len(num_per_segment)``.
+    max_measure_size: Overall size of padding. Required for jitting.
+      If `None` and using the 2nd interface, it will be computed as
+      ``max(num_per_segment)``.
     segment_ids: **1st interface** The segment ids for which each row of ``x``
       belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
     indices_are_sorted: **1st interface** Whether ``segment_ids`` are sorted.
@@ -79,7 +83,12 @@ def segment_point_cloud(
     )
   else:
     assert num_per_segment is not None
-    assert num_segments == len(num_per_segment)
+    if max_measure_size is None:
+      max_measure_size = max(num_per_segment)
+    if num_segments is None:
+      num_segments = len(num_per_segment)
+    else:
+      assert num_segments == len(num_per_segment)
     # conversion to facilitate computation of default weight below.
     num_per_segment = jnp.array(num_per_segment)
     segment_ids = jnp.arange(num_segments).repeat(
@@ -145,6 +154,7 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
+  # TODO(michalk8): fixme
   segmented_x, segmented_weights_x = segment_point_cloud(
       x,
       num_segments,

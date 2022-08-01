@@ -30,9 +30,6 @@ __all__ = ["BarycenterProblem", "GWBarycenterProblem", "barycentric_projection"]
 class BarycenterProblem:
   """Wasserstein barycenter problem :cite:`cuturi:14`.
 
-  Assumes ``y`` and ``b`` are already pre-segmented using
-  :func:`~ott.core.segment.segment_point_cloud`.
-
   Args:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
       measures. Alternatively, already segmented array of shape

@@ -13,6 +13,7 @@
 
 # Lint as: python3
 """Tests for Continuous barycenters."""
+import functools
 
 import jax
 import jax.numpy as jnp
@@ -102,6 +103,57 @@ class TestBarycenter:
     # Check shape is as expected
     np.testing.assert_array_equal(out.x.shape, (bar_size, self.DIM))
 
+    # Check convergence by looking at cost evolution.
+    c = out.costs[out.costs > -1]
+    assert jnp.isclose(c[-2], c[-1], rtol=threshold)
+
+    # Check barycenter has all points roughly in [1,2]^4.
+    # (this is because sampled points were equally set in either [0,1]^4
+    # or [2,3]^4)
+    assert jnp.all(out.x.ravel() < 2.3)
+    assert jnp.all(out.x.ravel() > .7)
+
+  @pytest.mark.parametrize("segment_before", [False, True])
+  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
+
+    @functools.partial(jax.jit, static_argnums=(2, 3))
+    def barycenter(
+        y: jnp.ndarray, b: jnp.ndarray, segment_before: bool,
+        num_per_segment: int
+    ) -> continuous_barycenter.BarycenterState:
+      if segment_before:
+        y, b = segment.segment_point_cloud(
+            x=y, a=b, num_per_segment=num_per_segment
+        )
+        bar_prob = bar_problems.BarycenterProblem(y, b, epsilon=1e-1)
+      else:
+        bar_prob = bar_problems.BarycenterProblem(
+            y, b, epsilon=1e-1, num_per_segment=num_per_segment
+        )
+      solver = continuous_barycenter.WassersteinBarycenter(threshold=threshold)
+      return solver(bar_prob)
+
+    rngs = jax.random.split(rng, 20)
+    # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
+    # Second around [2,3]^4.
+    y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
+    y2 = jax.random.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
+    # Merge them
+    y = jnp.concatenate((y1, y2))
+
+    # Define segments
+    num_per_segment = (33, 29, 24, 27, 27, 31, 30, 25)
+    # Set weights for each segment that sum to 1.
+    b = []
+    for rng, n in zip(rngs, num_per_segment):
+      c = jax.random.uniform(rng, (n,))
+      b.append(c / jnp.sum(c))
+    b = jnp.concatenate(b, axis=0)
+
+    threshold = 1e-3
+    out = barycenter(
+        y, b, segment_before=segment_before, num_per_segment=num_per_segment
+    )
     # Check convergence by looking at cost evolution.
     c = out.costs[out.costs > -1]
     assert jnp.isclose(c[-2], c[-1], rtol=threshold)
@@ -322,3 +374,7 @@ class TestBarycenter:
         jax.vmap(is_positive_semidefinite, in_axes=0, out_axes=0)(covs_bary),
         True
     )
+
+
+class TestGWBarycenter:
+  pass
