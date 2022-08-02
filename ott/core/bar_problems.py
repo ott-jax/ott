@@ -280,8 +280,8 @@ class GWBarycenterProblem(BarycenterProblem):
     weights = self.weights[:, None, None]
 
     barycenter = jnp.sum(weights * project(y, transports, fn), axis=0)
-    # TODO(michalk8): more efficient impl.
-    barycenter /= jnp.outer(a, a)
+    inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
+    barycenter = (barycenter * inv_a[None, :]) * inv_a[:, None]
 
     if self._loss_name == 'kl':
       barycenter = jnp.exp(barycenter)
@@ -309,8 +309,8 @@ class GWBarycenterProblem(BarycenterProblem):
       )
 
     weights = self.weights[:, None, None]
-    divide_a = jnp.where(a > 0, 1.0 / a, 1.0)
-    transports = transports * divide_a[None, :, None]
+    inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
+    transports = transports * inv_a[None, :, None]
 
     if self._loss_name == "sqeucl":
       cost = costs.Euclidean()
