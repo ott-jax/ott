@@ -128,12 +128,10 @@ def segment_point_cloud(
 def _segment_interface(
     x: jnp.ndarray,
     y: jnp.ndarray,
-    num_segments: int,
-    max_measure_size: int,
-    eval_fn: Callable[[
-        jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp
-        .ndarray
-    ], jnp.ndarray],
+    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
+                      jnp.ndarray],
+    num_segments: Optional[int] = None,
+    max_measure_size: Optional[int] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
@@ -156,33 +154,32 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  # TODO(michalk8): fixme
   segmented_x, segmented_weights_x = segment_point_cloud(
       x,
-      num_segments,
-      max_measure_size,
-      weights_x,
+      a=weights_x,
+      num_segments=num_segments,
+      max_measure_size=max_measure_size,
       segment_ids=segment_ids_x,
       indices_are_sorted=indices_are_sorted,
       num_per_segment=num_per_segment_x,
       padding_vector=padding_vector
   )
-  mask_x = segmented_weights_x != 0.0
 
   segmented_y, segmented_weights_y = segment_point_cloud(
       y,
-      num_segments,
-      max_measure_size,
-      weights_y,
+      a=weights_y,
+      num_segments=num_segments,
+      max_measure_size=max_measure_size,
       segment_ids=segment_ids_y,
       indices_are_sorted=indices_are_sorted,
       num_per_segment=num_per_segment_y,
       padding_vector=padding_vector
   )
-  mask_y = segmented_weights_y != 0.0
 
-  v_eval = jax.vmap(eval_fn, in_axes=[0] * 6)
+  v_eval = jax.vmap(eval_fn, in_axes=[0] * 4)
   return v_eval(
-      segmented_x, segmented_y, segmented_weights_x, segmented_weights_y,
-      mask_x, mask_y
+      segmented_x,
+      segmented_y,
+      segmented_weights_x,
+      segmented_weights_y,
   )

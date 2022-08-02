@@ -255,14 +255,15 @@ class TestSinkhornDivergence:
 
     sink_div = jax.jit(
         sinkhorn_divergence.segment_sinkhorn_divergence,
-        static_argnames=['num_segments', 'max_measure_size'],
+        static_argnames=['num_per_segment_x', 'num_per_segment_y'],
     )
 
     segmented_divergences = sink_div(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
-        num_segments=2,
-        max_measure_size=15,
+        # these 2 arguments are not necessary for jitting
+        # num_segments=2,
+        # max_measure_size=15,
         num_per_segment_x=(10, 12),
         num_per_segment_y=(11, 13),
         epsilon=0.01

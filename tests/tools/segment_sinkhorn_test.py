@@ -79,8 +79,8 @@ class TestSegmentSinkhorn:
     segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
         x_copied,
         y_copied,
-        2,
-        self._max_measure_size,
+        num_segments=2,
+        max_measure_size=self._max_measure_size,
         segment_ids_x=segment_ids_x,
         segment_ids_y=segment_ids_y,
         indices_are_sorted=False,
