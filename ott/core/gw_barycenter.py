@@ -125,7 +125,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     Args:
       problem: The barycenter problem.
       bar_size: Size of the barycenter.
-      bar_init: Initial barycenter value. Can be one of following:
+      bar_init: Initial barycenter value. Can be one of the following:
 
         - ``None`` - randomly initialize the barycenter.
         - :class:`jax.numpy.ndarray` - barycenter cost matrix of shape
@@ -276,7 +276,9 @@ def init_transports(
   key1, key2 = jax.random.split(key, 2)
   x = jax.random.normal(key1, shape=(len(a), 2))
   y = jax.random.normal(key2, shape=(len(b), 2))
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+  geom = pointcloud.PointCloud(
+      x, y, epsilon=epsilon, src_mask=a > 0, tgt_mask=b > 0
+  )
   problem = linear_problems.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 

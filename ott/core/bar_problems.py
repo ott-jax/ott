@@ -138,7 +138,7 @@ class BarycenterProblem:
 
   @property
   def ndim(self) -> int:
-    """Number of dimensions of the data."""
+    """Number of dimensions of ``y``."""
     return self._y.shape[-1]
 
   @property
@@ -254,7 +254,7 @@ class GWBarycenterProblem(BarycenterProblem):
         fn: Optional[quad_problems.Loss],
     ) -> jnp.ndarray:
       geom = self._create_y_geometry(y, mask=b > 0.)
-      fn, lin = (None, True) if fn is None else (fn, fn.is_linear)
+      fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
       tmp = geom.apply_cost(
           transport.T,
@@ -326,6 +326,10 @@ class GWBarycenterProblem(BarycenterProblem):
         **self._kwargs
     )
     return y_fused
+
+  @property
+  def ndim(self) -> Optional[int]:
+    return None if self._y_as_costs else self._y.shape[-1]
 
   @property
   def ndim_fused(self) -> Optional[int]:

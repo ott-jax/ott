@@ -14,14 +14,15 @@
 # Lint as: python3
 """Tests for Continuous barycenters."""
 import functools
+from typing import Any, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import bar_problems, continuous_barycenter, segment
-from ott.geometry import costs
+from ott.core import bar_problems, continuous_barycenter, gw_barycenter, segment
+from ott.geometry import costs, pointcloud
 from ott.tools.gaussian_mixture import gaussian_mixture
 
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
@@ -377,6 +378,78 @@ class TestBarycenter:
 
 
 class TestGWBarycenter:
+  NDIM = 3
+  NDIM_F = 4
+
+  @staticmethod
+  def random_pc(
+      n: int,
+      d: int,
+      rng: jnp.ndarray,
+      m: Optional[int] = None,
+      **kwargs: Any
+  ) -> pointcloud.PointCloud:
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (n, d))
+    y = x if m is None else jax.random.normal(key2, (m, d))
+    return pointcloud.PointCloud(x, y, batch_size=None, **kwargs)
+
+  @staticmethod
+  def pad_cost_matrices(
+      costs: Sequence[jnp.ndarray],
+      shape: Optional[Tuple[int, int]] = None
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    if shape is None:
+      shape = jnp.asarray([arr.shape for arr in costs]).max()
+      shape = (shape, shape)
+    else:
+      assert shape[0] == shape[1], shape
+
+    cs, weights = [], []
+    for cost in costs:
+      r, c = cost.shape
+      cs.append(jnp.zeros(shape).at[:r, :c].set(cost))
+      w = jnp.ones(r) / r
+      weights.append(jnp.concatenate([w, jnp.zeros(shape[0] - r)]))
+    return jnp.stack(cs), jnp.stack(weights)
+
+  @pytest.mark.parametrize(
+      "gw_loss,bar_size,epsilon", [("sqeucl", 17, None), ("kl", 22, 1e-2)]
+  )
+  def test_gw_barycenter(
+      self, rng: jnp.ndarray, gw_loss: str, bar_size: int,
+      epsilon: Optional[float]
+  ):
+    tol = 1e-2 if gw_loss == 'kl' else 1e-3
+    num_per_segment = (13, 15, 21)
+    rngs = jax.random.split(rng, len(num_per_segment))
+    pcs = [
+        self.random_pc(n, d=self.NDIM, rng=rng, epsilon=epsilon)
+        for n, rng in zip(num_per_segment, rngs)
+    ]
+    costs = [pc._compute_cost_matrix() for pc, n in zip(pcs, num_per_segment)]
+    costs, cbs = self.pad_cost_matrices(costs)
+    ys = jnp.concatenate([pc.x for pc in pcs])
+    bs = jnp.concatenate([jnp.ones(n) / n for n in num_per_segment])
+    kwargs = {
+        "gw_loss": gw_loss,
+        "num_per_segment": num_per_segment,
+        "epsilon": epsilon
+    }
+
+    problem_pc = bar_problems.GWBarycenterProblem(y=ys, b=bs, **kwargs)
+    problem_cost = bar_problems.GWBarycenterProblem(
+        costs=costs,
+        b=cbs,
+        **kwargs,
+    )
+    solver = gw_barycenter.GromovWassersteinBarycenter(jit=True)
+
+    out_pc = solver(problem_pc, bar_size=bar_size)
+    out_cost = solver(problem_cost, bar_size=bar_size)
+
+    np.testing.assert_allclose(out_pc.cost, out_cost.cost, rtol=tol, atol=tol)
+    np.testing.assert_allclose(out_pc.costs, out_cost.costs, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("y_as_costs", [False, True])
   def test_fgw_costs(self, y_as_costs: bool):
