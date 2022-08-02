@@ -13,7 +13,6 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 import functools
-from functools import partial
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
@@ -67,7 +66,7 @@ class BarycenterProblem:
       b: Optional[jnp.ndarray] = None,
       weights: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
-      epsilon: Optional[jnp.ndarray] = None,
+      epsilon: Optional[float] = None,
       debiased: bool = False,
       **kwargs: Any,
   ):
@@ -247,25 +246,16 @@ class GWBarycenterProblem(BarycenterProblem):
       Update cost matrix of shape ``[bar_size, bar_size]``.
     """
 
-    @partial(jax.vmap, in_axes=[0, 0, None])
+    @functools.partial(jax.vmap, in_axes=[0, 0, 0, None])
     def project(
         y: jnp.ndarray,
+        b: jnp.ndarray,
         transport: jnp.ndarray,
         fn: Optional[quad_problems.Loss],
     ) -> jnp.ndarray:
-      if self._y_as_costs:
-        assert y.shape[0] == y.shape[1], y.shape
-        geom = geometry.Geometry(
-            y, epsilon=self.epsilon, scale_cost=self.scale_cost
-        )
-      else:
-        geom = pointcloud.PointCloud(
-            y,
-            cost_fn=self.cost_fn,
-            epsilon=self.epsilon,
-            scale_cost=self.scale_cost
-        )
+      geom = self._create_y_geometry(y, mask=b > 0.)
       fn, lin = (None, True) if fn is None else (fn, fn.is_linear)
+
       tmp = geom.apply_cost(
           transport.T,
           axis=0,
@@ -275,11 +265,10 @@ class GWBarycenterProblem(BarycenterProblem):
       return transport @ tmp
 
     fn = None if self._loss_name == 'sqeucl' else self.gw_loss.h2
-    # TODO(michalk8): handle mask?
-    y, _ = self.segmented_y_b
+    y, b = self.segmented_y_b
     weights = self.weights[:, None, None]
 
-    barycenter = jnp.sum(weights * project(y, transports, fn), axis=0)
+    barycenter = jnp.sum(weights * project(y, b, transports, fn), axis=0)
     inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
     barycenter = (barycenter * inv_a[None, :]) * inv_a[:, None]
 
@@ -308,6 +297,7 @@ class GWBarycenterProblem(BarycenterProblem):
           "Feature updates are available only in the fused case."
       )
 
+    # TODO(michalk8): handle mask?
     weights = self.weights[:, None, None]
     inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
     transports = transports * inv_a[None, :, None]
@@ -349,6 +339,89 @@ class GWBarycenterProblem(BarycenterProblem):
     if loss == 'kl':
       return quad_problems.make_kl_loss()
     raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
+
+  def _create_bary_geometry(
+      self,
+      cost_matrix: jnp.ndarray,
+      mask: Optional[jnp.ndarray] = None
+  ) -> geometry.Geometry:
+    return geometry.Geometry(
+        cost_matrix=cost_matrix,
+        src_mask=mask,
+        tgt_mask=mask,
+        epsilon=self.epsilon,
+        scale_cost=self.scale_cost
+    )
+
+  def _create_y_geometry(
+      self,
+      y: jnp.ndarray,
+      mask: Optional[jnp.ndarray] = None
+  ) -> geometry.Geometry:
+    if self._y_as_costs:
+      assert y.shape[0] == y.shape[1], y.shape
+      return geometry.Geometry(
+          y,
+          epsilon=self.epsilon,
+          scale_cost=self.scale_cost,
+          src_mask=mask,
+          tgt_mask=mask
+      )
+    return pointcloud.PointCloud(
+        y,
+        epsilon=self.epsilon,
+        scale_cost=self.scale_cost,
+        cost_fn=self.cost_fn,
+        src_mask=mask,
+        tgt_mask=mask
+    )
+
+  def _create_fused_geometry(
+      self,
+      x: jnp.ndarray,
+      y: jnp.ndarray,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None
+  ) -> pointcloud.PointCloud:
+    return pointcloud.PointCloud(
+        x,
+        y,
+        cost_fn=self.cost_fn,
+        epsilon=self.epsilon,
+        scale_cost=self.scale_cost,
+        src_mask=src_mask,
+        tgt_mask=tgt_mask
+    )
+
+  def _create_problem(
+      self,
+      state: 'GWBarycenterState',  # noqa: F821
+      y: jnp.ndarray,
+      b: jnp.ndarray,
+      f: Optional[jnp.ndarray] = None
+  ) -> quad_problems.QuadraticProblem:
+    bary_mask = state.a > 0.
+    y_mask = b > 0.
+
+    geom_xx = self._create_bary_geometry(state.cost, mask=bary_mask)
+    geom_yy = self._create_y_geometry(y, mask=y_mask)
+    if self.is_fused:
+      assert f is not None
+      assert state.x.shape[1] == f.shape[1]
+      geom_xy = self._create_fused_geometry(
+          state.x, f, src_mask=bary_mask, tgt_mask=y_mask
+      )
+    else:
+      geom_xy = None
+
+    return quad_problems.QuadraticProblem(
+        geom_xx=geom_xx,
+        geom_yy=geom_yy,
+        geom_xy=geom_xy,
+        a=state.a,
+        b=b,
+        fused_penalty=self.fused_penalty,
+    )
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     (y, b, weights), aux = super().tree_flatten()

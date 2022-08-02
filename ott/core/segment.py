@@ -75,6 +75,8 @@ def segment_point_cloud(
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
   if use_segment_ids:
+    assert num_segments is not None, "Please specify `num_segments`."
+    assert max_measure_size is not None, "Please specify `max_measure_size`."
     num_per_segment = jax.ops.segment_sum(
         jnp.ones_like(segment_ids),
         segment_ids,
@@ -82,7 +84,7 @@ def segment_point_cloud(
         indices_are_sorted=indices_are_sorted
     )
   else:
-    assert num_per_segment is not None
+    assert num_per_segment is not None, "Please specify `num_per_segment`."
     if max_measure_size is None:
       max_measure_size = max(num_per_segment)
     if num_segments is None:

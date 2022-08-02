@@ -9,10 +9,9 @@ from ott.core import (
     fixed_point_loop,
     gromov_wasserstein,
     linear_problems,
-    quad_problems,
     was_solver,
 )
-from ott.geometry import geometry, pointcloud
+from ott.geometry import pointcloud
 
 __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
@@ -197,53 +196,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
         f: Optional[jnp.ndarray]
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
-      eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
-      bar_mask = state.a > 0.0
-      y_mask = b > 0.0
-
-      geom_xx = geometry.Geometry(
-          state.cost,
-          src_mask=bar_mask,
-          tgt_mask=bar_mask,
-          epsilon=eps,
-          scale_cost=scale
-      )
-      if problem._y_as_costs:
-        geom_yy = geometry.Geometry(
-            y, src_mask=y_mask, tgt_mask=y_mask, epsilon=eps, scale_cost=scale
-        )
-      else:
-        geom_yy = pointcloud.PointCloud(
-            y,
-            src_mask=y_mask,
-            tgt_mask=y_mask,
-            cost_fn=cost_fn,
-            epsilon=eps,
-            scale_cost=scale
-        )
-      if problem.is_fused:
-        geom_xy = pointcloud.PointCloud(
-            x=state.x,
-            y=f,
-            src_mask=bar_mask,
-            tgt_mask=y_mask,
-            cost_fn=cost_fn,
-            epsilon=eps,
-            scale_cost=scale
-        )
-      else:
-        geom_xy = None
-
-      quad_problem = quad_problems.QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=geom_xy,
-          a=state.a,
-          b=b,
-          fused_penalty=problem.fused_penalty,
-      )
+      quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
-
       return (
           out.reg_gw_cost, out.convergence, out.matrix,
           out.errors if store_errors else None
