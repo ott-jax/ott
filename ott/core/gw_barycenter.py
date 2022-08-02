@@ -266,12 +266,12 @@ def init_transports(
   Args:
     solver: Linear OT solver.
     key: Random key.
-    a: Source marginals (e.g., for barycenter) of shape ``[k,]``.
-    b: Target marginals of shape ``[N,]``.
+    a: Source marginals (e.g., for barycenter) of shape ``[bar_size,]``.
+    b: Target marginals of shape ``[max_measure_size,]``.
     epsilon: Entropy regularization.
 
   Returns:
-    Transport map of shape ``[k, N]``.
+    Transport map of shape ``[bar_size, max_measure_size]``.
   """
   key1, key2 = jax.random.split(key, 2)
   x = jax.random.normal(key1, shape=(len(a), 2))

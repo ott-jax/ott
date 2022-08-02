@@ -86,8 +86,8 @@ class BarycenterProblem:
 
     Additional segment may be added when the problem is debiased.
 
-    - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
-    - Segmented weights of shape ``[num_measures, max_measure_size]``.
+      - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
+      - Segmented weights of shape ``[num_measures, max_measure_size]``.
     """
     if self._is_segmented:
       y, b = self._y, self._b
@@ -226,7 +226,7 @@ class GWBarycenterProblem(BarycenterProblem):
 
     self._y_fused = y_fused
     self.fused_penalty = fused_penalty
-    self.gw_loss, self._loss_name = self._create_loss(gw_loss), gw_loss
+    self._loss_name = gw_loss
     self.scale_cost = scale_cost
     self._y_as_costs = costs is not None
 
@@ -272,6 +272,8 @@ class GWBarycenterProblem(BarycenterProblem):
     inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
     barycenter = (barycenter * inv_a[None, :]) * inv_a[:, None]
 
+    # TODO(michalk8): in future, use `isinstanceof(self.gw_loss, ...)`
+    # once refactoring has been done
     if self._loss_name == 'kl':
       barycenter = jnp.exp(barycenter)
     return barycenter
@@ -291,13 +293,12 @@ class GWBarycenterProblem(BarycenterProblem):
     Returns:
       Updated features of shape ``[bar_size, ndim_fused]``.
     """
-    y_fused = self.segmented_y_fused
-    if y_fused is None:
+    if not self.is_fused:
       raise RuntimeError(
-          "Feature updates are available only in the fused case."
+          "Updating features is available only in the fused case."
       )
 
-    # TODO(michalk8): handle mask?
+    y_fused = self.segmented_y_fused
     weights = self.weights[:, None, None]
     inv_a = jnp.where(a > 0, 1.0 / a, 1.0)
     transports = transports * inv_a[None, :, None]
@@ -308,41 +309,6 @@ class GWBarycenterProblem(BarycenterProblem):
           weights * barycentric_projection(transports, y_fused, cost), axis=0
       )
     raise NotImplementedError(self._loss_name)
-
-  @property
-  def is_fused(self) -> bool:
-    """Whether the problem is fused."""
-    return self._y_fused is not None
-
-  @property
-  def segmented_y_fused(self) -> Optional[jnp.ndarray]:
-    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` \
-    used in the fused case."""
-    if self._y_fused is None or self._y_fused.ndim == 3:
-      return self._y_fused
-    y_fused, _ = segment.segment_point_cloud(
-        x=self._y_fused,
-        padding_vector=self.cost_fn.padder(self.ndim_fused),
-        **self._kwargs
-    )
-    return y_fused
-
-  @property
-  def ndim(self) -> Optional[int]:
-    return None if self._y_as_costs else self._y.shape[-1]
-
-  @property
-  def ndim_fused(self) -> Optional[int]:
-    """Number of dimensions of the fused term."""
-    return None if self._y_fused is None else self._y_fused.shape[-1]
-
-  @staticmethod
-  def _create_loss(loss: Literal['sqeucl', 'kl']) -> quad_problems.GWLoss:
-    if loss == 'sqeucl':
-      return quad_problems.make_square_loss()
-    if loss == 'kl':
-      return quad_problems.make_kl_loss()
-    raise NotImplementedError(f"Loss `{loss}` is not yet implemented.")
 
   def _create_bary_geometry(
       self,
@@ -404,6 +370,7 @@ class GWBarycenterProblem(BarycenterProblem):
       b: jnp.ndarray,
       f: Optional[jnp.ndarray] = None
   ) -> quad_problems.QuadraticProblem:
+    # TODO(michalk8): in the future, mask in the problem for convenience?
     bary_mask = state.a > 0.
     y_mask = b > 0.
 
@@ -425,6 +392,48 @@ class GWBarycenterProblem(BarycenterProblem):
         a=state.a,
         b=b,
         fused_penalty=self.fused_penalty,
+    )
+
+  @property
+  def is_fused(self) -> bool:
+    """Whether the problem is fused."""
+    return self._y_fused is not None
+
+  @property
+  def segmented_y_fused(self) -> Optional[jnp.ndarray]:
+    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` \
+    used in the fused case."""
+    if not self.is_fused or self._y_fused.ndim == 3:
+      return self._y_fused
+    y_fused, _ = segment.segment_point_cloud(
+        x=self._y_fused,
+        padding_vector=self.cost_fn.padder(self.ndim_fused),
+        **self._kwargs
+    )
+    return y_fused
+
+  @property
+  def ndim(self) -> Optional[int]:
+    return None if self._y_as_costs else self._y.shape[-1]
+
+  @property
+  def ndim_fused(self) -> Optional[int]:
+    """Number of dimensions of the fused term."""
+    return self._y_fused.shape[-1] if self.is_fused else None
+
+  @property
+  def gw_loss(self) -> quad_problems.GWLoss:
+    """Gromov-Wasserstein loss."""
+    # TODO(michalk8): custom losses would require inverting some fns;
+    # `https://jax.readthedocs.io/en/latest/notebooks/ some fns;
+    # Writing_custom_interpreters_in_Jax.html#your-first-interpreter-invert`
+    # might be useful
+    if self._loss_name == 'sqeucl':
+      return quad_problems.make_square_loss()
+    if self._loss_name == 'kl':
+      return quad_problems.make_kl_loss()
+    raise NotImplementedError(
+        f"Loss `{self._loss_name}` is not yet implemented."
     )
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
