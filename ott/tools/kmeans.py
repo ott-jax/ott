@@ -86,30 +86,24 @@ def _kmeans_plus_plus(
     key, next_key = jax.random.split(key, 2)
     ix = jax.random.choice(key, jnp.arange(10), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
-    dists = geom.subset(None, ix, batch_size=None).cost_matrix.ravel()
+    dists = geom.subset(ix, None, batch_size=None).cost_matrix[0]
     return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
-
-  def cond_fn(
-      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
-      state: KPPState
-  ) -> bool:
-    del iteration, const, state
-    return True
 
   def body_fn(
       iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
-    # TODO(michalk8): verify impl.
     key, next_key = jax.random.split(state.key, 2)
     geom, ixs = const
     # TODO(michalk8): check if needs to be normalized
     probs = state.centroid_dists  # / state.centroid_dists.sum()
     ixs = jax.random.choice(key, ixs, shape=(n_local_trials,), p=probs)
-    candidate_dists = geom.subset(ixs, None, batch_size=None).cost_matrix
+    geom = geom.subset(ixs, None, batch_size=None)
 
+    candidate_dists = jnp.minimum(geom.cost_matrix, state.centroid_dists)
     best_ix = jnp.argmin(candidate_dists.sum(1))
+
     centroids = state.centroids.at[iteration + 1].set(geom.x[best_ix])
     centroid_dists = candidate_dists[best_ix]
 
@@ -123,7 +117,7 @@ def _kmeans_plus_plus(
   state = init_fn(geom, key)
   constants = (geom, jnp.arange(geom.shape[0]))
   state = fixed_point_loop.fixpoint_iter(
-      cond_fn,
+      lambda *_, **__: True,
       body_fn,
       min_iterations=k - 1,
       max_iterations=k - 1,
