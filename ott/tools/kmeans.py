@@ -322,7 +322,9 @@ def _kmeans(
       iteration: int, const: KMeansConstants, state: KMeansState2
   ) -> bool:
     d = state.distortions
-    return d[iteration - 1] - d[iteration] > const.tol
+    return jnp.logical_or(
+        iteration < 1, d[iteration - 1] - d[iteration] > const.tol
+    )
 
   def body_fn(
       iteration: int, const: KMeansConstants, state: KMeansState2,
