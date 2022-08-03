@@ -17,7 +17,7 @@ Sabrina J. Mielke
 in https://colab.research.google.com/drive/1AwS4haUx6swF82w3nXr6QKhajdF8aSvA#scrollTo=LJyoi46rIJr7
 """
 
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import jax
 import jax.numpy as jnp
@@ -276,6 +276,18 @@ class KMeansConstants(NamedTuple):
   tol: float
 
 
+class KMeansState2(NamedTuple):
+  """The state for K-means algorithm"""
+
+  centroids: jnp.ndarray
+  assignment: jnp.ndarray
+  distortions: jnp.ndarray
+
+  def set(self, **kwargs: Any) -> 'KMeansState2':
+    """Return a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
+
+
 def _kmeans(
     key: jnp.ndarray,
     geom: pointcloud.PointCloud,
@@ -286,9 +298,9 @@ def _kmeans(
     init_random: bool = True,
     min_iter: int = 20,
     max_iter: int = 20,
-) -> KMeansSolution:
+) -> KMeansState2:
 
-  def init_fn(geom: pointcloud.PointCloud) -> KMeansState:
+  def init_fn(geom: pointcloud.PointCloud) -> KMeansState2:
     if init_random:
       centroids = _random_init(geom, k=k, key=key)
     else:
@@ -297,28 +309,28 @@ def _kmeans(
     cost_matrix = geom.cost_matrix  # (n, k)
     assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
     # weights are normalized
-    # distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
+    distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
+    distortions = jnp.full((max_iter,), -1.).at[0].set(distortion)
 
-    # TODO(michalk8): remove iterations
-    return KMeansState(
+    return KMeansState2(
         centroids=centroids,
         assignment=assignment,
-        distortion=jnp.isinf,
-        prev_distortion=jnp.inf,
-        iterations=0
+        distortions=distortions,
     )
 
   def cond_fn(
-      iteration: int, const: KMeansConstants, state: KMeansState
+      iteration: int, const: KMeansConstants, state: KMeansState2
   ) -> bool:
-    return True
+    d = state.distortions
+    return d[iteration - 1] - d[iteration] > const.tol
 
   def body_fn(
-      iteration: int, const: KMeansState, state: KMeansState,
+      iteration: int, const: KMeansConstants, state: KMeansState2,
       compute_error: bool
-  ) -> KMeansState:
+  ) -> KMeansState2:
     del compute_error
-    return state
+    d = state.distortions.at[iteration].set(-2)
+    return state.set(distortions=d)
 
   state = init_fn(geom)
   constants = KMeansConstants(geom=geom, weights=weights, k=k, tol=tol)
@@ -358,6 +370,8 @@ def kmeans_new(
   results = jax.vmap(
       _kmeans, in_axes=[0] + [None] * 7
   )(keys, geom, k, tol, weights, init_random, min_iter, max_iter)
+
+  return results
 
   i = jnp.argmin(results.distortion)
   return KMeansSolution(
