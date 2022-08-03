@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Any, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -27,10 +27,6 @@ class KPPState(NamedTuple):
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
-  def set(self, **kwargs: Any) -> 'KMeansState':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
-
 
 class KMeansConstants(NamedTuple):
   geom: pointcloud.PointCloud
@@ -43,10 +39,6 @@ class KMeansState(NamedTuple):
   centroids: jnp.ndarray
   assignment: jnp.ndarray
   distortions: jnp.ndarray
-
-  def set(self, **kwargs: Any) -> 'KMeansState':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
 
 
 class KMeansOutput(NamedTuple):
@@ -107,7 +99,7 @@ def _kmeans_plus_plus(
     centroids = state.centroids.at[iteration + 1].set(geom.x[best_ix])
     centroid_dists = candidate_dists[best_ix]
 
-    return state.set(
+    return KPPState(
         key=next_key, centroids=centroids, centroid_dists=centroid_dists
     )
 
@@ -195,7 +187,7 @@ def _kmeans(
     distortion = jnp.mean(cost_matrix[jnp.arange(len(assignment)), assignment])
     distortions = state.distortions.at[iteration + 1].set(distortion)
 
-    return state.set(
+    return KMeansState(
         centroids=centroids, assignment=assignment, distortions=distortions
     )
 
