@@ -288,6 +288,24 @@ class KMeansState2(NamedTuple):
     return self._replace(**kwargs)
 
 
+class KMeansOutput2(NamedTuple):
+  centroids: jnp.ndarray
+  assignment: jnp.ndarray
+  distortion: float
+  converged: bool
+
+  @classmethod
+  def from_state(cls, state: KMeansState2, *, tol: float) -> "KMeansOutput2":
+    err = state.distortions
+    distortion = jnp.nanmin(jnp.where(err == -1, jnp.nan, err))
+    return cls(
+        centroids=state.centroids,
+        assignment=state.assignment,
+        distortion=distortion,
+        converged=jnp.sum(err == -1) > 0
+    )
+
+
 def _kmeans(
     key: jnp.ndarray,
     geom: pointcloud.PointCloud,
@@ -298,7 +316,7 @@ def _kmeans(
     init_random: bool = True,
     min_iter: int = 20,
     max_iter: int = 20,
-) -> KMeansState2:
+) -> KMeansOutput2:
 
   def update_centroids(
       consts: KMeansConstants, state: KMeansState2
@@ -368,7 +386,7 @@ def _kmeans(
       constants=constants,
       state=state
   )
-  return state
+  return KMeansOutput2.from_state(state, tol=tol)
 
 
 def kmeans_new(
@@ -384,7 +402,8 @@ def kmeans_new(
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansSolution:
-  # TODO(michalk8): center PC?
+  # TODO(michalk8): handle cosine distance?
+  # TODO(michalk8): center PC as in sklearn?
   keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
 
   # TODO(michalk8): consider normalizing
@@ -392,17 +411,9 @@ def kmeans_new(
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  results = jax.vmap(
+  out = jax.vmap(
       _kmeans, in_axes=[0] + [None] * 7
   )(keys, geom, k, tol, weights, init_random, min_iter, max_iter)
 
-  return results
-
-  i = jnp.argmin(results.distortion)
-  return KMeansSolution(
-      centroids=results.centroids[i],
-      assignment=results.assignment[i],
-      distortion=results.distortion[i],
-      key=keys[i],
-      iterations=results.iterations[i],
-  )
+  best_ix = jnp.argmin(out.distortion)
+  return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)
