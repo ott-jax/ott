@@ -131,6 +131,11 @@ class PointCloud(geometry.Geometry):
       is computed on-the-fly."""
     return self.batch_size is not None
 
+  # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
+  @property
+  def cost_rank(self) -> int:
+    return self.x.shape[1]
+
   @property
   def inv_scale_cost(self) -> float:
     if isinstance(self._scale_cost, (int, float)):

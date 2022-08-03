@@ -100,7 +100,7 @@ class Geometry:
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
   @property
-  def cost_rank(self) -> None:
+  def cost_rank(self) -> Optional[int]:
     """Output rank of cost matrix, if any was provided."""
     return None
 
