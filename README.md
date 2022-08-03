@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/logoOTT.png" width="10%" alt="logo">
+<img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/logoOTT.png" width="10%" alt="logo">
 
 # Optimal Transport Tools (OTT).
 

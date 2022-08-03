@@ -201,7 +201,7 @@ class TestBarycenter:
     b1 = b2 = jnp.ones(num_components) / num_components
 
     y = jnp.concatenate((y1, y2))
-    jnp.concatenate((b1, b2))
+    b = jnp.concatenate((b1, b2))
 
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
         rng, n_components=bar_size, n_dimensions=dimension
@@ -213,7 +213,8 @@ class TestBarycenter:
     x_init = means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
     seg_y, seg_b = segment.segment_point_cloud(
-        y,
+        x=y,
+        a=b,
         num_segments=num_measures,
         max_measure_size=num_components,
         num_per_segment=(num_components, num_components),
@@ -279,6 +280,7 @@ class TestBarycenter:
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
     bar_size = 5  # the size of the barycenter
+    max_measure_size = int(jnp.max(n_components))
 
     # Create an instance of the Bures cost class.
     b_cost = costs.Bures(dimension=dim)
@@ -345,7 +347,7 @@ class TestBarycenter:
         cost_fn=b_cost,
         epsilon=epsilon,
         num_segments=num_measures,
-        max_measure_size=4,
+        max_measure_size=max_measure_size,
         segment_ids=seg_ids,
     )
     assert bar_p.max_measure_size == 4

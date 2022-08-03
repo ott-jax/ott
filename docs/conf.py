@@ -93,8 +93,8 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints']
 # a list of builtin themes.
 
 html_theme = 'sphinx_book_theme'
-html_logo = '_static/logoOTT.png'
-html_favicon = '_static/logoOTT.ico'
+html_logo = '_static/images/logoOTT.png'
+html_favicon = '_static/images/logoOTT.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -110,7 +110,7 @@ nbsphinx_prolog = r"""
     <div class="docutils container">
         <a class="reference external"
            href="https://colab.research.google.com/github/ott-jax/ott/blob/main/{{ docname|e }}">
-        <img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" width="125px">
+        <img alt="Open in Colab" src="../_static/images/colab-badge.svg" width="125px">
         </a>
     </div>
 """

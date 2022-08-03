@@ -261,7 +261,7 @@ class TestSinkhornDivergence:
     segmented_divergences = sink_div(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
-        # these 2 arguments are not necessary for jitting
+        # these 2 arguments are not necessary for jitting:
         # num_segments=2,
         # max_measure_size=15,
         num_per_segment_x=(10, 12),
