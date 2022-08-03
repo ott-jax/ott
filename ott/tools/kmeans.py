@@ -21,6 +21,8 @@ import jax.numpy as jnp
 from ott.core import fixed_point_loop
 from ott.geometry import pointcloud
 
+__all__ = ["kmeans", "KMeansOutput"]
+
 
 class KPPState(NamedTuple):
   key: jnp.ndarray
@@ -208,7 +210,7 @@ def _kmeans(
   return KMeansOutput.from_state(state, tol=tol)
 
 
-def kmeans_new(
+def kmeans(
     # TODO(michalk8): handle LRCGeom
     geom: pointcloud.PointCloud,
     k: int,
