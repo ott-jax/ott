@@ -91,7 +91,7 @@ def find_assignment(points, centroids):
 find_assignment_jit = jit(find_assignment)
 
 
-def assignment_counts(assignment, k):
+def assignment_counts(assignment: jnp.ndarray, k: int) -> jnp.ndarray:
   """Returns the number of points in each cluster based on the current assignment
     If a cluster has no points, we return 1.
     """
@@ -257,8 +257,8 @@ def _post_init(
   geom = geom.subset(None, centroids, batch_size=None)
   cost_matrix = geom.cost_matrix  # (n, k)
   assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
-  # weights are normalized
-  distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
+  # weights are NOT normalized
+  distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)  # ()
 
   return KMeansState(
       centroids=centroids,
@@ -300,17 +300,28 @@ def _kmeans(
     max_iter: int = 20,
 ) -> KMeansState2:
 
+  def update_centroids(
+      consts: KMeansConstants, state: KMeansState2
+  ) -> jnp.ndarray:
+    data = jnp.hstack([consts.geom.x, constants.weights[:, None]])
+    data = jax.ops.segment_sum(
+        data, state.assignment, num_segments=consts.k, unique_indices=True
+    )
+    centroids, weights = data[:, :-1], data[:, -1]
+    return centroids / weights[:, None]
+
   def init_fn(geom: pointcloud.PointCloud) -> KMeansState2:
     if init_random:
-      centroids = _random_init(geom, k=k, key=key)
+      ixs = _random_init(geom, k=k, key=key)
     else:
-      centroids = _kmeans_plus_plus(geom, k=k, key=key)
-    geom = geom.subset(None, centroids, batch_size=None)
+      ixs = _kmeans_plus_plus(geom, k=k, key=key)
+    geom = geom.subset(None, ixs, batch_size=None)
     cost_matrix = geom.cost_matrix  # (n, k)
     assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
-    # weights are normalized
-    distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
-    distortions = jnp.full((max_iter,), -1.).at[0].set(distortion)
+    centroids = geom.x[ixs]
+    # weights are NOT normalized
+    distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)  # ()
+    distortions = jnp.full((max_iter + 1,), -1.).at[0].set(distortion)
 
     return KMeansState2(
         centroids=centroids,
@@ -321,9 +332,10 @@ def _kmeans(
   def cond_fn(
       iteration: int, const: KMeansConstants, state: KMeansState2
   ) -> bool:
-    d = state.distortions
+    # TODO(michalk8): verify
+    err = state.distortions
     return jnp.logical_or(
-        iteration < 1, d[iteration - 1] - d[iteration] > const.tol
+        iteration < 1, err[iteration - 1] - err[iteration] > const.tol
     )
 
   def body_fn(
@@ -331,8 +343,19 @@ def _kmeans(
       compute_error: bool
   ) -> KMeansState2:
     del compute_error
-    d = state.distortions.at[iteration].set(-2)
-    return state.set(distortions=d)
+    centroids = update_centroids(const, state)
+    # TODO(michalk8): correctly initialize
+    cost_matrix = pointcloud.PointCloud(const.geom.x, centroids).cost_matrix
+    assignment = jnp.argmin(cost_matrix, axis=1)
+    # weights are NOT normalized
+    # TODO(michalk8): benchmark which is faster
+    # distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)
+    distortion = jnp.mean(cost_matrix[jnp.arange(len(assignment)), assignment])
+    distortions = state.distortions.at[iteration + 1].set(distortion)
+
+    return state.set(
+        centroids=centroids, assignment=assignment, distortions=distortions
+    )
 
   state = init_fn(geom)
   constants = KMeansConstants(geom=geom, weights=weights, k=k, tol=tol)
@@ -364,9 +387,9 @@ def kmeans_new(
   # TODO(michalk8): center PC?
   keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
 
+  # TODO(michalk8): consider normalizing
   if weights is None:
     weights = jnp.ones(geom.shape[0])
-  weights /= jnp.sum(weights)
   assert weights.shape == (geom.shape[0],)
 
   results = jax.vmap(
