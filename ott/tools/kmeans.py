@@ -48,14 +48,17 @@ class KMeansOutput(NamedTuple):
   converged: bool
 
   @classmethod
-  def from_state(cls, state: KMeansState) -> "KMeansOutput":
+  def from_state(cls, state: KMeansState, *, tol: float) -> "KMeansOutput":
     err = state.distortions
     distortion = jnp.nanmin(jnp.where(err == -1, jnp.nan, err))
     return cls(
         centroids=state.centroids,
         assignment=state.assignment,
         distortion=distortion,
-        converged=jnp.sum(err == -1) > 0
+        # TODO(michal8): explain
+        converged=jnp.logical_or(
+            jnp.sum(err == -1) > 0, (err[-2] - err[-1]) <= tol
+        )
     )
 
 
@@ -202,7 +205,7 @@ def _kmeans(
       constants=constants,
       state=state
   )
-  return KMeansOutput.from_state(state)
+  return KMeansOutput.from_state(state, tol=tol)
 
 
 def kmeans_new(
