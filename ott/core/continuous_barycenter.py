@@ -67,8 +67,8 @@ class BarycenterState(NamedTuple):
               pointcloud.PointCloud(
                   x,
                   y,
-                  src_mask=a != 0.0,
-                  tgt_mask=b != 0.0,
+                  src_mask=a > 0.,
+                  tgt_mask=b > 0.,
                   cost_fn=bar_prob.cost_fn,
                   epsilon=bar_prob.epsilon
               ), a, b
