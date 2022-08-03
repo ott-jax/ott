@@ -238,8 +238,35 @@ def kmeans(key, points, k, iter=20, thresh=1e-5, max_iters=100):
   )
 
 
-def _initialize():
+def _random_init(
+    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+) -> jnp.ndarray:
+  ixs = jnp.arange(geom.shape[0])
+  return jax.random.choice(key, ixs, shape=(k,), replace=False)
+
+
+def _kmeans_plus_plus(
+    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+) -> jnp.ndarray:
   pass
+
+
+def _post_init(
+    geom: pointcloud.PointCloud, centroids: jnp.ndarray, weights: jnp.ndarray
+) -> KMeansState:
+  geom = geom.subset(None, centroids, batch_size=None)
+  cost_matrix = geom.cost_matrix  # (n, k)
+  assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
+  # weights are normalized
+  distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
+
+  return KMeansState(
+      centroids=centroids,
+      assignment=assignment,
+      distortion=distortion,
+      prev_distortion=jnp.inf,
+      iterations=0
+  )
 
 
 class KMeansConstants(NamedTuple):
@@ -255,10 +282,31 @@ def _kmeans(
     k: int,
     tol: float = 1e-4,
     weights: Optional[jnp.ndarray] = None,
+    # TODO(michalk8): allow callables?
     init_random: bool = True,
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansSolution:
+
+  def init_fn(geom: pointcloud.PointCloud) -> KMeansState:
+    if init_random:
+      centroids = _random_init(geom, k=k, key=key)
+    else:
+      centroids = _kmeans_plus_plus(geom, k=k, key=key)
+    geom = geom.subset(None, centroids, batch_size=None)
+    cost_matrix = geom.cost_matrix  # (n, k)
+    assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
+    # weights are normalized
+    # distortion = jnp.sum(jnp.min(cost_matrix, axis=1) * weights)  # ()
+
+    # TODO(michalk8): remove iterations
+    return KMeansState(
+        centroids=centroids,
+        assignment=assignment,
+        distortion=jnp.isinf,
+        prev_distortion=jnp.inf,
+        iterations=0
+    )
 
   def cond_fn(
       iteration: int, const: KMeansConstants, state: KMeansState
@@ -272,9 +320,8 @@ def _kmeans(
     del compute_error
     return state
 
-  constants = KMeansConstants(geom, weights, k, tol)
-  x = jax.random.normal(key, (3, 1))
-  state = KMeansSolution(x, x, 0, x, 0)
+  state = init_fn(geom)
+  constants = KMeansConstants(geom=geom, weights=weights, k=k, tol=tol)
   state = fixed_point_loop.fixpoint_iter(
       cond_fn,
       body_fn,
@@ -300,9 +347,13 @@ def kmeans_new(
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansSolution:
-  assert geom.x is geom.y
   # TODO(michalk8): center PC?
   keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
+
+  if weights is None:
+    weights = jnp.ones(geom.shape[0])
+  weights /= jnp.sum(weights)
+  assert weights.shape == (geom.shape[0],)
 
   results = jax.vmap(
       _kmeans, in_axes=[0] + [None] * 7
