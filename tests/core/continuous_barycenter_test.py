@@ -13,14 +13,16 @@
 
 # Lint as: python3
 """Tests for Continuous barycenters."""
+import functools
+from typing import Any, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import bar_problems, continuous_barycenter
-from ott.geometry import costs
+from ott.core import bar_problems, continuous_barycenter, gw_barycenter, segment
+from ott.geometry import costs, pointcloud
 from ott.tools.gaussian_mixture import gaussian_mixture
 
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
@@ -68,15 +70,17 @@ class TestBarycenter:
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
-
     bar_prob = bar_problems.BarycenterProblem(
         y,
-        num_measures=8,
+        b,
+        epsilon=epsilon,
+        num_segments=8,
         max_measure_size=35,
-        b=b,
-        num_per_segment=num_per_segment,
-        epsilon=epsilon
+        num_per_segment=num_per_segment
     )
+    assert bar_prob.num_measures == 8
+    assert bar_prob.max_measure_size == 35
+    assert bar_prob.ndim == self.DIM
 
     # Define solver
     threshold = 1e-3
@@ -100,6 +104,57 @@ class TestBarycenter:
     # Check shape is as expected
     np.testing.assert_array_equal(out.x.shape, (bar_size, self.DIM))
 
+    # Check convergence by looking at cost evolution.
+    c = out.costs[out.costs > -1]
+    assert jnp.isclose(c[-2], c[-1], rtol=threshold)
+
+    # Check barycenter has all points roughly in [1,2]^4.
+    # (this is because sampled points were equally set in either [0,1]^4
+    # or [2,3]^4)
+    assert jnp.all(out.x.ravel() < 2.3)
+    assert jnp.all(out.x.ravel() > .7)
+
+  @pytest.mark.parametrize("segment_before", [False, True])
+  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
+
+    @functools.partial(jax.jit, static_argnums=(2, 3))
+    def barycenter(
+        y: jnp.ndarray, b: jnp.ndarray, segment_before: bool,
+        num_per_segment: int
+    ) -> continuous_barycenter.BarycenterState:
+      if segment_before:
+        y, b = segment.segment_point_cloud(
+            x=y, a=b, num_per_segment=num_per_segment
+        )
+        bar_prob = bar_problems.BarycenterProblem(y, b, epsilon=1e-1)
+      else:
+        bar_prob = bar_problems.BarycenterProblem(
+            y, b, epsilon=1e-1, num_per_segment=num_per_segment
+        )
+      solver = continuous_barycenter.WassersteinBarycenter(threshold=threshold)
+      return solver(bar_prob)
+
+    rngs = jax.random.split(rng, 20)
+    # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
+    # Second around [2,3]^4.
+    y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
+    y2 = jax.random.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
+    # Merge them
+    y = jnp.concatenate((y1, y2))
+
+    # Define segments
+    num_per_segment = (33, 29, 24, 27, 27, 31, 30, 25)
+    # Set weights for each segment that sum to 1.
+    b = []
+    for rng, n in zip(rngs, num_per_segment):
+      c = jax.random.uniform(rng, (n,))
+      b.append(c / jnp.sum(c))
+    b = jnp.concatenate(b, axis=0)
+
+    threshold = 1e-3
+    out = barycenter(
+        y, b, segment_before=segment_before, num_per_segment=num_per_segment
+    )
     # Check convergence by looking at cost evolution.
     c = out.costs[out.costs > -1]
     assert jnp.isclose(c[-2], c[-1], rtol=threshold)
@@ -134,10 +189,10 @@ class TestBarycenter:
     means2 = jnp.array([[1., 1.], [1., -1.]])
     sigma = 0.01
     covs1 = sigma * jnp.asarray([
-        jnp.eye(dimension) for i in range(num_components)
+        jnp.eye(dimension) for _ in range(num_components)
     ])
     covs2 = sigma * jnp.asarray([
-        jnp.eye(dimension) for i in range(num_components)
+        jnp.eye(dimension) for _ in range(num_components)
     ])
 
     y1 = means_and_covs_to_x(means1, covs1, dimension)
@@ -157,16 +212,24 @@ class TestBarycenter:
 
     x_init = means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
-    bar_p = bar_problems.BarycenterProblem(
-        y,
-        num_measures=num_measures,
+    seg_y, seg_b = segment.segment_point_cloud(
+        x=y,
+        a=b,
+        num_segments=num_measures,
         max_measure_size=num_components,
-        b=b,
+        num_per_segment=(num_components, num_components),
+        padding_vector=bures_cost.padder(y.shape[1]),
+    )
+    bar_p = bar_problems.BarycenterProblem(
+        seg_y,
+        seg_b,
         weights=barycentric_weights,
-        num_per_segment=jnp.asarray([num_components, num_components]),
         cost_fn=bures_cost,
         epsilon=epsilon
     )
+    assert bar_p.num_measures == seg_y.shape[0]
+    assert bar_p.max_measure_size == seg_y.shape[1]
+    assert bar_p.ndim == seg_y.shape[2]
 
     solver = continuous_barycenter.WassersteinBarycenter(
         lse_mode=lse_mode, jit=jit
@@ -192,7 +255,7 @@ class TestBarycenter:
         )
     )
 
-    assert jnp.allclose(
+    np.testing.assert_allclose(
         covs_bary,
         jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
         rtol=1e-05,
@@ -217,7 +280,7 @@ class TestBarycenter:
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
     bar_size = 5  # the size of the barycenter
-    int(jnp.max(n_components))
+    max_measure_size = int(jnp.max(n_components))
 
     # Create an instance of the Bures cost class.
     b_cost = costs.Bures(dimension=dim)
@@ -278,15 +341,18 @@ class TestBarycenter:
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
     bar_p = bar_problems.BarycenterProblem(
-        ys,
-        num_measures=num_measures,
-        max_measure_size=4,
+        y=ys,
         b=bs,
         weights=barycentric_weights,
-        segment_ids=seg_ids,
         cost_fn=b_cost,
-        epsilon=epsilon
+        epsilon=epsilon,
+        num_segments=num_measures,
+        max_measure_size=max_measure_size,
+        segment_ids=seg_ids,
     )
+    assert bar_p.max_measure_size == 4
+    assert bar_p.num_measures == num_measures
+    assert bar_p.ndim == ys.shape[-1]
 
     solver = continuous_barycenter.WassersteinBarycenter(lse_mode=True, jit=jit)
 
@@ -311,3 +377,153 @@ class TestBarycenter:
         jax.vmap(is_positive_semidefinite, in_axes=0, out_axes=0)(covs_bary),
         True
     )
+
+
+class TestGWBarycenter:
+  NDIM = 3
+  NDIM_F = 4
+
+  @staticmethod
+  def random_pc(
+      n: int,
+      d: int,
+      rng: jnp.ndarray,
+      m: Optional[int] = None,
+      **kwargs: Any
+  ) -> pointcloud.PointCloud:
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (n, d))
+    y = x if m is None else jax.random.normal(key2, (m, d))
+    return pointcloud.PointCloud(x, y, batch_size=None, **kwargs)
+
+  @staticmethod
+  def pad_cost_matrices(
+      costs: Sequence[jnp.ndarray],
+      shape: Optional[Tuple[int, int]] = None
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    if shape is None:
+      shape = jnp.asarray([arr.shape for arr in costs]).max()
+      shape = (shape, shape)
+    else:
+      assert shape[0] == shape[1], shape
+
+    cs, weights = [], []
+    for cost in costs:
+      r, c = cost.shape
+      cs.append(jnp.zeros(shape).at[:r, :c].set(cost))
+      w = jnp.ones(r) / r
+      weights.append(jnp.concatenate([w, jnp.zeros(shape[0] - r)]))
+    return jnp.stack(cs), jnp.stack(weights)
+
+  @pytest.mark.parametrize(
+      "gw_loss,bar_size,epsilon", [("sqeucl", 17, None), ("kl", 22, 1e-2)]
+  )
+  def test_gw_barycenter(
+      self, rng: jnp.ndarray, gw_loss: str, bar_size: int,
+      epsilon: Optional[float]
+  ):
+    tol = 1e-2 if gw_loss == 'kl' else 1e-3
+    num_per_segment = (13, 15, 21)
+    rngs = jax.random.split(rng, len(num_per_segment))
+    pcs = [
+        self.random_pc(n, d=self.NDIM, rng=rng, epsilon=epsilon)
+        for n, rng in zip(num_per_segment, rngs)
+    ]
+    costs = [pc._compute_cost_matrix() for pc, n in zip(pcs, num_per_segment)]
+    costs, cbs = self.pad_cost_matrices(costs)
+    ys = jnp.concatenate([pc.x for pc in pcs])
+    bs = jnp.concatenate([jnp.ones(n) / n for n in num_per_segment])
+    kwargs = {
+        "gw_loss": gw_loss,
+        "num_per_segment": num_per_segment,
+        "epsilon": epsilon
+    }
+
+    problem_pc = bar_problems.GWBarycenterProblem(y=ys, b=bs, **kwargs)
+    problem_cost = bar_problems.GWBarycenterProblem(
+        costs=costs,
+        b=cbs,
+        **kwargs,
+    )
+    for prob in [problem_pc, problem_cost]:
+      assert not prob.is_fused
+      assert prob.ndim_fused is None
+      assert prob.num_measures == len(num_per_segment)
+      assert prob.max_measure_size == max(num_per_segment)
+      assert prob._loss_name == gw_loss
+    assert problem_pc.ndim == self.NDIM
+    assert problem_cost.ndim is None
+
+    solver = gw_barycenter.GromovWassersteinBarycenter(jit=True)
+    out_pc = solver(problem_pc, bar_size=bar_size)
+    out_cost = solver(problem_cost, bar_size=bar_size)
+
+    assert out_pc.x is None
+    assert out_cost.x is None
+    assert out_pc.cost.shape == (bar_size, bar_size)
+    np.testing.assert_allclose(out_pc.cost, out_cost.cost, rtol=tol, atol=tol)
+    np.testing.assert_allclose(out_pc.costs, out_cost.costs, rtol=tol, atol=tol)
+
+  @pytest.mark.fast(
+      "jit,fused_penalty,scale_cost", [(False, 1.5, "mean"),
+                                       (True, 3.1, "max_cost")],
+      only_fast=0
+  )
+  def test_fgw_barycenter(
+      self,
+      rng: jnp.ndarray,
+      jit: bool,
+      fused_penalty: float,
+      scale_cost: str,
+  ):
+
+    def barycenter(
+        y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
+    ) -> gw_barycenter.GWBarycenterState:
+      prob = bar_problems.GWBarycenterProblem(
+          y=y,
+          y_fused=y_fused,
+          num_per_segment=num_per_segment,
+          fused_penalty=fused_penalty,
+          scale_cost=scale_cost,
+      )
+      assert prob.is_fused
+      assert prob.fused_penalty == fused_penalty
+      assert not prob._y_as_costs
+      assert prob.max_measure_size == max(num_per_segment)
+      assert prob.num_measures == len(num_per_segment)
+      assert prob.ndim == self.NDIM
+      assert prob.ndim_fused == self.NDIM_F
+
+      solver = gw_barycenter.GromovWassersteinBarycenter(
+          jit=False, store_inner_errors=True
+      )
+
+      x_init = jax.random.normal(rng, (bar_size, self.NDIM_F))
+      cost_init = pointcloud.PointCloud(x_init).cost_matrix
+
+      return solver(prob, bar_size=bar_size, bar_init=(cost_init, x_init))
+
+    bar_size, epsilon, = 10, 1e-1
+    num_per_segment = (7, 12)
+
+    key1, *rngs = jax.random.split(rng, len(num_per_segment) + 1)
+    y = jnp.concatenate([
+        self.random_pc(n, d=self.NDIM, rng=rng, epsilon=epsilon).x
+        for n, rng in zip(num_per_segment, rngs)
+    ])
+    rngs = jax.random.split(key1, len(num_per_segment))
+    y_fused = jnp.concatenate([
+        self.random_pc(n, d=self.NDIM_F, rng=rng, epsilon=epsilon).x
+        for n, rng in zip(num_per_segment, rngs)
+    ])
+
+    fn = jax.jit(barycenter, static_argnums=2) if jit else barycenter
+    out = fn(y, y_fused, num_per_segment)
+
+    assert out.cost.shape == (bar_size, bar_size)
+    assert out.x.shape == (bar_size, self.NDIM_F)
+    np.testing.assert_array_equal(jnp.isfinite(out.cost), True)
+    np.testing.assert_array_equal(jnp.isfinite(out.x), True)
+    np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
+    np.testing.assert_array_equal(jnp.isfinite(out.errors), True)

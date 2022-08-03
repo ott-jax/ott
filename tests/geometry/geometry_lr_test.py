@@ -206,7 +206,8 @@ class TestCostMatrixFactorization:
       self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
   @pytest.mark.fast.with_args(
-      "batch_size,scale_cost", [(None, "mean"), (32, None)], only_fast=1
+      "batch_size,scale_cost", [(None, "mean"), (32, "max_cost"), (None, 1.0)],
+      only_fast=1
   )
   def test_point_cloud_to_lr(
       self, rng: jnp.ndarray, batch_size: Optional[int],

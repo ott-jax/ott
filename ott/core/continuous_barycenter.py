@@ -56,14 +56,21 @@ class BarycenterState(NamedTuple):
       self, iteration: int, bar_prob: bar_problems.BarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
   ) -> 'BarycenterState':
-    segmented_y, segmented_b = bar_prob.segmented_y_b
+    seg_y, seg_b = bar_prob.segmented_y_b
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-    def solve_linear_ot(a, x, b, y):
+    def solve_linear_ot(
+        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
+    ):
       out = linear_ot_solver(
           linear_problems.LinearProblem(
               pointcloud.PointCloud(
-                  x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
+                  x,
+                  y,
+                  src_mask=a > 0.,
+                  tgt_mask=b > 0.,
+                  cost_fn=bar_prob.cost_fn,
+                  epsilon=bar_prob.epsilon
               ), a, b
           )
       )
@@ -79,7 +86,7 @@ class BarycenterState(NamedTuple):
       )
 
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-        self.a, self.x, segmented_b, segmented_y
+        self.a, self.x, seg_b, seg_y
     )
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)
@@ -95,7 +102,7 @@ class BarycenterState(NamedTuple):
     # Approximation of barycenter as barycenter of barycenters per measure.
 
     barycenters_per_measure = bar_problems.barycentric_projection(
-        matrices, segmented_y, bar_prob.cost_fn
+        matrices, seg_y, bar_prob.cost_fn
     )
 
     x_new = jax.vmap(
@@ -130,9 +137,23 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: bar_problems.BarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
+      # TODO(michalk8): change the API to pass the PRNG key directly
       rng: int = 0,
   ) -> BarycenterState:
-    """Initialize the state of the Wasserstein barycenter iterations."""
+    """Initialize the state of the Wasserstein barycenter iterations.
+
+    Args:
+      bar_prob: The barycenter problem.
+      bar_size: Size of the barycenter.
+      x_init: Initial barycenter estimate of shape ``[bar_size, ndim]``.
+        If `None`, ``bar_size`` points will be sampled from the input
+        measures according to their weights
+        :attr:`~ott.core.bar_problems.BarycenterProblem.flattened_y`.
+      rng: Seed for :func:`jax.random.PRNGKey`.
+
+    Returns:
+      The initial barycenter state.
+    """
     if x_init is not None:
       assert bar_size == x_init.shape[0]
       x = x_init
@@ -152,7 +173,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     num_iter = self.max_iterations
     if self.store_inner_errors:
       errors = -jnp.ones((
-          num_iter, bar_prob.num_segments,
+          num_iter, bar_prob.num_measures,
           self.linear_ot_solver.outer_iterations
       ))
     else:

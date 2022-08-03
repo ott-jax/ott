@@ -24,8 +24,8 @@ from ott.geometry import costs, pointcloud
 def segment_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
-    num_segments: int,
-    max_measure_size: int,
+    num_segments: Optional[int] = None,
+    max_measure_size: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
@@ -52,28 +52,31 @@ def segment_sinkhorn(
 
   For both interfaces, both `x` and `y` should contain the same total number of
   segments. Each segment will be padded as necessary, all segments rearranged as
-  a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
+  a tensor, and :func:`jax.vmap` used to evaluate sinkhorn divergences in
+  parallel.
 
   Args:
     x: Array of input points, of shape [num_x, feature]. Multiple segments are
       held in this single array.
     y: Array of target points, of shape [num_y, feature].
     num_segments: Number of segments contained in x and y. Providing this number
-      is required for JIT compilation to work.
+      is required for JIT compilation to work, see also
+      :func:`~ott.core.segment.segment_point_cloud`.
     max_measure_size: Total size of measures after padding. Should ideally be
       set to an upper bound on points clouds processed with the segment
-      interface. Providing this number is required for JIT
-      compilation to work.
-    segment_ids_x: (1st interface) The segment ID for which each row of x
+      interface. Providing this number is required for JIT compilation to work.
+    cost_fn: Cost function, defaults to :class:`~ott.core.costs.Euclidean`.
+    segment_ids_x: **1st interface** The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
-    segment_ids_y: (1st interface) The segment ID for which each row of y
+    segment_ids_y: **1st interface** The segment ID for which each row of y
       belongs.
-    indices_are_sorted: (1st interface) Whether `segment_ids_x` and
+    indices_are_sorted: **1st interface** Whether `segment_ids_x` and
       `segment_ids_y` are sorted. Default false.
-    num_per_segment_x: (2nd interface) Number of points in each segment in `x`.
-      For example, [100, 20, 30] would imply that `x` is segmented into three
-      arrays of length `[100]`, `[20]`, and `[30]` respectively.
-    num_per_segment_y: (2nd interface) Number of points in each segment in `y`.
+    num_per_segment_x: **2nd interface** Number of points in each segment in
+      `x`. For example, [100, 20, 30] would imply that `x` is segmented into
+      three arrays of length `[100]`, `[20]`, and `[30]` respectively.
+    num_per_segment_y: **2nd interface** Number of points in each segment in
+      `y`.
     weights_x: Weights of each input points, arranged in the same segmented
       order as `x`.
     weights_y: Weights of each input points, arranged in the same segmented
@@ -86,23 +89,36 @@ def segment_sinkhorn(
     kwargs: keywords arguments passed to form
       :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, possibly a
-      :class:`ott.geometry.costs.CostFn` or and entropy regularizer.
+      :class:`ott.geometry.costs.CostFn` or an entropy regularizer.
+
   Returns:
     An array of sinkhorn reg_ot_cost for each segment.
   """
-  # Instatiate padding vector.
+  # instantiate padding vector
   dim = x.shape[1]
   if cost_fn is None:
-    # Default padder.
+    # default padder
     padding_vector = costs.CostFn.padder(dim=dim)
   else:
     padding_vector = cost_fn.padder(dim=dim)
 
-  sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
-
-  def eval_fn(padded_x, padded_y, padded_weight_x, padded_weight_y):
+  def eval_fn(
+      padded_x: jnp.ndarray,
+      padded_y: jnp.ndarray,
+      padded_weight_x: jnp.ndarray,
+      padded_weight_y: jnp.ndarray,
+  ) -> float:
+    mask_x = padded_weight_x > 0.
+    mask_y = padded_weight_y > 0.
     return sinkhorn.sinkhorn(
-        pointcloud.PointCloud(padded_x, padded_y, cost_fn=cost_fn, **kwargs),
+        pointcloud.PointCloud(
+            padded_x,
+            padded_y,
+            cost_fn=cost_fn,
+            src_mask=mask_x,
+            tgt_mask=mask_y,
+            **kwargs
+        ),
         a=padded_weight_x,
         b=padded_weight_y,
         **sinkhorn_kwargs
@@ -111,9 +127,9 @@ def segment_sinkhorn(
   return segment._segment_interface(
       x,
       y,
-      num_segments,
-      max_measure_size,
       eval_fn,
+      num_segments=num_segments,
+      max_measure_size=max_measure_size,
       segment_ids_x=segment_ids_x,
       segment_ids_y=segment_ids_y,
       indices_are_sorted=indices_are_sorted,

@@ -255,14 +255,15 @@ class TestSinkhornDivergence:
 
     sink_div = jax.jit(
         sinkhorn_divergence.segment_sinkhorn_divergence,
-        static_argnames=['num_segments', 'max_measure_size'],
+        static_argnames=['num_per_segment_x', 'num_per_segment_y'],
     )
 
     segmented_divergences = sink_div(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
-        num_segments=2,
-        max_measure_size=15,
+        # these 2 arguments are not necessary for jitting:
+        # num_segments=2,
+        # max_measure_size=15,
         num_per_segment_x=(10, 12),
         num_per_segment_y=(11, 13),
         epsilon=0.01
@@ -354,6 +355,8 @@ class TestSinkhornDivergence:
     threshold = 3.2e-3
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    sinkhorn_kwargs["threshold"] = threshold
+
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
@@ -361,7 +364,7 @@ class TestSinkhornDivergence:
         epsilon=epsilon,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs=sinkhorn_kwargs.update({'threshold': threshold})
+        sinkhorn_kwargs=sinkhorn_kwargs,
     )
     assert div.divergence > 0.0
     assert threshold > div.errors[0][-1]

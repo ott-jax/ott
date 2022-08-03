@@ -62,13 +62,17 @@ class Geometry:
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
+    tgt_mask: Mask specifying valid rows when computing some statistics of
+      :attr:`cost_matrix`, see :attr:`src_mask`.
+    tgt_mask: Mask specifying valid columns when computing some statistics of
+      :attr:`cost_matrix`, see :attr:`tgt_mask`.
     kwargs: additional kwargs to epsilon scheduler.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to
     select an ``epsilon`` regularization parameter that is meaningful. That
     parameter can be provided by the user, or assigned a default value through
-    a simple rule, using the mean cost value implied by the ``cost_matrix``.
+    a simple rule, using the :attr:`mean_cost_matrix`.
   """
 
   def __init__(
@@ -78,8 +82,10 @@ class Geometry:
       epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
       relative_epsilon: Optional[bool] = None,
       scale_epsilon: Optional[float] = None,
-      scale_cost: Optional[Union[Literal['mean', 'max_cost', 'median'], bool,
-                                 float]] = None,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
+      scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
+                                                  'median']] = 1.0,
       **kwargs: Any,
   ):
     self._cost_matrix = cost_matrix
@@ -88,6 +94,8 @@ class Geometry:
     self._relative_epsilon = relative_epsilon
     self._scale_epsilon = scale_epsilon
     self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._src_mask = src_mask
+    self._tgt_mask = tgt_mask
     # Define default dictionary and update it with user's values.
     self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
@@ -136,22 +144,20 @@ class Geometry:
 
   @property
   def median_cost_matrix(self) -> float:
-    """Median of cost matrix."""
-    return jnp.median(self.cost_matrix)
+    """Median of the :attr:`cost_matrix`."""
+    geom = self._masked_geom(mask_value=jnp.nan)
+    return jnp.nanmedian(geom.cost_matrix)  # will fail for online PC
 
   @property
   def mean_cost_matrix(self) -> float:
-    """Mean of cost matrix."""
-    if isinstance(self.shape[0], int) and (self.shape[0] > 0):
-      return jnp.sum(self.apply_cost(jnp.ones((self.shape[0],)))) / (
-          self.shape[0] * self.shape[1]
-      )
-    else:
-      return 1.0
+    """Mean of the :attr:`cost_matrix`."""
+    tmp = self._masked_geom().apply_cost(self._n_normed_ones).squeeze()
+    return jnp.sum(tmp * self._m_normed_ones)
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    """Kernel matrix, either provided by user or recomputed from cost."""
+    """Kernel matrix, either provided by user or recomputed from \
+     :attr:`cost_matrix`."""
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
@@ -163,13 +169,13 @@ class Geometry:
 
   @property
   def shape(self) -> Tuple[int, int]:
-    """Shape of cost or kernel matrix."""
+    """Shape of the geometry."""
     mat = (
         self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
     )
     if mat is not None:
       return mat.shape
-    return (0, 0)
+    return 0, 0
 
   @property
   def is_squared_euclidean(self) -> bool:
@@ -192,18 +198,16 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost, float):
+    if isinstance(self._scale_cost, (int, float)):
       return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_cost':
-      return 1.0 / jnp.max(self._cost_matrix)
-    elif self._scale_cost == 'mean':
-      return 1.0 / jnp.mean(self._cost_matrix)
-    elif self._scale_cost == 'median':
-      return 1.0 / jnp.median(self._cost_matrix)
-    elif isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    else:
-      return 1.0
+    self = self._masked_geom(mask_value=jnp.nan)
+    if self._scale_cost == 'max_cost':
+      return 1.0 / jnp.nanmax(self._cost_matrix)
+    if self._scale_cost == 'mean':
+      return 1.0 / jnp.nanmean(self._cost_matrix)
+    if self._scale_cost == 'median':
+      return 1.0 / jnp.nanmedian(self._cost_matrix)
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def _set_scale_cost(
       self, scale_cost: Optional[Union[bool, float, str]]
@@ -236,7 +240,7 @@ class Geometry:
       vec: jnp.ndarray = None,
       axis: int = 0
   ) -> jnp.ndarray:
-    r"""Apply kernel in log domain on pair of dual potential variables.
+    r"""Apply :attr:`kernel_matrix` in log domain on a pair of dual potential variables.
 
     This function applies the ground geometry's kernel in log domain, using
     a stabilized formulation. At a high level, this iteration performs either:
@@ -275,7 +279,7 @@ class Geometry:
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
-    """Apply kernel on positive scaling vector.
+    """Apply :attr:`kernel_matrix` on positive scaling vector.
 
     This function applies the ground geometry's kernel, to perform either
     output = K v    (1)
@@ -311,6 +315,7 @@ class Geometry:
     correction used to stabilise computations, and lifts this with an exp to
     recover either of the marginals corresponding to the transport map induced
     by potentials.
+
     Args:
       f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
       g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
@@ -504,7 +509,7 @@ class Geometry:
     """Compute scaling vector from dual potential.
 
     Args:
-      scaling: vector.
+      potential: vector.
 
     Returns:
       a vector of the same size.
@@ -540,7 +545,7 @@ class Geometry:
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       **kwargs: Any
   ) -> jnp.ndarray:
-    """Apply cost matrix to array (vector or matrix).
+    """Apply :attr:`cost_matrix` to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either
     output = C arr (if axis=1)
@@ -563,21 +568,6 @@ class Geometry:
     app = functools.partial(self._apply_cost_to_vec, axis=axis, fn=fn, **kwargs)
     return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
-  def rescale_cost_fn(self, factor: float) -> None:
-    """Rescale the cost or kernel matrix using a factor.
-
-    Args:
-      factor: used to multiply the cost matrix, or, alternatively, used to
-        exponentiate (using its inverse) the kernel matrix.
-
-    Returns:
-      Nothing.
-    """
-    if self._cost_matrix is not None:
-      self._cost_matrix *= factor
-    if self._kernel_matrix is not None:
-      self._kernel_matrix **= 1 / factor
-
   def _apply_cost_to_vec(
       self,
       vec: jnp.ndarray,
@@ -585,7 +575,7 @@ class Geometry:
       fn=None,
       **_: Any,
   ) -> jnp.ndarray:
-    """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
+    """Apply ``[num_a, num_b]`` fn(cost) (or transpose) to vector.
 
     Args:
       vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
@@ -704,52 +694,181 @@ class Geometry:
     )
 
   def subset(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      **kwargs: Any,
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      **kwargs: Any
   ) -> "Geometry":
-    """Subset rows and/or columns of a geometry.
+    """Subset rows or columns of a geometry.
 
     Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      kwargs: Keyword arguments for :class:`ott.geometry.geometry.Geometry`.
+      src_ixs: Row indices. If ``None``, use all rows.
+      tgt_ixs: Column indices. If ``None``, use all columns.
+      kwargs: Keyword arguments to override the initialization.
 
     Returns:
-      Subset of a geometry.
+      The subsetted geometry.
     """
 
-    def sub(
-        arr: jnp.ndarray, src_ixs: Optional[jnp.ndarray],
-        tgt_ixs: Optional[jnp.ndarray]
-    ) -> jnp.ndarray:
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None:
+        return None
       if src_ixs is not None:
-        arr = arr[jnp.atleast_1d(src_ixs), :]
+        arr = arr[jnp.atleast_1d(src_ixs)]
       if tgt_ixs is not None:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
-    (cost, kernel, *children), aux_data = self.tree_flatten()
-    if cost is not None:
-      cost = sub(cost, src_ixs, tgt_ixs)
-    if kernel is not None:
-      kernel = sub(kernel, src_ixs, tgt_ixs)
+    return self._mask_subset_helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
+
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "Geometry":
+    """Mask rows or columns of a geometry.
+
+    The mask is used only when computing some statistics of the
+    :attr:`cost_matrix`.
+
+        - :attr:`mean_cost_matrix`
+        - :attr:`median_cost_matrix`
+        - :attr:`inv_scale_cost`
+
+    Args:
+      src_mask: Row mask. Can be specified either as a boolean array of shape
+        ``[num_a,]`` or as an array of indices. If ``None``, no mask is applied.
+      tgt_mask: Column mask. Can be specified either as a boolean array of shape
+        ``[num_b,]`` or as an array of indices. If ``None``, no mask is applied.
+      mask_value: Value to use for masking.
+
+    Returns:
+      The masked geometry.
+    """
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        src_mask: Optional[jnp.ndarray],
+        tgt_mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None:
+        return arr
+      assert arr.ndim == 2, arr.ndim
+      if src_mask is not None:
+        arr = jnp.where(src_mask[:, None], arr, mask_value)
+      if tgt_mask is not None:
+        arr = jnp.where(tgt_mask[None, :], arr, mask_value)
+      return arr
+
+    src_mask = self._normalize_mask(src_mask, self.shape[0])
+    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+    return self._mask_subset_helper(
+        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
+    )
+
+  def _mask_subset_helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[
+          [Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
+          Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "Geometry":
+    (cost, kernel, *children, src_mask, tgt_mask,
+     kws), aux_data = self.tree_flatten()
+    cost = fn(cost, src_ixs, tgt_ixs)
+    kernel = fn(kernel, src_ixs, tgt_ixs)
+    if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+      src_mask = fn(src_mask, src_ixs, None)
+      tgt_mask = fn(tgt_mask, tgt_ixs, None)
 
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [cost, kernel] + children)
+    return type(self).tree_unflatten(
+        aux_data, [cost, kernel] + children + [src_mask, tgt_mask, kws]
+    )
+
+  @property
+  def src_mask(self) -> Optional[jnp.ndarray]:
+    """Mask of shape ``[num_a,]`` to compute :attr:`cost_matrix` statistics.
+
+    Specifically, it is used when computing:
+
+      - :attr:`mean_cost_matrix`
+      - :attr:`median_cost_matrix`
+      - :attr:`inv_scale_cost`
+    """
+    return self._normalize_mask(self._src_mask, self.shape[0])
+
+  @property
+  def tgt_mask(self) -> Optional[jnp.ndarray]:
+    """Mask of shape ``[num_b,]`` to compute :attr:`cost_matrix` statistics.
+
+    Specifically, it is used when computing:
+
+      - :attr:`mean_cost_matrix`
+      - :attr:`median_cost_matrix`
+      - :attr:`inv_scale_cost`
+    """
+    return self._normalize_mask(self._tgt_mask, self.shape[1])
+
+  def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
+    """Mask geometry based on :attr:`src_mask` and :attr:`tgt_mask`."""
+    src_mask, tgt_mask = self.src_mask, self.tgt_mask
+    if src_mask is None and tgt_mask is None:
+      return self
+    return self.mask(src_mask, tgt_mask, mask_value=mask_value)
+
+  @property
+  def _n_normed_ones(self) -> jnp.ndarray:
+    """Normalized array of shape ``[num_a,]`` \
+    taking into account :attr:`src_mask`."""
+    mask = self.src_mask
+    arr = jnp.ones(self.shape[0]) if mask is None else mask
+    return arr / jnp.sum(arr)
+
+  @property
+  def _m_normed_ones(self) -> jnp.ndarray:
+    """Normalized array of shape ``[num_b,]`` \
+    taking into account :attr:`tgt_mask`."""
+    mask = self.tgt_mask
+    arr = jnp.ones(self.shape[1]) if mask is None else mask
+    return arr / jnp.sum(arr)
+
+  @staticmethod
+  def _normalize_mask(mask: Optional[Union[int, jnp.ndarray]],
+                      size: int) -> Optional[jnp.ndarray]:
+    """Convert array of indices to a boolean mask."""
+    if mask is None:
+      return None
+    mask = jnp.atleast_1d(mask)
+    if not jnp.issubdtype(mask, (bool, jnp.bool_)):
+      mask = jnp.isin(jnp.arange(size), mask)
+    assert mask.shape == (size,)
+    return mask
 
   def tree_flatten(self):
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._kwargs
+        self._relative_epsilon, self._scale_epsilon, self._src_mask,
+        self._tgt_mask, self._kwargs
     ), {
         'scale_cost': self._scale_cost
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:-1], **children[-1], **aux_data)
+    *args, kwargs = children
+    return cls(*args, **kwargs, **aux_data)
 
 
 def is_affine(fn) -> bool:
