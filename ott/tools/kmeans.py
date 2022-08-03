@@ -17,11 +17,15 @@ Sabrina J. Mielke
 in https://colab.research.google.com/drive/1AwS4haUx6swF82w3nXr6QKhajdF8aSvA#scrollTo=LJyoi46rIJr7
 """
 
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
+import jax
 import jax.numpy as jnp
 from jax import jit, lax, random, vmap
 from jax.numpy.linalg import norm
+
+from ott.core import fixed_point_loop
+from ott.geometry import pointcloud
 
 
 class KMeansState(NamedTuple):
@@ -224,6 +228,86 @@ def kmeans(key, points, k, iter=20, thresh=1e-5, max_iters=100):
   # Run all restarts of kmeans using vmap
   results = vmap(kmeans_core, 0, 0)(keys)
   # Find the run with the least distortion
+  i = jnp.argmin(results.distortion)
+  return KMeansSolution(
+      centroids=results.centroids[i],
+      assignment=results.assignment[i],
+      distortion=results.distortion[i],
+      key=keys[i],
+      iterations=results.iterations[i],
+  )
+
+
+def _initialize():
+  pass
+
+
+class KMeansConstants(NamedTuple):
+  geom: pointcloud.PointCloud
+  weights: jnp.ndarray
+  k: int
+  tol: float
+
+
+def _kmeans(
+    key: jnp.ndarray,
+    geom: pointcloud.PointCloud,
+    k: int,
+    tol: float = 1e-4,
+    weights: Optional[jnp.ndarray] = None,
+    init_random: bool = True,
+    min_iter: int = 20,
+    max_iter: int = 20,
+) -> KMeansSolution:
+
+  def cond_fn(
+      iteration: int, const: KMeansConstants, state: KMeansState
+  ) -> bool:
+    return True
+
+  def body_fn(
+      iteration: int, const: KMeansState, state: KMeansState,
+      compute_error: bool
+  ) -> KMeansState:
+    del compute_error
+    return state
+
+  constants = KMeansConstants(geom, weights, k, tol)
+  x = jax.random.normal(key, (3, 1))
+  state = KMeansSolution(x, x, 0, x, 0)
+  state = fixed_point_loop.fixpoint_iter(
+      cond_fn,
+      body_fn,
+      min_iterations=min_iter,
+      max_iterations=max_iter,
+      inner_iterations=1,
+      constants=constants,
+      state=state
+  )
+  return state
+
+
+def kmeans_new(
+    # TODO(michalk8): handle LRCGeom
+    geom: pointcloud.PointCloud,
+    k: int,
+    n_iter: int = 20,
+    tol: float = 1e-4,
+    weights: Optional[jnp.ndarray] = None,
+    # TODO(michalk8): change default
+    init_random: bool = True,
+    seed: int = 0,
+    min_iter: int = 20,
+    max_iter: int = 20,
+) -> KMeansSolution:
+  assert geom.x is geom.y
+  # TODO(michalk8): center PC?
+  keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
+
+  results = jax.vmap(
+      _kmeans, in_axes=[0] + [None] * 7
+  )(keys, geom, k, tol, weights, init_random, min_iter, max_iter)
+
   i = jnp.argmin(results.distortion)
   return KMeansSolution(
       centroids=results.centroids[i],
