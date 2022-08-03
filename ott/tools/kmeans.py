@@ -115,6 +115,7 @@ def _kmeans(
       iteration: int, const: KMeansConstants, state: KMeansState
   ) -> bool:
     # TODO(michalk8): verify
+    # TODO(michalk8): add strict convergence criterion
     err = state.distortions
     return jnp.logical_or(
         iteration < 1, err[iteration - 1] - err[iteration] > const.tol
