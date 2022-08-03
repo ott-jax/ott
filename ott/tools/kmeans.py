@@ -12,14 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
-from typing import Any, NamedTuple, Optional
+import math
+from typing import Any, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 
 from ott.core import fixed_point_loop
 from ott.geometry import pointcloud
+
+
+class KPPState(NamedTuple):
+  key: jnp.ndarray
+  centroids: jnp.ndarray
+  centroid_dists: jnp.ndarray
+
+  def set(self, **kwargs: Any) -> 'KMeansState':
+    """Return a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
 
 
 class KMeansConstants(NamedTuple):
@@ -57,6 +67,7 @@ class KMeansOutput(NamedTuple):
     )
 
 
+# TODO(michalk8): refactor to return directly the centroids
 def _random_init(
     geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
 ) -> jnp.ndarray:
@@ -65,9 +76,63 @@ def _random_init(
 
 
 def _kmeans_plus_plus(
-    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+    geom: pointcloud.PointCloud,
+    k: int,
+    key: jnp.ndarray,
+    n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
-  pass
+
+  def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
+    key, next_key = jax.random.split(key, 2)
+    ix = jax.random.choice(key, jnp.arange(10), shape=())
+    centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
+    dists = geom.subset(None, ix, batch_size=None).cost_matrix.ravel()
+    return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
+
+  def cond_fn(
+      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
+      state: KPPState
+  ) -> bool:
+    del iteration, const, state
+    return True
+
+  def body_fn(
+      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
+      state: KPPState, compute_error: bool
+  ) -> KPPState:
+    del compute_error
+    # TODO(michalk8): verify impl.
+    key, next_key = jax.random.split(state.key, 2)
+    geom, ixs = const
+    # TODO(michalk8): check if needs to be normalized
+    probs = state.centroid_dists  # / state.centroid_dists.sum()
+    ixs = jax.random.choice(key, ixs, shape=(n_local_trials,), p=probs)
+    candidate_dists = geom.subset(ixs, None, batch_size=None).cost_matrix
+
+    best_ix = jnp.argmin(candidate_dists.sum(1))
+    centroids = state.centroids.at[iteration + 1].set(geom.x[best_ix])
+    centroid_dists = candidate_dists[best_ix]
+
+    return state.set(
+        key=next_key, centroids=centroids, centroid_dists=centroid_dists
+    )
+
+  if n_local_trials is None:
+    n_local_trials = 2 + int(math.log(k))
+
+  state = init_fn(geom, key)
+  constants = (geom, jnp.arange(geom.shape[0]))
+  state = fixed_point_loop.fixpoint_iter(
+      cond_fn,
+      body_fn,
+      min_iterations=k - 1,
+      max_iterations=k - 1,
+      inner_iterations=1,
+      constants=constants,
+      state=state
+  )
+
+  return state
 
 
 def _kmeans(
