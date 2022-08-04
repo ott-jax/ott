@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import math
 from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
@@ -132,17 +132,18 @@ def _kmeans_plus_plus(
   return state.centroids
 
 
+@functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _kmeans(
     key: jnp.ndarray,
     geom: pointcloud.PointCloud,
     k: int,
-    tol: float = 1e-4,
     weights: Optional[jnp.ndarray] = None,
     init: Init_t = "k-means++",
     n_local_trials: Optional[int] = None,
-    store_inner_errors: bool = False,
+    tol: float = 1e-4,
     min_iter: int = 20,
     max_iter: int = 20,
+    store_inner_errors: bool = False,
 ) -> KMeansOutput:
 
   def update_assignment(geom: pointcloud.PointCloud,
@@ -176,7 +177,10 @@ def _kmeans(
     elif callable(init):
       centroids = init(geom, k, key)
     else:
-      raise TypeError(init)
+      raise ValueError(
+          f"Expected `init` to be 'k-means++', 'random' "
+          f"or a callable, found `{init!r}`."
+      )
 
     assignment, err = update_assignment(geom, centroids)
     errors = jnp.full((max_iter + 1,), -1.).at[0].set(err)
@@ -199,6 +203,7 @@ def _kmeans(
       iteration: int, const: Any, state: KMeansState, compute_error: bool
   ) -> KMeansState:
     del compute_error, const
+
     centroids = update_centroids(state)
     assignment, err = update_assignment(geom, centroids)
     errors = state.errors.at[iteration + 1].set(err)
@@ -227,14 +232,14 @@ def kmeans(
     # TODO(michalk8): handle LRCGeom
     geom: pointcloud.PointCloud,
     k: int,
-    n_iter: int = 20,
-    tol: float = 1e-4,
     weights: Optional[jnp.ndarray] = None,
     init: Init_t = "k-means++",
+    n_init: int = 10,
     n_local_trials: Optional[int] = None,
+    tol: float = 1e-4,
+    min_iter: int = 0,
+    max_iter: int = 100,
     store_inner_errors: bool = False,
-    min_iter: int = 20,
-    max_iter: int = 20,
     seed: int = 0,
 ) -> KMeansOutput:
   if geom.is_online:
@@ -243,19 +248,16 @@ def kmeans(
     aux_data["batch_size"] = None
     geom = type(geom).tree_unflatten(aux_data, children)
   # TODO(michalk8): handle cosine distance?
-  keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
+  keys = jax.random.split(jax.random.PRNGKey(seed), n_init)
 
   # TODO(michalk8): consider normalizing?
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  out = jax.vmap(
-      _kmeans, in_axes=[0] + [None] * 9
-  )(
-      keys, geom, k, tol, weights, init, n_local_trials, store_inner_errors,
-      min_iter, max_iter
+  out = _kmeans(
+      keys, geom, k, weights, init, n_local_trials, tol, min_iter, max_iter,
+      store_inner_errors
   )
-
   best_ix = jnp.argmin(out.error)
   return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)
