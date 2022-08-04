@@ -258,7 +258,8 @@ def kmeans(
     aux_data["batch_size"] = None
     geom = type(geom).tree_unflatten(aux_data, children)
 
-  # TODO(michalk8): consider normalizing?
+  # TODO(michalk8): check if normalization is needed
+  # TODO(michalk8): fix weighting
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
