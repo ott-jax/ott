@@ -59,7 +59,6 @@ class KMeansOutput(NamedTuple):
   ) -> "KMeansOutput":
     errs = state.errors
     error = jnp.nanmin(jnp.where(errs == -1, jnp.nan, errs))
-    # TODO(michal8): explain
     converged = jnp.logical_or(
         jnp.sum(errs == -1) > 0, (errs[-2] - errs[-1]) <= tol
     )
@@ -170,8 +169,8 @@ def _kmeans(
     data = jax.ops.segment_sum(
         weighted_x, state.assignment, num_segments=k, unique_indices=True
     )
-    centroids, ws = data[:, :-1], data[:, -1]
-    return centroids / ws[:, None]
+    centroids, ws = data[:, :-1], data[:, -1:]
+    return centroids / jnp.where(ws > 0., ws, 1.)
 
   def init_fn(init: Init_t) -> KMeansState:
     if init == "k-means++":
