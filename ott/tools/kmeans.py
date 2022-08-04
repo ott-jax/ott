@@ -88,7 +88,6 @@ def _kmeans_plus_plus(
 ) -> jnp.ndarray:
 
   def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
-    # TODO(michalk8): weights
     key, next_key = jax.random.split(key, 2)
     ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
@@ -166,9 +165,9 @@ def _kmeans(
     )
     return assignment, err
 
-  def update_centroids(state: KMeansState) -> jnp.ndarray:
+  def update_centroids(assignment: jnp.ndarray) -> jnp.ndarray:
     data = jax.ops.segment_sum(
-        weighted_x, state.assignment, num_segments=k, unique_indices=True
+        weighted_x, assignment, num_segments=k, unique_indices=True
     )
     centroids, ws = data[:, :-1], data[:, -1:]
     return centroids / jnp.where(ws > 0., ws, 1.)
@@ -210,8 +209,8 @@ def _kmeans(
   ) -> KMeansState:
     del compute_error, const
 
-    centroids = update_centroids(state)
-    assignment, err = update_assignment(geom, centroids)
+    assignment, err = update_assignment(geom, state.centroids)
+    centroids = update_centroids(assignment)
     errors = state.errors.at[iteration + 1].set(err)
 
     return KMeansState(
@@ -231,7 +230,11 @@ def _kmeans(
       constants=None,
       state=init_fn(init)
   )
-  state = body_fn(jnp.sum(state.errors > 0) - 1, None, state, False)
+  iteration = jnp.sum(state.errors > 0)
+  assignment, err = update_assignment(geom, state.centroids)
+  state = state._replace(
+      assignment=assignment, errors=state.errors.at[iteration].set(err)
+  )
 
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
