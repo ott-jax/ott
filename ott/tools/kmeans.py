@@ -36,6 +36,7 @@ class KPPState(NamedTuple):
 
 class KMeansState(NamedTuple):
   centroids: jnp.ndarray
+  prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
   errors: jnp.ndarray
 
@@ -160,6 +161,8 @@ def _kmeans(
     return assignment, err
 
   def update_centroids(state: KMeansState) -> jnp.ndarray:
+    # TODO(michalk8): weight the points
+    # TODO(michalk8): cosine dist special handling?
     data = jnp.hstack([geom.x, weights[:, None]])
     data = jax.ops.segment_sum(
         data, state.assignment, num_segments=k, unique_indices=True
@@ -183,21 +186,24 @@ def _kmeans(
       )
 
     assignment, err = update_assignment(geom, centroids)
+    prev_assignment = jnp.full_like(assignment, -1)
     errors = jnp.full((max_iter + 1,), -1.).at[0].set(err)
 
     return KMeansState(
         centroids=centroids,
+        prev_assignment=prev_assignment,
         assignment=assignment,
         errors=errors,
     )
 
   def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
     del const
-    # TODO(michalk8): add strict convergence criterion?
     errs = state.errors
-    return jnp.logical_or(
+    assignment_changed = jnp.any(state.prev_assignment != state.assignment)
+    tol_not_satisfied = jnp.logical_or(
         iteration < 1, errs[iteration - 1] - errs[iteration] > tol
     )
+    return jnp.logical_or(tol_not_satisfied, assignment_changed)
 
   def body_fn(
       iteration: int, const: Any, state: KMeansState, compute_error: bool
@@ -210,6 +216,7 @@ def _kmeans(
 
     return KMeansState(
         centroids=centroids,
+        prev_assignment=state.assignment,
         assignment=assignment,
         errors=errors,
     )
