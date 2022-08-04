@@ -54,9 +54,10 @@ class CostFn(abc.ABC):
     return jnp.zeros((1, dim))
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    return self.pairwise(
-        x, y
-    ) + (0 if self.norm is None else self.norm(x) + self.norm(y))
+    cost = self.pairwise(x, y)
+    if self.norm is None:
+      return cost
+    return cost + self.norm(x) + self.norm(y)
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all costs (including norms) for vectors in x / y.

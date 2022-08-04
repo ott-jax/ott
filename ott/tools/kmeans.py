@@ -238,8 +238,7 @@ def _kmeans(
 
 
 def kmeans(
-    # TODO(michalk8): handle LRCGeom
-    geom: pointcloud.PointCloud,
+    geom: Union[jnp.ndarray, pointcloud.PointCloud],
     k: int,
     weights: Optional[jnp.ndarray] = None,
     init: Init_t = "k-means++",
@@ -251,19 +250,22 @@ def kmeans(
     store_inner_errors: bool = False,
     seed: int = 0,
 ) -> KMeansOutput:
+  if isinstance(geom, jnp.ndarray):
+    geom = pointcloud.PointCloud(geom)
+  assert geom.is_squared_euclidean
+
   if geom.is_online:
     # to allow materializing the cost matrix
     children, aux_data = geom.tree_flatten()
     aux_data["batch_size"] = None
     geom = type(geom).tree_unflatten(aux_data, children)
-  # TODO(michalk8): handle cosine distance?
-  keys = jax.random.split(jax.random.PRNGKey(seed), n_init)
 
   # TODO(michalk8): consider normalizing?
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
+  keys = jax.random.split(jax.random.PRNGKey(seed), n_init)
   out = _kmeans(
       keys, geom, k, weights, init, n_local_trials, tol, min_iter, max_iter,
       store_inner_errors
