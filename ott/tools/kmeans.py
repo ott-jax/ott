@@ -13,28 +13,25 @@
 # limitations under the License.
 
 import math
-from typing import NamedTuple, Optional, Tuple
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import Literal
 
 from ott.core import fixed_point_loop
 from ott.geometry import pointcloud
 
 __all__ = ["kmeans", "KMeansOutput"]
 
+Init_t = Union[Literal["k-means++", "random"],
+               Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
+
 
 class KPPState(NamedTuple):
   key: jnp.ndarray
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
-
-
-class KMeansConstants(NamedTuple):
-  geom: pointcloud.PointCloud
-  weights: jnp.ndarray
-  k: int
-  tol: float
 
 
 class KMeansState(NamedTuple):
@@ -73,12 +70,12 @@ class KMeansOutput(NamedTuple):
     )
 
 
-# TODO(michalk8): refactor to return directly the centroids
 def _random_init(
     geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
 ) -> jnp.ndarray:
   ixs = jnp.arange(geom.shape[0])
-  return jax.random.choice(key, ixs, shape=(k,), replace=False)
+  ixs = jax.random.choice(key, ixs, shape=(k,), replace=False)
+  return geom.subset(ixs, None).x
 
 
 def _kmeans_plus_plus(
@@ -132,7 +129,7 @@ def _kmeans_plus_plus(
       state=state
   )
 
-  return state
+  return state.centroids
 
 
 def _kmeans(
@@ -141,71 +138,48 @@ def _kmeans(
     k: int,
     tol: float = 1e-4,
     weights: Optional[jnp.ndarray] = None,
-    # TODO(michalk8): allow callables?
-    init_random: bool = True,
+    init: Init_t = "k-means++",
     n_local_trials: Optional[int] = None,
     store_inner_errors: bool = False,
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansOutput:
 
-  def update_centroids(
-      consts: KMeansConstants, state: KMeansState
-  ) -> jnp.ndarray:
-    data = jnp.hstack([consts.geom.x, constants.weights[:, None]])
-    data = jax.ops.segment_sum(
-        data, state.assignment, num_segments=consts.k, unique_indices=True
-    )
-    centroids, weights = data[:, :-1], data[:, -1]
-    return centroids / weights[:, None]
-
-  def init_fn(geom: pointcloud.PointCloud) -> KMeansState:
-    if init_random:
-      ixs = _random_init(geom, k=k, key=key)
-    else:
-      ixs = _kmeans_plus_plus(geom, k=k, key=key, n_local_trials=n_local_trials)
-    geom = geom.subset(None, ixs)
-    cost_matrix = geom.cost_matrix  # (n, k)
-    assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
-    centroids = geom.x[ixs]
-    # TODO(michalk8): benchmark which is faster
-    # distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)
-    error = jnp.mean(
-        cost_matrix[jnp.arange(len(assignment)), assignment] * weights
-    )
-    errors = jnp.full((max_iter + 1,), -1.).at[0].set(error)
-
-    return KMeansState(
-        centroids=centroids,
-        assignment=assignment,
-        errors=errors,
-    )
-
-  def cond_fn(
-      iteration: int, const: KMeansConstants, state: KMeansState
-  ) -> bool:
-    # TODO(michalk8): add strict convergence criterion?
-    errs = state.errors
-    return jnp.logical_or(
-        iteration < 1, errs[iteration - 1] - errs[iteration] > const.tol
-    )
-
-  def body_fn(
-      iteration: int, const: KMeansConstants, state: KMeansState,
-      compute_error: bool
-  ) -> KMeansState:
-    del compute_error
-    centroids = update_centroids(const, state)
-    # TODO(michalk8): correctly initialize
-    (x, _, *args), aux_data = const.geom.tree_flatten()
+  def update_assignment(geom: pointcloud.PointCloud,
+                        centroids: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
+    (x, _, *args), aux_data = geom.tree_flatten()
     cost_matrix = pointcloud.PointCloud.tree_unflatten(
         aux_data, [x, centroids] + args
     ).cost_matrix
+
     assignment = jnp.argmin(cost_matrix, axis=1)
-    error = jnp.mean(
+    err = jnp.mean(
         cost_matrix[jnp.arange(len(assignment)), assignment] * weights
     )
-    errors = state.errors.at[iteration + 1].set(error)
+    return assignment, err
+
+  def update_centroids(state: KMeansState) -> jnp.ndarray:
+    data = jnp.hstack([geom.x, weights[:, None]])
+    data = jax.ops.segment_sum(
+        data, state.assignment, num_segments=k, unique_indices=True
+    )
+    centroids, ws = data[:, :-1], data[:, -1]
+    return centroids / ws[:, None]
+
+  def init_fn() -> KMeansState:
+    if init == "k-means++":
+      centroids = _random_init(geom, k=k, key=key)
+    elif init == "random":
+      centroids = _kmeans_plus_plus(
+          geom, k=k, key=key, n_local_trials=n_local_trials
+      )
+    elif callable(init):
+      centroids = init(geom, k, key)
+    else:
+      raise TypeError(init)
+
+    assignment, err = update_assignment(geom, centroids)
+    errors = jnp.full((max_iter + 1,), -1.).at[0].set(err)
 
     return KMeansState(
         centroids=centroids,
@@ -213,16 +187,36 @@ def _kmeans(
         errors=errors,
     )
 
-  state = init_fn(geom)
-  constants = KMeansConstants(geom=geom, weights=weights, k=k, tol=tol)
+  def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
+    del const
+    # TODO(michalk8): add strict convergence criterion?
+    errs = state.errors
+    return jnp.logical_or(
+        iteration < 1, errs[iteration - 1] - errs[iteration] > tol
+    )
+
+  def body_fn(
+      iteration: int, const: Any, state: KMeansState, compute_error: bool
+  ) -> KMeansState:
+    del compute_error, const
+    centroids = update_centroids(state)
+    assignment, err = update_assignment(geom, centroids)
+    errors = state.errors.at[iteration + 1].set(err)
+
+    return KMeansState(
+        centroids=centroids,
+        assignment=assignment,
+        errors=errors,
+    )
+
   state = fixed_point_loop.fixpoint_iter(
       cond_fn,
       body_fn,
       min_iterations=min_iter,
       max_iterations=max_iter,
       inner_iterations=1,
-      constants=constants,
-      state=state
+      constants=None,
+      state=init_fn()
   )
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
@@ -236,13 +230,12 @@ def kmeans(
     n_iter: int = 20,
     tol: float = 1e-4,
     weights: Optional[jnp.ndarray] = None,
-    # TODO(michalk8): change default
-    init_random: bool = True,
+    init: Init_t = "k-means++",
     n_local_trials: Optional[int] = None,
     store_inner_errors: bool = False,
-    seed: int = 0,
     min_iter: int = 20,
     max_iter: int = 20,
+    seed: int = 0,
 ) -> KMeansOutput:
   if geom.is_online:
     # to allow materializing the cost matrix
@@ -260,8 +253,8 @@ def kmeans(
   out = jax.vmap(
       _kmeans, in_axes=[0] + [None] * 9
   )(
-      keys, geom, k, tol, weights, init_random, n_local_trials,
-      store_inner_errors, min_iter, max_iter
+      keys, geom, k, tol, weights, init, n_local_trials, store_inner_errors,
+      min_iter, max_iter
   )
 
   best_ix = jnp.argmin(out.error)
