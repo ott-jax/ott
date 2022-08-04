@@ -148,8 +148,8 @@ def _kmeans(
     init: Init_t = "k-means++",
     n_local_trials: Optional[int] = None,
     tol: float = 1e-4,
-    min_iter: int = 20,
-    max_iter: int = 20,
+    min_iterations: int = 0,
+    max_iterations: int = 300,
     store_inner_errors: bool = False,
 ) -> KMeansOutput:
 
@@ -161,7 +161,7 @@ def _kmeans(
     ).cost_matrix
 
     assignment = jnp.argmin(cost_matrix, axis=1)
-    err = jnp.mean(
+    err = jnp.sum(
         cost_matrix[jnp.arange(len(assignment)), assignment] * weights
     )
     return assignment, err
@@ -178,7 +178,7 @@ def _kmeans(
       init = functools.partial(_kmeans_plus_plus, n_local_trials=n_local_trials)
     elif init == "random":
       init = _random_init
-    if not callable(init_fn):
+    if not callable(init):
       raise TypeError(
           f"Expected `init` to be 'k-means++', 'random' "
           f"or a callable, found `{init_fn!r}`."
@@ -187,7 +187,7 @@ def _kmeans(
     centroids = init(geom, k, key)
     assignment, err = update_assignment(geom, centroids)
     prev_assignment = jnp.full_like(assignment, -1)
-    errors = jnp.full((max_iter,), -1.).at[0].set(err)
+    errors = jnp.full((max_iterations,), -1.).at[0].set(err)
 
     return KMeansState(
         centroids=centroids,
@@ -225,12 +225,14 @@ def _kmeans(
   state = fixed_point_loop.fixpoint_iter(
       cond_fn,
       body_fn,
-      min_iterations=min_iter,
-      max_iterations=max_iter - 1,
+      min_iterations=min_iterations,
+      max_iterations=max_iterations - 1,
       inner_iterations=1,
       constants=None,
       state=init_fn(init)
   )
+  state = body_fn(jnp.sum(state.errors > 0) - 1, None, state, False)
+
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
   )
@@ -244,10 +246,10 @@ def kmeans(
     n_init: int = 10,
     n_local_trials: Optional[int] = None,
     tol: float = 1e-4,
-    min_iter: int = 0,
-    max_iter: int = 100,
+    min_iterations: int = 0,
+    max_iterations: int = 300,
     store_inner_errors: bool = False,
-    seed: int = 0,
+    key: Optional[jnp.ndarray] = None,
 ) -> KMeansOutput:
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
@@ -260,15 +262,16 @@ def kmeans(
     geom = type(geom).tree_unflatten(aux_data, children)
 
   # TODO(michalk8): check if normalization is needed
-  # TODO(michalk8): fix weighting
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  keys = jax.random.split(jax.random.PRNGKey(seed), n_init)
+  if key is None:
+    key = jax.random.PRNGKey(0)
+  keys = jax.random.split(key, n_init)
   out = _kmeans(
-      keys, geom, k, weights, init, n_local_trials, tol, min_iter, max_iter,
-      store_inner_errors
+      keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
+      max_iterations, store_inner_errors
   )
   best_ix = jnp.argmin(out.error)
   return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)
