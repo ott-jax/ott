@@ -88,8 +88,9 @@ def _kmeans_plus_plus(
 ) -> jnp.ndarray:
 
   def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
+    # TODO(michalk8): weights
     key, next_key = jax.random.split(key, 2)
-    ix = jax.random.choice(key, jnp.arange(10), shape=())
+    ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
     dists = geom.subset(ix, None).cost_matrix[0]
     return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
