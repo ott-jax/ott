@@ -189,7 +189,7 @@ def _kmeans(
 
     assignment, err = update_assignment(geom, centroids)
     prev_assignment = jnp.full_like(assignment, -1)
-    errors = jnp.full((max_iter + 1,), -1.).at[0].set(err)
+    errors = jnp.full((max_iter,), -1.).at[0].set(err)
 
     return KMeansState(
         centroids=centroids,
@@ -202,9 +202,9 @@ def _kmeans(
     del const
     errs = state.errors
     assignment_changed = jnp.any(state.prev_assignment != state.assignment)
-    tol_not_satisfied = jnp.logical_or(
-        iteration < 1, errs[iteration - 1] - errs[iteration] > tol
-    )
+    # below is always satisfied for `iteration=0`,
+    # but the assignment condition never holds at `iteration=0`
+    tol_not_satisfied = errs[iteration - 1] - errs[iteration] > tol
     return jnp.logical_or(tol_not_satisfied, assignment_changed)
 
   def body_fn(
@@ -227,7 +227,7 @@ def _kmeans(
       cond_fn,
       body_fn,
       min_iterations=min_iter,
-      max_iterations=max_iter,
+      max_iterations=max_iter - 1,
       inner_iterations=1,
       constants=None,
       state=init_fn()
