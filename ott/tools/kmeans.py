@@ -45,6 +45,7 @@ class KMeansOutput(NamedTuple):
   centroids: jnp.ndarray
   assignment: jnp.ndarray
   inner_errors: Optional[jnp.ndarray]
+  iteration: int
   error: float
   converged: bool
 
@@ -66,6 +67,7 @@ class KMeansOutput(NamedTuple):
         centroids=state.centroids,
         assignment=state.assignment,
         inner_errors=errs if store_inner_errors else None,
+        iteration=jnp.sum(errs > -1),
         error=error,
         converged=converged,
     )
