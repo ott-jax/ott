@@ -119,6 +119,7 @@ def _kmeans_plus_plus(
 
   if n_local_trials is None:
     n_local_trials = 2 + int(math.log(k))
+  assert n_local_trials > 0, n_local_trials
 
   state = init_fn(geom, key)
   constants = (geom, jnp.arange(geom.shape[0]))
@@ -163,30 +164,24 @@ def _kmeans(
     return assignment, err
 
   def update_centroids(state: KMeansState) -> jnp.ndarray:
-    # TODO(michalk8): weight the points
-    # TODO(michalk8): cosine dist special handling?
-    data = jnp.hstack([geom.x, weights[:, None]])
     data = jax.ops.segment_sum(
-        data, state.assignment, num_segments=k, unique_indices=True
+        weighted_x, state.assignment, num_segments=k, unique_indices=True
     )
     centroids, ws = data[:, :-1], data[:, -1]
     return centroids / ws[:, None]
 
-  def init_fn() -> KMeansState:
+  def init_fn(init: Init_t) -> KMeansState:
     if init == "k-means++":
-      centroids = _random_init(geom, k=k, key=key)
+      init = functools.partial(_kmeans_plus_plus, n_local_trials=n_local_trials)
     elif init == "random":
-      centroids = _kmeans_plus_plus(
-          geom, k=k, key=key, n_local_trials=n_local_trials
-      )
-    elif callable(init):
-      centroids = init(geom, k, key)
-    else:
-      raise ValueError(
+      init = _random_init
+    if not callable(init_fn):
+      raise TypeError(
           f"Expected `init` to be 'k-means++', 'random' "
-          f"or a callable, found `{init!r}`."
+          f"or a callable, found `{init_fn!r}`."
       )
 
+    centroids = init(geom, k, key)
     assignment, err = update_assignment(geom, centroids)
     prev_assignment = jnp.full_like(assignment, -1)
     errors = jnp.full((max_iter,), -1.).at[0].set(err)
@@ -223,6 +218,7 @@ def _kmeans(
         errors=errors,
     )
 
+  weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
   state = fixed_point_loop.fixpoint_iter(
       cond_fn,
       body_fn,
@@ -230,7 +226,7 @@ def _kmeans(
       max_iterations=max_iter - 1,
       inner_iterations=1,
       constants=None,
-      state=init_fn()
+      state=init_fn(init)
   )
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
