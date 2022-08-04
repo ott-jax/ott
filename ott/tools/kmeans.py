@@ -102,9 +102,12 @@ def _kmeans_plus_plus(
     del compute_error
     key, next_key = jax.random.split(state.key, 2)
     geom, ixs = const
-    # TODO(michalk8): check if needs to be normalized
-    probs = state.centroid_dists  # / state.centroid_dists.sum()
-    ixs = jax.random.choice(key, ixs, shape=(n_local_trials,), p=probs)
+
+    # no need to normalize when `replace=True`
+    probs = state.centroid_dists
+    ixs = jax.random.choice(
+        key, ixs, shape=(n_local_trials,), p=probs, replace=True
+    )
     geom = geom.subset(ixs, None)
 
     candidate_dists = jnp.minimum(geom.cost_matrix, state.centroid_dists)
