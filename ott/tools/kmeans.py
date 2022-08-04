@@ -40,27 +40,36 @@ class KMeansConstants(NamedTuple):
 class KMeansState(NamedTuple):
   centroids: jnp.ndarray
   assignment: jnp.ndarray
-  distortions: jnp.ndarray
+  errors: jnp.ndarray
 
 
 class KMeansOutput(NamedTuple):
   centroids: jnp.ndarray
   assignment: jnp.ndarray
-  distortion: float
+  inner_errors: Optional[jnp.ndarray]
+  error: float
   converged: bool
 
   @classmethod
-  def from_state(cls, state: KMeansState, *, tol: float) -> "KMeansOutput":
-    err = state.distortions
-    distortion = jnp.nanmin(jnp.where(err == -1, jnp.nan, err))
+  def from_state(
+      cls,
+      state: KMeansState,
+      *,
+      tol: float,
+      store_inner_errors: bool = False
+  ) -> "KMeansOutput":
+    errs = state.errors
+    error = jnp.nanmin(jnp.where(errs == -1, jnp.nan, errs))
+    # TODO(michal8): explain
+    converged = jnp.logical_or(
+        jnp.sum(errs == -1) > 0, (errs[-2] - errs[-1]) <= tol
+    )
     return cls(
         centroids=state.centroids,
         assignment=state.assignment,
-        distortion=distortion,
-        # TODO(michal8): explain
-        converged=jnp.logical_or(
-            jnp.sum(err == -1) > 0, (err[-2] - err[-1]) <= tol
-        )
+        inner_errors=errs if store_inner_errors else None,
+        error=error,
+        converged=converged,
     )
 
 
@@ -83,7 +92,7 @@ def _kmeans_plus_plus(
     key, next_key = jax.random.split(key, 2)
     ix = jax.random.choice(key, jnp.arange(10), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
-    dists = geom.subset(ix, None, batch_size=None).cost_matrix[0]
+    dists = geom.subset(ix, None).cost_matrix[0]
     return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
@@ -96,7 +105,7 @@ def _kmeans_plus_plus(
     # TODO(michalk8): check if needs to be normalized
     probs = state.centroid_dists  # / state.centroid_dists.sum()
     ixs = jax.random.choice(key, ixs, shape=(n_local_trials,), p=probs)
-    geom = geom.subset(ixs, None, batch_size=None)
+    geom = geom.subset(ixs, None)
 
     candidate_dists = jnp.minimum(geom.cost_matrix, state.centroid_dists)
     best_ix = jnp.argmin(candidate_dists.sum(1))
@@ -134,6 +143,8 @@ def _kmeans(
     weights: Optional[jnp.ndarray] = None,
     # TODO(michalk8): allow callables?
     init_random: bool = True,
+    n_local_trials: Optional[int] = None,
+    store_inner_errors: bool = False,
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansOutput:
@@ -152,29 +163,31 @@ def _kmeans(
     if init_random:
       ixs = _random_init(geom, k=k, key=key)
     else:
-      ixs = _kmeans_plus_plus(geom, k=k, key=key)
-    geom = geom.subset(None, ixs, batch_size=None)
+      ixs = _kmeans_plus_plus(geom, k=k, key=key, n_local_trials=n_local_trials)
+    geom = geom.subset(None, ixs)
     cost_matrix = geom.cost_matrix  # (n, k)
     assignment = jnp.argmin(cost_matrix, axis=1)  # (n,)
     centroids = geom.x[ixs]
-    # weights are NOT normalized
-    distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)  # ()
-    distortions = jnp.full((max_iter + 1,), -1.).at[0].set(distortion)
+    # TODO(michalk8): benchmark which is faster
+    # distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)
+    error = jnp.mean(
+        cost_matrix[jnp.arange(len(assignment)), assignment] * weights
+    )
+    errors = jnp.full((max_iter + 1,), -1.).at[0].set(error)
 
     return KMeansState(
         centroids=centroids,
         assignment=assignment,
-        distortions=distortions,
+        errors=errors,
     )
 
   def cond_fn(
       iteration: int, const: KMeansConstants, state: KMeansState
   ) -> bool:
-    # TODO(michalk8): verify
-    # TODO(michalk8): add strict convergence criterion
-    err = state.distortions
+    # TODO(michalk8): add strict convergence criterion?
+    errs = state.errors
     return jnp.logical_or(
-        iteration < 1, err[iteration - 1] - err[iteration] > const.tol
+        iteration < 1, errs[iteration - 1] - errs[iteration] > const.tol
     )
 
   def body_fn(
@@ -184,16 +197,20 @@ def _kmeans(
     del compute_error
     centroids = update_centroids(const, state)
     # TODO(michalk8): correctly initialize
-    cost_matrix = pointcloud.PointCloud(const.geom.x, centroids).cost_matrix
+    (x, _, *args), aux_data = const.geom.tree_flatten()
+    cost_matrix = pointcloud.PointCloud.tree_unflatten(
+        aux_data, [x, centroids] + args
+    ).cost_matrix
     assignment = jnp.argmin(cost_matrix, axis=1)
-    # weights are NOT normalized
-    # TODO(michalk8): benchmark which is faster
-    # distortion = jnp.mean(jnp.min(cost_matrix, axis=1) * weights)
-    distortion = jnp.mean(cost_matrix[jnp.arange(len(assignment)), assignment])
-    distortions = state.distortions.at[iteration + 1].set(distortion)
+    error = jnp.mean(
+        cost_matrix[jnp.arange(len(assignment)), assignment] * weights
+    )
+    errors = state.errors.at[iteration + 1].set(error)
 
     return KMeansState(
-        centroids=centroids, assignment=assignment, distortions=distortions
+        centroids=centroids,
+        assignment=assignment,
+        errors=errors,
     )
 
   state = init_fn(geom)
@@ -207,7 +224,9 @@ def _kmeans(
       constants=constants,
       state=state
   )
-  return KMeansOutput.from_state(state, tol=tol)
+  return KMeansOutput.from_state(
+      state, tol=tol, store_inner_errors=store_inner_errors
+  )
 
 
 def kmeans(
@@ -219,22 +238,31 @@ def kmeans(
     weights: Optional[jnp.ndarray] = None,
     # TODO(michalk8): change default
     init_random: bool = True,
+    n_local_trials: Optional[int] = None,
+    store_inner_errors: bool = False,
     seed: int = 0,
     min_iter: int = 20,
     max_iter: int = 20,
 ) -> KMeansOutput:
+  if geom.is_online:
+    # to allow materializing the cost matrix
+    children, aux_data = geom.tree_flatten()
+    aux_data["batch_size"] = None
+    geom = type(geom).tree_unflatten(aux_data, children)
   # TODO(michalk8): handle cosine distance?
-  # TODO(michalk8): center PC as in sklearn?
   keys = jax.random.split(jax.random.PRNGKey(seed), n_iter)
 
-  # TODO(michalk8): consider normalizing
+  # TODO(michalk8): consider normalizing?
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
   out = jax.vmap(
-      _kmeans, in_axes=[0] + [None] * 7
-  )(keys, geom, k, tol, weights, init_random, min_iter, max_iter)
+      _kmeans, in_axes=[0] + [None] * 9
+  )(
+      keys, geom, k, tol, weights, init_random, n_local_trials,
+      store_inner_errors, min_iter, max_iter
+  )
 
-  best_ix = jnp.argmin(out.distortion)
+  best_ix = jnp.argmin(out.error)
   return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)
