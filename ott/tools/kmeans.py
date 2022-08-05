@@ -152,8 +152,7 @@ def _kmeans(
     store_inner_errors: bool = False,
 ) -> KMeansOutput:
 
-  def update_assignment(geom: pointcloud.PointCloud,
-                        centroids: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
+  def update_assignment(centroids: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
     (x, _, *args), aux_data = geom.tree_flatten()
     cost_matrix = pointcloud.PointCloud.tree_unflatten(
         aux_data, [x, centroids] + args
@@ -182,9 +181,10 @@ def _kmeans(
       )
 
     centroids = init(geom, k, key)
-    assignment, err = update_assignment(geom, centroids)
-    prev_assignment = jnp.full_like(assignment, -1)
-    errors = jnp.full((max_iterations,), -1.).at[0].set(err)
+    n = geom.shape[0]
+    prev_assignment = jnp.full((n,), -2)
+    assignment = jnp.full((n,), -1)
+    errors = jnp.full((max_iterations,), -1.)
 
     return KMeansState(
         centroids=centroids,
@@ -207,9 +207,9 @@ def _kmeans(
   ) -> KMeansState:
     del compute_error, const
 
-    assignment, err = update_assignment(geom, state.centroids)
+    assignment, err = update_assignment(state.centroids)
     centroids = update_centroids(assignment)
-    errors = state.errors.at[iteration + 1].set(err)
+    errors = state.errors.at[iteration].set(err)
 
     return KMeansState(
         centroids=centroids,
@@ -223,13 +223,13 @@ def _kmeans(
       cond_fn,
       body_fn,
       min_iterations=min_iterations,
-      max_iterations=max_iterations - 1,
+      max_iterations=max_iterations,
       inner_iterations=1,
       constants=None,
       state=init_fn(init)
   )
   iteration = jnp.sum(state.errors > 0)
-  assignment, err = update_assignment(geom, state.centroids)
+  assignment, err = update_assignment(state.centroids)
   state = state._replace(
       assignment=assignment, errors=state.errors.at[iteration].set(err)
   )
