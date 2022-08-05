@@ -166,9 +166,7 @@ def _kmeans(
     return assignment, err
 
   def update_centroids(assignment: jnp.ndarray) -> jnp.ndarray:
-    data = jax.ops.segment_sum(
-        weighted_x, assignment, num_segments=k, unique_indices=True
-    )
+    data = jax.ops.segment_sum(weighted_x, assignment, num_segments=k)
     centroids, ws = data[:, :-1], data[:, -1:]
     return centroids / jnp.where(ws > 0., ws, 1.)
 
