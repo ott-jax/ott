@@ -38,6 +38,7 @@ class KMeansState(NamedTuple):
   centroids: jnp.ndarray
   prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
+  # TODO(michalk8): use inertia
   errors: jnp.ndarray
 
 
@@ -57,7 +58,7 @@ class KMeansOutput(NamedTuple):
       tol: float,
       store_inner_errors: bool = False
   ) -> "KMeansOutput":
-    errs = state.errors
+    errs = state.errors[1:]
     error = jnp.nanmin(jnp.where(errs == -1, jnp.nan, errs))
     converged = jnp.logical_or(
         jnp.sum(errs == -1) > 0, (errs[-2] - errs[-1]) <= tol
@@ -152,21 +153,37 @@ def _kmeans(
     store_inner_errors: bool = False,
 ) -> KMeansOutput:
 
-  def update_assignment(centroids: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
+  @functools.partial(jax.vmap, in_axes=[0] * 3, out_axes=0)
+  def reallocate_centroids(
+      ix: jnp.ndarray,
+      centroid: jnp.ndarray,
+      weight: jnp.ndarray,
+  ) -> jnp.ndarray:
+    # TODO(michalk8): explain why geom.x and not weighted_x
+    return jnp.where(weight > 0., centroid, geom.x[ix])
+
+  def update_assignment(
+      centroids: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     (x, _, *args), aux_data = geom.tree_flatten()
     cost_matrix = pointcloud.PointCloud.tree_unflatten(
         aux_data, [x, centroids] + args
     ).cost_matrix
 
     assignment = jnp.argmin(cost_matrix, axis=1)
-    err = jnp.sum(
-        cost_matrix[jnp.arange(len(assignment)), assignment] * weights
-    )
-    return assignment, err
+    dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
+    return assignment, dist_to_centers
 
-  def update_centroids(assignment: jnp.ndarray) -> jnp.ndarray:
+  def update_centroids(
+      assignment: jnp.ndarray, dist_to_centers: jnp.ndarray
+  ) -> jnp.ndarray:
     data = jax.ops.segment_sum(weighted_x, assignment, num_segments=k)
     centroids, ws = data[:, :-1], data[:, -1:]
+
+    far_ixs = jnp.argsort(dist_to_centers)[-k:][::-1]
+    centroids = reallocate_centroids(far_ixs, centroids, ws)
+    # TODO(michalk8): update `ws`
+
     return centroids / jnp.where(ws > 0., ws, 1.)
 
   def init_fn(init: Init_t) -> KMeansState:
@@ -184,7 +201,8 @@ def _kmeans(
     n = geom.shape[0]
     prev_assignment = jnp.full((n,), -2)
     assignment = jnp.full((n,), -1)
-    errors = jnp.full((max_iterations,), -1.)
+    # TODO(michalk8): better impl.
+    errors = jnp.full((max_iterations + 1,), -1.)
 
     return KMeansState(
         centroids=centroids,
@@ -207,9 +225,10 @@ def _kmeans(
   ) -> KMeansState:
     del compute_error, const
 
-    assignment, err = update_assignment(state.centroids)
-    centroids = update_centroids(assignment)
-    errors = state.errors.at[iteration].set(err)
+    assignment, dist_to_centers = update_assignment(state.centroids)
+    centroids = update_centroids(assignment, dist_to_centers)
+    error = jnp.sum(weights * dist_to_centers)
+    errors = state.errors.at[iteration + 1].set(error)
 
     return KMeansState(
         centroids=centroids,
@@ -228,11 +247,12 @@ def _kmeans(
       constants=None,
       state=init_fn(init)
   )
-  iteration = jnp.sum(state.errors > 0)
-  assignment, err = update_assignment(state.centroids)
-  state = state._replace(
-      assignment=assignment, errors=state.errors.at[iteration].set(err)
-  )
+  # TODO(michalk8): check
+  # iteration = jnp.sum(state.errors > 0)
+  # assignment, _ = update_assignment(state.centroids)
+  # state = state._replace(
+  #    assignment=assignment, errors=state.errors.at[iteration].set(err)
+  # )
 
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
