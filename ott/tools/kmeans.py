@@ -158,13 +158,12 @@ def _kmeans(
   ) -> float:
     return jnp.sum((old_centroids - new_centroids) ** 2)
 
-  @functools.partial(jax.vmap, in_axes=[0] * 3, out_axes=0)
+  @functools.partial(jax.vmap, in_axes=[0, 0, 0], out_axes=0)
   def reallocate_centroids(
       ix: jnp.ndarray,
       centroid: jnp.ndarray,
       weight: jnp.ndarray,
   ) -> jnp.ndarray:
-    # TODO(michalk8): explain why geom.x and not weighted_x
     return jnp.where(weight > 0., centroid, geom.x[ix])
 
   def update_assignment(
@@ -231,8 +230,8 @@ def _kmeans(
 
     assignment, dist_to_centers = update_assignment(state.centroids)
     centroids = update_centroids(assignment, dist_to_centers)
-    error = jnp.sum(weights * dist_to_centers)
-    errors = state.errors.at[iteration].set(error)
+    err = jnp.sum(weights * dist_to_centers)
+    errors = state.errors.at[iteration].set(err)
 
     return KMeansState(
         centroids=centroids,
@@ -240,6 +239,14 @@ def _kmeans(
         assignment=assignment,
         center_shift=center_shift(state.centroids, centroids),
         errors=errors,
+    )
+
+  def finalize_assignment(state: KMeansState) -> KMeansState:
+    iteration = jnp.sum(state.errors > 0)
+    assignment, dist_to_centers = update_assignment(state.centroids)
+    err = jnp.sum(weights * dist_to_centers)
+    return state._replace(
+        assignment=assignment, errors=state.errors.at[iteration].set(err)
     )
 
   weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
@@ -252,12 +259,9 @@ def _kmeans(
       constants=None,
       state=init_fn(init)
   )
-  # TODO(michalk8): check
-  # iteration = jnp.sum(state.errors > 0)
-  # assignment, _ = update_assignment(state.centroids)
-  # state = state._replace(
-  #    assignment=assignment, errors=state.errors.at[iteration].set(err)
-  # )
+  state = jax.lax.cond(
+      state.center_shift > tol, finalize_assignment, lambda _: _, state
+  )
 
   return KMeansOutput.from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
