@@ -38,8 +38,8 @@ class KMeansState(NamedTuple):
   centroids: jnp.ndarray
   prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
-  # TODO(michalk8): use inertia
   errors: jnp.ndarray
+  center_shift: float
 
 
 class KMeansOutput(NamedTuple):
@@ -58,7 +58,7 @@ class KMeansOutput(NamedTuple):
       tol: float,
       store_inner_errors: bool = False
   ) -> "KMeansOutput":
-    errs = state.errors[1:]
+    errs = state.errors
     error = jnp.nanmin(jnp.where(errs == -1, jnp.nan, errs))
     converged = jnp.logical_or(
         jnp.sum(errs == -1) > 0, (errs[-2] - errs[-1]) <= tol
@@ -153,6 +153,11 @@ def _kmeans(
     store_inner_errors: bool = False,
 ) -> KMeansOutput:
 
+  def center_shift(
+      old_centroids: jnp.ndarray, new_centroids: jnp.ndarray
+  ) -> float:
+    return jnp.sum((old_centroids - new_centroids) ** 2)
+
   @functools.partial(jax.vmap, in_axes=[0] * 3, out_axes=0)
   def reallocate_centroids(
       ix: jnp.ndarray,
@@ -202,22 +207,22 @@ def _kmeans(
     prev_assignment = jnp.full((n,), -2)
     assignment = jnp.full((n,), -1)
     # TODO(michalk8): better impl.
-    errors = jnp.full((max_iterations + 1,), -1.)
+    errors = jnp.full((max_iterations,), -1.)
 
     return KMeansState(
         centroids=centroids,
         prev_assignment=prev_assignment,
         assignment=assignment,
+        center_shift=jnp.inf,
         errors=errors,
     )
 
   def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
     del const
-    errs = state.errors
     assignment_changed = jnp.any(state.prev_assignment != state.assignment)
     # below is always satisfied for `iteration=0`,
     # but the assignment condition never holds at `iteration=0`
-    tol_not_satisfied = errs[iteration - 1] - errs[iteration] > tol
+    tol_not_satisfied = state.center_shift > tol
     return jnp.logical_or(tol_not_satisfied, assignment_changed)
 
   def body_fn(
@@ -228,12 +233,13 @@ def _kmeans(
     assignment, dist_to_centers = update_assignment(state.centroids)
     centroids = update_centroids(assignment, dist_to_centers)
     error = jnp.sum(weights * dist_to_centers)
-    errors = state.errors.at[iteration + 1].set(error)
+    errors = state.errors.at[iteration].set(error)
 
     return KMeansState(
         centroids=centroids,
         prev_assignment=state.assignment,
         assignment=assignment,
+        center_shift=center_shift(state.centroids, centroids),
         errors=errors,
     )
 
