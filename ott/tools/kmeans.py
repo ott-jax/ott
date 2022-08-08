@@ -163,8 +163,12 @@ def _kmeans(
       ix: jnp.ndarray,
       centroid: jnp.ndarray,
       weight: jnp.ndarray,
-  ) -> jnp.ndarray:
-    return jnp.where(weight > 0., centroid, geom.x[ix])
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    is_not_empty = weight > 0.
+    new_centroid = is_not_empty * centroid + (1 - is_not_empty) * geom.x[ix]
+    centroid_to_remove = is_not_empty * weighted_x[ix, :-1]
+    weight_to_remove = (1 - is_not_empty) * weights[ix]
+    return new_centroid, jnp.concatenate([centroid_to_remove, weight_to_remove])
 
   def update_assignment(
       centroids: jnp.ndarray
@@ -185,10 +189,14 @@ def _kmeans(
     centroids, ws = data[:, :-1], data[:, -1:]
 
     far_ixs = jnp.argsort(dist_to_centers)[-k:][::-1]
-    centroids = reallocate_centroids(far_ixs, centroids, ws)
-    # TODO(michalk8): update `ws`
+    centroids, to_remove = reallocate_centroids(far_ixs, centroids, ws)
+    to_remove = jax.ops.segment_sum(
+        to_remove, assignment[far_ixs], num_segments=k
+    )
+    centroids -= to_remove[:, :-1]
+    ws -= to_remove[:, -1:]
 
-    return centroids / jnp.where(ws > 0., ws, 1.)
+    return centroids * jnp.where(ws > 0., 1. / ws, 1.)
 
   def init_fn(init: Init_t) -> KMeansState:
     if init == "k-means++":
