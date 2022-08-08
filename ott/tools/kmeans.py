@@ -206,7 +206,6 @@ def _kmeans(
     n = geom.shape[0]
     prev_assignment = jnp.full((n,), -2)
     assignment = jnp.full((n,), -1)
-    # TODO(michalk8): better impl.
     errors = jnp.full((max_iterations,), -1.)
 
     return KMeansState(
@@ -288,7 +287,6 @@ def kmeans(
     aux_data["batch_size"] = None
     geom = type(geom).tree_unflatten(aux_data, children)
 
-  # TODO(michalk8): check if normalization is needed
   if weights is None:
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
