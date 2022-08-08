@@ -572,6 +572,15 @@ class PointCloud(geometry.Geometry):
         x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
     )
 
+  def _cosine_to_sqeucl(self) -> 'PointCloud':
+    assert isinstance(self._cost_fn, costs.Cosine), type(self._cost_fn)
+    assert self.power == 2, self.power
+    (x, y, *args, _), aux_data = self.tree_flatten()
+    x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
+    y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
+    cost_fn = costs.Euclidean()
+    return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
+
   def to_LRCGeometry(
       self,
       scale: float = 1.0,

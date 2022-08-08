@@ -20,9 +20,9 @@ import jax.numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import fixed_point_loop
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 
-__all__ = ["kmeans", "KMeansOutput"]
+__all__ = ["k_means", "KMeansOutput"]
 
 Init_t = Union[Literal["k-means++", "random"],
                Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
@@ -140,7 +140,7 @@ def _kmeans_plus_plus(
 
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
-def _kmeans(
+def _k_means(
     key: jnp.ndarray,
     geom: pointcloud.PointCloud,
     k: int,
@@ -276,7 +276,7 @@ def _kmeans(
   )
 
 
-def kmeans(
+def k_means(
     geom: Union[jnp.ndarray, pointcloud.PointCloud],
     k: int,
     weights: Optional[jnp.ndarray] = None,
@@ -291,6 +291,8 @@ def kmeans(
 ) -> KMeansOutput:
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
+  if isinstance(geom._cost_fn, costs.Cosine):
+    geom = geom._cosine_to_sqeucl()
   assert geom.is_squared_euclidean
 
   if geom.is_online:
@@ -306,7 +308,7 @@ def kmeans(
   if key is None:
     key = jax.random.PRNGKey(0)
   keys = jax.random.split(key, n_init)
-  out = _kmeans(
+  out = _k_means(
       keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
       max_iterations, store_inner_errors
   )
