@@ -116,16 +116,51 @@ class TestPointCloudApply:
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
+
+class TestPointCloudCosineConversion:
+
   @pytest.mark.parametrize(
-      "scale_cost", ["mean", "median", "max_cost", "max_norm"]
+      "scale_cost", ["mean", "median", "max_cost", "max_norm", 41]
+  )
+  def test_cosine_to_sqeucl_conversion(
+      self, rng: jnp.ndarray, scale_cost: Union[str, float]
+  ):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(101, 4))
+    y = jax.random.normal(key2, shape=(123, 4))
+    cosine = pointcloud.PointCloud(
+        x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
+    )
+
+    eucl = cosine._cosine_to_sqeucl()
+    assert eucl.is_squared_euclidean
+
+    np.testing.assert_allclose(
+        2. * eucl.inv_scale_cost, cosine.inv_scale_cost, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        eucl.mean_cost_matrix, cosine.mean_cost_matrix, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        eucl.median_cost_matrix,
+        cosine.median_cost_matrix,
+        rtol=1e-6,
+        atol=1e-6
+    )
+    np.testing.assert_allclose(
+        eucl.cost_matrix, cosine.cost_matrix, rtol=1e-6, atol=1e-6
+    )
+
+  @pytest.mark.parametrize(
+      "scale_cost", ["mean", "median", "max_cost", "max_norm", 2.0]
   )
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_cosine_to_sqeucl(
       self, rng: jnp.ndarray, axis: int, scale_cost: Union[str, float]
   ):
     key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, shape=(17, 3))
-    y = jax.random.normal(key2, shape=(12, 3))
+    x = jax.random.normal(key1, shape=(17, 5))
+    y = jax.random.normal(key2, shape=(12, 5))
     cosine = pointcloud.PointCloud(
         x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
     )
@@ -136,7 +171,3 @@ class TestPointCloudApply:
     actual = eucl.apply_cost(arr, axis=axis)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
-
-
-class TestPointCloudCosineConversion:
-  pass
