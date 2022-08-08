@@ -43,15 +43,27 @@ class KMeansState(NamedTuple):
 
 
 class KMeansOutput(NamedTuple):
+  """Output of the :func:`~ott.tools.k_means.k_means` algorithm.
+
+  Args:
+    centroids: Array of shape ``[k, ndim]`` containing the centroids.
+    assignment: Array of shape ``[n,]`` containing the labels.
+    iteration: The number of iterations run.
+    error: (Weighted) sum of squared distances from each point to its closest
+      center.
+    converged: Whether the algorithm has converged.
+    inner_errors: Array of shape ``[max_iterations,]`` containing the ``error``
+      at every iteration.
+  """
   centroids: jnp.ndarray
   assignment: jnp.ndarray
-  inner_errors: Optional[jnp.ndarray]
   iteration: int
   error: float
   converged: bool
+  inner_errors: Optional[jnp.ndarray]
 
   @classmethod
-  def from_state(
+  def _from_state(
       cls,
       state: KMeansState,
       *,
@@ -66,10 +78,10 @@ class KMeansOutput(NamedTuple):
     return cls(
         centroids=state.centroids,
         assignment=state.assignment,
-        inner_errors=errs if store_inner_errors else None,
         iteration=jnp.sum(errs > -1),
         error=error,
         converged=converged,
+        inner_errors=errs if store_inner_errors else None,
     )
 
 
@@ -81,7 +93,7 @@ def _random_init(
   return geom.subset(ixs, None).x
 
 
-def _kmeans_plus_plus(
+def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
     key: jnp.ndarray,
@@ -200,7 +212,9 @@ def _k_means(
 
   def init_fn(init: Init_t) -> KMeansState:
     if init == "k-means++":
-      init = functools.partial(_kmeans_plus_plus, n_local_trials=n_local_trials)
+      init = functools.partial(
+          _k_means_plus_plus, n_local_trials=n_local_trials
+      )
     elif init == "random":
       init = _random_init
     if not callable(init):
@@ -271,7 +285,7 @@ def _k_means(
       state.center_shift > tol, finalize_assignment, lambda _: _, state
   )
 
-  return KMeansOutput.from_state(
+  return KMeansOutput._from_state(
       state, tol=tol, store_inner_errors=store_inner_errors
   )
 
@@ -289,6 +303,35 @@ def k_means(
     store_inner_errors: bool = False,
     key: Optional[jnp.ndarray] = None,
 ) -> KMeansOutput:
+  r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
+
+  Args:
+    geom: Point cloud of shape ``[n, ndim]`` to cluster. If passed as an array,
+      :class:`~ott.geometry.costs.Euclidean` cost is assumed.
+    k: The number of clusters.
+    weights: The weights of each point. If ``None``, uniform weights are used.
+    init: Initialization method. Can be one of the following:
+
+      - **'k-means++'** - select initial centroids that are
+        :math:`\mathcal{O}(\log k)`-optimal :cite:`arthur:07`.
+      - **'random'** - randomly select ``k`` points from the ``geom``.
+      - :func:`callable` - a function which takes the point cloud, the number of
+        clusters and a random key and returns the centroids as an array of shape
+        ``[k, ndim]``.
+
+    n_init: Number of times k-means will run with different initial seeds.
+    n_local_trials: Number of local trials when ``init = 'k-means++'``.
+      If ``None``, :math:`2 + \lfloor log(k) \rfloor` is used.
+    tol: Relative tolerance with respect to the Frobenius norm of the centroids'
+      shift between two consecutive iterations.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
+    store_inner_errors: Whether to store the errors (inertia) at each iteration.
+    key: Random key to seed the initializations.
+
+  Returns:
+    The k-means clustering result.
+  """
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
   if isinstance(geom._cost_fn, costs.Cosine):
