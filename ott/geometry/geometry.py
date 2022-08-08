@@ -198,7 +198,7 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost, (int, float)):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == 'max_cost':

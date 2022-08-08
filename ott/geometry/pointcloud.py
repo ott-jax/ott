@@ -138,7 +138,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
-    if isinstance(self._scale_cost, (int, float)):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_cost':
@@ -578,6 +578,8 @@ class PointCloud(geometry.Geometry):
     (x, y, *args, _), aux_data = self.tree_flatten()
     x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
     y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
+    # TODO(michalk8): find a better way
+    aux_data["scale_cost"] = 2. / self.inv_scale_cost
     cost_fn = costs.Euclidean()
     return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 

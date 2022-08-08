@@ -14,6 +14,7 @@
 
 # Lint as: python3
 """Tests for apply_cost and apply_kernel."""
+from typing import Union
 
 import jax
 import jax.numpy as jnp
@@ -114,3 +115,28 @@ class TestPointCloudApply:
     actual = pc.apply_cost(arr, axis=axis).squeeze()
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize(
+      "scale_cost", ["mean", "median", "max_cost", "max_norm"]
+  )
+  @pytest.mark.parametrize("axis", [0, 1])
+  def test_apply_cost_cosine_to_sqeucl(
+      self, rng: jnp.ndarray, axis: int, scale_cost: Union[str, float]
+  ):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(17, 3))
+    y = jax.random.normal(key2, shape=(12, 3))
+    cosine = pointcloud.PointCloud(
+        x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
+    )
+    eucl = cosine._cosine_to_sqeucl()
+    arr = jnp.ones((x.shape[0],)) if axis == 0 else jnp.ones((y.shape[0],))
+
+    expected = cosine.apply_cost(arr, axis=axis)
+    actual = eucl.apply_cost(arr, axis=axis)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+
+class TestPointCloudCosineConversion:
+  pass
