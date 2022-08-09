@@ -176,10 +176,10 @@ def _k_means(
       centroid: jnp.ndarray,
       weight: jnp.ndarray,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    is_not_empty = weight > 0.
-    new_centroid = is_not_empty * centroid + (1 - is_not_empty) * geom.x[ix]
-    centroid_to_remove = is_not_empty * weighted_x[ix, :-1]
-    weight_to_remove = (1 - is_not_empty) * weights[ix]
+    is_empty = weight <= 0.
+    new_centroid = (1 - is_empty) * centroid + is_empty * geom.x[ix]
+    centroid_to_remove = is_empty * weighted_x[ix, :-1]
+    weight_to_remove = is_empty * weights[ix]
     return new_centroid, jnp.concatenate([centroid_to_remove, weight_to_remove])
 
   def update_assignment(

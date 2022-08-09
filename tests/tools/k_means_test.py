@@ -106,6 +106,25 @@ class TestKmeansPlusPlus:
 
 class TestKmeans:
 
+  @pytest.mark.parametrize("k", [1, 6])
+  def test_k_means_output(self, rng: jnp.ndarray, k: int):
+    max_iter, ndim = 10, 4
+    geom, _, _ = make_blobs(
+        n_samples=50, n_features=ndim, centers=k, random_state=42
+    )
+    res = k_means.k_means(
+        geom, k, max_iterations=max_iter, store_inner_errors=True, key=rng
+    )
+
+    assert res.centroids.shape == (k, ndim)
+    assert res.converged
+    assert res.error >= 0.
+    errors = res.inner_errors
+    assert errors.shape == (max_iter,)
+    assert res.iteration == jnp.sum(errors > 0.)
+    # check if error is decreasing
+    np.testing.assert_array_equal(jnp.diff(errors[::-1]) >= 0., True)
+
   @pytest.mark.parametrize(
       "init", ["k-means++", "random", "callable", "wrong-callable"]
   )
@@ -125,7 +144,28 @@ class TestKmeans:
     else:
       _ = k_means.k_means(geom, k, init=init_fn)
 
-  def test_n_init(self):
+  def test_k_means_plus_plus_better_than_random(self, rng: jnp.ndarray):
+    k = 5
+    key1, key2 = jax.random.split(rng, 2)
+    geom, _, _ = make_blobs(n_samples=50, centers=k)
+
+    res_random = k_means.k_means(geom, k, init="random", key=key1)
+    res_kpp = k_means.k_means(geom, k, init="k-means++", key=key2)
+
+    assert res_kpp.error < res_random.error
+
+  @pytest.mark.parametrize("n_init", [5, 7])
+  def test_larger_n_init_should_help(self, rng: jnp.ndarray, n_init: int):
+    k = 5
+    key1, key2 = jax.random.split(rng, 2)
+    geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
+
+    res = k_means.k_means(geom, k, n_init=n_init, key=key1)
+    res_larger_n_init = k_means.k_means(geom, k, n_init=2 * n_init, key=key1)
+
+    assert res_larger_n_init.error < res.error
+
+  def test_store_inner_errors(self):
     pass
 
   def test_weights(self):
