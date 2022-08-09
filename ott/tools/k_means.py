@@ -48,18 +48,18 @@ class KMeansOutput(NamedTuple):
   Args:
     centroids: Array of shape ``[k, ndim]`` containing the centroids.
     assignment: Array of shape ``[n,]`` containing the labels.
+    converged: Whether the algorithm has converged.
     iteration: The number of iterations run.
     error: (Weighted) sum of squared distances from each point to its closest
       center.
-    converged: Whether the algorithm has converged.
     inner_errors: Array of shape ``[max_iterations,]`` containing the ``error``
       at every iteration.
   """
   centroids: jnp.ndarray
   assignment: jnp.ndarray
+  converged: bool
   iteration: int
   error: float
-  converged: bool
   inner_errors: Optional[jnp.ndarray]
 
   @classmethod
@@ -71,16 +71,19 @@ class KMeansOutput(NamedTuple):
       store_inner_errors: bool = False
   ) -> "KMeansOutput":
     errs = state.errors
-    error = jnp.nanmin(jnp.where(errs == -1, jnp.nan, errs))
-    converged = jnp.logical_or(
-        jnp.sum(errs == -1) > 0, (errs[-2] - errs[-1]) <= tol
-    )
+    mask = errs == -1
+    error = jnp.nanmin(jnp.where(mask, jnp.nan, errs))
+
+    assignment_same = jnp.all(state.prev_assignment == state.assignment)
+    tol_satisfied = jnp.logical_or(jnp.any(mask), (errs[-2] - errs[-1]) <= tol)
+    converged = jnp.logical_or(assignment_same, tol_satisfied)
+
     return cls(
         centroids=state.centroids,
         assignment=state.assignment,
-        iteration=jnp.sum(errs > -1),
-        error=error,
         converged=converged,
+        iteration=jnp.sum(~mask),
+        error=error,
         inner_errors=errs if store_inner_errors else None,
     )
 
@@ -168,7 +171,7 @@ def _k_means(
   def center_shift(
       old_centroids: jnp.ndarray, new_centroids: jnp.ndarray
   ) -> float:
-    return jnp.sum((old_centroids - new_centroids) ** 2)
+    return jnp.linalg.norm(old_centroids - new_centroids, ord="fro") ** 2
 
   @functools.partial(jax.vmap, in_axes=[0, 0, 0], out_axes=0)
   def reallocate_centroids(
@@ -244,11 +247,9 @@ def _k_means(
 
   def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
     del const
-    assignment_changed = jnp.any(state.prev_assignment != state.assignment)
-    # below is always satisfied for `iteration=0`,
-    # but the assignment condition never holds at `iteration=0`
+    assignment_not_same = jnp.any(state.prev_assignment != state.assignment)
     tol_not_satisfied = state.center_shift > tol
-    return jnp.logical_or(tol_not_satisfied, assignment_changed)
+    return jnp.logical_and(assignment_not_same, tol_not_satisfied)
 
   def body_fn(
       iteration: int, const: Any, state: KMeansState, compute_error: bool
@@ -269,11 +270,11 @@ def _k_means(
     )
 
   def finalize_assignment(state: KMeansState) -> KMeansState:
-    iteration = jnp.sum(state.errors > 0)
+    last_iter = jnp.sum(state.errors != -1) - 1
     assignment, dist_to_centers = update_assignment(state.centroids)
     err = jnp.sum(weights * dist_to_centers)
     return state._replace(
-        assignment=assignment, errors=state.errors.at[iteration].set(err)
+        assignment=assignment, errors=state.errors.at[last_iter].set(err)
     )
 
   weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
@@ -287,7 +288,8 @@ def _k_means(
       state=init_fn(init)
   )
   state = jax.lax.cond(
-      state.center_shift > tol, finalize_assignment, lambda _: _, state
+      jnp.all(state.prev_assignment == state.assignment), lambda _: _,
+      finalize_assignment, state
   )
 
   return KMeansOutput._from_state(
