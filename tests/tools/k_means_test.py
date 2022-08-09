@@ -88,11 +88,42 @@ class TestKmeansPlusPlus:
     # the largest was 70.56378
     assert jnp.abs(pred_inertia - gt_inertia) <= 100
 
+  def test_initialization_differentiable(self, rng: jnp.ndarray):
+
+    def callback(x: jnp.ndarray) -> float:
+      geom = pointcloud.PointCloud(x)
+      centers = k_means._k_means_plus_plus(geom, k=3, key=rng)
+      _, inertia = compute_assignment(x, centers)
+      return inertia
+
+    X, _, _ = make_blobs(n_samples=34, random_state=0)
+    fun = jax.value_and_grad(callback)
+    ineria1, grad = fun(X)
+    ineria2, _ = fun(X - 0.1 * grad)
+
+    assert ineria2 < ineria1
+
 
 class TestKmeans:
 
-  def test_init_method(self):
-    pass
+  @pytest.mark.parametrize(
+      "init", ["k-means++", "random", "callable", "wrong-callable"]
+  )
+  def test_init_method(self, rng: jnp.ndarray, init: str):
+    if init == "callable":
+      init_fn = lambda geom, k, _: geom.x[:k]
+    elif init == "wrong-callable":
+      init_fn = lambda geom, k, _: geom.x[:k + 1]
+    else:
+      init_fn = init
+
+    k = 3
+    geom, _, _ = make_blobs(n_samples=50, centers=k + 1)
+    if init == "wrong-callable":
+      with pytest.raises(ValueError, match=r"Expected initial centroids"):
+        _ = k_means.k_means(geom, k, init=init_fn)
+    else:
+      _ = k_means.k_means(geom, k, init=init_fn)
 
   def test_n_init(self):
     pass

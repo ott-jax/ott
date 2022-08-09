@@ -224,6 +224,11 @@ def _k_means(
       )
 
     centroids = init(geom, k, key)
+    if centroids.shape != (k, geom.cost_rank):
+      raise ValueError(
+          f"Expected initial centroids to have shape "
+          f"`{k, geom.cost_rank}`, found `{centroids.shape}`."
+      )
     n = geom.shape[0]
     prev_assignment = jnp.full((n,), -2)
     assignment = jnp.full((n,), -1)
