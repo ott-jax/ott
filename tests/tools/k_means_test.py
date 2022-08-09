@@ -305,14 +305,14 @@ class TestKmeans:
   def test_cosine_cost_fn(self):
     k = 4
     geom, _, _ = make_blobs(n_samples=75)
-    geom_scaled = pointcloud.PointCloud(geom * 10, cost_fn=costs.Cosine())
+    geom_scaled = pointcloud.PointCloud(geom * 10., cost_fn=costs.Cosine())
     geom = pointcloud.PointCloud(geom, cost_fn=costs.Cosine())
 
     res_scaled = k_means.k_means(geom_scaled, k=k)
     res = k_means.k_means(geom, k=k)
 
     np.testing.assert_allclose(
-        res_scaled.error, res.error, rtol=1e-6, atol=1e-6
+        res_scaled.error, res.error, rtol=1e-5, atol=1e-5
     )
     assert _is_same_clustering(
         np.array(res_scaled.assignment), np.array(res.assignment), k
