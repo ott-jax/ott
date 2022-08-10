@@ -131,9 +131,14 @@ class PointCloud(geometry.Geometry):
       is computed on-the-fly."""
     return self.batch_size is not None
 
+  # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
+  @property
+  def cost_rank(self) -> int:
+    return self.x.shape[1]
+
   @property
   def inv_scale_cost(self) -> float:
-    if isinstance(self._scale_cost, (int, float)):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_cost':
@@ -566,6 +571,17 @@ class PointCloud(geometry.Geometry):
     return cls(
         x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
     )
+
+  def _cosine_to_sqeucl(self) -> 'PointCloud':
+    assert isinstance(self._cost_fn, costs.Cosine), type(self._cost_fn)
+    assert self.power == 2, self.power
+    (x, y, *args, _), aux_data = self.tree_flatten()
+    x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
+    y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
+    # TODO(michalk8): find a better way
+    aux_data["scale_cost"] = 2. / self.inv_scale_cost
+    cost_fn = costs.Euclidean()
+    return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 
   def to_LRCGeometry(
       self,

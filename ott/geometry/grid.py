@@ -304,10 +304,10 @@ class Grid(geometry.Geometry):
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use',
-        ' apply_transport_from_scalings(...) if you wish to ',
-        ' apply the transport matrix to a vector, or use a point '
-        ' cloud geometry instead'
+        'Grid geometry cannot instantiate a transport matrix, use ',
+        'apply_transport_from_scalings(...) if you wish to ',
+        'apply the transport matrix to a vector, or use a point '
+        'cloud geometry instead.'
     )
 
   def subset(

@@ -100,7 +100,7 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
-    if isinstance(self._scale_cost, (int, float)):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_bound':
