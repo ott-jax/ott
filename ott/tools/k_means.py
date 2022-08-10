@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC.
+# Copyright 2022 The OTT Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -316,7 +316,8 @@ def k_means(
     geom: Point cloud of shape ``[n, ndim]`` to cluster. If passed as an array,
       :class:`~ott.geometry.costs.Euclidean` cost is assumed.
     k: The number of clusters.
-    weights: The weights of each point. If ``None``, uniform weights are used.
+    weights: The weights of input points. These weights are considered when
+      computing the centroids and inertia. If ``None``, use uniform weights.
     init: Initialization method. Can be one of the following:
 
       - **'k-means++'** - select initial centroids that are

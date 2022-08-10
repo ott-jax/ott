@@ -342,23 +342,30 @@ class TestKmeans:
 
   def test_k_means_differentiability(self, rng: jnp.ndarray):
 
-    def callback(x: jnp.ndarray, w: jnp.ndarray) -> float:
+    def inertia(x: jnp.ndarray, w: jnp.ndarray) -> float:
       return k_means.k_means(
           x, k=k, weights=w, min_iterations=10, max_iterations=10, key=key1
       ).error
 
-    k, step_size = 4, 0.1
+    k, eps = 4, 1e-12
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
-    key1, key2 = jax.random.split(rng)
-    weights = jnp.abs(jax.random.normal(key2, (x.shape[0],)))
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+    w = jnp.abs(jax.random.normal(key2, (x.shape[0],)))
 
-    inertia, (grad_x, grad_w) = jax.value_and_grad(callback, (0, 1))(x, weights)
+    _, (grad_x, grad_w) = jax.value_and_grad(inertia, (0, 1))(x, w)
 
-    inertia_x_step = callback(x - step_size * grad_x, weights)
-    inertia_w_step = callback(x, weights - step_size * weights)
+    v_x = jax.random.normal(key3, shape=x.shape)
+    v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
+    v_w = jax.random.normal(key4, shape=w.shape) * eps
+    v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
-    assert inertia_x_step < inertia
-    assert inertia_w_step < inertia
+    expected = inertia(x + v_x, w) - inertia(x - v_x, w)
+    actual = 2 * jnp.vdot(v_x, grad_x)
+    np.testing.assert_allclose(actual, expected, rtol=1e-8, atol=1e-8)
+
+    expected = inertia(x, w + v_w) - inertia(x, w - v_w)
+    actual = 2 * jnp.vdot(v_w, grad_w)
+    np.testing.assert_allclose(actual, expected, rtol=1e-8, atol=1e-8)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.])
   @pytest.mark.parametrize("n,k", [(37, 4), (128, 6)])

@@ -122,6 +122,7 @@ class Cosine(CostFn):
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
+    # similarity is in [-1, 1], clip because of numerical imprecisions
     return jnp.clip(cosine_distance, 0., 2.)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
