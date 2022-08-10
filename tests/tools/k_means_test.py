@@ -347,7 +347,7 @@ class TestKmeans:
           x, k=k, weights=w, min_iterations=10, max_iterations=10, key=key1
       ).error
 
-    k, eps = 4, 1e-12
+    k, eps, tol = 4, 1e-3, 1e-3
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     w = jnp.abs(jax.random.normal(key2, (x.shape[0],)))
@@ -361,11 +361,11 @@ class TestKmeans:
 
     expected = inertia(x + v_x, w) - inertia(x - v_x, w)
     actual = 2 * jnp.vdot(v_x, grad_x)
-    np.testing.assert_allclose(actual, expected, rtol=1e-8, atol=1e-8)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
     expected = inertia(x, w + v_w) - inertia(x, w - v_w)
     actual = 2 * jnp.vdot(v_w, grad_w)
-    np.testing.assert_allclose(actual, expected, rtol=1e-8, atol=1e-8)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.])
   @pytest.mark.parametrize("n,k", [(37, 4), (128, 6)])
