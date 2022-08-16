@@ -22,7 +22,6 @@ class CSC(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class CholeskyDecomposition(abc.ABC):
-  LOWER = True
 
   @functools.partial(jax.jit, static_argnums=0)
   def __new__(cls, A: jnp.ndarray) -> "CholeskyDecomposition":
@@ -66,6 +65,7 @@ class CholeskyDecomposition(abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class DenseCholeskyDecomposition(CholeskyDecomposition):
+  LOWER = True
 
   def _decompose(self, A: jnp.ndarray) -> jnp.ndarray:
     return jsp.linalg.cholesky(A, lower=self.LOWER)
@@ -81,6 +81,7 @@ class SparseCholeskyDecomposition(CholeskyDecomposition):
   def _host_decompose(self, mat: jesp.CSR) -> jesp.CSR:
     # TODO(michalk8): more conversion to CSC
     # TODO(michalk8): test on GPU
+    # use float since it's required by CHOLMOD
     csc_mat = sp.csr_matrix(
         (np.array(mat.data), np.array(mat.indices), np.array(mat.indptr)),
         dtype=float
@@ -95,7 +96,8 @@ class SparseCholeskyDecomposition(CholeskyDecomposition):
     x = factor.solve_A(np.array(b, dtype=float))
     return jnp.asarray(x, dtype=b.dtype)
 
-  def _solve(self, A: jesp.CSR, b: jnp.ndarray) -> jnp.ndarray:
+  def _solve(self, _: None, b: jnp.ndarray) -> jnp.ndarray:
+    # ideally, we would do a sparse triangular solve here
     return hcb.call(self._host_solve, b, result_shape=b)
 
   def __hash__(self):
