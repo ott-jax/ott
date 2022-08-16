@@ -13,6 +13,7 @@
 # limitations under the License.
 """OTT ground geometries: Classes and cost functions to instantiate them."""
 from . import costs, low_rank, ops
+from ._decomposition import DenseCholeskyDecomposition
 from .epsilon_scheduler import Epsilon
 from .geometry import Geometry
 from .graph_geometry import GraphGeometry
