@@ -335,6 +335,11 @@ class NeuralDualSolver:
 @jax.tree_util.register_pytree_node_class
 class NeuralDual:
   r"""Neural Kantorovich dual.
+  
+  This class contains the solution of the trained Kantorovich neural
+  dual by holding the trained potentials `g` and `f`. `\nabla g`
+  hereby transports source to target cells, and `\nabla f` target to
+  source cells
 
   Attributes:
     state_f: optimal potential f
@@ -361,7 +366,14 @@ class NeuralDual:
     return self.state_g
 
   def transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    """Transport source data samples with potential g."""
+    r"""Transport source data samples with potential `g`.
+
+    Args:
+      data: source samples to be transported
+ 
+    Returns:
+      Transported source samples
+    """
     return jax.vmap(
         lambda x: jax.grad(self.g.apply_fn, argnums=1)({
             "params": self.g.params
@@ -371,7 +383,14 @@ class NeuralDual:
     )
 
   def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    """Transport source data samples with potential g."""
+    r"""Transport target data samples with potential `f`.
+
+    Args:
+      data: target samples to be transported
+ 
+    Returns:
+      Transported target samples
+    """
     return jax.vmap(
         lambda x: jax.grad(self.f.apply_fn, argnums=1)({
             "params": self.f.params
@@ -381,7 +400,15 @@ class NeuralDual:
     )
 
   def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
-    """Given potentials f and g, compute the overall distance."""
+    r"""Given potentials `f` and `g`, compute the overall distance.
+
+    Args:
+      source: samples of source distribution
+      target: samples of target distribution
+ 
+    Returns:
+      Wasserstein distance $W^2_2$ assuming $|x-y|^2$ as ground distance
+    """
     f_t = self.f.apply_fn({"params": self.f.params}, target)
 
     grad_g_s = jax.vmap(
@@ -399,7 +426,8 @@ class NeuralDual:
     s_sq = jnp.sum(source * source, axis=1)
     t_sq = jnp.sum(target * target, axis=1)
 
-    # compute final wasserstein distance
+    # compute final wasserstein distance assuming ground metric |x-y|^2
+    # thus an additional multiplication by 2
     dist = 2 * jnp.mean(
         f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
     )
