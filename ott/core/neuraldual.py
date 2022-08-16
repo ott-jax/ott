@@ -30,6 +30,12 @@ from ott.core import icnn
 class NeuralDualSolver:
   r"""Solver of the ICNN-based Kantorovich dual.
 
+  Learn the optimal transport between two distributions, denoted source
+  and target, respectively. This is achieved by parameterizing the two
+  Kantorovich potentials, `g` and `f`, by two input convex neural networks.
+  `\nabla g` hereby transports source to target cells, and `\nabla f`
+  target to source cells.
+  
   The algorithm is described in:
   Optimal transport mapping via input convex neural networks,
   Makkuva-Taghvaei-Lee-Oh, ICML'20.
