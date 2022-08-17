@@ -107,6 +107,22 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01):
 
 class TestInitializers:
 
+  @pytest.mark.fast
+  def test_init_pytree(self):
+
+    @jax.jit
+    def init_sort():
+      init = init_lib.SortingInitializer()
+      return init
+
+    @jax.jit
+    def init_gaus():
+      init = init_lib.GaussianInitializer()
+      return init
+
+    init_gaus()
+    init_sort()
+
   @pytest.mark.fast.with_args("vector_min", [True, False])
   def test_sorting_init(self, vector_min):
     """Tests sorting dual initializer."""

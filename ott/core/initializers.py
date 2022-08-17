@@ -13,7 +13,7 @@
 # limitations under the License.
 """Sinkhorn initializers."""
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -22,7 +22,17 @@ from ott.core import linear_problems
 from ott.geometry import pointcloud
 
 
+@jax.tree_util.register_pytree_node_class
 class SinkhornInitializer(ABC):
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return ([], {})
+
+  @classmethod
+  def tree_unflatten(
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "SinkhornInitializer":
+    return cls(*children, **aux_data)
 
   @abstractmethod
   def init_dual_a(
@@ -37,6 +47,7 @@ class SinkhornInitializer(ABC):
     """Initialization for Sinkhorn potential/scaling g_v."""
 
 
+@jax.tree_util.register_pytree_node_class
 class DefaultInitializer(SinkhornInitializer):
   """Default Initialization of Sinkhorn dual potentials/primal scalings."""
 
@@ -73,6 +84,7 @@ class DefaultInitializer(SinkhornInitializer):
     return init_dual_b
 
 
+@jax.tree_util.register_pytree_node_class
 class GaussianInitializer(DefaultInitializer):
   """GaussianInitializer.
 
@@ -113,12 +125,13 @@ class GaussianInitializer(DefaultInitializer):
     # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
     f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
     f_potential = f_potential - jnp.mean(f_potential)
-    f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
+    f_u = f_potential if lse_mode else ot_problem.geom.scaling_from_potential(
         f_potential
     )
     return f_u
 
 
+@jax.tree_util.register_pytree_node_class
 class SortingInitializer(DefaultInitializer):
   """Sorting Init class.
 
@@ -142,9 +155,17 @@ class SortingInitializer(DefaultInitializer):
     super().__init__()
     self.tolerance = tolerance
     self.max_iter = max_iter
+    self.vectorized_update = vectorized_update
     self.update_fn = lambda f, mod_cost: jax.lax.cond(
         vectorized_update, _vectorized_update, _coordinate_update, f, mod_cost
     )
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return ([], {
+        'tolerance': self.tolerance,
+        'max_iter': self.max_iter,
+        'vectorized_update': self.vectorized_update
+    })
 
   def init_sorting_dual(
       self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
@@ -213,7 +234,7 @@ class SortingInitializer(DefaultInitializer):
     f_potential = self.init_sorting_dual(modified_cost, init_f)
     f_potential = f_potential - jnp.mean(f_potential)
 
-    f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
+    f_u = f_potential if lse_mode else ot_problem.geom.scaling_from_potential(
         f_potential
     )
 
