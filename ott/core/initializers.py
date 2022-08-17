@@ -28,29 +28,29 @@ class SinkhornInitializer(ABC):
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/ scaling f_u."""
+    """Initialization for Sinkhorn potential/scaling f_u."""
 
   @abstractmethod
   def init_dual_b(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/ scaling g_v."""
+    """Initialization for Sinkhorn potential/scaling g_v."""
 
 
 class DefaultInitializer(SinkhornInitializer):
-  """Default Initialization of Sinkhorn dual potentials/ primal scalings."""
+  """Default Initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/ scaling f_u.
+    """Initialization for Sinkhorn potential/scaling f_u.
 
     Args:
       ot_problem: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/ scaling, array of size n
+      potential/scaling, array of size n
     """
     a = ot_problem.a
     init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
@@ -59,14 +59,14 @@ class DefaultInitializer(SinkhornInitializer):
   def init_dual_b(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/ scaling g_v.
+    """Initialization for Sinkhorn potential/scaling g_v.
 
     Args:
       ot_problem: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/ scaling, array of size m
+      potential/scaling, array of size m
     """
     b = ot_problem.b
     init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
@@ -79,13 +79,10 @@ class GaussianInitializer(DefaultInitializer):
   From :cite:`thornton2022rethinking:22`.
   Compute Gaussian approximations of each pointcloud, then compute closed from
   Kantorovich potential betwen Gaussian approximations using Brenier's theorem
-  (adapt convex/ Brenier potential to Kantorovich). Use this Gaussian potential to
-  initialize Sinkhorn potentials/ scalings.
+  (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential to
+  initialize Sinkhorn potentials/scalings.
 
   """
-
-  def __init__(self):
-    super().__init__()
 
   def init_dual_a(
       self,
@@ -99,7 +96,7 @@ class GaussianInitializer(DefaultInitializer):
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/ scaling f_u, array of size n.
+      potential/scaling f_u, array of size n.
     """
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
@@ -199,7 +196,7 @@ class SortingInitializer(DefaultInitializer):
       which is then updated to make the init potential, so an init of an init.
 
     Returns:
-      potential/ scaling f_u, array of size n.
+      potential/scaling f_u, array of size n.
     """
     assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geom"
     # check for sorted x, y requires pointcloud and could slow initializer
