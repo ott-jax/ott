@@ -156,9 +156,8 @@ class SortingInitializer(DefaultInitializer):
     self.tolerance = tolerance
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
-    self.update_fn = lambda f, mod_cost: jax.lax.cond(
-        vectorized_update, _vectorized_update, _coordinate_update, f, mod_cost
-    )
+    self.update_fn = _vectorized_update if self.vectorized_update else _coordinate_update
+    
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return ([], {
