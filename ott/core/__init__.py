@@ -23,6 +23,7 @@ from . import (
     gromov_wasserstein,
     gw_barycenter,
     implicit_differentiation,
+    initializers,
     linear_problems,
     momentum,
     quad_problems,

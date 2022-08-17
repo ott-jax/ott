@@ -23,6 +23,7 @@ import numpy as np
 from ott.core import anderson as anderson_lib
 from ott.core import fixed_point_loop
 from ott.core import implicit_differentiation as implicit_lib
+from ott.core import initializers as init_lib
 from ott.core import linear_problems
 from ott.core import momentum as momentum_lib
 from ott.core import unbalanced_functions
@@ -349,6 +350,8 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
+      potential_initializer: init_lib.SinkhornInitializer = init_lib
+      .DefaultInitializer(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -368,6 +371,7 @@ class Sinkhorn:
     self.anderson = anderson
     self.implicit_diff = implicit_diff
     self.parallel_dual_updates = parallel_dual_updates
+    self.potential_initializer = potential_initializer
     self.jit = jit
 
     # Force implicit_differentiation to True when using Anderson acceleration,
@@ -400,18 +404,25 @@ class Sinkhorn:
       init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
   ) -> SinkhornOutput:
     """Main interface to run sinkhorn."""  # noqa: D401
+    # initialization
     init_dual_a, init_dual_b = (init if init is not None else (None, None))
-    a, b = ot_prob.a, ot_prob.b
+
     if init_dual_a is None:
-      init_dual_a = jnp.zeros_like(a) if self.lse_mode else jnp.ones_like(a)
+      init_dual_a = self.potential_initializer.init_dual_a(
+          ot_problem=ot_prob, lse_mode=self.lse_mode
+      )
+
     if init_dual_b is None:
-      init_dual_b = jnp.zeros_like(b) if self.lse_mode else jnp.ones_like(b)
+      init_dual_b = self.potential_initializer.init_dual_b(
+          ot_problem=ot_prob, lse_mode=self.lse_mode
+      )
+
     # Cancel dual variables for zero weights.
     init_dual_a = jnp.where(
-        a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0
+        ot_prob.a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0
     )
     init_dual_b = jnp.where(
-        b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
+        ot_prob.b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
     )
 
     run_fn = jax.jit(run) if self.jit else run
@@ -691,6 +702,8 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
+    potential_initializer: init_lib.SinkhornInitializer = init_lib
+    .DefaultInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""
@@ -725,6 +738,7 @@ def make(
       implicit_diff=implicit_diff,
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
+      potential_initializer=potential_initializer,
       jit=jit
   )
 
