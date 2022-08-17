@@ -39,7 +39,7 @@ Sinkhorn Dual Initializers
 .. autosummary::
     :toctree: _autosummary
 
-    initializers.SinkhornInitializer
+    initializers.DefaultInitializer
     initializers.GaussianInitializer
     initializers.SortingInitializer
 

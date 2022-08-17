@@ -24,9 +24,10 @@ from ott.geometry import pointcloud
 
 @jax.tree_util.register_pytree_node_class
 class SinkhornInitializer(ABC):
+  """Base class for Sinkhorn initializers."""
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return ([], {})
+    return [], {}
 
   @classmethod
   def tree_unflatten(
@@ -91,8 +92,8 @@ class GaussianInitializer(DefaultInitializer):
   From :cite:`thornton2022rethinking:22`.
   Compute Gaussian approximations of each pointcloud, then compute closed from
   Kantorovich potential betwen Gaussian approximations using Brenier's theorem
-  (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential to
-  initialize Sinkhorn potentials/scalings.
+  (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential
+  to initialize Sinkhorn potentials/scalings.
 
   """
 
@@ -138,7 +139,7 @@ class SortingInitializer(DefaultInitializer):
   DualSort algorithm from :cite:`thornton2022rethinking:22`, solve
   non-regularized OT problem via sorting, then compute potential through
   iterated minimum on C-transform and use this potential to initialize
-  regularized potential
+  regularized potential.
 
   Args:
     vectorized_update: Use vectorized inner loop if true.
@@ -165,15 +166,15 @@ class SortingInitializer(DefaultInitializer):
         'vectorized_update': self.vectorized_update
     })
 
-  def init_sorting_dual(
+  def _init_sorting_dual(
       self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
   ) -> jnp.ndarray:
     """Run DualSort algorithm.
 
     Args:
-      modified_cost:  cost matrix minus diagonal column-wise.
+      modified_cost: cost matrix minus diagonal column-wise.
       init_f: potential f, array of size n. This is the starting potential,
-      which is then updated to make the init potential, so an init of an init.
+        which is then updated to make the init potential, so an init of an init.
 
     Returns:
       potential f, array of size n.
@@ -212,24 +213,24 @@ class SortingInitializer(DefaultInitializer):
       ot_problem: OT problem.
       lse_mode: Return potential if true, scaling if false.
       init_f: potential f, array of size n. This is the starting potential,
-      which is then updated to make the init potential, so an init of an init.
+        which is then updated to make the init potential, so an init of an init.
 
     Returns:
       potential/scaling f_u, array of size n.
     """
-    assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geom"
+    assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geometry."
     # check for sorted x, y requires pointcloud and could slow initializer
     cost_matrix = ot_problem.geom.cost_matrix
 
     assert cost_matrix.shape[0] == cost_matrix.shape[
-        1], "Requires square cost matrix"
+        1], "Requires square cost matrix."
 
     modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
 
     n = cost_matrix.shape[0]
     init_f = jnp.zeros(n) if init_f is None else init_f
 
-    f_potential = self.init_sorting_dual(modified_cost, init_f)
+    f_potential = self._init_sorting_dual(modified_cost, init_f)
     f_potential = f_potential - jnp.mean(f_potential)
 
     f_u = f_potential if lse_mode else ot_problem.geom.scaling_from_potential(
