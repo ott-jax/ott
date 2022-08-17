@@ -76,9 +76,7 @@ class QuadraticProblem:
   """Definition of the quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
-  have the form given in Eq. 4 from
-
-  http://proceedings.mlr.press/v48/peyre16.pdf
+  have the form given in :cite:`peyre:16`, eq. 4.
 
   The two geometries below parameterize matrices C and bar{C} in that equation.
   The function L (of two real values) in that equation is assumed
@@ -121,8 +119,18 @@ class QuadraticProblem:
     tau_b: if lower that 1.0, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: True (default) if the unbalanced version of
-      Sejourne et al. (Neurips 2021) is used, False if tau_a and tau_b
-      only affect the inner Sinhkorn loop.
+      :cite:`sejourne:21` is used, False if tau_a and tau_b
+      only affect the inner Sinkhorn loop.
+    ranks: Ranks of the cost matrices, see
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost function. If `-1`, the geometries will not be converted
+      to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
+      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
+      across all geometries.
+    tolerances: Tolerances used when converting geometries to low-rank. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
   """
 
   def __init__(
@@ -137,7 +145,9 @@ class QuadraticProblem:
       loss: Union[Literal['sqeucl', 'kl'], GWLoss] = 'sqeucl',
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
-      gw_unbalanced_correction: bool = True
+      gw_unbalanced_correction: bool = True,
+      ranks: Union[int, Tuple[int, ...]] = -1,
+      tolerances: Union[float, Tuple[float, ...]] = 1e-2,
   ):
     assert fused_penalty > 0, fused_penalty
     self.geom_xx = geom_xx._set_scale_cost(scale_cost)
@@ -152,6 +162,8 @@ class QuadraticProblem:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.gw_unbalanced_correction = gw_unbalanced_correction
+    self.ranks = ranks
+    self.tolerances = tolerances
 
     self._loss_name = loss
     if self._loss_name == 'sqeucl':
@@ -166,11 +178,13 @@ class QuadraticProblem:
     return self.geom_xy is not None
 
   @property
-  def is_all_geoms_lr(self) -> bool:
+  def is_low_rank(self) -> bool:
     return (
         isinstance(self.geom_xx, low_rank.LRCGeometry) and
-        isinstance(self.geom_yy, low_rank.LRCGeometry) and
-        isinstance(self.geom_xy, (low_rank.LRCGeometry, type(None)))
+        isinstance(self.geom_yy, low_rank.LRCGeometry) and (
+            self.geom_xy is None or
+            isinstance(self.geom_xy, low_rank.LRCGeometry)
+        )
     )
 
   @property
@@ -193,7 +207,9 @@ class QuadraticProblem:
         'loss': self._loss_name,
         'fused_penalty': self.fused_penalty,
         'scale_cost': self.scale_cost,
-        'gw_unbalanced_correction': self.gw_unbalanced_correction
+        'gw_unbalanced_correction': self.gw_unbalanced_correction,
+        'ranks': self.ranks,
+        'tolerances': self.tolerances
     })
 
   @classmethod
@@ -216,8 +232,7 @@ class QuadraticProblem:
   ) -> low_rank.LRCGeometry:
     r"""Initialise cost term that depends on the marginals of the transport.
 
-    Uses the first term in Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
+    Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
     Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
     from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
@@ -259,9 +274,9 @@ class QuadraticProblem:
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
 
-    In the unbalanced setting (i.e. tau_a<1.0 or tau_b<1.0), the
-    introduction of a quadratic divergence (see Sejourne et al. Neurips 2021)
-    adds a term to the GW local cost.
+    In the unbalanced setting (``tau_a < 1.0 or tau_b < 1.0``), the
+    introduction of a quadratic divergence :cite:`sejourne:21` adds a term
+    to the GW local cost.
 
     Let :math:`a` [num_a,] be the target weights for samples
     from geom_xx and :math:`b` [num_b,] be the target weights
@@ -334,19 +349,19 @@ class QuadraticProblem:
   ) -> linear_problems.LinearProblem:
     """Initialise a linear problem locally around a naive initializer ab'.
 
-    If the problem is balanced (`tau_a=1.0 and tau_b=1.0'), the equation of the
-    cost follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf.
+    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
+    the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
+
     If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
-    possible cases. A first possibility is to introduce a
-    quadratic KL divergence on the marginals in the objective as done
-    in Sejourne et al. 2021 (https://arxiv.org/abs/2009.04266)
-    (`gw_unbalanced_correction=True`), which in turns modifies the local cost
-    matrix.
-    Alternatively, it could be possible to leave
-    the formulation of the local cost unchanged, i.e. follow Equation 6 of
-    Proposition 1 (`gw_unbalanced_correction=False`) and include the
-    unbalanced terms at the level of the linear problem only.
+    possible cases. A first possibility is to introduce a quadratic KL
+    divergence on the marginals in the objective as done in :cite:`sejourne:21`
+    (``gw_unbalanced_correction = True``), which in turns modifies the
+    local cost matrix.
+
+    Alternatively, it could be possible to leave the formulation of the
+    local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
+    (``gw_unbalanced_correction = False``) and include the unbalanced terms
+    at the level of the linear problem only.
 
     Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
     cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
@@ -362,7 +377,6 @@ class QuadraticProblem:
     When working with the fused problem, a linear term is added to the cost
     matrix:
     `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
-
 
     Args:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
@@ -438,7 +452,7 @@ class QuadraticProblem:
     h1, h2 = self.quad_loss
     tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
     tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
-    if self.is_all_geoms_lr:
+    if self.is_low_rank:
       geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2)
       geom = low_rank.add_lrc_geom(geom, marginal_cost)
       if self.is_fused:
@@ -457,13 +471,14 @@ class QuadraticProblem:
   ) -> linear_problems.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
-    If the problem is balanced (`tau_a=1.0 and tau_b=1.0`), the equation
-    follows Equation 6, Proposition 1 of
-    http://proceedings.mlr.press/v48/peyre16.pdf. If the problem is unbalanced
-    (`tau_a<1.0 or tau_b<1.0`), two cases are possible, as explained in the
-    pydoc of `init_linearization` above. Finally, it is also possible to
-    consider a Fused Gromov Wasserstein problem. Details about the resulting
-    cost matrix are given in the pydoc of `init_linearization`.
+    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``), the equation
+    follows eq. 6, p. 1 of :cite:`peyre:16`.
+
+    If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
+    possible, as explained in :meth:`init_linearization` above.
+    Finally, it is also possible to consider a Fused Gromov Wasserstein problem.
+    Details about the resulting cost matrix are also given in
+    :meth:`init_linearization`.
 
     Args:
       transport: Solution of the linearization of the quadratic problem.
@@ -519,12 +534,70 @@ class QuadraticProblem:
   @property
   def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
     if not self.is_fused:
-      return 0
+      return 0.
     if isinstance(
         self.geom_xy, pointcloud.PointCloud
     ) and self.geom_xy.is_online:
-      return self.geom_xy.compute_cost_matrix() * self.geom_xy.inv_scale_cost
+      return self.geom_xy._compute_cost_matrix() * self.geom_xy.inv_scale_cost
     return self.geom_xy.cost_matrix
+
+  @property
+  def _is_low_rank_convertible(self) -> bool:
+
+    def convertible(geom: geometry.Geometry) -> bool:
+      return isinstance(geom, low_rank.LRCGeometry) or (
+          isinstance(geom, pointcloud.PointCloud) and geom.is_squared_euclidean
+      )
+
+    if self.is_low_rank:
+      return True
+
+    geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
+    # either explicitly via cost factorization or implicitly (e.g., a PC)
+    return self.ranks != 1 or (
+        convertible(geom_xx) and convertible(geom_yy) and
+        (geom_xy is None or convertible(geom_xy))
+    )
+
+  def to_low_rank(self, seed: int = 0) -> "QuadraticProblem":
+    """Convert geometries to low-rank.
+
+    Args:
+      seed: Random seed.
+
+    Returns:
+      Quadratic problem with low-rank geometries.
+    """
+
+    def convert(
+        vals: Union[int, float, Tuple[Union[int, float], ...]]
+    ) -> Tuple[Union[int, float], ...]:
+      size = 2 + self.is_fused
+      if isinstance(vals, (int, float)):
+        return (vals,) * 3
+      assert len(vals) == size, vals
+      return vals + (None,) * (3 - size)
+
+    if self.is_low_rank:
+      return self
+
+    (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
+    (s1, s2, s3) = jax.random.split(jax.random.PRNGKey(seed), 3)[:, 0]
+    (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)
+
+    geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, seed=s1)
+    geom_yy = geom_yy.to_LRCGeometry(rank=r2, tol=t2, seed=s2)
+    if self.is_fused:
+      if isinstance(
+          geom_xy, pointcloud.PointCloud
+      ) and geom_xy.is_squared_euclidean:
+        geom_xy = geom_xy.to_LRCGeometry(self.fused_penalty)
+      else:
+        geom_xy = geom_xy.to_LRCGeometry(rank=r3, tol=t3, seed=s3)
+
+    return type(self).tree_unflatten(
+        aux_data, [geom_xx, geom_yy, geom_xy] + children
+    )
 
 
 def update_epsilon_unbalanced(epsilon, transport_mass):

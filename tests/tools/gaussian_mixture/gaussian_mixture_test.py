@@ -120,7 +120,12 @@ class TestGaussianMixture:
     size = 100
     subkey0, subkey1 = jax.random.split(rng, num=2)
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        key=subkey0, n_components=3, n_dimensions=2, stdev=1.
+        key=subkey0,
+        n_components=3,
+        n_dimensions=2,
+        stdev_mean=1.,
+        stdev_cov=1.,
+        stdev_weights=1
     )
     x = gmm.sample(key=subkey1, size=size)
     actual = gmm.log_prob(x)

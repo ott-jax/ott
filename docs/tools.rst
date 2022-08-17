@@ -1,12 +1,13 @@
+.. _tools:
+
 ott.tools package
 =================
 .. currentmodule:: ott.tools
 .. automodule:: ott.tools
 
 The tools package contains high level functions that build on outputs produced by core functions.
-They can be used to compute Sinkhorn divergences [#]_, instantiate transport matrices,
-provide differentiable approximations to ranks and quantile functions [#]_, etc.
-
+They can be used to compute Sinkhorn divergences :cite:`sejourne:19`, instantiate transport matrices,
+provide differentiable approximations to ranks and quantile functions :cite:`cuturi:19`, etc.
 
 Optimal Transport
 -----------------
@@ -15,14 +16,23 @@ Optimal Transport
 
     transport.Transport
 
+Segmented Sinkhorn
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment_sinkhorn.segment_sinkhorn
+
+
 Sinkhorn Divergence
 -------------------
 .. autosummary::
     :toctree: _autosummary
 
     sinkhorn_divergence.sinkhorn_divergence
+    sinkhorn_divergence.segment_sinkhorn_divergence
 
-Soft Sorting algorithms
+Soft Sorting Algorithms
 -----------------------
 .. autosummary::
     :toctree: _autosummary
@@ -34,7 +44,10 @@ Soft Sorting algorithms
     soft_sort.sort
     soft_sort.sort_with
 
-References
+Clustering
 ----------
-.. [#] T. Séjourné et al., `Sinkhorn Divergences for Unbalanced Optimal Transport <https://arxiv.org/abs/1910.12958>`_, arXiv:1910.12958.
-.. [#] M. Cuturi et al. `Differentiable Ranking and Sorting using Optimal Transport <https://papers.nips.cc/paper/2019/hash/d8c24ca8f23c562a5600876ca2a550ce-Abstract.html>`_, NeurIPS'19.
+.. autosummary::
+    :toctree: _autosummary
+
+    k_means.k_means
+    k_means.KMeansOutput

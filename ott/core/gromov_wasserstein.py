@@ -15,7 +15,7 @@
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 import functools
-from typing import Any, Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +29,7 @@ from ott.core import (
     sinkhorn_lr,
     was_solver,
 )
-from ott.geometry import epsilon_scheduler, geometry, pointcloud
+from ott.geometry import epsilon_scheduler, geometry
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -37,7 +37,7 @@ LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
-  Attributes:
+  Args:
     costs: Holds the sequence of regularized GW costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
@@ -49,8 +49,6 @@ class GWOutput(NamedTuple):
       linearization of GW.
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
-    transport: The transport matrix.
-    reg_gw_cost: Regularized optimal transport cost of the linearization.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -77,6 +75,7 @@ class GWOutput(NamedTuple):
 
   @property
   def reg_gw_cost(self) -> float:
+    """Regularized optimal transport cost of the linearization."""
     return self.linear_state.reg_ot_cost
 
   @property
@@ -138,52 +137,11 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
-  """A Gromov Wasserstein solver, built on generic template.
-
-  Args:
-    args:  Positional arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
-    cost_rank: Rank of the cost matrix, see
-      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function. If `-1`, these geometries will not be converted
-      to low-rank.
-    cost_tol: Tolerance used when converting geometries to low-rank. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function.
-    kwargs: Keyword arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
-  """
-
-  def __init__(
-      self,
-      *args: Any,
-      cost_rank: int = -1,
-      cost_tol: float = 1e-2,
-      **kwargs: Any
-  ):
-    super().__init__(*args, **kwargs)
-    self.cost_rank = cost_rank
-    self.cost_tol = cost_tol
 
   def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
-    # Consider converting problem first if using low-rank solver
-    if self.is_low_rank and self._convert_geoms_to_lr(prob):
-      prob.geom_xx = prob.geom_xx.to_LRCGeometry(
-          rank=self.cost_rank, tol=self.cost_tol
-      )
-      prob.geom_yy = prob.geom_yy.to_LRCGeometry(
-          rank=self.cost_rank, tol=self.cost_tol
-      )
-      if prob.geom_xy is not None:
-        if isinstance(
-            prob.geom_xy, pointcloud.PointCloud
-        ) and prob.geom_xy.is_squared_euclidean:
-          prob.geom_xy = prob.geom_xy.to_LRCGeometry(prob.fused_penalty)
-        else:
-          prob.geom_xy = prob.geom_xy.to_LRCGeometry(
-              rank=self.cost_rank, tol=self.cost_tol
-          )
+    # consider converting problem first if using low-rank solver
+    if self.is_low_rank and prob._is_low_rank_convertible:
+      prob = prob.to_low_rank()
 
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
@@ -246,19 +204,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linear_state=state.linear_state,
         geom=geom,
         old_transport_mass=state.old_transport_mass
-    )
-
-  def _convert_geoms_to_lr(self, prob: quad_problems.QuadraticProblem) -> bool:
-
-    def is_sqeucl_pc(geom: geometry.Geometry) -> bool:
-      return isinstance(
-          geom, pointcloud.PointCloud
-      ) and geom.is_squared_euclidean
-
-    geom_xx, geom_yy, geom_xy = prob.geom_xx, prob.geom_yy, prob.geom_xy
-    return self.cost_rank != -1 or (
-        is_sqeucl_pc(geom_xx) and is_sqeucl_pc(geom_yy) and
-        (geom_xy is None or is_sqeucl_pc(geom_xy))
     )
 
 
@@ -381,6 +326,8 @@ def gromov_wasserstein(
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,
+    ranks: Union[int, Tuple[int, ...]] = -1,
+    tolerances: Union[float, Tuple[float, ...]] = 1e-2,
     **kwargs: Any,
 ) -> GWOutput:
   """Solve a Gromov Wasserstein problem.
@@ -408,7 +355,7 @@ def gromov_wasserstein(
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     loss: defaults to the square Euclidean distance. Can also pass 'kl'
       to define the GW loss as KL loss.
-      See :class:`ott.core.gromov_wasserstein.GromovWasserstein` on how to pass
+      See :class:`~ott.core.gromov_wasserstein.GromovWasserstein` on how to pass
       custom loss.
     tau_a: float between 0 and 1.0, parameter that controls the strength of the
       KL divergence constraint between the weights and marginals of the
@@ -419,8 +366,22 @@ def gromov_wasserstein(
       transport for the second view. If set to 1.0, then it is equivalent to a
       hard constraint and if smaller to a softer constraint.
     gw_unbalanced_correction: True (default) if the unbalanced version of
-      Sejourne et al (Neurips 2021) is used, False if tau_a and tau_b
-      only affect the inner Sinhkorn loop.
+      :cite:`sejourne:21` is used, False if tau_a and tau_b
+      only affect the inner Sinkhorn loop.
+    ranks: Switch to a low rank approximation of all cost matrices, using
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`, to gain speed.
+      This is only relevant if the geometries of interest are *not*
+      :class:`~ott.geometry.pointcloud.PointCloud` with `'sqeucl'` cost
+      function, in which case they would be low-rank by construction (as long
+      as the sizes of these point clouds is larger than dimension).
+      If `-1`, geometries are left as they are, and not converted.
+      If :class:`tuple`, these 2 or 3 :class:`int` specify the ranks of
+      ``geom_xx``, ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`,
+      all 3 geometries are converted using that rank.
+    tolerances: Tolerances used when converting geometries to low-rank. Used when
+      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost. If :class:`float`, that tolerance is shared across all
+      3 geometries.
     kwargs: keyword arguments to make.
 
   Returns:
@@ -437,7 +398,9 @@ def gromov_wasserstein(
       loss=loss,
       tau_a=tau_a,
       tau_b=tau_b,
-      gw_unbalanced_correction=gw_unbalanced_correction
+      gw_unbalanced_correction=gw_unbalanced_correction,
+      ranks=ranks,
+      tolerances=tolerances
   )
   solver = make(**kwargs)
   return solver(prob)

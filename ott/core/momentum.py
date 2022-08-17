@@ -39,7 +39,7 @@ class Momentum:
     )
 
   def at(self, state: "sinkhorn.SinkhornState") -> float:
-    """Momentum formula, https://arxiv.org/pdf/2012.12562v1.pdf, p.7 and (5)."""
+    """Momentum formula :cite:`lehmann:21`, eq. 5."""
     idx = self.start // self.inner_iterations
     error_ratio = jnp.minimum(
         state.errors[idx - 1, -1] / state.errors[idx - 2, -1], 0.99

@@ -37,10 +37,10 @@ class LRCGeometry(geometry.Geometry):
       ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
     batch_size: optional size of the batch to compute online (without
       instantiating the matrix) the scale factor ``scale_cost`` of the
-      ``cost_matrix`` when ``scale_cost=max_cost``. If set to ``None``, the
+      ``cost_matrix`` when ``scale_cost='max_cost'``. If set to ``None``, the
       batch size is set to 1024 or to the largest number of samples between
-      ``cost_1`` and ``cost_2`` if smaller than 1024.
-    kwargs: additional kwargs to :class:`ott.geometry.geometry.Geometry`.
+      ``cost_1`` and ``cost_2`` if smaller than `1024`.
+    kwargs: Additional kwargs to :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -48,8 +48,8 @@ class LRCGeometry(geometry.Geometry):
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
       bias: float = 0.0,
-      scale_cost: Optional[Union[Literal['mean', 'max_bound', 'max_cost'], bool,
-                                 float]] = None,
+      scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
+                                                  'max_cost']] = 1.0,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
@@ -64,15 +64,18 @@ class LRCGeometry(geometry.Geometry):
     self.batch_size = batch_size
 
   @property
-  def cost_1(self):
+  def cost_1(self) -> jnp.ndarray:
+    """First factor of the :attr:`cost_matrix`."""
     return self._cost_1 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def cost_2(self):
+  def cost_2(self) -> jnp.ndarray:
+    """Second factor of the :attr:`cost_matrix`."""
     return self._cost_2 * jnp.sqrt(self.inv_scale_cost)
 
   @property
-  def bias(self):
+  def bias(self) -> float:
+    """Constant offset added to the entire :attr:`cost_matrix`."""
     return self._bias * self.inv_scale_cost
 
   @property
@@ -81,12 +84,12 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    """Return the cost matrix if requested."""
+    """Materialize the cost matrix."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
   def shape(self) -> Tuple[int, int]:
-    return (self._cost_1.shape[0], self._cost_2.shape[0])
+    return self._cost_1.shape[0], self._cost_2.shape[0]
 
   @property
   def is_symmetric(self) -> bool:
@@ -97,27 +100,22 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
-    if isinstance(self._scale_cost, float):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_bound':
+    self = self._masked_geom()
+    if self._scale_cost == 'max_bound':
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
-    elif self._scale_cost == 'mean':
-      factor1 = jnp.dot(jnp.ones(self.shape[0]), self._cost_1)
-      factor2 = jnp.dot(self._cost_2.T, jnp.ones(self.shape[1]))
-      mean = (
-          jnp.dot(factor1, factor2) / (self.shape[0] * self.shape[1]) +
-          self._bias
-      )
+    if self._scale_cost == 'mean':
+      factor1 = jnp.dot(self._n_normed_ones, self._cost_1)
+      factor2 = jnp.dot(self._cost_2.T, self._m_normed_ones)
+      mean = jnp.dot(factor1, factor2) + self._bias
       return 1.0 / mean
-    elif self._scale_cost == 'max_cost':
+    if self._scale_cost == 'max_cost':
       return 1.0 / self.compute_max_cost()
-    elif isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not provided.')
-    else:
-      return 1.0
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
@@ -172,7 +170,7 @@ class LRCGeometry(geometry.Geometry):
     return super()._apply_cost_to_vec(vec, axis, fn=fn)
 
   def compute_max_cost(self) -> float:
-    """Compute the maximum of the cost matrix.
+    """Compute the maximum of the :attr:`cost_matrix`.
 
     Three cases are taken into account:
 
@@ -231,27 +229,66 @@ class LRCGeometry(geometry.Geometry):
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "LRCGeometry":
-    """Subset rows and/or columns of a geometry.
 
-    Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      kwargs: Keyword arguments for :class:`ott.geometry.low_rank.LRCGeometry`.
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        ixs: Optional[jnp.ndarray],
+    ) -> jnp.ndarray:
+      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
-    Returns:
-      The subsetted geometry.
-    """
-    (c1, c2, *children), aux_data = self.tree_flatten()
-    if src_ixs is not None:
-      c1 = c1[jnp.atleast_1d(src_ixs), :]
-    if tgt_ixs is not None:
-      c2 = c2[jnp.atleast_1d(tgt_ixs), :]
+    return self._mask_subset_helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
+
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "LRCGeometry":
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None or mask is None:
+        return arr
+      return jnp.where(mask[:, None], arr, mask_value)
+
+    src_mask = self._normalize_mask(src_mask, self.shape[0])
+    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+    return self._mask_subset_helper(
+        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
+    )
+
+  def _mask_subset_helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
+                   Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "LRCGeometry":
+    (c1, c2, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
+    c1 = fn(c1, src_ixs)
+    c2 = fn(c2, tgt_ixs)
+    if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+      src_mask = fn(src_mask, src_ixs)
+      tgt_mask = fn(tgt_mask, tgt_ixs)
 
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [c1, c2] + children)
+    return type(self).tree_unflatten(
+        aux_data, [c1, c2, src_mask, tgt_mask] + children
+    )
 
   def tree_flatten(self):
-    return (self._cost_1, self._cost_2, self._kwargs), {
+    return (
+        self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
+    ), {
         'bias': self._bias,
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
@@ -259,7 +296,10 @@ class LRCGeometry(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:-1], **children[-1], **aux_data)
+    c1, c2, src_mask, tgt_mask, kwargs = children
+    return cls(
+        c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data
+    )
 
 
 def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry) -> LRCGeometry:

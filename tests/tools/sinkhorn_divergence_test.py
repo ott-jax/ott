@@ -21,8 +21,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud
 from ott.tools import sinkhorn_divergence
+from ott.tools.gaussian_mixture import gaussian_mixture
 
 
 class TestSinkhornDivergence:
@@ -230,6 +231,8 @@ class TestSinkhornDivergence:
     segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
         x_copied,
         y_copied,
+        num_segments=2,
+        max_measure_size=19,
         segment_ids_x=segment_ids_x,
         segment_ids_y=segment_ids_y,
         indices_are_sorted=False,
@@ -250,11 +253,19 @@ class TestSinkhornDivergence:
     x2 = jnp.arange(12)[:, None].repeat(2, axis=1)
     y2 = 2 * jnp.arange(13)[:, None].repeat(2, axis=1) + 0.1
 
-    segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+    sink_div = jax.jit(
+        sinkhorn_divergence.segment_sinkhorn_divergence,
+        static_argnames=['num_per_segment_x', 'num_per_segment_y'],
+    )
+
+    segmented_divergences = sink_div(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
-        num_per_segment_x=jnp.array([10, 12]),
-        num_per_segment_y=jnp.array([11, 13]),
+        # these 2 arguments are not necessary for jitting:
+        # num_segments=2,
+        # max_measure_size=15,
+        num_per_segment_x=(10, 12),
+        num_per_segment_y=(11, 13),
         epsilon=0.01
     )
 
@@ -266,6 +277,59 @@ class TestSinkhornDivergence:
             pointcloud.PointCloud, x, y, epsilon=0.01
         ).divergence for x, y in zip((x1, x2), (y1, y2))
     ])
+    np.testing.assert_allclose(segmented_divergences, true_divergences)
+
+  def test_sinkhorn_divergence_segment_custom_padding(self, rng):
+    rngs = jax.random.split(rng, 4)
+    dim = 3
+    b_cost = costs.Bures(dim)
+
+    num_segments = 2
+
+    num_per_segment_x = (5, 2)
+    num_per_segment_y = (3, 5)
+    ns = num_per_segment_x + num_per_segment_y
+
+    means_and_covs_to_x = jax.vmap(
+        costs.mean_and_cov_to_x, in_axes=[0, 0, None]
+    )
+
+    def g(rng, n):
+      out = gaussian_mixture.GaussianMixture.from_random(
+          rng, n_components=n, n_dimensions=dim
+      )
+      return means_and_covs_to_x(out.loc, out.covariance, dim)
+
+    x1, x2, y1, y2 = (g(rngs[i], ns[i]) for i in range(4))
+
+    true_divergences = jnp.array([
+        sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud,
+            x,
+            y,
+            sinkhorn_kwargs={
+                'lse_mode': True
+            },
+            epsilon=0.1,
+            cost_fn=b_cost
+        ).divergence for x, y in zip((x1, x2), (y1, y2))
+    ])
+
+    x = jnp.vstack((x1, x2))
+    y = jnp.vstack((y1, y2))
+
+    segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
+        x,
+        y,
+        num_segments=num_segments,
+        max_measure_size=5,
+        num_per_segment_x=num_per_segment_x,
+        num_per_segment_y=num_per_segment_y,
+        sinkhorn_kwargs={'lse_mode': True},
+        epsilon=0.1,
+        cost_fn=b_cost
+    )
+
     np.testing.assert_allclose(segmented_divergences, true_divergences)
 
   # yapf: disable
@@ -291,6 +355,8 @@ class TestSinkhornDivergence:
     threshold = 3.2e-3
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    sinkhorn_kwargs["threshold"] = threshold
+
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
@@ -298,7 +364,7 @@ class TestSinkhornDivergence:
         epsilon=epsilon,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs=sinkhorn_kwargs.update({'threshold': threshold})
+        sinkhorn_kwargs=sinkhorn_kwargs,
     )
     assert div.divergence > 0.0
     assert threshold > div.errors[0][-1]

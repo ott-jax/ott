@@ -119,7 +119,7 @@ def fixpoint_iter_fwd(
   """
   force_scan = (min_iterations == max_iterations)
   compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
-  states = jax.tree_map(
+  states = jax.tree_util.tree_map(
       lambda x: jnp.zeros((max_iterations // inner_iterations + 1,) + x.shape,
                           dtype=x.dtype), state
   )
@@ -176,7 +176,7 @@ def fixpoint_iter_bwd(
   force_scan = (min_iterations == max_iterations)
   constants, iteration, states = res
   # The tree may contain some python floats
-  g_constants = jax.tree_map(
+  g_constants = jax.tree_util.tree_map(
       lambda x: jnp.zeros_like(x, dtype=x.dtype)
       if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants
   )
@@ -202,7 +202,9 @@ def fixpoint_iter_bwd(
 
   def unrolled_body_fn(iteration_g_gconst):
     iteration, g, g_constants = iteration_g_gconst
-    state = jax.tree_map(lambda x: x[iteration // inner_iterations], states)
+    state = jax.tree_util.tree_map(
+        lambda x: x[iteration // inner_iterations], states
+    )
     _, pullback = jax.vjp(
         unrolled_body_fn_no_errors, iteration, constants, state
     )

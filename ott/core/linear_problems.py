@@ -52,7 +52,6 @@ class LinearProblem:
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
-
     self.geom = geom
     self._a = a
     self._b = b
