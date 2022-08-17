@@ -104,23 +104,22 @@ class GaussianInitializer(DefaultInitializer):
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
-    if not isinstance(ot_problem.geom, pointcloud.PointCloud):
-      # warning that init not applied
-      return super().init_dual_a(ot_problem, lse_mode)
-    else:
+    assert isinstance(
+        ot_problem.geom, pointcloud.PointCloud
+    ), "Gaussian initializer valid only for PointCloud geom"
 
-      x, y = ot_problem.geom.x, ot_problem.geom.y
-      a, b = ot_problem.a, ot_problem.b
+    x, y = ot_problem.geom.x, ot_problem.geom.y
+    a, b = ot_problem.a, ot_problem.b
 
-      gaussian_a = gaussian.Gaussian.from_samples(x, weights=a)
-      gaussian_b = gaussian.Gaussian.from_samples(y, weights=b)
-      # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
-      f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
-      f_potential = f_potential - jnp.mean(f_potential)
-      f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
-          f_potential
-      )
-      return f_u
+    gaussian_a = gaussian.Gaussian.from_samples(x, weights=a)
+    gaussian_b = gaussian.Gaussian.from_samples(y, weights=b)
+    # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
+    f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
+    f_potential = f_potential - jnp.mean(f_potential)
+    f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
+        f_potential
+    )
+    return f_u
 
 
 class SortingInitializer(DefaultInitializer):
@@ -202,24 +201,26 @@ class SortingInitializer(DefaultInitializer):
     Returns:
       potential/ scaling f_u, array of size n.
     """
-    if ot_problem.geom.is_online:
-      # raise error/ warning?
-      return super().init_dual_a(ot_problem, lse_mode)
-    else:
-      cost_matrix = ot_problem.geom.cost_matrix
-      modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
+    assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geom"
+    # check for sorted x, y requires pointcloud and could slow initializer
+    cost_matrix = ot_problem.geom.cost_matrix
 
-      n = cost_matrix.shape[0]
-      init_f = jnp.zeros(n) if init_f is None else init_f
+    assert cost_matrix.shape[0] == cost_matrix.shape[
+        1], "Requires square cost matrix"
 
-      f_potential = self.init_sorting_dual(modified_cost, init_f)
-      f_potential = f_potential - jnp.mean(f_potential)
+    modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
 
-      f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
-          f_potential
-      )
+    n = cost_matrix.shape[0]
+    init_f = jnp.zeros(n) if init_f is None else init_f
 
-      return f_u
+    f_potential = self.init_sorting_dual(modified_cost, init_f)
+    f_potential = f_potential - jnp.mean(f_potential)
+
+    f_u = f_potential if lse_mode else ot_problem.scaling_from_potential(
+        f_potential
+    )
+
+    return f_u
 
 
 def _vectorized_update(
