@@ -79,7 +79,7 @@ def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
 
 
 # define sinkhorn functions
-@partial(jax.jit, static_argnames=['lse_mode'])
+@partial(jax.jit, static_argnames=['lse_mode', 'vector_min'])
 def run_sinkhorn_sort_init(
     x, y, a=None, b=None, epsilon=0.01, vector_min=True, lse_mode=True
 ):

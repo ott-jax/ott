@@ -157,7 +157,6 @@ class SortingInitializer(DefaultInitializer):
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
     self.update_fn = _vectorized_update if self.vectorized_update else _coordinate_update
-    
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return ([], {
