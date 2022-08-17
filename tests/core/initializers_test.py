@@ -11,7 +11,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Gromov Wasserstein."""
+"""Tests for Sinkhorn initializers."""
 
 from functools import partial
 
@@ -27,7 +27,7 @@ from ott.geometry import geometry, pointcloud
 
 
 def create_sorting_problem(rng, n, epsilon=0.01, online=False):
-  # definte ot problem
+  # define ot problem
   x_init = jnp.array([-1., 0, .22])
   y_init = jnp.array([0., 0, 1.1])
   x_rng, y_rng = jax.random.split(rng)
@@ -35,13 +35,13 @@ def create_sorting_problem(rng, n, epsilon=0.01, online=False):
   x = jnp.concatenate([x_init, 10 + jnp.abs(jax.random.normal(x_rng, (n,)))])
   y = jnp.concatenate([y_init, 10 + jnp.abs(jax.random.normal(y_rng, (n,)))])
 
-  x = np.sort(x)
-  y = np.sort(y)
+  x = jnp.sort(x)
+  y = jnp.sort(y)
 
   n = len(x)
   m = len(y)
-  a = np.ones(n) / n
-  b = np.ones(m) / m
+  a = jnp.ones(n) / n
+  b = jnp.ones(m) / m
 
   batch_size = 3 if online else None
   geom = pointcloud.PointCloud(
@@ -56,23 +56,20 @@ def create_sorting_problem(rng, n, epsilon=0.01, online=False):
 
 
 def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
-  # definte ot problem
+  # define ot problem
   x_rng, y_rng = jax.random.split(rng)
 
-  mu_a = np.array([-1, 1]) * 5
-  mu_b = np.array([0, 0])
+  mu_a = jnp.array([-1, 1]) * 5
+  mu_b = jnp.array([0, 0])
 
   x = jax.random.normal(x_rng, (n, d)) + mu_a
   y = jax.random.normal(y_rng, (m, d)) + mu_b
 
-  a = np.ones(n) / n
-  b = np.ones(m) / m
+  a = jnp.ones(n) / n
+  b = jnp.ones(m) / m
 
-  x_jnp, y_jnp = jnp.array(x), jnp.array(y)
   batch_size = 3 if online else None
-  geom = pointcloud.PointCloud(
-      x_jnp, y_jnp, epsilon=epsilon, batch_size=batch_size
-  )
+  geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
 
   ot_problem = linear_problems.LinearProblem(geom=geom, a=a, b=b)
   return ot_problem
@@ -117,9 +114,9 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   return out
 
 
+@pytest.mark.fast
 class TestInitializers:
 
-  @pytest.mark.fast
   def test_init_pytree(self):
 
     @jax.jit
@@ -135,14 +132,14 @@ class TestInitializers:
     init_gaus()
     init_sort()
 
-  @pytest.mark.fast.with_args(
+  @pytest.mark.parametrize(
       "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
   )
-  def test_sorting_init(self, vector_min, lse_mode):
+  def test_sorting_init(self, vector_min: bool, lse_mode: bool):
     """Tests sorting dual initializer."""
+    rng = jax.random.PRNGKey(42)
     n = 500
     epsilon = 0.01
-    rng = jax.random.PRNGKey(42)
 
     ot_problem = create_sorting_problem(
         rng=rng, n=n, epsilon=epsilon, online=False
@@ -172,40 +169,34 @@ class TestInitializers:
     if lse_mode:
       assert base_num_iter >= sort_num_iter
 
-  @pytest.mark.fast
-  def test_sorting_init_online(self):
+  def test_sorting_init_online(self, rng: jnp.ndarray):
     n = 100
     epsilon = 0.01
-    rng = jax.random.PRNGKey(0)
 
     ot_problem = create_sorting_problem(
         rng=rng, n=n, epsilon=epsilon, online=True
     )
     sort_init = init_lib.SortingInitializer(vectorized_update=True)
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
 
-  @pytest.mark.fast
-  def test_sorting_init_square_cost(self):
+  def test_sorting_init_square_cost(self, rng: jnp.ndarray):
     n = 100
     m = 150
     d = 1
     epsilon = 0.01
-    rng = jax.random.PRNGKey(0)
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
     sort_init = init_lib.SortingInitializer(vectorized_update=True)
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
 
-  @pytest.mark.fast
-  def test_default_initializer(self):
+  def test_default_initializer(self, rng: jnp.ndarray):
     """Tests default initializer"""
     n = 200
     m = 200
     d = 2
     epsilon = 0.01
-    rng = jax.random.PRNGKey(0)
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 
@@ -217,16 +208,14 @@ class TestInitializers:
     )
 
     # check default is 0
-    np.testing.assert_array_equal(jnp.zeros(n), default_potential_a)
-    np.testing.assert_array_equal(jnp.zeros(m), default_potential_b)
+    np.testing.assert_array_equal(0., default_potential_a)
+    np.testing.assert_array_equal(0., default_potential_b)
 
-  @pytest.mark.fast
-  def test_gaus_pointcloud_geom(self):
+  def test_gauss_pointcloud_geom(self, rng: jnp.ndarray):
     n = 200
     m = 200
     d = 2
     epsilon = 0.01
-    rng = jax.random.PRNGKey(0)
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 
@@ -238,18 +227,17 @@ class TestInitializers:
         geom=new_geom, a=ot_problem.a, b=ot_problem.b
     )
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=r"point cloud"):
       gaus_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
 
-  @pytest.mark.fast.with_args('lse_mode', [True, False])
-  def test_gaus_initializer(self, lse_mode):
+  @pytest.mark.parametrize('lse_mode', [True, False])
+  def test_gauss_initializer(self, lse_mode, rng: jnp.ndarray):
     """Tests Gaussian initializer"""
     # definte ot problem
     n = 200
     m = 200
     d = 2
     epsilon = 0.01
-    rng = jax.random.PRNGKey(0)
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 

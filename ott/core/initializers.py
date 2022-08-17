@@ -50,7 +50,7 @@ class SinkhornInitializer(ABC):
 
 @jax.tree_util.register_pytree_node_class
 class DefaultInitializer(SinkhornInitializer):
-  """Default Initialization of Sinkhorn dual potentials/primal scalings."""
+  """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
       self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
@@ -87,14 +87,13 @@ class DefaultInitializer(SinkhornInitializer):
 
 @jax.tree_util.register_pytree_node_class
 class GaussianInitializer(DefaultInitializer):
-  """GaussianInitializer.
+  """Gaussian initializer.
 
   From :cite:`thornton2022rethinking:22`.
-  Compute Gaussian approximations of each pointcloud, then compute closed from
-  Kantorovich potential betwen Gaussian approximations using Brenier's theorem
+  Compute Gaussian approximations of each point cloud, then compute closed from
+  Kantorovich potential between Gaussian approximations using Brenier's theorem
   (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential
   to initialize Sinkhorn potentials/scalings.
-
   """
 
   def init_dual_a(
@@ -116,7 +115,7 @@ class GaussianInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_problem.geom, pointcloud.PointCloud
-    ), "Gaussian initializer valid only for PointCloud geom"
+    ), "Gaussian initializer valid only for point clouds."
 
     x, y = ot_problem.geom.x, ot_problem.geom.y
     a, b = ot_problem.a, ot_problem.b
@@ -134,7 +133,7 @@ class GaussianInitializer(DefaultInitializer):
 
 @jax.tree_util.register_pytree_node_class
 class SortingInitializer(DefaultInitializer):
-  """Sorting Init class.
+  """Sorting initializer.
 
   DualSort algorithm from :cite:`thornton2022rethinking:22`, solve
   non-regularized OT problem via sorting, then compute potential through
@@ -207,7 +206,7 @@ class SortingInitializer(DefaultInitializer):
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
-    """Apply DualSort algo.
+    """Apply DualSort algorithm.
 
     Args:
       ot_problem: OT problem.
@@ -219,7 +218,7 @@ class SortingInitializer(DefaultInitializer):
       potential/scaling f_u, array of size n.
     """
     assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geometry."
-    # check for sorted x, y requires pointcloud and could slow initializer
+    # check for sorted x, y requires point cloud and could slow initializer
     cost_matrix = ot_problem.geom.cost_matrix
 
     assert cost_matrix.shape[0] == cost_matrix.shape[
