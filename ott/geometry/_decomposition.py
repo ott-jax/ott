@@ -1,6 +1,16 @@
 import abc
-import functools
-from typing import Any, Dict, Generic, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    Hashable,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import jax
 import jax.experimental.host_callback as hcb
@@ -21,12 +31,11 @@ T = TypeVar("T")
 class CholeskyDecomposition(abc.ABC, Generic[T]):
   LOWER = True
 
-  @functools.partial(jax.jit, static_argnums=0)
-  def __new__(cls, A: T) -> "CholeskyDecomposition":
-    obj = super().__new__(cls)
-    obj._A = A
-    obj._L = obj._decompose(jax.lax.stop_gradient(A))
-    return obj
+  def __init__(self, A: T, L: Optional[T] = None):
+    self._A = A
+    if L is None:
+      L = self._decompose(jax.lax.stop_gradient(A))
+    self._L = L
 
   def __call__(self, b: jnp.ndarray) -> jnp.ndarray:
     return self._solve(self.L, b)
@@ -40,9 +49,9 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
     pass
 
   @classmethod
-  def construct(cls, A: T) -> "CholeskyDecomposition":
-    # TODO
-    pass
+  def from_scipy(cls, A: sp.spmatrix, **kwargs: Any) -> "CholeskyDecomposition":
+    # TODO(michalk8): consider requiring key for sparse
+    return cls(_scipy_sparse_to_jax(A), **kwargs)
 
   @property
   def A(self) -> jnp.ndarray:
@@ -59,11 +68,7 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
   def tree_unflatten(
       cls, aux_data: Mapping[str, Any], children: Sequence[Any]
   ) -> "CholeskyDecomposition":
-    del aux_data
-    A, L = children
-    self = super().__new__(cls)
-    self._A, self._L = A, L
-    return self
+    return cls(*children, **aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -78,30 +83,72 @@ class DenseCholeskyDecomposition(CholeskyDecomposition[jnp.ndarray]):
 
 @jax.tree_util.register_pytree_node_class
 class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
+  # TODO(michalk8): find a better impl.
   _FACTOR_CACHE = {}
 
+  def __init__(
+      self, A: T, L: Optional[T] = None, key: Optional[Hashable] = None
+  ):
+    self._key = key
+    super().__init__(A, L)
+
+  # TODO(michalk8): test on GPU
   def _host_decompose(self, A: T) -> None:
-    # TODO(michalk8): more conversion to CSC
-    # TODO(michalk8): test on GPU
-    # use float since it's required by CHOLMOD
-    data, indices, indptr = A.data, A.indices, A.indptr
-    csc_mat = sp.csr_matrix(
-        (np.array(data), np.array(indices), np.array(indptr)), dtype=float
-    ).tocsc()
-    self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(csc_mat)
+    # use float64 since it's required by CHOLMOD
+    mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
+    self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(mat)
 
   def _decompose(self, A: T) -> Optional[T]:
     return hcb.call(self._host_decompose, A, result_shape=None)
 
+  # TODO(michalk8): test on GPU
   def _host_solve(self, b: jnp.ndarray) -> jnp.ndarray:
     factor = self._FACTOR_CACHE[hash(self)]
-    x = factor.solve_A(np.array(b, dtype=float))
-    return jnp.asarray(x, dtype=b.dtype)
+    return factor.solve_A(np.array(b, dtype=float))
 
   def _solve(self, _: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
     # ideally, we would do a sparse triangular solve here
     return hcb.call(self._host_solve, b, result_shape=b)
 
-  def __hash__(self):
-    # TODO(michalk8): hash based on A?
-    return 0
+  @classmethod
+  def clear_factor_cache(cls) -> None:
+    cls._FACTOR_CACHE.clear()
+
+  def __hash__(self) -> int:
+    return object.__hash__(self) if self._key is None else self._key
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    children, aux_data = super().tree_flatten()
+    return children, {**aux_data, "key": self._key}
+
+
+def _jax_sparse_to_scipy(
+    A: Union[jesp.CSR, jesp.CSC, jesp.COO], **kwargs: Any
+) -> sp.spmatrix:
+  toarr = np.asarray
+
+  if isinstance(A, (jesp.CSR, jesp.CSC)):
+    data, indices, indptr = toarr(A.data), toarr(A.indices), toarr(A.indptr)
+    return sp.csr_matrix((data, indices, indptr), **kwargs)
+  if isinstance(A, jesp.COO):
+    row, col, data = toarr(A.row), toarr(A.col), toarr(A.data)
+    return sp.coo_matrix((data, (row, col)), **kwargs)
+
+  raise TypeError(type(A))
+
+
+def _scipy_sparse_to_jax(A: sp.spmatrix,
+                         **kwargs: Any) -> Union[jesp.CSR, jesp.CSC, jesp.COO]:
+  toarr = jnp.asarray
+  kwargs["shape"] = A.shape
+
+  if sp.isspmatrix_csr(A):
+    return jesp.CSR((toarr(A.data), toarr(A.indices), toarr(A.indptr)),
+                    **kwargs)
+  if sp.isspmatrix_csc(A):
+    return jesp.CSC((toarr(A.data), toarr(A.indices), toarr(A.indptr)),
+                    **kwargs)
+  if sp.isspmatrix_coo(A):
+    return jesp.COO((toarr(A.data), toarr(A.row), toarr(A.col)), **kwargs)
+
+  raise TypeError(type(A))
