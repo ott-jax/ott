@@ -1,6 +1,7 @@
 import abc
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
     Hashable,
@@ -31,8 +32,11 @@ T = TypeVar("T")
 class CholeskyDecomposition(abc.ABC, Generic[T]):
   LOWER = True
 
-  def __init__(self, A: T, L: Optional[T] = None):
+  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None, **_: Any):
+    if isinstance(A, sp.spmatrix):
+      A = _scipy_sparse_to_jax(A)
     self._A = A
+
     if L is None:
       L = self._decompose(jax.lax.stop_gradient(A))
     self._L = L
@@ -49,9 +53,12 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
     pass
 
   @classmethod
-  def from_scipy(cls, A: sp.spmatrix, **kwargs: Any) -> "CholeskyDecomposition":
-    # TODO(michalk8): consider requiring key for sparse
-    return cls(_scipy_sparse_to_jax(A), **kwargs)
+  def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any):
+    if isinstance(A, sp.spmatrix):
+      A = _scipy_sparse_to_jax(A)
+    if isinstance(A, (jesp.CSR, jesp.CSC, jesp.COO)):
+      return SparseCholeskyDecomposition(A, **kwargs)
+    return DenseCholeskyDecomposition(A, **kwargs)
 
   @property
   def A(self) -> jnp.ndarray:
@@ -87,15 +94,22 @@ class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
   _FACTOR_CACHE = {}
 
   def __init__(
-      self, A: T, L: Optional[T] = None, key: Optional[Hashable] = None
+      self,
+      A: T,
+      L: Optional[T] = None,
+      key: Optional[Hashable] = None,
+      callback: Callable[[sp.csc_matrix], sp.csc_matrix] = None,
   ):
-    self._key = key
+    self._key = key  # must be set before calling init
+    self._calback = callback
     super().__init__(A, L)
 
   # TODO(michalk8): test on GPU
   def _host_decompose(self, A: T) -> None:
     # use float64 since it's required by CHOLMOD
     mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
+    if self._calback is not None:
+      mat = self._calback(mat)
     self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(mat)
 
   def _decompose(self, A: T) -> Optional[T]:
