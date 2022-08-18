@@ -1,7 +1,6 @@
 import abc
 from typing import (
     Any,
-    Callable,
     Dict,
     Generic,
     Hashable,
@@ -32,7 +31,7 @@ T = TypeVar("T")
 class CholeskyDecomposition(abc.ABC, Generic[T]):
   LOWER = True
 
-  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None, **_: Any):
+  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None):
     if isinstance(A, sp.spmatrix):
       A = _scipy_sparse_to_jax(A)
     self._A = A
@@ -56,7 +55,7 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
   def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any):
     if isinstance(A, sp.spmatrix):
       A = _scipy_sparse_to_jax(A)
-    if isinstance(A, (jesp.CSR, jesp.CSC, jesp.COO)):
+    if isinstance(A, (jesp.CSR, jesp.CSC, jesp.BCOO)):
       return SparseCholeskyDecomposition(A, **kwargs)
     return DenseCholeskyDecomposition(A, **kwargs)
 
@@ -98,18 +97,14 @@ class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
       A: T,
       L: Optional[T] = None,
       key: Optional[Hashable] = None,
-      callback: Callable[[sp.csc_matrix], sp.csc_matrix] = None,
   ):
     self._key = key  # must be set before calling init
-    self._calback = callback
     super().__init__(A, L)
 
   # TODO(michalk8): test on GPU
   def _host_decompose(self, A: T) -> None:
     # use float64 since it's required by CHOLMOD
     mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
-    if self._calback is not None:
-      mat = self._calback(mat)
     self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(mat)
 
   def _decompose(self, A: T) -> Optional[T]:
@@ -147,12 +142,17 @@ def _jax_sparse_to_scipy(
   if isinstance(A, jesp.COO):
     row, col, data = toarr(A.row), toarr(A.col), toarr(A.data)
     return sp.coo_matrix((data, (row, col)), **kwargs)
+  if isinstance(A, jesp.BCOO):
+    assert A.indices.ndim == 2, "Only 2D batched COO matrix is supported."
+    row, col = A.indices[:, 0], A.indices[:, 1]
+    data, row, col = toarr(A.data), toarr(row), toarr(col)
+    return sp.coo_matrix((data, (row, col)), **kwargs)
 
   raise TypeError(type(A))
 
 
 def _scipy_sparse_to_jax(A: sp.spmatrix,
-                         **kwargs: Any) -> Union[jesp.CSR, jesp.CSC, jesp.COO]:
+                         **kwargs: Any) -> Union[jesp.CSR, jesp.CSC, jesp.BCOO]:
   toarr = jnp.asarray
   kwargs["shape"] = A.shape
 
@@ -163,6 +163,8 @@ def _scipy_sparse_to_jax(A: sp.spmatrix,
     return jesp.CSC((toarr(A.data), toarr(A.indices), toarr(A.indptr)),
                     **kwargs)
   if sp.isspmatrix_coo(A):
-    return jesp.COO((toarr(A.data), toarr(A.row), toarr(A.col)), **kwargs)
+    # prefer BCOO since it's more feature-complete
+    data, indices = toarr(A.data), jnp.c_[toarr(A.row), toarr(A.col)]
+    return jesp.COO((data, indices), **kwargs)
 
   raise TypeError(type(A))

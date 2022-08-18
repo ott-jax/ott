@@ -1,15 +1,12 @@
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
-import jax.experimental.sparse as jsparse
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
-import scipy.sparse as sp
 from typing_extensions import Literal
 
 from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
-
-Sparse_t = Union[jsparse.CSR, jsparse.CSC, jsparse.COO]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -17,7 +14,7 @@ class GraphGeometry(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: Union[jnp.ndarray, Sparse_t],
+      laplacian: Union[jnp.ndarray, jesp.BCOO],
       epsilon: float = 1e-2,
       n_iter: int = 100,
       numerical_scheme: Literal["backward_euler",
@@ -73,24 +70,16 @@ class GraphGeometry(geometry.Geometry):
 
   @property
   def solver(self) -> decomposition.CholeskyDecomposition:
-    if self._solver is not None:
-      return self._solver
-
-    if self.is_sparse:
-      mat, callback = self.laplacian, _laplacian_to_M
-    else:
-      mat, callback = self._M, None
-
-    self._solver = decomposition.CholeskyDecomposition.create(
-        mat, callback=callback
-    )
+    if self._solver is None:
+      self._solver = decomposition.CholeskyDecomposition.create(self._M)
     return self._solver
 
   @property
-  def _M(self) -> Union[jnp.ndarray, Sparse_t]:
+  def _M(self) -> Union[jnp.ndarray, jesp.BCOO]:
+    n, _ = self.shape
     if self.is_sparse:
-      raise NotImplementedError("TODO")
-    return self.laplacian + self._scale * jnp.eye(self.shape[0])
+      return self._scale * self.laplacian + _speye(n)
+    return self._scale * self.laplacian + jnp.eye(n)
 
   @property
   def _scale(self) -> float:
@@ -104,10 +93,10 @@ class GraphGeometry(geometry.Geometry):
 
   @property
   def is_sparse(self) -> bool:
-    return isinstance(self.laplacian, Sparse_t.__args__)
+    return isinstance(self.laplacian, jesp.BCOO)
 
   @property
-  def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
+  def laplacian(self) -> Union[jnp.ndarray, jesp.BCOO]:
     return self._laplacian
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -127,7 +116,6 @@ class GraphGeometry(geometry.Geometry):
     return obj
 
 
-def _laplacian_to_M(laplacian: sp.csc_matrix, scale: float) -> sp.csc_matrix:
-  return laplacian + scale * sp.eye(
-      laplacian.shape[0], format="csc", dtype=laplacian.dtype
-  )
+def _speye(n: int) -> jesp.BCOO:
+  ixs = jnp.arange(n)
+  return jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
