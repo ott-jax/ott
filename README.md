@@ -2,8 +2,9 @@
 
 # Optimal Transport Tools (OTT).
 
-![Tests](https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main)
-![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)
+[![Tests](https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main)](https://github.com/ott-jax/ott/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/readthedocs/ott-jax/latest)](https://ott-jax.readthedocs.io/en/latest/)
+[![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)](https://app.codecov.io/gh/ott-jax/ott)
 
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
