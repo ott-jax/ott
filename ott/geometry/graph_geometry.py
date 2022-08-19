@@ -13,14 +13,14 @@ Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 @jax.tree_util.register_pytree_node_class
 class GraphGeometry(geometry.Geometry):
-  r"""Graph geodesic distance approximation using heat kernel :cite:`heitz:21`.
+  r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
 
   Approximates the heat kernel for large ``n_steps``, which for small
   :math:`\epsilon` approximates the geodesic exponential kernel
-  :math:`e^{\frac{-d(x, y)^2}{\epsilon}}`
+  :math:`e^{\frac{-d(x, y)^2}{\epsilon}}`.
 
   Args:
-    graph: Graph represented as an adjacency matrix of shape ``[n, n]`.
+    graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
       If ``None``, the symmetric graph Laplacian has to be specified.
     laplacian: Symmetric graph Laplacian.
       If ``None``, the graph has to be specified.
@@ -28,8 +28,8 @@ class GraphGeometry(geometry.Geometry):
     n_steps: Number of steps used for the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
       Currently, only ``'backward_euler'`` is implemented.
-    directed: Whether the graph is directed.
-      Ignored when passing the ``laplacian``.
+    directed: Whether the graph is directed. Ignored when directly passing
+      the ``laplacian``.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
