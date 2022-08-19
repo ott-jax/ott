@@ -21,52 +21,74 @@ import numpy as np
 import scipy.sparse as sp
 import sksparse.cholmod
 
-__all__ = ["DenseCholeskyDecomposition", "SparseCholeskyDecomposition"]
+__all__ = ["DenseCholeskySolver", "SparseCholeskySolver"]
 
-# TODO(michalk8): bounds
 T = TypeVar("T")
 
 
 @jax.tree_util.register_pytree_node_class
-class CholeskyDecomposition(abc.ABC, Generic[T]):
-  LOWER = True
+class CholeskySolver(abc.ABC, Generic[T]):
+  """Base class for Cholesky linear solver.
 
-  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None, **_: Any):
-    if isinstance(A, sp.spmatrix):
-      A = _scipy_sparse_to_jax(A)
+  Args:
+    A: Symmetric positive definite matrix of shape ``[n, n]``.
+  """
+
+  _LOWER = True
+
+  def __init__(self, A: T):
     self._A = A
+    self._L: Optional[T] = None  # lower-triangular Cholesky factor
 
-    if L is None:
-      L = self._decompose(jax.lax.stop_gradient(A))
-    self._L = L
+  def solve(self, b: jnp.ndarray) -> jnp.ndarray:
+    """Solve the linear system :math:`A * x = b`.
 
-  def __call__(self, b: jnp.ndarray) -> jnp.ndarray:
+    Args:
+        b: Vector of shape ``[n,]``.
+
+    Returns:
+        The solution of shape ``[n,]``.
+    """
     return self._solve(self.L, b)
 
   @abc.abstractmethod
   def _decompose(self, A: T) -> Optional[T]:
-    pass
+    """Decompose matrix ``A`` into a lower-triangular factor."""
 
   @abc.abstractmethod
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    pass
+    """Solve a lower-triangular linear system :math:`L * x = b`."""
 
   @classmethod
-  def create(
-      cls, A: Union[T, sp.spmatrix], **kwargs: Any
-  ) -> "CholeskyDecomposition":
+  def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any) -> "CholeskySolver":
+    """Instantiate sparse of dense Cholesky solver.
+
+    Optionally converts :class:`scipy.sparse.spmatrix` to its
+    :mod:`jax` equivalent.
+
+    Args:
+      A: Symmetric positive definite matrix of shape ``[n, n]``.
+      kwargs: Keyword arguments for initialization.
+
+    Returns:
+      Sparse or dense Cholesky solver.
+    """
     if isinstance(A, sp.spmatrix):
       A = _scipy_sparse_to_jax(A)
     if isinstance(A, (jesp.CSR, jesp.CSC, jesp.BCOO)):
-      return SparseCholeskyDecomposition(A, **kwargs)
-    return DenseCholeskyDecomposition(A, **kwargs)
+      return SparseCholeskySolver(A, **kwargs)
+    return DenseCholeskySolver(A, **kwargs)
 
   @property
   def A(self) -> jnp.ndarray:
+    """Symmetric positive definite matrix of shape ``[n, n]``."""
     return self._A
 
   @property
   def L(self) -> Optional[T]:
+    """Lower-triangular factor of :attr:`A`."""
+    if self._L is None:
+      self._L = self._decompose(self.A)
     return self._L
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -75,39 +97,65 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
   @classmethod
   def tree_unflatten(
       cls, aux_data: Mapping[str, Any], children: Sequence[Any]
-  ) -> "CholeskyDecomposition":
-    return cls(*children, **aux_data)
+  ) -> "CholeskySolver":
+    A, L = children
+    obj = cls(A, **aux_data)
+    obj._L = L
+    return obj
 
 
 @jax.tree_util.register_pytree_node_class
-class DenseCholeskyDecomposition(CholeskyDecomposition[jnp.ndarray]):
+class DenseCholeskySolver(CholeskySolver[jnp.ndarray]):
+  """Dense Cholesky solver.
+
+  Args:
+    A: Symmetric positive definite matrix of shape ``[n, n]``.
+    kwargs: Additional keyword arguments, currently ignored.
+  """
+
+  def __init__(self, A: T, **kwargs: Any):
+    del kwargs
+    super().__init__(A)
 
   def _decompose(self, A: T) -> Optional[T]:
-    return jsp.linalg.cholesky(A, lower=self.LOWER)
+    return jsp.linalg.cholesky(A, lower=self._LOWER)
 
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    return jsp.linalg.solve_triangular(L, b, lower=self.LOWER)
+    return jsp.linalg.solve_triangular(L, b, lower=self._LOWER)
 
 
 @jax.tree_util.register_pytree_node_class
-class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
-  # TODO(michalk8): in the future, define a jax primitive
+class SparseCholeskySolver(
+    CholeskySolver[Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]]
+):
+  """Sparse Cholesky solver using :func:`jax.experimental.host_callback.call`.
+
+  Uses the CHOLMOD :cite:`cholmod:08` bindings from :mod:`sksparse`.
+
+  Args:
+    A: Symmetric positive definite matrix of shape ``[n, n]``.
+    beta: Decompose :math:`A + b * I` instead of :math:`A`.
+    key: Key used to cache :class:`sksparse.cholesky.Factor`.
+      This key **must** be unique to ``A`` to achieve correct results.
+      If `None`, use :func:`hash` of this object.
+  """
+
+  # TODO(michalk8): in the future, define a jax primitive + use CHOLMOD directly
   _FACTOR_CACHE = {}
 
   def __init__(
       self,
       A: T,
-      L: Optional[T] = None,
       beta: float = 0.0,
       key: Optional[Hashable] = None,
   ):
     # must be set before calling `__init__` because it's used for the cache
+    super().__init__(A)
     self._key = key
-    super().__init__(A, L)
     self._beta = beta
 
   def _host_decompose(self, A: T) -> None:
-    # use float64 since it's required by CHOLMOD
+    # use float64 since it's CHOLMOD uses
     mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
     self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(
         mat, beta=self._beta
@@ -121,11 +169,20 @@ class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
     return factor.solve_A(np.array(b, dtype=float))
 
   def _solve(self, _: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    # ideally, we would do a sparse triangular solve here
     return hcb.call(self._host_solve, b, result_shape=b)
+
+  @property
+  def L(self) -> None:
+    """Compute the lower-triangular factor of :attr:`A` and cache the result.
+
+    The factor is not returned, but is used in subsequent :meth:`solve` calls.
+    """
+    if hash(self) not in self._FACTOR_CACHE:
+      self._decompose(jax.lax.stop_gradient(self.A))
 
   @classmethod
   def clear_factor_cache(cls) -> None:
+    """Clear the :class:`sksparse.cholesky.Factor` cache."""
     cls._FACTOR_CACHE.clear()
 
   def __hash__(self) -> int:

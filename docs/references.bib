@@ -169,7 +169,8 @@
  doi = {10.48550/ARXIV.2111.12187},
  url = {https://arxiv.org/abs/2111.12187},
  author = {Richter-Powell, Jack and Lorraine, Jonathan and Amos, Brandon},
- keywords = {Machine Learning (cs.LG), Machine Learning (stat.ML), FOS: Computer and information sciences, FOS: Computer and information sciences},
+ keywords = {Machine Learning (cs.LG), Machine Learning (stat.ML), FOS: Computer and information sciences,
+   FOS: Computer and information sciences},
  title = {Input Convex Gradient Networks},
  publisher = {arXiv},
  year = {2021},
@@ -233,8 +234,8 @@
 @InProceedings{cuturi:19,
  author = {Cuturi, Marco and Teboul, Olivier and Vert, Jean-Philippe},
  booktitle = {Advances in Neural Information Processing Systems},
- editor = {H. Wallach and H. Larochelle and A. Beygelzimer and F. d\textquotesingle Alch\'{e}-Buc and E. Fox and R. Garnett},
- pages = {},
+ editor = {H. Wallach and H. Larochelle and A. Beygelzimer and F. d\textquotesingle Alch\'{e}-Buc and E. Fox and
+   R. Garnett},
  publisher = {Curran Associates, Inc.},
  title = {Differentiable Ranking and Sorting using Optimal Transport},
  url = {https://proceedings.neurips.cc/paper/2019/file/d8c24ca8f23c562a5600876ca2a550ce-Paper.pdf},
@@ -283,7 +284,6 @@
  author = {Cuturi, Marco},
  booktitle = {Advances in Neural Information Processing Systems},
  editor = {C.J. Burges and L. Bottou and M. Welling and Z. Ghahramani and K.Q. Weinberger},
- pages = {},
  publisher = {Curran Associates, Inc.},
  title = {Sinkhorn Distances: Lightspeed Computation of Optimal Transport},
  url = {https://proceedings.neurips.cc/paper/2013/file/af21d0c97db2e27e13572cbf59eb343d-Paper.pdf},
@@ -306,7 +306,7 @@
 
 @Article{solomon:15,
  author = {Solomon, Justin and de Goes, Fernando and Peyr\'{e}, Gabriel and Cuturi, Marco and Butscher, Adrian and
- Nguyen, Andy and Du, Tao and Guibas, Leonidas},
+  Nguyen, Andy and Du, Tao and Guibas, Leonidas},
  title = {Convolutional Wasserstein Distances: Efficient Optimal Transportation on Geometric Domains},
  year = {2015},
  issue_date = {August 2015},
@@ -366,7 +366,6 @@
  title = {Optimal Transport for Gaussian Mixture Models},
  year = {2019},
  volume = {7},
- number = {},
  pages = {6269-6278},
  doi = {10.1109/ACCESS.2018.2889838}
 }
@@ -401,7 +400,7 @@
 
 @Article{schmitz:18,
  author = {Schmitz, Morgan A. and Heitz, Matthieu and Bonneel, Nicolas and Ngol\`{e}, Fred and Coeurjolly, David and
- Cuturi, Marco and Peyr\'{e}, Gabriel and Starck, Jean-Luc},
+  Cuturi, Marco and Peyr\'{e}, Gabriel and Starck, Jean-Luc},
  title = {Wasserstein Dictionary Learning: Optimal Transport-Based Unsupervised Nonlinear Dictionary Learning},
  journal = {SIAM Journal on Imaging Sciences},
  volume = {11},
@@ -454,7 +453,7 @@
 
 @inproceedings{chizat:20,
  author = {Chizat, L\'{e}na\"{\i}c and Roussillon, Pierre and L\'{e}ger, Flavien and Vialard,
- Fran\c{c}ois-Xavier and Peyr\'{e}, Gabriel},
+  Fran\c{c}ois-Xavier and Peyr\'{e}, Gabriel},
  booktitle = {Advances in Neural Information Processing Systems},
  editor = {H. Larochelle and M. Ranzato and R. Hadsell and M.F. Balcan and H. Lin},
  pages = {2257--2269},
@@ -481,14 +480,14 @@
 }
 
 @Article{lloyd:82,
- author={Lloyd, S.},
- journal={IEEE Transactions on Information Theory},
- title={Least squares quantization in PCM},
- year={1982},
- volume={28},
- number={2},
- pages={129-137},
- doi={10.1109/TIT.1982.1056489}
+ author = {Lloyd, S.},
+ journal = {IEEE Transactions on Information Theory},
+ title = {Least squares quantization in PCM},
+ year = {1982},
+ volume = {28},
+ number = {2},
+ pages = {129-137},
+ doi = {10.1109/TIT.1982.1056489}
 }
 
 @inproceedings{arthur:07,
@@ -506,8 +505,42 @@
 }
 
 @article{thornton2022rethinking:22,
-  title={Rethinking Initialization of the Sinkhorn Algorithm},
-  author={Thornton, James and Cuturi, Marco},
-  journal={arXiv preprint arXiv:2206.07630},
-  year={2022}
+  title = {Rethinking Initialization of the Sinkhorn Algorithm},
+  author = {Thornton, James and Cuturi, Marco},
+  journal = {arXiv preprint arXiv:2206.07630},
+  year = {2022}
+}
+
+@Article{heitz:21,
+ author = "Heitz, Matthieu and Bonneel, Nicolas and Coeurjolly, David and Cuturi, Marco and Peyr{\'e}, Gabriel",
+ title = "Ground Metric Learning on Graphs",
+ journal = "Journal of Mathematical Imaging and Vision",
+ year = "2021",
+ month = "Jan",
+ day = "01",
+ volume = "63",
+ number = "1",
+ pages = "89--107",
+ issn = "1573-7683",
+ doi = "10.1007/s10851-020-00996-z",
+ url = "https://doi.org/10.1007/s10851-020-00996-z"
+}
+
+@article{cholmod:08,
+ author = {Chen, Yanqing and Davis, Timothy A. and Hager, William W. and Rajamanickam, Sivasankaran},
+ title = {Algorithm 887: CHOLMOD, Supernodal Sparse Cholesky Factorization and Update/Downdate},
+ year = {2008},
+ issue_date = {October 2008},
+ publisher = {Association for Computing Machinery},
+ address = {New York, NY, USA},
+ volume = {35},
+ number = {3},
+ issn = {0098-3500},
+ url = {https://doi.org/10.1145/1391989.1391995},
+ doi = {10.1145/1391989.1391995},
+ journal = {ACM Trans. Math. Softw.},
+ month = {oct},
+ articleno = {22},
+ numpages = {14},
+ keywords = {sparse matrices, Cholesky factorization, linear equations}
 }

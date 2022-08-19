@@ -11,8 +11,20 @@ from ott.geometry import geometry
 Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
+# TODO(michalk8): consider passing passing the graph directly instead of
+# the Laplacian
 @jax.tree_util.register_pytree_node_class
 class GraphGeometry(geometry.Geometry):
+  """Graph geodesic distance approximation using heat kernel :cite:`heitz:21`.
+
+  Args:
+    laplacian: Symmetric graph Laplacian.
+    epsilon: TODO.
+    n_iter: Number of iterations used for the heat diffusion.
+    numerical_scheme: Numerical scheme to solve the heat diffusion.
+      Currently, only ``'backward_euler'`` is implemented.
+    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+  """
 
   def __init__(
       self,
@@ -25,7 +37,7 @@ class GraphGeometry(geometry.Geometry):
   ):
     super().__init__(epsilon=epsilon, **kwargs)
     self._laplacian = laplacian
-    self._solver: Optional[decomposition.CholeskyDecomposition] = None
+    self._solver: Optional[decomposition.CholeskySolver] = None
     self.n_iter = n_iter
     self.numerical_scheme = numerical_scheme
 
@@ -37,11 +49,11 @@ class GraphGeometry(geometry.Geometry):
   ) -> jnp.ndarray:
 
     def body_fn(
-        iteration: int, solver: decomposition.CholeskyDecomposition,
-        b: jnp.ndarray, compute_errors: bool
+        iteration: int, solver: decomposition.CholeskySolver, b: jnp.ndarray,
+        compute_errors: bool
     ) -> jnp.ndarray:
       del iteration, compute_errors
-      return solver(b)
+      return solver.solve(b)
 
     # eps we cannot use since it would require a re-solve
     # axis we can ignore since the matrix is symmetric
@@ -57,15 +69,6 @@ class GraphGeometry(geometry.Geometry):
         state=scaling,
     )
 
-  def apply_transport_from_potentials(
-      self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
-      axis: int = 0
-  ) -> jnp.ndarray:
-    raise ValueError("Not implemented.")
-
   @property
   def kernel_matrix(self) -> jnp.ndarray:
 
@@ -73,6 +76,7 @@ class GraphGeometry(geometry.Geometry):
       vec = jnp.zeros(n).at[ix].set(1.)
       return carry, self.apply_kernel(vec)
 
+    # TODO(michalk8): consider disallowing instantiating the kernel?/
     # TODO(michalk8): enable batching once sparse solver (as primitive) is added
     # batching rules are not implemented for `hcb.call`
     # return jax.vmap(self.apply_kernel)(jnp.eye(self.shape[0]))
@@ -85,10 +89,12 @@ class GraphGeometry(geometry.Geometry):
     return True
 
   @property
-  def solver(self) -> decomposition.CholeskyDecomposition:
+  def solver(self) -> decomposition.CholeskySolver:
+    """Cholesky solver."""
     if self._solver is None:
-      self._solver = decomposition.CholeskyDecomposition.create(
-          self._M, beta=1.0
+      # key/beta only used for sparse solver
+      self._solver = decomposition.CholeskySolver.create(
+          self._M, beta=1.0, key=hash(self)
       )
     return self._solver
 
@@ -96,7 +102,7 @@ class GraphGeometry(geometry.Geometry):
   def _M(self) -> Union[jnp.ndarray, Sparse_t]:
     n, _ = self.shape
     if self.is_sparse:
-      # CHOLMOD supports solving A + beta * I, we set `beta=1.0`
+      # CHOLMOD supports solving `A + beta * I`, we set `beta=1.0`
       # when instantiating the solver
       return _scale_sparse(self._scale, self.laplacian)
     return self._scale * self.laplacian + jnp.eye(n)
@@ -113,11 +119,24 @@ class GraphGeometry(geometry.Geometry):
 
   @property
   def is_sparse(self) -> bool:
+    """Whether the graph Laplacian is sparse."""
     return isinstance(self.laplacian, Sparse_t.__args__)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
+    """The graph Laplacian."""
     return self._laplacian
+
+  # TODO(michalk8): disallow for more, test transport output
+  def apply_transport_from_potentials(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      vec: jnp.ndarray,
+      axis: int = 0
+  ) -> jnp.ndarray:
+    """Not implemented."""
+    raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [self.laplacian, self._solver], {
