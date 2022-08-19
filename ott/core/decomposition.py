@@ -31,7 +31,7 @@ T = TypeVar("T")
 class CholeskyDecomposition(abc.ABC, Generic[T]):
   LOWER = True
 
-  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None):
+  def __init__(self, A: Union[T, sp.spmatrix], L: Optional[T] = None, **_: Any):
     if isinstance(A, sp.spmatrix):
       A = _scipy_sparse_to_jax(A)
     self._A = A
@@ -52,7 +52,9 @@ class CholeskyDecomposition(abc.ABC, Generic[T]):
     pass
 
   @classmethod
-  def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any):
+  def create(
+      cls, A: Union[T, sp.spmatrix], **kwargs: Any
+  ) -> "CholeskyDecomposition":
     if isinstance(A, sp.spmatrix):
       A = _scipy_sparse_to_jax(A)
     if isinstance(A, (jesp.CSR, jesp.CSC, jesp.BCOO)):
@@ -89,28 +91,31 @@ class DenseCholeskyDecomposition(CholeskyDecomposition[jnp.ndarray]):
 
 @jax.tree_util.register_pytree_node_class
 class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
-  # TODO(michalk8): find a better impl.
+  # TODO(michalk8): in the future, define a jax primitive
   _FACTOR_CACHE = {}
 
   def __init__(
       self,
       A: T,
       L: Optional[T] = None,
+      beta: float = 0.0,
       key: Optional[Hashable] = None,
   ):
-    self._key = key  # must be set before calling init
+    # must be set before calling `__init__` because it's used for the cache
+    self._key = key
     super().__init__(A, L)
+    self._beta = beta
 
-  # TODO(michalk8): test on GPU
   def _host_decompose(self, A: T) -> None:
     # use float64 since it's required by CHOLMOD
     mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
-    self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(mat)
+    self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(
+        mat, beta=self._beta
+    )
 
   def _decompose(self, A: T) -> Optional[T]:
     return hcb.call(self._host_decompose, A, result_shape=None)
 
-  # TODO(michalk8): test on GPU
   def _host_solve(self, b: jnp.ndarray) -> jnp.ndarray:
     factor = self._FACTOR_CACHE[hash(self)]
     return factor.solve_A(np.array(b, dtype=float))
@@ -128,7 +133,7 @@ class SparseCholeskyDecomposition(CholeskyDecomposition[jesp.CSR]):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    return children, {**aux_data, "key": self._key}
+    return children, {**aux_data, "key": self._key, "beta": self._beta}
 
 
 def _jax_sparse_to_scipy(

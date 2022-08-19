@@ -8,13 +8,15 @@ from typing_extensions import Literal
 from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
 
+Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
+
 
 @jax.tree_util.register_pytree_node_class
 class GraphGeometry(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: Union[jnp.ndarray, jesp.BCOO],
+      laplacian: Union[jnp.ndarray, Sparse_t],
       epsilon: float = 1e-2,
       n_iter: int = 100,
       numerical_scheme: Literal["backward_euler",
@@ -85,14 +87,18 @@ class GraphGeometry(geometry.Geometry):
   @property
   def solver(self) -> decomposition.CholeskyDecomposition:
     if self._solver is None:
-      self._solver = decomposition.CholeskyDecomposition.create(self._M)
+      self._solver = decomposition.CholeskyDecomposition.create(
+          self._M, beta=1.0
+      )
     return self._solver
 
   @property
-  def _M(self) -> Union[jnp.ndarray, jesp.BCOO]:
+  def _M(self) -> Union[jnp.ndarray, Sparse_t]:
     n, _ = self.shape
     if self.is_sparse:
-      return self._scale * self.laplacian + _speye(n)
+      # CHOLMOD supports solving A + beta * I, we set `beta=1.0`
+      # when instantiating the solver
+      return _scale_sparse(self._scale, self.laplacian)
     return self._scale * self.laplacian + jnp.eye(n)
 
   @property
@@ -107,10 +113,10 @@ class GraphGeometry(geometry.Geometry):
 
   @property
   def is_sparse(self) -> bool:
-    return isinstance(self.laplacian, jesp.BCOO)
+    return isinstance(self.laplacian, Sparse_t.__args__)
 
   @property
-  def laplacian(self) -> Union[jnp.ndarray, jesp.BCOO]:
+  def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
     return self._laplacian
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -130,6 +136,9 @@ class GraphGeometry(geometry.Geometry):
     return obj
 
 
-def _speye(n: int) -> jesp.BCOO:
-  ixs = jnp.arange(n)
-  return jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
+def _scale_sparse(scale: float, mat: Sparse_t) -> Sparse_t:
+  if isinstance(mat, jesp.BCOO):
+    # most feature complete, defer to original impl.
+    return scale * mat
+  (data, *children), aux_data = mat.tree_flatten()
+  return type(mat).tree_unflatten(aux_data, [scale * data] + children)
