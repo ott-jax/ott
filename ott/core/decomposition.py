@@ -156,7 +156,7 @@ class SparseCholeskySolver(
 
   def _host_decompose(self, A: T) -> None:
     # use float64 since it's CHOLMOD uses
-    mat = _jax_sparse_to_scipy(A, dtype=float).tocsc()
+    mat = _jax_sparse_to_scipy(A, sum_duplicates=True, dtype=float).tocsc()
     self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(
         mat, beta=self._beta
     )
@@ -194,7 +194,9 @@ class SparseCholeskySolver(
 
 
 def _jax_sparse_to_scipy(
-    A: Union[jesp.CSR, jesp.CSC, jesp.COO], **kwargs: Any
+    A: Union[jesp.CSR, jesp.CSC, jesp.COO],
+    sum_duplicates: bool = False,
+    **kwargs: Any
 ) -> sp.spmatrix:
   toarr = np.asarray
 
@@ -208,7 +210,16 @@ def _jax_sparse_to_scipy(
     assert A.indices.ndim == 2, "Only 2D batched COO matrix is supported."
     row, col = A.indices[:, 0], A.indices[:, 1]
     data, row, col = toarr(A.data), toarr(row), toarr(col)
-    return sp.coo_matrix((data, (row, col)), **kwargs)
+    mat = sp.coo_matrix((data, (row, col)), **kwargs)
+    if not sum_duplicates:
+      return mat
+
+    # the original matrix can contain duplicates => shape will be wrong
+    # we optionally correct it here
+    mat.sum_duplicates()
+    mat.eliminate_zeros()
+
+    return sp.coo_matrix((mat.data, (mat.row, mat.col)), **kwargs)
 
   raise TypeError(type(A))
 
