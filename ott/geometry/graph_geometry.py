@@ -66,7 +66,21 @@ class GraphGeometry(geometry.Geometry):
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    raise NotImplementedError("TODO")
+
+    def body_fn(carry: None, ix: int) -> Tuple[None, jnp.ndarray]:
+      vec = jnp.zeros(n).at[ix].set(1.)
+      return carry, self.apply_kernel(vec)
+
+    # TODO(michalk8): enable batching once sparse solver (as primitive) is added
+    # batching rules are not implemented for `hcb.call`
+    # return jax.vmap(self.apply_kernel)(jnp.eye(self.shape[0]))
+    n, _ = self.shape
+    _, kernel = jax.lax.scan(body_fn, None, jnp.arange(n))
+    return kernel
+
+  @property
+  def is_symmetric(self) -> bool:
+    return True
 
   @property
   def solver(self) -> decomposition.CholeskyDecomposition:
