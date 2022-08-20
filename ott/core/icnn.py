@@ -158,7 +158,9 @@ class ICNN(nn.Module):
     _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
     covt, mut = compute_moments(target, sqrt_inv=False)
 
-    mo = matrix_square_root.sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
+    mo = matrix_square_root.sqrtm_only(
+        jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt)
+    )
     A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
     b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
     A = matrix_square_root.sqrtm_only(A)
