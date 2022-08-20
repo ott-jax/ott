@@ -35,7 +35,7 @@ class NeuralDualSolver:
   Kantorovich potentials, `g` and `f`, by two input convex neural networks.
   :math:`\nabla g` hereby transports source to target cells, and
   :math:`\nabla f` target to source cells.
-  
+
   Original algorithm is described in :cite:`makkuva:20`.
 
   Args:
@@ -54,7 +54,7 @@ class NeuralDualSolver:
     beta: regularization parameter when not training with positive weights
 
   Returns:
-    the `NeuralDual` containing the optimal dual potentials f and g
+    the `NeuralDual` containing the optimal dual potentials `f` and `g`
   """
 
   def __init__(
