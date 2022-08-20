@@ -332,7 +332,7 @@ class NeuralDualSolver:
 @jax.tree_util.register_pytree_node_class
 class NeuralDual:
   r"""Neural Kantorovich dual.
-  
+
   This class contains the solution of the trained Kantorovich neural
   dual by holding the trained potentials `g` and `f`. :math:`\nabla g`
   hereby transports source to target cells, and :math:`\nabla f` target
