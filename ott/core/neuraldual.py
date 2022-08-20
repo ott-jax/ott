@@ -33,13 +33,10 @@ class NeuralDualSolver:
   Learn the optimal transport between two distributions, denoted source
   and target, respectively. This is achieved by parameterizing the two
   Kantorovich potentials, `g` and `f`, by two input convex neural networks.
-  `\nabla g` hereby transports source to target cells, and `\nabla f`
-  target to source cells.
+  :math:`\nabla g` hereby transports source to target cells, and
+  :math:`\nabla f` target to source cells.
   
-  The algorithm is described in:
-  Optimal transport mapping via input convex neural networks,
-  Makkuva-Taghvaei-Lee-Oh, ICML'20.
-  http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf
+  Original algorithm is described in :cite:`makkuva:20`.
 
   Args:
     input_dim: input dimensionality of data required for network init
@@ -337,9 +334,9 @@ class NeuralDual:
   r"""Neural Kantorovich dual.
   
   This class contains the solution of the trained Kantorovich neural
-  dual by holding the trained potentials `g` and `f`. `\nabla g`
-  hereby transports source to target cells, and `\nabla f` target to
-  source cells
+  dual by holding the trained potentials `g` and `f`. :math:`\nabla g`
+  hereby transports source to target cells, and :math:`\nabla f` target
+  to source cells
 
   Attributes:
     state_f: optimal potential f
@@ -407,7 +404,7 @@ class NeuralDual:
       target: samples of target distribution
  
     Returns:
-      Wasserstein distance $W^2_2$ assuming $|x-y|^2$ as ground distance
+      Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2` as ground distance
     """
     f_t = self.f.apply_fn({"params": self.f.params}, target)
 
