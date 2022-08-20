@@ -23,7 +23,7 @@ from flax import linen as nn
 from jax.nn import initializers
 
 from ott.core.layers import PosDefPotentials, PositiveDense
-from ott.geometry.matrix_square_root import sqrtm, sqrtm_only
+from ott.geometry import matrix_square_root
 
 PRNGKey = Any
 Shape = Tuple[int]
@@ -149,7 +149,7 @@ class ICNN(nn.Module):
       sigma = sigma + reg * jnp.eye(shape[1])
 
       if sqrt_inv:
-        sigma_sqrt, sigma_inv_sqrt, _ = sqrtm(sigma)
+        sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
         return sigma, sigma_sqrt, sigma_inv_sqrt, mu
       else:
         return sigma, mu
@@ -158,10 +158,10 @@ class ICNN(nn.Module):
     _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
     covt, mut = compute_moments(target, sqrt_inv=False)
 
-    mo = sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
+    mo = matrix_square_root.sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
     A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
     b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
-    A = sqrtm_only(A)
+    A = matrix_square_root.sqrtm_only(A)
 
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
