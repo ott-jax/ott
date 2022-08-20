@@ -100,7 +100,7 @@ class NeuralDualSolver:
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
   def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
-    """Setup all components required to train the `NeuralDual`."""  # noqa: D401
+    """Setup all components required to train the `NeuralDual`."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
@@ -367,7 +367,7 @@ class NeuralDual:
 
     Args:
       data: source samples to be transported
- 
+
     Returns:
       Transported source samples
     """
@@ -384,7 +384,7 @@ class NeuralDual:
 
     Args:
       data: target samples to be transported
- 
+
     Returns:
       Transported target samples
     """
@@ -402,7 +402,7 @@ class NeuralDual:
     Args:
       source: samples of source distribution
       target: samples of target distribution
- 
+
     Returns:
       Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2` as ground distance
     """
