@@ -75,9 +75,9 @@ class ICNN(nn.Module):
     self.use_init = False
     # check if Gaussian map was provided
     if self.gaussian_map is not None:
-      factor, mean = self.compute_gaussian_map(self.gaussian_map)
+      factor, mean = self._compute_gaussian_map(self.gaussian_map)
     else:
-      factor, mean = self.compute_identity_map(self.dim_data)
+      factor, mean = self._compute_identity_map(self.dim_data)
 
     w_zs = []
     # keep track of previous size to normalize accordingly
@@ -136,7 +136,7 @@ class ICNN(nn.Module):
     )
     self.w_xs = w_xs
 
-  def compute_gaussian_map(self, inputs):
+  def _compute_gaussian_map(self, inputs):
 
     def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
@@ -169,7 +169,7 @@ class ICNN(nn.Module):
 
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
-  def compute_identity_map(self, input_dim):
+  def _compute_identity_map(self, input_dim):
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
 
