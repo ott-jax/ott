@@ -34,6 +34,15 @@ Sinkhorn
     sinkhorn.Sinkhorn
     sinkhorn.SinkhornOutput
 
+Sinkhorn Dual Initializers
+--------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    initializers.DefaultInitializer
+    initializers.GaussianInitializer
+    initializers.SortingInitializer
+
 Low-Rank Sinkhorn
 -----------------
 .. autosummary::
