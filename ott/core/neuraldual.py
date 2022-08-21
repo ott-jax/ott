@@ -313,7 +313,7 @@ class NeuralDualSolver:
     )
 
   @staticmethod
-  def clip_weights_icnn(params):
+  def _clip_weights_icnn(params):
     params = params.unfreeze()
     for k in params.keys():
       if k.startswith("w_z"):
@@ -321,7 +321,7 @@ class NeuralDualSolver:
 
     return freeze(params)
 
-  def penalize_weights_icnn(self, params):
+  def _penalize_weights_icnn(self, params):
     penalty = 0
     for k in params.keys():
       if k.startswith("w_z"):
