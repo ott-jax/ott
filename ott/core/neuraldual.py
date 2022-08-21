@@ -191,7 +191,7 @@ class NeuralDualSolver:
       )
       if not self.pos_weights:
         self.state_f = self.state_f.replace(
-            params=self.clip_weights_icnn(self.state_f.params)
+            params=self._clip_weights_icnn(self.state_f.params)
         )
 
       # log to wandb
@@ -259,7 +259,7 @@ class NeuralDualSolver:
         return loss_f, dist
       elif to_optimize == "g":
         if not self.pos_weights:
-          penalty = self.penalize_weights_icnn(params_g)
+          penalty = self._penalize_weights_icnn(params_g)
           loss_g += self.beta * penalty
         return loss_g, dist
       else:
