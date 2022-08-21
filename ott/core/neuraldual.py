@@ -338,7 +338,7 @@ class NeuralDual:
   hereby transports source to target cells, and :math:`\nabla f` target
   to source cells
 
-  Attributes:
+  Args:
     state_f: optimal potential f
     state_g: optimal potential g
   """
