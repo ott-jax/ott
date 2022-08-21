@@ -32,9 +32,11 @@ Array = Any
 
 
 class ICNN(nn.Module):
-  """Input convex neural network (ICNN) architeture with initialization.
+  """Input convex neural network (ICNN) architecture with initialization.
 
-  Containing initialization schemes introduced in Bunne+(2022).
+  Implementation of input convex neural networks as introduced in
+  :cite:`amos:17. Containing initialization schemes proposed by
+  Bunne+(2022) :cite:`bunne:22`.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The
