@@ -35,8 +35,7 @@ class ICNN(nn.Module):
   """Input convex neural network (ICNN) architecture with initialization.
 
   Implementation of input convex neural networks as introduced in
-  :cite:`amos:17. Containing initialization schemes proposed by
-  Bunne+(2022) :cite:`bunne:22`.
+  :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The
