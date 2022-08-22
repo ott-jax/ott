@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import decomposition, fixed_point_loop
-from ott.geometry import geometry
+from ott.geometry import epsilon_scheduler, geometry
 
 __all__ = ["Graph"]
 
@@ -46,15 +46,18 @@ class Graph(geometry.Geometry):
       directed: bool = False,
       **kwargs: Any
   ):
-    # TODO(michak8): disallow epsilon scheduler
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide the graph or the symmetric graph Laplacian."
+    assert not isinstance(
+        epsilon, epsilon_scheduler.Epsilon
+    ), "Epsilon scheduler is not supported for graph geometry."
+    if graph is not None:
+      assert isinstance(  # would require recomputing the Cholesky decomposition
+          graph, (jnp.ndarray, jesp.BCOO)
+      ), f"Graph must be in `BCOO` format, found `{type(graph).__name__}`."
+
     super().__init__(epsilon=epsilon, **kwargs)
-    if graph is not None and not isinstance(graph, (jnp.ndarray, jesp.BCOO)):
-      raise NotImplementedError(
-          f"Graph must be in `BCOO` format, found `{type(graph).__name__}`."
-      )
     self._graph = graph
     self._laplacian = laplacian
     self._solver: Optional[decomposition.CholeskySolver] = None
