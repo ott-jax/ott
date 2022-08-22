@@ -8,6 +8,8 @@ from typing_extensions import Literal
 from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
 
+__all__ = ["Graph"]
+
 Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
@@ -49,6 +51,10 @@ class Graph(geometry.Geometry):
             (laplacian is None and graph is not None)), \
            "Please provide the graph or the symmetric graph Laplacian."
     super().__init__(epsilon=epsilon, **kwargs)
+    if graph is not None and not isinstance(graph, (jnp.ndarray, jesp.BCOO)):
+      raise NotImplementedError(
+          f"Graph must be in `BCOO` format, found `{type(graph).__name__}`."
+      )
     self._graph = graph
     self._laplacian = laplacian
     self._solver: Optional[decomposition.CholeskySolver] = None
@@ -120,9 +126,6 @@ class Graph(geometry.Geometry):
       return self._laplacian
 
     if self.is_sparse:
-      assert isinstance(
-          self.graph, jesp.BCOO
-      ), "Graph must be in `BCOO` format."
       n, _ = self.shape
       D, ixs = self.graph.sum(1).todense(), jnp.arange(n)
       D = jesp.BCOO((D, jnp.c_[ixs, ixs]), shape=(n, n))
@@ -183,6 +186,8 @@ class Graph(geometry.Geometry):
     """Whether :attr:`graph` or :attr:`laplacian` is sparse."""
     if self._laplacian is not None:
       return isinstance(self.laplacian, Sparse_t.__args__)
+    if isinstance(self.graph, (jesp.CSR, jesp.CSC, jesp.COO)):
+      raise NotImplementedError("Graph must be specified in `BCOO` format.")
     return isinstance(self.graph, jesp.BCOO)
 
   @property

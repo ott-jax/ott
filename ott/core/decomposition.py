@@ -250,7 +250,7 @@ def _scipy_sparse_to_jax(A: sp.spmatrix,
                     **kwargs)
   if sp.isspmatrix_coo(A):
     # prefer BCOO since it's more feature-complete
-    data, row, col = toarr(A.data), toarr(A.row), toarr(A.col)
-    return jesp.COO((data, row, col), **kwargs)
+    data, indices = toarr(A.data), jnp.c_[toarr(A.row), toarr(A.col)]
+    return jesp.BCOO((data, indices), **kwargs)
 
   raise TypeError(type(A))
