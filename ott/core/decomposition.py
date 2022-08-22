@@ -19,7 +19,6 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 import scipy.sparse as sp
-import sksparse.cholmod
 
 __all__ = ["DenseCholeskySolver", "SparseCholeskySolver"]
 
@@ -128,13 +127,13 @@ class DenseCholeskySolver(CholeskySolver[jnp.ndarray]):
 class SparseCholeskySolver(
     CholeskySolver[Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]]
 ):
-  """Sparse Cholesky solver using :func:`jax.experimental.host_callback.call`.
+  r"""Sparse Cholesky solver using :func:`jax.experimental.host_callback.call`.
 
   Uses the CHOLMOD :cite:`cholmod:08` bindings from :mod:`sksparse`.
 
   Args:
     A: Symmetric positive definite matrix of shape ``[n, n]``.
-    beta: Decompose :math:`A + b * I` instead of :math:`A`.
+    beta: Decompose :math:`A + \beta * I` instead of :math:`A`.
     key: Key used to cache :class:`sksparse.cholesky.Factor`.
       This key **must** be unique to ``A`` to achieve correct results.
       If `None`, use :func:`hash` of this object.
@@ -155,7 +154,9 @@ class SparseCholeskySolver(
     self._beta = beta
 
   def _host_decompose(self, A: T) -> None:
-    # use float64 since it's CHOLMOD uses
+    import sksparse.cholmod
+
+    # use float64 because CHOLMOD uses it internally
     mat = _jax_sparse_to_scipy(A, sum_duplicates=True, dtype=float).tocsc()
     self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(
         mat, beta=self._beta

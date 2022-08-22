@@ -15,6 +15,6 @@
 from . import costs, low_rank, ops
 from .epsilon_scheduler import Epsilon
 from .geometry import Geometry
-from .graph_geometry import GraphGeometry
+from .graph import Graph
 from .grid import Grid
 from .pointcloud import PointCloud

@@ -12,7 +12,7 @@ Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
 @jax.tree_util.register_pytree_node_class
-class GraphGeometry(geometry.Geometry):
+class Graph(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
 
   Approximates the heat kernel for large ``n_steps``, which for small
@@ -191,7 +191,7 @@ class GraphGeometry(geometry.Geometry):
   @classmethod
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "GraphGeometry":
+  ) -> "Graph":
     graph, laplacian, solver = children
     obj = cls(graph=graph, laplacian=laplacian, **aux_data)
     obj._solver = solver

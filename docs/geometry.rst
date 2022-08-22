@@ -40,7 +40,7 @@ Geometries
     geometry.Geometry
     pointcloud.PointCloud
     grid.Grid
-    graph_geometry.GraphGeometry
+    graph.Graph
     low_rank.LRCGeometry
     epsilon_scheduler.Epsilon
 
