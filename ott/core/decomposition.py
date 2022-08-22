@@ -88,7 +88,7 @@ class CholeskySolver(abc.ABC, Generic[T]):
 
   @property
   def L(self) -> Optional[T]:
-    """Lower-triangular factor of :attr:`A`."""
+    """Cholesky factor of :attr:`A`."""
     if self._L is None:
       self._L = self._decompose(self.A)
     return self._L
@@ -250,7 +250,7 @@ def _scipy_sparse_to_jax(A: sp.spmatrix,
                     **kwargs)
   if sp.isspmatrix_coo(A):
     # prefer BCOO since it's more feature-complete
-    data, indices = toarr(A.data), jnp.c_[toarr(A.row), toarr(A.col)]
-    return jesp.COO((data, indices), **kwargs)
+    data, row, col = toarr(A.data), toarr(A.row), toarr(A.col)
+    return jesp.COO((data, row, col), **kwargs)
 
   raise TypeError(type(A))
