@@ -33,8 +33,6 @@ class CholeskySolver(abc.ABC, Generic[T]):
     A: Symmetric positive definite matrix of shape ``[n, n]``.
   """
 
-  _LOWER = True
-
   def __init__(self, A: T):
     self._A = A
     self._L: Optional[T] = None  # lower-triangular Cholesky factor
@@ -109,18 +107,25 @@ class DenseCholeskySolver(CholeskySolver[jnp.ndarray]):
 
   Args:
     A: Symmetric positive definite matrix of shape ``[n, n]``.
+    lower: Whether to compute lower-triangular Cholesky factor.
     kwargs: Additional keyword arguments, currently ignored.
   """
 
-  def __init__(self, A: T, **kwargs: Any):
+  def __init__(self, A: T, lower: bool = True, **kwargs: Any):
     del kwargs
     super().__init__(A)
+    self.lower = lower
 
   def _decompose(self, A: T) -> Optional[T]:
-    return jsp.linalg.cholesky(A, lower=self._LOWER)
+    return jsp.linalg.cholesky(A, lower=self.lower)
 
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    return jsp.linalg.solve_triangular(L, b, lower=self._LOWER)
+    return jsp.linalg.solve_triangular(L, b, lower=self.lower)
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    children, aux_data = super().tree_flatten()
+    aux_data["lower"] = self.lower
+    return children, aux_data
 
 
 @jax.tree_util.register_pytree_node_class
