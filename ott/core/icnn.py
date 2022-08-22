@@ -23,7 +23,7 @@ from flax import linen as nn
 from jax.nn import initializers
 
 from ott.core.layers import PosDefPotentials, PositiveDense
-from ott.geometry.matrix_square_root import sqrtm, sqrtm_only
+from ott.geometry import matrix_square_root
 
 PRNGKey = Any
 Shape = Tuple[int]
@@ -32,9 +32,10 @@ Array = Any
 
 
 class ICNN(nn.Module):
-  """Input convex neural network (ICNN) architeture with initialization.
+  """Input convex neural network (ICNN) architecture with initialization.
 
-  Containing initialization schemes introduced in Bunne+(2022).
+  Implementation of input convex neural networks as introduced in
+  :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The
@@ -73,9 +74,9 @@ class ICNN(nn.Module):
     self.use_init = False
     # check if Gaussian map was provided
     if self.gaussian_map is not None:
-      factor, mean = self.compute_gaussian_map(self.gaussian_map)
+      factor, mean = self._compute_gaussian_map(self.gaussian_map)
     else:
-      factor, mean = self.compute_identity_map(self.dim_data)
+      factor, mean = self._compute_identity_map(self.dim_data)
 
     w_zs = []
     # keep track of previous size to normalize accordingly
@@ -134,7 +135,7 @@ class ICNN(nn.Module):
     )
     self.w_xs = w_xs
 
-  def compute_gaussian_map(self, inputs):
+  def _compute_gaussian_map(self, inputs):
 
     def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
@@ -149,7 +150,7 @@ class ICNN(nn.Module):
       sigma = sigma + reg * jnp.eye(shape[1])
 
       if sqrt_inv:
-        sigma_sqrt, sigma_inv_sqrt, _ = sqrtm(sigma)
+        sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
         return sigma, sigma_sqrt, sigma_inv_sqrt, mu
       else:
         return sigma, mu
@@ -158,14 +159,16 @@ class ICNN(nn.Module):
     _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
     covt, mut = compute_moments(target, sqrt_inv=False)
 
-    mo = sqrtm_only(jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt))
+    mo = matrix_square_root.sqrtm_only(
+        jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt)
+    )
     A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
     b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
-    A = sqrtm_only(A)
+    A = matrix_square_root.sqrtm_only(A)
 
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
-  def compute_identity_map(self, input_dim):
+  def _compute_identity_map(self, input_dim):
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
 
