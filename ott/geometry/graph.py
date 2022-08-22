@@ -22,14 +22,14 @@ class Graph(geometry.Geometry):
   Args:
     graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
       If ``None``, the symmetric graph Laplacian has to be specified.
-    laplacian: Symmetric graph Laplacian.
-      If ``None``, the graph has to be specified.
+    laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
+      performed. If ``None``, the graph has to be specified instead.
     epsilon: Epsilon regularizer.
     n_steps: Number of steps used for the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
-      Currently, only ``'backward_euler'`` is implemented.
-    directed: Whether the graph is directed. Ignored when directly passing
-      the ``laplacian``.
+    directed: Whether the ``graph`` is directed. If not, it will be made
+      undirected as :math:`G + G^T`. This parameter is ignored when  directly
+      passing the Laplacian, which is assumed to be symmetric.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -44,6 +44,7 @@ class Graph(geometry.Geometry):
       directed: bool = False,
       **kwargs: Any
   ):
+    # TODO(michak8): disallow epsilon scheduler
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide the graph or the symmetric graph Laplacian."
@@ -64,15 +65,28 @@ class Graph(geometry.Geometry):
   ) -> jnp.ndarray:
 
     def body_fn(
-        iteration: int, solver: decomposition.CholeskySolver, b: jnp.ndarray,
-        compute_errors: bool
+        iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
+                                          Optional[Union[jnp.ndarray,
+                                                         Sparse_t]]],
+        b: jnp.ndarray, compute_errors: bool
     ) -> jnp.ndarray:
       del iteration, compute_errors
+      solver, scaled_lap = solver_lap
+      if self.numerical_scheme == "crank_nicolson":
+        # below is a preferred way of specifying the update (albeit more FLOPS),
+        # as CSR/CSC/COO matrices don't support adding a diagonal matrix now:
+        # b' = (2 * I - M) @ b = (2 * I - (I + c * L)) @ b = (I - c * L) @ b
+        b = b - scaled_lap @ b
       return solver.solve(b)
 
     # eps we cannot use since it would require a re-solve
     # axis we can ignore since the matrix is symmetric
     del eps, axis
+
+    if self.numerical_scheme == "crank_nicolson":
+      constants = self.solver, self._scaled_laplacian
+    else:
+      constants = self.solver, None
 
     return fixed_point_loop.fixpoint_iter(
         cond_fn=lambda *_, **__: True,
@@ -80,7 +94,7 @@ class Graph(geometry.Geometry):
         min_iterations=self.n_steps,
         max_iterations=self.n_steps,
         inner_iterations=1,
-        constants=self.solver,
+        constants=constants,
         state=scaling,
     )
 
@@ -98,47 +112,6 @@ class Graph(geometry.Geometry):
     n, _ = self.shape
     _, kernel = jax.lax.scan(body_fn, None, jnp.arange(n))
     return kernel
-
-  @property
-  def is_symmetric(self) -> bool:
-    return True
-
-  @property
-  def solver(self) -> decomposition.CholeskySolver:
-    """Cholesky solver."""
-    if self._solver is None:
-      # key/beta only used for sparse solver
-      self._solver = decomposition.CholeskySolver.create(
-          self._M, beta=1.0, key=hash(self)
-      )
-    return self._solver
-
-  @property
-  def _M(self) -> Union[jnp.ndarray, Sparse_t]:
-    n, _ = self.shape
-    if self.is_sparse:
-      # CHOLMOD supports solving `A + beta * I`, we set `beta = 1.0`
-      # when instantiating the solver
-      return _scale_sparse(self._scale, self.laplacian)
-    return self._scale * self.laplacian + jnp.eye(n)
-
-  @property
-  def _scale(self) -> float:
-    if self.numerical_scheme == "backward_euler":
-      return self.epsilon / (4 * self.n_steps)
-    raise NotImplementedError(self.numerical_scheme)
-
-  @property
-  def shape(self) -> Tuple[int, int]:
-    arr = self.graph if self.graph is not None else self._laplacian
-    return arr.shape
-
-  @property
-  def is_sparse(self) -> bool:
-    """Whether :attr:`graph` or :attr:`laplacian` is sparse."""
-    if self._laplacian is not None:
-      return isinstance(self.laplacian, Sparse_t.__args__)
-    return isinstance(self.graph, jesp.BCOO)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -160,16 +133,68 @@ class Graph(geometry.Geometry):
     A = (self.graph + self.graph.T) if self.directed else self.graph
 
     # in the sparse case, we don't sum duplicates here because
-    # we would to know `nnz` a priori for JIT (could be expose in `__init__`)
-    # instead, `_jax_sparse_to_scipy` handles it on host
+    # we would to know `nnz` a priori for JIT (could be exposed in `__init__`)
+    # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
     return D - A
+
+  @property
+  def _scale(self) -> float:
+    if self.numerical_scheme == "backward_euler":
+      # TODO(michalk8): check the constants 4 and 2
+      return self.epsilon / (4 * self.n_steps)
+    if self.numerical_scheme == "crank_nicolson":
+      return self.epsilon / (2 * self.n_steps)
+    raise NotImplementedError(
+        f"Numerical scheme `{self.numerical_scheme}` is not implemented."
+    )
+
+  @property
+  def _scaled_laplacian(self) -> Union[float, jnp.ndarray, Sparse_t]:
+    """Laplacian scaled by a constant, depending on the numerical scheme."""
+    if self.is_sparse:
+      return _scale_sparse(self._scale, self.laplacian)
+    return self._scale * self.laplacian
+
+  @property
+  def _M(self) -> Union[jnp.ndarray, Sparse_t]:
+    n, _ = self.shape
+    scaled_lap = self._scaled_laplacian
+    # CHOLMOD supports solving `A + beta * I`, we set `beta = 1.0`
+    # when instantiating the solver
+    return scaled_lap if self.is_sparse else scaled_lap + jnp.eye(n)
+
+  @property
+  def solver(self) -> decomposition.CholeskySolver:
+    """Cholesky solver."""
+    if self._solver is None:
+      # key/beta only used for sparse solver
+      self._solver = decomposition.CholeskySolver.create(
+          self._M, beta=1.0, key=hash(self)
+      )
+    return self._solver
+
+  @property
+  def shape(self) -> Tuple[int, int]:
+    arr = self.graph if self.graph is not None else self._laplacian
+    return arr.shape
+
+  @property
+  def is_sparse(self) -> bool:
+    """Whether :attr:`graph` or :attr:`laplacian` is sparse."""
+    if self._laplacian is not None:
+      return isinstance(self.laplacian, Sparse_t.__args__)
+    return isinstance(self.graph, jesp.BCOO)
 
   @property
   def graph(self) -> Optional[Union[jnp.ndarray, jesp.BCOO]]:
     """The underlying undirected graph, if provided."""
     return self._graph
 
-  # TODO(michalk8): disallow for more, test transport output
+  @property
+  def is_symmetric(self) -> bool:
+    return True
+
+  # TODO(michalk8): disallow more functions, test transport output
   def apply_transport_from_potentials(
       self,
       f: jnp.ndarray,
@@ -184,6 +209,7 @@ class Graph(geometry.Geometry):
     return [self.graph, self._laplacian, self._solver], {
         "epsilon": self.epsilon,
         "n_steps": self.n_steps,
+        "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
         **self._kwargs,
     }

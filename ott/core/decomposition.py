@@ -20,6 +20,11 @@ import jax.scipy as jsp
 import numpy as np
 import scipy.sparse as sp
 
+try:
+  from sksparse import cholmod
+except ImportError:
+  cholmod = None
+
 __all__ = ["DenseCholeskySolver", "SparseCholeskySolver"]
 
 T = TypeVar("T")
@@ -35,7 +40,7 @@ class CholeskySolver(abc.ABC, Generic[T]):
 
   def __init__(self, A: T):
     self._A = A
-    self._L: Optional[T] = None  # lower-triangular Cholesky factor
+    self._L: Optional[T] = None  # Cholesky factor
 
   def solve(self, b: jnp.ndarray) -> jnp.ndarray:
     """Solve the linear system :math:`A * x = b`.
@@ -50,11 +55,11 @@ class CholeskySolver(abc.ABC, Generic[T]):
 
   @abc.abstractmethod
   def _decompose(self, A: T) -> Optional[T]:
-    """Decompose matrix ``A`` into a lower-triangular factor."""
+    """Decompose matrix ``A`` into Cholesky factor."""
 
   @abc.abstractmethod
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    """Solve a lower-triangular linear system :math:`L * x = b`."""
+    """Solve a triangular linear system :math:`L * x = b`."""
 
   @classmethod
   def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any) -> "CholeskySolver":
@@ -153,19 +158,21 @@ class SparseCholeskySolver(
       beta: float = 0.0,
       key: Optional[Hashable] = None,
   ):
+    if cholmod is None:
+      raise ImportError(
+          "Unable to import scikit-sparse. "
+          "Please install it as `pip install scikit-sparse`."
+      )
     # must be set before calling `__init__` because it's used for the cache
     super().__init__(A)
     self._key = key
     self._beta = beta
 
   def _host_decompose(self, A: T) -> None:
-    import sksparse.cholmod
-
     # use float64 because CHOLMOD uses it internally
+    # convert to CSC explicitly for efficiency/to avoid warnings
     mat = _jax_sparse_to_scipy(A, sum_duplicates=True, dtype=float).tocsc()
-    self._FACTOR_CACHE[hash(self)] = sksparse.cholmod.cholesky(
-        mat, beta=self._beta
-    )
+    self._FACTOR_CACHE[hash(self)] = cholmod.cholesky(mat, beta=self._beta)
 
   def _decompose(self, A: T) -> Optional[T]:
     return hcb.call(self._host_decompose, A, result_shape=None)
