@@ -30,10 +30,13 @@ from ott.core import icnn
 class NeuralDualSolver:
   r"""Solver of the ICNN-based Kantorovich dual.
 
-  The algorithm is described in:
-  Optimal transport mapping via input convex neural networks,
-  Makkuva-Taghvaei-Lee-Oh, ICML'20.
-  http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf
+  Learn the optimal transport between two distributions, denoted source
+  and target, respectively. This is achieved by parameterizing the two
+  Kantorovich potentials, `g` and `f`, by two input convex neural networks.
+  :math:`\nabla g` hereby transports source to target cells, and
+  :math:`\nabla f` target to source cells.
+
+  Original algorithm is described in :cite:`makkuva:20`.
 
   Args:
     input_dim: input dimensionality of data required for network init
@@ -51,7 +54,7 @@ class NeuralDualSolver:
     beta: regularization parameter when not training with positive weights
 
   Returns:
-    the `NeuralDual` containing the optimal dual potentials f and g
+    the `NeuralDual` containing the optimal dual potentials `f` and `g`
   """
 
   def __init__(
@@ -97,7 +100,7 @@ class NeuralDualSolver:
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
   def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
-    """Setup all components required to train the `NeuralDual`."""  # noqa: D401
+    """Setup all components required to train the `NeuralDual`."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
@@ -188,7 +191,7 @@ class NeuralDualSolver:
       )
       if not self.pos_weights:
         self.state_f = self.state_f.replace(
-            params=self.clip_weights_icnn(self.state_f.params)
+            params=self._clip_weights_icnn(self.state_f.params)
         )
 
       # log to wandb
@@ -256,7 +259,7 @@ class NeuralDualSolver:
         return loss_f, dist
       elif to_optimize == "g":
         if not self.pos_weights:
-          penalty = self.penalize_weights_icnn(params_g)
+          penalty = self._penalize_weights_icnn(params_g)
           loss_g += self.beta * penalty
         return loss_g, dist
       else:
@@ -310,7 +313,7 @@ class NeuralDualSolver:
     )
 
   @staticmethod
-  def clip_weights_icnn(params):
+  def _clip_weights_icnn(params):
     params = params.unfreeze()
     for k in params.keys():
       if k.startswith("w_z"):
@@ -318,7 +321,7 @@ class NeuralDualSolver:
 
     return freeze(params)
 
-  def penalize_weights_icnn(self, params):
+  def _penalize_weights_icnn(self, params):
     penalty = 0
     for k in params.keys():
       if k.startswith("w_z"):
@@ -330,7 +333,12 @@ class NeuralDualSolver:
 class NeuralDual:
   r"""Neural Kantorovich dual.
 
-  Attributes:
+  This class contains the solution of the trained Kantorovich neural
+  dual by holding the trained potentials `g` and `f`. :math:`\nabla g`
+  hereby transports source to target cells, and :math:`\nabla f` target
+  to source cells
+
+  Args:
     state_f: optimal potential f
     state_g: optimal potential g
   """
@@ -355,7 +363,14 @@ class NeuralDual:
     return self.state_g
 
   def transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    """Transport source data samples with potential g."""
+    r"""Transport source data samples with potential `g`.
+
+    Args:
+      data: source samples to be transported
+
+    Returns:
+      Transported source samples
+    """
     return jax.vmap(
         lambda x: jax.grad(self.g.apply_fn, argnums=1)({
             "params": self.g.params
@@ -365,7 +380,14 @@ class NeuralDual:
     )
 
   def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    """Transport source data samples with potential g."""
+    r"""Transport target data samples with potential `f`.
+
+    Args:
+      data: target samples to be transported
+
+    Returns:
+      Transported target samples
+    """
     return jax.vmap(
         lambda x: jax.grad(self.f.apply_fn, argnums=1)({
             "params": self.f.params
@@ -375,7 +397,15 @@ class NeuralDual:
     )
 
   def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
-    """Given potentials f and g, compute the overall distance."""
+    r"""Given potentials `f` and `g`, compute the overall distance.
+
+    Args:
+      source: samples of source distribution
+      target: samples of target distribution
+
+    Returns:
+      Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2` as ground distance
+    """
     f_t = self.f.apply_fn({"params": self.f.params}, target)
 
     grad_g_s = jax.vmap(
@@ -393,7 +423,8 @@ class NeuralDual:
     s_sq = jnp.sum(source * source, axis=1)
     t_sq = jnp.sum(target * target, axis=1)
 
-    # compute final wasserstein distance
+    # compute final wasserstein distance assuming ground metric |x-y|^2
+    # thus an additional multiplication by 2
     dist = 2 * jnp.mean(
         f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
     )
