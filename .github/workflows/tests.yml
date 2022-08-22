@@ -24,7 +24,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
-      if: runner.os == "Linux"
+      if: runner.os == 'Linux'
       run: |
         sudo apt install libsuitesparse-dev
 
