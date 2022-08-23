@@ -236,8 +236,17 @@ class TestGraph:
   def test_factor_cache(self):
     pass
 
-  def test_sparse_memory_efficiency(self):
-    pass
+  # Total memory allocated: 99.1MiB
+  @pytest.mark.limit_memory("200 MB")
+  def test_sparse_graph_memory(self, rng: jnp.ndarray):
+    # use a graph with some structure for Cholesky to be faster
+    G = nx.grid_graph((200, 200))  # 40 000 nodes
+    L = nx.linalg.laplacian_matrix(G).tocsc()
+    L = decomposition._scipy_sparse_to_jax(L)
+    x = jax.random.normal(rng, (L.shape[0],))
+
+    geom = graph.Graph(laplacian=L, n_steps=5)
+    _ = geom.apply_kernel(x)
 
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("fmt", [None, "coo"])
@@ -263,3 +272,5 @@ class TestGraph:
     assert graph_out.converged
     np.testing.assert_allclose(gt_out.f, graph_out.f, rtol=rtol, atol=atol)
     np.testing.assert_allclose(gt_out.g, graph_out.g, rtol=rtol, atol=atol)
+
+    # TODO(michalk8): test output apply/materialize
