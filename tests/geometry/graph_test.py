@@ -26,7 +26,8 @@ def random_graph(
     fmt: Optional[Literal["csr", "csc", "coo"]] = None
 ) -> Union[jnp.ndarray, jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]:
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
-  assert nx.is_connected(G), "Generated graph is not connected."
+  if not directed:
+    assert nx.is_connected(G), "Generated graph is not connected."
   # TODO(michalk8): add random edge weights
 
   if return_laplacian:
@@ -208,14 +209,36 @@ class TestGraph:
         atol=1e-2
     )
 
-  def test_directed_graph(self):
-    pass
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_directed_graph(self, jit: bool):
 
-  def test_clear_factor_cache(self):
+    def callback(geom: graph.Graph,
+                 laplacian: bool) -> Union[jnp.ndarray, jesp.BCOO]:
+      return geom.laplacian if laplacian else geom.graph
+
+    G = random_graph(16, p=0.2, directed=True)
+    if jit:
+      callback = jax.jit(callback, static_argnums=1)
+
+    geom = graph.Graph(G, directed=True)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(G, G.T)
+
+    G = callback(geom, laplacian=False)
+    L = callback(geom, laplacian=True)
+
+    np.testing.assert_allclose(G, G.T)
+    np.testing.assert_allclose(L, L.T)
+
+  def test_factor_cache(self):
     pass
 
   def test_sparse_memory_efficiency(self):
     pass
 
   def test_jitting(self):
+    pass
+
+  def test_sinkhorn(self):
     pass

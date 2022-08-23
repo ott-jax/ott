@@ -125,13 +125,10 @@ class Graph(geometry.Geometry):
     else:
       D = jnp.diag(self.graph.sum(1))
 
-    # TODO(michalk8): test directed under JIT for the sparse case
-    A = (self.graph + self.graph.T) if self.directed else self.graph
-
     # in the sparse case, we don't sum duplicates here because
     # we would to know `nnz` a priori for JIT (could be exposed in `__init__`)
     # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
-    return D - A
+    return D - self.graph
 
   @property
   def _scale(self) -> float:
@@ -167,13 +164,13 @@ class Graph(geometry.Geometry):
       self._solver = decomposition.CholeskySolver.create(
           self._M, beta=1.0, key=hash(self)
       )
-      # TODO(michalk8): refactor
+      # TODO(michalk8): refactor?
       _ = self._solver.L  # avoid tracer leaks
     return self._solver
 
   @property
   def shape(self) -> Tuple[int, int]:
-    arr = self.graph if self.graph is not None else self._laplacian
+    arr = self._graph if self._graph is not None else self._laplacian
     return arr.shape
 
   @property
@@ -181,14 +178,16 @@ class Graph(geometry.Geometry):
     """Whether :attr:`graph` or :attr:`laplacian` is sparse."""
     if self._laplacian is not None:
       return isinstance(self.laplacian, Sparse_t.__args__)
-    if isinstance(self.graph, (jesp.CSR, jesp.CSC, jesp.COO)):
+    if isinstance(self._graph, (jesp.CSR, jesp.CSC, jesp.COO)):
       raise NotImplementedError("Graph must be specified in `BCOO` format.")
-    return isinstance(self.graph, jesp.BCOO)
+    return isinstance(self._graph, jesp.BCOO)
 
   @property
   def graph(self) -> Optional[Union[jnp.ndarray, jesp.BCOO]]:
-    """The underlying undirected graph, if provided."""
-    return self._graph
+    """The underlying undirected graph as an adjacency matrix, if provided."""
+    if self._graph is None:
+      return None
+    return (self._graph + self._graph.T) if self.directed else self._graph
 
   @property
   def is_symmetric(self) -> bool:
@@ -206,7 +205,7 @@ class Graph(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self.graph, self._laplacian, self._solver], {
+    return [self._graph, self._laplacian, self._solver], {
         "epsilon": self.epsilon,
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
