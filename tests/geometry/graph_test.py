@@ -10,7 +10,7 @@ from networkx.algorithms import shortest_paths
 from networkx.generators import random_graphs
 from typing_extensions import Literal
 
-from ott.core import decomposition
+from ott.core import decomposition, linear_problems, sinkhorn
 from ott.geometry import geometry, graph
 
 sksparse = pytest.importorskip("sksparse")
@@ -64,7 +64,9 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel)
+  return geometry.Geometry(
+      cost_matrix=cost, kernel_matrix=kernel, epsilon=epsilon
+  )
 
 
 class TestGraph:
@@ -183,10 +185,10 @@ class TestGraph:
           atol=1e-3
       )
 
-  def test_larger_n_steps_help(self):
+  def test_larger_n_steps_helps(self):
     pass
 
-  def test_smaller_epsilon_help(self):
+  def test_smaller_epsilon_helps(self):
     pass
 
   def test_crank_nicolson_sparse_matches_dense(self):
@@ -237,8 +239,27 @@ class TestGraph:
   def test_sparse_memory_efficiency(self):
     pass
 
-  def test_jitting(self):
-    pass
+  @pytest.mark.parametrize("jit", [False, True])
+  @pytest.mark.parametrize("fmt", [None, "coo"])
+  def test_graph_sinkhorn(self, fmt: Optional[str], jit: bool):
 
-  def test_sinkhorn(self):
-    pass
+    def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
+      solver = sinkhorn.Sinkhorn(lse_mode=False)
+      problem = linear_problems.LinearProblem(geom)
+      return solver(problem)
+
+    rtol = atol = 1e-3
+    eps = 5e-3
+    G = random_graph(11, p=0.5, fmt=fmt)
+
+    gt_geom = gt_geometry(G, epsilon=eps)
+    graph_geom = graph.Graph(G, epsilon=eps)
+    if jit:
+      callback = jax.jit(callback)
+    gt_out = callback(gt_geom)
+    graph_out = callback(graph_geom)
+
+    assert gt_out.converged
+    assert graph_out.converged
+    np.testing.assert_allclose(gt_out.f, graph_out.f, rtol=rtol, atol=atol)
+    np.testing.assert_allclose(gt_out.g, graph_out.g, rtol=rtol, atol=atol)
