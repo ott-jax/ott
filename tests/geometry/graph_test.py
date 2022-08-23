@@ -1,15 +1,17 @@
 from typing import Optional, Union
 
+import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
 import pytest
+from networkx.algorithms import shortest_paths
 from networkx.generators import random_graphs
 from typing_extensions import Literal
 
 from ott.core import decomposition
-from ott.geometry import graph
+from ott.geometry import geometry, graph
 
 sksparse = pytest.importorskip("sksparse")
 
@@ -23,20 +25,45 @@ def random_graph(
     directed: bool = False,
     fmt: Optional[Literal["csr", "csc", "coo"]] = None
 ) -> Union[jnp.ndarray, jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]:
-  graph = random_graphs.fast_gnp_random_graph(
-      n, p, seed=seed, directed=directed
-  )
+  G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
+  assert nx.is_connected(G), "Generated graph is not connected."
+  # TODO(michalk8): add random edge weights
 
   if return_laplacian:
-    graph = nx.linalg.laplacian_matrix(graph)
+    G = nx.linalg.laplacian_matrix(G)
   else:
-    graph = nx.linalg.adjacency_matrix(graph)
+    G = nx.linalg.adjacency_matrix(G)
 
   if fmt is None:
-    return jnp.asarray(graph.A)
+    return jnp.asarray(G.A)
 
-  graph = getattr(graph, f"to{fmt}")()
-  return decomposition._scipy_sparse_to_jax(graph)
+  G = getattr(G, f"to{fmt}")()
+  return decomposition._scipy_sparse_to_jax(G)
+
+
+def gt_geometry(
+    G: Union[jnp.ndarray, jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO, nx.Graph],
+    *,
+    epsilon: float = 1e-2
+) -> geometry.Geometry:
+  if not isinstance(G, nx.Graph):
+    if isinstance(G, (jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO)):
+      G = G.todense()
+    G = nx.from_numpy_array(np.asarray(G))
+
+  n = len(G)
+  cost = np.zeros((n, n), dtype=float)
+
+  path = dict(
+      shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
+  )
+  for i, src in enumerate(G.nodes):
+    for j, tgt in enumerate(G.nodes):
+      cost[i, j] = path[src][tgt] ** 2
+
+  cost = jnp.asarray(cost)
+  kernel = jnp.asarray(np.exp(-cost / epsilon))
+  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel)
 
 
 class TestGraph:
@@ -102,7 +129,7 @@ class TestGraph:
   @pytest.mark.parametrize("fmt", [None, "csr", "csc", "coo"])
   def test_solver(self, fmt: Optional[str]):
     n = 27
-    G = random_graph(n, fmt=fmt)
+    G = random_graph(n, fmt=fmt, return_laplacian=True)
     geom1 = graph.Graph(laplacian=G)
 
     assert geom1._solver is None
@@ -120,14 +147,75 @@ class TestGraph:
       assert isinstance(solver.L, jnp.ndarray)
       assert solver.L.shape == (n, n)
 
-  def test_numerical_scheme(self):
+  @pytest.mark.parametrize("fmt", [None, "coo"])
+  def test_kernel_is_symmetric_positive_definite(self, fmt: Optional[str]):
+    kernel = graph.Graph(graph=random_graph(20, fmt=fmt)).kernel_matrix
+
+    # TODO(michalk8): fails for dense, check
+    np.testing.assert_allclose(kernel, kernel.T)
+    np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
+
+  @pytest.mark.parametrize("fmt", [None, "coo"])
+  @pytest.mark.parametrize(
+      "numerical_scheme", ["backward_euler", "crank_nicolson"]
+  )
+  def test_approximates_ground_truth(
+      self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
+  ):
+    eps, n_steps = 1e-4, 10
+    G = random_graph(20, p=0.5, fmt=fmt)
+    x = jax.random.normal(rng, (G.shape[0],))
+
+    gt_geom = gt_geometry(G, epsilon=eps)
+    graph_geom = graph.Graph(
+        G, epsilon=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
+    )
+
+    np.testing.assert_allclose(
+        gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-3, atol=1e-3
+    )
+    for axis in [0, 1]:
+      np.testing.assert_allclose(
+          gt_geom.apply_kernel(x, axis=axis),
+          graph_geom.apply_kernel(x, axis=axis),
+          rtol=1e-3,
+          atol=1e-3
+      )
+
+  def test_larger_n_steps_help(self):
     pass
 
-  def test_sparse_formats(self):
+  def test_smaller_epsilon_help(self):
     pass
 
-  def test_sparse_correctness(self):
+  def test_crank_nicolson_sparse_matches_dense(self):
+    eps = 1e-3
+    G = random_graph(51, p=0.5, fmt=None)
+    G_sp = jesp.BCOO.fromdense(G)
+
+    geom_dense = graph.Graph(G, epsilon=eps, numerical_scheme="crank_nicolson")
+    geom_sparse = graph.Graph(
+        G_sp, epsilon=eps, numerical_scheme="crank_nicolson"
+    )
+
+    assert not geom_dense.is_sparse
+    assert geom_sparse.is_sparse
+
+    np.testing.assert_allclose(
+        geom_dense.kernel_matrix,
+        geom_sparse.kernel_matrix,
+        rtol=1e-2,
+        atol=1e-2
+    )
+
+  def test_directed_graph(self):
+    pass
+
+  def test_clear_factor_cache(self):
     pass
 
   def test_sparse_memory_efficiency(self):
+    pass
+
+  def test_jitting(self):
     pass

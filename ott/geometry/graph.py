@@ -109,18 +109,8 @@ class Graph(geometry.Geometry):
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-
-    def body_fn(carry: None, ix: int) -> Tuple[None, jnp.ndarray]:
-      vec = jnp.zeros(n).at[ix].set(1.)
-      return carry, self.apply_kernel(vec)
-
-    # TODO(michalk8): consider disallowing instantiating the kernel?
-    # TODO(michalk8): enable batching once sparse solver (as primitive) is added
-    # batching rules are not implemented for `hcb.call`
-    # return jax.vmap(self.apply_kernel)(jnp.eye(self.shape[0]))
     n, _ = self.shape
-    _, kernel = jax.lax.scan(body_fn, None, jnp.arange(n))
-    return kernel
+    return self.apply_kernel(jnp.eye(n))
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -177,6 +167,8 @@ class Graph(geometry.Geometry):
       self._solver = decomposition.CholeskySolver.create(
           self._M, beta=1.0, key=hash(self)
       )
+      # TODO(michalk8): refactor
+      _ = self._solver.L  # avoid tracer leaks
     return self._solver
 
   @property

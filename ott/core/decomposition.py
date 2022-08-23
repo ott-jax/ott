@@ -119,17 +119,17 @@ class DenseCholeskySolver(CholeskySolver[jnp.ndarray]):
   def __init__(self, A: T, lower: bool = True, **kwargs: Any):
     del kwargs
     super().__init__(A)
-    self.lower = lower
+    self._lower = lower
 
   def _decompose(self, A: T) -> Optional[T]:
-    return jsp.linalg.cholesky(A, lower=self.lower)
+    return jsp.linalg.cholesky(A, lower=self._lower)
 
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
-    return jsp.linalg.solve_triangular(L, b, lower=self.lower)
+    return jsp.linalg.solve_triangular(L, b, lower=self._lower)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    aux_data["lower"] = self.lower
+    aux_data["lower"] = self._lower
     return children, aux_data
 
 
@@ -147,6 +147,7 @@ class SparseCholeskySolver(
     key: Key used to cache :class:`sksparse.cholesky.Factor`.
       This key **must** be unique to ``A`` to achieve correct results.
       If `None`, use :func:`hash` of this object.
+    kwargs: Keyword arguments for :func:`sksparse.cholmod.cholesky`.
   """
 
   # TODO(michalk8): in the future, define a jax primitive + use CHOLMOD directly
@@ -157,29 +158,32 @@ class SparseCholeskySolver(
       A: T,
       beta: float = 0.0,
       key: Optional[Hashable] = None,
+      **kwargs: Any,
   ):
     if cholmod is None:
       raise ImportError(
           "Unable to import scikit-sparse. "
           "Please install it as `pip install scikit-sparse`."
       )
-    # must be set before calling `__init__` because it's used for the cache
     super().__init__(A)
     self._key = key
     self._beta = beta
+    self._kwargs = kwargs
 
   def _host_decompose(self, A: T) -> None:
     # use float64 because CHOLMOD uses it internally
     # convert to CSC explicitly for efficiency/to avoid warnings
     mat = _jax_sparse_to_scipy(A, sum_duplicates=True, dtype=float).tocsc()
-    self._FACTOR_CACHE[hash(self)] = cholmod.cholesky(mat, beta=self._beta)
+    self._FACTOR_CACHE[hash(self)] = cholmod.cholesky(
+        mat, beta=self._beta, **self._kwargs
+    )
 
   def _decompose(self, A: T) -> Optional[T]:
     return hcb.call(self._host_decompose, A, result_shape=None)
 
   def _host_solve(self, b: jnp.ndarray) -> jnp.ndarray:
     factor = self._FACTOR_CACHE[hash(self)]
-    return factor.solve_A(np.array(b, dtype=float))
+    return factor.solve_A(np.asarray(b, dtype=float))
 
   def _solve(self, _: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
     return hcb.call(self._host_solve, b, result_shape=b)
@@ -203,7 +207,11 @@ class SparseCholeskySolver(
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    return children, {**aux_data, "key": self._key, "beta": self._beta}
+    return children, {
+        **aux_data, "beta": self._beta,
+        "key": self._key,
+        **self._kwargs
+    }
 
 
 def _jax_sparse_to_scipy(
