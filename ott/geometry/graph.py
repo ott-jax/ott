@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import decomposition, fixed_point_loop
-from ott.geometry import epsilon_scheduler, geometry
+from ott.geometry import geometry
 
 __all__ = ["Graph"]
 
@@ -26,9 +26,9 @@ class Graph(geometry.Geometry):
       If `None`, the symmetric graph Laplacian has to be specified.
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
       performed. If `None`, the graph has to be specified instead.
-    epsilon: Epsilon regularizer. If `None`, ``graph`` must be specified
-      :math:`\frac{1}{|E|} \sum_{(u,v) \in E} weight(u, v)` is used
-      as suggested by :cite:`crane:13`.
+    epsilon: Constant used when approximating the geodesic exponential kernel.
+      If `None`, :math:`\frac{1}{|E|} \sum_{(u,v) \in E} |weight(u, v)|`
+      is used :cite:`crane:13`. In this case, the ``graph`` must be specified.
     n_steps: Number of steps used to approximate the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
@@ -51,16 +51,13 @@ class Graph(geometry.Geometry):
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide a graph or a symmetric graph Laplacian."
-    # would require recomputing the Cholesky decomposition
-    assert not isinstance(
-        epsilon, epsilon_scheduler.Epsilon
-    ), "Epsilon scheduler is not supported for graph geometry."
-
-    super().__init__(epsilon=epsilon, **kwargs)
+    # use arbitrary epsilon; can't use `None`, `mean_cost_matrix` would be used
+    super().__init__(epsilon=1., **kwargs)
     self._graph = graph
     self._laplacian = laplacian
     self._solver: Optional[decomposition.CholeskySolver] = None
 
+    self._t = epsilon
     self.n_steps = n_steps
     self.numerical_scheme = numerical_scheme
     self.directed = directed
@@ -130,24 +127,27 @@ class Graph(geometry.Geometry):
     # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
     return D - self.graph
 
+  # TODO(michalk8): check the interactions with _FACTOR_CACHE
   @property
-  def _t(self) -> float:
-    if self._epsilon_init is None:
+  def t(self) -> float:
+    """Constant used when approximating the geodesic exponential kernel."""
+    if self._t is None:
       graph = self.graph
       assert graph is not None, "No graph specified."
       if self.is_sparse:
         return jnp.mean(jnp.abs(graph.data)) ** 2
       graph = jnp.abs(graph)
       return (jnp.sum(graph) / jnp.sum(graph > 0.)) ** 2
-    return self.epsilon
+    return self._t
 
   @property
   def _scale(self) -> float:
+    """Constant to scale the Laplacian with."""
     if self.numerical_scheme == "backward_euler":
       # TODO(michalk8): check the constants 4 and 2
-      return self._t / (4 * self.n_steps)
+      return self.t / (4 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self._t / (2 * self.n_steps)
+      return self.t / (2 * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )
@@ -173,7 +173,7 @@ class Graph(geometry.Geometry):
     if self._solver is None:
       # key/beta only used for sparse solver
       self._solver = decomposition.CholeskySolver.create(
-          self._M, beta=1.0, key=hash(self)
+          self._M, beta=1., key=hash(self)
       )
       # compute the factorization to avoid tracer leaks in `apply_kernel`
       # due to the scan/while loop
@@ -203,6 +203,7 @@ class Graph(geometry.Geometry):
 
   @property
   def is_symmetric(self) -> bool:
+    # there are some numerical imprecisions, but it should be symmetric
     return True
 
   # TODO(michalk8): disallow more functions, test transport output
@@ -218,7 +219,7 @@ class Graph(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [self._graph, self._laplacian, self.solver], {
-        "epsilon": self._epsilon_init,
+        "t": self._t,
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,

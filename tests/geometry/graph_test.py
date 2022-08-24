@@ -129,7 +129,7 @@ class TestGraph:
       np.testing.assert_array_equal(lap1.data, lap2.data)
       np.testing.assert_array_equal(lap1.indices, lap2.indices)
 
-    assert geom1.epsilon == geom2.epsilon
+    assert geom1.t == geom2.t
     assert geom1.n_steps == geom2.n_steps
     assert geom1.numerical_scheme == geom2.numerical_scheme
     assert geom1.directed == geom2.directed
