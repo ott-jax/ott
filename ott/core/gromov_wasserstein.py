@@ -48,7 +48,6 @@ class GWOutput(NamedTuple):
     linear_state: State used to solve and store solutions to the local
       linearization of GW.
     geom: The geometry underlying the local linearization.
-    old_transport_mass: Holds total mass of transport at previous iteration.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -57,8 +56,6 @@ class GWOutput(NamedTuple):
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
-  # Intermediate values.
-  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWOutput':
     """Return a copy of self, possibly with overwrites."""
@@ -67,22 +64,16 @@ class GWOutput(NamedTuple):
   @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix."""
-    return self._rescale_factor * self.linear_state.matrix
+    return self.linear_state.matrix
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to an array; axis=1 for its transpose."""
-    return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
+    return self.linear_state.apply(inputs, axis=axis)
 
   @property
   def reg_gw_cost(self) -> float:
     """Regularized optimal transport cost of the linearization."""
     return self.linear_state.reg_ot_cost
-
-  @property
-  def _rescale_factor(self) -> float:
-    return jnp.sqrt(
-        self.old_transport_mass / self.linear_state.transport_mass()
-    )
 
 
 class GWState(NamedTuple):
@@ -98,7 +89,6 @@ class GWState(NamedTuple):
     linear_state: State used to solve and store solutions to the local
       linearization of GW.
     linear_pb: Local linearization of the quadratic GW problem.
-    old_transport_mass: Intermediary value of the mass of the transport matrix.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -106,8 +96,6 @@ class GWState(NamedTuple):
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
   linear_pb: Optional[linear_problems.LinearProblem] = None
-  # Intermediate values.
-  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWState':
     """Return a copy of self, possibly with overwrites."""
@@ -116,7 +104,6 @@ class GWState(NamedTuple):
   def update(
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problems.LinearProblem, store_errors: bool,
-      old_transport_mass: float
   ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
     errors = None
@@ -131,7 +118,6 @@ class GWState(NamedTuple):
         costs=costs,
         linear_convergence=linear_convergence,
         errors=errors,
-        old_transport_mass=old_transport_mass
     )
 
 
@@ -157,7 +143,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     else:
       linearization = prob.update_linearization(
           jax.lax.stop_gradient(out.linear_state), self.epsilon,
-          jax.lax.stop_gradient(out.old_transport_mass)
       )
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
@@ -203,7 +188,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=state.errors,
         linear_state=state.linear_state,
         geom=geom,
-        old_transport_mass=state.old_transport_mass
     )
 
 
@@ -227,17 +211,11 @@ def iterations(
     if rank > 0:
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
-      linear_pb = prob.update_linearization(
-          state.linear_state, solver.epsilon, state.old_transport_mass
-      )
+      linear_pb = prob.update_linearization(state.linear_state, solver.epsilon)
 
     out = solver.linear_ot_solver(linear_pb)
-    old_transport_mass = jax.lax.stop_gradient(
-        state.linear_state.transport_mass()
-    )
     return state.update(
-        iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
-    )
+        iteration, out, linear_pb, solver.store_inner_errors)
 
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
