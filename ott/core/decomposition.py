@@ -25,7 +25,7 @@ try:
 except ImportError:
   cholmod = None
 
-__all__ = ["DenseCholeskySolver", "SparseCholeskySolver"]
+__all__ = ["CholeskySolver", "DenseCholeskySolver", "SparseCholeskySolver"]
 
 T = TypeVar("T")
 
@@ -70,7 +70,7 @@ class CholeskySolver(abc.ABC, Generic[T]):
 
     Args:
       A: Symmetric positive definite matrix of shape ``[n, n]``.
-      kwargs: Keyword arguments for initialization.
+      kwargs: Keyword arguments for the initialization.
 
     Returns:
       Sparse or dense Cholesky solver.

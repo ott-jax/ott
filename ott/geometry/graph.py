@@ -39,7 +39,8 @@ class Graph(geometry.Geometry):
       self,
       graph: Optional[Union[jnp.ndarray, jesp.BCOO]] = None,
       laplacian: Optional[Union[jnp.ndarray, Sparse_t]] = None,
-      epsilon: float = 1e-2,
+      # TODO(michalk8): mean over edges
+      epsilon: float = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
@@ -97,6 +98,7 @@ class Graph(geometry.Geometry):
     else:
       constants = self.solver, None
 
+    # TODO(michalk8): add cond fn if converged earlier?
     return fixed_point_loop.fixpoint_iter(
         cond_fn=lambda *_, **__: True,
         body_fn=body_fn,
@@ -158,14 +160,15 @@ class Graph(geometry.Geometry):
 
   @property
   def solver(self) -> decomposition.CholeskySolver:
-    """Cholesky solver."""
+    """Instantiate the Cholesky solver and compute the factorization."""
     if self._solver is None:
       # key/beta only used for sparse solver
       self._solver = decomposition.CholeskySolver.create(
           self._M, beta=1.0, key=hash(self)
       )
-      # TODO(michalk8): refactor?
-      _ = self._solver.L  # avoid tracer leaks
+      # compute the factorization to avoid tracer leaks in `apply_kernel`
+      # due to the scan/while loop
+      _ = self._solver.L
     return self._solver
 
   @property

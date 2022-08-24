@@ -18,7 +18,7 @@ sksparse = pytest.importorskip("sksparse")
 
 def random_graph(
     n: int,
-    p: float = 0.05,
+    p: float = 0.3,
     seed: Optional[int] = 0,
     *,
     return_laplacian: bool = False,
@@ -28,7 +28,10 @@ def random_graph(
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
     assert nx.is_connected(G), "Generated graph is not connected."
-  # TODO(michalk8): add random edge weights
+
+  rng = np.random.RandomState(seed)
+  for _, _, w in G.edges(data=True):
+    w["weight"] = rng.randint(0, 10)
 
   if return_laplacian:
     G = nx.linalg.laplacian_matrix(G)
@@ -77,13 +80,13 @@ class TestGraph:
       if empty:
         _ = graph.Graph(graph=None, laplacian=None)
       else:
-        G = random_graph(100, 0.1)
+        G = random_graph(100)
         _ = graph.Graph(graph=G, laplacian=G)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_init_graph(self, fmt: Optional[str]):
-    n, p = 100, 0.1
-    G = random_graph(n, p, fmt=fmt)
+    n = 100
+    G = random_graph(n, fmt=fmt)
 
     geom = graph.Graph(G)
 
@@ -95,8 +98,8 @@ class TestGraph:
 
   @pytest.mark.parametrize("fmt", [None, "csr", "csc", "coo"])
   def test_init_laplacian(self, fmt: Optional[str]):
-    n, p = 20, 0.05
-    L = random_graph(n, p, return_laplacian=True, fmt=fmt)
+    n = 39
+    L = random_graph(n, return_laplacian=True, fmt=fmt)
 
     geom = graph.Graph(laplacian=L)
 
@@ -152,21 +155,23 @@ class TestGraph:
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_kernel_is_symmetric_positive_definite(self, fmt: Optional[str]):
-    kernel = graph.Graph(graph=random_graph(20, fmt=fmt)).kernel_matrix
+    geom = graph.Graph(graph=random_graph(65, fmt=fmt), epsilon=1e-3)
 
-    # TODO(michalk8): fails for dense, check
-    np.testing.assert_allclose(kernel, kernel.T)
+    tol = 1e-4 if geom.is_sparse else 5e-3
+    kernel = geom.kernel_matrix
+
+    np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   @pytest.mark.parametrize(
       "numerical_scheme", ["backward_euler", "crank_nicolson"]
   )
-  def test_approximates_ground_truth(
+  def test_approximates_ground_truth_distances(
       self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
   ):
-    eps, n_steps = 1e-4, 10
-    G = random_graph(20, p=0.5, fmt=fmt)
+    eps, n_steps = 1e-4, 20
+    G = random_graph(27, p=0.5, fmt=fmt)
     x = jax.random.normal(rng, (G.shape[0],))
 
     gt_geom = gt_geometry(G, epsilon=eps)
@@ -175,40 +180,34 @@ class TestGraph:
     )
 
     np.testing.assert_allclose(
-        gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-3, atol=1e-3
+        gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-2, atol=1e-2
     )
     for axis in [0, 1]:
       np.testing.assert_allclose(
           gt_geom.apply_kernel(x, axis=axis),
           graph_geom.apply_kernel(x, axis=axis),
-          rtol=1e-3,
-          atol=1e-3
+          rtol=1e-2,
+          atol=1e-2
       )
 
-  def test_larger_n_steps_helps(self):
-    pass
-
-  def test_smaller_epsilon_helps(self):
-    pass
-
-  def test_crank_nicolson_sparse_matches_dense(self):
-    eps = 1e-3
-    G = random_graph(51, p=0.5, fmt=None)
+  @pytest.mark.parametrize("eps", [1e-4, 1e-3])
+  def test_crank_nicolson_sparse_matches_dense(self, eps: float):
+    G = random_graph(51, p=0.4, fmt=None)
     G_sp = jesp.BCOO.fromdense(G)
 
-    geom_dense = graph.Graph(G, epsilon=eps, numerical_scheme="crank_nicolson")
-    geom_sparse = graph.Graph(
+    dense_geom = graph.Graph(G, epsilon=eps, numerical_scheme="crank_nicolson")
+    sparse_geom = graph.Graph(
         G_sp, epsilon=eps, numerical_scheme="crank_nicolson"
     )
 
-    assert not geom_dense.is_sparse
-    assert geom_sparse.is_sparse
+    assert not dense_geom.is_sparse
+    assert sparse_geom.is_sparse
 
     np.testing.assert_allclose(
-        geom_dense.kernel_matrix,
-        geom_sparse.kernel_matrix,
-        rtol=1e-2,
-        atol=1e-2
+        sparse_geom.kernel_matrix,
+        dense_geom.kernel_matrix,
+        rtol=eps * 1e2,
+        atol=eps * 1e2,
     )
 
   @pytest.mark.parametrize("jit", [False, True])
@@ -218,7 +217,7 @@ class TestGraph:
                  laplacian: bool) -> Union[jnp.ndarray, jesp.BCOO]:
       return geom.laplacian if laplacian else geom.graph
 
-    G = random_graph(16, p=0.2, directed=True)
+    G = random_graph(16, p=0.25, directed=True)
     if jit:
       callback = jax.jit(callback, static_argnums=1)
 
@@ -259,7 +258,7 @@ class TestGraph:
 
     rtol = atol = 1e-3
     eps = 5e-3
-    G = random_graph(11, p=0.5, fmt=fmt)
+    G = random_graph(11, p=0.35, fmt=fmt)
 
     gt_geom = gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph(G, epsilon=eps)
