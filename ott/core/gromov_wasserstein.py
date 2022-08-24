@@ -162,15 +162,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     linear_state = self.linear_ot_solver(linearization)
     num_iter = self.max_iterations
-    transport_mass = prob.init_transport_mass()
     if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
     return GWState(
         -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, linear_state,
-        linearization, transport_mass
-    )
+        linearization)
 
   def output_from_state(self, state: GWState) -> GWOutput:
     """Create an output from a loop state.
