@@ -23,12 +23,12 @@ class Graph(geometry.Geometry):
 
   Args:
     graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
-      If ``None``, the symmetric graph Laplacian has to be specified.
+      If `None`, the symmetric graph Laplacian has to be specified.
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
       performed. If `None`, the graph has to be specified instead.
-    epsilon: Epsilon regularizer. If `None`, take ``mean(edges) ** 2``
-      take :math:`\sum_{(u,v) \in edges}` TODO
-      as suggested in :cite:`crane:13`.
+    epsilon: Epsilon regularizer. If `None`, ``graph`` must be specified
+      :math:`\frac{1}{|E|} \sum_{(u,v) \in E} weight(u, v)` is used
+      as suggested by :cite:`crane:13`.
     n_steps: Number of steps used to approximate the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
