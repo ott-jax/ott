@@ -25,9 +25,11 @@ class Graph(geometry.Geometry):
     graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
       If ``None``, the symmetric graph Laplacian has to be specified.
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
-      performed. If ``None``, the graph has to be specified instead.
-    epsilon: Epsilon regularizer.
-    n_steps: Number of steps used for the heat diffusion.
+      performed. If `None`, the graph has to be specified instead.
+    epsilon: Epsilon regularizer. If `None`, take ``mean(edges) ** 2``
+      take :math:`\sum_{(u,v) \in edges}` TODO
+      as suggested in :cite:`crane:13`.
+    n_steps: Number of steps used to approximate the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
       undirected as :math:`G + G^T`. This parameter is ignored when  directly
@@ -39,8 +41,7 @@ class Graph(geometry.Geometry):
       self,
       graph: Optional[Union[jnp.ndarray, jesp.BCOO]] = None,
       laplacian: Optional[Union[jnp.ndarray, Sparse_t]] = None,
-      # TODO(michalk8): mean over edges if None?
-      epsilon: float = 1e-3,
+      epsilon: Optional[float] = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
@@ -130,12 +131,23 @@ class Graph(geometry.Geometry):
     return D - self.graph
 
   @property
+  def _t(self) -> float:
+    if self._epsilon_init is None:
+      graph = self.graph
+      assert graph is not None, "No graph specified."
+      if self.is_sparse:
+        return jnp.mean(jnp.abs(graph.data)) ** 2
+      graph = jnp.abs(graph)
+      return (jnp.sum(graph) / jnp.sum(graph > 0.)) ** 2
+    return self.epsilon
+
+  @property
   def _scale(self) -> float:
     if self.numerical_scheme == "backward_euler":
       # TODO(michalk8): check the constants 4 and 2
-      return self.epsilon / (4 * self.n_steps)
+      return self._t / (4 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self.epsilon / (2 * self.n_steps)
+      return self._t / (2 * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )
@@ -144,7 +156,7 @@ class Graph(geometry.Geometry):
   def _scaled_laplacian(self) -> Union[float, jnp.ndarray, Sparse_t]:
     """Laplacian scaled by a constant, depending on the numerical scheme."""
     if self.is_sparse:
-      return _scale_sparse(self._scale, self.laplacian)
+      return _sparse_scale(self._scale, self.laplacian)
     return self._scale * self.laplacian
 
   @property
@@ -206,7 +218,7 @@ class Graph(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [self._graph, self._laplacian, self.solver], {
-        "epsilon": self.epsilon,
+        "epsilon": self._epsilon_init,
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
@@ -223,7 +235,7 @@ class Graph(geometry.Geometry):
     return obj
 
 
-def _scale_sparse(c: float, mat: Sparse_t) -> Sparse_t:
+def _sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
   """Scale a sparse matrix by a constant."""
   if isinstance(mat, jesp.BCOO):
     # most feature complete, defer to original impl.

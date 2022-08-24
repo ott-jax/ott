@@ -166,6 +166,23 @@ class TestGraph:
     np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
 
+  @pytest.mark.parametrize("as_laplacian", [False])
+  @pytest.mark.parametrize("fmt", [None, "coo"])
+  def test_automatic_t(self, fmt: Optional[str], as_laplacian: bool):
+    G = random_graph(38, fmt=fmt, return_laplacian=as_laplacian)
+    if as_laplacian:
+      geom = graph.Graph(laplacian=G, epsilon=None)
+    else:
+      geom = graph.Graph(graph=G, epsilon=None)
+
+    if fmt is None:
+      expected = (jnp.sum(jnp.abs(G)) / jnp.sum(jnp.abs(G) > 0.)) ** 2
+    else:
+      expected = jnp.mean(G.data) ** 2
+    actual = geom._t
+
+    np.testing.assert_equal(actual, expected)
+
   @pytest.mark.parametrize("fmt", [None, "coo"])
   @pytest.mark.parametrize(
       "numerical_scheme", ["backward_euler", "crank_nicolson"]
