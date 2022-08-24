@@ -39,7 +39,7 @@ class Graph(geometry.Geometry):
       self,
       graph: Optional[Union[jnp.ndarray, jesp.BCOO]] = None,
       laplacian: Optional[Union[jnp.ndarray, Sparse_t]] = None,
-      # TODO(michalk8): mean over edges
+      # TODO(michalk8): mean over edges if None?
       epsilon: float = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
@@ -49,14 +49,11 @@ class Graph(geometry.Geometry):
   ):
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
-           "Please provide the graph or the symmetric graph Laplacian."
+           "Please provide a graph or a symmetric graph Laplacian."
+    # would require recomputing the Cholesky decomposition
     assert not isinstance(
         epsilon, epsilon_scheduler.Epsilon
     ), "Epsilon scheduler is not supported for graph geometry."
-    if graph is not None:
-      assert isinstance(  # would require recomputing the Cholesky decomposition
-          graph, (jnp.ndarray, jesp.BCOO)
-      ), f"Graph must be in `BCOO` format, found `{type(graph).__name__}`."
 
     super().__init__(epsilon=epsilon, **kwargs)
     self._graph = graph
@@ -208,7 +205,7 @@ class Graph(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._graph, self._laplacian, self._solver], {
+    return [self._graph, self._laplacian, self.solver], {
         "epsilon": self.epsilon,
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,

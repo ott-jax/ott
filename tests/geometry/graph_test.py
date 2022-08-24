@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -10,10 +10,14 @@ from networkx.algorithms import shortest_paths
 from networkx.generators import random_graphs
 from typing_extensions import Literal
 
-from ott.core import decomposition, linear_problems, sinkhorn
+from ott.core import decomposition
+from ott.core import implicit_differentiation as implicit_lib
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import geometry, graph
 
 sksparse = pytest.importorskip("sksparse")
+
+# TODO(michalk8): mark tests as fast
 
 
 def random_graph(
@@ -31,12 +35,11 @@ def random_graph(
 
   rng = np.random.RandomState(seed)
   for _, _, w in G.edges(data=True):
-    w["weight"] = rng.randint(0, 10)
+    w["weight"] = rng.uniform(0, 10)
 
-  if return_laplacian:
-    G = nx.linalg.laplacian_matrix(G)
-  else:
-    G = nx.linalg.adjacency_matrix(G)
+  G = nx.linalg.laplacian_matrix(
+      G
+  ) if return_laplacian else nx.linalg.adjacency_matrix(G)
 
   if fmt is None:
     return jnp.asarray(G.A)
@@ -76,7 +79,7 @@ class TestGraph:
 
   @pytest.mark.parametrize("empty", [False, True])
   def test_invalid_initialization(self, empty):
-    with pytest.raises(AssertionError, match="Please provide the graph"):
+    with pytest.raises(AssertionError, match="Please provide"):
       if empty:
         _ = graph.Graph(graph=None, laplacian=None)
       else:
@@ -233,6 +236,7 @@ class TestGraph:
     np.testing.assert_allclose(L, L.T)
 
   def test_factor_cache(self):
+    # TODO(michalk8): finish me
     pass
 
   # Total memory allocated: 99.1MiB
@@ -262,10 +266,10 @@ class TestGraph:
 
     gt_geom = gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph(G, epsilon=eps)
-    if jit:
-      callback = jax.jit(callback)
-    gt_out = callback(gt_geom)
-    graph_out = callback(graph_geom)
+    fn = jax.jit(callback) if jit else callback
+
+    gt_out = fn(gt_geom)
+    graph_out = fn(graph_geom)
 
     assert gt_out.converged
     assert graph_out.converged
@@ -273,3 +277,39 @@ class TestGraph:
     np.testing.assert_allclose(gt_out.g, graph_out.g, rtol=rtol, atol=atol)
 
     # TODO(michalk8): test output apply/materialize
+
+  @pytest.mark.parametrize(
+      "implicit_diff", [False, True], ids=["not-implicit", "implicit"]
+  )
+  def test_dense_graph_differentiability(
+      self, rng: jnp.ndarray, implicit_diff: bool
+  ):
+
+    def callback(
+        data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
+        shape: Tuple[int, int]
+    ) -> float:
+      G = jesp.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
+
+      geom = graph.Graph(G, epsilon=1.)
+      solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
+      problem = linear_problems.LinearProblem(geom)
+
+      return solver(problem).reg_ot_cost
+
+    if implicit_diff:
+      kwargs = {"implicit_diff": implicit_lib.ImplicitDiff()}
+    else:
+      kwargs = {"implicit_diff": None}
+
+    G, eps = random_graph(20, p=0.5, fmt="coo"), 1e-3
+    w, rows, cols = G.data, G.indices[:, 0], G.indices[:, 1]
+    v_w = jax.random.normal(rng, shape=w.shape)
+    v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
+
+    grad_w = jax.grad(callback)(w, rows, cols, shape=G.shape)
+
+    expected = callback(w + v_w, rows, cols,
+                        G.shape) - callback(w - v_w, rows, cols, G.shape)
+    actual = 2 * jnp.vdot(v_w, grad_w)
+    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
