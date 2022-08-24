@@ -278,7 +278,13 @@ def _k_means(
     )
 
   weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
-  state = fixed_point_loop.fixpoint_iter(
+  force_scan = min_iterations == max_iterations
+  fixpoint_fn = (  # prefer auto-diff if possible
+      fixed_point_loop.fixpoint_iter if force_scan else
+      fixed_point_loop.fixpoint_iter_backprop
+  )
+
+  state = fixpoint_fn(
       cond_fn,
       body_fn,
       min_iterations=min_iterations,

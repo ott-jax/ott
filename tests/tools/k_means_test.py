@@ -340,24 +340,41 @@ class TestKmeans:
     assert res.iteration == res_jit.iteration
     assert res.converged == res_jit.converged
 
-  def test_k_means_differentiability(self, rng: jnp.ndarray):
+  @pytest.mark.parametrize(
+      "jit,force_scan",
+      [(True, False)],  # , (False, True)],
+      ids=["jit-while-loop"],  # , "nojit-for-loop"]
+  )
+  def test_k_means_differentiability(
+      self, rng: jnp.ndarray, jit: bool, force_scan: bool
+  ):
 
     def inertia(x: jnp.ndarray, w: jnp.ndarray) -> float:
       return k_means.k_means(
-          x, k=k, weights=w, min_iterations=10, max_iterations=10, key=key1
+          x,
+          k=k,
+          weights=w,
+          min_iterations=20 if force_scan else 1,
+          max_iterations=20,
+          key=key1,
       ).error
 
     k, eps, tol = 4, 1e-3, 1e-3
+    # TODO(michalk8):
+    # https://github.com/google/jax/issues/8557
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     w = jnp.abs(jax.random.normal(key2, (x.shape[0],)))
-
-    _, (grad_x, grad_w) = jax.value_and_grad(inertia, (0, 1))(x, w)
 
     v_x = jax.random.normal(key3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
     v_w = jax.random.normal(key4, shape=w.shape) * eps
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
+
+    grad_fn = jax.grad(inertia, (0, 1))
+    if jit:
+      grad_fn = jax.jit(grad_fn)
+    grad_x, grad_w = grad_fn(x, w)
 
     expected = inertia(x + v_x, w) - inertia(x - v_x, w)
     actual = 2 * jnp.vdot(v_x, grad_x)

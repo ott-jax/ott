@@ -117,11 +117,13 @@ def fixpoint_iter_fwd(
   Returns:
     outputs state returned by body_fn upon termination.
   """
-  force_scan = (min_iterations == max_iterations)
+  force_scan = min_iterations == max_iterations
   compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
   states = jax.tree_util.tree_map(
-      lambda x: jnp.zeros((max_iterations // inner_iterations + 1,) + x.shape,
-                          dtype=x.dtype), state
+      lambda x: jnp.zeros(
+          (max_iterations // inner_iterations + 1,) + jnp.shape(x),
+          dtype=jnp.asarray(x).dtype if jnp.isscalar(x) else x.dtype
+      ), state
   )
 
   def max_cond_fn(iteration_states_state):
