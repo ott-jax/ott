@@ -176,10 +176,10 @@ class TestGraph:
       geom = graph.Graph(graph=G, epsilon=None)
 
     if fmt is None:
-      expected = (jnp.sum(jnp.abs(G)) / jnp.sum(jnp.abs(G) > 0.)) ** 2
+      expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
     else:
       expected = jnp.mean(G.data) ** 2
-    actual = geom._t
+    actual = geom.t
 
     np.testing.assert_equal(actual, expected)
 

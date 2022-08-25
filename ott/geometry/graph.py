@@ -27,8 +27,9 @@ class Graph(geometry.Geometry):
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
       performed. If `None`, the graph has to be specified instead.
     epsilon: Constant used when approximating the geodesic exponential kernel.
-      If `None`, :math:`\frac{1}{|E|} \sum_{(u,v) \in E} |weight(u, v)|`
-      is used :cite:`crane:13`. In this case, the ``graph`` must be specified.
+      If `None`, :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
+      is used :cite:`crane:13`. In this case, the ``graph`` must be specified
+      and the edge weights are assumed to be positive.
     n_steps: Number of steps used to approximate the heat diffusion.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
@@ -76,6 +77,7 @@ class Graph(geometry.Geometry):
         b: jnp.ndarray, compute_errors: bool
     ) -> jnp.ndarray:
       del iteration, compute_errors
+
       solver, scaled_lap = solver_lap
       if self.numerical_scheme == "crank_nicolson":
         # below is a preferred way of specifying the update (albeit more FLOPS),
@@ -133,10 +135,9 @@ class Graph(geometry.Geometry):
     """Constant used when approximating the geodesic exponential kernel."""
     if self._t is None:
       graph = self.graph
-      assert graph is not None, "No graph specified."
+      assert graph is not None, "No graph was specified."
       if self.is_sparse:
-        return jnp.mean(jnp.abs(graph.data)) ** 2
-      graph = jnp.abs(graph)
+        return jnp.mean(graph.data) ** 2
       return (jnp.sum(graph) / jnp.sum(graph > 0.)) ** 2
     return self._t
 
@@ -144,7 +145,6 @@ class Graph(geometry.Geometry):
   def _scale(self) -> float:
     """Constant to scale the Laplacian with."""
     if self.numerical_scheme == "backward_euler":
-      # TODO(michalk8): check the constants 4 and 2
       return self.t / (4 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
       return self.t / (2 * self.n_steps)
