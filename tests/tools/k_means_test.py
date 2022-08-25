@@ -341,9 +341,8 @@ class TestKmeans:
     assert res.converged == res_jit.converged
 
   @pytest.mark.parametrize(
-      "jit,force_scan",
-      [(True, False)],  # , (False, True)],
-      ids=["jit-while-loop"],  # , "nojit-for-loop"]
+      "jit,force_scan", [(True, False), (False, True)],
+      ids=["jit-while-loop", "nojit-for-loop"]
   )
   def test_k_means_differentiability(
       self, rng: jnp.ndarray, jit: bool, force_scan: bool
@@ -360,8 +359,6 @@ class TestKmeans:
       ).error
 
     k, eps, tol = 4, 1e-3, 1e-3
-    # TODO(michalk8):
-    # https://github.com/google/jax/issues/8557
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     w = jnp.abs(jax.random.normal(key2, (x.shape[0],)))

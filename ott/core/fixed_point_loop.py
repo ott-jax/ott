@@ -18,6 +18,7 @@ from typing import Any, Callable
 
 import jax
 import numpy as np
+from jax import dtypes
 from jax import numpy as jnp
 
 
@@ -122,7 +123,7 @@ def fixpoint_iter_fwd(
   states = jax.tree_util.tree_map(
       lambda x: jnp.zeros(
           (max_iterations // inner_iterations + 1,) + jnp.shape(x),
-          dtype=jnp.asarray(x).dtype if jnp.isscalar(x) else x.dtype
+          dtype=dtypes.result_type(x)
       ), state
   )
 
