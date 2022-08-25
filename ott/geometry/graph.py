@@ -17,20 +17,19 @@ Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 class Graph(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
 
-  Approximates the heat kernel for large ``n_steps``, which for small
-  :math:`\epsilon` approximates the geodesic exponential kernel
-  :math:`e^{\frac{-d(x, y)^2}{\epsilon}}`.
+  Approximates the heat kernel for large ``n_steps``, which for small ``t``
+  approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
     graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
       If `None`, the symmetric graph Laplacian has to be specified.
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
       performed. If `None`, the graph has to be specified instead.
-    epsilon: Constant used when approximating the geodesic exponential kernel.
+    t: Constant used when approximating the geodesic exponential kernel.
       If `None`, :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
       is used :cite:`crane:13`. In this case, the ``graph`` must be specified
       and the edge weights are assumed to be positive.
-    n_steps: Number of steps used to approximate the heat diffusion.
+    n_steps: Number of steps used to approximate the heat kernel.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
       undirected as :math:`G + G^T`. This parameter is ignored when  directly
@@ -42,7 +41,7 @@ class Graph(geometry.Geometry):
       self,
       graph: Optional[Union[jnp.ndarray, jesp.BCOO]] = None,
       laplacian: Optional[Union[jnp.ndarray, Sparse_t]] = None,
-      epsilon: Optional[float] = 1e-3,
+      t: Optional[float] = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
@@ -52,13 +51,13 @@ class Graph(geometry.Geometry):
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide a graph or a symmetric graph Laplacian."
-    # use arbitrary epsilon; can't use `None`, `mean_cost_matrix` would be used
+    # arbitrary epsilon; can't use `None` as `mean_cost_matrix` would be used
     super().__init__(epsilon=1., **kwargs)
     self._graph = graph
     self._laplacian = laplacian
     self._solver: Optional[decomposition.CholeskySolver] = None
 
-    self._t = epsilon
+    self._t = t
     self.n_steps = n_steps
     self.numerical_scheme = numerical_scheme
     self.directed = directed
@@ -125,11 +124,10 @@ class Graph(geometry.Geometry):
       D = jnp.diag(self.graph.sum(1))
 
     # in the sparse case, we don't sum duplicates here because
-    # we would to know `nnz` a priori for JIT (could be exposed in `__init__`)
+    # we need to know `nnz` a priori for JIT (could be exposed in `__init__`)
     # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
     return D - self.graph
 
-  # TODO(michalk8): check the interactions with _FACTOR_CACHE
   @property
   def t(self) -> float:
     """Constant used when approximating the geodesic exponential kernel."""

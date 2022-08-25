@@ -158,7 +158,7 @@ class TestGraph:
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_kernel_is_symmetric_positive_definite(self, fmt: Optional[str]):
-    geom = graph.Graph(graph=random_graph(65, fmt=fmt), epsilon=1e-3)
+    geom = graph.Graph(graph=random_graph(65, fmt=fmt), t=1e-3)
 
     tol = 1e-4 if geom.is_sparse else 5e-3
     kernel = geom.kernel_matrix
@@ -171,9 +171,9 @@ class TestGraph:
   def test_automatic_t(self, fmt: Optional[str], as_laplacian: bool):
     G = random_graph(38, fmt=fmt, return_laplacian=as_laplacian)
     if as_laplacian:
-      geom = graph.Graph(laplacian=G, epsilon=None)
+      geom = graph.Graph(laplacian=G, t=None)
     else:
-      geom = graph.Graph(graph=G, epsilon=None)
+      geom = graph.Graph(graph=G, t=None)
 
     if fmt is None:
       expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
@@ -196,7 +196,7 @@ class TestGraph:
 
     gt_geom = gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph(
-        G, epsilon=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
+        G, t=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
     )
 
     np.testing.assert_allclose(
@@ -215,10 +215,8 @@ class TestGraph:
     G = random_graph(51, p=0.4, fmt=None)
     G_sp = jesp.BCOO.fromdense(G)
 
-    dense_geom = graph.Graph(G, epsilon=eps, numerical_scheme="crank_nicolson")
-    sparse_geom = graph.Graph(
-        G_sp, epsilon=eps, numerical_scheme="crank_nicolson"
-    )
+    dense_geom = graph.Graph(G, t=eps, numerical_scheme="crank_nicolson")
+    sparse_geom = graph.Graph(G_sp, t=eps, numerical_scheme="crank_nicolson")
 
     assert not dense_geom.is_sparse
     assert sparse_geom.is_sparse
@@ -282,7 +280,7 @@ class TestGraph:
     G = random_graph(11, p=0.35, fmt=fmt)
 
     gt_geom = gt_geometry(G, epsilon=eps)
-    graph_geom = graph.Graph(G, epsilon=eps)
+    graph_geom = graph.Graph(G, t=eps)
     fn = jax.jit(callback) if jit else callback
 
     gt_out = fn(gt_geom)
@@ -308,7 +306,7 @@ class TestGraph:
     ) -> float:
       G = jesp.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 
-      geom = graph.Graph(G, epsilon=1.)
+      geom = graph.Graph(G, t=1.)
       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
       problem = linear_problems.LinearProblem(geom)
 
