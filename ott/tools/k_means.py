@@ -206,7 +206,7 @@ def _update_centroids(
     const: KMeansConst, k: int, assignment: jnp.ndarray,
     dist_to_centers: jnp.ndarray
 ) -> jnp.ndarray:
-  # FIXME(michalk8):
+  # TODO(michalk8):
   # cannot put `k` into `const`, see https://github.com/ott-jax/ott/issues/129
   x_weights = jax.ops.segment_sum(const.x_weights, assignment, num_segments=k)
   centroids, ws = x_weights[:, :-1], x_weights[:, -1:]
@@ -256,7 +256,16 @@ def _k_means(
           f"`{k, geom.cost_rank}`, found `{centroids.shape}`."
       )
     n = geom.shape[0]
-    # TODO(michalk8): explain why it must be float or find a better solution
+    # TODO(michalk8): find a better solution for the below error
+    # not using floats for the assignment when `fixpoint_iter_backprop` is used:
+
+    # .../jax/_src/dtypes.py:370:
+    # .0 = <set_iterator object at 0x7f4d002a1dc0>
+    # >   CUB = set.intersection(*(UB[n] for n in N))
+    # E   jax._src.traceback_util.UnfilteredStackTrace:
+    #   KeyError: dtype([('float0', 'V')])
+    # E   The stack trace below excludes JAX-internal frames.
+    # E   The preceding is the original exception that occurred, unmodified.
     prev_assignment = jnp.full((n,), -2.)
     assignment = jnp.full((n,), -1.)
     errors = jnp.full((max_iterations,), -1.)
