@@ -139,7 +139,9 @@ class Graph(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    return -self.t * jnp.log(self.kernel_matrix)
+    kernel = self.kernel_matrix
+    eps = jnp.finfo(kernel.dtype).tiny
+    return -self.t * jnp.log(kernel + eps)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
