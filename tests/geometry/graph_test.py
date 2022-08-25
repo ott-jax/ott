@@ -1,4 +1,5 @@
-from typing import Optional, Tuple, Union
+import time
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -70,9 +71,7 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(
-      cost_matrix=cost, kernel_matrix=kernel, epsilon=epsilon
-  )
+  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
 
 
 class TestGraph:
@@ -157,14 +156,23 @@ class TestGraph:
       assert solver.L.shape == (n, n)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
-  def test_kernel_is_symmetric_positive_definite(self, fmt: Optional[str]):
-    geom = graph.Graph(graph=random_graph(65, fmt=fmt), t=1e-3)
+  def test_kernel_is_symmetric_positive_definite(
+      self, rng: jnp.ndarray, fmt: Optional[str]
+  ):
+    n = 65
+    x = jax.random.normal(rng, (n,))
+    geom = graph.Graph(graph=random_graph(n, fmt=fmt), t=1e-3)
 
     tol = 1e-4 if geom.is_sparse else 5e-3
     kernel = geom.kernel_matrix
 
+    vec0 = geom.apply_kernel(x, axis=0)
+    vec1 = geom.apply_kernel(x, axis=1)
+
     np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
+    # internally, the axis is ignored
+    np.testing.assert_array_equal(vec0, vec1)
 
   @pytest.mark.parametrize("as_laplacian", [False])
   @pytest.mark.parametrize("fmt", [None, "coo"])
@@ -190,7 +198,7 @@ class TestGraph:
   def test_approximates_ground_truth_distances(
       self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
   ):
-    eps, n_steps = 1e-4, 20
+    eps, n_steps = 1e-5, 20
     G = random_graph(27, p=0.5, fmt=fmt)
     x = jax.random.normal(rng, (G.shape[0],))
 
@@ -202,13 +210,12 @@ class TestGraph:
     np.testing.assert_allclose(
         gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-2, atol=1e-2
     )
-    for axis in [0, 1]:
-      np.testing.assert_allclose(
-          gt_geom.apply_kernel(x, axis=axis),
-          graph_geom.apply_kernel(x, axis=axis),
-          rtol=1e-2,
-          atol=1e-2
-      )
+    np.testing.assert_allclose(
+        gt_geom.apply_kernel(x),
+        graph_geom.apply_kernel(x),
+        rtol=1e-2,
+        atol=1e-2
+    )
 
   @pytest.mark.parametrize("eps", [1e-4, 1e-3])
   def test_crank_nicolson_sparse_matches_dense(self, eps: float):
@@ -236,23 +243,70 @@ class TestGraph:
       return geom.laplacian if laplacian else geom.graph
 
     G = random_graph(16, p=0.25, directed=True)
-    if jit:
-      callback = jax.jit(callback, static_argnums=1)
+    fn = jax.jit(callback, static_argnums=1) if jit else callback
 
     geom = graph.Graph(G, directed=True)
 
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(G, G.T)
 
-    G = callback(geom, laplacian=False)
-    L = callback(geom, laplacian=True)
+    G = fn(geom, laplacian=False)
+    L = fn(geom, laplacian=True)
 
     np.testing.assert_allclose(G, G.T)
     np.testing.assert_allclose(L, L.T)
 
-  def test_factor_cache(self):
-    # TODO(michalk8): finish me
-    pass
+  def test_factor_cache_time(self, rng: jnp.ndarray):
+
+    def timeit(fn: Callable[[Any], Any]) -> Callable[[Any], float]:
+
+      def decorator(*args: Any, **kwargs: Any) -> Any:
+        start = time.perf_counter()
+        _ = fn(*args, **kwargs)
+        return time.perf_counter() - start
+
+      return decorator
+
+    @timeit
+    def callback(g: graph.Graph, x: jnp.ndarray) -> jnp.ndarray:
+      return g.apply_kernel(x)
+
+    n = 256
+    G = random_graph(n, p=0.27, fmt="coo")
+    x = jax.random.normal(rng, (n,))
+    geom = graph.Graph(G)
+    key = hash(geom)
+
+    assert key not in decomposition.SparseCholeskySolver._FACTOR_CACHE
+
+    time_non_cached = callback(geom, x)
+    assert key in decomposition.SparseCholeskySolver._FACTOR_CACHE
+    time_cached = callback(geom, x)
+
+    assert time_cached < time_non_cached
+
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_factor_cache_unique(self, jit: bool):
+
+    def callback(g: graph.Graph) -> decomposition.CholeskySolver:
+      # run the decomposition
+      return g.solver
+
+    G1 = random_graph(12, p=0.7, fmt="coo")
+    G2 = random_graph(13, p=0.6, fmt="coo")
+    geom1 = graph.Graph(G1)
+    geom2 = graph.Graph(G2)
+    key1, key2 = hash(geom1), hash(geom2)
+    fn = jax.jit(callback) if jit else callback
+
+    assert key1 not in decomposition.SparseCholeskySolver._FACTOR_CACHE
+    assert key2 not in decomposition.SparseCholeskySolver._FACTOR_CACHE
+
+    _ = fn(geom1)
+    _ = fn(geom2)
+
+    assert key1 in decomposition.SparseCholeskySolver._FACTOR_CACHE
+    assert key2 in decomposition.SparseCholeskySolver._FACTOR_CACHE
 
   # Total memory allocated: 99.1MiB
   @pytest.mark.limit_memory("200 MB")
@@ -264,20 +318,24 @@ class TestGraph:
     x = jax.random.normal(rng, (L.shape[0],))
 
     geom = graph.Graph(laplacian=L, n_steps=5)
-    _ = geom.apply_kernel(x)
+    res = geom.apply_kernel(x)
+
+    assert res.shape == x.shape
 
   @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.parametrize("fmt", [None, "coo"])
-  def test_graph_sinkhorn(self, fmt: Optional[str], jit: bool):
+  @pytest.mark.parametrize("fmt", ["coo", None])
+  def test_graph_sinkhorn(
+      self, rng: jnp.ndarray, fmt: Optional[str], jit: bool
+  ):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
       problem = linear_problems.LinearProblem(geom)
       return solver(problem)
 
-    rtol = atol = 1e-3
-    eps = 5e-3
-    G = random_graph(11, p=0.35, fmt=fmt)
+    n, eps, tol = 11, 1e-5, 1e-3
+    G = random_graph(n, p=0.35, fmt=fmt)
+    x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph(G, t=eps)
@@ -288,10 +346,21 @@ class TestGraph:
 
     assert gt_out.converged
     assert graph_out.converged
-    np.testing.assert_allclose(gt_out.f, graph_out.f, rtol=rtol, atol=atol)
-    np.testing.assert_allclose(gt_out.g, graph_out.g, rtol=rtol, atol=atol)
+    np.testing.assert_allclose(
+        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
+    )
+    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
+    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
 
-    # TODO(michalk8): test output apply/materialize
+    for axis in [0, 1]:
+      y_gt = gt_out.apply(x, axis=axis)
+      y_out = graph_out.apply(x, axis=axis)
+      # note the high tolerance
+      np.testing.assert_allclose(y_gt, y_out, rtol=5e-1, atol=5e-1)
+
+    np.testing.assert_allclose(
+        gt_out.matrix, graph_out.matrix, rtol=1e-1, atol=1e-1
+    )
 
   @pytest.mark.parametrize(
       "implicit_diff", [False, True], ids=["not-implicit", "implicit"]

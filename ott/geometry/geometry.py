@@ -461,7 +461,9 @@ class Geometry:
     return self._apply_transport_from_potentials(f, g, vec, axis)
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
-  def _apply_transport_from_scalings(self, u, v, vec, axis):
+  def _apply_transport_from_scalings(
+      self, u: jnp.ndarray, v: jnp.ndarray, vec: jnp.ndarray, axis: int
+  ):
     u, v = (u, v * vec) if axis == 1 else (v, u * vec)
     return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
 

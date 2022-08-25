@@ -105,10 +105,41 @@ class Graph(geometry.Geometry):
         state=scaling,
     )
 
+  def apply_transport_from_scalings(
+      self,
+      u: jnp.ndarray,
+      v: jnp.ndarray,
+      vec: jnp.ndarray,
+      axis: int = 0
+  ) -> jnp.ndarray:
+
+    def body_fn(carry: None, vec: jnp.ndarray) -> jnp.ndarray:
+      if axis == 1:
+        return carry, u * self.apply_kernel(v * vec, axis=axis)
+      return carry, v * self.apply_kernel(u * vec, axis=axis)
+
+    if not self.is_sparse:
+      return super().apply_transport_from_scalings(u, v, vec, axis=axis)
+
+    # we solve the triangular system's on host, but
+    # batching rules are implemented only for `id_tap`, not for `call`
+    if vec.ndim == 1:
+      _, res = jax.lax.scan(body_fn, None, vec[None, :])
+      return res[0, :]
+
+    _, res = jax.lax.scan(body_fn, None, vec)
+    return res
+
   @property
   def kernel_matrix(self) -> jnp.ndarray:
     n, _ = self.shape
-    return self.apply_kernel(jnp.eye(n))
+    kernel = self.apply_kernel(jnp.eye(n))
+    # force symmetry because of numerical imprecision
+    return (kernel + kernel.T) * .5
+
+  @property
+  def cost_matrix(self) -> jnp.ndarray:
+    return -self.t * jnp.log(self.kernel_matrix)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -143,9 +174,9 @@ class Graph(geometry.Geometry):
   def _scale(self) -> float:
     """Constant to scale the Laplacian with."""
     if self.numerical_scheme == "backward_euler":
-      return self.t / (4 * self.n_steps)
+      return self.t / (4. * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2 * self.n_steps)
+      return self.t / (2. * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )
@@ -204,7 +235,12 @@ class Graph(geometry.Geometry):
     # there are some numerical imprecisions, but it should be symmetric
     return True
 
-  # TODO(michalk8): disallow more functions, test transport output
+  # TODO(michalk8): refactor geometries, use mixins for lse/kernel mode
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
+    raise ValueError("Not implemented.")
+
   def apply_transport_from_potentials(
       self,
       f: jnp.ndarray,
@@ -213,6 +249,14 @@ class Graph(geometry.Geometry):
       axis: int = 0
   ) -> jnp.ndarray:
     """Not implemented."""
+    raise ValueError("Not implemented.")
+
+  def marginal_from_potentials(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      axis: int = 0,
+  ) -> jnp.ndarray:
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
