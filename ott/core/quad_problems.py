@@ -305,18 +305,16 @@ class QuadraticProblem:
     def regulariser(tau: float) -> float:
       return epsilon._target_init * tau / (1.0 - tau) if tau != 1.0 else 0
 
-    cost = regulariser(self.tau_a) * jax.scipy.special.xlogy(
-        marginal_1, marginal_1 / jnp.clip(self.a, a_min=delta)
-    ).sum()
-    cost += regulariser(self.tau_b) * jax.scipy.special.xlogy(
-        marginal_2, marginal_2 / jnp.clip(self.b, a_min=delta)
-    ).sum()
+    marginal_1loga = jax.scipy.special.xlogy(marginal_1, self.a).sum()
+    marginal_2logb = jax.scipy.special.xlogy(marginal_2, self.b).sum()
+    cost = regulariser(self.tau_a) * (jax.scipy.special.xlogy(
+        marginal_1, marginal_1).sum() - marginal_1loga)
+    cost += regulariser(self.tau_b) * (jax.scipy.special.xlogy(
+        marginal_2, marginal_2) - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
       transport_matrix, transport_matrix).sum()
-    cost -= epsilon._target_init * jax.scipy.special.xlogy(
-      marginal_1, self.a).sum()
-    cost -= epsilon._target_init * jax.scipy.special.xlogy(
-      marginal_2, self.b).sum()
+    cost -= epsilon._target_init * marginal_1loga
+    cost -= epsilon._target_init * marginal_2logb
     return cost
 
   def init_transport(self) -> jnp.ndarray:
@@ -484,6 +482,7 @@ class QuadraticProblem:
     marginal_2 = transport.marginal(axis=0)
     marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
 
+    # This will likely break LR approaches.
     transport_matrix = transport.matrix
 
     if not self.is_balanced:
@@ -491,10 +490,10 @@ class QuadraticProblem:
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
-          transport.matrix, marginal_1, marginal_2, epsilon)
+          transport_matrix, marginal_1, marginal_2, epsilon)
 
     h1, h2 = self.quad_loss
-    tmp = apply_cost(self.geom_xx, transport.matrix, axis=1, fn=h1)
+    tmp = apply_cost(self.geom_xx, transport_matrix, axis=1, fn=h1)
     tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
