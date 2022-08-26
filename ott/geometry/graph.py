@@ -88,8 +88,11 @@ class Graph(geometry.Geometry):
       del solver_lap
 
       x_old, x_new = old_new
-      f = _safe_log(x_old) - _safe_log(x_new)
+      x_old, x_new = _safe_log(x_old), _safe_log(x_new)
+      # center
+      x_old, x_new = x_old - jnp.nanmax(x_old), x_new - jnp.nanmax(x_new)
       # Hilbert metric, see Remark 4.12 in `Computational Optimal Transport`
+      f = x_new - x_old
       return (jnp.nanmax(f) - jnp.nanmin(f)) > self._tol
 
     def body_fn(
