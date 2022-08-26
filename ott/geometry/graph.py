@@ -85,7 +85,7 @@ class Graph(geometry.Geometry):
                                                          Sparse_t]]],
         old_new: Tuple[jnp.ndarray, jnp.ndarray]
     ) -> bool:
-      del solver_lap
+      del iteration, solver_lap
 
       x_old, x_new = old_new
       x_old, x_new = _safe_log(x_old), _safe_log(x_new)
