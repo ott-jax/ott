@@ -16,6 +16,7 @@ from ott.core import implicit_differentiation as implicit_lib
 from ott.core import linear_problems, sinkhorn
 from ott.geometry import geometry, graph
 
+# we mix both dense/sparse tests
 sksparse = pytest.importorskip("sksparse")
 
 # TODO(michalk8): mark tests as fast
@@ -168,11 +169,20 @@ class TestGraph:
 
     vec0 = geom.apply_kernel(x, axis=0)
     vec1 = geom.apply_kernel(x, axis=1)
+    vec_direct0 = geom.kernel_matrix.T @ x
+    vec_direct1 = geom.kernel_matrix @ x
 
-    np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
+    # we symmetrize the kernel explicitly when materializing it, because
+    # numerical error arise  for small `t` and `backward_euler`
+    np.testing.assert_array_equal(kernel, kernel.T)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
-    # internally, the axis is ignored
+    # internally, the axis is ignored because the kernel is symmetric
     np.testing.assert_array_equal(vec0, vec1)
+    np.testing.assert_array_equal(vec_direct0, vec_direct1)
+
+    tol = tol if geom.is_sparse else 5 * tol
+    np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
+    np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("as_laplacian", [False])
   @pytest.mark.parametrize("fmt", [None, "coo"])

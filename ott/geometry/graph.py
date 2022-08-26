@@ -94,7 +94,6 @@ class Graph(geometry.Geometry):
     else:
       constants = self.solver, None
 
-    # TODO(michalk8): add cond fn if converged earlier?
     return fixed_point_loop.fixpoint_iter(
         cond_fn=lambda *_, **__: True,
         body_fn=body_fn,
