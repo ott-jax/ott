@@ -29,11 +29,14 @@ class Graph(geometry.Geometry):
       If `None`, use :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
       :cite:`crane:13`. In this case, the ``graph`` must be specified
       and the edge weights are all assumed to be positive.
-    n_steps: Number of steps used to approximate the heat kernel.
+    n_steps: Maximum number of steps used to approximate the heat kernel.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made
       undirected as :math:`G + G^T`. This parameter is ignored when  directly
       passing the Laplacian, which is assumed to be symmetric.
+    tol: Relative tolerance with respect to the Hilbert metric, see
+      :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
+      If negative, this option is ignored and only ``n_steps`` is used.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -46,6 +49,7 @@ class Graph(geometry.Geometry):
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
       directed: bool = False,
+      tol: float = -1.,
       **kwargs: Any
   ):
     assert ((graph is None and laplacian is not None) or
@@ -61,6 +65,7 @@ class Graph(geometry.Geometry):
     self.n_steps = n_steps
     self.numerical_scheme = numerical_scheme
     self.directed = directed
+    self._tol = tol
 
   def apply_kernel(
       self,
@@ -69,40 +74,62 @@ class Graph(geometry.Geometry):
       axis: int = 0,
   ) -> jnp.ndarray:
 
+    def conf_fn(
+        iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
+                                          Optional[Union[jnp.ndarray,
+                                                         Sparse_t]]],
+        old_new: Tuple[jnp.ndarray, jnp.ndarray]
+    ) -> bool:
+      del solver_lap
+
+      x_old, x_new = old_new
+      f = _safe_log(x_old) - _safe_log(x_new)
+      # Hilbert metric, see Remark 4.12 in `Computational Optimal Transport`
+      return (jnp.max(f) - jnp.min(f)) > self._tol
+
     def body_fn(
         iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
                                           Optional[Union[jnp.ndarray,
                                                          Sparse_t]]],
-        b: jnp.ndarray, compute_errors: bool
-    ) -> jnp.ndarray:
+        old_new: Tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
+    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
       del iteration, compute_errors
 
       solver, scaled_lap = solver_lap
+      _, b = old_new
+
       if self.numerical_scheme == "crank_nicolson":
         # below is a preferred way of specifying the update (albeit more FLOPS),
         # as CSR/CSC/COO matrices don't support adding a diagonal matrix now:
         # b' = (2 * I - M) @ b = (2 * I - (I + c * L)) @ b = (I - c * L) @ b
         b = b - scaled_lap @ b
-      return solver.solve(b)
+      return b, solver.solve(b)
 
     # eps we cannot use since it would require a re-solve
     # axis we can ignore since the matrix is symmetric
     del eps, axis
 
+    force_scan = self._tol < 0.
+    fixpoint_fn = (
+        fixed_point_loop.fixpoint_iter_backprop
+        if force_scan else fixed_point_loop.fixpoint_iter
+    )
+
+    state = (jnp.full_like(scaling, jnp.nan), scaling)
     if self.numerical_scheme == "crank_nicolson":
       constants = self.solver, self._scaled_laplacian
     else:
       constants = self.solver, None
 
-    return fixed_point_loop.fixpoint_iter(
-        cond_fn=lambda *_, **__: True,
+    return fixpoint_fn(
+        cond_fn=(lambda *_, **__: True) if force_scan else conf_fn,
         body_fn=body_fn,
-        min_iterations=self.n_steps,
+        min_iterations=self.n_steps if force_scan else 1,
         max_iterations=self.n_steps,
         inner_iterations=1,
         constants=constants,
-        state=scaling,
-    )
+        state=state,
+    )[1]
 
   def apply_transport_from_scalings(
       self,
@@ -139,9 +166,7 @@ class Graph(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    kernel = self.kernel_matrix
-    eps = jnp.finfo(kernel.dtype).tiny
-    return -self.t * jnp.log(kernel + eps)
+    return -self.t * _safe_log(self.kernel_matrix)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -269,6 +294,7 @@ class Graph(geometry.Geometry):
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
+        "tol": self._tol,
         **self._kwargs,
     }
 
@@ -289,3 +315,9 @@ def _sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
     return c * mat
   (data, *children), aux_data = mat.tree_flatten()
   return type(mat).tree_unflatten(aux_data, [c * data] + children)
+
+
+def _safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+  if eps is None:
+    eps = jnp.finfo(x.dtype).tiny
+  return jnp.log(x + eps)
