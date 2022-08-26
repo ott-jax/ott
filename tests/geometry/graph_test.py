@@ -19,8 +19,6 @@ from ott.geometry import geometry, graph
 # we mix both dense/sparse tests
 sksparse = pytest.importorskip("sksparse")
 
-# TODO(michalk8): mark tests as fast
-
 
 def random_graph(
     n: int,
