@@ -85,7 +85,7 @@ class Graph(geometry.Geometry):
       x_old, x_new = old_new
       f = _safe_log(x_old) - _safe_log(x_new)
       # Hilbert metric, see Remark 4.12 in `Computational Optimal Transport`
-      return (jnp.max(f) - jnp.min(f)) > self._tol
+      return (jnp.nanmax(f) - jnp.nanmin(f)) > self._tol
 
     def body_fn(
         iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
@@ -111,8 +111,8 @@ class Graph(geometry.Geometry):
 
     force_scan = self._tol < 0.
     fixpoint_fn = (
-        fixed_point_loop.fixpoint_iter_backprop
-        if force_scan else fixed_point_loop.fixpoint_iter
+        fixed_point_loop.fixpoint_iter
+        if force_scan else fixed_point_loop.fixpoint_iter_backprop
     )
 
     state = (jnp.full_like(scaling, jnp.nan), scaling)

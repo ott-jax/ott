@@ -442,3 +442,22 @@ class TestGraph:
                         G.shape) - callback(w - v_w, rows, cols, G.shape)
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+
+  def test_tolerance_hilbert_metric(self, rng: jnp.ndarray):
+    n, n_steps, t, tol = 256, 1000, 1e-3, 5e-3
+    G = random_graph(n, p=0.15)
+    x = jnp.abs(jax.random.normal(rng, (n,)))
+
+    graph_geom_no_tol = graph.Graph(G, t=t, n_steps=n_steps, tol=-1)
+    graph_geom_low_tol = graph.Graph(G, t=t, n_steps=n_steps, tol=8e-4)
+    graph_geom_high_tol = graph.Graph(G, t=t, n_steps=n_steps, tol=1e-1)
+
+    app_no_tol = graph_geom_no_tol.apply_kernel(x)
+    app_low_tol = graph_geom_low_tol.apply_kernel(x)  # does 1 iteration
+    # does 968 iterations, if it does, e.g., ~700, the assertions don't hold
+    app_high_tol = graph_geom_high_tol.apply_kernel(x)
+
+    np.testing.assert_allclose(app_no_tol, app_low_tol, rtol=tol, atol=tol)
+    np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=5e-2, atol=5e-2)
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=tol, atol=tol)
