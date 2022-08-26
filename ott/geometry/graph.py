@@ -20,6 +20,11 @@ class Graph(geometry.Geometry):
   Approximates the heat kernel for large ``n_steps``, which for small ``t``
   approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
+  For sparse graphs, :mod:`sksparse.cholmod` is required to compute the Cholesky
+  decomposition.
+  Differentiating w.r.t. the edge weights is currently possible only when the
+  graph is represented as a dense adjacency matrix.
+
   Args:
     graph: Graph represented as an adjacency matrix of shape ``[n, n]``.
       If `None`, the symmetric graph Laplacian has to be specified.

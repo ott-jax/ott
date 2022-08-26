@@ -139,12 +139,12 @@ class SparseCholeskySolver(
 ):
   r"""Sparse Cholesky solver using :func:`jax.experimental.host_callback.call`.
 
-  Uses the CHOLMOD :cite:`cholmod:08` bindings from :mod:`sksparse`.
+  Uses the CHOLMOD :cite:`cholmod:08` bindings from :mod:`sksparse.cholmod`.
 
   Args:
     A: Symmetric positive definite matrix of shape ``[n, n]``.
     beta: Decompose :math:`A + \beta * I` instead of :math:`A`.
-    key: Key used to cache :class:`sksparse.cholesky.Factor`.
+    key: Key used to cache :class:`sksparse.cholmod.Factor`.
       This key **must** be unique to ``A`` to achieve correct results.
       If `None`, use :func:`hash` of this object.
     kwargs: Keyword arguments for :func:`sksparse.cholmod.cholesky`.
@@ -199,7 +199,7 @@ class SparseCholeskySolver(
 
   @classmethod
   def clear_factor_cache(cls) -> None:
-    """Clear the :class:`sksparse.cholesky.Factor` cache."""
+    """Clear the :class:`sksparse.cholmod.Factor` cache."""
     cls._FACTOR_CACHE.clear()
 
   def __hash__(self) -> int:

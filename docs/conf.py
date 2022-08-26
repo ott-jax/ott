@@ -65,8 +65,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
-    # TODO(michalk8): fix sksparse links
-    "sksparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
+    "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
 }
 
