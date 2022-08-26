@@ -137,7 +137,8 @@ class Geometry:
     if self._cost_matrix is None:
       # If no epsilon was passed on to the geometry, then assume it is one by
       # default.
-      cost = -jnp.log(self._kernel_matrix)
+      eps = jnp.finfo(self._kernel_matrix.dtype).tiny
+      cost = -jnp.log(self._kernel_matrix + eps)
       cost *= self.inv_scale_cost
       return cost if self._epsilon_init is None else self.epsilon * cost
     return self._cost_matrix * self.inv_scale_cost

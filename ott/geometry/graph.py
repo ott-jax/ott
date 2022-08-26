@@ -134,7 +134,8 @@ class Graph(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    # force symmetry because of numerical imprecision
+    # force symmetry because of numerical imprecisions
+    # happens when `numerical_scheme='backward_euler'` and small `t`
     return (kernel + kernel.T) * .5
 
   @property
@@ -237,10 +238,11 @@ class Graph(geometry.Geometry):
     # there are some numerical imprecisions, but it should be symmetric
     return True
 
-  # TODO(michalk8): refactor geometries, use mixins for lse/kernel mode
+  # TODO(michalk8): in future, use mixins for lse/kernel mode
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray
   ) -> jnp.ndarray:
+    """Not implemented."""
     raise ValueError("Not implemented.")
 
   def apply_transport_from_potentials(
@@ -259,6 +261,7 @@ class Graph(geometry.Geometry):
       g: jnp.ndarray,
       axis: int = 0,
   ) -> jnp.ndarray:
+    """Not implemented."""
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:

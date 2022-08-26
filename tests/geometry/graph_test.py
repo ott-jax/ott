@@ -8,7 +8,7 @@ import networkx as nx
 import numpy as np
 import pytest
 from networkx.algorithms import shortest_paths
-from networkx.generators import random_graphs
+from networkx.generators import balanced_tree, random_graphs
 from typing_extensions import Literal
 
 from ott.core import decomposition
@@ -195,11 +195,11 @@ class TestGraph:
   @pytest.mark.parametrize(
       "numerical_scheme", ["backward_euler", "crank_nicolson"]
   )
-  def test_approximates_ground_truth_distances(
+  def test_approximates_ground_truth(
       self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
   ):
     eps, n_steps = 1e-5, 20
-    G = random_graph(27, p=0.5, fmt=fmt)
+    G = random_graph(37, p=0.5, fmt=fmt)
     x = jax.random.normal(rng, (G.shape[0],))
 
     gt_geom = gt_geometry(G, epsilon=eps)
@@ -216,6 +216,29 @@ class TestGraph:
         rtol=1e-2,
         atol=1e-2
     )
+
+  @pytest.mark.parametrize("n_steps", [50, 100, 200])
+  @pytest.mark.parametrize("t", [1e-4, 1e-5])
+  def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
+    tol = 5 * t
+    G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
+    G = jnp.asarray(G.A, dtype=float)
+    eye = jnp.eye(G.shape[0])
+
+    be_geom = graph.Graph(
+        G, t=t, n_steps=n_steps, numerical_scheme="backward_euler"
+    )
+    cn_geom = graph.Graph(
+        G, t=t, n_steps=n_steps, numerical_scheme="crank_nicolson"
+    )
+    eps = jnp.finfo(eye.dtype).tiny
+
+    be_cost = -t * jnp.log(be_geom.apply_kernel(eye) + eps)
+    cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
+
+    np.testing.assert_allclose(cn_cost, cn_cost.T, rtol=tol, atol=tol)
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("eps", [1e-4, 1e-3])
   def test_crank_nicolson_sparse_matches_dense(self, eps: float):
