@@ -26,9 +26,9 @@ class Graph(geometry.Geometry):
     laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
       performed. If `None`, the graph has to be specified instead.
     t: Constant used when approximating the geodesic exponential kernel.
-      If `None`, :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
-      is used :cite:`crane:13`. In this case, the ``graph`` must be specified
-      and the edge weights are assumed to be positive.
+      If `None`, use :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
+      :cite:`crane:13`. In this case, the ``graph`` must be specified
+      and the edge weights are all assumed to be positive.
     n_steps: Number of steps used to approximate the heat kernel.
     numerical_scheme: Numerical scheme used to solve the heat diffusion.
     directed: Whether the ``graph`` is directed. If not, it will be made

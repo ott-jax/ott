@@ -84,7 +84,8 @@ class TestGraph:
         _ = graph.Graph(graph=None, laplacian=None)
       else:
         G = random_graph(100)
-        _ = graph.Graph(graph=G, laplacian=G)
+        L = random_graph(100, return_laplacian=True)
+        _ = graph.Graph(graph=G, laplacian=L)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_init_graph(self, fmt: Optional[str]):
@@ -110,6 +111,7 @@ class TestGraph:
     assert geom.laplacian is L
     assert geom.graph is None
 
+  @pytest.mark.fast
   @pytest.mark.parametrize("as_laplacian", [False, True])
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_pytree(self, fmt: Optional[str], as_laplacian: bool):
@@ -156,7 +158,7 @@ class TestGraph:
       assert isinstance(solver.L, jnp.ndarray)
       assert solver.L.shape == (n, n)
 
-  @pytest.mark.parametrize("fmt", [None, "coo"])
+  @pytest.mark.fast.with_args("fmt", [None, "coo"], only_fast=0)
   def test_kernel_is_symmetric_positive_definite(
       self, rng: jnp.ndarray, fmt: Optional[str]
   ):
@@ -201,9 +203,10 @@ class TestGraph:
 
     np.testing.assert_equal(actual, expected)
 
-  @pytest.mark.parametrize("fmt", [None, "coo"])
-  @pytest.mark.parametrize(
-      "numerical_scheme", ["backward_euler", "crank_nicolson"]
+  @pytest.mark.fast.with_args(
+      numerical_scheme=["backward_euler", "crank_nicolson"],
+      fmt=[None, "coo"],
+      only_fast=0,
   )
   def test_approximates_ground_truth(
       self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
@@ -227,8 +230,11 @@ class TestGraph:
         atol=1e-2
     )
 
-  @pytest.mark.parametrize("n_steps", [50, 100, 200])
-  @pytest.mark.parametrize("t", [1e-4, 1e-5])
+  @pytest.mark.fast.with_args(
+      n_steps=[50, 100, 200],
+      t=[1e-4, 1e-5],
+      only_fast=0,
+  )
   def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
@@ -281,15 +287,16 @@ class TestGraph:
     geom = graph.Graph(G, directed=True)
 
     with pytest.raises(AssertionError):
-      np.testing.assert_allclose(G, G.T)
+      np.testing.assert_array_equal(G, G.T)
 
     G = fn(geom, laplacian=False)
     L = fn(geom, laplacian=True)
 
-    np.testing.assert_allclose(G, G.T)
-    np.testing.assert_allclose(L, L.T)
+    np.testing.assert_array_equal(G, G.T)
+    np.testing.assert_array_equal(L, L.T)
 
-  def test_factor_cache_time(self, rng: jnp.ndarray):
+  @pytest.mark.fast
+  def test_factor_cache_works(self, rng: jnp.ndarray):
 
     def timeit(fn: Callable[[Any], Any]) -> Callable[[Any], float]:
 
@@ -342,6 +349,7 @@ class TestGraph:
     assert key2 in decomposition.SparseCholeskySolver._FACTOR_CACHE
 
   # Total memory allocated: 99.1MiB
+  @pytest.mark.fast
   @pytest.mark.limit_memory("200 MB")
   def test_sparse_graph_memory(self, rng: jnp.ndarray):
     # use a graph with some structure for Cholesky to be faster
@@ -355,8 +363,12 @@ class TestGraph:
 
     assert res.shape == x.shape
 
-  @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.parametrize("fmt", ["coo", None])
+  @pytest.mark.fast.with_args(
+      jit=[False, True],
+      fmt=[None, "coo"],
+      ids=["nojit-dense", "nojit-sparse", "jit-dense", "jit-sparse"],
+      only_fast=0,
+  )
   def test_graph_sinkhorn(
       self, rng: jnp.ndarray, fmt: Optional[str], jit: bool
   ):
@@ -396,7 +408,9 @@ class TestGraph:
     )
 
   @pytest.mark.parametrize(
-      "implicit_diff", [False, True], ids=["not-implicit", "implicit"]
+      "implicit_diff",
+      [False, True],
+      ids=["not-implicit", "implicit"],
   )
   def test_dense_graph_differentiability(
       self, rng: jnp.ndarray, implicit_diff: bool
