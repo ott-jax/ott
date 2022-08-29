@@ -44,16 +44,10 @@ class LRSinkhornState(NamedTuple):
     return self._replace(**kwargs)
 
   def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
-    err_1 = ((1. / self.gamma) ** 2) * (
-        kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
-    )
-    err_2 = ((1. / self.gamma) ** 2) * (
-        kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
-    )
-    err_3 = ((1. / self.gamma) ** 2) * (
-        kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
-    )
-    return err_1 + err_2 + err_3
+    err_1 = kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
+    err_2 = kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
+    err_3 = kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
+    return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
   def reg_ot_cost(
       self,
@@ -120,9 +114,10 @@ def solution_error(
   return err
 
 
-def kl(q1: jnp.ndarray, q2: jnp.ndarray, clipping_value: float = 1e-8) -> float:
+def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
+  eps = jnp.finfo(q1.dtype).eps
   res_1 = -jsp.special.entr(q1)
-  res_2 = q1 * jnp.log(jnp.clip(q2, clipping_value))
+  res_2 = q1 * jnp.log(jnp.clip(q2, a_min=eps))
   res = res_1 - res_2
   return jnp.sum(res)
 
@@ -377,7 +372,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         state_inner: Tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
-      err = state_inner[-1]
+      *_, err = state_inner
       return err > tolerance
 
     def _softm(
@@ -431,10 +426,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g2_old = g2
       h_old = h
 
-      err = jnp.where(
+      err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          solution_error(q, r, ot_prob, self.norm_error, self.lse_mode), err
-      )[0]
+          lambda: solution_error(q, r, ot_prob, self.norm_error, self.lse_mode)[
+              0], lambda: err
+      )
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
@@ -486,6 +482,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Carries out one LR sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
+
       - log-space for numerical stability.
       - scaling space, using standard kernel-vector multiply operations.
 
@@ -506,22 +503,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state = self.kernel_step(ot_prob, state, iteration)
 
     # re-computes error if compute_error is True, else set it to inf.
-    cost = jnp.where(
+    cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.reg_ot_cost(ot_prob), jnp.inf
+        lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
     )
-    costs = state.costs.at[outer_it].set(cost)
-    # compute the criterion
     criterion = state.compute_criterion(previous_state)
-    criterions = state.criterions.at[outer_it].set(criterion)
-
-    # compute count_escape
     count_escape = state.count_escape + jnp.logical_and(
         iteration >= 2, criterion <= self.threshold * 10.
     )
 
     return state.set(
-        costs=costs, criterions=criterions, count_escape=count_escape
+        costs=state.costs.at[outer_it].set(cost),
+        criterions=state.criterions.at[outer_it].set(criterion),
+        count_escape=count_escape
     )
 
   @property
