@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, ops
+from ott.geometry import costs, geometry, ops, pointcloud
 
 
 @jax.tree_util.register_pytree_node_class
@@ -113,24 +113,20 @@ class Grid(geometry.Geometry):
 
   @property
   def cost_matrices(self) -> List[jnp.ndarray]:
-    # computes cost matrices along each dimension of the grid
+    """Cost matrices along each dimension of the grid."""
     cost_matrices = []
     for dimension, cost_fn in itertools.zip_longest(
         range(self.grid_dimension), self.cost_fns, fillvalue=self.cost_fns[-1]
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
-      cost_matrix = jax.vmap(
-          lambda x1: jax.vmap(lambda y1: cost_fn(x1, y1))  # noqa: B023
-          (x_values)  # noqa: B023
-      )(
-          x_values
+      cost_matrices.append(
+          pointcloud.PointCloud(x_values, cost_fn=cost_fn).cost_matrix
       )
-      cost_matrices.append(cost_matrix)
     return cost_matrices
 
   @property
   def kernel_matrices(self) -> List[jnp.ndarray]:
-    # computes kernel matrices from cost matrices grid
+    """Kernel matrices along each dimension of the grid."""
     kernel_matrices = []
     for cost_matrix in self.cost_matrices:
       kernel_matrices.append(jnp.exp(-cost_matrix / self.epsilon))
@@ -138,7 +134,8 @@ class Grid(geometry.Geometry):
 
   @property
   def median_cost_matrix(self) -> NoReturn:
-    raise NotImplementedError('Median cost not implemented for grids')
+    """Not implemented."""
+    raise NotImplementedError('Median cost not implemented for grids.')
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -294,6 +291,7 @@ class Grid(geometry.Geometry):
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
   ) -> NoReturn:
+    """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
         'Grid geometry cannot instantiate a transport matrix, use',
         ' apply_transport_from_potentials(...) if you wish to ',
@@ -304,17 +302,28 @@ class Grid(geometry.Geometry):
   def transport_from_scalings(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
   ) -> NoReturn:
+    """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use',
-        ' apply_transport_from_scalings(...) if you wish to ',
-        ' apply the transport matrix to a vector, or use a point '
-        ' cloud geometry instead'
+        'Grid geometry cannot instantiate a transport matrix, use ',
+        'apply_transport_from_scalings(...) if you wish to ',
+        'apply the transport matrix to a vector, or use a point '
+        'cloud geometry instead.'
     )
 
   def subset(
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
   ) -> NoReturn:
-    raise NotImplementedError("Subsetting grid is not implemented.")
+    """Not implemented."""
+    raise NotImplementedError("Subsetting is not implemented for grids.")
+
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> NoReturn:
+    """Not implemented."""
+    raise NotImplementedError("Masking is not implemented for grids.")
 
   @classmethod
   def prepare_divergences(

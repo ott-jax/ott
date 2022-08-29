@@ -69,7 +69,7 @@ class ScaleTriL:
     )
 
     # random positive definite matrix
-    sigma = jnp.matmul(jnp.expand_dims(eigs, -2) * q, jnp.transpose(q))
+    sigma = q * jnp.expand_dims(eigs, -2) @ q.T
 
     # cholesky factorization
     chol = jnp.linalg.cholesky(sigma)
@@ -117,7 +117,7 @@ class ScaleTriL:
   def covariance(self) -> jnp.ndarray:
     """Get the covariance matrix."""
     cholesky = self.cholesky()
-    return jnp.matmul(cholesky, jnp.transpose(cholesky))
+    return cholesky @ cholesky.T
 
   def covariance_sqrt(self) -> jnp.ndarray:
     """Get the square root of the covariance matrix."""
@@ -134,7 +134,7 @@ class ScaleTriL:
 
   def z_to_centered(self, z: jnp.ndarray) -> jnp.ndarray:
     """Scale standardized points to points with the specified covariance."""
-    return jnp.transpose(jnp.matmul(self.cholesky(), jnp.transpose(z)))
+    return (self.cholesky() @ z.T).T
 
   def w2_dist(self, other: 'ScaleTriL') -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian with same mean.
@@ -157,10 +157,31 @@ class ScaleTriL:
     return (cost_fn.norm(x0) + cost_fn.norm(x1) +
             cost_fn.pairwise(x0, x1))[...,]
 
+  def gaussian_map(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
+    """Scaling matrix used in transport between 0-mean Gaussians.
+
+    Sigma_mu^{-1/2} @
+      [Sigma_mu ^{1/2} Sigma_nu Sigma_mu ^{1/2}]^{1/2}
+    @ Sigma_mu ^{-1/2}
+
+    Args:
+      dest_scale: destination Scale
+
+    Returns:
+      Gaussian scaling matrix, same dimension as self.covaraince
+    """
+    sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
+    sigma1 = dest_scale.covariance()
+    m = matrix_square_root.sqrtm_only(
+        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
+    )
+    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
+    return m
+
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray
   ) -> jnp.ndarray:
-    """Transport between 0-mean normal w/ current scale to one w/ dest_scale.
+    """Apply Monge map, computed between two 0-mean Gaussians, to points.
 
     Args:
       dest_scale: destination Scale
@@ -169,13 +190,8 @@ class ScaleTriL:
     Returns:
       Points transported to a Gaussian with the new scale.
     """
-    sqrt0, sqrt0_inv = linalg.matrix_powers(self.covariance(), (0.5, -0.5))
-    sigma1 = dest_scale.covariance()
-    m = matrix_square_root.sqrtm_only(
-        jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
-    )
-    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
-    return jnp.transpose(jnp.matmul(m, jnp.transpose(points)))
+    m = self.gaussian_map(dest_scale)
+    return (m @ points.T).T
 
   def tree_flatten(self):
     children = (self.params,)

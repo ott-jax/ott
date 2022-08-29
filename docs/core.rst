@@ -34,6 +34,15 @@ Sinkhorn
     sinkhorn.Sinkhorn
     sinkhorn.SinkhornOutput
 
+Sinkhorn Dual Initializers
+--------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    initializers.DefaultInitializer
+    initializers.GaussianInitializer
+    initializers.SortingInitializer
+
 Low-Rank Sinkhorn
 -----------------
 .. autosummary::
@@ -77,4 +86,3 @@ Padding Utilities
     :toctree: _autosummary
 
     segment.segment_point_cloud
-    segment.pad_along_axis

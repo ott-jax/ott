@@ -1,9 +1,10 @@
-<img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/logoOTT.png" width="10%" alt="logo">
+<img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/logoOTT.png" width="10%" alt="logo">
 
 # Optimal Transport Tools (OTT).
 
-![Tests](https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main)
-![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)
+[![Tests](https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main)](https://github.com/ott-jax/ott/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/readthedocs/ott-jax/latest)](https://ott-jax.readthedocs.io/en/latest/)
+[![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)](https://app.codecov.io/gh/ott-jax/ott)
 
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
@@ -52,9 +53,9 @@ Currently implements the following classes and functions:
         -   In its generic `Geometry` implementation, as in [geometry.py](ott/geometry/geometry.py), an object can be initialized with either a `cost_matrix` along with an `epsilon` regularization parameter (or scheduler), or with a `kernel_matrix`.
 
         -   If one wishes to compute OT between two weighted point clouds $x=\left(x_1, \ldots, x_n\right)$ and  $y=\left(y_1, \ldots, y_m\right)$  endowed with a
-            given cost function (e.g. Euclidean) $c$, the `PointCloud`
-            class in [pointcloud.py](ott/geometry/grid.py) can be used to define the corresponding kernel
-            $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When the number of these points grows very large, this geometry can be instantiated with an `online=True` parameter, to avoid storing the kernel matrix and choose instead to recompute the matrix on the fly at each application.
+            cost function (e.g. Euclidean) $c$, the `PointCloud`
+            class in [pointcloud.py](ott/geometry/pointcloud.py) can be used to define the corresponding cost and kernel matrices
+            $C_{i j}=c\left(x_{i}, y_{j}\right)$ and $K_{i j}=\exp\left(-c\left(x_{i}, y_{j}\right) / \epsilon\right)$. When $n$ and $m$ are very large, this geometry can be instantiated with a `batch_size` parameter, to avoid storing the cost and/or kernel matrices, to recompute instead these matrices on the fly as needed, `batch_size` lines at a time, at each application.
 
         -   Simlarly, if all measures to be considered are supported on a
             separable grid (e.g. $\\{1, \ldots, n\\}^{d}$), and the cost is separable
@@ -90,7 +91,7 @@ Currently implements the following classes and functions:
 
 ## Citation
 
-If you have found this work useful, please consider citing us:
+If you have found this work useful, please consider citing this reference:
 
 ```
 @article{cuturi2022optimal,

@@ -65,9 +65,9 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       power: float = 2.0,
       batch_size: Optional[int] = None,
-      scale_cost: Optional[Union[bool, float,
-                                 Literal['mean', 'max_norm', 'max_bound',
-                                         'max_cost', 'median']]] = None,
+      scale_cost: Union[bool, int, float,
+                        Literal['mean', 'max_norm', 'max_bound', 'max_cost',
+                                'median']] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -97,7 +97,7 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self) -> Optional[jnp.ndarray]:
     if self.is_online:
       return None
-    cost_matrix = self.compute_cost_matrix()
+    cost_matrix = self._compute_cost_matrix()
     return cost_matrix * self.inv_scale_cost
 
   @property
@@ -127,39 +127,44 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    """Whether :attr:`cost_matrix` or :attr:`kernel` is computed on-the-fly."""
+    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` \
+      is computed on-the-fly."""
     return self.batch_size is not None
+
+  # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
+  @property
+  def cost_rank(self) -> int:
+    return self.x.shape[1]
 
   @property
   def inv_scale_cost(self) -> float:
-    """Compute the factor to scale the cost matrix."""
-    if isinstance(self._scale_cost, float):
+    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
       return 1.0 / self._scale_cost
-    elif self._scale_cost == 'max_cost':
+    self = self._masked_geom()
+    if self._scale_cost == 'max_cost':
       if self.is_online:
-        return self.compute_summary_online(self._scale_cost)
-      else:
-        return 1.0 / jnp.max(self.compute_cost_matrix())
-    elif self._scale_cost == 'mean':
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      return 1.0 / jnp.max(self._compute_cost_matrix())
+    if self._scale_cost == 'mean':
       if self.is_online:
-        return self.compute_summary_online(self._scale_cost)
-      else:
-        if isinstance(self.shape[0], int) and (self.shape[0] > 0):
-          return 1.0 / jnp.mean(self.compute_cost_matrix())
-    elif self._scale_cost == 'median':
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      if self.shape[0] > 0:
+        geom = self._masked_geom(mask_value=jnp.nan)._compute_cost_matrix()
+        return 1.0 / jnp.nanmean(geom)
+      return 1.0
+    if self._scale_cost == 'median':
       if not self.is_online:
-        return 1.0 / jnp.median(self.compute_cost_matrix())
-      else:
-        raise NotImplementedError(
-            """Using the median as scaling factor for
-            the cost matrix with the online mode is not implemented."""
-        )
-    elif self._scale_cost == 'max_norm':
+        geom = self._masked_geom(mask_value=jnp.nan)
+        return 1.0 / jnp.nanmedian(geom._compute_cost_matrix())
+      raise NotImplementedError(
+          "Using the median as scaling factor for "
+          "the cost matrix with the online mode is not implemented."
+      )
+    if self._scale_cost == 'max_norm':
       if self._cost_fn.norm is not None:
         return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
-      else:
-        return 1.0
-    elif self._scale_cost == 'max_bound':
+      return 1.0
+    if self._scale_cost == 'max_bound':
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(self._norm_x)
         y_argmax = jnp.argmax(self._norm_y)
@@ -168,18 +173,14 @@ class PointCloud(geometry.Geometry):
             2 * jnp.sqrt(self._norm_x[x_argmax] * self._norm_y[y_argmax])
         )
         return 1.0 / max_bound
-      else:
-        raise NotImplementedError(
-            """Using max_bound as scaling factor for
-            the cost matrix when the cost is not squared euclidean is not
-            implemented."""
-        )
-    elif isinstance(self._scale_cost, str):
-      raise ValueError(f'Scaling {self._scale_cost} not implemented.')
-    else:
-      return 1.0
+      raise NotImplementedError(
+          "Using max_bound as scaling factor for "
+          "the cost matrix when the cost is not squared euclidean "
+          "is not implemented."
+      )
+    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
-  def compute_cost_matrix(self) -> jnp.ndarray:
+  def _compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
@@ -394,7 +395,10 @@ class PointCloud(geometry.Geometry):
       return super().apply_cost(arr, axis, fn)
 
   def vec_apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      arr: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
   ) -> jnp.ndarray:
     """Apply the geometry's cost matrix in a vectorised way.
 
@@ -430,12 +434,12 @@ class PointCloud(geometry.Geometry):
       applied_cost = fn(applied_cost)
     return self.inv_scale_cost * applied_cost
 
-  def leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
+  def _leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
     start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
     slice_sizes = [self.batch_size] + list(t.shape[1:])
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
-  def compute_summary_online(
+  def _compute_summary_online(
       self, summary: Literal['mean', 'max_cost']
   ) -> float:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
@@ -450,11 +454,11 @@ class PointCloud(geometry.Geometry):
 
     def body0(carry, i: int):
       vec, = carry
-      y = self.leading_slice(self.y, i)
+      y = self._leading_slice(self.y, i)
       if self._axis_norm is None:
         norm_y = self._norm_y
       else:
-        norm_y = self.leading_slice(self._norm_y, i)
+        norm_y = self._leading_slice(self._norm_y, i)
       h_res = app(
           self.x, y, self._norm_x, norm_y, vec, self._cost_fn, self.power,
           scale_cost
@@ -463,11 +467,11 @@ class PointCloud(geometry.Geometry):
 
     def body1(carry, i: int):
       vec, = carry
-      x = self.leading_slice(self.x, i)
+      x = self._leading_slice(self.x, i)
       if self._axis_norm is None:
         norm_x = self._norm_x
       else:
-        norm_x = self.leading_slice(self._norm_x, i)
+        norm_x = self._leading_slice(self._norm_x, i)
       h_res = app(
           self.y, x, self._norm_y, norm_x, vec, self._cost_fn, self.power,
           scale_cost
@@ -503,11 +507,11 @@ class PointCloud(geometry.Geometry):
     if batch_for_y:
       fun = body0
       n = self._y_nsplit
-      vec = jnp.ones(self.shape[0]) / (self.shape[1] * self.shape[0])
+      vec, other = self._n_normed_ones, self._m_normed_ones
     else:
       fun = body1
       n = self._x_nsplit
-      vec = jnp.ones(self.shape[1]) / (self.shape[1] * self.shape[0])
+      vec, other = self._m_normed_ones, self._n_normed_ones
 
     _, val = jax.lax.scan(fun, init=(vec,), xs=jnp.arange(n))
     val = jnp.concatenate(val).squeeze()
@@ -515,13 +519,13 @@ class PointCloud(geometry.Geometry):
     val_res = jnp.concatenate([val, val_rest])
 
     if summary == 'mean':
-      return 1.0 / jnp.sum(val_res)
-    elif summary == 'max_cost':
-      return 1.0 / jnp.max(val_res)
-    else:
-      raise ValueError(
-          f'Scaling method {summary} does not exist for online mode.'
-      )
+      return jnp.sum(val_res * other)
+    if summary == 'max_cost':
+      # TODO(michalk8): explain why scaling is not needed
+      return jnp.max(val_res)
+    raise ValueError(
+        f'Scaling method {summary} does not exist for online mode.'
+    )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights, valid for p=2.0."""
@@ -531,28 +535,53 @@ class PointCloud(geometry.Geometry):
   @classmethod
   def prepare_divergences(
       cls,
-      *args: Any,
+      x: jnp.ndarray,
+      y: jnp.ndarray,
       static_b: bool = False,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
       **kwargs: Any
   ) -> Tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
-    x, y = args
-    couples = [(x, y), (x, x)] if static_b else [(x, y), (x, x), (y, y)]
-    return tuple(cls(*xy, **kwargs) for xy in couples)
+    couples = [(x, y), (x, x)]
+    masks = [(src_mask, tgt_mask), (src_mask, src_mask)]
+    if not static_b:
+      couples += [(y, y)]
+      masks += [(tgt_mask, tgt_mask)]
+
+    return tuple(
+        cls(x, y, src_mask=x_mask, tgt_mask=y_mask, **kwargs)
+        for ((x, y), (x_mask, y_mask)) in zip(couples, masks)
+    )
 
   def tree_flatten(self):
-    return ([self.x, self.y, self._epsilon, self._cost_fn], {
+    # passing self.power in aux_data to be able to condition on it.
+    return ([self.x, self.y, self._src_mask, self._tgt_mask, self._cost_fn], {
+        'epsilon': self._epsilon_init,
+        'relative_epsilon': self._relative_epsilon,
+        'scale_epsilon': self._scale_epsilon,
         'batch_size': self._batch_size,
         'power': self.power,
         'scale_cost': self._scale_cost
     })
 
-  # Passing self.power in aux_data to be able to condition on it.
-
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    x, y, eps, cost_fn = children
-    return cls(x, y, epsilon=eps, cost_fn=cost_fn, **aux_data)
+    x, y, src_mask, tgt_mask, cost_fn = children
+    return cls(
+        x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
+    )
+
+  def _cosine_to_sqeucl(self) -> 'PointCloud':
+    assert isinstance(self._cost_fn, costs.Cosine), type(self._cost_fn)
+    assert self.power == 2, self.power
+    (x, y, *args, _), aux_data = self.tree_flatten()
+    x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
+    y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
+    # TODO(michalk8): find a better way
+    aux_data["scale_cost"] = 2. / self.inv_scale_cost
+    cost_fn = costs.Euclidean()
+    return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 
   def to_LRCGeometry(
       self,
@@ -594,6 +623,8 @@ class PointCloud(geometry.Geometry):
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
+        src_mask=self.src_mask,
+        tgt_mask=self.tgt_mask,
         **self._kwargs
     )
 
@@ -601,28 +632,65 @@ class PointCloud(geometry.Geometry):
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "PointCloud":
-    """Subset rows and/or columns of a geometry.
 
-    Args:
-      src_ixs: Source indices. If ``None``, use all rows.
-      tgt_ixs: Target indices. If ``None``, use all columns.
-      kwargs: Keyword arguments for :class:`ott.geometry.pointcloud.PointCloud`.
+    def subset_fn(
+        arr: Optional[jnp.ndarray],
+        ixs: Optional[jnp.ndarray],
+    ) -> jnp.ndarray:
+      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
-    Returns:
-      The subsetted geometry.
-    """
-    (x, y, *children), aux_data = self.tree_flatten()
-    if src_ixs is not None:
-      x = x[jnp.atleast_1d(src_ixs), :]
-    if tgt_ixs is not None:
-      y = y[jnp.atleast_1d(tgt_ixs), :]
+    return self._mask_subset_helper(
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+    )
 
+  def mask(
+      self,
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
+      mask_value: float = 0.,
+  ) -> "PointCloud":
+
+    def mask_fn(
+        arr: Optional[jnp.ndarray],
+        mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
+      if arr is None or mask is None:
+        return arr
+      return jnp.where(mask[:, None], arr, mask_value)
+
+    src_mask = self._normalize_mask(src_mask, self.shape[0])
+    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+    return self._mask_subset_helper(
+        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
+    )
+
+  def _mask_subset_helper(
+      self,
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
+      *,
+      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
+                   Optional[jnp.ndarray]],
+      propagate_mask: bool,
+      **kwargs: Any,
+  ) -> "PointCloud":
+    (x, y, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
+    x = fn(x, src_ixs)
+    y = fn(y, tgt_ixs)
+    if propagate_mask:
+      src_mask = self._normalize_mask(src_mask, self.shape[0])
+      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
+      src_mask = fn(src_mask, src_ixs)
+      tgt_mask = fn(tgt_mask, tgt_ixs)
     aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(aux_data, [x, y] + children)
+
+    return type(self).tree_unflatten(
+        aux_data, [x, y, src_mask, tgt_mask] + children
+    )
 
   @property
   def batch_size(self) -> Optional[int]:
-    """Batch size when :attr:`is_online` is ``True``."""
+    """Batch size for online mode."""
     if self._batch_size is None:
       return None
     n, m = self.shape

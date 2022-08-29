@@ -9,10 +9,9 @@ from ott.core import (
     fixed_point_loop,
     gromov_wasserstein,
     linear_problems,
-    quad_problems,
     was_solver,
 )
-from ott.geometry import geometry, pointcloud
+from ott.geometry import pointcloud
 
 __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
@@ -21,9 +20,10 @@ class GWBarycenterState(NamedTuple):
   """Holds the state of the :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
-    c: Barycenter cost matrix of shape ``[k, k]``.
-    x: Barycenter features of shape ``[k, D_f]``. Only used in the fused case.
-    a: Weights of the barycenter of shape ``[k,]``.
+    c: Barycenter cost matrix of shape ``[bar_size, bar_size]``.
+    x: Barycenter features of shape ``[bar_size, ndim_fused]``.
+      Only used in the fused case.
+    a: Weights of the barycenter of shape ``[bar_size,]``.
     errors: Array of shape
       ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
       the GW errors at each iteration.
@@ -45,7 +45,8 @@ class GWBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver for :class:`~ott.core.bar_problems.GWBarycenterProblem`.
+  """Gromov-Wasserstein barycenter solver for \
+  :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
     epsilon: Entropy regulariser.
@@ -57,7 +58,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
     kwargs: Keyword argument for
-      :class:`ott.core.gromov_wasserstein.GromovWasserstein`.
+      :class:`~ott.core.gromov_wasserstein.GromovWasserstein`.
       Only used when ``quad_solver = None``.
   """
 
@@ -90,7 +91,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # TODO(michalk8): store only GW errors?
       kwargs["store_inner_errors"] = store_inner_errors
       self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
-    assert not self._quad_solver.is_low_rank, "Low rank is not yet implemented."
 
   def __call__(
       self, problem: bar_problems.GWBarycenterProblem, bar_size: int,
@@ -125,16 +125,18 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     Args:
       problem: The barycenter problem.
       bar_size: Size of the barycenter.
-      bar_init: Initial barycenter value. Can be one of following:
+      bar_init: Initial barycenter value. Can be one of the following:
 
-        - ``None`` - randomly initialize the barycenter, see also ``seed``.
-        - :class:`jax.numpy.ndarray` - barycenter cost matrix ``[k, k]``.
+        - ``None`` - randomly initialize the barycenter.
+        - :class:`jax.numpy.ndarray` - barycenter cost matrix of shape
+          ``[bar_size, bar_size]``.
           Only used in the non-fused case.
         - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
-          corresponds to ``[k, k]`` cost matrix, the 2nd array is ``[k, D_f]``
-          barycenter feature array. Only used in the fused case.
+          corresponds to ``[bar_size, bar_size]`` cost matrix,
+          the 2nd array is ``[bar_size, ndim_fused]`` a feature matrix used in
+          the fused case.
 
-      a: An array of shape ``[k,]`` containing the barycenter weights.
+      a: An array of shape ``[bar_size,]`` containing the barycenter weights.
       seed: Random seed used when ``bar_init = None``.
 
     Returns:
@@ -148,7 +150,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     if bar_init is None:
       _, b = problem.segmented_y_b
       rng = jax.random.PRNGKey(seed)
-      keys = jax.random.split(rng, problem.num_segments)
+      keys = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
 
       transports = init_transports(linear_solver, keys, a, b, problem.epsilon)
@@ -159,14 +161,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert cost.shape == (bar_size, bar_size)
       if problem.is_fused:
         assert x is not None, "Barycenter features are not initialized."
-        _, _, d = problem.segmented_y_fused.shape
-        assert x.shape == (bar_size, d)
+        assert x.shape == (bar_size, problem.ndim_fused)
 
     num_iter = self.max_iterations
     if self.store_inner_errors:
       # TODO(michalk8): in the future, think about how to do this in general
       errors = -jnp.ones((
-          num_iter, problem.num_segments, self._quad_solver.max_iterations,
+          num_iter, problem.num_measures, self._quad_solver.max_iterations,
           self._quad_solver.linear_ot_solver.outer_iterations
       ))
     else:
@@ -195,32 +196,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
         f: Optional[jnp.ndarray]
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
-      eps, scale, cost_fn = problem.epsilon, problem.scale_cost, problem.cost_fn
-
-      geom_xx = geometry.Geometry(state.cost, epsilon=eps, scale_cost=scale)
-      if problem._y_as_costs:
-        geom_yy = geometry.Geometry(y, epsilon=eps, scale_cost=scale)
-      else:
-        geom_yy = pointcloud.PointCloud(
-            y, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
-        )
-      if problem.is_fused:
-        geom_xy = pointcloud.PointCloud(
-            state.x, f, cost_fn=cost_fn, epsilon=eps, scale_cost=scale
-        )
-      else:
-        geom_xy = None
-
-      quad_problem = quad_problems.QuadraticProblem(
-          geom_xx=geom_xx,
-          geom_yy=geom_yy,
-          geom_xy=geom_xy,
-          a=state.a,
-          b=b,
-          fused_penalty=problem.fused_penalty,
-      )
+      quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
-
       return (
           out.reg_gw_cost, out.convergence, out.matrix,
           out.errors if store_errors else None
@@ -289,17 +266,19 @@ def init_transports(
   Args:
     solver: Linear OT solver.
     key: Random key.
-    a: Source marginals (e.g., for barycenter) of shape ``[k,]``.
-    b: Target marginals of shape ``[N,]``.
+    a: Source marginals (e.g., for barycenter) of shape ``[bar_size,]``.
+    b: Target marginals of shape ``[max_measure_size,]``.
     epsilon: Entropy regularization.
 
   Returns:
-    Transport map of shape ``[k, N]``.
+    Transport map of shape ``[bar_size, max_measure_size]``.
   """
   key1, key2 = jax.random.split(key, 2)
   x = jax.random.normal(key1, shape=(len(a), 2))
   y = jax.random.normal(key2, shape=(len(b), 2))
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+  geom = pointcloud.PointCloud(
+      x, y, epsilon=epsilon, src_mask=a > 0, tgt_mask=b > 0
+  )
   problem = linear_problems.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 

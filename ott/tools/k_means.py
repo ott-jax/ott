@@ -1,251 +1,367 @@
-# Copyright 2021 CR.Sparse Development Team
+# Copyright 2022 The OTT Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-The implementation in this file is based on the example provided by
-Sabrina J. Mielke
-in https://colab.research.google.com/drive/1AwS4haUx6swF82w3nXr6QKhajdF8aSvA#scrollTo=LJyoi46rIJr7
-"""
+import functools
+import math
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
-from typing import NamedTuple
-
+import jax
 import jax.numpy as jnp
-from jax import jit, lax, random, vmap
-from jax.numpy.linalg import norm
+from typing_extensions import Literal
+
+from ott.core import fixed_point_loop
+from ott.geometry import costs, pointcloud
+
+__all__ = ["k_means", "KMeansOutput"]
+
+Init_t = Union[Literal["k-means++", "random"],
+               Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
+
+
+class KPPState(NamedTuple):
+  key: jnp.ndarray
+  centroids: jnp.ndarray
+  centroid_dists: jnp.ndarray
 
 
 class KMeansState(NamedTuple):
-  """The state for K-means algorithm"""
-
   centroids: jnp.ndarray
-  """Current set of centroids"""
+  prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
-  """Current assignment of points to centroids"""
-  distortion: float
-  """ Current mean distance"""
-  prev_distortion: float
-  """ Previous mean distance"""
-  iterations: int
-  """The number of iterations it took to complete"""
+  errors: jnp.ndarray
+  center_shift: float
 
 
-class KMeansSolution(NamedTuple):
-  """The solution for K-means algorithm"""
+class KMeansOutput(NamedTuple):
+  """Output of the :func:`~ott.tools.k_means.k_means` algorithm.
 
+  Args:
+    centroids: Array of shape ``[k, ndim]`` containing the centroids.
+    assignment: Array of shape ``[n,]`` containing the labels.
+    converged: Whether the algorithm has converged.
+    iteration: The number of iterations run.
+    error: (Weighted) sum of squared distances from each point to its closest
+      center.
+    inner_errors: Array of shape ``[max_iterations,]`` containing the ``error``
+      at every iteration.
+  """
   centroids: jnp.ndarray
-  """Current set of centroids"""
   assignment: jnp.ndarray
-  """Current assignment of points to centroids"""
-  distortion: float
-  """ Current mean distance"""
-  key: jnp.ndarray
-  """ The PRNG key seed for the k-means run with least distortion"""
-  iterations: int
-  """The number of iterations it took to complete"""
+  converged: bool
+  iteration: int
+  error: float
+  inner_errors: Optional[jnp.ndarray]
 
+  @classmethod
+  def _from_state(
+      cls,
+      state: KMeansState,
+      *,
+      tol: float,
+      store_inner_errors: bool = False
+  ) -> "KMeansOutput":
+    errs = state.errors
+    mask = errs == -1
+    error = jnp.nanmin(jnp.where(mask, jnp.nan, errs))
 
-def find_nearest(point, centroids):
-  """Returns the index of the nearest centroid for a specific point
+    assignment_same = jnp.all(state.prev_assignment == state.assignment)
+    tol_satisfied = jnp.logical_or(jnp.any(mask), (errs[-2] - errs[-1]) <= tol)
+    converged = jnp.logical_or(assignment_same, tol_satisfied)
 
-    Args:
-        point (jax.numpy.ndarray) : A specific point
-        centroids (jax.numpy.ndarray) : An array of centroids
-
-    Returns:
-        (int) : The index of the nearest centroid
-    """
-  return jnp.argmin(vmap(norm)(centroids - point))
-
-
-find_nearest_jit = jit(find_nearest)
-
-
-def find_assignment(points, centroids):
-  """Finds the assignment of each point to a specific centroid
-
-    Args:
-        points (jax.numpy.ndarray) : Each row of the points matrix is a point.
-        centroids (jax.numpy.ndarray) : An array of centroids
-
-    Returns:
-        (jax.numpy.ndarray, jax.numpy.ndarray): A tuple consisting of
-
-        #. An assignment array of each point to a cluster
-        #. Distance of each point from corresponding cluster centroid
-    """
-  assignment = vmap(lambda point: find_nearest(point, centroids))(points)
-  errors = centroids[assignment, :] - points
-  distances = vmap(norm)(errors)
-  return assignment, distances
-
-
-find_assignment_jit = jit(find_assignment)
-
-
-def assignment_counts(assignment, k):
-  """Returns the number of points in each cluster based on the current assignment
-
-    If a cluster has no points, we return 1.
-    """
-  return ((assignment[jnp.newaxis, :] == jnp.arange(k)[:, jnp.newaxis]
-          ).sum(axis=1, keepdims=True).clip(min=1))
-
-
-def find_new_centroids(assignment, points, k):
-  """Finds new centroids based on current assignment
-
-    Args:
-        assignment (jax.numpy.ndarray) : current assignment of each point to a specific cluster
-        points (jax.numpy.ndarray) : Each row of the points matrix is a point.
-        k (int): The number of clusters
-    """
-  counts = assignment_counts(assignment, k)
-  new_centroids = (
-      jnp.sum(
-          jnp.where(
-              # axes: (data points, clusters, data dimension)
-              assignment[:, jnp.newaxis, jnp.newaxis]
-              == jnp.arange(k)[jnp.newaxis, :, jnp.newaxis],
-              points[:, jnp.newaxis, :],
-              0.0,
-          ),
-          axis=0,
-      ) / counts
-  )
-  return new_centroids
-
-
-find_new_centroids_jit = jit(find_new_centroids, static_argnums=(2,))
-
-
-def kmeans_with_seed(key, points, k, thresh=1e-5, max_iters=100):
-  """Runs the k-means algorithm for a specific random initialization
-
-    Args:
-        key: a PRNG key used as the random key for choosing initial centroids
-        points (jax.numpy.ndarray): Each row of the points matrix is a point.
-        k (int): The number of clusters
-        thresh (float): Convergence threshold on change in distortion
-        max_iters (int): Maximum number of iterations for k-means algorithm
-
-    Returns:
-        (KMeansState): A named tuple consisting of:
-        centroids for each cluster, assignment of each point to a cluster,
-        current distorition, previous distortion, number of iterations
-        for convergence.
-    """
-  # number of points
-  n = points.shape[0]
-
-  def init():
-    # select k points as initial centroids randomly
-    indices = random.permutation(key, jnp.arange(n))[:k]
-    # the initial centroids
-    centroids = points[indices, :]
-    # assign all points to centroids and compute distances
-    assignment, distances = find_assignment(points, centroids)
-    distortion = jnp.mean(distances)
-    # algorithm state
-    return KMeansState(
-        centroids=centroids,
-        assignment=assignment,
-        distortion=distortion,
-        prev_distortion=jnp.inf,
-        iterations=0,
+    return cls(
+        centroids=state.centroids,
+        assignment=state.assignment,
+        converged=converged,
+        iteration=jnp.sum(~mask),
+        error=error,
+        inner_errors=errs if store_inner_errors else None,
     )
 
-  def body(state):
-    # update centroids
-    centroids = find_new_centroids(state.assignment, points, k)
-    # update assignment
-    assignment, distances = find_assignment(points, centroids)
-    # mean distance
-    distortion = jnp.mean(distances)
-    # algorithm state
-    return KMeansState(
-        centroids=centroids,
-        assignment=assignment,
-        distortion=distortion,
-        prev_distortion=state.distortion,
-        iterations=state.iterations + 1,
+
+def _random_init(
+    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+) -> jnp.ndarray:
+  ixs = jnp.arange(geom.shape[0])
+  ixs = jax.random.choice(key, ixs, shape=(k,), replace=False)
+  return geom.subset(ixs, None).x
+
+
+def _k_means_plus_plus(
+    geom: pointcloud.PointCloud,
+    k: int,
+    key: jnp.ndarray,
+    n_local_trials: Optional[int] = None,
+) -> jnp.ndarray:
+
+  def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
+    key, next_key = jax.random.split(key, 2)
+    ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
+    centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
+    dists = geom.subset(ix, None).cost_matrix[0]
+    return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
+
+  def body_fn(
+      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
+      state: KPPState, compute_error: bool
+  ) -> KPPState:
+    del compute_error
+    key, next_key = jax.random.split(state.key, 2)
+    geom, ixs = const
+
+    # no need to normalize when `replace=True`
+    probs = state.centroid_dists
+    ixs = jax.random.choice(
+        key, ixs, shape=(n_local_trials,), p=probs, replace=True
+    )
+    geom = geom.subset(ixs, None)
+
+    candidate_dists = jnp.minimum(geom.cost_matrix, state.centroid_dists)
+    best_ix = jnp.argmin(candidate_dists.sum(1))
+
+    centroids = state.centroids.at[iteration + 1].set(geom.x[best_ix])
+    centroid_dists = candidate_dists[best_ix]
+
+    return KPPState(
+        key=next_key, centroids=centroids, centroid_dists=centroid_dists
     )
 
-  def cond(state):
-    # check if the mean distance has updated enough
-    gap = state.prev_distortion - state.distortion
-    # print(state.prev_distortion, state.distortion, gap, thresh, gap > thresh)
-    return jnp.logical_and(gap > thresh, state.iterations < max_iters)
+  if n_local_trials is None:
+    n_local_trials = 2 + int(math.log(k))
+  assert n_local_trials > 0, n_local_trials
 
-  # state = init()
-  # while cond(state):
-  #     state = body(state)
-  state = lax.while_loop(cond, body, init())
-  return state
-
-
-kmeans_with_seed_jit = jit(kmeans_with_seed, static_argnums=(2, 3))
-
-
-def kmeans(key, points, k, iter=20, thresh=1e-5, max_iters=100):
-  r"""Clusters points using k-means algorithm
-
-    Args:
-        key: a PRNG key used as the random key
-        points (jax.numpy.ndarray): Each row of the points matrix is a point.
-          From the statistical point of view, each row is an observation vector
-          and each column is a feature.
-        k (int): The number of clusters
-        iter (int): The number of times k-means will be restarted with
-          different seeds. The result with least amount of distortion is returned.
-        thresh (float): Convergence threshold on change in distortion
-        max_iters (int): Maximum number of iterations for each replicate of k-means algorithm
-
-    Returns:
-        (KMeansSolution): A named tuple consisting of:
-
-        * centroids : centroid for each cluster
-        * assignment: assignment of each point to a cluster
-        * distortion: distortion after current assignment
-        * key: The PRNG key seed for the k-means run with the least distortion
-        * iterations: number of iterations taken in convergence
-
-    Let the k centroids be :math:`m_1, m_2, \dots, m_k`.
-    Let the n points be :math:`x_1, x_2, \dots, x_n`.
-    Let the assignment of i-th point to j-th cluster be given by
-    :math:`a_1, a_2, \dots, a_n` where :math:`1 \leq a_i = j \leq k`.
-
-    Then the distance of i-th point from its centroid is given by:
-
-    .. math::
-
-        d_i = \| x_i - m_{a_i} \|_2
-
-    The distortion is given by the mean of all the distances.
-    """
-  # keys for each restart of kmeans algorithm
-  keys = random.split(key, iter)
-  # individual run of k-means algorithm
-  kmeans_core = lambda key: kmeans_with_seed(
-      key, points, k, thresh=thresh, max_iters=max_iters
+  state = init_fn(geom, key)
+  constants = (geom, jnp.arange(geom.shape[0]))
+  state = fixed_point_loop.fixpoint_iter(
+      lambda *_, **__: True,
+      body_fn,
+      min_iterations=k - 1,
+      max_iterations=k - 1,
+      inner_iterations=1,
+      constants=constants,
+      state=state
   )
-  # Run all restarts of kmeans using vmap
-  results = vmap(kmeans_core, 0, 0)(keys)
-  # Find the run with the least distortion
-  i = jnp.argmin(results.distortion)
-  return KMeansSolution(
-      centroids=results.centroids[i],
-      assignment=results.assignment[i],
-      distortion=results.distortion[i],
-      key=keys[i],
-      iterations=results.iterations[i],
+
+  return state.centroids
+
+
+@functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
+def _k_means(
+    key: jnp.ndarray,
+    geom: pointcloud.PointCloud,
+    k: int,
+    weights: Optional[jnp.ndarray] = None,
+    init: Init_t = "k-means++",
+    n_local_trials: Optional[int] = None,
+    tol: float = 1e-4,
+    min_iterations: int = 0,
+    max_iterations: int = 300,
+    store_inner_errors: bool = False,
+) -> KMeansOutput:
+
+  def center_shift(
+      old_centroids: jnp.ndarray, new_centroids: jnp.ndarray
+  ) -> float:
+    return jnp.linalg.norm(old_centroids - new_centroids, ord="fro") ** 2
+
+  @functools.partial(jax.vmap, in_axes=[0, 0, 0], out_axes=0)
+  def reallocate_centroids(
+      ix: jnp.ndarray,
+      centroid: jnp.ndarray,
+      weight: jnp.ndarray,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    is_empty = weight <= 0.
+    new_centroid = (1 - is_empty) * centroid + is_empty * geom.x[ix]
+    centroid_to_remove = is_empty * weighted_x[ix, :-1]
+    weight_to_remove = is_empty * weights[ix]
+    return new_centroid, jnp.concatenate([centroid_to_remove, weight_to_remove])
+
+  def update_assignment(
+      centroids: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    (x, _, *args), aux_data = geom.tree_flatten()
+    cost_matrix = pointcloud.PointCloud.tree_unflatten(
+        aux_data, [x, centroids] + args
+    ).cost_matrix
+
+    assignment = jnp.argmin(cost_matrix, axis=1)
+    dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
+    return assignment, dist_to_centers
+
+  def update_centroids(
+      assignment: jnp.ndarray, dist_to_centers: jnp.ndarray
+  ) -> jnp.ndarray:
+    data = jax.ops.segment_sum(weighted_x, assignment, num_segments=k)
+    centroids, ws = data[:, :-1], data[:, -1:]
+
+    far_ixs = jnp.argsort(dist_to_centers)[-k:][::-1]
+    centroids, to_remove = reallocate_centroids(far_ixs, centroids, ws)
+    to_remove = jax.ops.segment_sum(
+        to_remove, assignment[far_ixs], num_segments=k
+    )
+    centroids -= to_remove[:, :-1]
+    ws -= to_remove[:, -1:]
+
+    return centroids * jnp.where(ws > 0., 1. / ws, 1.)
+
+  def init_fn(init: Init_t) -> KMeansState:
+    if init == "k-means++":
+      init = functools.partial(
+          _k_means_plus_plus, n_local_trials=n_local_trials
+      )
+    elif init == "random":
+      init = _random_init
+    if not callable(init):
+      raise TypeError(
+          f"Expected `init` to be 'k-means++', 'random' "
+          f"or a callable, found `{init_fn!r}`."
+      )
+
+    centroids = init(geom, k, key)
+    if centroids.shape != (k, geom.cost_rank):
+      raise ValueError(
+          f"Expected initial centroids to have shape "
+          f"`{k, geom.cost_rank}`, found `{centroids.shape}`."
+      )
+    n = geom.shape[0]
+    prev_assignment = jnp.full((n,), -2)
+    assignment = jnp.full((n,), -1)
+    errors = jnp.full((max_iterations,), -1.)
+
+    return KMeansState(
+        centroids=centroids,
+        prev_assignment=prev_assignment,
+        assignment=assignment,
+        center_shift=jnp.inf,
+        errors=errors,
+    )
+
+  def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
+    del const
+    assignment_not_same = jnp.any(state.prev_assignment != state.assignment)
+    tol_not_satisfied = state.center_shift > tol
+    return jnp.logical_and(assignment_not_same, tol_not_satisfied)
+
+  def body_fn(
+      iteration: int, const: Any, state: KMeansState, compute_error: bool
+  ) -> KMeansState:
+    del compute_error, const
+
+    assignment, dist_to_centers = update_assignment(state.centroids)
+    centroids = update_centroids(assignment, dist_to_centers)
+    err = jnp.sum(weights * dist_to_centers)
+    errors = state.errors.at[iteration].set(err)
+
+    return KMeansState(
+        centroids=centroids,
+        prev_assignment=state.assignment,
+        assignment=assignment,
+        center_shift=center_shift(state.centroids, centroids),
+        errors=errors,
+    )
+
+  def finalize_assignment(state: KMeansState) -> KMeansState:
+    last_iter = jnp.sum(state.errors != -1) - 1
+    assignment, dist_to_centers = update_assignment(state.centroids)
+    err = jnp.sum(weights * dist_to_centers)
+    return state._replace(
+        assignment=assignment, errors=state.errors.at[last_iter].set(err)
+    )
+
+  weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
+  state = fixed_point_loop.fixpoint_iter(
+      cond_fn,
+      body_fn,
+      min_iterations=min_iterations,
+      max_iterations=max_iterations,
+      inner_iterations=1,
+      constants=None,
+      state=init_fn(init)
   )
+  state = jax.lax.cond(
+      jnp.all(state.prev_assignment == state.assignment), lambda _: _,
+      finalize_assignment, state
+  )
+
+  return KMeansOutput._from_state(
+      state, tol=tol, store_inner_errors=store_inner_errors
+  )
+
+
+def k_means(
+    geom: Union[jnp.ndarray, pointcloud.PointCloud],
+    k: int,
+    weights: Optional[jnp.ndarray] = None,
+    init: Init_t = "k-means++",
+    n_init: int = 10,
+    n_local_trials: Optional[int] = None,
+    tol: float = 1e-4,
+    min_iterations: int = 0,
+    max_iterations: int = 300,
+    store_inner_errors: bool = False,
+    key: Optional[jnp.ndarray] = None,
+) -> KMeansOutput:
+  r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
+
+  Args:
+    geom: Point cloud of shape ``[n, ndim]`` to cluster. If passed as an array,
+      :class:`~ott.geometry.costs.Euclidean` cost is assumed.
+    k: The number of clusters.
+    weights: The weights of input points. These weights are considered when
+      computing the centroids and inertia. If ``None``, use uniform weights.
+    init: Initialization method. Can be one of the following:
+
+      - **'k-means++'** - select initial centroids that are
+        :math:`\mathcal{O}(\log k)`-optimal :cite:`arthur:07`.
+      - **'random'** - randomly select ``k`` points from the ``geom``.
+      - :func:`callable` - a function which takes the point cloud, the number of
+        clusters and a random key and returns the centroids as an array of shape
+        ``[k, ndim]``.
+
+    n_init: Number of times k-means will run with different initial seeds.
+    n_local_trials: Number of local trials when ``init = 'k-means++'``.
+      If ``None``, :math:`2 + \lfloor log(k) \rfloor` is used.
+    tol: Relative tolerance with respect to the Frobenius norm of the centroids'
+      shift between two consecutive iterations.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
+    store_inner_errors: Whether to store the errors (inertia) at each iteration.
+    key: Random key to seed the initializations.
+
+  Returns:
+    The k-means clustering result.
+  """
+  if isinstance(geom, jnp.ndarray):
+    geom = pointcloud.PointCloud(geom)
+  if isinstance(geom._cost_fn, costs.Cosine):
+    geom = geom._cosine_to_sqeucl()
+  assert geom.is_squared_euclidean
+
+  if geom.is_online:
+    # to allow materializing the cost matrix
+    children, aux_data = geom.tree_flatten()
+    aux_data["batch_size"] = None
+    geom = type(geom).tree_unflatten(aux_data, children)
+
+  if weights is None:
+    weights = jnp.ones(geom.shape[0])
+  assert weights.shape == (geom.shape[0],)
+
+  if key is None:
+    key = jax.random.PRNGKey(0)
+  keys = jax.random.split(key, n_init)
+  out = _k_means(
+      keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
+      max_iterations, store_inner_errors
+  )
+  best_ix = jnp.argmin(out.error)
+  return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)

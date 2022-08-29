@@ -54,9 +54,10 @@ class CostFn(abc.ABC):
     return jnp.zeros((1, dim))
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    return self.pairwise(
-        x, y
-    ) + (0 if self.norm is None else self.norm(x) + self.norm(y))
+    cost = self.pairwise(x, y)
+    if self.norm is None:
+      return cost
+    return cost + self.norm(x) + self.norm(y)
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all costs (including norms) for vectors in x / y.
@@ -99,7 +100,7 @@ class Euclidean(CostFn):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
-    return -2 * jnp.vdot(x, y)
+    return -2. * jnp.vdot(x, y)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Output barycenter of vectors when using squared-Euclidean distance."""
@@ -121,7 +122,8 @@ class Cosine(CostFn):
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
-    return cosine_distance
+    # similarity is in [-1, 1], clip because of numerical imprecisions
+    return jnp.clip(cosine_distance, 0., 2.)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     raise NotImplementedError("Barycenter for cosine cost not yet implemented.")

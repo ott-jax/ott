@@ -406,6 +406,20 @@ class TestSinkhorn:
           geom.scaling_from_potential(out.f),
           geom.scaling_from_potential(out.g)
       )
+
+    if lse_mode:
+      default_a = jnp.zeros_like(init_dual_a)
+      default_b = jnp.zeros_like(init_dual_b)
+    else:
+      default_a = jnp.ones_like(init_dual_a)
+      default_b = jnp.ones_like(init_dual_b)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(default_a, init_dual_a)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(default_b, init_dual_b)
+
     out_restarted = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -416,6 +430,7 @@ class TestSinkhorn:
         init_dual_b=init_dual_b,
         inner_iterations=1
     )
+
     errors_restarted = out_restarted.errors
     err_restarted = errors_restarted[errors_restarted > -1][-1]
     assert threshold > err_restarted
