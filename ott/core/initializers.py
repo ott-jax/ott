@@ -21,6 +21,8 @@ import jax.numpy as jnp
 from ott.core import linear_problems
 from ott.geometry import pointcloud
 
+__all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
+
 
 @jax.tree_util.register_pytree_node_class
 class SinkhornInitializer(ABC):

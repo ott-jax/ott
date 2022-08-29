@@ -394,9 +394,8 @@ class Sinkhorn:
     # In that case, we add this exponent to the list of errors to compute,
     # notably if that was not the error requested by the user.
     if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
-      return (self._norm_error, 1)
-    else:
-      return (self._norm_error,)
+      return self._norm_error, 1
+    return self._norm_error,
 
   def __call__(
       self,
