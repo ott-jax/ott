@@ -44,12 +44,12 @@ class TestLRSinkhorn:
 
   @pytest.mark.fast.with_args(
       use_lrcgeom=[True, False],
-      init_type=["rank_2", "random", "k-means"],
+      initializer=["rank_2", "random", "k-means"],
       gamma_rescale=[False, True],
       only_fast=0,
   )
   def test_euclidean_point_cloud(
-      self, use_lrcgeom: bool, init_type: str, gamma_rescale: bool
+      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
     threshold = 1e-3
@@ -66,7 +66,7 @@ class TestLRSinkhorn:
         rank=10,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
-        init_type=init_type,
+        initializer=initializer,
     )
     solved = solver(ot_prob)
     costs = solved.costs
@@ -89,7 +89,7 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
-        init_type=init_type,
+        initializer=initializer,
     )
     out = solver(ot_prob)
     costs = out.costs
@@ -110,7 +110,7 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=1e-1,
         gamma_rescale=gamma_rescale,
-        init_type=init_type,
+        initializer=initializer,
     )
     out = solver(ot_prob)
     costs = out.costs
