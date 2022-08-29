@@ -43,17 +43,16 @@ class LRSinkhornState(NamedTuple):
     return self._replace(**kwargs)
 
   def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
-    err_1 = ((1 / self.gamma) ** 2) * (
+    err_1 = ((1. / self.gamma) ** 2) * (
         kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
     )
-    err_2 = ((1 / self.gamma) ** 2) * (
+    err_2 = ((1. / self.gamma) ** 2) * (
         kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
     )
-    err_3 = ((1 / self.gamma) ** 2) * (
+    err_3 = ((1. / self.gamma) ** 2) * (
         kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
     )
-    criterion = err_1 + err_2 + err_3
-    return criterion
+    return err_1 + err_2 + err_3
 
   def reg_ot_cost(
       self,
@@ -314,33 +313,32 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return run_fn(ot_prob, self, init)
 
   def lr_costs(
-      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
-      iteration: int
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      state: LRSinkhornState,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     log_q, log_r, log_g = jnp.log(state.q), jnp.log(state.r), jnp.log(state.g)
 
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    grad_q = jnp.where(self.is_entropic, grad_q + self.epsilon * log_q, grad_q)
-
     grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    grad_r = jnp.where(self.is_entropic, grad_r + self.epsilon * log_r, grad_r)
-
     diag_qcr = jnp.sum(
         state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
     )
-    grad_g = -(diag_qcr) / (state.g ** 2)
-    grad_g = jnp.where(self.is_entropic, grad_g + self.epsilon * log_g, grad_g)
+    grad_g = -diag_qcr / (state.g ** 2)
+    if self.is_entropic:
+      grad_q += self.epsilon * log_q
+      grad_r += self.epsilon * log_r
+      grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
       norm_q = jnp.max(jnp.abs(grad_q)) ** 2
       norm_r = jnp.max(jnp.abs(grad_r)) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      # TODO(michalk8): check differentiabilty
-      self.gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+      self.gamma /= jnp.max(jnp.array([norm_q, norm_r, norm_g]))
 
-    c_q = grad_q - (1 / self.gamma) * log_q
-    c_r = grad_r - (1 / self.gamma) * log_r
-    h = -grad_g + (1 / self.gamma) * log_g
+    c_q = grad_q - (1. / self.gamma) * log_q
+    c_r = grad_r - (1. / self.gamma) * log_r
+    h = -grad_g + (1. / self.gamma) * log_g
     return c_q, c_r, h
 
   def dysktra_update(
@@ -349,8 +347,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       c_r: jnp.ndarray,
       h: jnp.ndarray,
       ot_prob: linear_problems.LinearProblem,
-      state: LRSinkhornState,
-      iteration: int,
       min_entry_value: float = 1e-6,
       tolerance: float = 1e-3,
       min_iter: int = 0,
@@ -452,11 +448,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
+    c_q, c_r, h = self.lr_costs(ot_prob, state)
     gamma = self.gamma
-    q, r, g = self.dysktra_update(
-        c_q, c_r, h, ot_prob, state, iteration, **self.kwargs_dys
-    )
+    q, r, g = self.dysktra_update(c_q, c_r, h, ot_prob, **self.kwargs_dys)
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
@@ -487,28 +481,27 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       The updated state.
     """
     previous_state = state
+    outer_it = iteration // self.inner_iterations
     if self.lse_mode:  # In lse_mode, run additive updates.
       state = self.lse_step(ot_prob, state, iteration)
     else:
       state = self.kernel_step(ot_prob, state, iteration)
-
-    # compute the criterion
-    criterion = state.compute_criterion(previous_state)
-
-    # compute count_escape
-    tol = self.threshold
-    count_escape = state.count_escape + jnp.logical_and(
-        iteration >= 2, criterion <= tol * 10.
-    )
 
     # re-computes error if compute_error is True, else set it to inf.
     cost = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         state.reg_ot_cost(ot_prob), jnp.inf
     )
-    costs = state.costs.at[iteration // self.inner_iterations].set(cost)
-    criterions = state.criterions.at[iteration //
-                                     self.inner_iterations].set(criterion)
+    costs = state.costs.at[outer_it].set(cost)
+    # compute the criterion
+    criterion = state.compute_criterion(previous_state)
+    criterions = state.criterions.at[outer_it].set(criterion)
+
+    # compute count_escape
+    count_escape = state.count_escape + jnp.logical_and(
+        iteration >= 2, criterion <= self.threshold * 10.
+    )
+
     return state.set(
         costs=costs, criterions=criterions, count_escape=count_escape
     )
@@ -552,19 +545,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
-    gamma = self.gamma
     q, r, g = init
-    costs = -jnp.ones(self.outer_iterations)
-    criterions = -jnp.ones(self.outer_iterations)
-    count_escape = 1
     return LRSinkhornState(
         q=q,
         r=r,
         g=g,
-        gamma=gamma,
-        costs=costs,
-        criterions=criterions,
-        count_escape=count_escape
+        gamma=self.gamma,
+        costs=-jnp.ones(self.outer_iterations),
+        criterions=-jnp.ones(self.outer_iterations),
+        count_escape=1,
     )
 
   def output_from_state(
