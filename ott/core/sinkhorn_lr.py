@@ -19,6 +19,7 @@ from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
 from ott.core import fixed_point_loop
@@ -120,7 +121,7 @@ def solution_error(
 
 
 def kl(q1: jnp.ndarray, q2: jnp.ndarray, clipping_value: float = 1e-8) -> float:
-  res_1 = -jax.scipy.special.entr(q1)
+  res_1 = -jsp.special.entr(q1)
   res_2 = q1 * jnp.log(jnp.clip(q2, clipping_value))
   res = res_1 - res_2
   return jnp.sum(res)
@@ -316,7 +317,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self,
       ot_prob: linear_problems.LinearProblem,
       state: LRSinkhornState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     log_q, log_r, log_g = jnp.log(state.q), jnp.log(state.r), jnp.log(state.g)
 
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
@@ -334,18 +335,21 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       norm_q = jnp.max(jnp.abs(grad_q)) ** 2
       norm_r = jnp.max(jnp.abs(grad_r)) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      self.gamma /= jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+      gamma = state.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+    else:
+      gamma = state.gamma
 
-    c_q = grad_q - (1. / self.gamma) * log_q
-    c_r = grad_r - (1. / self.gamma) * log_r
-    h = -grad_g + (1. / self.gamma) * log_g
-    return c_q, c_r, h
+    c_q = grad_q - (1. / gamma) * log_q
+    c_r = grad_r - (1. / gamma) * log_r
+    h = -grad_g + (1. / gamma) * log_g
+    return c_q, c_r, h, gamma
 
   def dysktra_update(
       self,
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
       h: jnp.ndarray,
+      gamma: float,
       ot_prob: linear_problems.LinearProblem,
       min_entry_value: float = 1e-6,
       tolerance: float = 1e-3,
@@ -379,8 +383,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     def _softm(
         f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
     ) -> jnp.ndarray:
-      return jax.scipy.special.logsumexp(
-          self.gamma * (f[:, None] + g[None, :] - c), axis=axis
+      return jsp.special.logsumexp(
+          gamma * (f[:, None] + g[None, :] - c), axis=axis
       )
 
     def body_fn(
@@ -394,15 +398,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       # First Projection
       f1 = jnp.where(
           jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, axis=1)) / self.gamma + f1, loga
+          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
       )
       f2 = jnp.where(
           jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, axis=1)) / self.gamma + f2, logb
+          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
       )
 
       h = h_old + w_gi
-      h = jnp.maximum(jnp.log(min_entry_value) / self.gamma, h)
+      h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
       w_gi += h_old - h
       h_old = h
 
@@ -411,17 +415,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g_r = _softm(f2, g2_old, c_r, axis=0)
 
       # Second Projection
-      h = (1. / 3) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3. * self.gamma)
-      h += g_r / (3. * self.gamma)
-      g1 = h + g1_old - g_q / self.gamma
-      g2 = h + g2_old - g_r / self.gamma
+      h = (1. / 3.) * (h_old + w_gp + w_q + w_r)
+      h += g_q / (3. * gamma)
+      h += g_r / (3. * gamma)
+      g1 = h + g1_old - g_q / gamma
+      g2 = h + g2_old - g_r / gamma
 
       w_q = w_q + g1_old - g1
       w_r = w_r + g2_old - g2
       w_gp = h_old + w_gp - h
 
-      q, r, _ = self.recompute_couplings(f1, g1, c_q, f2, g2, c_r, h)
+      q, r, _ = recompute_couplings(f1, g1, c_q, f2, g2, c_r, h, gamma)
 
       g1_old = g1
       g2_old = g2
@@ -434,32 +438,38 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
+    def recompute_couplings(
+        f1: jnp.ndarray,
+        g1: jnp.ndarray,
+        c_q: jnp.ndarray,
+        f2: jnp.ndarray,
+        g2: jnp.ndarray,
+        c_r: jnp.ndarray,
+        h: jnp.ndarray,
+        gamma: float,
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
+      r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
+      g = jnp.exp(gamma * h)
+      return q, r, g
+
     state_inner = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
 
-    q, r, g = self.recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old)
-    return q, r, g
-
-  def recompute_couplings(
-      self, f1: jnp.ndarray, g1: jnp.ndarray, c_q: jnp.ndarray, f2: jnp.ndarray,
-      g2: jnp.ndarray, c_r: jnp.ndarray, h: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    q = jnp.exp(self.gamma * (f1[:, None] + g1[None, :] - c_q))
-    r = jnp.exp(self.gamma * (f2[:, None] + g2[None, :] - c_r))
-    g = jnp.exp(self.gamma * h)
-    return q, r, g
+    return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
 
   def lse_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    c_q, c_r, h = self.lr_costs(ot_prob, state)
-    gamma = self.gamma
-    q, r, g = self.dysktra_update(c_q, c_r, h, ot_prob, **self.kwargs_dys)
+    c_q, c_r, h, gamma = self.lr_costs(ot_prob, state)
+    q, r, g = self.dysktra_update(
+        c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
+    )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
@@ -587,8 +597,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
-    criterions, count_escape, i, tol = state.criterions, state.count_escape, iteration, self.threshold
-    criterion = criterions[i - 1]
+    count_escape, i, tol = state.count_escape, iteration, self.threshold
+    criterion = state.criterions[i - 1]
+
     cond_1 = jnp.logical_and(
         jnp.logical_not(i < 2), jnp.logical_not(criterion <= tol / 1e-1)
     )
