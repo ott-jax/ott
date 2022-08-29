@@ -368,28 +368,37 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
     constants = c_q, c_r, loga, logb
 
-    def cond_fn(iteration, constants, state_inner):
+    def cond_fn(
+        iteration: int, constants: Tuple[jnp.ndarray],
+        state_inner: Tuple[jnp.ndarray, ...]
+    ) -> bool:
       del iteration, constants
       err = state_inner[-1]
       return err > tolerance
 
-    def _softm(f, g, c, axis):
+    def _softm(
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+    ) -> jnp.ndarray:
       return jax.scipy.special.logsumexp(
           self.gamma * (f[:, None] + g[None, :] - c), axis=axis
       )
 
-    def body_fn(iteration, constants, state_inner, compute_error):
+    def body_fn(
+        iteration: int, constants: Tuple[jnp.ndarray],
+        state_inner: Tuple[jnp.ndarray], compute_error: bool
+    ) -> Tuple[jnp.ndarray, ...]:
+      # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
 
       # First Projection
       f1 = jnp.where(
           jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, 1)) / self.gamma + f1, loga
+          (loga - _softm(f1, g1_old, c_q, axis=1)) / self.gamma + f1, loga
       )
       f2 = jnp.where(
           jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2, logb
+          (logb - _softm(f2, g2_old, c_r, axis=1)) / self.gamma + f2, logb
       )
 
       h = h_old + w_gi
@@ -398,13 +407,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       # Update couplings
-      g_q = _softm(f1, g1_old, c_q, 0)
-      g_r = _softm(f2, g2_old, c_r, 0)
+      g_q = _softm(f1, g1_old, c_q, axis=0)
+      g_r = _softm(f2, g2_old, c_r, axis=0)
 
       # Second Projection
-      h = (1 / 3) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3 * self.gamma)
-      h += g_r / (3 * self.gamma)
+      h = (1. / 3) * (h_old + w_gp + w_q + w_r)
+      h += g_q / (3. * self.gamma)
+      h += g_r / (3. * self.gamma)
       g1 = h + g1_old - g_q / self.gamma
       g2 = h + g2_old - g_r / self.gamma
 
