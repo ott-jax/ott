@@ -335,9 +335,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       norm_q = jnp.max(jnp.abs(grad_q)) ** 2
       norm_r = jnp.max(jnp.abs(grad_r)) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      gamma = state.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+      gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
     else:
-      gamma = state.gamma
+      gamma = self.gamma
 
     c_q = grad_q - (1. / gamma) * log_q
     c_r = grad_r - (1. / gamma) * log_r
@@ -458,7 +458,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
-
     return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
 
   def lse_step(
