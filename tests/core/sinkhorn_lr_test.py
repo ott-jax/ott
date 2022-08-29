@@ -45,7 +45,7 @@ class TestLRSinkhorn:
   @pytest.mark.fast.with_args(
       use_lrcgeom=[True, False],
       init_type=["rank_2", "random", "kmeans"],
-      gamma_rescale=['True', 'False'],
+      gamma_rescale=[False, True],
       only_fast=0,
   )
   def test_euclidean_point_cloud(

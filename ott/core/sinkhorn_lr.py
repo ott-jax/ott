@@ -131,6 +131,7 @@ class LRSinkhornOutput(NamedTuple):
   r: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
+  criterions: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problems.LinearProblem] = None
 
@@ -342,7 +343,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         )
         ot_prob_x = linear_problems.LinearProblem(geom_x, a, init_g)
         solver_x = sinkhorn.Sinkhorn(
-            norm_error=self.norm_error,
+            norm_error=self._norm_error,
             lse_mode=self.lse_mode,
             jit=self.jit,
             implicit_diff=self.implicit_diff,
@@ -361,7 +362,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         )
         ot_prob_y = linear_problems.LinearProblem(geom_y, b, init_g)
         solver_y = sinkhorn.Sinkhorn(
-            norm_error=self.norm_error,
+            norm_error=self._norm_error,
             lse_mode=self.lse_mode,
             jit=self.jit,
             implicit_diff=self.implicit_diff,
@@ -389,8 +390,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_not(i < 2), jnp.logical_not(criterion <= tol / 1e-1)
     )
     cond_2 = jnp.logical_and(
-        jnp.logical_not(i < 2), jnp.logical_not(criterion > tol / 1e-1),
-        jnp.logical_not(count_escape == iteration)
+        jnp.logical_and(
+            jnp.logical_not(i < 2), jnp.logical_not(criterion > tol / 1e-1)
+        ), jnp.logical_not(count_escape == iteration)
     )
     err = jnp.where(jnp.logical_or(cond_1, cond_2), criterion, jnp.inf)
     return jnp.logical_and(i >= 2, err < tol)
@@ -433,7 +435,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       norm_q = jnp.max(jnp.abs(grad_q)) ** 2
       norm_r = jnp.max(jnp.abs(grad_r)) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      self.gamma = self.gamma / jnp.max(norm_q, norm_r, norm_g)
+      self.gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
 
     c_q = grad_q - (1 / self.gamma) * log_q
     c_r = grad_r - (1 / self.gamma) * log_r
@@ -549,15 +551,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    q_prev, r_prev, g_prev = state.q, state.r, state.g
     c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
     gamma = self.gamma
     q, r, g = self.dysktra_update(
         c_q, c_r, h, ot_prob, state, iteration, **self.kwargs_dys
     )
-    return state.set(
-        q=q, g=g, r=r, q_prev=q_prev, g_prev=g_prev, r_prev=r_prev, gamma=gamma
-    )
+    return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
@@ -565,7 +564,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """LR Sinkhorn multiplicative update."""
     # TODO(cuturi): kernel step not implemented.
-    return state
+    raise NotImplementedError("Not implemented.")
 
   def one_iteration(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
@@ -607,8 +606,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         state.reg_ot_cost(ot_prob), jnp.inf
     )
     costs = state.costs.at[iteration // self.inner_iterations].set(cost)
-    criterions = state.criterions[iteration //
-                                  self.inner_iterations].set(criterion)
+    criterions = state.criterions.at[iteration //
+                                     self.inner_iterations].set(criterion)
     return state.set(
         costs=costs, criterions=criterions, count_escape=count_escape
     )
@@ -627,9 +626,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         q=q,
         r=r,
         g=g,
-        q_prev=q,
-        r_prev=r,
-        g_prev=g,
         gamma=gamma,
         costs=costs,
         criterions=criterions,
@@ -649,7 +645,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       A LRSinkhornOutput.
     """
     return LRSinkhornOutput(
-        q=state.q, r=state.r, g=state.g, ot_prob=ot_prob, costs=state.costs
+        q=state.q,
+        r=state.r,
+        g=state.g,
+        ot_prob=ot_prob,
+        costs=state.costs,
+        criterions=state.criterions,
     )
 
 
