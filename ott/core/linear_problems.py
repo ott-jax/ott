@@ -15,7 +15,7 @@
 
 from typing import Callable, Optional, Tuple
 
-import jax 
+import jax
 import jax.numpy as jnp
 
 from ott.geometry import geometry
