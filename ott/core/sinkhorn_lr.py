@@ -328,16 +328,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
         init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
     elif self.init_type == 'kmeans':
+      kmeans_fn = jax.jit(
+          k_means.k_means,
+          static_argnames="k",
+      ) if self.jit else k_means.k_means
+
       x = ot_prob.geom.x
       y = ot_prob.geom.y
       if init_g is None:
         init_g = jnp.ones((self.rank,)) / self.rank
       if init_q is None:
-        kmeans_x = jax.jit(
-            k_means.kmeans, static_argnums=(2, 3, 4, 5)
-        ) if self.jit else k_means.kmeans
-        kmeans_x = kmeans_x(rng[3], x, self.rank)
-        z_x = kmeans_x[0]
+        z_x = kmeans_fn(x, self.rank, key=rng[3]).centroids
         geom_x = pointcloud.PointCloud(
             x, z_x, epsilon=0.1, scale_cost='max_cost'
         )
@@ -352,11 +353,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         ot_sink_x = solver_x(ot_prob_x)
         init_q = ot_sink_x.matrix
       if init_r is None:
-        kmeans_y = jax.jit(
-            k_means.kmeans, static_argnums=(2, 3, 4, 5)
-        ) if self.jit else k_means.kmeans
-        kmeans_y = kmeans_y(rng[4], y, self.rank)
-        z_y = kmeans_y[0]
+
+        z_y = kmeans_fn(y, self.rank, key=rng[4]).centroids
         geom_y = pointcloud.PointCloud(
             y, z_y, epsilon=0.1, scale_cost='max_cost'
         )
