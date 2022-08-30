@@ -37,7 +37,7 @@ class LRSinkhornState(NamedTuple):
   gamma: float
   costs: jnp.ndarray
   criterions: jnp.ndarray
-  count_escape: int
+  crossed_threshold: bool
 
   def set(self, **kwargs: Any) -> 'LRSinkhornState':
     """Return a copy of self, with potential overwrites."""
@@ -255,7 +255,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       initializer: Union[Literal["random", "rank_2", "k-means"],
                          init_lib.LRSinkhornInitializer] = "k-means",
       lse_mode: bool = True,
-      inner_iterations: int = 1,
+      inner_iterations: int = 20,
       use_danskin: bool = True,
       implicit_diff: bool = False,
       kwargs_dys: Mapping[str, Any] = MappingProxyType({}),
@@ -496,7 +496,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       The updated state.
     """
     previous_state = state
-    outer_it = iteration // self.inner_iterations
+    it = iteration // self.inner_iterations
     if self.lse_mode:  # In lse_mode, run additive updates.
       state = self.lse_step(ot_prob, state, iteration)
     else:
@@ -508,14 +508,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
     )
     criterion = state.compute_criterion(previous_state)
-    count_escape = state.count_escape + jnp.logical_and(
-        iteration >= 2, criterion <= self.threshold * 10.
+    crossed_threshold = jnp.logical_or(
+        state.crossed_threshold,
+        jnp.logical_and(
+            state.criterions[it - 1] >= self.threshold,
+            criterion < self.threshold
+        )
     )
 
     return state.set(
-        costs=state.costs.at[outer_it].set(cost),
-        criterions=state.criterions.at[outer_it].set(criterion),
-        count_escape=count_escape
+        costs=state.costs.at[it].set(cost),
+        criterions=state.criterions.at[it].set(criterion),
+        crossed_threshold=crossed_threshold,
     )
 
   @property
@@ -565,7 +569,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         gamma=self.gamma,
         costs=-jnp.ones(self.outer_iterations),
         criterions=-jnp.ones(self.outer_iterations),
-        count_escape=1,
+        crossed_threshold=False,
     )
 
   def output_from_state(
@@ -590,34 +594,26 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
-    count_escape, i, tol = state.count_escape, iteration, self.threshold
-    criterion = state.criterions[i - 1]
 
-    cond_1 = jnp.logical_and(
-        jnp.logical_not(i < 2), jnp.logical_not(criterion <= tol / 1e-1)
+    def conv_crossed(prev_err: float, curr_err: float) -> bool:
+      return jnp.logical_and(
+          prev_err < self.threshold, curr_err < self.threshold
+      )
+
+    def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
+      return jnp.logical_and(curr_err < prev_err, curr_err < self.threshold)
+
+    it = iteration // self.inner_iterations
+    return jax.lax.cond(
+        state.crossed_threshold, conv_crossed, conv_not_crossed,
+        state.criterions[it - 2], state.criterions[it - 1]
     )
-    cond_2 = jnp.logical_and(
-        jnp.logical_and(
-            jnp.logical_not(i < 2), jnp.logical_not(criterion > tol / 1e-1)
-        ), jnp.logical_not(count_escape == iteration)
-    )
-    err = jnp.where(jnp.logical_or(cond_1, cond_2), criterion, jnp.inf)
-    return jnp.logical_and(i >= 2, err < tol)
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
-    return jnp.logical_or(
-        jnp.logical_not(jnp.isfinite(state.criterions[iteration - 1])),
-        jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
-    )
-
-  def _continue(self, state: LRSinkhornState, iteration: int) -> bool:
-    """Continue while not(converged) and not(diverged)."""
-    return jnp.logical_or(
-        iteration <= 2,
-        jnp.logical_and(
-            jnp.logical_not(self._diverged(state, iteration)),
-            jnp.logical_not(self._converged(state, iteration))
-        )
+    it = iteration // self.inner_iterations
+    return jnp.logical_and(
+        jnp.logical_not(jnp.isfinite(state.criterions[it - 1])),
+        jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
     )
 
   def tree_flatten(self):
