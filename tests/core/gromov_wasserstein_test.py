@@ -108,7 +108,7 @@ class TestGromovWasserstein:
   def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
-    self.n, self.m = 5, 6
+    self.n, self.m = 6, 7
     keys = jax.random.split(rng, 8)
     self.x = jax.random.uniform(keys[0], (self.n, d_x))
     self.y = jax.random.uniform(keys[1], (self.m, d_y))
@@ -326,7 +326,7 @@ class TestGromovWasserstein:
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
     prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
-    solver = gromov_wasserstein.GromovWasserstein(rank=5)
+    solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=0.2)
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)

@@ -14,7 +14,6 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from types import MappingProxyType
 from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
 
 import jax
@@ -39,10 +38,6 @@ class LRSinkhornState(NamedTuple):
   criterions: jnp.ndarray
   crossed_threshold: bool
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornState':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
-
   def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
     err_1 = kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
     err_2 = kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
@@ -62,6 +57,10 @@ class LRSinkhornState(NamedTuple):
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
+  def set(self, **kwargs: Any) -> 'LRSinkhornState':
+    """Return a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
+
 
 def compute_reg_ot_cost(
     q: jnp.ndarray,
@@ -78,7 +77,7 @@ def compute_reg_ot_cost(
 
 def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problems.LinearProblem,
-    norm_error: jnp.ndarray, lse_mode: bool
+    norm_error: Tuple[int, ...], lse_mode: bool
 ) -> jnp.ndarray:
   """Compute solution error.
 
@@ -98,16 +97,13 @@ def solution_error(
   norm_error = jnp.array(norm_error)
   # Update the error
   err = jnp.sum(
-      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, jnp.newaxis],
-      axis=1
+      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
   ) ** (1.0 / norm_error)
   err += jnp.sum(
-      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, jnp.newaxis],
-      axis=1
+      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
   ) ** (1.0 / norm_error)
   err += jnp.sum(
-      jnp.abs(jnp.sum(q, axis=0) -
-              jnp.sum(r, axis=0)) ** norm_error[:, jnp.newaxis],
+      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
       axis=1
   ) ** (1.0 / norm_error)
 
@@ -240,7 +236,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def __init__(
       self,
-      rank: int = 10,
+      rank: int,
       gamma: float = 10.,
       gamma_rescale: bool = True,
       epsilon: float = 0.,
@@ -250,8 +246,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iterations: int = 10,
       use_danskin: bool = True,
       implicit_diff: bool = False,
-      kwargs_dys: Mapping[str, Any] = MappingProxyType({}),
-      kwargs_init: Mapping[str, Any] = MappingProxyType({}),
+      kwargs_dys: Optional[Mapping[str, Any]] = None,
+      kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any,
   ):
     assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
@@ -268,8 +264,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
     self._initializer = initializer
-    self.kwargs_dys = kwargs_dys
-    self.kwargs_init = kwargs_init
+    # can be `None`
+    self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
+    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
@@ -632,7 +629,7 @@ def run(
 
 
 def make(
-    rank: int = 10,
+    rank: int,
     gamma: float = 1.0,
     epsilon: float = 1e-4,
     initializer: Literal['random', 'rank_2', 'k-means'] = 'k-means',

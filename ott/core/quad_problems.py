@@ -416,7 +416,7 @@ class QuadraticProblem:
     )
 
   def init_lr_linearization(
-      self, rank: int = 10, **kwargs: Any
+      self, rank: int, **kwargs: Any
   ) -> linear_problems.LinearProblem:
     """Linearizes a Quad problem with a predefined initializer."""
     x_ = self.geom_xx.apply_square_cost(self.a)
