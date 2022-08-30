@@ -114,14 +114,6 @@ def solution_error(
   return err
 
 
-def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
-  eps = jnp.finfo(q1.dtype).eps
-  res_1 = -jsp.special.entr(q1)
-  res_2 = q1 * jnp.log(jnp.clip(q2, a_min=eps))
-  res = res_1 - res_2
-  return jnp.sum(res)
-
-
 class LRSinkhornOutput(NamedTuple):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
 
@@ -255,7 +247,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       initializer: Union[Literal["random", "rank_2", "k-means"],
                          init_lib.LRSinkhornInitializer] = "k-means",
       lse_mode: bool = True,
-      inner_iterations: int = 20,
+      inner_iterations: int = 10,
       use_danskin: bool = True,
       implicit_diff: bool = False,
       kwargs_dys: Mapping[str, Any] = MappingProxyType({}),
@@ -313,7 +305,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ot_prob: linear_problems.LinearProblem,
       state: LRSinkhornState,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
-    log_q, log_r, log_g = jnp.log(state.q), jnp.log(state.r), jnp.log(state.g)
+    log_q, log_r, log_g = (
+        safe_log(state.q), safe_log(state.r), safe_log(state.g)
+    )
 
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
     grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
@@ -383,8 +377,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       )
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray],
-        state_inner: Tuple[jnp.ndarray], compute_error: bool
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
@@ -528,7 +522,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   @property
   def is_entropic(self) -> bool:
-    return self.epsilon != 0.0
+    return self.epsilon > 0.
 
   @property
   def initializer(self) -> init_lib.LRSinkhornInitializer:
@@ -669,3 +663,16 @@ def make(
       jit=jit,
       kwargs_dys=kwargs_dys
   )
+
+
+# TODO(michalk8): move to math utils
+def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
+  res_1 = -jsp.special.entr(q1)
+  res_2 = q1 * safe_log(q2)
+  return jnp.sum(res_1 - res_2)
+
+
+def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+  if eps is None:
+    eps = jnp.finfo(x.dtype).tiny
+  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))

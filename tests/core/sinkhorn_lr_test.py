@@ -36,7 +36,7 @@ class TestLRSinkhorn:
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
 
-    # #  adding zero weights to test proper handling
+    # adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
@@ -48,7 +48,7 @@ class TestLRSinkhorn:
       gamma_rescale=[False, True],
       only_fast=0,
   )
-  def test_euclidean_point_cloud(
+  def test_euclidean_point_cloud_lr(
       self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
@@ -77,8 +77,7 @@ class TestLRSinkhorn:
 
     # Check convergence
     assert solved.converged
-    assert jnp.isclose(costs[-2], costs[-1], rtol=threshold)
-    assert jnp.where(criterions[-1] < threshold)
+    assert criterions[-1] < threshold
 
     # Store cost value.
     cost_1 = costs[-1]
@@ -92,6 +91,7 @@ class TestLRSinkhorn:
         initializer=initializer,
     )
     out = solver(ot_prob)
+
     costs = out.costs
     cost_2 = costs[costs > -1][-1]
     # Ensure solution with more rank budget has lower cost (not guaranteed)
@@ -113,6 +113,7 @@ class TestLRSinkhorn:
         initializer=initializer,
     )
     out = solver(ot_prob)
+
     costs = out.costs
     cost_3 = costs[costs > -1][-1]
     assert cost_3 > cost_2
