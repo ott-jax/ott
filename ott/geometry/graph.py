@@ -328,5 +328,5 @@ def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
 
 def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
   if eps is None:
-    eps = jnp.finfo(x.dtype).smallest_normal
+    eps = jnp.finfo(x.dtype).tiny
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
