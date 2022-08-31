@@ -1,6 +1,5 @@
 import functools
 from abc import ABC, abstractmethod
-from types import MappingProxyType
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import jax
@@ -257,11 +256,11 @@ class KMeansInitializer(LRSinkhornInitializer):
   def __init__(
       self,
       rank: int,
-      sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
+      sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(rank)
-    self._sinkhorn_kwargs = sinkhorn_kwargs
+    self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
     self._k_means_kwargs = kwargs
 
   @staticmethod
@@ -340,4 +339,5 @@ class KMeansInitializer(LRSinkhornInitializer):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
+    aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
     return children, {**aux_data, **self._k_means_kwargs}
