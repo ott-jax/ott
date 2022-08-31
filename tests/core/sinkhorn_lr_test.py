@@ -44,7 +44,7 @@ class TestLRSinkhorn:
 
   @pytest.mark.fast.with_args(
       use_lrcgeom=[True, False],
-      initializer=["rank_2", "random", "k-means"],
+      initializer=["rank2", "random", "k-means"],
       gamma_rescale=[False, True],
       only_fast=0,
   )

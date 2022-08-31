@@ -217,7 +217,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       factors. Valid options are:
 
       - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-      - `'rank_2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
       - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
 
     lse_mode: whether to run computations in lse or kernel mode. At this moment,
@@ -238,7 +238,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.,
       gamma_rescale: bool = True,
       epsilon: float = 0.,
-      initializer: Union[Literal["random", "rank_2", "k-means"],
+      initializer: Union[Literal["random", "rank2", "k-means"],
                          init_lib.LRSinkhornInitializer] = "k-means",
       lse_mode: bool = True,
       inner_iterations: int = 10,
@@ -537,7 +537,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
           },
           **self.kwargs_init,
       )
-    if self._initializer == "rank_2":
+    if self._initializer == "rank2":
       return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
     if self._initializer == "random":
       return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
@@ -630,10 +630,10 @@ def make(
     rank: int,
     gamma: float = 1.0,
     epsilon: float = 1e-4,
-    initializer: Literal['random', 'rank_2', 'k-means'] = 'k-means',
+    initializer: Literal['random', 'rank2', 'k-means'] = 'k-means',
     lse_mode: bool = True,
     threshold: float = 1e-3,
-    norm_error: int = 1,
+    norm_error: int = 10,
     inner_iterations: int = 1,
     min_iterations: int = 0,
     max_iterations: int = 2000,
