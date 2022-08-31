@@ -377,7 +377,7 @@ class TestFusedGromovWasserstein:
     assert res1.shape == (d2, n)
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
-  def test_gw_lr_generic_cost_matrix(
+  def test_fgw_lr_generic_cost_matrix(
       self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
     n, m = 70, 100

@@ -332,7 +332,7 @@ class TestGromovWasserstein:
     ot_gw = solver(prob)
     np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
 
-  def test_gw_lr_fused(self, rng: jnp.ndarray):
+  def test_gw_lr_matches_fused(self, rng: jnp.ndarray):
     """Checking LR and Entropic have similar outputs on same fused problem."""
     rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -359,7 +359,7 @@ class TestGromovWasserstein:
 
     # Test solutions look alike
     assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
-    assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
+    assert 0.13 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
