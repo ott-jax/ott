@@ -72,7 +72,8 @@ def compute_reg_ot_cost(
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
-  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+  # TODO(michalk8): clip `1. / g` here? or during iterations?
+  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1. / g)[None, :])
 
 
 def solution_error(
@@ -119,6 +120,7 @@ class LRSinkhornOutput(NamedTuple):
   costs: jnp.ndarray
   criterions: jnp.ndarray
   ot_prob: linear_problems.LinearProblem
+  # TODO(michalk8): Optional is an artifact of current impl., refactor
   reg_ot_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
@@ -171,14 +173,13 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
-    return jnp.matmul(self.q * (1 / self.g)[None, :], self.r.T)
+    return (self.q * self._inv_g) @ self.r.T
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    if inputs.ndim == 1:
-      inputs = inputs.reshape((1, -1))
-    return jnp.dot(q, jnp.dot(inputs, r).T / self.g.reshape(-1, 1)).T.squeeze()
+    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
@@ -186,13 +187,17 @@ class LRSinkhornOutput(NamedTuple):
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for matrix, evaluated at other cost matrix."""
-    return jnp.sum(
-        self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :]
-    )
+    return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
 
+  # TODO(michalk8): when refactoring the API, use a property
   def transport_mass(self) -> float:
     """Sum of transport matrix."""
     return self.marginal(0).sum()
+
+  @property
+  def _inv_g(self) -> jnp.ndarray:
+    # TODO(michalk8): clip?
+    return 1. / self.g
 
 
 @jax.tree_util.register_pytree_node_class
