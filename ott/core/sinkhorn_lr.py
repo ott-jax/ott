@@ -225,12 +225,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
       - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
 
-    lse_mode: whether to run computations in lse or kernel mode. At this moment,
+    lse_mode: whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
     inner_iterations: number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: use Danskin theorem to evaluate gradient of objective w.r.t.
       input parameters. Only `True` handled at this moment.
+    implicit_diff: Whether to use implicit differentiation. Currently, only
+      ``implicit_diff = False`` is implemented.
     kwargs_dys: keyword arguments passed to :meth:`dysktra_update`.
     kwargs_init: keyword arguments for
       :class:`~ott.core.initializers_lr.LRSinkhornInitializer`.
@@ -300,7 +302,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, init)
 
-  def lr_costs(
+  def _lr_costs(
       self,
       ot_prob: linear_problems.LinearProblem,
       state: LRSinkhornState,
@@ -455,7 +457,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    c_q, c_r, h, gamma = self.lr_costs(ot_prob, state)
+    c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
     q, r, g = self.dysktra_update(
         c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
     )
@@ -522,6 +524,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   @property
   def is_entropic(self) -> bool:
+    """Whether entropy regularization is used."""
     return self.epsilon > 0.
 
   @property

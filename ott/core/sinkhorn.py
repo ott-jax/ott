@@ -390,6 +390,7 @@ class Sinkhorn:
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
+    """Powers used to compute the p-norm between marginal/target."""
     # To change momentum adaptively, one needs errors in ||.||_1 norm.
     # In that case, we add this exponent to the list of errors to compute,
     # notably if that was not the error requested by the user.
