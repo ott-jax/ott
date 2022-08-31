@@ -120,7 +120,7 @@ class LRSinkhornOutput(NamedTuple):
   costs: jnp.ndarray
   criterions: jnp.ndarray
   ot_prob: linear_problems.LinearProblem
-  # TODO(michalk8): Optional is an artifact of current impl., refactor
+  # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
@@ -362,7 +362,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     constants = c_q, c_r, loga, logb
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray],
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
         state_inner: Tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
@@ -616,7 +616,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return children, aux_data
 
 
-# TODO(michalk8): refactor
 def run(
     ot_prob: linear_problems.LinearProblem,
     solver: LRSinkhorn,
