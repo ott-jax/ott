@@ -163,8 +163,6 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def converged(self) -> bool:
-    if self.costs is None:
-      return False
     return jnp.logical_and(
         jnp.sum(self.costs == -1) > 0,
         jnp.sum(jnp.isnan(self.costs)) == 0

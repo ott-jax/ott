@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
+"""Tests for Sinkhorn."""
 
 import jax
 import jax.numpy as jnp

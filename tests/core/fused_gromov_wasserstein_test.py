@@ -352,10 +352,10 @@ class TestFusedGromovWasserstein:
           fgw_output.matrix[0, 0], gw_output.matrix[0, 0]
       )
 
-  @pytest.mark.limit_memory("200 MB")
+  @pytest.mark.limit_memory("400 MB")
   @pytest.mark.parametrize("jit", [False, True])
   def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
-    # Total memory allocated: 108.7MiB (32-bit)
+    # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
     x = jax.random.uniform(rngs[0], (n, d1))
