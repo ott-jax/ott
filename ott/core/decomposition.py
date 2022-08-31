@@ -63,7 +63,7 @@ class CholeskySolver(abc.ABC, Generic[T]):
 
   @classmethod
   def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any) -> "CholeskySolver":
-    """Instantiate sparse of dense Cholesky solver.
+    """Instantiate sparse or dense Cholesky solver.
 
     Optionally converts :class:`scipy.sparse.spmatrix` to its
     :mod:`jax` equivalent.

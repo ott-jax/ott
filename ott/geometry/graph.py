@@ -88,7 +88,7 @@ class Graph(geometry.Geometry):
       del iteration, solver_lap
 
       x_old, x_new = old_new
-      x_old, x_new = _safe_log(x_old), _safe_log(x_new)
+      x_old, x_new = safe_log(x_old), safe_log(x_new)
       # center
       x_old, x_new = x_old - jnp.nanmax(x_old), x_new - jnp.nanmax(x_new)
       # Hilbert metric, see Remark 4.12 in `Computational Optimal Transport`
@@ -174,7 +174,7 @@ class Graph(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    return -self.t * _safe_log(self.kernel_matrix)
+    return -self.t * safe_log(self.kernel_matrix)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -220,7 +220,7 @@ class Graph(geometry.Geometry):
   def _scaled_laplacian(self) -> Union[float, jnp.ndarray, Sparse_t]:
     """Laplacian scaled by a constant, depending on the numerical scheme."""
     if self.is_sparse:
-      return _sparse_scale(self._scale, self.laplacian)
+      return sparse_scale(self._scale, self.laplacian)
     return self._scale * self.laplacian
 
   @property
@@ -316,7 +316,8 @@ class Graph(geometry.Geometry):
     return obj
 
 
-def _sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
+# TODO(michalk8): in future, define math utils
+def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
   """Scale a sparse matrix by a constant."""
   if isinstance(mat, jesp.BCOO):
     # most feature complete, defer to original impl.
@@ -325,7 +326,7 @@ def _sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
   return type(mat).tree_unflatten(aux_data, [c * data] + children)
 
 
-def _safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
   if eps is None:
-    eps = jnp.finfo(x.dtype).tiny
-  return jnp.log(x + eps)
+    eps = jnp.finfo(x.dtype).smallest_normal
+  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
