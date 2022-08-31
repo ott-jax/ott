@@ -326,7 +326,7 @@ class Sinkhorn:
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
     use_danskin: when ``True``, it is assumed the entropy regularized cost is
-      is evaluated using optimal potentials that are freezed, i.e. whose
+      is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
