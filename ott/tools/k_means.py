@@ -382,8 +382,10 @@ def k_means(
     key: Random key to seed the initializations.
 
   Returns:
-    The k-means clustering result.
+    The k-means clustering.
   """
+  assert geom.shape[
+      0] >= k, f"Cannot cluster `{geom.shape[0]}` points into `{k}` clusters."
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
   if isinstance(geom._cost_fn, costs.Cosine):

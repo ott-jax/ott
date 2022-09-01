@@ -70,7 +70,7 @@ def solution_error(
     g_v: jnp.ndarray, potential or scaling
     ot_prob: linear OT problem
     norm_error: int, p-norm used to compute error.
-    lse_mode: True if log-sum-exp operations, False if kernel vector producs.
+    lse_mode: True if log-sum-exp operations, False if kernel vector products.
 
   Returns:
     a positive number quantifying how far from optimality current solution is.
@@ -390,13 +390,13 @@ class Sinkhorn:
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
+    """Powers used to compute the p-norm between marginal/target."""
     # To change momentum adaptively, one needs errors in ||.||_1 norm.
     # In that case, we add this exponent to the list of errors to compute,
     # notably if that was not the error requested by the user.
     if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
-      return (self._norm_error, 1)
-    else:
-      return (self._norm_error,)
+      return self._norm_error, 1
+    return self._norm_error,
 
   def __call__(
       self,

@@ -352,10 +352,10 @@ class TestFusedGromovWasserstein:
           fgw_output.matrix[0, 0], gw_output.matrix[0, 0]
       )
 
-  @pytest.mark.limit_memory("200 MB")
+  @pytest.mark.limit_memory("400 MB")
   @pytest.mark.parametrize("jit", [False, True])
   def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
-    # Total memory allocated: 108.7MiB (32-bit)
+    # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
     x = jax.random.uniform(rngs[0], (n, d1))
@@ -377,7 +377,7 @@ class TestFusedGromovWasserstein:
     assert res1.shape == (d2, n)
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
-  def test_gw_lr_generic_cost_matrix(
+  def test_fgw_lr_generic_cost_matrix(
       self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
     n, m = 70, 100

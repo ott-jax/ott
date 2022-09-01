@@ -108,7 +108,7 @@ class TestGromovWasserstein:
   def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
-    self.n, self.m = 5, 6
+    self.n, self.m = 6, 7
     keys = jax.random.split(rng, 8)
     self.x = jax.random.uniform(keys[0], (self.n, d_x))
     self.y = jax.random.uniform(keys[1], (self.m, d_y))
@@ -326,13 +326,13 @@ class TestGromovWasserstein:
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
     prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
-    solver = gromov_wasserstein.GromovWasserstein(rank=5)
+    solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=0.2)
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
     np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
 
-  def test_gw_lr_fused(self, rng: jnp.ndarray):
+  def test_gw_lr_matches_fused(self, rng: jnp.ndarray):
     """Checking LR and Entropic have similar outputs on same fused problem."""
     rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -359,7 +359,7 @@ class TestGromovWasserstein:
 
     # Test solutions look alike
     assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
-    assert 0.1 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
+    assert 0.13 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
