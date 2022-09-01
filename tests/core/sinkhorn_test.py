@@ -176,7 +176,7 @@ class TestSinkhorn:
     assert errors[3] > 0
 
   def test_geom_vs_point_cloud(self):
-    """Two point clouds vs. simple cost_matrix execution of sinkorn."""
+    """Two point clouds vs. simple cost_matrix execution of Sinkhorn."""
     geom_1 = pointcloud.PointCloud(self.x, self.y)
     geom_2 = geometry.Geometry(geom_1.cost_matrix)
 

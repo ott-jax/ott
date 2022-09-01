@@ -19,6 +19,7 @@ from . import (
     bar_problems,
     continuous_barycenter,
     dataclasses,
+    decomposition,
     discrete_barycenter,
     gromov_wasserstein,
     gw_barycenter,
