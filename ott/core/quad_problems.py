@@ -557,13 +557,10 @@ class QuadraticProblem:
 
     if self.is_low_rank:
       return True
-    if self.ranks == -1:
-      # explicitly disallowed
-      return False
 
     geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
     # either explicitly via cost factorization or implicitly (e.g., a PC)
-    return (
+    return self.ranks != -1 or (
         convertible(geom_xx) and convertible(geom_yy) and
         (geom_xy is None or convertible(geom_xy))
     )
