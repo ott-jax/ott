@@ -108,7 +108,7 @@ class TestLRSinkhorn:
 
     # Ensure cost is higher when using high entropy.
     # (Note that for small entropy regularizers, this can be the opposite
-    # due to non-convexity of problem and benefit of adding regularizer
+    # due to non-convexity of problem and benefit of adding regularizer)
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=14,

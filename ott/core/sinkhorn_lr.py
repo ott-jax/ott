@@ -52,7 +52,7 @@ class LRSinkhornState(NamedTuple):
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(
-      self, ot_prob: linear_problems.LinearProblem, norm_error: jnp.ndarray,
+      self, ot_prob: linear_problems.LinearProblem, norm_error: Tuple[int, ...],
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
@@ -72,7 +72,6 @@ def compute_reg_ot_cost(
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
-  # TODO(michalk8): clip `1. / g` here? or during iterations?
   return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1. / g)[None, :])
 
 
@@ -196,7 +195,6 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def _inv_g(self) -> jnp.ndarray:
-    # TODO(michalk8): clip?
     return 1. / self.g
 
 
@@ -298,6 +296,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       The low-rank Sinkhorn output.
     """
+    assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     init = self.initializer(ot_prob, *init, key=key, **kwargs)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, init)
@@ -599,6 +598,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
       return jnp.logical_and(curr_err < prev_err, curr_err < self.threshold)
+
+    # for convergence criterion, we consider 2 possibilities:
+    # 1. we either crossed the convergence threshold; in this case we require
+    #   that the previous criterion was also below the threshold
+    # 2. we haven't crossed the threshold; in this case, we can be below or
+    #   above the threshold:
+    #     if we're above, we wait until we reach the convergence threshold and
+    #     then, the above condition applies
+    #     if we're below and we improved w.r.t. the previous iteration,
+    #     we have converged; otherwise we continue, since we may be stuck
+    #     in a local minimum (e.g., during the initial iterations)
 
     it = iteration // self.inner_iterations
     return jax.lax.cond(

@@ -70,7 +70,7 @@ def solution_error(
     g_v: jnp.ndarray, potential or scaling
     ot_prob: linear OT problem
     norm_error: int, p-norm used to compute error.
-    lse_mode: True if log-sum-exp operations, False if kernel vector producs.
+    lse_mode: True if log-sum-exp operations, False if kernel vector products.
 
   Returns:
     a positive number quantifying how far from optimality current solution is.
