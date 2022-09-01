@@ -549,3 +549,6 @@ class TestGromovWassersteinUnbalanced:
     np.testing.assert_allclose(
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
+
+  def test_gw_lr_initializer(self):
+    pass

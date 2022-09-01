@@ -14,7 +14,6 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-import functools
 from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
@@ -146,8 +145,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
     # a default entropic GW or a low-rank GW.
-    iterations_fn = functools.partial(iterations, rank=self.rank)
-    gromov_fn = jax.jit(iterations_fn) if self.jit else iterations_fn
+    gromov_fn = jax.jit(iterations) if self.jit else iterations
     out = gromov_fn(self, prob)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
@@ -167,11 +165,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     return out.set(linear_state=linear_state, convergence=convergence)
 
   def init_state(
-      self, prob: quad_problems.QuadraticProblem, rank: int
+      self,
+      prob: quad_problems.QuadraticProblem,
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations."""
-    if rank > 0:
-      linearization = prob.init_lr_linearization(rank)
+    if self.is_low_rank:
+      linearization = prob.init_lr_linearization(self.linear_ot_solver)
     else:
       linearization = prob.init_linearization(self.epsilon)
 
@@ -208,7 +207,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
 
 def iterations(
-    solver: GromovWasserstein, prob: quad_problems.QuadraticProblem, rank: int
+    solver: GromovWasserstein,
+    prob: quad_problems.QuadraticProblem,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 
@@ -219,12 +219,12 @@ def iterations(
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, constants: GromovWasserstein, state: GWState,
+      iteration: int, solver: GromovWasserstein, state: GWState,
       compute_error: bool
   ) -> GWState:
     del compute_error  # Always assumed True for outer loop of GW.
-    solver = constants
-    if rank > 0:
+
+    if solver.is_low_rank:
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
       linear_pb = prob.update_linearization(
@@ -246,7 +246,7 @@ def iterations(
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=solver.init_state(prob, rank)
+      state=solver.init_state(prob)
   )
 
   return solver.output_from_state(state)
@@ -300,6 +300,8 @@ def make(
     sink = sinkhorn_lr.make(
         rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs
     )
+  else:
+    raise ValueError(f"Invalid value for `rank={rank}`.")
 
   return GromovWasserstein(
       epsilon,
