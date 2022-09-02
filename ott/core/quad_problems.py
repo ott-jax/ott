@@ -426,20 +426,23 @@ class QuadraticProblem:
 
   def init_lr_linearization(
       self, solver: sinkhorn_lr.LRSinkhorn
-  ) -> linear_problems.LinearProblem:
+  ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+             linear_problems.LinearProblem]:
     """Linearize a Quad problem with a predefined initializer."""
     x = self.geom_xx.apply_square_cost(self.a)
     y = self.geom_yy.apply_square_cost(self.b)
     geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
 
     out = solver(linear_problems.LinearProblem(geom, self.a, self.b))
-    return linear_problems.LinearProblem(
+    init = out.q, out.r, out.g
+    prob = linear_problems.LinearProblem(
         self.update_lr_geom(out),
         self.a,
         self.b,
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
+    return init, prob
 
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput

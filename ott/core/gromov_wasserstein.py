@@ -100,13 +100,12 @@ class GWState(NamedTuple):
     old_transport_mass: Intermediary value of the mass of the transport matrix.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
+  costs: jnp.ndarray
+  linear_convergence: jnp.ndarray
+  linear_state: LinearOutput
+  linear_pb: linear_problems.LinearProblem
+  old_transport_mass: float
   errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[LinearOutput] = None
-  linear_pb: Optional[linear_problems.LinearProblem] = None
-  # Intermediate values.
-  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWState':
     """Return a copy of self, possibly with overwrites."""
@@ -124,6 +123,7 @@ class GWState(NamedTuple):
     linear_convergence = self.linear_convergence.at[iteration].set(
         linear_sol.converged
     )
+
     return self.set(
         linear_state=linear_sol,
         linear_pb=linear_pb,
@@ -170,20 +170,27 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations."""
     if self.is_low_rank:
-      linearization = prob.init_lr_linearization(self.linear_ot_solver)
+      init, linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
     else:
-      linearization = prob.init_linearization(self.epsilon)
+      linear_prob = prob.init_linearization(self.epsilon)
+      init = (None, None)
 
-    linear_state = self.linear_ot_solver(linearization)
+    linear_state = self.linear_ot_solver(linear_prob, init=init)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
+
     if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
+
     return GWState(
-        -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, linear_state,
-        linearization, transport_mass
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        linear_state=linear_state,
+        linear_pb=linear_prob,
+        old_transport_mass=transport_mass,
+        errors=errors
     )
 
   def output_from_state(self, state: GWState) -> GWOutput:
@@ -225,13 +232,15 @@ def iterations(
     del compute_error  # Always assumed True for outer loop of GW.
 
     if solver.is_low_rank:
+      init = state.linear_state.q, state.linear_state.r, state.linear_state.g
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
+      init = state.linear_state.f, state.linear_state.g
       linear_pb = prob.update_linearization(
           state.linear_state, solver.epsilon, state.old_transport_mass
       )
 
-    out = solver.linear_ot_solver(linear_pb)
+    out = solver.linear_ot_solver(linear_pb, init=init)
     old_transport_mass = jax.lax.stop_gradient(
         state.linear_state.transport_mass()
     )
