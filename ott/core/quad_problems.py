@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Callable, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -425,24 +425,29 @@ class QuadraticProblem:
     )
 
   def init_lr_linearization(
-      self, solver: sinkhorn_lr.LRSinkhorn
-  ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
-             linear_problems.LinearProblem]:
+      self,
+      solver: sinkhorn_lr.LRSinkhorn,
+      **kwargs: Any,
+  ) -> linear_problems.LinearProblem:
     """Linearize a Quad problem with a predefined initializer."""
     x = self.geom_xx.apply_square_cost(self.a)
     y = self.geom_yy.apply_square_cost(self.b)
     geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
 
-    out = solver(linear_problems.LinearProblem(geom, self.a, self.b))
-    init = out.q, out.r, out.g
+    prob = linear_problems.LinearProblem(geom, self.a, self.b)
+    q, r, g = solver.initializer(prob, **kwargs)
+    dummy_out = sinkhorn_lr.LRSinkhornOutput(
+        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=prob
+    )
+
     prob = linear_problems.LinearProblem(
-        self.update_lr_geom(out),
+        self.update_lr_geom(dummy_out),
         self.a,
         self.b,
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
-    return init, prob
+    return prob
 
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput

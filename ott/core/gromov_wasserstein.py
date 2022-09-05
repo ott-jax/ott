@@ -170,12 +170,11 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations."""
     if self.is_low_rank:
-      init, linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
+      linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
     else:
       linear_prob = prob.init_linearization(self.epsilon)
-      init = (None, None)
 
-    linear_state = self.linear_ot_solver(linear_prob, init=init)
+    linear_state = self.linear_ot_solver(linear_prob)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
 
