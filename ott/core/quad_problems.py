@@ -307,10 +307,10 @@ class QuadraticProblem:
 
     marginal_1loga = jax.scipy.special.xlogy(marginal_1, self.a).sum()
     marginal_2logb = jax.scipy.special.xlogy(marginal_2, self.b).sum()
-    cost = regulariser(self.tau_a) * (jax.scipy.special.xlogy(
-        marginal_1, marginal_1).sum() - marginal_1loga)
-    cost += regulariser(self.tau_b) * (jax.scipy.special.xlogy(
-        marginal_2, marginal_2) - marginal_2logb)
+    cost = regulariser(self.tau_a) * (-jax.scipy.special.entr(
+        marginal_1).sum() - marginal_1loga)
+    cost += regulariser(self.tau_b) * (-jax.scipy.special.entr(
+        marginal_2).sum() - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
       transport_matrix, transport_matrix).sum()
     cost -= epsilon._target_init * marginal_1loga
