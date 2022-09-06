@@ -1,15 +1,32 @@
 import functools
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
+import jax.scipy as jsp
 from jax import numpy as jnp
 from typing_extensions import Literal
 
 from ott.core import linear_problems
-from ott.geometry import low_rank, pointcloud
+from ott.geometry import geometry, low_rank, pointcloud
 
-__all__ = ["RandomInitializer", "Rank2Initializer", "KMeansInitializer"]
+__all__ = [
+    "RandomInitializer", "Rank2Initializer", "KMeansInitializer",
+    "GeneralizedKMeansInitializer"
+]
+
+
+# TODO(michalk8): move to math utils
+def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
+  res_1 = -jsp.special.entr(q1)
+  res_2 = q1 * safe_log(q2)
+  return jnp.sum(res_1 - res_2)
+
+
+def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+  if eps is None:
+    eps = jnp.finfo(x.dtype).tiny
+  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
 @jax.tree_util.register_pytree_node_class
@@ -343,3 +360,129 @@ class KMeansInitializer(LRSinkhornInitializer):
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
     return children, {**aux_data, **self._k_means_kwargs}
+
+
+class GeneralizedKMeansInitializer(KMeansInitializer):
+
+  def __init__(
+      self,
+      rank: int,
+      gamma: float,
+      min_iterations: int = 10,
+      max_iterations: int = 10,
+      threshold: float = 1e-6,
+      sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+  ):
+    super().__init__(
+        rank,
+        sinkhorn_kwargs=sinkhorn_kwargs,
+        # below argument are stored in `_k_means_kwargs`
+        gamma=gamma,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations,
+        threshold=threshold
+    )
+
+  class Constants(NamedTuple):
+    solver: "sinkhorn.Sinkhorn"  # noqa: F821
+    geom: geometry.Geometry  # (n, n)
+    marginal: jnp.ndarray  # (n,)
+    g: jnp.ndarray  # (r,)
+    gamma: float
+    threshold: float
+
+  class State(NamedTuple):
+    factor: jnp.ndarray
+    criterions: jnp.ndarray
+
+  def _compute_factor(
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      key: jnp.ndarray,
+      *,
+      init_g: jnp.ndarray,
+      which: Literal["q", "r"],
+      **kwargs: Any,
+  ) -> jnp.ndarray:
+    from ott.core import fixed_point_loop, linear_problems, sinkhorn
+
+    def init_fn() -> GeneralizedKMeansInitializer.State:
+      n = ot_prob.geom.shape[0]
+      factor = jnp.abs(jax.random.normal(key, (n, self.rank))) + 1.  # (n, r)
+      factor *= consts.marginal[:, None] / jnp.sum(
+          factor, axis=1, keepdims=True
+      )
+
+      return self.State(factor, criterions=-jnp.ones(max_iter))
+
+    def cond_fn(
+        iteration: int,
+        consts: GeneralizedKMeansInitializer.Constants,
+        state: GeneralizedKMeansInitializer.State,
+    ) -> bool:
+      # TODO(michalk8): better convergence criterion
+      return jnp.logical_or(
+          iteration < 1, state.criterions[iteration - 1] > consts.threshold
+      )
+
+    def body_fn(
+        iteration: int, consts: GeneralizedKMeansInitializer.Constants,
+        state: GeneralizedKMeansInitializer.State, compute_error: bool
+    ) -> GeneralizedKMeansInitializer.State:
+      del compute_error
+
+      grad = consts.geom.apply_cost(state.factor, axis=1)  # (n, r)
+      grad += consts.geom.apply_cost(state.factor, axis=0)  # (n ,r)
+      grad /= consts.g
+
+      norm = jnp.max(jnp.abs(grad)) ** 2
+      gamma = consts.gamma / norm
+      eps = 1. / gamma
+
+      geom = grad - eps * safe_log(state.factor)  # (n, r)
+      geom = geometry.Geometry(
+          cost_matrix=geom, epsilon=eps, scale_cost="max_cost"
+      )
+
+      problem = linear_problems.LinearProblem(
+          geom, a=consts.marginal, b=consts.g
+      )
+      out = consts.solver(problem)
+
+      new_factor = out.matrix
+      criterion = ((1 / gamma) ** 2) * (
+          kl(new_factor, state.factor) + kl(state.factor, new_factor)
+      )
+      criterions = state.criterions.at[iteration].set(criterion)
+
+      return self.State(factor=new_factor, criterions=criterions)
+
+    del kwargs
+    assert ot_prob.geom.shape[0] == ot_prob.geom.shape[1], "TODO: wrong shape"
+
+    min_iter = self._k_means_kwargs["min_iterations"]
+    max_iter = self._k_means_kwargs["max_iterations"]
+    force_scan = min_iter == max_iter
+    fixpoint_fn = (
+        fixed_point_loop.fixpoint_iter
+        if force_scan else fixed_point_loop.fixpoint_iter_backprop
+    )
+
+    consts = self.Constants(
+        solver=sinkhorn.Sinkhorn(**self._sinkhorn_kwargs),
+        geom=ot_prob.geom._set_scale_cost("max_cost"),
+        marginal=ot_prob.a if which == "q" else ot_prob.b,
+        g=init_g,
+        gamma=self._k_means_kwargs["gamma"],
+        threshold=self._k_means_kwargs["threshold"],
+    )
+
+    return fixpoint_fn(
+        cond_fn,
+        body_fn,
+        min_iterations=min_iter,
+        max_iterations=max_iter,
+        inner_iterations=1,
+        constants=consts,
+        state=init_fn(),
+    ).factor
