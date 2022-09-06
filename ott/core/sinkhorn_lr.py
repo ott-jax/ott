@@ -244,7 +244,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma_rescale: bool = True,
       epsilon: float = 0.,
       initializer: Union[Literal["random", "rank2", "k-means"],
-                         init_lib.LRSinkhornInitializer] = "k-means",
+                         init_lib.LRSinkhornInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
