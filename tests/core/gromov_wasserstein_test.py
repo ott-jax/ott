@@ -363,8 +363,8 @@ class TestGromovWasserstein:
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
-  @pytest.mark.parametrize("scale_cost", [True, "mean", "max_cost"])
-  def test_gw_fused_scale_cost(self, scale_cost: Union[bool, str]):
+  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])
+  def test_gw_fused_scale_cost(self, scale_cost: str):
     epsilon = 0.1
     fused_penalty = 1
     geom_x = pointcloud.PointCloud(self.x, scale_cost=1.)

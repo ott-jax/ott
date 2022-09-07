@@ -231,7 +231,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
-    kwargs_dys: keyword arguments passed to :meth:`dysktra_update`.
+    kwargs_dys: keyword arguments passed to :meth:`dykstra_update`.
     kwargs_init: keyword arguments for
       :class:`~ott.core.initializers_lr.LRSinkhornInitializer`.
     kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
@@ -244,7 +244,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma_rescale: bool = True,
       epsilon: float = 0.,
       initializer: Union[Literal["random", "rank2", "k-means"],
-                         init_lib.LRSinkhornInitializer] = "k-means",
+                         init_lib.LRSinkhornInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -334,7 +334,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     h = -grad_g + (1. / gamma) * log_g
     return c_q, c_r, h, gamma
 
-  def dysktra_update(
+  def dykstra_update(
       self,
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
@@ -457,7 +457,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
     c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
-    q, r, g = self.dysktra_update(
+    q, r, g = self.dykstra_update(
         c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
     )
     return state.set(q=q, g=g, r=r, gamma=gamma)
