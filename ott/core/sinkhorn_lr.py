@@ -222,7 +222,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
       - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
       - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-      - `'k-means-generalized'` -
+      - `'generalized-k-means'` -
         :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
 
     lse_mode: whether to run computations in lse or kernel mode. At the moment,
