@@ -33,7 +33,7 @@ class LinearProblem:
 
     \min_P \langle C, P \rangle - \varepsilon H(P)
 
-  s.t. :math:`P \mathbb{1} = a, P^\intercal \mathbb{1} = b`.
+  s.t. :math:`P \mathbf{1} = a, P^\intercal \mathbf{1} = b`.
 
   Args:
     geom: The ground geometry cost of the linear problem.

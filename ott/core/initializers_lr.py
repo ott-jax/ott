@@ -131,6 +131,7 @@ class LRInitializer(ABC):
       kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
       **kwargs: Any,
   ) -> 'LRInitializer':
+    """TODO."""
     from ott.core import gromov_wasserstein
 
     rank = solver.rank

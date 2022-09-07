@@ -45,7 +45,7 @@ class GWBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver for \
+  """Gromov-Wasserstein barycenter solver of the \
   :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:

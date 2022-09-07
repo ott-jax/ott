@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import Any, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -219,9 +219,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are:
 
-      - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
       - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+      - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
+      - `'k-means-generalized'` -
+        :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
 
     lse_mode: whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
@@ -466,8 +468,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def kernel_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
-  ) -> LRSinkhornState:
-    """LR Sinkhorn multiplicative update."""
+  ) -> NoReturn:
+    """Not implemented."""
     # TODO(cuturi): kernel step not implemented.
     raise NotImplementedError("Not implemented.")
 
