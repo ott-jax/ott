@@ -1,13 +1,22 @@
 import functools
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.scipy as jsp
 from jax import numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import linear_problems, quad_problems
 from ott.geometry import geometry, low_rank, pointcloud
 
 __all__ = [
@@ -15,7 +24,14 @@ __all__ = [
     "GeneralizedKMeansInitializer"
 ]
 
-Problem_t = Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]
+if TYPE_CHECKING:
+  from ott.core import (
+      gromov_wasserstein,
+      linear_problems,
+      quad_problems,
+      sinkhorn,
+      sinkhorn_lr,
+  )
 
 
 # TODO(michalk8): move to math utils
@@ -37,16 +53,19 @@ class LRInitializer(ABC):
 
   Args:
     rank: Rank of the factorization.
+    kwargs: Additional keyword arguments.
   """
 
-  def __init__(self, rank: int):
+  def __init__(self, rank: int, **kwargs: Any):
+    del kwargs
     self._rank = rank
 
   # TODO(michalk8): init_g missing in the signature
   @abstractmethod
   def init_q(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -66,7 +85,8 @@ class LRInitializer(ABC):
   @abstractmethod
   def init_r(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -86,7 +106,8 @@ class LRInitializer(ABC):
   @abstractmethod
   def init_g(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -101,27 +122,46 @@ class LRInitializer(ABC):
       Array of shape ``[rank,]``.
     """
 
-  @staticmethod
-  def _handle_quadratic_problem(
-      ot_prob: quad_problems.QuadraticProblem, *, q: jnp.ndarray,
-      r: jnp.ndarray, g: jnp.ndarray
-  ) -> linear_problems.LinearProblem:
-    from ott.core import sinkhorn_lr
+  @classmethod
+  def from_solver(
+      cls,
+      solver: Union['sinkhorn_lr.LRSinkhorn',
+                    'gromov_wasserstein.GromovWasserstein'],
+      *,
+      kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
+      **kwargs: Any,
+  ) -> 'LRInitializer':
+    from ott.core import gromov_wasserstein
 
-    dummy_out = sinkhorn_lr.LRSinkhornOutput(
-        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=None
-    )
-    return linear_problems.LinearProblem(
-        ot_prob.update_lr_geom(dummy_out),
-        ot_prob.a,
-        ot_prob.b,
-        tau_a=ot_prob.tau_a,
-        tau_b=ot_prob.tau_b
-    )
+    rank = solver.rank
+    lin_sol = solver.linear_ot_solver if isinstance(
+        solver, gromov_wasserstein.GromovWasserstein
+    ) else solver
+
+    sinkhorn_kwargs = {
+        "norm_error": lin_sol._norm_error,
+        "lse_mode": lin_sol.lse_mode,
+        "jit": lin_sol.jit,
+        "implicit_diff": lin_sol.implicit_diff,
+        "use_danskin": lin_sol.use_danskin
+    }
+
+    if kind == "random":
+      return RandomInitializer(rank, **kwargs)
+    if kind == "rank2":
+      return Rank2Initializer(rank, **kwargs)
+    if kind == "k-means":
+      return KMeansInitializer(rank, sinkhorn_kwargs=sinkhorn_kwargs, **kwargs)
+    if kind == "generalized-k-means":
+      return GeneralizedKMeansInitializer(
+          rank, sinkhorn_kwargs=sinkhorn_kwargs, **kwargs
+      )
+    raise NotImplementedError(f"Initializer `{kind}` is not implemented.")
 
   def __call__(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       q: Optional[jnp.ndarray] = None,
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
@@ -161,9 +201,6 @@ class LRInitializer(ABC):
     assert q.shape == (ot_prob.a.shape[0], self.rank)
     assert r.shape == (ot_prob.b.shape[0], self.rank)
 
-    if isinstance(ot_prob, quad_problems.QuadraticProblem):
-      return self._handle_quadratic_problem(ot_prob, q=q, r=r, g=g)
-
     return q, r, g
 
   @property
@@ -187,11 +224,13 @@ class RandomInitializer(LRInitializer):
 
   Args:
     rank: Rank of the factorization.
+    kwargs: Additional keyword arguments.
   """
 
   def init_q(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -204,7 +243,8 @@ class RandomInitializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -217,7 +257,8 @@ class RandomInitializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -232,11 +273,13 @@ class Rank2Initializer(LRInitializer):
 
   Args:
     rank: Rank of the factorization.
+    kwargs: Additional keyword arguments.
   """
 
   def _compute_factor(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       init_g: jnp.ndarray,
       *,
       which: Literal["q", "r"],
@@ -264,7 +307,8 @@ class Rank2Initializer(LRInitializer):
 
   def init_q(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -275,7 +319,8 @@ class Rank2Initializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -286,7 +331,8 @@ class Rank2Initializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -329,14 +375,15 @@ class KMeansInitializer(LRInitializer):
 
   def _compute_factor(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
       which: Literal["q", "r"],
       **kwargs: Any,
   ) -> jnp.ndarray:
-    from ott.core import sinkhorn
+    from ott.core import linear_problems, quad_problems, sinkhorn
     from ott.tools import k_means
 
     del kwargs
@@ -362,7 +409,8 @@ class KMeansInitializer(LRInitializer):
 
   def init_q(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -374,7 +422,8 @@ class KMeansInitializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -386,7 +435,8 @@ class KMeansInitializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -400,11 +450,12 @@ class KMeansInitializer(LRInitializer):
 
 
 class GeneralizedKMeansInitializer(KMeansInitializer):
+  """TODO."""
 
   def __init__(
       self,
       rank: int,
-      gamma: float,
+      gamma: float = 10.,
       min_iterations: int = 10,
       max_iterations: int = 10,
       threshold: float = 1e-6,
@@ -421,7 +472,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     )
 
   class Constants(NamedTuple):  # noqa: D106
-    solver: "sinkhorn.Sinkhorn"  # noqa: F821
+    solver: "sinkhorn.Sinkhorn"
     geom: geometry.Geometry  # (n, n)
     marginal: jnp.ndarray  # (n,)
     g: jnp.ndarray  # (r,)
@@ -434,7 +485,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
   def _compute_factor(
       self,
-      ot_prob: Problem_t,
+      ot_prob:
+      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -495,6 +547,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       return self.State(factor=new_factor, criterions=criterions)
 
     del kwargs
+    from ott.core import quad_problems
 
     if isinstance(ot_prob, quad_problems.QuadraticProblem):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
@@ -533,8 +586,10 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 class LinearGWInitializer(LRInitializer):
 
   def _linearize(
-      self, ot_prob: quad_problems.QuadraticProblem
-  ) -> linear_problems.LinearProblem:
+      self, ot_prob: "quad_problems.QuadraticProblem"
+  ) -> "linear_problems.LinearProblem":
+    from ott.core import linear_problems
+
     x = ot_prob.geom_xx.apply_square_cost(ot_prob.a)
     y = ot_prob.geom_yy.apply_square_cost(ot_prob.b)
     geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
@@ -542,22 +597,22 @@ class LinearGWInitializer(LRInitializer):
     return linear_problems.LinearProblem(geom, ot_prob.a, ot_prob.b)
 
   def init_q(
-      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
+      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
       init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
   ) -> jnp.ndarray:
     ot_prob = self._linearize(ot_prob)
     return linear_init.init_q(ot_prob, key, **kwargs)
 
   def init_r(
-      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
+      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
       init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
   ) -> jnp.ndarray:
     ot_prob = self._linearize(ot_prob)
     return linear_init.init_r(ot_prob, key, **kwargs)
 
   def init_g(
-      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
-      init_g: jnp.ndarrray, linear_init: LRInitializer, **kwargs: Any
+      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
+      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
   ) -> jnp.ndarray:
     ot_prob = self._linearize(ot_prob)
     return linear_init.init_g(ot_prob, key, **kwargs)

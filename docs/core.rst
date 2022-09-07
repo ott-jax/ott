@@ -59,6 +59,7 @@ Low-Rank Sinkhorn Initializers
     initializers_lr.RandomInitializer
     initializers_lr.Rank2Initializer
     initializers_lr.KMeansInitializer
+    initializers_lr.GeneralizedKMeansInitializer
 
 Barycenters (Entropic and LR)
 -----------------------------

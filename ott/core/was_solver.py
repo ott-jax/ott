@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -80,19 +80,20 @@ class WassersteinSolver:
     """Whether the solver is low-rank."""
     return self.rank > 0
 
-  def tree_flatten(self):
-    return ([self.epsilon, self.linear_ot_solver, self.threshold],
-            dict(
-                min_iterations=self.min_iterations,
-                max_iterations=self.max_iterations,
-                jit=self.jit,
-                rank=self.rank,
-                store_inner_errors=self.store_inner_errors,
-                **self._kwargs
-            ))
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return ([self.epsilon, self.linear_ot_solver, self.threshold], {
+        "min_iterations": self.min_iterations,
+        "max_iterations": self.max_iterations,
+        "jit": self.jit,
+        "rank": self.rank,
+        "store_inner_errors": self.store_inner_errors,
+        **self._kwargs
+    })
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "WassersteinSolver":
     epsilon, linear_ot_solver, threshold = children
     return cls(
         epsilon=epsilon,

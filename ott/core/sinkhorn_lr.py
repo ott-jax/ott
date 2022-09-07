@@ -243,7 +243,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.,
       gamma_rescale: bool = True,
       epsilon: float = 0.,
-      initializer: Union[Literal["random", "rank2", "k-means"],
+      initializer: Union[Literal["random", "rank2", "k-means",
+                                 "generalized-k-means"],
                          init_lib.LRInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
@@ -283,7 +284,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     Args:
       ot_prob: Linear OT problem.
-      init: Initial values for low-rank factors:
+      init: Initial values for the low-rank factors:
 
         - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
         - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
@@ -532,37 +533,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     if isinstance(self._initializer, init_lib.LRInitializer):
       assert self._initializer.rank == self.rank
       return self._initializer
-    if self._initializer == "random":
-      return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
-    if self._initializer == "rank2":
-      return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
-    if self._initializer == "k-means":
-      return init_lib.KMeansInitializer(
-          self.rank,
-          sinkhorn_kwargs={
-              "norm_error": self._norm_error,
-              "lse_mode": self.lse_mode,
-              "jit": self.jit,
-              "implicit_diff": self.implicit_diff,
-              "use_danskin": self.use_danskin
-          },
-          **self.kwargs_init,
-      )
-    if self._initializer == "generalized-k-means":
-      return init_lib.GeneralizedKMeansInitializer(
-          self.rank,
-          gamma=self.gamma,
-          sinkhorn_kwargs={
-              "norm_error": self._norm_error,
-              "lse_mode": self.lse_mode,
-              "jit": self.jit,
-              "implicit_diff": self.implicit_diff,
-              "use_danskin": self.use_danskin
-          },
-          **self.kwargs_init
-      )
-    raise NotImplementedError(
-        f"Initializer `{self._initializer}` is not implemented."
+    return init_lib.LRInitializer.from_solver(
+        self, kind=self._initializer, **self.kwargs_init
     )
 
   def init_state(
