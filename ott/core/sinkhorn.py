@@ -334,6 +334,7 @@ class Sinkhorn:
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
       should be jitted by the user)
+    potential_initializer: how to compute the initial potentials.
   """
 
   def __init__(

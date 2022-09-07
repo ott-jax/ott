@@ -73,7 +73,7 @@ def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
 
 @jax.tree_util.register_pytree_node_class
 class QuadraticProblem:
-  r"""Definition of the quadratic regularized OT problem.
+  r"""Quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
   have the form given in :cite:`peyre:16`, eq. 4.
@@ -87,13 +87,11 @@ class QuadraticProblem:
     L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
 
   Args:
-    geom_xx: the geometry.Geometry object defining the ground geometry / cost
-      of the first space.
-    geom_yy: the geometry.Geometry object defining the ground geometry / cost
-      of the second space.
-    geom_xy: the geometry.Geometry object defining the linear penalty term
-      for Fused Gromov Wasserstein. If None, the problem reduces to a plain
-      Gromov Wasserstein problem.
+    geom_xx: Geometry defining the ground geometry / cost of the first space.
+    geom_yy: Geometry defining the ground geometry / cost of the second space.
+    geom_xy: Geometry defining the linear penalty term for Fused Gromov
+      Wasserstein. If `None`, the problem reduces to a
+      plain Gromov Wasserstein problem.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
       i.e. problem = purely quadratic + fused_penalty * linear problem.
       Ignored if ``geom_xy`` is not specified.
@@ -102,8 +100,8 @@ class QuadraticProblem:
       - if `True`, use the default for each geometry.
       - if `False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
-        :class:`ott.geometry.geometry.Geometry` or
-        :class`ott.geometry.pointcloud.PointCloud`.
+        :class:`~ott.geometry.geometry.Geometry` or
+        :class:`~ott.geometry.pointcloud.PointCloud`.
       - if `None`, do not scale the cost matrices.
 
     a: jnp.ndarray[n] representing the probability weights of the samples
@@ -226,13 +224,13 @@ class QuadraticProblem:
 
   @property
   def a(self) -> jnp.ndarray:
-    """Source marginals."""
+    """First marginal."""
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
   def b(self) -> jnp.ndarray:
-    """Target marginals."""
+    """Second marginal."""
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
