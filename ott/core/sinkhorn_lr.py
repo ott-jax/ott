@@ -233,7 +233,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ``implicit_diff = False`` is implemented.
     kwargs_dys: keyword arguments passed to :meth:`dykstra_update`.
     kwargs_init: keyword arguments for
-      :class:`~ott.core.initializers_lr.LRSinkhornInitializer`.
+      :class:`~ott.core.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
   """
 
@@ -244,7 +244,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma_rescale: bool = True,
       epsilon: float = 0.,
       initializer: Union[Literal["random", "rank2", "k-means"],
-                         init_lib.LRSinkhornInitializer] = "random",
+                         init_lib.LRInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -527,11 +527,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return self.epsilon > 0.
 
   @property
-  def initializer(self) -> init_lib.LRSinkhornInitializer:
+  def initializer(self) -> init_lib.LRInitializer:
     """Low-rank Sinkhorn initializer."""
-    if isinstance(self._initializer, init_lib.LRSinkhornInitializer):
+    if isinstance(self._initializer, init_lib.LRInitializer):
       assert self._initializer.rank == self.rank
       return self._initializer
+    if self._initializer == "random":
+      return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
+    if self._initializer == "rank2":
+      return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
     if self._initializer == "k-means":
       return init_lib.KMeansInitializer(
           self.rank,
@@ -544,10 +548,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
           },
           **self.kwargs_init,
       )
-    if self._initializer == "rank2":
-      return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
-    if self._initializer == "random":
-      return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
+    if self._initializer == "generalized-k-means":
+      return init_lib.GeneralizedKMeansInitializer(
+          self.rank,
+          gamma=self.gamma,
+          sinkhorn_kwargs={
+              "norm_error": self._norm_error,
+              "lse_mode": self.lse_mode,
+              "jit": self.jit,
+              "implicit_diff": self.implicit_diff,
+              "use_danskin": self.use_danskin
+          },
+          **self.kwargs_init
+      )
     raise NotImplementedError(
         f"Initializer `{self._initializer}` is not implemented."
     )

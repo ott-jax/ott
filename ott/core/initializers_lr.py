@@ -7,13 +7,15 @@ import jax.scipy as jsp
 from jax import numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import linear_problems
+from ott.core import linear_problems, quad_problems
 from ott.geometry import geometry, low_rank, pointcloud
 
 __all__ = [
     "RandomInitializer", "Rank2Initializer", "KMeansInitializer",
     "GeneralizedKMeansInitializer"
 ]
+
+Problem_t = Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]
 
 
 # TODO(michalk8): move to math utils
@@ -30,8 +32,8 @@ def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
 
 
 @jax.tree_util.register_pytree_node_class
-class LRSinkhornInitializer(ABC):
-  """Low-rank Sinkhorn initializer.
+class LRInitializer(ABC):
+  """Low-rank initializer for linear/quadratic problems.
 
   Args:
     rank: Rank of the factorization.
@@ -40,17 +42,20 @@ class LRSinkhornInitializer(ABC):
   def __init__(self, rank: int):
     self._rank = rank
 
+  # TODO(michalk8): init_g missing in the signature
   @abstractmethod
   def init_q(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
+      *,
+      init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Initialize the low-rank factor :math:`Q`.
 
     Args:
-      ot_prob: Linear OT problem.
+      ot_prob: OT problem.
       key: Random key for seeding.
       kwargs: Additional keyword arguments.
 
@@ -61,8 +66,10 @@ class LRSinkhornInitializer(ABC):
   @abstractmethod
   def init_r(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
+      *,
+      init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Initialize the low-rank factor :math:`R`.
@@ -79,14 +86,14 @@ class LRSinkhornInitializer(ABC):
   @abstractmethod
   def init_g(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Initialize the low-rank factor :math:`g`.
 
     Args:
-      ot_prob: Linear OT problem.
+      ot_prob: OT problem.
       key: Random key for seeding.
       kwargs: Additional keyword arguments.
 
@@ -94,9 +101,27 @@ class LRSinkhornInitializer(ABC):
       Array of shape ``[rank,]``.
     """
 
+  @staticmethod
+  def _handle_quadratic_problem(
+      ot_prob: quad_problems.QuadraticProblem, *, q: jnp.ndarray,
+      r: jnp.ndarray, g: jnp.ndarray
+  ) -> linear_problems.LinearProblem:
+    from ott.core import sinkhorn_lr
+
+    dummy_out = sinkhorn_lr.LRSinkhornOutput(
+        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=None
+    )
+    return linear_problems.LinearProblem(
+        ot_prob.update_lr_geom(dummy_out),
+        ot_prob.a,
+        ot_prob.b,
+        tau_a=ot_prob.tau_a,
+        tau_b=ot_prob.tau_b
+    )
+
   def __call__(
       self,
-      ot_prob: Optional[linear_problems.LinearProblem],
+      ot_prob: Problem_t,
       q: Optional[jnp.ndarray] = None,
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
@@ -107,7 +132,7 @@ class LRSinkhornInitializer(ABC):
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
-      ot_prob: Linear OT problem.
+      ot_prob: OT problem.
       q: Factor of shape ``[n, rank]``. If not `None`, :meth:`init_q` will be
         used to initialize the factor.
       r: Array of shape ``[m, rank]``. If not `None`, :meth:`init_r` will be
@@ -136,6 +161,9 @@ class LRSinkhornInitializer(ABC):
     assert q.shape == (ot_prob.a.shape[0], self.rank)
     assert r.shape == (ot_prob.b.shape[0], self.rank)
 
+    if isinstance(ot_prob, quad_problems.QuadraticProblem):
+      return self._handle_quadratic_problem(ot_prob, q=q, r=r, g=g)
+
     return q, r, g
 
   @property
@@ -149,12 +177,12 @@ class LRSinkhornInitializer(ABC):
   @classmethod
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "LRSinkhornInitializer":
+  ) -> "LRInitializer":
     return cls(*children, **aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
-class RandomInitializer(LRSinkhornInitializer):
+class RandomInitializer(LRInitializer):
   """Low-rank Sinkhorn factorization using random factors.
 
   Args:
@@ -163,29 +191,33 @@ class RandomInitializer(LRSinkhornInitializer):
 
   def init_q(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
+      *,
+      init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del kwargs
+    del kwargs, init_g
     a = ot_prob.a
     init_q = jnp.abs(jax.random.normal(key, (a.shape[0], self.rank)))
     return a[:, None] * (init_q / jnp.sum(init_q, axis=1, keepdims=True))
 
   def init_r(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
+      *,
+      init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del kwargs
+    del kwargs, init_g
     b = ot_prob.b
     init_r = jnp.abs(jax.random.normal(key, (b.shape[0], self.rank)))
     return b[:, None] * (init_r / jnp.sum(init_r, axis=1, keepdims=True))
 
   def init_g(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -195,7 +227,7 @@ class RandomInitializer(LRSinkhornInitializer):
 
 
 @jax.tree_util.register_pytree_node_class
-class Rank2Initializer(LRSinkhornInitializer):
+class Rank2Initializer(LRInitializer):
   """Low-rank Sinkhorn factorization using rank-2 factors :cite:`scetbon:21`.
 
   Args:
@@ -204,7 +236,7 @@ class Rank2Initializer(LRSinkhornInitializer):
 
   def _compute_factor(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       init_g: jnp.ndarray,
       *,
       which: Literal["q", "r"],
@@ -232,7 +264,7 @@ class Rank2Initializer(LRSinkhornInitializer):
 
   def init_q(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -243,7 +275,7 @@ class Rank2Initializer(LRSinkhornInitializer):
 
   def init_r(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -254,7 +286,7 @@ class Rank2Initializer(LRSinkhornInitializer):
 
   def init_g(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -263,7 +295,7 @@ class Rank2Initializer(LRSinkhornInitializer):
 
 
 @jax.tree_util.register_pytree_node_class
-class KMeansInitializer(LRSinkhornInitializer):
+class KMeansInitializer(LRInitializer):
   """K-means initializer for low-rank Sinkhorn :cite:`scetbon:22b`.
 
   Args:
@@ -289,6 +321,7 @@ class KMeansInitializer(LRSinkhornInitializer):
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
+      # TODO(michalk8): disable and prefer generalized k-means?
       return geom.cost_1 if first else geom.cost_2
     raise TypeError(
         f"k-means initializer not implemented for `{type(geom).__name__}`."
@@ -296,7 +329,7 @@ class KMeansInitializer(LRSinkhornInitializer):
 
   def _compute_factor(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -311,7 +344,11 @@ class KMeansInitializer(LRSinkhornInitializer):
     fn = functools.partial(k_means.k_means, **self._k_means_kwargs)
     fn = jax.jit(fn, static_argnames="k") if jit else fn
 
-    arr = self._extract_array(ot_prob.geom, first=which == "q")
+    if isinstance(ot_prob, quad_problems.QuadraticProblem):
+      geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
+    else:
+      geom = ot_prob.geom
+    arr = self._extract_array(geom, first=which == "q")
     marginals = ot_prob.a if which == "q" else ot_prob.b
 
     centroids = fn(arr, self.rank, key=key).centroids
@@ -325,7 +362,7 @@ class KMeansInitializer(LRSinkhornInitializer):
 
   def init_q(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -337,7 +374,7 @@ class KMeansInitializer(LRSinkhornInitializer):
 
   def init_r(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -349,7 +386,7 @@ class KMeansInitializer(LRSinkhornInitializer):
 
   def init_g(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -383,7 +420,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         threshold=threshold
     )
 
-  class Constants(NamedTuple):
+  class Constants(NamedTuple):  # noqa: D106
     solver: "sinkhorn.Sinkhorn"  # noqa: F821
     geom: geometry.Geometry  # (n, n)
     marginal: jnp.ndarray  # (n,)
@@ -391,13 +428,13 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     gamma: float
     threshold: float
 
-  class State(NamedTuple):
+  class State(NamedTuple):  # noqa: D106
     factor: jnp.ndarray
     criterions: jnp.ndarray
 
   def _compute_factor(
       self,
-      ot_prob: linear_problems.LinearProblem,
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -458,6 +495,11 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       return self.State(factor=new_factor, criterions=criterions)
 
     del kwargs
+
+    if isinstance(ot_prob, quad_problems.QuadraticProblem):
+      geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
+    else:
+      geom = ot_prob.geom
     assert ot_prob.geom.shape[0] == ot_prob.geom.shape[1], "TODO: wrong shape"
 
     min_iter = self._k_means_kwargs["min_iterations"]
@@ -470,7 +512,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     consts = self.Constants(
         solver=sinkhorn.Sinkhorn(**self._sinkhorn_kwargs),
-        geom=ot_prob.geom._set_scale_cost("max_cost"),
+        geom=geom._set_scale_cost("max_cost"),
         marginal=ot_prob.a if which == "q" else ot_prob.b,
         g=init_g,
         gamma=self._k_means_kwargs["gamma"],
@@ -486,3 +528,36 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         constants=consts,
         state=init_fn(),
     ).factor
+
+
+class LinearGWInitializer(LRInitializer):
+
+  def _linearize(
+      self, ot_prob: quad_problems.QuadraticProblem
+  ) -> linear_problems.LinearProblem:
+    x = ot_prob.geom_xx.apply_square_cost(ot_prob.a)
+    y = ot_prob.geom_yy.apply_square_cost(ot_prob.b)
+    geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
+
+    return linear_problems.LinearProblem(geom, ot_prob.a, ot_prob.b)
+
+  def init_q(
+      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
+      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
+  ) -> jnp.ndarray:
+    ot_prob = self._linearize(ot_prob)
+    return linear_init.init_q(ot_prob, key, **kwargs)
+
+  def init_r(
+      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
+      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
+  ) -> jnp.ndarray:
+    ot_prob = self._linearize(ot_prob)
+    return linear_init.init_r(ot_prob, key, **kwargs)
+
+  def init_g(
+      self, ot_prob: quad_problems.QuadraticProblem, key: jnp.ndarray, *,
+      init_g: jnp.ndarrray, linear_init: LRInitializer, **kwargs: Any
+  ) -> jnp.ndarray:
+    ot_prob = self._linearize(ot_prob)
+    return linear_init.init_g(ot_prob, key, **kwargs)

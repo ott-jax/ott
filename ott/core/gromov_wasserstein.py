@@ -20,14 +20,9 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import (
-    fixed_point_loop,
-    linear_problems,
-    quad_problems,
-    sinkhorn,
-    sinkhorn_lr,
-    was_solver,
-)
+from ott.core import fixed_point_loop
+from ott.core import initializers_lr as init_lib
+from ott.core import linear_problems, quad_problems, sinkhorn, sinkhorn_lr, was_solver
 from ott.geometry import epsilon_scheduler, geometry
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
@@ -167,10 +162,35 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def init_state(
       self,
       prob: quad_problems.QuadraticProblem,
+      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                  Optional[jnp.ndarray]] = (None, None, None),
+      key: Optional[jnp.ndarray] = None,
+      **kwargs: Any,
   ) -> GWState:
-    """Initialize the state of the Gromov-Wasserstein iterations."""
+    """Initialize the state of the Gromov-Wasserstein iterations.
+
+    Args:
+      prob: Quadratic OT problem
+      init: Initial values for low-rank factors:
+
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.g`.
+
+        Any `None` values will be initialized using the :attr:`lr_initializer`.
+        Only used in the low-rank case.
+      key: Random key for seeding. Only used in the low-rank case.
+      kwargs: Additional arguments when calling :attr:`lr_initializer`.
+        Only used in the low-rank case.
+    """
     if self.is_low_rank:
-      linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
+      linear_prob = self.lr_initializer(
+          prob,
+          *init,
+          key=key,
+          linear_init=self.linear_ot_solver.initializer,
+          **kwargs
+      )
     else:
       linear_prob = prob.init_linearization(self.epsilon)
 
@@ -210,6 +230,11 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         geom=geom,
         old_transport_mass=state.old_transport_mass
     )
+
+  @property
+  def lr_initializer(self) -> init_lib.LRInitializer:
+    """Low-rank Gromov-Wasserstein initializer."""
+    raise NotImplementedError("TODO")
 
 
 def iterations(
