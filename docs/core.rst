@@ -61,6 +61,14 @@ Low-Rank Sinkhorn Initializers
     initializers_lr.KMeansInitializer
     initializers_lr.GeneralizedKMeansInitializer
 
+Quadratic Initializers
+----------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    quad_initializers.QuadraticInitializer
+    quad_initializers.LRQuadraticInitializer
+
 Barycenters (Entropic and LR)
 -----------------------------
 .. autosummary::
