@@ -21,6 +21,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from typing_extensions import Literal
 
+from ott.core import _math_utils as mu
 from ott.core import fixed_point_loop
 from ott.core import initializers_lr as init_lib
 from ott.core import linear_problems, sinkhorn
@@ -39,9 +40,9 @@ class LRSinkhornState(NamedTuple):
   crossed_threshold: bool
 
   def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
-    err_1 = kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
-    err_2 = kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
-    err_3 = kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
+    err_1 = mu.kl(self.q, previous_state.q) + mu.kl(previous_state.q, self.q)
+    err_2 = mu.kl(self.r, previous_state.r) + mu.kl(previous_state.r, self.r)
+    err_3 = mu.kl(self.g, previous_state.g) + mu.kl(previous_state.g, self.g)
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
   def reg_ot_cost(
@@ -310,7 +311,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state: LRSinkhornState,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     log_q, log_r, log_g = (
-        safe_log(state.q), safe_log(state.r), safe_log(state.g)
+        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
     )
 
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
@@ -662,16 +663,3 @@ def make(
       jit=jit,
       kwargs_dys=kwargs_dys
   )
-
-
-# TODO(michalk8): move to math utils
-def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
-  res_1 = -jsp.special.entr(q1)
-  res_2 = q1 * safe_log(q2)
-  return jnp.sum(res_1 - res_2)
-
-
-def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
-  if eps is None:
-    eps = jnp.finfo(x.dtype).tiny
-  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))

@@ -13,10 +13,10 @@ from typing import (
 )
 
 import jax
-import jax.scipy as jsp
 from jax import numpy as jnp
 from typing_extensions import Literal
 
+from ott.core import _math_utils as mu
 from ott.geometry import geometry, low_rank, pointcloud
 
 __all__ = [
@@ -32,19 +32,6 @@ if TYPE_CHECKING:
       sinkhorn,
       sinkhorn_lr,
   )
-
-
-# TODO(michalk8): move to math utils
-def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
-  res_1 = -jsp.special.entr(q1)
-  res_2 = q1 * safe_log(q2)
-  return jnp.sum(res_1 - res_2)
-
-
-def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
-  if eps is None:
-    eps = jnp.finfo(x.dtype).tiny
-  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
 @jax.tree_util.register_pytree_node_class
@@ -529,7 +516,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       gamma = consts.gamma / norm
       eps = 1. / gamma
 
-      geom = grad - eps * safe_log(state.factor)  # (n, r)
+      geom = grad - eps * mu.safe_log(state.factor)  # (n, r)
       geom = geometry.Geometry(
           cost_matrix=geom, epsilon=eps, scale_cost="max_cost"
       )
@@ -541,7 +528,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
       new_factor = out.matrix
       criterion = ((1 / gamma) ** 2) * (
-          kl(new_factor, state.factor) + kl(state.factor, new_factor)
+          mu.kl(new_factor, state.factor) + mu.kl(state.factor, new_factor)
       )
       criterions = state.criterions.at[iteration].set(criterion)
 
