@@ -47,7 +47,6 @@ class LRInitializer(ABC):
     del kwargs
     self._rank = rank
 
-  # TODO(michalk8): init_g missing in the signature
   @abstractmethod
   def init_q(
       self,
@@ -118,14 +117,25 @@ class LRInitializer(ABC):
       kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
       **kwargs: Any,
   ) -> 'LRInitializer':
-    """TODO."""
+    """Create a low-rank initializer from a linear or quadratic solver.
+
+    Args:
+      solver: Low-rank linear or quadratic solver.
+      kind: Which initializer to instantiate.
+      kwargs: Keyword arguments when creating the initializer.
+
+    Returns:
+      The low-rank initializer.
+    """
     from ott.core import gromov_wasserstein
 
-    rank = solver.rank
-    lin_sol = solver.linear_ot_solver if isinstance(
-        solver, gromov_wasserstein.GromovWasserstein
-    ) else solver
+    if isinstance(solver, gromov_wasserstein.GromovWasserstein):
+      assert solver.is_low_rank, "GW solver is not low-rank."
+      lin_sol = solver.linear_ot_solver
+    else:
+      lin_sol = solver
 
+    rank = solver.rank
     sinkhorn_kwargs = {
         "norm_error": lin_sol._norm_error,
         "lse_mode": lin_sol.lse_mode,
@@ -332,6 +342,9 @@ class Rank2Initializer(LRInitializer):
 class KMeansInitializer(LRInitializer):
   """K-means initializer for low-rank Sinkhorn :cite:`scetbon:22b`.
 
+  Applicable for :class:`~ott.geometry.pointcloud.PointCloud` and
+  :class:`~ott.geometry.low_rank.LRCGeometry`.
+
   Args:
     rank: Rank of the factorization.
     sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
@@ -355,7 +368,6 @@ class KMeansInitializer(LRInitializer):
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
-      # TODO(michalk8): disable and prefer generalized k-means?
       return geom.cost_1 if first else geom.cost_2
     raise TypeError(
         f"k-means initializer not implemented for `{type(geom).__name__}`."
@@ -438,7 +450,19 @@ class KMeansInitializer(LRInitializer):
 
 
 class GeneralizedKMeansInitializer(KMeansInitializer):
-  """TODO."""
+  """Generalized k-means initializer :cite:`scetbon:22b`.
+
+  Applicable for any :class:`~ott.geometry.geometry.Geometry` with a
+  square shape.
+
+  Args:
+    rank: Rank of the factorization.
+    gamma: the (inverse of) gradient step size used by mirror descent.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
+    threshold: Convergence threshold.
+    sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
+  """
 
   def __init__(
       self,
@@ -541,7 +565,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
-    assert ot_prob.geom.shape[0] == ot_prob.geom.shape[1], "TODO: wrong shape"
+    assert ot_prob.geom.shape[0] == ot_prob.geom.shape[
+        1], f"Expected the shape to be square, found `{geom.shape}`."
 
     min_iter = self._k_means_kwargs["min_iterations"]
     max_iter = self._k_means_kwargs["max_iterations"]
