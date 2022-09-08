@@ -231,11 +231,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     Args:
       prob: Quadratic OT problem.
-      init: Initial values for the low-rank factors:
-
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.g`.
+      init: If the solver is low-rank, ``init`` corresponds to the low-rank
+        factors :math:`Q`, :math:`R` and :math:`q`. Otherwise, it corresponds
+        to the initial linearization of the problem.
     """
     if self.is_low_rank:
       q, r, g = init
