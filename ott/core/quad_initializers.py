@@ -26,6 +26,15 @@ class BaseQuadraticInitializer(ABC):
   def __call__(
       self, quad_prob: 'quad_problems.QuadraticProblem', **kwargs: Any
   ) -> linear_problems.LinearProblem:
+    """Compute the initial linearization of a quadratic problem.
+
+    Args:
+      quad_prob: Quadratic problem to linearize.
+      kwargs: Additional keyword arguments.
+
+    Returns:
+      Linear problem.
+    """
     geom = self._create_geometry(quad_prob, **kwargs)
     return linear_problems.LinearProblem(
         geom,
@@ -46,8 +55,7 @@ class BaseQuadraticInitializer(ABC):
       kwargs: Additional keyword arguments.
 
     Returns:
-      Geometry used to initialize
-      :class:`~ott.core.linear_problem.LinearProblem`.
+      Geometry used to initialize the linear problem.
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -63,10 +71,10 @@ class BaseQuadraticInitializer(ABC):
 class QuadraticInitializer(BaseQuadraticInitializer):
   """Initialize a linear problem locally around a naive initializer ab'.
 
-  If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
+  If the problem is balanced (``tau_a = 1.0`` and ``tau_b = 1.0``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
 
-  If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
+  If the problem is unbalanced (``tau_a < 1`` or ``tau_b < 1``), there are two
   possible cases. A first possibility is to introduce a quadratic KL
   divergence on the marginals in the objective as done in :cite:`sejourne:21`
   (``gw_unbalanced_correction = True``), which in turns modifies the
