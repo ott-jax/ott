@@ -80,21 +80,21 @@ class WassersteinSolver:
     return self.rank > 0
 
   def tree_flatten(self):
-    return ([self.epsilon, self.rank, self.linear_ot_solver, self.threshold],
+    return ([self.epsilon, self.linear_ot_solver, self.threshold],
             dict(
                 min_iterations=self.min_iterations,
                 max_iterations=self.max_iterations,
                 jit=self.jit,
+                rank=self.rank,
                 store_inner_errors=self.store_inner_errors,
                 **self._kwargs
             ))
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    epsilon, rank, linear_ot_solver, threshold = children
+    epsilon, linear_ot_solver, threshold = children
     return cls(
         epsilon=epsilon,
-        rank=rank,
         linear_ot_solver=linear_ot_solver,
         threshold=threshold,
         **aux_data

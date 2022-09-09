@@ -73,16 +73,18 @@ def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
 
 @jax.tree_util.register_pytree_node_class
 class QuadraticProblem:
-  """Definition of the quadratic regularized OT problem.
+  r"""Definition of the quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
   have the form given in :cite:`peyre:16`, eq. 4.
 
-  The two geometries below parameterize matrices C and bar{C} in that equation.
-  The function L (of two real values) in that equation is assumed
-  to match the form given in Eq. 5., with our notations:
+  The two geometries below parameterize matrices :math:`C` and :math:`\bar{C}`
+  in that equation. The function :math:`L` (of two real values) in that equation
+  is assumed to match the form given in eq. 5., with our notations:
 
-  L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
+  .. math::
+
+    L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
 
   Args:
     geom_xx: the geometry.Geometry object defining the ground geometry / cost
@@ -175,10 +177,12 @@ class QuadraticProblem:
 
   @property
   def is_fused(self) -> bool:
+    """Whether the problem is fused."""
     return self.geom_xy is not None
 
   @property
   def is_low_rank(self) -> bool:
+    """Whether all geometries are low-rank."""
     return (
         isinstance(self.geom_xx, low_rank.LRCGeometry) and
         isinstance(self.geom_yy, low_rank.LRCGeometry) and (
@@ -189,14 +193,17 @@ class QuadraticProblem:
 
   @property
   def linear_loss(self) -> Tuple[Loss, Loss]:
+    """Linear part of the GW loss."""
     return self.loss.f1, self.loss.f2
 
   @property
   def quad_loss(self) -> Tuple[Loss, Loss]:
+    """Quadratic part of the GW loss."""
     return self.loss.h1, self.loss.h2
 
   @property
   def is_balanced(self) -> bool:
+    """Whether the problem is balanced."""
     return ((not self.gw_unbalanced_correction) or
             (self.tau_a == 1.0 and self.tau_b == 1.0))
 
@@ -219,11 +226,13 @@ class QuadraticProblem:
 
   @property
   def a(self) -> jnp.ndarray:
+    """Source marginals."""
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
   def b(self) -> jnp.ndarray:
+    """Target marginals."""
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
@@ -404,24 +413,29 @@ class QuadraticProblem:
     )
 
   def init_lr_linearization(
-      self, rank: int = 10, **kwargs: Any
+      self,
+      solver: sinkhorn_lr.LRSinkhorn,
+      **kwargs: Any,
   ) -> linear_problems.LinearProblem:
-    """Linearizes a Quad problem with a predefined initializer."""
-    x_ = self.geom_xx.apply_square_cost(self.a)
-    y_ = self.geom_yy.apply_square_cost(self.b)
-    geom_ = pointcloud.PointCloud(x_, y_).to_LRCGeometry()
-    out = sinkhorn_lr.LRSinkhorn(
-        rank=rank, **kwargs
-    )(
-        linear_problems.LinearProblem(geom_, self.a, self.b)
+    """Linearize a Quad problem with a predefined initializer."""
+    x = self.geom_xx.apply_square_cost(self.a)
+    y = self.geom_yy.apply_square_cost(self.b)
+    geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
+
+    prob = linear_problems.LinearProblem(geom, self.a, self.b)
+    q, r, g = solver.initializer(prob, **kwargs)
+    dummy_out = sinkhorn_lr.LRSinkhornOutput(
+        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=prob
     )
-    return linear_problems.LinearProblem(
-        self.update_lr_geom(out),
+
+    prob = linear_problems.LinearProblem(
+        self.update_lr_geom(dummy_out),
         self.a,
         self.b,
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
+    return prob
 
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
@@ -539,7 +553,7 @@ class QuadraticProblem:
 
     geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
     # either explicitly via cost factorization or implicitly (e.g., a PC)
-    return self.ranks != 1 or (
+    return self.ranks != -1 or (
         convertible(geom_xx) and convertible(geom_yy) and
         (geom_xy is None or convertible(geom_xy))
     )

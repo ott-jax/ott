@@ -51,6 +51,15 @@ Low-Rank Sinkhorn
     sinkhorn_lr.LRSinkhorn
     sinkhorn_lr.LRSinkhornOutput
 
+Low-Rank Sinkhorn Initializers
+------------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    initializers_lr.RandomInitializer
+    initializers_lr.Rank2Initializer
+    initializers_lr.KMeansInitializer
+
 Barycenters (Entropic and LR)
 -----------------------------
 .. autosummary::

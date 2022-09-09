@@ -734,7 +734,7 @@ class TestSinkhornHessian:
       tau_b=[1.0, .91],
       shape=[(12, 15)],
       arg=[0, 1],
-      only_fast=[-1]
+      only_fast=-1
   )
   def test_hessian_sinkhorn(
       self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
@@ -764,7 +764,7 @@ class TestSinkhornHessian:
           lse_mode=lse_mode,
           threshold=1e-4,
           use_danskin=False,
-          implicit_diff=implicit_diff
+          implicit_diff=implicit_diff,
       )
       return solver(prob).reg_ot_cost
 

@@ -14,27 +14,35 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Mapping, NamedTuple, Optional, Tuple
+from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
-from ott.core import fixed_point_loop, linear_problems, sinkhorn
+from ott.core import fixed_point_loop
+from ott.core import initializers_lr as init_lib
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import geometry
 
 
 class LRSinkhornState(NamedTuple):
   """State of the Low Rank Sinkhorn algorithm."""
 
-  q: Optional[jnp.ndarray] = None
-  r: Optional[jnp.ndarray] = None
-  g: Optional[jnp.ndarray] = None
-  costs: Optional[jnp.ndarray] = None
+  q: jnp.ndarray
+  r: jnp.ndarray
+  g: jnp.ndarray
+  gamma: float
+  costs: jnp.ndarray
+  criterions: jnp.ndarray
+  crossed_threshold: bool
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornState':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
+  def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
+    err_1 = kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
+    err_2 = kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
+    err_3 = kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
+    return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
   def reg_ot_cost(
       self,
@@ -44,10 +52,14 @@ class LRSinkhornState(NamedTuple):
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(
-      self, ot_prob: linear_problems.LinearProblem, norm_error: jnp.ndarray,
+      self, ot_prob: linear_problems.LinearProblem, norm_error: Tuple[int, ...],
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
+
+  def set(self, **kwargs: Any) -> 'LRSinkhornState':
+    """Return a copy of self, with potential overwrites."""
+    return self._replace(**kwargs)
 
 
 def compute_reg_ot_cost(
@@ -60,12 +72,12 @@ def compute_reg_ot_cost(
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
-  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1. / g)[None, :])
 
 
 def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problems.LinearProblem,
-    norm_error: jnp.ndarray, lse_mode: bool
+    norm_error: Tuple[int, ...], lse_mode: bool
 ) -> jnp.ndarray:
   """Compute solution error.
 
@@ -85,16 +97,13 @@ def solution_error(
   norm_error = jnp.array(norm_error)
   # Update the error
   err = jnp.sum(
-      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, jnp.newaxis],
-      axis=1
+      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
   ) ** (1.0 / norm_error)
   err += jnp.sum(
-      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, jnp.newaxis],
-      axis=1
+      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
   ) ** (1.0 / norm_error)
   err += jnp.sum(
-      jnp.abs(jnp.sum(q, axis=0) -
-              jnp.sum(r, axis=0)) ** norm_error[:, jnp.newaxis],
+      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
       axis=1
   ) ** (1.0 / norm_error)
 
@@ -104,12 +113,14 @@ def solution_error(
 class LRSinkhornOutput(NamedTuple):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
 
-  q: Optional[jnp.ndarray] = None
-  r: Optional[jnp.ndarray] = None
-  g: Optional[jnp.ndarray] = None
-  costs: Optional[jnp.ndarray] = None
+  q: jnp.ndarray
+  r: jnp.ndarray
+  g: jnp.ndarray
+  costs: jnp.ndarray
+  criterions: jnp.ndarray
+  ot_prob: linear_problems.LinearProblem
+  # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
-  ot_prob: Optional[linear_problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
     """Return a copy of self, with potential overwrites."""
@@ -153,8 +164,6 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def converged(self) -> bool:
-    if self.costs is None:
-      return False
     return jnp.logical_and(
         jnp.sum(self.costs == -1) > 0,
         jnp.sum(jnp.isnan(self.costs)) == 0
@@ -163,14 +172,13 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
-    return jnp.matmul(self.q * (1 / self.g)[None, :], self.r.T)
+    return (self.q * self._inv_g) @ self.r.T
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Apply the transport to a ndarray; axis=1 for its transpose."""
+    """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    if inputs.ndim == 1:
-      inputs = inputs.reshape((1, -1))
-    return jnp.dot(q, jnp.dot(inputs, r).T / self.g.reshape(-1, 1)).T.squeeze()
+    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
@@ -178,13 +186,16 @@ class LRSinkhornOutput(NamedTuple):
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for matrix, evaluated at other cost matrix."""
-    return jnp.sum(
-        self.q * other_geom.apply_cost(self.r, axis=1) / self.g[None, :]
-    )
+    return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
 
+  # TODO(michalk8): when refactoring the API, use a property
   def transport_mass(self) -> float:
     """Sum of transport matrix."""
     return self.marginal(0).sum()
+
+  @property
+  def _inv_g(self) -> jnp.ndarray:
+    return 1. / self.g
 
 
 @jax.tree_util.register_pytree_node_class
@@ -195,166 +206,146 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
-  care to initialization and convergence. Initialization is random by default,
-  and convergence evaluated on successive evaluations of the objective. The
-  algorithm is only provided for the balanced case.
+  care to initialization and convergence. Convergence is evaluated on successive
+  evaluations of the objective. The algorithm is only provided for the balanced
+  case.
 
   Args:
     rank: the rank constraint on the coupling to minimize the linear OT problem
-    gamma: the (inverse of) gradient stepsize used by mirror descent.
+    gamma: the (inverse of) gradient step size used by mirror descent.
+    gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
+      described in :cite:`scetbon:22b`.
     epsilon: entropic regularization added on top of low-rank problem.
-    init_type: TODO.
-    lse_mode: whether to run computations in lse or kernel mode. At this moment,
-      only ``lse_mode=True`` is implemented.
-    threshold: convergence threshold, used to quantify whether two successive
-      evaluations of the objective are (relatively) close enough to terminate.
-    norm_error: norm used to quantify feasibility (deviation to marginals).
+    initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
+      factors. Valid options are:
+
+      - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
+      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+      - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+
+    lse_mode: whether to run computations in lse or kernel mode. At the moment,
+      only ``lse_mode = True`` is implemented.
     inner_iterations: number of inner iterations used by the algorithm before
-      reevaluating progress.
-    min_iterations: min number of iterations before evaluating objective.
-    max_iterations: max number of iterations allowed.
+      re-evaluating progress.
     use_danskin: use Danskin theorem to evaluate gradient of objective w.r.t.
-      input parameters. Only ``True`` handled at this moment.
-    implicit_diff: whether to use implicit differentiation. Not implemented
-      at this moment.
-    jit: jit by default iterations loop.
-    rng_key: seed of random number generator to initialize the LR factors.
-    kwargs_dys: keyword arguments passed onto :meth:`dysktra_update`.
+      input parameters. Only `True` handled at this moment.
+    implicit_diff: Whether to use implicit differentiation. Currently, only
+      ``implicit_diff = False`` is implemented.
+    kwargs_dys: keyword arguments passed to :meth:`dykstra_update`.
+    kwargs_init: keyword arguments for
+      :class:`~ott.core.initializers_lr.LRSinkhornInitializer`.
+    kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
   """
 
   def __init__(
       self,
-      rank: int = 10,
-      gamma: float = 1.0,
-      epsilon: float = 1e-4,
-      init_type: Literal['random', 'rank_2'] = 'random',
+      rank: int,
+      gamma: float = 10.,
+      gamma_rescale: bool = True,
+      epsilon: float = 0.,
+      initializer: Union[Literal["random", "rank2", "k-means"],
+                         init_lib.LRSinkhornInitializer] = "random",
       lse_mode: bool = True,
-      threshold: float = 1e-3,
-      norm_error: int = 1,
-      inner_iterations: int = 1,
-      min_iterations: int = 0,
-      max_iterations: int = 2000,
+      inner_iterations: int = 10,
       use_danskin: bool = True,
       implicit_diff: bool = False,
-      jit: bool = True,
-      rng_key: int = 0,
-      kwargs_dys: Optional[Mapping[str, Any]] = None
+      kwargs_dys: Optional[Mapping[str, Any]] = None,
+      kwargs_init: Optional[Mapping[str, Any]] = None,
+      **kwargs: Any,
   ):
-    # TODO(michalk8): this should call super
+    assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
+    assert not implicit_diff, "Implicit diff. not yet implemented for LRSink."
+    super().__init__(
+        lse_mode=lse_mode,
+        inner_iterations=inner_iterations,
+        use_danskin=use_danskin,
+        implicit_diff=implicit_diff,
+        **kwargs
+    )
     self.rank = rank
     self.gamma = gamma
+    self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self.init_type = init_type
-    self.lse_mode = lse_mode
-    assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
-    self.threshold = threshold
-    self.inner_iterations = inner_iterations
-    self.min_iterations = min_iterations
-    self.max_iterations = max_iterations
-    self._norm_error = norm_error
-    self.jit = jit
-    self.use_danskin = use_danskin
-    self.implicit_diff = implicit_diff
-    assert not implicit_diff, "Implicit diff. not yet implemented for LRSink."
-    self.rng_key = rng_key
+    self._initializer = initializer
+    # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
+    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
       ot_prob: linear_problems.LinearProblem,
-      init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                           Optional[jnp.ndarray]]] = None
+      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                  Optional[jnp.ndarray]] = (None, None, None),
+      key: Optional[jnp.ndarray] = None,
+      **kwargs: Any,
   ) -> LRSinkhornOutput:
-    """Main interface to run LR sinkhorn."""  # noqa: D401
-    init_q, init_r, init_g = (init if init is not None else (None, None, None))
-    # Random initialization for q, r, g using rng_key
-    rng = jax.random.split(jax.random.PRNGKey(self.rng_key), 3)
-    a, b = ot_prob.a, ot_prob.b
-    if self.init_type == 'random':
-      if init_g is None:
-        init_g = jnp.abs(jax.random.uniform(rng[0], (self.rank,))) + 1
-        init_g = init_g / jnp.sum(init_g)
-      if init_q is None:
-        init_q = jnp.abs(jax.random.normal(rng[1], (a.shape[0], self.rank)))
-        init_q = init_q * (a / jnp.sum(init_q, axis=1))[:, None]
-      if init_r is None:
-        init_r = jnp.abs(jax.random.normal(rng[2], (b.shape[0], self.rank)))
-        init_r = init_r * (b / jnp.sum(init_r, axis=1))[:, None]
-    elif self.init_type == 'rank_2':
-      if init_g is None:
-        init_g = jnp.ones((self.rank,)) / self.rank
-        lambda_1 = min(jnp.min(a), jnp.min(init_g), jnp.min(b)) / 2
-        a1 = jnp.arange(1, a.shape[0] + 1)
-        a1 = a1 / jnp.sum(a1)
-        a2 = (a - lambda_1 * a1) / (1 - lambda_1)
-        b1 = jnp.arange(1, b.shape[0] + 1)
-        b1 = b1 / jnp.sum(b1)
-        b2 = (b - lambda_1 * b1) / (1 - lambda_1)
-        g1 = jnp.arange(1, self.rank + 1)
-        g1 = g1 / jnp.sum(g1)
-        g2 = (init_g - lambda_1 * g1) / (1 - lambda_1)
-      if init_q is None:
-        init_q = lambda_1 * jnp.dot(a1[:, None], g1.reshape(1, -1))
-        init_q += (1 - lambda_1) * jnp.dot(a2[:, None], g2.reshape(1, -1))
-      if init_r is None:
-        init_r = lambda_1 * jnp.dot(b1[:, None], g1.reshape(1, -1))
-        init_r += (1 - lambda_1) * jnp.dot(b2[:, None], g2.reshape(1, -1))
-    else:
-      raise NotImplementedError(self.init_type)
+    """Run low-rank Sinkhorn.
+
+    Args:
+      ot_prob: Linear OT problem.
+      init: Initial values for low-rank factors:
+
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
+        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.g`.
+
+        Any `None` values will be initialized using the :attr:`initializer`.
+      key: Random key for seeding.
+      kwargs: Additional arguments when calling :attr:`initializer`.
+
+    Returns:
+      The low-rank Sinkhorn output.
+    """
+    assert ot_prob.is_balanced, "Unbalanced case is not implemented."
+    init = self.initializer(ot_prob, *init, key=key, **kwargs)
     run_fn = jax.jit(run) if self.jit else run
-    return run_fn(ot_prob, self, (init_q, init_r, init_g))
+    return run_fn(ot_prob, self, init)
 
-  @property
-  def norm_error(self) -> Tuple[int]:
-    return (self._norm_error,)
-
-  def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
-    costs, i, tol = state.costs, iteration, self.threshold
-    return jnp.logical_and(
-        i >= 2, jnp.isclose(costs[i - 2], costs[i - 1], rtol=tol)
+  def _lr_costs(
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      state: LRSinkhornState,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
+    log_q, log_r, log_g = (
+        safe_log(state.q), safe_log(state.r), safe_log(state.g)
     )
 
-  def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
-    return jnp.logical_not(jnp.isfinite(state.costs[iteration - 1]))
-
-  def _continue(self, state: LRSinkhornState, iteration: int) -> bool:
-    """Continue while not(converged) and not(diverged)."""
-    return jnp.logical_or(
-        iteration <= 2,
-        jnp.logical_and(
-            jnp.logical_not(self._diverged(state, iteration)),
-            jnp.logical_not(self._converged(state, iteration))
-        )
-    )
-
-  def lr_costs(
-      self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
-      iteration: int
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    c_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    c_q += (self.epsilon - 1 / self.gamma) * jnp.log(state.q)
-    c_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    c_r += (self.epsilon - 1 / self.gamma) * jnp.log(state.r)
+    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
+    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
     diag_qcr = jnp.sum(
         state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
     )
-    h = diag_qcr / state.g ** 2 - (self.epsilon -
-                                   1 / self.gamma) * jnp.log(state.g)
-    return c_q, c_r, h
+    grad_g = -diag_qcr / (state.g ** 2)
+    if self.is_entropic:
+      grad_q += self.epsilon * log_q
+      grad_r += self.epsilon * log_r
+      grad_g += self.epsilon * log_g
 
-  def dysktra_update(
+    if self.gamma_rescale:
+      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
+      gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+    else:
+      gamma = self.gamma
+
+    c_q = grad_q - (1. / gamma) * log_q
+    c_r = grad_r - (1. / gamma) * log_r
+    h = -grad_g + (1. / gamma) * log_g
+    return c_q, c_r, h, gamma
+
+  def dykstra_update(
       self,
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
       h: jnp.ndarray,
+      gamma: float,
       ot_prob: linear_problems.LinearProblem,
-      state: LRSinkhornState,
-      iteration: int,
       min_entry_value: float = 1e-6,
-      tolerance: float = 1e-4,
+      tolerance: float = 1e-3,
       min_iter: int = 0,
       inner_iter: int = 10,
-      max_iter: int = 200
+      max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     # shortcuts for problem's definition.
     r = self.rank
@@ -371,91 +362,105 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
     constants = c_q, c_r, loga, logb
 
-    def cond_fn(iteration, constants, state_inner):
+    def cond_fn(
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...]
+    ) -> bool:
       del iteration, constants
-      err = state_inner[-1]
+      *_, err = state_inner
       return err > tolerance
 
-    def _softm(f, g, c, axis):
-      return jax.scipy.special.logsumexp(
-          self.gamma * (f[:, None] + g[None, :] - c), axis=axis
+    def _softm(
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+    ) -> jnp.ndarray:
+      return jsp.special.logsumexp(
+          gamma * (f[:, None] + g[None, :] - c), axis=axis
       )
 
-    def body_fn(iteration, constants, state_inner, compute_error):
+    def body_fn(
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> Tuple[jnp.ndarray, ...]:
+      # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
 
       # First Projection
       f1 = jnp.where(
           jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, 1)) / self.gamma + f1, loga
+          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
       )
       f2 = jnp.where(
           jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, 1)) / self.gamma + f2, logb
+          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
       )
 
       h = h_old + w_gi
-      h = jnp.maximum(jnp.log(min_entry_value) / self.gamma, h)
+      h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
       w_gi += h_old - h
       h_old = h
 
       # Update couplings
-      g_q = _softm(f1, g1_old, c_q, 0)
-      g_r = _softm(f2, g2_old, c_r, 0)
+      g_q = _softm(f1, g1_old, c_q, axis=0)
+      g_r = _softm(f2, g2_old, c_r, axis=0)
 
       # Second Projection
-      h = (1 / 3) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3 * self.gamma)
-      h += g_r / (3 * self.gamma)
-      g1 = h + g1_old - g_q / self.gamma
-      g2 = h + g2_old - g_r / self.gamma
+      h = (1. / 3.) * (h_old + w_gp + w_q + w_r)
+      h += g_q / (3. * gamma)
+      h += g_r / (3. * gamma)
+      g1 = h + g1_old - g_q / gamma
+      g2 = h + g2_old - g_r / gamma
 
       w_q = w_q + g1_old - g1
       w_r = w_r + g2_old - g2
       w_gp = h_old + w_gp - h
 
-      q, r, _ = self.recompute_couplings(f1, g1, c_q, f2, g2, c_r, h)
+      q, r, _ = recompute_couplings(f1, g1, c_q, f2, g2, c_r, h, gamma)
 
       g1_old = g1
       g2_old = g2
       h_old = h
 
-      err = jnp.where(
+      err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          solution_error(q, r, ot_prob, self.norm_error, self.lse_mode), err
-      )[0]
+          lambda: solution_error(q, r, ot_prob, self.norm_error, self.lse_mode)[
+              0], lambda: err
+      )
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
+
+    def recompute_couplings(
+        f1: jnp.ndarray,
+        g1: jnp.ndarray,
+        c_q: jnp.ndarray,
+        f2: jnp.ndarray,
+        g2: jnp.ndarray,
+        c_r: jnp.ndarray,
+        h: jnp.ndarray,
+        gamma: float,
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
+      r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
+      g = jnp.exp(gamma * h)
+      return q, r, g
 
     state_inner = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
-
-    q, r, g = self.recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old)
-    return q, r, g
-
-  def recompute_couplings(
-      self, f1: jnp.ndarray, g1: jnp.ndarray, c_q: jnp.ndarray, f2: jnp.ndarray,
-      g2: jnp.ndarray, c_r: jnp.ndarray, h: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    q = jnp.exp(self.gamma * (f1[:, None] + g1[None, :] - c_q))
-    r = jnp.exp(self.gamma * (f2[:, None] + g2[None, :] - c_r))
-    g = jnp.exp(self.gamma * h)
-    return q, r, g
+    return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
 
   def lse_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    c_q, c_r, h = self.lr_costs(ot_prob, state, iteration)
-    q, r, g = self.dysktra_update(
-        c_q, c_r, h, ot_prob, state, iteration, **self.kwargs_dys
+    c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
+    q, r, g = self.dykstra_update(
+        c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
     )
-    return state.set(q=q, g=g, r=r)
+    return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
@@ -463,7 +468,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """LR Sinkhorn multiplicative update."""
     # TODO(cuturi): kernel step not implemented.
-    return state
+    raise NotImplementedError("Not implemented.")
 
   def one_iteration(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
@@ -472,6 +477,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Carries out one LR sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
+
       - log-space for numerical stability.
       - scaling space, using standard kernel-vector multiply operations.
 
@@ -484,18 +490,67 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       The updated state.
     """
+    previous_state = state
+    it = iteration // self.inner_iterations
     if self.lse_mode:  # In lse_mode, run additive updates.
       state = self.lse_step(ot_prob, state, iteration)
     else:
       state = self.kernel_step(ot_prob, state, iteration)
 
     # re-computes error if compute_error is True, else set it to inf.
-    cost = jnp.where(
+    cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.reg_ot_cost(ot_prob), jnp.inf
+        lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
     )
-    costs = state.costs.at[iteration // self.inner_iterations].set(cost)
-    return state.set(costs=costs)
+    criterion = state.compute_criterion(previous_state)
+    crossed_threshold = jnp.logical_or(
+        state.crossed_threshold,
+        jnp.logical_and(
+            state.criterions[it - 1] >= self.threshold,
+            criterion < self.threshold
+        )
+    )
+
+    return state.set(
+        costs=state.costs.at[it].set(cost),
+        criterions=state.criterions.at[it].set(criterion),
+        crossed_threshold=crossed_threshold,
+    )
+
+  @property
+  def norm_error(self) -> Tuple[int]:
+    return self._norm_error,
+
+  @property
+  def is_entropic(self) -> bool:
+    """Whether entropy regularization is used."""
+    return self.epsilon > 0.
+
+  @property
+  def initializer(self) -> init_lib.LRSinkhornInitializer:
+    """Low-rank Sinkhorn initializer."""
+    if isinstance(self._initializer, init_lib.LRSinkhornInitializer):
+      assert self._initializer.rank == self.rank
+      return self._initializer
+    if self._initializer == "k-means":
+      return init_lib.KMeansInitializer(
+          self.rank,
+          sinkhorn_kwargs={
+              "norm_error": self._norm_error,
+              "lse_mode": self.lse_mode,
+              "jit": self.jit,
+              "implicit_diff": self.implicit_diff,
+              "use_danskin": self.use_danskin
+          },
+          **self.kwargs_init,
+      )
+    if self._initializer == "rank2":
+      return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
+    if self._initializer == "random":
+      return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
+    raise NotImplementedError(
+        f"Initializer `{self._initializer}` is not implemented."
+    )
 
   def init_state(
       self, ot_prob: linear_problems.LinearProblem,
@@ -503,8 +558,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
     q, r, g = init
-    costs = -jnp.ones(self.outer_iterations)
-    return LRSinkhornState(q=q, r=r, g=g, costs=costs)
+    return LRSinkhornState(
+        q=q,
+        r=r,
+        g=g,
+        gamma=self.gamma,
+        costs=-jnp.ones(self.outer_iterations),
+        criterions=-jnp.ones(self.outer_iterations),
+        crossed_threshold=False,
+    )
 
   def output_from_state(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState
@@ -519,14 +581,59 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       A LRSinkhornOutput.
     """
     return LRSinkhornOutput(
-        q=state.q, r=state.r, g=state.g, ot_prob=ot_prob, costs=state.costs
+        q=state.q,
+        r=state.r,
+        g=state.g,
+        ot_prob=ot_prob,
+        costs=state.costs,
+        criterions=state.criterions,
     )
 
+  def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
 
-# TODO(michalk8): check init types
+    def conv_crossed(prev_err: float, curr_err: float) -> bool:
+      return jnp.logical_and(
+          prev_err < self.threshold, curr_err < self.threshold
+      )
+
+    def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
+      return jnp.logical_and(curr_err < prev_err, curr_err < self.threshold)
+
+    # for convergence criterion, we consider 2 possibilities:
+    # 1. we either crossed the convergence threshold; in this case we require
+    #   that the previous criterion was also below the threshold
+    # 2. we haven't crossed the threshold; in this case, we can be below or
+    #   above the threshold:
+    #     if we're above, we wait until we reach the convergence threshold and
+    #     then, the above condition applies
+    #     if we're below and we improved w.r.t. the previous iteration,
+    #     we have converged; otherwise we continue, since we may be stuck
+    #     in a local minimum (e.g., during the initial iterations)
+
+    it = iteration // self.inner_iterations
+    return jax.lax.cond(
+        state.crossed_threshold, conv_crossed, conv_not_crossed,
+        state.criterions[it - 2], state.criterions[it - 1]
+    )
+
+  def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
+    it = iteration // self.inner_iterations
+    return jnp.logical_and(
+        jnp.logical_not(jnp.isfinite(state.criterions[it - 1])),
+        jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
+    )
+
+  def tree_flatten(self):
+    children, aux_data = super().tree_flatten()
+    aux_data["initializer"] = aux_data.pop("_initializer")
+    return children, aux_data
+
+
 def run(
-    ot_prob: linear_problems.LinearProblem, solver: LRSinkhorn,
-    init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+    ot_prob: linear_problems.LinearProblem,
+    solver: LRSinkhorn,
+    init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]],
 ) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
@@ -537,27 +644,26 @@ def run(
 
 
 def make(
-    rank: int = 10,
+    rank: int,
     gamma: float = 1.0,
     epsilon: float = 1e-4,
-    init_type: Literal['random', 'rank_2'] = 'random',
+    initializer: Literal['random', 'rank2', 'k-means'] = 'k-means',
     lse_mode: bool = True,
     threshold: float = 1e-3,
-    norm_error: int = 1,
+    norm_error: int = 10,
     inner_iterations: int = 1,
     min_iterations: int = 0,
     max_iterations: int = 2000,
     use_danskin: bool = True,
     implicit_diff: bool = False,
     jit: bool = True,
-    rng_key: int = 0,
     kwargs_dys: Optional[Mapping[str, Any]] = None
 ) -> LRSinkhorn:
   return LRSinkhorn(
       rank=rank,
       gamma=gamma,
       epsilon=epsilon,
-      init_type=init_type,
+      initializer=initializer,
       lse_mode=lse_mode,
       threshold=threshold,
       norm_error=norm_error,
@@ -567,6 +673,18 @@ def make(
       use_danskin=use_danskin,
       implicit_diff=implicit_diff,
       jit=jit,
-      rng_key=rng_key,
       kwargs_dys=kwargs_dys
   )
+
+
+# TODO(michalk8): move to math utils
+def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
+  res_1 = -jsp.special.entr(q1)
+  res_2 = q1 * safe_log(q2)
+  return jnp.sum(res_1 - res_2)
+
+
+def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+  if eps is None:
+    eps = jnp.finfo(x.dtype).tiny
+  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))

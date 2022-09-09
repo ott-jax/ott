@@ -14,7 +14,6 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-import functools
 from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
@@ -48,6 +47,7 @@ class GWOutput(NamedTuple):
     linear_state: State used to solve and store solutions to the local
       linearization of GW.
     geom: The geometry underlying the local linearization.
+    old_transport_mass: Holds total mass of transport at previous iteration.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -56,6 +56,8 @@ class GWOutput(NamedTuple):
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
+  # Intermediate values.
+  old_transport_mass: float = 1.0
 
   def set(self, **kwargs: Any) -> 'GWOutput':
     """Return a copy of self, possibly with overwrites."""
@@ -64,17 +66,22 @@ class GWOutput(NamedTuple):
   @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix."""
-    return self.linear_state.matrix
+    return self._rescale_factor * self.linear_state.matrix
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to an array; axis=1 for its transpose."""
-    return self.linear_state.apply(inputs, axis=axis)
+    return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
 
   @property
   def reg_gw_cost(self) -> float:
     """Regularized optimal transport cost of the linearization."""
     return self.linear_state.reg_ot_cost
 
+  @property
+  def _rescale_factor(self) -> float:
+    return jnp.sqrt(
+        self.old_transport_mass / self.linear_state.transport_mass()
+    )
 
 class GWState(NamedTuple):
   """Holds the state of the Gromov-Wasserstein solver.
@@ -91,11 +98,12 @@ class GWState(NamedTuple):
     linear_pb: Local linearization of the quadratic GW problem.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
+  costs: jnp.ndarray
+  linear_convergence: jnp.ndarray
+  linear_state: LinearOutput
+  linear_pb: linear_problems.LinearProblem
+  old_transport_mass: float
   errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[LinearOutput] = None
-  linear_pb: Optional[linear_problems.LinearProblem] = None
 
   def set(self, **kwargs: Any) -> 'GWState':
     """Return a copy of self, possibly with overwrites."""
@@ -104,6 +112,7 @@ class GWState(NamedTuple):
   def update(
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problems.LinearProblem, store_errors: bool,
+      old_transport_mass: float
   ) -> 'GWState':
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
     errors = None
@@ -112,12 +121,14 @@ class GWState(NamedTuple):
     linear_convergence = self.linear_convergence.at[iteration].set(
         linear_sol.converged
     )
+
     return self.set(
         linear_state=linear_sol,
         linear_pb=linear_pb,
         costs=costs,
         linear_convergence=linear_convergence,
         errors=errors,
+        old_transport_mass=old_transport_mass
     )
 
 
@@ -132,8 +143,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
     # a default entropic GW or a low-rank GW.
-    iterations_fn = functools.partial(iterations, rank=self.rank)
-    gromov_fn = jax.jit(iterations_fn) if self.jit else iterations_fn
+    gromov_fn = jax.jit(iterations) if self.jit else iterations
     out = gromov_fn(self, prob)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
@@ -143,6 +153,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     else:
       linearization = prob.update_linearization(
           jax.lax.stop_gradient(out.linear_state), self.epsilon,
+          jax.lax.stop_gradient(out.old_transport_mass)
       )
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
@@ -152,23 +163,31 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     return out.set(linear_state=linear_state, convergence=convergence)
 
   def init_state(
-      self, prob: quad_problems.QuadraticProblem, rank: int
+      self,
+      prob: quad_problems.QuadraticProblem,
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations."""
-    if rank > 0:
-      linearization = prob.init_lr_linearization(rank)
+    if self.is_low_rank:
+      linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
     else:
-      linearization = prob.init_linearization(self.epsilon)
+      linear_prob = prob.init_linearization(self.epsilon)
 
-    linear_state = self.linear_ot_solver(linearization)
+    linear_state = self.linear_ot_solver(linear_prob)
     num_iter = self.max_iterations
+    transport_mass = prob.init_transport_mass()
     if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
       errors = None
+
     return GWState(
-        -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, linear_state,
-        linearization)
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        linear_state=linear_state,
+        linear_pb=linear_prob,
+        old_transport_mass=transport_mass,
+        errors=errors
+    )
 
   def output_from_state(self, state: GWState) -> GWOutput:
     """Create an output from a loop state.
@@ -186,11 +205,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=state.errors,
         linear_state=state.linear_state,
         geom=geom,
+        old_transport_mass=state.old_transport_mass
     )
 
 
 def iterations(
-    solver: GromovWasserstein, prob: quad_problems.QuadraticProblem, rank: int
+    solver: GromovWasserstein,
+    prob: quad_problems.QuadraticProblem,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 
@@ -201,19 +222,27 @@ def iterations(
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, constants: GromovWasserstein, state: GWState,
+      iteration: int, solver: GromovWasserstein, state: GWState,
       compute_error: bool
   ) -> GWState:
     del compute_error  # Always assumed True for outer loop of GW.
-    solver = constants
-    if rank > 0:
+
+    if solver.is_low_rank:
+      init = state.linear_state.q, state.linear_state.r, state.linear_state.g
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
-      linear_pb = prob.update_linearization(state.linear_state, solver.epsilon)
+      init = state.linear_state.f, state.linear_state.g
+      linear_pb = prob.update_linearization(
+          state.linear_state, solver.epsilon, state.old_transport_mass
+      )
 
-    out = solver.linear_ot_solver(linear_pb)
+    out = solver.linear_ot_solver(linear_pb, init=init)
+    old_transport_mass = jax.lax.stop_gradient(
+        state.linear_state.transport_mass()
+    )
     return state.update(
-        iteration, out, linear_pb, solver.store_inner_errors)
+        iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
+    )
 
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
@@ -222,7 +251,7 @@ def iterations(
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=solver.init_state(prob, rank)
+      state=solver.init_state(prob)
   )
 
   return solver.output_from_state(state)
@@ -276,6 +305,8 @@ def make(
     sink = sinkhorn_lr.make(
         rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs
     )
+  else:
+    raise ValueError(f"Invalid value for `rank={rank}`.")
 
   return GromovWasserstein(
       epsilon,

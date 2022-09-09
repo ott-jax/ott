@@ -11,8 +11,8 @@ class TestNotebook:
 
   @pytest.mark.parametrize(
       "notebook", [
-          "point_clouds", "Hessians", "gromov_wasserstein", "LRSinkhorn",
-          "GWLRSinkhorn", "wasserstein_barycenters_gmms"
+          "point_clouds", "Hessians", "gromov_wasserstein", "GWLRSinkhorn",
+          "wasserstein_barycenters_gmms"
       ]
   )
   def test_notebook_regression(self, notebook: str, request):

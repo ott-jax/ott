@@ -13,7 +13,7 @@
 # limitations under the License.
 import functools
 import math
-from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
+from typing import Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -40,6 +40,26 @@ class KMeansState(NamedTuple):
   assignment: jnp.ndarray
   errors: jnp.ndarray
   center_shift: float
+
+
+class KMeansConst(NamedTuple):
+  geom: pointcloud.PointCloud
+  x_weights: jnp.ndarray
+
+  @property
+  def x(self) -> jnp.ndarray:
+    """Array of shape ``[n, ndim]`` containing the unweighted point cloud."""
+    return self.geom.x
+
+  @property
+  def weighted_x(self):
+    """Array of shape ``[n, ndim]`` containing the weighted point cloud."""
+    return self.x_weights[:, :-1]
+
+  @property
+  def weights(self) -> jnp.ndarray:
+    """Array of shape ``[n, 1]`` containing weights for each point."""
+    return self.x_weights[:, -1:]
 
 
 class KMeansOutput(NamedTuple):
@@ -80,7 +100,7 @@ class KMeansOutput(NamedTuple):
 
     return cls(
         centroids=state.centroids,
-        assignment=state.assignment,
+        assignment=state.assignment.astype(int),
         converged=converged,
         iteration=jnp.sum(~mask),
         error=error,
@@ -154,6 +174,54 @@ def _k_means_plus_plus(
   return state.centroids
 
 
+@functools.partial(jax.vmap, in_axes=[None, 0, 0, 0], out_axes=0)
+def _reallocate_centroids(
+    const: KMeansConst,
+    ix: jnp.ndarray,
+    centroid: jnp.ndarray,
+    weight: jnp.ndarray,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  is_empty = weight <= 0.
+  new_centroid = (1 - is_empty) * centroid + is_empty * const.x[ix]  # (ndim,)
+  centroid_to_remove = is_empty * const.weighted_x[ix]  # (ndim,)
+  weight_to_remove = is_empty * const.weights[ix]  # (1,)
+  return new_centroid, jnp.concatenate([centroid_to_remove, weight_to_remove])
+
+
+def _update_assignment(
+    const: KMeansConst,
+    centroids: jnp.ndarray,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  (x, _, *args), aux_data = const.geom.tree_flatten()
+  cost_matrix = type(
+      const.geom
+  ).tree_unflatten(aux_data, [x, centroids] + args).cost_matrix
+
+  assignment = jnp.argmin(cost_matrix, axis=1)
+  dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
+  return assignment, dist_to_centers
+
+
+def _update_centroids(
+    const: KMeansConst, k: int, assignment: jnp.ndarray,
+    dist_to_centers: jnp.ndarray
+) -> jnp.ndarray:
+  # TODO(michalk8):
+  # cannot put `k` into `const`, see https://github.com/ott-jax/ott/issues/129
+  x_weights = jax.ops.segment_sum(const.x_weights, assignment, num_segments=k)
+  centroids, ws = x_weights[:, :-1], x_weights[:, -1:]
+
+  far_ixs = jnp.argsort(dist_to_centers)[-k:][::-1]
+  centroids, to_remove = _reallocate_centroids(const, far_ixs, centroids, ws)
+  to_remove = jax.ops.segment_sum(
+      to_remove, assignment[far_ixs], num_segments=k
+  )
+  centroids -= to_remove[:, :-1]
+  ws -= to_remove[:, -1:]
+
+  return centroids * jnp.where(ws > 0., 1. / ws, 1.)
+
+
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _k_means(
     key: jnp.ndarray,
@@ -167,51 +235,6 @@ def _k_means(
     max_iterations: int = 300,
     store_inner_errors: bool = False,
 ) -> KMeansOutput:
-
-  def center_shift(
-      old_centroids: jnp.ndarray, new_centroids: jnp.ndarray
-  ) -> float:
-    return jnp.linalg.norm(old_centroids - new_centroids, ord="fro") ** 2
-
-  @functools.partial(jax.vmap, in_axes=[0, 0, 0], out_axes=0)
-  def reallocate_centroids(
-      ix: jnp.ndarray,
-      centroid: jnp.ndarray,
-      weight: jnp.ndarray,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    is_empty = weight <= 0.
-    new_centroid = (1 - is_empty) * centroid + is_empty * geom.x[ix]
-    centroid_to_remove = is_empty * weighted_x[ix, :-1]
-    weight_to_remove = is_empty * weights[ix]
-    return new_centroid, jnp.concatenate([centroid_to_remove, weight_to_remove])
-
-  def update_assignment(
-      centroids: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    (x, _, *args), aux_data = geom.tree_flatten()
-    cost_matrix = pointcloud.PointCloud.tree_unflatten(
-        aux_data, [x, centroids] + args
-    ).cost_matrix
-
-    assignment = jnp.argmin(cost_matrix, axis=1)
-    dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
-    return assignment, dist_to_centers
-
-  def update_centroids(
-      assignment: jnp.ndarray, dist_to_centers: jnp.ndarray
-  ) -> jnp.ndarray:
-    data = jax.ops.segment_sum(weighted_x, assignment, num_segments=k)
-    centroids, ws = data[:, :-1], data[:, -1:]
-
-    far_ixs = jnp.argsort(dist_to_centers)[-k:][::-1]
-    centroids, to_remove = reallocate_centroids(far_ixs, centroids, ws)
-    to_remove = jax.ops.segment_sum(
-        to_remove, assignment[far_ixs], num_segments=k
-    )
-    centroids -= to_remove[:, :-1]
-    ws -= to_remove[:, -1:]
-
-    return centroids * jnp.where(ws > 0., 1. / ws, 1.)
 
   def init_fn(init: Init_t) -> KMeansState:
     if init == "k-means++":
@@ -233,8 +256,18 @@ def _k_means(
           f"`{k, geom.cost_rank}`, found `{centroids.shape}`."
       )
     n = geom.shape[0]
-    prev_assignment = jnp.full((n,), -2)
-    assignment = jnp.full((n,), -1)
+    # TODO(michalk8): find a better solution for the below error
+    # not using floats for the assignment when `fixpoint_iter_backprop` is used:
+
+    # .../jax/_src/dtypes.py:370:
+    # .0 = <set_iterator object at 0x7f4d002a1dc0>
+    # >   CUB = set.intersection(*(UB[n] for n in N))
+    # E   jax._src.traceback_util.UnfilteredStackTrace:
+    #   KeyError: dtype([('float0', 'V')])
+    # E   The stack trace below excludes JAX-internal frames.
+    # E   The preceding is the original exception that occurred, unmodified.
+    prev_assignment = jnp.full((n,), -2.)
+    assignment = jnp.full((n,), -1.)
     errors = jnp.full((max_iterations,), -1.)
 
     return KMeansState(
@@ -245,51 +278,62 @@ def _k_means(
         errors=errors,
     )
 
-  def cond_fn(iteration: int, const: Any, state: KMeansState) -> bool:
-    del const
+  def cond_fn(iteration: int, const: KMeansConst, state: KMeansState) -> bool:
+    del iteration, const
     assignment_not_same = jnp.any(state.prev_assignment != state.assignment)
     tol_not_satisfied = state.center_shift > tol
     return jnp.logical_and(assignment_not_same, tol_not_satisfied)
 
   def body_fn(
-      iteration: int, const: Any, state: KMeansState, compute_error: bool
+      iteration: int, const: KMeansConst, state: KMeansState,
+      compute_error: bool
   ) -> KMeansState:
-    del compute_error, const
+    del compute_error
 
-    assignment, dist_to_centers = update_assignment(state.centroids)
-    centroids = update_centroids(assignment, dist_to_centers)
-    err = jnp.sum(weights * dist_to_centers)
-    errors = state.errors.at[iteration].set(err)
+    assignment, dist_to_centers = _update_assignment(const, state.centroids)
+    centroids = _update_centroids(const, k, assignment, dist_to_centers)
+    err = jnp.sum(const.weights[:, 0] * dist_to_centers)
+    center_shift = jnp.linalg.norm(state.centroids - centroids, ord="fro") ** 2
 
     return KMeansState(
         centroids=centroids,
         prev_assignment=state.assignment,
-        assignment=assignment,
-        center_shift=center_shift(state.centroids, centroids),
-        errors=errors,
+        assignment=assignment.astype(float),
+        center_shift=center_shift,
+        errors=state.errors.at[iteration].set(err)
     )
 
-  def finalize_assignment(state: KMeansState) -> KMeansState:
+  def finalize_fn(const: KMeansConst, state: KMeansState) -> KMeansState:
     last_iter = jnp.sum(state.errors != -1) - 1
-    assignment, dist_to_centers = update_assignment(state.centroids)
-    err = jnp.sum(weights * dist_to_centers)
+
+    assignment, dist_to_centers = _update_assignment(const, state.centroids)
+    err = jnp.sum(const.weights[:, 0] * dist_to_centers)
+
     return state._replace(
-        assignment=assignment, errors=state.errors.at[last_iter].set(err)
+        assignment=assignment.astype(float),
+        errors=state.errors.at[last_iter].set(err)
     )
 
-  weighted_x = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
-  state = fixed_point_loop.fixpoint_iter(
+  force_scan = min_iterations == max_iterations
+  fixpoint_fn = (  # prefer auto-diff if possible
+      fixed_point_loop.fixpoint_iter if force_scan else
+      fixed_point_loop.fixpoint_iter_backprop
+  )
+  x_weights = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
+  const = KMeansConst(geom, x_weights)
+
+  state = fixpoint_fn(
       cond_fn,
       body_fn,
       min_iterations=min_iterations,
       max_iterations=max_iterations,
       inner_iterations=1,
-      constants=None,
+      constants=const,
       state=init_fn(init)
   )
   state = jax.lax.cond(
-      jnp.all(state.prev_assignment == state.assignment), lambda _: _,
-      finalize_assignment, state
+      jnp.all(state.prev_assignment == state.assignment), (lambda _, s: s),
+      finalize_fn, const, state
   )
 
   return KMeansOutput._from_state(
@@ -338,8 +382,10 @@ def k_means(
     key: Random key to seed the initializations.
 
   Returns:
-    The k-means clustering result.
+    The k-means clustering.
   """
+  assert geom.shape[
+      0] >= k, f"Cannot cluster `{geom.shape[0]}` points into `{k}` clusters."
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
   if isinstance(geom._cost_fn, costs.Cosine):

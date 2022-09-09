@@ -137,7 +137,8 @@ class Geometry:
     if self._cost_matrix is None:
       # If no epsilon was passed on to the geometry, then assume it is one by
       # default.
-      cost = -jnp.log(self._kernel_matrix)
+      eps = jnp.finfo(self._kernel_matrix.dtype).tiny
+      cost = -jnp.log(self._kernel_matrix + eps)
       cost *= self.inv_scale_cost
       return cost if self._epsilon_init is None else self.epsilon * cost
     return self._cost_matrix * self.inv_scale_cost
@@ -209,9 +210,7 @@ class Geometry:
       return 1.0 / jnp.nanmedian(self._cost_matrix)
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
-  def _set_scale_cost(
-      self, scale_cost: Optional[Union[bool, float, str]]
-  ) -> "Geometry":
+  def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
     if scale_cost is False or scale_cost == self._scale_cost:
@@ -461,7 +460,9 @@ class Geometry:
     return self._apply_transport_from_potentials(f, g, vec, axis)
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
-  def _apply_transport_from_scalings(self, u, v, vec, axis):
+  def _apply_transport_from_scalings(
+      self, u: jnp.ndarray, v: jnp.ndarray, vec: jnp.ndarray, axis: int
+  ):
     u, v = (u, v * vec) if axis == 1 else (v, u * vec)
     return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
 

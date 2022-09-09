@@ -241,17 +241,17 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux = super().tree_flatten()
-    aux["quad_solver"] = self._quad_solver
-    return children, aux
+    return children + [self._quad_solver], aux
 
   @classmethod
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
-    epsilon, _, _, threshold = children
+    epsilon, _, threshold, quad_solver = children
     return cls(
         epsilon=epsilon,
         threshold=threshold,
+        quad_solver=quad_solver,
         **aux_data,
     )
 
