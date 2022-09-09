@@ -533,8 +533,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       del compute_error
 
       grad = consts.geom.apply_cost(state.factor, axis=1)  # (n, r)
-      grad += consts.geom.apply_cost(state.factor, axis=0)  # (n ,r)
-      grad /= consts.g
+      grad = grad + consts.geom.apply_cost(state.factor, axis=0)  # (n ,r)
+      grad = grad / consts.g
 
       norm = jnp.max(jnp.abs(grad)) ** 2
       gamma = consts.gamma / norm
@@ -594,38 +594,3 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         constants=consts,
         state=init_fn(),
     ).factor
-
-
-class LinearGWInitializer(LRInitializer):
-
-  def _linearize(
-      self, ot_prob: "quad_problems.QuadraticProblem"
-  ) -> "linear_problems.LinearProblem":
-    from ott.core import linear_problems
-
-    x = ot_prob.geom_xx.apply_square_cost(ot_prob.a)
-    y = ot_prob.geom_yy.apply_square_cost(ot_prob.b)
-    geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
-
-    return linear_problems.LinearProblem(geom, ot_prob.a, ot_prob.b)
-
-  def init_q(
-      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
-      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
-  ) -> jnp.ndarray:
-    ot_prob = self._linearize(ot_prob)
-    return linear_init.init_q(ot_prob, key, **kwargs)
-
-  def init_r(
-      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
-      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
-  ) -> jnp.ndarray:
-    ot_prob = self._linearize(ot_prob)
-    return linear_init.init_r(ot_prob, key, **kwargs)
-
-  def init_g(
-      self, ot_prob: "quad_problems.QuadraticProblem", key: jnp.ndarray, *,
-      init_g: jnp.ndarray, linear_init: LRInitializer, **kwargs: Any
-  ) -> jnp.ndarray:
-    ot_prob = self._linearize(ot_prob)
-    return linear_init.init_g(ot_prob, key, **kwargs)

@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 
 import jax
 
-from ott.core import linear_problems
+from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import geometry
 
 if TYPE_CHECKING:
-  from ott.core import initializers_lr, quad_problems, sinkhorn_lr
+  from ott.core import initializers_lr, quad_problems
 
 __all__ = ["QuadraticInitializer", "LRQuadraticInitializer"]
 
@@ -115,5 +115,5 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     return quad_prob.update_lr_geom(tmp_out)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    children, aux_data = super().tree_unflatten()
+    children, aux_data = super().tree_flatten()
     return children + [self._linear_lr_initializer], aux_data
