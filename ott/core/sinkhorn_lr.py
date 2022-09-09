@@ -277,7 +277,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self._initializer = initializer
+    self.initializer = initializer
     # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
@@ -543,24 +543,30 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> init_lib.LRInitializer:
     """Create a low-rank Sinkhorn initializer.
 
+    If ``initializer = None`` and ``prob.geom`` is
+    :class:`~ott.geometry.pointcloud.PointCloud` or
+    :class:`~ott.geometry.low_rank.LRCGeometry`,
+    :class:`~ott.core.initializers_lr.KMeansInitializer` is used.
+    Otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
+
     Args:
       prob: Linear OT problem.
 
     Returns:
       Low-rank initializer.
     """
-    if isinstance(self._initializer, init_lib.LRInitializer):
-      initializer = self._initializer
-    elif self._initializer is None:
+    if isinstance(self.initializer, init_lib.LRInitializer):
+      initializer = self.initializer
+    elif self.initializer is None:
       kind = "k-means" if isinstance(
           prob.geom, (pointcloud.PointCloud, low_rank.LRCGeometry)
-      ) else "generalized-k-means"
+      ) else "random"
       initializer = init_lib.LRInitializer.from_solver(
           self, kind=kind, **self.kwargs_init
       )
     else:
       initializer = init_lib.LRInitializer.from_solver(
-          self, kind=self._initializer, **self.kwargs_init
+          self, kind=self.initializer, **self.kwargs_init
       )
 
     assert initializer.rank == self.rank, \
@@ -638,11 +644,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_not(jnp.isfinite(state.criterions[it - 1])),
         jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
     )
-
-  def tree_flatten(self):
-    children, aux_data = super().tree_flatten()
-    aux_data["initializer"] = aux_data.pop("_initializer")
-    return children, aux_data
 
 
 def run(

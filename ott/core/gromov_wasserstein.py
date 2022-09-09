@@ -175,7 +175,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
-    self._quad_initializer = quad_initializer
+    self.quad_initializer = quad_initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
@@ -278,20 +278,20 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The initializer.
     """
-    if isinstance(self._quad_initializer, quad_init.BaseQuadraticInitializer):
-      return self._quad_initializer
+    if isinstance(self.quad_initializer, quad_init.BaseQuadraticInitializer):
+      return self.quad_initializer
 
     if self.is_low_rank:
-      if self._quad_initializer is None:
+      if self.quad_initializer is None:
         kind = "k-means" if (
             isinstance(
                 prob.geom_xx, (pointcloud.PointCloud, low_rank.LRCGeometry)
             ) and isinstance(
                 prob.geom_yy, (pointcloud.PointCloud, low_rank.LRCGeometry)
             )
-        ) else "generalized-k-means"
+        ) else "random"  # TODO(michalk8): reintroduce simple
       else:
-        kind = self._quad_initializer
+        kind = self.quad_initializer
       linear_lr_init = init_lr.LRInitializer.from_solver(
           self, kind=kind, **self.kwargs_init
       )
@@ -301,7 +301,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    aux_data["quad_initializer"] = self._quad_initializer
+    aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
 
