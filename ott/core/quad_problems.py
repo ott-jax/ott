@@ -455,17 +455,17 @@ class QuadraticProblem:
 
   @property
   def geom_xx(self) -> geometry.Geometry:
-    """TODO."""
+    """Geometry of the first space."""
     return self._geom_xx
 
   @property
   def geom_yy(self) -> geometry.Geometry:
-    """TODO."""
+    """Geometry of the second space."""
     return self._geom_yy
 
   @property
   def geom_xy(self) -> Optional[geometry.Geometry]:
-    """TODO."""
+    """Geometry of the joint space."""
     return self._geom_xy
 
   @property

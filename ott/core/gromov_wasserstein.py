@@ -282,7 +282,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       return self._quad_initializer
 
     if self.is_low_rank:
-      # TODO(michalk8): `supports_problem` in the initializer
       if self._quad_initializer is None:
         kind = "k-means" if (
             isinstance(
