@@ -13,6 +13,7 @@ from typing import (
 )
 
 import jax
+import numpy as np
 from jax import numpy as jnp
 from typing_extensions import Literal
 
@@ -460,6 +461,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     gamma: the (inverse of) gradient step size used by mirror descent.
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of iterations.
+    inner_iterations: Number of iterations used by the algorithm before
+      re-evaluating progress.
     threshold: Convergence threshold.
     sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
   """
@@ -468,8 +471,9 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       self,
       rank: int,
       gamma: float = 10.,
-      min_iterations: int = 10,
-      max_iterations: int = 10,
+      min_iterations: int = 0,
+      max_iterations: int = 100,
+      inner_iterations: int = 10,
       threshold: float = 1e-6,
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
   ):
@@ -480,6 +484,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         gamma=gamma,
         min_iterations=min_iterations,
         max_iterations=max_iterations,
+        inner_iterations=inner_iterations,
         threshold=threshold
     )
 
@@ -494,6 +499,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   class State(NamedTuple):  # noqa: D106
     factor: jnp.ndarray
     criterions: jnp.ndarray
+    crossed_threshold: bool
 
   def _compute_factor(
       self,
@@ -508,22 +514,55 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     from ott.core import fixed_point_loop, linear_problems, sinkhorn
 
     def init_fn() -> GeneralizedKMeansInitializer.State:
-      n = ot_prob.geom.shape[0]
+      n = geom.shape[0]
       factor = jnp.abs(jax.random.normal(key, (n, self.rank))) + 1.  # (n, r)
       factor *= consts.marginal[:, None] / jnp.sum(
           factor, axis=1, keepdims=True
       )
 
-      return self.State(factor, criterions=-jnp.ones(max_iter))
+      return self.State(
+          factor,
+          criterions=-jnp.ones(outer_iterations),
+          crossed_threshold=False
+      )
+
+    # see the explanation in `ott.core.sinkhorn_lr`
+    def converged(
+        state: GeneralizedKMeansInitializer.State,
+        consts: GeneralizedKMeansInitializer.Constants, iteration: int
+    ) -> bool:
+
+      def conv_crossed(prev_err: float, curr_err: float) -> bool:
+        return jnp.logical_and(
+            prev_err < consts.threshold, curr_err < consts.threshold
+        )
+
+      def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
+        return jnp.logical_and(curr_err < prev_err, curr_err < consts.threshold)
+
+      it = iteration // inner_iterations
+      return jax.lax.cond(
+          state.crossed_threshold, conv_crossed, conv_not_crossed,
+          state.criterions[it - 2], state.criterions[it - 1]
+      )
+
+    def diverged(
+        state: GeneralizedKMeansInitializer.State, iteration: int
+    ) -> bool:
+      it = iteration // inner_iterations
+      return jnp.logical_not(jnp.isfinite(state.criterions[it - 1]))
 
     def cond_fn(
         iteration: int,
         consts: GeneralizedKMeansInitializer.Constants,
         state: GeneralizedKMeansInitializer.State,
     ) -> bool:
-      # TODO(michalk8): better convergence criterion
       return jnp.logical_or(
-          iteration < 1, state.criterions[iteration - 1] > consts.threshold
+          iteration <= 2,
+          jnp.logical_and(
+              jnp.logical_not(diverged(state, iteration)),
+              jnp.logical_not(converged(state, consts, iteration))
+          )
       )
 
     def body_fn(
@@ -531,32 +570,44 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         state: GeneralizedKMeansInitializer.State, compute_error: bool
     ) -> GeneralizedKMeansInitializer.State:
       del compute_error
+      it = iteration // inner_iterations
 
       grad = consts.geom.apply_cost(state.factor, axis=1)  # (n, r)
-      grad = grad + consts.geom.apply_cost(state.factor, axis=0)  # (n ,r)
+      grad = grad + consts.geom.apply_cost(state.factor, axis=0)  # (n, r)
       grad = grad / consts.g
 
       norm = jnp.max(jnp.abs(grad)) ** 2
       gamma = consts.gamma / norm
       eps = 1. / gamma
 
-      geom = grad - eps * mu.safe_log(state.factor)  # (n, r)
-      geom = geometry.Geometry(
-          cost_matrix=geom, epsilon=eps, scale_cost="max_cost"
+      cost = grad - eps * mu.safe_log(state.factor)  # (n, r)
+      cost = geometry.Geometry(
+          cost_matrix=cost,
+          epsilon=eps,
       )
-
       problem = linear_problems.LinearProblem(
-          geom, a=consts.marginal, b=consts.g
+          cost, a=consts.marginal, b=consts.g
       )
-      out = consts.solver(problem)
 
+      out = consts.solver(problem)
       new_factor = out.matrix
+
       criterion = ((1 / gamma) ** 2) * (
           mu.kl(new_factor, state.factor) + mu.kl(state.factor, new_factor)
       )
-      criterions = state.criterions.at[iteration].set(criterion)
+      crossed_threshold = jnp.logical_or(
+          state.crossed_threshold,
+          jnp.logical_and(
+              state.criterions[it - 1] >= consts.threshold,
+              criterion < consts.threshold
+          )
+      )
 
-      return self.State(factor=new_factor, criterions=criterions)
+      return self.State(
+          factor=new_factor,
+          criterions=state.criterions.at[it].set(criterion),
+          crossed_threshold=crossed_threshold
+      )
 
     del kwargs
     from ott.core import quad_problems
@@ -565,11 +616,13 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
-    assert ot_prob.geom.shape[0] == ot_prob.geom.shape[
+    assert geom.shape[0] == geom.shape[
         1], f"Expected the shape to be square, found `{geom.shape}`."
 
     min_iter = self._k_means_kwargs["min_iterations"]
     max_iter = self._k_means_kwargs["max_iterations"]
+    inner_iterations = self._k_means_kwargs["inner_iterations"]
+    outer_iterations = np.ceil(max_iter / inner_iterations).astype(int)
     force_scan = min_iter == max_iter
     fixpoint_fn = (
         fixed_point_loop.fixpoint_iter
@@ -590,7 +643,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         body_fn,
         min_iterations=min_iter,
         max_iterations=max_iter,
-        inner_iterations=1,
+        inner_iterations=inner_iterations,
         constants=consts,
         state=init_fn(),
     ).factor

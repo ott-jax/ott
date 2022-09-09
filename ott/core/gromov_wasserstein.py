@@ -198,7 +198,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     if init is None:
       initializer = self.create_initializer(prob)
       init = initializer(prob, epsilon=self.epsilon, **kwargs)
-    assert isinstance(init, linear_problems.LinearProblem), "TODO"
 
     # Possibly jit iteration functions and run. Closure on rank to
     # avoid jitting issues, since rank value will be used to branch between
