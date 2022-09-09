@@ -322,8 +322,6 @@ class QuadraticProblem:
         marginal_2).sum() - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
       transport_matrix, transport_matrix).sum()
-    cost -= epsilon._target_init * marginal_1loga
-    cost -= epsilon._target_init * marginal_2logb
     return cost
 
   def init_transport(self) -> jnp.ndarray:
@@ -469,6 +467,7 @@ class QuadraticProblem:
       self,
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
+      old_transport_mass: float = 1.0
   ) -> linear_problems.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -483,24 +482,29 @@ class QuadraticProblem:
 
     Args:
       transport: Solution of the linearization of the quadratic problem.
-        epsilon: An epsilon scheduler or a float passed on to the linearization.
-        old_transport_mass: Sum of the elements of the transport matrix at the
+      epsilon: An epsilon scheduler or a float passed on to the linearization.
+      old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
     """
+    rescale_factor = 1.0
     unbalanced_correction = 0.0
 
-    marginal_1 = transport.marginal(axis=1)
-    marginal_2 = transport.marginal(axis=0)
+    if not self.is_balanced:
+      marginal_1 = transport.marginal(axis=1)
+      transport_mass = jax.lax.stop_gradient(marginal_1.sum())
+      rescale_factor = jnp.sqrt(old_transport_mass / transport_mass)
+
+    marginal_1 = transport.marginal(axis=1) * rescale_factor
+    marginal_2 = transport.marginal(axis=0) * rescale_factor
     marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
 
-    # This will likely break LR approaches.
-    transport_matrix = transport.matrix
+    transport_matrix = transport.matrix * rescale_factor
 
     if not self.is_balanced:
-      # Rescales epsilon according to Sejourne et al (2021).
+      # Rescales transport for Unbalanced GW according to Sejourne et al (2021).
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
@@ -511,7 +515,7 @@ class QuadraticProblem:
     tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-    cost_matrix += self.fused_penalty * self._fused_cost_matrix
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix * rescale_factor
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
     return linear_problems.LinearProblem(
