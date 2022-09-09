@@ -138,7 +138,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   Args:
     args: Positional_arguments for
       :class:`~ott.core.was_solver.WassersteinSolver`.
-    initializer: Quadratic initializer. If the linear solver is not low-rank,
+    quad_initializer: Quadratic initializer. If the solver is not low-rank,
       :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
       Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
 
@@ -167,14 +167,15 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __init__(
       self,
       *args: Any,
-      initializer: Optional[Union[Literal["random", "rank2", "k-means",
-                                          "generalized-k-means"],
-                                  quad_init.BaseQuadraticInitializer]] = None,
+      quad_initializer: Optional[Union[Literal["random", "rank2", "k-means",
+                                               "generalized-k-means"],
+                                       quad_init.BaseQuadraticInitializer]
+                                ] = None,  # noqa: E124
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
-    self._initializer = initializer
+    self._quad_initializer = quad_initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
@@ -280,12 +281,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The initializer.
     """
-    if isinstance(self._initializer, quad_init.BaseQuadraticInitializer):
-      return self._initializer
+    if isinstance(self._quad_initializer, quad_init.BaseQuadraticInitializer):
+      return self._quad_initializer
 
     if self.is_low_rank:
       # TODO(michalk8): `supports_problem` in the initializer
-      if self._initializer is None:
+      if self._quad_initializer is None:
         kind = "k-means" if (
             isinstance(
                 prob.geom_xx, (pointcloud.PointCloud, low_rank.LRCGeometry)
@@ -294,7 +295,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
             )
         ) else "generalized-k-means"
       else:
-        kind = self._initializer
+        kind = self._quad_initializer
       linear_lr_init = init_lr.LRInitializer.from_solver(
           self, kind=kind, **self.kwargs_init
       )
@@ -304,7 +305,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    aux_data["initializer"] = self._initializer
+    aux_data["quad_initializer"] = self._quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
 
