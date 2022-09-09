@@ -273,7 +273,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     """Create quadratic, possibly low-rank initializer.
 
     Args:
-      prob: Quadratic OT problem.
+      prob: Quadratic OT problem used to determine the initializer.
 
     Returns:
       The initializer.
@@ -283,13 +283,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     if self.is_low_rank:
       if self.quad_initializer is None:
-        kind = "k-means" if (
-            isinstance(
-                prob.geom_xx, (pointcloud.PointCloud, low_rank.LRCGeometry)
-            ) and isinstance(
-                prob.geom_yy, (pointcloud.PointCloud, low_rank.LRCGeometry)
-            )
-        ) else "random"  # TODO(michalk8): reintroduce simple
+        types = (pointcloud.PointCloud, low_rank.LRCGeometry)
+        kind = "k-means" if isinstance(prob.geom_xx, types) and isinstance(
+            prob.geom_yy, types
+        ) else "random"
       else:
         kind = self.quad_initializer
       linear_lr_init = init_lr.LRInitializer.from_solver(

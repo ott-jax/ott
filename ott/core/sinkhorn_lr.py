@@ -227,11 +227,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
 
       If `None`, :class:`~ott.core.initializers_lr.KMeansInitializer`
-      is used when the linear problem contains
+      is used when the linear problem's geometry is
       :class:`~ott.geometry.pointcloud.PointCloud` or
       :class:`~ott.geometry.low_rank.LRCGeometry`.
-      Otherwise, :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`
-      is used.
+      Otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
 
     lse_mode: whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
@@ -543,14 +542,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> init_lib.LRInitializer:
     """Create a low-rank Sinkhorn initializer.
 
-    If ``initializer = None`` and ``prob.geom`` is
-    :class:`~ott.geometry.pointcloud.PointCloud` or
-    :class:`~ott.geometry.low_rank.LRCGeometry`,
-    :class:`~ott.core.initializers_lr.KMeansInitializer` is used.
-    Otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
-
     Args:
-      prob: Linear OT problem.
+      prob: Linear OT problem used to determine the initializer.
 
     Returns:
       Low-rank initializer.
