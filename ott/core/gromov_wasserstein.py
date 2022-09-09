@@ -200,9 +200,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       initializer = self.create_initializer(prob)
       init = initializer(prob, epsilon=self.epsilon, **kwargs)
 
-    # Possibly jit iteration functions and run. Closure on rank to
-    # avoid jitting issues, since rank value will be used to branch between
-    # a default entropic GW or a low-rank GW.
     gromov_fn = jax.jit(iterations) if self.jit else iterations
     out = gromov_fn(self, prob, init)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop

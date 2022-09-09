@@ -14,7 +14,11 @@ __all__ = ["QuadraticInitializer", "LRQuadraticInitializer"]
 
 @jax.tree_util.register_pytree_node_class
 class BaseQuadraticInitializer(ABC):
-  """TODO."""
+  """Base class for quadratic initializers.
+
+  Args:
+    kwargs: Keyword arguments.
+  """
 
   def __init__(self, **kwargs: Any):
     self._kwargs = kwargs
@@ -57,16 +61,41 @@ class BaseQuadraticInitializer(ABC):
 
 
 class QuadraticInitializer(BaseQuadraticInitializer):
-  """TODO(michalk8): move docstring.
+  """Initialize a linear problem locally around a naive initializer ab'.
 
+  If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
+
+  If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
+  possible cases. A first possibility is to introduce a quadratic KL
+  divergence on the marginals in the objective as done in :cite:`sejourne:21`
+  (``gw_unbalanced_correction = True``), which in turns modifies the
+  local cost matrix.
+
+  Alternatively, it could be possible to leave the formulation of the
+  local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
+  (``gw_unbalanced_correction = False``) and include the unbalanced terms
+  at the level of the linear problem only.
+
+  Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
+  cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
+  `left_x` and `right_y` depend on the loss chosen for GW.
+  `gw_unbalanced_correction` is an boolean indicating whether or not the
+  unbalanced correction applies.
+  The equation of the local cost can be written as:
+
+  `cost_matrix` = `marginal_dep_term`
+              + `left_x`(`cost_xx`) :math:`P` `right_y`(`cost_yy`):math:`^T`
+              + `unbalanced_correction` * `gw_unbalanced_correction`
+
+  When working with the fused problem, a linear term is added to the cost
+  matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
   """
 
   def _create_geometry(
       self, quad_prob: 'quad_problems.QuadraticProblem', *, epsilon: float,
       **kwargs: Any
   ) -> linear_problems.LinearProblem:
-    # TODO(michalk8): update
     from ott.core.quad_problems import apply_cost, update_epsilon_unbalanced
 
     unbalanced_correction = 0.0
@@ -98,11 +127,15 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
 
 class LRQuadraticInitializer(BaseQuadraticInitializer):
-  """TODO."""
+  """Wrapper that wraps low-rank Sinkhorn initializers.
 
-  def __init__(self, linear_lr_initializer: 'initializers_lr.LRInitializer'):
+  Args:
+    lr_linear_initializer: Low-rank linear initializer.
+  """
+
+  def __init__(self, lr_linear_initializer: 'initializers_lr.LRInitializer'):
     super().__init__()
-    self._linear_lr_initializer = linear_lr_initializer
+    self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
       self, quad_prob: 'quad_problems.QuadraticProblem', **kwargs: Any
