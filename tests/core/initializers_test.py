@@ -20,8 +20,16 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from ott.core import gromov_wasserstein
 from ott.core import initializers as init_lib
-from ott.core import initializers_lr, linear_problems, sinkhorn, sinkhorn_lr
+from ott.core import (
+    initializers_lr,
+    linear_problems,
+    quad_initializers,
+    quad_problems,
+    sinkhorn,
+    sinkhorn_lr,
+)
 from ott.geometry import geometry, low_rank, pointcloud
 
 
@@ -288,6 +296,7 @@ class TestLRInitializers:
     solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=None)
     initializer = solver.create_initializer(prob)
 
+    assert initializer.rank == rank
     if kind in ("pc", "lrc"):
       assert isinstance(initializer, initializers_lr.KMeansInitializer)
     else:
@@ -415,7 +424,42 @@ class TestLRInitializers:
 class TestQuadraticInitializers:
 
   @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
-  def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
+  def test_create_default_lr_initializer(self, rng: jnp.ndarray, kind: str):
+    n, d1, d2, rank = 150, 2, 3, 5
+    eps = 1e-1
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (n, d1))
+    y = jax.random.normal(key1, (n, d2))
+
+    geom_x = pointcloud.PointCloud(x, epsilon=eps)
+    geom_y = pointcloud.PointCloud(y, epsilon=eps)
+    if kind == "pc":
+      pass
+    elif kind == "lrc":
+      geom_x = geom_x.to_LRCGeometry()
+      geom_y = geom_y.to_LRCGeometry()
+    elif kind == "geom":
+      geom_x = geometry.Geometry(geom_x.cost_matrix, epsilon=eps)
+      geom_y = geometry.Geometry(geom_y.cost_matrix, epsilon=eps)
+    else:
+      raise NotImplementedError(kind)
+    prob = quad_problems.QuadraticProblem(geom_x, geom_y)
+
+    solver = gromov_wasserstein.GromovWasserstein(
+        rank=rank, quad_initializer=None, kwargs_init={"foo": "bar"}
+    )
+    initializer = solver.create_initializer(prob)
+
+    assert isinstance(initializer, quad_initializers.LRQuadraticInitializer)
+    assert initializer.rank == rank
+    linear_init = initializer._linear_lr_initializer
+    if kind in ("pc", "lrc"):
+      assert isinstance(linear_init, initializers_lr.KMeansInitializer)
+    else:
+      assert isinstance(linear_init, initializers_lr.RandomInitializer)
+    assert linear_init._kwargs == {"foo": "bar"}
+
+  def test_non_lr_initializer(self):
     pass
 
   def test_explicitly_passing_initializer(self):

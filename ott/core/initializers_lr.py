@@ -352,9 +352,8 @@ class KMeansInitializer(LRInitializer):
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
-    super().__init__(rank)
+    super().__init__(rank, **kwargs)
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
-    self._k_means_kwargs = kwargs
 
   @staticmethod
   def _extract_array(
@@ -382,7 +381,7 @@ class KMeansInitializer(LRInitializer):
 
     del kwargs
     jit = self._sinkhorn_kwargs.get("jit", True)
-    fn = functools.partial(k_means.k_means, **self._k_means_kwargs)
+    fn = functools.partial(k_means.k_means, **self._kwargs)
     fn = jax.jit(fn, static_argnames="k") if jit else fn
 
     if isinstance(ot_prob, quad_problems.QuadraticProblem):
@@ -437,7 +436,7 @@ class KMeansInitializer(LRInitializer):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
-    return children, {**aux_data, **self._k_means_kwargs}
+    return children, aux_data
 
 
 class GeneralizedKMeansInitializer(KMeansInitializer):
@@ -470,12 +469,12 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     super().__init__(
         rank,
         sinkhorn_kwargs=sinkhorn_kwargs,
-        # below argument are stored in `_k_means_kwargs`
+        # below argument are stored in `_kwargs`
         gamma=gamma,
         min_iterations=min_iterations,
         max_iterations=max_iterations,
         inner_iterations=inner_iterations,
-        threshold=threshold
+        threshold=threshold,
     )
 
   class Constants(NamedTuple):  # noqa: D106
@@ -608,9 +607,9 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     assert geom.shape[0] == geom.shape[
         1], f"Expected the shape to be square, found `{geom.shape}`."
 
-    min_iter = self._k_means_kwargs["min_iterations"]
-    max_iter = self._k_means_kwargs["max_iterations"]
-    inner_iterations = self._k_means_kwargs["inner_iterations"]
+    min_iter = self._kwargs["min_iterations"]
+    max_iter = self._kwargs["max_iterations"]
+    inner_iterations = self._kwargs["inner_iterations"]
     outer_iterations = np.ceil(max_iter / inner_iterations).astype(int)
     force_scan = min_iter == max_iter
     fixpoint_fn = (
@@ -623,8 +622,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         geom=geom._set_scale_cost("max_cost"),
         marginal=ot_prob.a if which == "q" else ot_prob.b,
         g=init_g,
-        gamma=self._k_means_kwargs["gamma"],
-        threshold=self._k_means_kwargs["threshold"],
+        gamma=self._kwargs["gamma"],
+        threshold=self._kwargs["threshold"],
     )
 
     return fixpoint_fn(
