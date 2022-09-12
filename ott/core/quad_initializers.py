@@ -71,7 +71,7 @@ class BaseQuadraticInitializer(ABC):
 class QuadraticInitializer(BaseQuadraticInitializer):
   """Initialize a linear problem locally around a naive initializer ab'.
 
-  If the problem is balanced (``tau_a = 1.0`` and ``tau_b = 1.0``),
+  If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
 
   If the problem is unbalanced (``tau_a < 1`` or ``tau_b < 1``), there are two

@@ -115,7 +115,7 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
 
 
 @pytest.mark.fast
-class TestInitializers:
+class TestSinkhornInitializers:
 
   def test_init_pytree(self):
 
@@ -129,8 +129,8 @@ class TestInitializers:
       init = init_lib.GaussianInitializer()
       return init
 
-    init_gaus()
-    init_sort()
+    _ = init_gaus()
+    _ = init_sort()
 
   @pytest.mark.parametrize(
       "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
@@ -233,7 +233,7 @@ class TestInitializers:
   @pytest.mark.parametrize('lse_mode', [True, False])
   def test_gauss_initializer(self, lse_mode, rng: jnp.ndarray):
     """Tests Gaussian initializer"""
-    # definte ot problem
+    # define OT problem
     n = 200
     m = 200
     d = 2
@@ -264,3 +264,11 @@ class TestInitializers:
     # check initializer is better
     if lse_mode:
       assert base_num_iter >= gaus_num_iter
+
+
+class TestLRInitializers:
+  pass
+
+
+class TestQuadraticInitializers:
+  pass

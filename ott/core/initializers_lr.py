@@ -458,7 +458,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
   Args:
     rank: Rank of the factorization.
-    gamma: the (inverse of) gradient step size used by mirror descent.
+    gamma: The (inverse of) gradient step size used by mirror descent.
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of iterations.
     inner_iterations: Number of iterations used by the algorithm before
