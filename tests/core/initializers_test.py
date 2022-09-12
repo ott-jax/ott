@@ -89,12 +89,7 @@ def run_sinkhorn_sort_init(
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   sort_init = init_lib.SortingInitializer(vectorized_update=vector_min)
   out = sinkhorn.sinkhorn(
-      geom,
-      a=a,
-      b=b,
-      jit=True,
-      potential_initializer=sort_init,
-      lse_mode=lse_mode
+      geom, a=a, b=b, jit=True, initializer=sort_init, lse_mode=lse_mode
   )
   return out
 
@@ -114,7 +109,7 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
       a=a,
       b=b,
       jit=True,
-      potential_initializer=init_lib.GaussianInitializer(),
+      initializer=init_lib.GaussianInitializer(),
       lse_mode=lse_mode
   )
   return out
@@ -184,7 +179,7 @@ class TestSinkhornInitializers:
     )
     sort_init = init_lib.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
-      sort_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
+      sort_init.init_dual_a(ot_problem, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jnp.ndarray):
     n = 100
@@ -195,7 +190,7 @@ class TestSinkhornInitializers:
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
     sort_init = init_lib.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
-      sort_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
+      sort_init.init_dual_a(ot_problem, lse_mode=True)
 
   def test_default_initializer(self, rng: jnp.ndarray):
     """Tests default initializer"""
@@ -207,10 +202,10 @@ class TestSinkhornInitializers:
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 
     default_potential_a = init_lib.DefaultInitializer().init_dual_a(
-        ot_problem=ot_problem, lse_mode=True
+        ot_problem, lse_mode=True
     )
     default_potential_b = init_lib.DefaultInitializer().init_dual_b(
-        ot_problem=ot_problem, lse_mode=True
+        ot_problem, lse_mode=True
     )
 
     # check default is 0
@@ -234,7 +229,7 @@ class TestSinkhornInitializers:
     )
 
     with pytest.raises(AssertionError, match=r"point cloud"):
-      gaus_init.init_dual_a(ot_problem=ot_problem, lse_mode=True)
+      gaus_init.init_dual_a(ot_problem, lse_mode=True)
 
   @pytest.mark.parametrize('lse_mode', [True, False])
   def test_gauss_initializer(self, lse_mode, rng: jnp.ndarray):
@@ -476,12 +471,11 @@ class TestQuadraticInitializers:
       quad_init = quad_initializers.LRQuadraticInitializer(linear_init)
 
     solver = gromov_wasserstein.GromovWasserstein(
-        # TODO(michalk8): rename to initializer
-        potential_initializer=linear_init,
+        initializer=linear_init,
         quad_initializer=quad_init,
     )
 
-    assert solver.linear_ot_solver.potential_initializer is linear_init
+    assert solver.linear_ot_solver.initializer is linear_init
     assert solver.quad_initializer is quad_init
     if solver.is_low_rank:
       assert solver.quad_initializer.rank == rank
