@@ -35,7 +35,10 @@ class BaseQuadraticInitializer(ABC):
     Returns:
       Linear problem.
     """
+    n, m = quad_prob.geom_xx.shape[0], quad_prob.geom_yy.shape[0]
     geom = self._create_geometry(quad_prob, **kwargs)
+    assert geom.shape == (n, m), f"Expected geometry of shape `{n, m}`, " \
+                                 f"found `{geom.shape}`."
     return linear_problems.LinearProblem(
         geom,
         a=quad_prob.a,

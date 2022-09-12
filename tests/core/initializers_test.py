@@ -379,9 +379,7 @@ class TestLRInitializers:
     )
 
   @pytest.mark.parametrize("epsilon", [0., 1e-1])
-  def test_better_lr_initialization_helps(
-      self, rng: jnp.ndarray, epsilon: float
-  ):
+  def test_better_initialization_helps(self, rng: jnp.ndarray, epsilon: float):
     n, d, rank = 81, 13, 3
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (n, d))
