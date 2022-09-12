@@ -117,7 +117,9 @@ class LRSinkhornOutput(NamedTuple):
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
-  costs: jnp.ndarray
+  # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
+  # in future, enforce via class hierarchy
+  errors: jnp.ndarray
   criterions: jnp.ndarray
   ot_prob: linear_problems.LinearProblem
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
@@ -166,8 +168,8 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def converged(self) -> bool:
     return jnp.logical_and(
-        jnp.sum(self.costs == -1) > 0,
-        jnp.sum(jnp.isnan(self.costs)) == 0
+        jnp.sum(self.errors == -1) > 0,
+        jnp.sum(jnp.isnan(self.errors)) == 0
     )
 
   @property
@@ -600,7 +602,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         r=state.r,
         g=state.g,
         ot_prob=ot_prob,
-        costs=state.costs,
+        errors=state.costs,
         criterions=state.criterions,
     )
 

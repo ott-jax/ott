@@ -209,7 +209,7 @@ class LRInitializer(ABC):
     return self._rank
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self.rank], self._kwargs
+    return [], {**self._kwargs, "rank": self.rank}
 
   @classmethod
   def tree_unflatten(

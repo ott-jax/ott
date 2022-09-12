@@ -153,7 +153,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
   ) -> geometry.Geometry:
     q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
     tmp_out = sinkhorn_lr.LRSinkhornOutput(
-        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=None
+        q=q, r=r, g=g, errors=None, criterions=None, ot_prob=None
     )
 
     return quad_prob.update_lr_geom(tmp_out)

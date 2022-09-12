@@ -12,8 +12,7 @@
 
 # Lint as: python3
 """Tests for Sinkhorn initializers."""
-
-from functools import partial
+import functools
 
 import jax
 import jax.numpy as jnp
@@ -83,7 +82,7 @@ def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
 
 
 # define sinkhorn functions
-@partial(jax.jit, static_argnames=['lse_mode', 'vector_min'])
+@functools.partial(jax.jit, static_argnames=['lse_mode', 'vector_min'])
 def run_sinkhorn_sort_init(
     x, y, a=None, b=None, epsilon=0.01, vector_min=True, lse_mode=True
 ):
@@ -100,14 +99,14 @@ def run_sinkhorn_sort_init(
   return out
 
 
-@partial(jax.jit, static_argnames=['lse_mode'])
+@functools.partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   out = sinkhorn.sinkhorn(geom, a=a, b=b, jit=True, lse_mode=lse_mode)
   return out
 
 
-@partial(jax.jit, static_argnames=['lse_mode'])
+@functools.partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   out = sinkhorn.sinkhorn(
@@ -388,7 +387,7 @@ class TestLRInitializers:
     geom_out = solver(geom_problem)
 
     with pytest.raises(AssertionError):
-      np.testing.assert_allclose(pc_out.costs, geom_out.costs)
+      np.testing.assert_allclose(pc_out.errors, geom_out.errors)
 
     np.testing.assert_allclose(
         pc_out.reg_ot_cost, geom_out.reg_ot_cost, atol=0.5, rtol=0.02
@@ -416,7 +415,7 @@ class TestLRInitializers:
     assert out_random.converged
     assert out_init.converged
     # converged earlier
-    assert (out_init.costs > -1).sum() < (out_random.costs > -1).sum()
+    assert (out_init.errors > -1).sum() < (out_random.errors > -1).sum()
     # converged to a better solution
     assert out_init.reg_ot_cost < out_random.reg_ot_cost
 
@@ -430,6 +429,7 @@ class TestQuadraticInitializers:
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (n, d1))
     y = jax.random.normal(key1, (n, d2))
+    kwargs_init = {"foo": "bar"}
 
     geom_x = pointcloud.PointCloud(x, epsilon=eps)
     geom_y = pointcloud.PointCloud(y, epsilon=eps)
@@ -446,7 +446,7 @@ class TestQuadraticInitializers:
     prob = quad_problems.QuadraticProblem(geom_x, geom_y)
 
     solver = gromov_wasserstein.GromovWasserstein(
-        rank=rank, quad_initializer=None, kwargs_init={"foo": "bar"}
+        rank=rank, quad_initializer=None, kwargs_init=kwargs_init
     )
     initializer = solver.create_initializer(prob)
 
@@ -457,13 +457,70 @@ class TestQuadraticInitializers:
       assert isinstance(linear_init, initializers_lr.KMeansInitializer)
     else:
       assert isinstance(linear_init, initializers_lr.RandomInitializer)
-    assert linear_init._kwargs == {"foo": "bar"}
+    assert linear_init._kwargs == kwargs_init
 
   def test_non_lr_initializer(self):
-    pass
+    solver = gromov_wasserstein.GromovWasserstein(
+        rank=-1, quad_initializer="not used"
+    )
+    initializer = solver.create_initializer(prob="not used")
+    assert isinstance(initializer, quad_initializers.QuadraticInitializer)
 
-  def test_explicitly_passing_initializer(self):
-    pass
+  @pytest.mark.parametrize("rank", [-1, 2])
+  def test_explicitly_passing_initializer(self, rank: int):
+    if rank == -1:
+      linear_init = init_lib.SortingInitializer()
+      quad_init = quad_initializers.QuadraticInitializer()
+    else:
+      linear_init = initializers_lr.Rank2Initializer(rank)
+      quad_init = quad_initializers.LRQuadraticInitializer(linear_init)
 
-  def test_better_initialization_helps(self):
-    pass
+    solver = gromov_wasserstein.GromovWasserstein(
+        # TODO(michalk8): rename to initializer
+        potential_initializer=linear_init,
+        quad_initializer=quad_init,
+    )
+
+    assert solver.linear_ot_solver.potential_initializer is linear_init
+    assert solver.quad_initializer is quad_init
+    if solver.is_low_rank:
+      assert solver.quad_initializer.rank == rank
+
+  @pytest.mark.parametrize("eps", [0., 1e-2])
+  def test_gw_better_initialization_helps(self, rng: jnp.ndarray, eps: float):
+    n, m, d1, d2, rank = 123, 124, 12, 10, 5
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+
+    geom_x = pointcloud.PointCloud(
+        jax.random.normal(key1, (n, d1)),
+        jax.random.normal(key2, (n, d1)),
+        epsilon=eps,
+        scale_cost=1.,
+    )
+    geom_y = pointcloud.PointCloud(
+        jax.random.normal(key3, (m, d2)),
+        jax.random.normal(key4, (m, d2)),
+        epsilon=eps,
+        scale_cost=1.,
+    )
+    problem = quad_problems.QuadraticProblem(geom_x, geom_y)
+    solver_random = gromov_wasserstein.GromovWasserstein(
+        rank=rank,
+        initializer="random",
+        quad_initializer="random",
+        epsilon=eps,
+        store_inner_errors=True,
+    )
+    solver_kmeans = gromov_wasserstein.GromovWasserstein(
+        rank=rank,
+        initializer="k-means",
+        quad_initializer="k-means",
+        epsilon=eps,
+        store_inner_errors=True
+    )
+
+    out_random = solver_random(problem)
+    out_kmeans = solver_kmeans(problem)
+
+    assert out_random.reg_gw_cost - out_kmeans.reg_gw_cost >= 15.
+    assert out_random.errors[0, 0] > out_kmeans.errors[0, 0]
