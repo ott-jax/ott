@@ -33,6 +33,11 @@ if TYPE_CHECKING:
       sinkhorn,
       sinkhorn_lr,
   )
+  Problem_t = Union[linear_problems.LinearProblem,
+                    quad_problems.QuadraticProblem]
+else:
+  Problem_t = "Union[linear_problems.LinearProblem, " \
+              "quad_problems.QuadraticProblem]"
 
 
 @jax.tree_util.register_pytree_node_class
@@ -45,14 +50,13 @@ class LRInitializer(ABC):
   """
 
   def __init__(self, rank: int, **kwargs: Any):
-    del kwargs
     self._rank = rank
+    self._kwargs = kwargs
 
   @abstractmethod
   def init_q(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -72,8 +76,7 @@ class LRInitializer(ABC):
   @abstractmethod
   def init_r(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -93,8 +96,7 @@ class LRInitializer(ABC):
   @abstractmethod
   def init_g(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -159,8 +161,7 @@ class LRInitializer(ABC):
 
   def __call__(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       q: Optional[jnp.ndarray] = None,
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
@@ -208,7 +209,7 @@ class LRInitializer(ABC):
     return self._rank
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self.rank], {}
+    return [self.rank], self._kwargs
 
   @classmethod
   def tree_unflatten(
@@ -228,8 +229,7 @@ class RandomInitializer(LRInitializer):
 
   def init_q(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -242,8 +242,7 @@ class RandomInitializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -256,8 +255,7 @@ class RandomInitializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -277,8 +275,7 @@ class Rank2Initializer(LRInitializer):
 
   def _compute_factor(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       init_g: jnp.ndarray,
       *,
       which: Literal["q", "r"],
@@ -306,8 +303,7 @@ class Rank2Initializer(LRInitializer):
 
   def init_q(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -318,8 +314,7 @@ class Rank2Initializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -330,8 +325,7 @@ class Rank2Initializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -376,8 +370,7 @@ class KMeansInitializer(LRInitializer):
 
   def _compute_factor(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -410,8 +403,7 @@ class KMeansInitializer(LRInitializer):
 
   def init_q(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -423,8 +415,7 @@ class KMeansInitializer(LRInitializer):
 
   def init_r(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,
@@ -436,8 +427,7 @@ class KMeansInitializer(LRInitializer):
 
   def init_g(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
@@ -503,8 +493,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
   def _compute_factor(
       self,
-      ot_prob:
-      "Union[linear_problems.LinearProblem, quad_problems.QuadraticProblem]",
+      ot_prob: Problem_t,
       key: jnp.ndarray,
       *,
       init_g: jnp.ndarray,

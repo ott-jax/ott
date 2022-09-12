@@ -409,5 +409,6 @@ class TestLRInitializers:
 
 class TestQuadraticInitializers:
 
-  def test_create_default_initializer(self):
+  @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
+  def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
     pass
