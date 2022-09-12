@@ -220,11 +220,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are:
 
-      - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
-      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
-      - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-      - `'generalized-k-means'` -
-        :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
+        - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+        - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+        - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
+        - `'generalized-k-means'` -
+          :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
 
       If `None`, :class:`~ott.core.initializers_lr.KMeansInitializer`
       is used when the linear problem's geometry is

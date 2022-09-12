@@ -21,9 +21,8 @@ import numpy as np
 import pytest
 
 from ott.core import initializers as init_lib
-from ott.core import linear_problems
-from ott.core.sinkhorn import sinkhorn
-from ott.geometry import geometry, pointcloud
+from ott.core import initializers_lr, linear_problems, sinkhorn, sinkhorn_lr
+from ott.geometry import geometry, low_rank, pointcloud
 
 
 def create_sorting_problem(rng, n, epsilon=0.01, online=False):
@@ -82,7 +81,7 @@ def run_sinkhorn_sort_init(
 ):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   sort_init = init_lib.SortingInitializer(vectorized_update=vector_min)
-  out = sinkhorn(
+  out = sinkhorn.sinkhorn(
       geom,
       a=a,
       b=b,
@@ -96,14 +95,14 @@ def run_sinkhorn_sort_init(
 @partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  out = sinkhorn(geom, a=a, b=b, jit=True, lse_mode=lse_mode)
+  out = sinkhorn.sinkhorn(geom, a=a, b=b, jit=True, lse_mode=lse_mode)
   return out
 
 
 @partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  out = sinkhorn(
+  out = sinkhorn.sinkhorn(
       geom,
       a=a,
       b=b,
@@ -266,9 +265,149 @@ class TestSinkhornInitializers:
       assert base_num_iter >= gaus_num_iter
 
 
+# TODO(michalk8): mark tests as fast
 class TestLRInitializers:
-  pass
+
+  @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
+  def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
+    n, d, rank = 110, 2, 3
+    x = jax.random.normal(rng, (n, d))
+    geom = pointcloud.PointCloud(x)
+
+    if kind == "pc":
+      pass
+    elif kind == "lrc":
+      geom = geom.to_LRCGeometry()
+      assert isinstance(geom, low_rank.LRCGeometry)
+    elif kind == "geom":
+      geom = geometry.Geometry(geom.cost_matrix)
+    else:
+      raise NotImplementedError(geom)
+    prob = linear_problems.LinearProblem(geom)
+
+    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=None)
+    initializer = solver.create_initializer(prob)
+
+    if kind in ("pc", "lrc"):
+      assert isinstance(initializer, initializers_lr.KMeansInitializer)
+    else:
+      assert isinstance(initializer, initializers_lr.RandomInitializer)
+
+    q, r, g = initializer(prob)
+
+    assert q.shape == (n, rank)
+    assert r.shape == (n, rank)
+    assert g.shape == (rank,)
+
+  @pytest.mark.parametrize(
+      "initializer", ["random", "rank2", "k-means", "generalized-k-means"]
+  )
+  @pytest.mark.parametrize("partial_init", ["q", "r", "g"])
+  def test_partial_initialization(
+      self, rng: jnp.ndarray, initializer: str, partial_init: str
+  ):
+    n, d, rank = 100, 10, 6
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+    x = jax.random.normal(key1, (n, d))
+    pc = pointcloud.PointCloud(x, epsilon=5e-1)
+    prob = linear_problems.LinearProblem(pc)
+    q_init = jax.random.normal(key2, (n, rank))
+    r_init = jax.random.normal(key2, (n, rank))
+    g_init = jax.random.normal(key2, (rank,))
+
+    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
+    initializer = solver.create_initializer(prob)
+
+    if partial_init == "q":
+      q, _, _ = initializer(prob, q=q_init)
+      np.testing.assert_array_equal(q, q_init)
+    elif partial_init == "r":
+      _, r, _ = initializer(prob, r=r_init)
+      np.testing.assert_array_equal(r, r_init)
+    elif partial_init == "g":
+      _, _, g = initializer(prob, g=g_init)
+      np.testing.assert_array_equal(g, g_init)
+    else:
+      raise NotImplementedError(partial_init)
+
+  @pytest.mark.parametrize("rank", [2, 4, 10, 13])
+  def test_generalized_k_means_has_correct_rank(
+      self, rng: jnp.ndarray, rank: int
+  ):
+    n, d = 100, 10
+    x = jax.random.normal(rng, (n, d))
+    pc = pointcloud.PointCloud(x, epsilon=5e-1)
+    prob = linear_problems.LinearProblem(pc)
+
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=rank, initializer="generalized-k-means"
+    )
+    initializer = solver.create_initializer(prob)
+
+    q, r, g = initializer(prob)
+
+    assert jnp.linalg.matrix_rank(q) == rank
+    assert jnp.linalg.matrix_rank(r) == rank
+
+  def test_generalized_k_means_matches_k_means(self, rng: jnp.ndarray):
+    n, d, rank = 120, 15, 5
+    eps = 1e-1
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (n, d))
+    y = jax.random.normal(key1, (n, d))
+
+    pc = pointcloud.PointCloud(x, y, epsilon=eps)
+    geom = geometry.Geometry(cost_matrix=pc.cost_matrix, epsilon=eps)
+    pc_problem = linear_problems.LinearProblem(pc)
+    geom_problem = linear_problems.LinearProblem(geom)
+
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=rank, initializer="k-means", max_iterations=5000
+    )
+    pc_out = solver(pc_problem)
+
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=rank, initializer="generalized-k-means", max_iterations=5000
+    )
+    geom_out = solver(geom_problem)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(pc_out.costs, geom_out.costs)
+
+    np.testing.assert_allclose(
+        pc_out.reg_ot_cost, geom_out.reg_ot_cost, atol=0.5, rtol=0.02
+    )
+
+  @pytest.mark.parametrize("epsilon", [0., 1e-1])
+  def test_better_lr_initialization_helps(
+      self, rng: jnp.ndarray, epsilon: float
+  ):
+    n, d, rank = 81, 13, 3
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (n, d))
+    y = jax.random.normal(key2, (n, d))
+    pc = pointcloud.PointCloud(x, y, epsilon=5e-1)
+    prob = linear_problems.LinearProblem(pc)
+
+    solver_random = sinkhorn_lr.LRSinkhorn(
+        rank=rank, epsilon=epsilon, initializer="random", max_iterations=5000
+    )
+    solver_init = sinkhorn_lr.LRSinkhorn(
+        rank=rank, epsilon=epsilon, initializer="k-means", max_iterations=5000
+    )
+
+    out_random = solver_random(prob)
+    out_init = solver_init(prob)
+
+    assert out_random.converged
+    assert out_init.converged
+    # converged earlier
+    assert (out_init.costs > -1).sum() < (out_random.costs > -1).sum()
+    # converged to a better solution
+    assert out_init.reg_ot_cost < out_random.reg_ot_cost
 
 
 class TestQuadraticInitializers:
-  pass
+
+  def test_create_default_initializer(self):
+    pass
