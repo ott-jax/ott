@@ -58,7 +58,7 @@ class BaseQuadraticInitializer(ABC):
       kwargs: Additional keyword arguments.
 
     Returns:
-      Geometry used to initialize the linear problem.
+      Geometry used to initialize a linear problem.
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -157,6 +157,11 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     )
 
     return quad_prob.update_lr_geom(tmp_out)
+
+  @property
+  def rank(self) -> int:
+    """Rank of the transport matrix factorization."""
+    return self._linear_lr_initializer.rank
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()

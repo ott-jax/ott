@@ -563,7 +563,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       )
 
     assert initializer.rank == self.rank, \
-        f"Expected initializer of `rank={self.rank}`, " \
+        f"Expected initializer of rank `{self.rank}`, " \
         f"found `{initializer.rank}`."
     return initializer
 

@@ -156,8 +156,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
           :class:`~ott.geometry.pointcloud.PointCloud`  or
           :class:`~ott.geometry.low_rank.LRCGeometry`,
           :class:`~ott.core.initializers_lr.KMeansInitializer` is used.
-        - else, :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`
-          is used.
+        - otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
 
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
@@ -279,6 +278,14 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       The initializer.
     """
     if isinstance(self.quad_initializer, quad_init.BaseQuadraticInitializer):
+      if self.is_low_rank:
+        assert isinstance(
+            self.quad_initializer, quad_init.LRQuadraticInitializer
+        ), f"Expected quadratic initializer to be low rank, " \
+           f"found `{type(self.quad_initializer).__name___}`."
+        assert self.quad_initializer.rank == self.rank, \
+            f"Expected quadratic initializer of rank `{self.rank}`, " \
+            f"found `{self.quad_initializer.rank}`."
       return self.quad_initializer
 
     if self.is_low_rank:

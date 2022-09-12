@@ -299,6 +299,13 @@ class TestLRInitializers:
     assert r.shape == (n, rank)
     assert g.shape == (rank,)
 
+  def test_explicitly_passing_initializer(self):
+    rank = 2
+    initializer = initializers_lr.RandomInitializer(rank=rank)
+    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
+
+    assert solver.create_initializer(prob="not used") is initializer
+
   @pytest.mark.parametrize(
       "initializer", ["random", "rank2", "k-means", "generalized-k-means"]
   )
@@ -409,4 +416,10 @@ class TestQuadraticInitializers:
 
   @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
   def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
+    pass
+
+  def test_explicitly_passing_initializer(self):
+    pass
+
+  def test_better_initialization_helps(self):
     pass
