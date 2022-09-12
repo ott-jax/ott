@@ -173,12 +173,12 @@ class LRInitializer(ABC):
 
     Args:
       ot_prob: OT problem.
-      q: Factor of shape ``[n, rank]``. If not `None`, :meth:`init_q` will be
-        used to initialize the factor.
-      r: Array of shape ``[m, rank]``. If not `None`, :meth:`init_r` will be
-        used to initialize the factor.
-      g: Array of shape ``[rank,]``. If not `None`, :meth:`init_g` will be
-        used to initialize the factor.
+      q: Factor of shape ``[n, rank]``. If `None`, it will be initialized
+        using :meth:`init_q`.
+      r: Factor of shape ``[m, rank]``. If `None`, it will be initialized
+        using :meth:`init_r`.
+      g: Factor of shape ``[rank,]``. If `None`, it will be initialized
+        using :meth:`init_g`.
       key: Random key for seeding.
       kwargs: Additional keyword arguments for :meth:`init_q`, :meth:`init_r`
         and :meth:`init_g`.
