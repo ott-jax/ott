@@ -38,7 +38,7 @@ class GWOutput(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    convergence: Bool convergence flag for the outer GW iterations.
+    converged: Bool convergence flag for the outer GW iterations.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
     linear_state: State used to solve and store solutions to the local
@@ -49,7 +49,7 @@ class GWOutput(NamedTuple):
 
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
-  convergence: bool = False
+  converged: bool = False
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
@@ -213,10 +213,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       )
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
-    convergence = jnp.logical_and(
+    converged = jnp.logical_and(
         iteration < self.max_iterations, jnp.all(out.linear_convergence)
     )
-    return out.set(linear_state=linear_state, convergence=convergence)
+    return out.set(linear_state=linear_state, converged=converged)
 
   def init_state(
       self,
@@ -256,13 +256,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       A GWOutput.
     """
-    geom = state.linear_pb.geom
     return GWOutput(
         costs=state.costs,
         linear_convergence=state.linear_convergence,
         errors=state.errors,
         linear_state=state.linear_state,
-        geom=geom,
+        geom=state.linear_pb.geom,
         old_transport_mass=state.old_transport_mass
     )
 

@@ -372,7 +372,7 @@ class TestFusedGromovWasserstein:
     res0 = ot_gwlr.apply(x.T, axis=0)
     res1 = ot_gwlr.apply(y.T, axis=1)
 
-    assert ot_gwlr.convergence
+    assert ot_gwlr.converged
     assert res0.shape == (d1, m)
     assert res1.shape == (d2, n)
 
@@ -411,6 +411,6 @@ class TestFusedGromovWasserstein:
     ):
       assert geom.cost_rank == rank
 
-    assert out.convergence
+    assert out.converged
     assert out.reg_gw_cost > 0
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)

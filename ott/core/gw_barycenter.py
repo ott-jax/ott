@@ -199,7 +199,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
       return (
-          out.reg_gw_cost, out.convergence, out.matrix,
+          out.reg_gw_cost, out.converged, out.matrix,
           out.errors if store_errors else None
       )
 
