@@ -43,7 +43,7 @@ def discrete_barycenter(
     lse_mode: bool = True,
     debiased: bool = False
 ) -> SinkhornBarycenterOutput:
-  """Compute discrete barycenter :cite`janati:20a`.
+  """Compute discrete barycenter :cite:`janati:20a`.
 
   Args:
     geom: a Cost object able to apply kernels with a certain epsilon.

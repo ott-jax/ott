@@ -247,8 +247,7 @@ class SinkhornOutput(NamedTuple):
     if self.errors is None:
       return False
     return jnp.logical_and(
-        jnp.sum(self.errors == -1) > 0,
-        jnp.sum(jnp.isnan(self.errors)) == 0
+        jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
     )
 
   @property
@@ -294,11 +293,11 @@ class SinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
-  """A Sinkhorn solver for linear reg-OT problem implemented as a pytree.
+  """A Sinkhorn solver for linear reg-OT problem.
 
   A Sinkhorn solver takes a linear OT problem object as an input and returns a
   SinkhornOutput object that contains all the information required to compute
-  transports. See function ``sinkhorn`` for a wrapper.
+  transports. See :func:`~ott.core.sinkhorn.sinkhorn` for a functional wrapper.
 
   Args:
     lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
@@ -315,10 +314,10 @@ class Sinkhorn:
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If
       ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
-      run by default using a ``jax.lax.scan`` loop rather than a custom,
-      unroll-able ``jax.lax.while_loop`` that monitors convergence. In that case
-      the error is not monitored and the ``converged`` flag will return
-      ``False`` as a consequence.
+      run by default using a :func:`jax.lax.scan` loop rather than a custom,
+      unroll-able :func:`jax.lax.while_loop` that monitors convergence.
+      In that case the error is not monitored and the ``converged``
+      flag will return ``False`` as a consequence.
     momentum: a Momentum instance. See ott.core.momentum
     anderson: an AndersonAcceleration instance. See ott.core.anderson.
     implicit_diff: instance used to solve implicit differentiation. Unrolls
@@ -334,6 +333,7 @@ class Sinkhorn:
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
       should be jitted by the user)
+    initializer: how to compute the initial potentials/scalings.
   """
 
   def __init__(
@@ -350,8 +350,7 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      potential_initializer: init_lib.SinkhornInitializer = init_lib
-      .DefaultInitializer(),
+      initializer: init_lib.SinkhornInitializer = init_lib.DefaultInitializer(),
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -371,7 +370,7 @@ class Sinkhorn:
     self.anderson = anderson
     self.implicit_diff = implicit_diff
     self.parallel_dual_updates = parallel_dual_updates
-    self.potential_initializer = potential_initializer
+    self.initializer = initializer
     self.jit = jit
 
     # Force implicit_differentiation to True when using Anderson acceleration,
@@ -388,55 +387,26 @@ class Sinkhorn:
     self.use_danskin = ((self.implicit_diff is not None)
                         if use_danskin is None else use_danskin)
 
-  @property
-  def norm_error(self) -> Tuple[int, ...]:
-    """Powers used to compute the p-norm between marginal/target."""
-    # To change momentum adaptively, one needs errors in ||.||_1 norm.
-    # In that case, we add this exponent to the list of errors to compute,
-    # notably if that was not the error requested by the user.
-    if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
-      return self._norm_error, 1
-    return self._norm_error,
-
   def __call__(
       self,
       ot_prob: linear_problems.LinearProblem,
-      init: Optional[Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]] = None
+      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
   ) -> SinkhornOutput:
-    """Main interface to run sinkhorn."""  # noqa: D401
-    # initialization
-    init_dual_a, init_dual_b = (init if init is not None else (None, None))
+    """Run Sinkhorn algorithm.
 
-    if init_dual_a is None:
-      init_dual_a = self.potential_initializer.init_dual_a(
-          ot_problem=ot_prob, lse_mode=self.lse_mode
-      )
+    Args:
+      ot_prob: Linear OT problem.
+      init: Initial dual potentials/scalings f_u and g_v, respectively.
+        Any `None` values will be initialized using the initializer.
 
-    if init_dual_b is None:
-      init_dual_b = self.potential_initializer.init_dual_b(
-          ot_problem=ot_prob, lse_mode=self.lse_mode
-      )
-
-    # Cancel dual variables for zero weights.
-    init_dual_a = jnp.where(
-        ot_prob.a > 0, init_dual_a, -jnp.inf if self.lse_mode else 0.0
+    Returns:
+      The Sinkhorn output.
+    """
+    init_dual_a, init_dual_b = self.initializer(
+        ot_prob, *init, lse_mode=self.lse_mode
     )
-    init_dual_b = jnp.where(
-        ot_prob.b > 0, init_dual_b, -jnp.inf if self.lse_mode else 0.0
-    )
-
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
-
-  def tree_flatten(self):
-    aux = vars(self).copy()
-    aux['norm_error'] = aux.pop('_norm_error')
-    aux.pop('threshold')
-    return [self.threshold], aux
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    return cls(**aux_data, threshold=children[0])
 
   def lse_step(
       self, ot_prob: linear_problems.LinearProblem, state: SinkhornState,
@@ -592,6 +562,26 @@ class Sinkhorn:
     errors = state.errors[:, 0]
     return SinkhornOutput(f=f, g=g, errors=errors)
 
+  @property
+  def norm_error(self) -> Tuple[int, ...]:
+    """Powers used to compute the p-norm between marginal/target."""
+    # To change momentum adaptively, one needs errors in ||.||_1 norm.
+    # In that case, we add this exponent to the list of errors to compute,
+    # notably if that was not the error requested by the user.
+    if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
+      return self._norm_error, 1
+    return self._norm_error,
+
+  def tree_flatten(self):
+    aux = vars(self).copy()
+    aux['norm_error'] = aux.pop('_norm_error')
+    aux.pop('threshold')
+    return [self.threshold], aux
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    return cls(**aux_data, threshold=children[0])
+
 
 def run(
     ot_prob: linear_problems.LinearProblem, solver: Sinkhorn,
@@ -702,8 +692,7 @@ def make(
     precondition_fun: Optional[Callable[[float], float]] = None,
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
-    potential_initializer: init_lib.SinkhornInitializer = init_lib
-    .DefaultInitializer(),
+    initializer: init_lib.SinkhornInitializer = init_lib.DefaultInitializer(),
     jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""
@@ -738,7 +727,7 @@ def make(
       implicit_diff=implicit_diff,
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
-      potential_initializer=potential_initializer,
+      initializer=initializer,
       jit=jit
   )
 
@@ -753,19 +742,17 @@ def sinkhorn(
     init_dual_b: Optional[jnp.ndarray] = None,
     **kwargs: Any,
 ):
-  r"""Jax version of Sinkhorn's algorithm.
-
-  Solves regularized OT problem using Sinkhorn iterations.
+  r"""Solve regularized OT problem using Sinkhorn iterations.
 
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
   scalings when parameterized as exponentials of the former). Calling this
   function returns therefore a pair of optimal vectors. In addition to these,
-  `sinkhorn` also returns the objective value achieved by these optimal vectors;
-  a vector of size `max_iterations/inner_terations` that records the vector of
-  values recorded to monitor convergence, throughout the execution of the
-  algorithm (padded with ``-1`` if convergence happens before), as well as a
+  it also returns the objective value achieved by these optimal vectors;
+  a vector of size ``max_iterations/inner_iterations`` that records the vector
+  of values recorded to monitor convergence, throughout the execution of the
+  algorithm (padded with `-1` if convergence happens before), as well as a
   boolean to signify whether the algorithm has converged within the number of
   iterations specified by the user.
 
@@ -780,36 +767,37 @@ def sinkhorn(
 
   Some maths:
     Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
-    regularization parameter :math:`\epsilon`, (resp. a kernel matrix :math:`K`)
+    regularization parameter :math:`\varepsilon`, (or a kernel matrix :math:`K`)
     the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
     ``m`` that maximize the following criterion.
 
     .. math::
 
-      \arg\max_{f, g}{- <a, \phi_a^{*}(-f)> - <b, \phi_b^{*}(-g)> -
-      \epsilon <e^{f/\epsilon}, e^{-C/\epsilon} e^{-g/\epsilon}}>
+      \arg\max_{f, g}{- \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
+      \phi_b^{*}(-g) \rangle - \varepsilon \langle e^{f/\varepsilon},
+      e^{-C/\varepsilon} e^{-g/\varepsilon}} \rangle
 
     where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}` its Legendre transform.
+    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform.
 
     That problem can also be written, instead, using positive scaling vectors
     `u`, `v` of size ``n``, ``m``, handled with the kernel
-    :math:`K:=e^{-C/\epsilon}`,
+    :math:`K := e^{-C/\varepsilon}`,
 
     .. math::
 
-      \arg\max_{u, v >0} - <a,\phi_a^{*}(-\epsilon\log u)> + <b,
-      \phi_b^{*}(-\epsilon\log v)> -  <u, K v>
+      \arg\max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle +
+      \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle - \langle u, K v \rangle
 
     Both of these problems corresponds, in their *primal* formulation, to
-    solving the
-    unbalanced optimal transport problem with a variable matrix `P` of size
-    ``n`` x ``m``:
+    solving the unbalanced optimal transport problem with a variable matrix
+    :math:`P` of size ``n`` x ``m``:
 
     .. math::
 
-      \arg\min_{P>0} <P,C> -\epsilon \text{KL}(P | ab^T) + \rho_a
-      \text{KL}(P1 | a) + \rho_b \text{KL}(P^T1 | b)
+      \arg\min_{P>0} \langle P,C \rangle -\varepsilon \text{KL}(P | ab^T)
+      + \rho_a \text{KL}(P\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \mathbf{1}_n
+      | b)
 
     where :math:`KL` is the generalized Kullback-Leibler divergence.
 
@@ -818,45 +806,43 @@ def sinkhorn(
 
     .. math::
 
-      \arg\min_{P} \epsilon KL(P|K) + \rho_a \text{KL}(P1 | a) + \rho_b
-      \text{KL}(P^T1 | b)
+      \arg\min_{P} \varepsilon KL(P|K) + \rho_a \text{KL}(P\mathbf{1}_m | a) +
+      \rho_b \text{KL}(P^T \mathbf{1}_n | b)
 
     The *original* OT problem taught in linear programming courses is recovered
     by using the formulation above relying on the cost :math:`C`, and letting
-    :math:`\epsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow
+    :math:`\varepsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow
     \infty`.
-    In that case the entropy disappears, whereas the :math:`KL` regularizations
+    In that case the entropy disappears, whereas the :math:`KL` regularization
     above become constraints on the marginals of :math:`P`: This results in a
     standard min cost flow problem. This problem is not handled for now in this
-    toolbox, which focuses exclusively on the case :math:`\epsilon > 0`.
+    toolbox, which focuses exclusively on the case :math:`\varepsilon > 0`.
 
     The *balanced* regularized OT problem is recovered for finite
-    :math:`\epsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow \infty`.
-    This problem can be shown to be equivalent to a matrix scaling problem,
-    which can be solved using the Sinkhorn fixed-point algorithm. To handle the
-    case :math:`\rho_a, \rho_b \rightarrow \infty`, the ``sinkhorn`` function
-    uses parameters ``tau_a`` := :math:`\rho_a / (\epsilon + \rho_a)` and
-    ``tau_b`` := :math:`\rho_b / (\epsilon + \rho_b)` instead.
-    Setting either of these parameters to 1 corresponds to setting the
-    corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
+    :math:`\varepsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow
+    \infty`. This problem can be shown to be equivalent to a matrix scaling
+    problem, which can be solved using the Sinkhorn fixed-point algorithm.
+    To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
+    ``sinkhorn`` function uses parameters :math:`tau\_a := \rho_a /
+    (\varepsilon + \rho_a)` and :math:`tau\_b := \rho_b / (\varepsilon +
+    \rho_b)` instead. Setting either of these parameters to 1 corresponds to
+    setting the corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
     potentials (or alternatively their parametrization as positive scalings
-    `u`,
-    `v`), rather than solving the primal problem in :math:`P`. This is mostly
-    for
-    efficiency (potentials and scalings have a ``n + m`` memory footprint,
-    rather
-    than ``n m`` required to store `P`). This is also because both problems are,
-    in fact, equivalent, since the optimal transport :math:`P^*` can be
-    recovered
-    from optimal potentials :math:`f^*`, :math:`g^*` or scalings :math:`u^*`,
-    :math:`v^*`, using the geometry's cost or kernel matrix respectively:
+    `u`, `v`), rather than solving the primal problem in :math:`P`.
+    This is mostly for efficiency (potentials and scalings have a ``n + m``
+    memory footprint, rather than ``n m`` required to store `P`). This is also
+    because both problems are, in fact, equivalent, since the optimal transport
+    math:`P^*` can be recovered from optimal potentials :math:`f^*`, :math:`g^*`
+    or scalings :math:`u^*`, :math:`v^*`, using the geometry's cost or kernel
+    matrix respectively:
 
     .. math::
 
       P^* = \exp\left(\frac{f^*\mathbf{1}_m^T + \mathbf{1}_n g^{*T} -
-      C}{\epsilon}\right) \text{ or } P^* = \text{diag}(u^*) K \text{diag}(v^*)
+      C}{\varepsilon}\right) \text{ or } P^* = \text{diag}(u^*) K
+      \text{diag}(v^*)
 
     By default, the Sinkhorn algorithm solves this dual problem in `f, g` or
     `u, v` using block coordinate ascent, i.e. devising an update for each `f`
@@ -877,12 +863,13 @@ def sinkhorn(
     - kernel mode (``lse_mode=False``), in which case it will require access
       to a matrix vector multiplication operator :math:`z \rightarrow K z`,
       where :math:`K` is either instantiated from :math:`C` as
-      :math:`\exp(-C/\epsilon)`, or provided directly. In that case, rather than
-      optimizing on :math:`f` and :math:`g`, it is more convenient to optimize
-      on their so called scaling formulations, :math:`u := \exp(f / \epsilon)`
-      and :math:`v := \exp(g / \epsilon)`. While faster (applying matrices is
-      faster than applying ``lse`` repeatedly over lines), this mode is also
-      less stable numerically, notably for smaller :math:`\epsilon`.
+      :math:`\exp(-C/\varepsilon)`, or provided directly. In that case, rather
+      than optimizing on :math:`f` and :math:`g`, it is more convenient to
+      optimize on their so called scaling formulations,
+      :math:`u := \exp(f / \varepsilon)` and :math:`v := \exp(g / \varepsilon)`.
+      While faster (applying matrices is faster than applying ``lse`` repeatedly
+      over lines), this mode is also less stable numerically, notably for
+      smaller :math:`\varepsilon`.
 
     In the source code, the variables ``f_u`` or ``g_v`` can be either regarded
     as potentials (real) or scalings (positive) vectors, depending on the choice
@@ -891,9 +878,9 @@ def sinkhorn(
 
     In addition to standard Sinkhorn updates, the user can also use heavy-ball
     type updates using a ``momentum`` parameter in ]0,2[. We also implement a
-    strategy that tries to set that parameter adaptively ater
-    ``chg_momentum_from`` iterations, as a function of progress in the error, as
-    proposed in the literature.
+    strategy that tries to set that parameter adaptively at
+    ``chg_momentum_from`` iterations, as a function of progress in the error,
+    as proposed in the literature.
 
     Another upgrade to the standard Sinkhorn updates provided to the users lies
     in using Anderson acceleration. This can be parameterized by setting the
@@ -971,12 +958,12 @@ def sinkhorn(
       3. OOMs issues may arise when storing either cost or kernel matrices that
          are too large in ``geom``. In the case where, the ``geom`` geometry is
          a ``PointCloud``, some of these issues might be solved by setting the
-         ``online`` flag to ``True``. This will trigger a recomputation on the
+         ``online`` flag to ``True``. This will trigger a re-computation on the
          fly of the cost/kernel matrix.
 
     * The weight vectors ``a`` and ``b`` can be passed on with coordinates that
       have zero weight. This is then handled by relying on simple arithmetic for
-      ``inf`` values that will likely arise (due to :math:`log(0)` when
+      ``inf`` values that will likely arise (due to :math:`\log 0` when
       ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is
       ``False``). Whenever that arithmetic is likely to produce ``NaN`` values
       (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use
@@ -989,8 +976,8 @@ def sinkhorn(
 
   Args:
     geom: a Geometry object.
-    a: [num_a,] or [batch, num_a] weights.
-    b: [num_b,] or [batch, num_b] weights.
+    a: The first marginal. If `None`, it will be uniform.
+    b: The second marginal. If `None`, it will be uniform.
     tau_a: ratio rho/(rho+eps) between KL divergence regularizer to first
      marginal and itself + epsilon regularizer used in the unbalanced
      formulation.
@@ -1014,10 +1001,10 @@ def sinkhorn(
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If
       ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
-      run by default using a ``jax.lax.scan`` loop rather than a custom,
-      unroll-able ``jax.lax.while_loop`` that monitors convergence. In that case
-      the error is not monitored and the ``converged`` flag will return
-      ``False`` as a consequence.
+      run by default using a :func:`jax.lax.scan` loop rather than a custom,
+      unroll-able :func:`jax.lax.while_loop` that monitors convergence.
+      In that case, the error is not monitored and the ``converged`` flag
+      will return ``False`` as a consequence.
     momentum:
       a float in [0,2].
     chg_momentum_from: if positive, momentum is recomputed using the

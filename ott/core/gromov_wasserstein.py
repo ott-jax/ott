@@ -14,7 +14,7 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,13 +22,15 @@ from typing_extensions import Literal
 
 from ott.core import (
     fixed_point_loop,
+    initializers_lr,
     linear_problems,
+    quad_initializers,
     quad_problems,
     sinkhorn,
     sinkhorn_lr,
     was_solver,
 )
-from ott.geometry import epsilon_scheduler, geometry
+from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -41,7 +43,7 @@ class GWOutput(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    convergence: Bool convergence flag for the outer GW iterations.
+    converged: Bool convergence flag for the outer GW iterations.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
     linear_state: State used to solve and store solutions to the local
@@ -52,7 +54,7 @@ class GWOutput(NamedTuple):
 
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
-  convergence: bool = False
+  converged: bool = False
   errors: Optional[jnp.ndarray] = None
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
@@ -136,17 +138,73 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
+  """Gromov-Wasserstein solver.
 
-  def __call__(self, prob: quad_problems.QuadraticProblem) -> GWOutput:
+  Args:
+    args: Positional_arguments for
+      :class:`~ott.core.was_solver.WassersteinSolver`.
+    quad_initializer: Quadratic initializer. If the solver is entropic,
+      :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
+      Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
+
+        - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+        - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+        - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
+        - `'generalized-k-means'` -
+          :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
+
+      If `None`, the low-rank initializer will be selected in a problem-specific
+      manner:
+
+        - if both :attr:`~ott.core.quad_problems.QuadraticProblem.geom_xx` and
+          :attr:`~ott.core.quad_problems.QuadraticProblem.geom_yy` are
+          :class:`~ott.geometry.pointcloud.PointCloud`  or
+          :class:`~ott.geometry.low_rank.LRCGeometry`,
+          :class:`~ott.core.initializers_lr.KMeansInitializer` is used.
+        - otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
+
+    kwargs_init: Keyword arguments when creating the initializer.
+    kwargs: Keyword arguments for
+      :class:`~ott.core.was_solver.WassersteinSolver`.
+  """
+
+  def __init__(
+      self,
+      *args: Any,
+      quad_initializer: Optional[
+          Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
+                quad_initializers.BaseQuadraticInitializer]] = None,
+      kwargs_init: Optional[Mapping[str, Any]] = None,
+      **kwargs: Any
+  ):
+    super().__init__(*args, **kwargs)
+    self.quad_initializer = quad_initializer
+    self.kwargs_init = {} if kwargs_init is None else kwargs_init
+
+  def __call__(
+      self,
+      prob: quad_problems.QuadraticProblem,
+      init: Optional[linear_problems.LinearProblem] = None,
+      **kwargs: Any,
+  ) -> GWOutput:
+    """Run the Gromov-Wasserstein solver.
+
+    Args:
+      prob: Quadratic OT problem.
+      init: Initial linearization of the quadratic problem. If `None`, it will
+        be computed using the initializer.
+      kwargs: Keyword arguments used when calling the initializer.
+    """
     # consider converting problem first if using low-rank solver
     if self.is_low_rank and prob._is_low_rank_convertible:
       prob = prob.to_low_rank()
 
-    # Possibly jit iteration functions and run. Closure on rank to
-    # avoid jitting issues, since rank value will be used to branch between
-    # a default entropic GW or a low-rank GW.
+    if init is None:
+      initializer = self.create_initializer(prob)
+      init = initializer(prob, epsilon=self.epsilon, **kwargs)
+
     gromov_fn = jax.jit(iterations) if self.jit else iterations
-    out = gromov_fn(self, prob)
+    out = gromov_fn(self, prob, init)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
@@ -159,22 +217,23 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       )
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
-    convergence = jnp.logical_and(
+    converged = jnp.logical_and(
         iteration < self.max_iterations, jnp.all(out.linear_convergence)
     )
-    return out.set(linear_state=linear_state, convergence=convergence)
+    return out.set(linear_state=linear_state, converged=converged)
 
   def init_state(
       self,
       prob: quad_problems.QuadraticProblem,
+      init: linear_problems.LinearProblem,
   ) -> GWState:
-    """Initialize the state of the Gromov-Wasserstein iterations."""
-    if self.is_low_rank:
-      linear_prob = prob.init_lr_linearization(self.linear_ot_solver)
-    else:
-      linear_prob = prob.init_linearization(self.epsilon)
+    """Initialize the state of the Gromov-Wasserstein iterations.
 
-    linear_state = self.linear_ot_solver(linear_prob)
+    Args:
+      prob: Quadratic OT problem.
+      init: Initial linearization of the quadratic problem.
+    """
+    linear_state = self.linear_ot_solver(init)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
 
@@ -187,7 +246,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         costs=-jnp.ones((num_iter,)),
         linear_convergence=-jnp.ones((num_iter,)),
         linear_state=linear_state,
-        linear_pb=linear_prob,
+        linear_pb=init,
         old_transport_mass=transport_mass,
         errors=errors
     )
@@ -201,27 +260,71 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       A GWOutput.
     """
-    geom = state.linear_pb.geom
     return GWOutput(
         costs=state.costs,
         linear_convergence=state.linear_convergence,
         errors=state.errors,
         linear_state=state.linear_state,
-        geom=geom,
+        geom=state.linear_pb.geom,
         old_transport_mass=state.old_transport_mass
     )
+
+  def create_initializer(
+      self, prob: quad_problems.QuadraticProblem
+  ) -> quad_initializers.BaseQuadraticInitializer:
+    """Create quadratic, possibly low-rank initializer.
+
+    Args:
+      prob: Quadratic OT problem used to determine the initializer.
+
+    Returns:
+      The initializer.
+    """
+    if isinstance(
+        self.quad_initializer, quad_initializers.BaseQuadraticInitializer
+    ):
+      if self.is_low_rank:
+        assert isinstance(
+            self.quad_initializer, quad_initializers.LRQuadraticInitializer
+        ), f"Expected quadratic initializer to be low rank, " \
+           f"found `{type(self.quad_initializer).__name___}`."
+        assert self.quad_initializer.rank == self.rank, \
+            f"Expected quadratic initializer of rank `{self.rank}`, " \
+            f"found `{self.quad_initializer.rank}`."
+      return self.quad_initializer
+
+    if self.is_low_rank:
+      if self.quad_initializer is None:
+        types = (pointcloud.PointCloud, low_rank.LRCGeometry)
+        kind = "k-means" if isinstance(prob.geom_xx, types) and isinstance(
+            prob.geom_yy, types
+        ) else "random"
+      else:
+        kind = self.quad_initializer
+      linear_lr_init = initializers_lr.LRInitializer.from_solver(
+          self, kind=kind, **self.kwargs_init
+      )
+      return quad_initializers.LRQuadraticInitializer(linear_lr_init)
+
+    return quad_initializers.QuadraticInitializer(**self.kwargs_init)
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    children, aux_data = super().tree_flatten()
+    aux_data["quad_initializer"] = self.quad_initializer
+    aux_data["kwargs_init"] = self.kwargs_init
+    return children, aux_data
 
 
 def iterations(
     solver: GromovWasserstein,
     prob: quad_problems.QuadraticProblem,
+    init: linear_problems.LinearProblem,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 
   def cond_fn(
-      iteration: int, constants: GromovWasserstein, state: GWState
+      iteration: int, solver: GromovWasserstein, state: GWState
   ) -> bool:
-    solver = constants
     return solver._continue(state, iteration)
 
   def body_fn(
@@ -254,7 +357,7 @@ def iterations(
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=solver.init_state(prob)
+      state=solver.init_state(prob, init)
   )
 
   return solver.output_from_state(state)

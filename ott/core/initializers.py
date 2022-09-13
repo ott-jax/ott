@@ -28,6 +28,57 @@ __all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
 class SinkhornInitializer(ABC):
   """Base class for Sinkhorn initializers."""
 
+  @abstractmethod
+  def init_dual_a(
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
+  ) -> jnp.ndarray:
+    """Initialization for Sinkhorn potential/scaling f_u."""
+
+  @abstractmethod
+  def init_dual_b(
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
+  ) -> jnp.ndarray:
+    """Initialization for Sinkhorn potential/scaling g_v."""
+
+  def __call__(
+      self,
+      ot_prob: linear_problems.LinearProblem,
+      a: Optional[jnp.ndarray],
+      b: Optional[jnp.ndarray],
+      lse_mode: bool,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Initialize Sinkhorn potentials/scalings f_u and g_v.
+
+    Args:
+      ot_prob: Linear OT problem.
+      a: Initial potential/scaling f_u. If `None`, it will be initialized using
+        :meth:`init_dual_a`.
+      b: Initial potential/scaling g_v. If `None`, it will be initialized using
+        :meth:`init_dual_b`.
+      lse_mode: Return potentials if true, scalings otherwise.
+
+    Returns:
+      The initial potentials/scalings.
+    """
+    n, m = ot_prob.geom.shape
+    if a is None:
+      a = self.init_dual_a(ot_prob, lse_mode=lse_mode)
+    if b is None:
+      b = self.init_dual_b(ot_prob, lse_mode=lse_mode)
+
+    assert a.shape == (
+        n,
+    ), f"Expected `f_u` to have shape `{n,}`, found `{a.shape}`."
+    assert b.shape == (
+        m,
+    ), f"Expected `g_v` to have shape `{m,}`, found `{b.shape}`."
+
+    # cancel dual variables for zero weights
+    a = jnp.where(ot_prob.a > 0., a, -jnp.inf if lse_mode else 0.)
+    b = jnp.where(ot_prob.b > 0., b, -jnp.inf if lse_mode else 0.)
+
+    return a, b
+
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [], {}
 
@@ -37,61 +88,48 @@ class SinkhornInitializer(ABC):
   ) -> "SinkhornInitializer":
     return cls(*children, **aux_data)
 
-  @abstractmethod
-  def init_dual_a(
-      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
-  ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/scaling f_u."""
-
-  @abstractmethod
-  def init_dual_b(
-      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
-  ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/scaling g_v."""
-
 
 @jax.tree_util.register_pytree_node_class
 class DefaultInitializer(SinkhornInitializer):
   """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
-      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/scaling f_u.
+    """Initialize Sinkhorn potential/scaling f_u.
 
     Args:
-      ot_problem: OT problem between discrete distributions of size n and m.
+      ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/scaling, array of size n
+      potential/scaling, array of size n.
     """
-    a = ot_problem.a
+    a = ot_prob.a
     init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
     return init_dual_a
 
   def init_dual_b(
-      self, ot_problem: linear_problems.LinearProblem, lse_mode: bool
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
-    """Initialization for Sinkhorn potential/scaling g_v.
+    """Initialize Sinkhorn potential/scaling g_v.
 
     Args:
-      ot_problem: OT problem between discrete distributions of size n and m.
+      ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/scaling, array of size m
+      potential/scaling, array of size m.
     """
-    b = ot_problem.b
+    b = ot_prob.b
     init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
     return init_dual_b
 
 
 @jax.tree_util.register_pytree_node_class
 class GaussianInitializer(DefaultInitializer):
-  """Gaussian initializer.
+  """Gaussian initializer :cite:`thornton2022rethinking:22`.
 
-  From :cite:`thornton2022rethinking:22`.
   Compute Gaussian approximations of each point cloud, then compute closed from
   Kantorovich potential between Gaussian approximations using Brenier's theorem
   (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential
@@ -100,34 +138,34 @@ class GaussianInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_problem: linear_problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       lse_mode: bool,
   ) -> jnp.ndarray:
-    """Gaussian init function.
+    """Gaussian initialization function.
 
     Args:
-      ot_problem: OT problem description with geometry and weights.
+      ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
 
     Returns:
-      potential/scaling f_u, array of size n.
+      potential/scaling, array of size n.
     """
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
     assert isinstance(
-        ot_problem.geom, pointcloud.PointCloud
+        ot_prob.geom, pointcloud.PointCloud
     ), "Gaussian initializer valid only for point clouds."
 
-    x, y = ot_problem.geom.x, ot_problem.geom.y
-    a, b = ot_problem.a, ot_problem.b
+    x, y = ot_prob.geom.x, ot_prob.geom.y
+    a, b = ot_prob.a, ot_prob.b
 
     gaussian_a = gaussian.Gaussian.from_samples(x, weights=a)
     gaussian_b = gaussian.Gaussian.from_samples(y, weights=b)
     # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
     f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
     f_potential = f_potential - jnp.mean(f_potential)
-    f_u = f_potential if lse_mode else ot_problem.geom.scaling_from_potential(
+    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
     )
     return f_u
@@ -135,10 +173,9 @@ class GaussianInitializer(DefaultInitializer):
 
 @jax.tree_util.register_pytree_node_class
 class SortingInitializer(DefaultInitializer):
-  """Sorting initializer.
+  """Sorting initializer :cite:`thornton2022rethinking:22`.
 
-  DualSort algorithm from :cite:`thornton2022rethinking:22`, solve
-  non-regularized OT problem via sorting, then compute potential through
+  Solves non-regularized OT problem via sorting, then compute potential through
   iterated minimum on C-transform and use this potential to initialize
   regularized potential.
 
@@ -158,7 +195,6 @@ class SortingInitializer(DefaultInitializer):
     self.tolerance = tolerance
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
-    self.update_fn = _vectorized_update if self.vectorized_update else _coordinate_update
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return ([], {
@@ -181,22 +217,22 @@ class SortingInitializer(DefaultInitializer):
       potential f, array of size n.
     """
 
-    def body_fn(state):
+    def body_fn(
+        state: Tuple[jnp.ndarray, float, int]
+    ) -> Tuple[jnp.ndarray, float, int]:
       prev_f, _, it = state
-      new_f = self.update_fn(prev_f, modified_cost)
+      new_f = fn(prev_f, modified_cost)
       diff = jnp.sum((new_f - prev_f) ** 2)
       it += 1
       return new_f, diff, it
 
-    def cond_fn(state):
+    def cond_fn(state: Tuple[jnp.ndarray, float, int]) -> bool:
       _, diff, it = state
       return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
 
-    it = 0
-    diff = self.tolerance + 1.0
-    state = (init_f, diff, it)
-
-    f_potential, _, it = jax.lax.while_loop(
+    fn = _vectorized_update if self.vectorized_update else _coordinate_update
+    state = (init_f, jnp.inf, 0)  # init, error, iter
+    f_potential, _, _ = jax.lax.while_loop(
         cond_fun=cond_fn, body_fun=body_fn, init_val=state
     )
 
@@ -204,14 +240,14 @@ class SortingInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_problem: linear_problems.LinearProblem,
+      ot_prob: linear_problems.LinearProblem,
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
 
     Args:
-      ot_problem: OT problem.
+      ot_prob: OT problem.
       lse_mode: Return potential if true, scaling if false.
       init_f: potential f, array of size n. This is the starting potential,
         which is then updated to make the init potential, so an init of an init.
@@ -219,9 +255,10 @@ class SortingInitializer(DefaultInitializer):
     Returns:
       potential/scaling f_u, array of size n.
     """
-    assert not ot_problem.geom.is_online, "Sorting initializer does not work for online geometry."
+    assert not ot_prob.geom.is_online, \
+        "Sorting initializer does not work for online geometry."
     # check for sorted x, y requires point cloud and could slow initializer
-    cost_matrix = ot_problem.geom.cost_matrix
+    cost_matrix = ot_prob.geom.cost_matrix
 
     assert cost_matrix.shape[0] == cost_matrix.shape[
         1], "Requires square cost matrix."
@@ -234,7 +271,7 @@ class SortingInitializer(DefaultInitializer):
     f_potential = self._init_sorting_dual(modified_cost, init_f)
     f_potential = f_potential - jnp.mean(f_potential)
 
-    f_u = f_potential if lse_mode else ot_problem.geom.scaling_from_potential(
+    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
     )
 
@@ -253,8 +290,7 @@ def _vectorized_update(
   Returns:
     updated potential vector, f.
   """
-  f = jnp.min(modified_cost + f[None, :], axis=1)
-  return f
+  return jnp.min(modified_cost + f[None, :], axis=1)
 
 
 def _coordinate_update(
@@ -270,9 +306,8 @@ def _coordinate_update(
     updated potential vector, f.
   """
 
-  def body_fn(i, f):
+  def body_fn(i: int, f: jnp.ndarray) -> jnp.ndarray:
     new_f = jnp.min(modified_cost[i, :] + f)
-    f = f.at[i].set(new_f)
-    return f
+    return f.at[i].set(new_f)
 
   return jax.lax.fori_loop(0, len(f), body_fn, f)

@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
+from typing import Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -73,7 +73,7 @@ def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
 
 @jax.tree_util.register_pytree_node_class
 class QuadraticProblem:
-  r"""Definition of the quadratic regularized OT problem.
+  r"""Quadratic regularized OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
   have the form given in :cite:`peyre:16`, eq. 4.
@@ -87,13 +87,11 @@ class QuadraticProblem:
     L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
 
   Args:
-    geom_xx: the geometry.Geometry object defining the ground geometry / cost
-      of the first space.
-    geom_yy: the geometry.Geometry object defining the ground geometry / cost
-      of the second space.
-    geom_xy: the geometry.Geometry object defining the linear penalty term
-      for Fused Gromov Wasserstein. If None, the problem reduces to a plain
-      Gromov Wasserstein problem.
+    geom_xx: Ground geometry of the first space.
+    geom_yy: Ground geometry of the second space.
+    geom_xy: Geometry defining the linear penalty term for Fused Gromov
+      Wasserstein. If `None`, the problem reduces to a
+      plain Gromov Wasserstein problem.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
       i.e. problem = purely quadratic + fused_penalty * linear problem.
       Ignored if ``geom_xy`` is not specified.
@@ -102,8 +100,8 @@ class QuadraticProblem:
       - if `True`, use the default for each geometry.
       - if `False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
-        :class:`ott.geometry.geometry.Geometry` or
-        :class`ott.geometry.pointcloud.PointCloud`.
+        :class:`~ott.geometry.geometry.Geometry` or
+        :class:`~ott.geometry.pointcloud.PointCloud`.
       - if `None`, do not scale the cost matrices.
 
     a: jnp.ndarray[n] representing the probability weights of the samples
@@ -120,9 +118,9 @@ class QuadraticProblem:
       the first marginal.
     tau_b: if lower that 1.0, defines how much unbalanced the problem is on
       the second marginal.
-    gw_unbalanced_correction: True (default) if the unbalanced version of
-      :cite:`sejourne:21` is used, False if tau_a and tau_b
-      only affect the inner Sinkhorn loop.
+    gw_unbalanced_correction: Whether the unbalanced version of
+      :cite:`sejourne:21` is used. Otherwise ``tau_a`` and ``tau_b`` only affect
+      the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
@@ -130,8 +128,8 @@ class QuadraticProblem:
       to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
       ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
       across all geometries.
-    tolerances: Tolerances used when converting geometries to low-rank. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
+    tolerances: Tolerances used when converting geometries to low-rank. Used
+      when geometries are not :class:`~ott.geometry.pointcloud.PointCloud` with
       `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
   """
 
@@ -152,9 +150,9 @@ class QuadraticProblem:
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
   ):
     assert fused_penalty > 0, fused_penalty
-    self.geom_xx = geom_xx._set_scale_cost(scale_cost)
-    self.geom_yy = geom_yy._set_scale_cost(scale_cost)
-    self.geom_xy = (
+    self._geom_xx = geom_xx._set_scale_cost(scale_cost)
+    self._geom_yy = geom_yy._set_scale_cost(scale_cost)
+    self._geom_xy = (
         None if geom_xy is None else geom_xy._set_scale_cost(scale_cost)
     )
     self.fused_penalty = fused_penalty
@@ -174,67 +172,6 @@ class QuadraticProblem:
       self.loss = make_kl_loss()
     else:
       self.loss = loss
-
-  @property
-  def is_fused(self) -> bool:
-    """Whether the problem is fused."""
-    return self.geom_xy is not None
-
-  @property
-  def is_low_rank(self) -> bool:
-    """Whether all geometries are low-rank."""
-    return (
-        isinstance(self.geom_xx, low_rank.LRCGeometry) and
-        isinstance(self.geom_yy, low_rank.LRCGeometry) and (
-            self.geom_xy is None or
-            isinstance(self.geom_xy, low_rank.LRCGeometry)
-        )
-    )
-
-  @property
-  def linear_loss(self) -> Tuple[Loss, Loss]:
-    """Linear part of the GW loss."""
-    return self.loss.f1, self.loss.f2
-
-  @property
-  def quad_loss(self) -> Tuple[Loss, Loss]:
-    """Quadratic part of the GW loss."""
-    return self.loss.h1, self.loss.h2
-
-  @property
-  def is_balanced(self) -> bool:
-    """Whether the problem is balanced."""
-    return ((not self.gw_unbalanced_correction) or
-            (self.tau_a == 1.0 and self.tau_b == 1.0))
-
-  def tree_flatten(self):
-    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b,
-        'loss': self._loss_name,
-        'fused_penalty': self.fused_penalty,
-        'scale_cost': self.scale_cost,
-        'gw_unbalanced_correction': self.gw_unbalanced_correction,
-        'ranks': self.ranks,
-        'tolerances': self.tolerances
-    })
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    geoms, (a, b) = children[:3], children[3:]
-    return cls(*geoms, a=a, b=b, **aux_data)
-
-  @property
-  def a(self) -> jnp.ndarray:
-    """Source marginals."""
-    num_a = self.geom_xx.shape[0]
-    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
-
-  @property
-  def b(self) -> jnp.ndarray:
-    """Target marginals."""
-    num_b = self.geom_yy.shape[0]
-    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
   def marginal_dependent_cost(
       self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
@@ -351,103 +288,6 @@ class QuadraticProblem:
         transport_mass if self.is_balanced else transport_mass /
         jnp.sqrt(transport_mass)
     )
-
-  def init_linearization(
-      self,
-      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
-  ) -> linear_problems.LinearProblem:
-    """Initialise a linear problem locally around a naive initializer ab'.
-
-    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
-    the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
-
-    If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
-    possible cases. A first possibility is to introduce a quadratic KL
-    divergence on the marginals in the objective as done in :cite:`sejourne:21`
-    (``gw_unbalanced_correction = True``), which in turns modifies the
-    local cost matrix.
-
-    Alternatively, it could be possible to leave the formulation of the
-    local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
-    (``gw_unbalanced_correction = False``) and include the unbalanced terms
-    at the level of the linear problem only.
-
-    Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
-    cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
-    `left_x` and `right_y` depend on the loss chosen for GW.
-    `gw_unbalanced_correction` is an boolean indicating whether or not the
-    unbalanced correction applies.
-    The equation of the local cost can be written as:
-
-    `cost_matrix` = `marginal_dep_term`
-                + `left_x`(`cost_xx`) :math:`P` `right_y`(`cost_yy`):math:`^T`
-                + `unbalanced_correction` * `gw_unbalanced_correction`
-
-    When working with the fused problem, a linear term is added to the cost
-    matrix:
-    `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
-
-    Args:
-      epsilon: An epsilon scheduler or a float passed on to the linearization.
-
-    Returns:
-      A linear_problems.LinearProblem, representing local linearization of
-      GW problem.
-    """
-    unbalanced_correction = 0.0
-    tmp = self.init_transport()
-    marginal_1 = tmp.sum(1)
-    marginal_2 = tmp.sum(0)
-
-    # Initialises cost.
-    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
-
-    if not self.is_balanced:
-      unbalanced_correction = self.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon, 1.0
-      )
-
-    h1, h2 = self.quad_loss
-    tmp = apply_cost(self.geom_xx, tmp, axis=1, fn=h1)
-    tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
-    cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
-
-    # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021).
-    if not self.is_balanced:
-      transport_mass = marginal_1.sum()
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
-
-    cost_matrix += self.fused_penalty * self._fused_cost_matrix
-
-    geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return linear_problems.LinearProblem(
-        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
-    )
-
-  def init_lr_linearization(
-      self,
-      solver: sinkhorn_lr.LRSinkhorn,
-      **kwargs: Any,
-  ) -> linear_problems.LinearProblem:
-    """Linearize a Quad problem with a predefined initializer."""
-    x = self.geom_xx.apply_square_cost(self.a)
-    y = self.geom_yy.apply_square_cost(self.b)
-    geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
-
-    prob = linear_problems.LinearProblem(geom, self.a, self.b)
-    q, r, g = solver.initializer(prob, **kwargs)
-    dummy_out = sinkhorn_lr.LRSinkhornOutput(
-        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=prob
-    )
-
-    prob = linear_problems.LinearProblem(
-        self.update_lr_geom(dummy_out),
-        self.a,
-        self.b,
-        tau_a=self.tau_a,
-        tau_b=self.tau_b
-    )
-    return prob
 
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
@@ -612,6 +452,80 @@ class QuadraticProblem:
     return type(self).tree_unflatten(
         aux_data, [geom_xx, geom_yy, geom_xy] + children
     )
+
+  @property
+  def geom_xx(self) -> geometry.Geometry:
+    """Geometry of the first space."""
+    return self._geom_xx
+
+  @property
+  def geom_yy(self) -> geometry.Geometry:
+    """Geometry of the second space."""
+    return self._geom_yy
+
+  @property
+  def geom_xy(self) -> Optional[geometry.Geometry]:
+    """Geometry of the joint space."""
+    return self._geom_xy
+
+  @property
+  def a(self) -> jnp.ndarray:
+    """First marginal."""
+    num_a = self.geom_xx.shape[0]
+    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
+
+  @property
+  def b(self) -> jnp.ndarray:
+    """Second marginal."""
+    num_b = self.geom_yy.shape[0]
+    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
+
+  @property
+  def is_fused(self) -> bool:
+    """Whether the problem is fused."""
+    return self.geom_xy is not None
+
+  @property
+  def is_low_rank(self) -> bool:
+    """Whether all geometries are low-rank."""
+    return (
+        isinstance(self.geom_xx, low_rank.LRCGeometry) and
+        isinstance(self.geom_yy, low_rank.LRCGeometry) and
+        (not self.is_fused or isinstance(self.geom_xy, low_rank.LRCGeometry))
+    )
+
+  @property
+  def linear_loss(self) -> Tuple[Loss, Loss]:
+    """Linear part of the Gromov-Wasserstein loss."""
+    return self.loss.f1, self.loss.f2
+
+  @property
+  def quad_loss(self) -> Tuple[Loss, Loss]:
+    """Quadratic part of the Gromov-Wasserstein loss."""
+    return self.loss.h1, self.loss.h2
+
+  @property
+  def is_balanced(self) -> bool:
+    """Whether the problem is balanced."""
+    return ((not self.gw_unbalanced_correction) or
+            (self.tau_a == 1.0 and self.tau_b == 1.0))
+
+  def tree_flatten(self):
+    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b,
+        'loss': self._loss_name,
+        'fused_penalty': self.fused_penalty,
+        'scale_cost': self.scale_cost,
+        'gw_unbalanced_correction': self.gw_unbalanced_correction,
+        'ranks': self.ranks,
+        'tolerances': self.tolerances
+    })
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    geoms, (a, b) = children[:3], children[3:]
+    return cls(*geoms, a=a, b=b, **aux_data)
 
 
 def update_epsilon_unbalanced(epsilon, transport_mass):

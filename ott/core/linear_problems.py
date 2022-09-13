@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -27,20 +27,21 @@ TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
 
 @jax.tree_util.register_pytree_node_class
 class LinearProblem:
-  """Definition of a linear regularized OT problem.
+  r"""Linear regularized OT problem.
 
-  min_P<C, P> - eps H(P), s.t P.1 = a, Pt.1 = b.
+  .. math::
+
+    \min_P \langle C, P \rangle - \varepsilon H(P)
+
+  s.t. :math:`P \mathbf{1}_m = a, P^T \mathbf{1}_n = b`.
 
   Args:
-    geom: the geometry.Geometry object defining the ground geometry / cost of
-      the linear problem.
-    a: jnp.ndarray[n] representing the first marginal. If None, it will be
-      uniform.
-    b: jnp.ndarray[n] representing the first marginal. If None, it will be
-      uniform.
-    tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+    geom: The ground geometry cost of the linear problem.
+    a: The first marginal. If `None`, it will be uniform.
+    b: The second marginal. If `None`, it will be uniform.
+    tau_a: If smaller than `1`, defines how much unbalanced the problem is on
       the first marginal.
-    tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+    tau_b: If smaller than `1`, defines how much unbalanced the problem is on
       the second marginal.
   """
 
@@ -58,32 +59,26 @@ class LinearProblem:
     self.tau_a = tau_a
     self.tau_b = tau_b
 
-  def tree_flatten(self):
-    return ([self.geom, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b
-    })
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    return cls(*children, **aux_data)
-
   @property
   def a(self) -> jnp.ndarray:
+    """First marginal."""
     num_a = self.geom.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
   def b(self) -> jnp.ndarray:
+    """Second marginal."""
     num_b = self.geom.shape[1]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
 
   @property
   def is_balanced(self) -> bool:
+    """Whether the problem is balanced."""
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
   @property
   def epsilon(self) -> float:
+    """Entropic regularization."""
     return self.geom.epsilon
 
   def get_transport_functions(
@@ -107,3 +102,15 @@ class LinearProblem:
           axis
       )
     return marginal_a, marginal_b, app_transport
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return ([self.geom, self._a, self._b], {
+        'tau_a': self.tau_a,
+        'tau_b': self.tau_b
+    })
+
+  @classmethod
+  def tree_unflatten(
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "LinearProblem":
+    return cls(*children, **aux_data)
