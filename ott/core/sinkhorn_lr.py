@@ -36,10 +36,10 @@ class LRSinkhornState(NamedTuple):
   g: jnp.ndarray
   gamma: float
   costs: jnp.ndarray
-  criterions: jnp.ndarray
+  errors: jnp.ndarray
   crossed_threshold: bool
 
-  def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
+  def compute_error(self, previous_state: "LRSinkhornState") -> float:
     err_1 = mu.kl(self.q, previous_state.q) + mu.kl(previous_state.q, self.q)
     err_2 = mu.kl(self.r, previous_state.r) + mu.kl(previous_state.r, self.r)
     err_3 = mu.kl(self.g, previous_state.g) + mu.kl(previous_state.g, self.g)
@@ -117,10 +117,10 @@ class LRSinkhornOutput(NamedTuple):
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
+  costs: jnp.ndarray
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
   # in future, enforce via class hierarchy
   errors: jnp.ndarray
-  criterions: jnp.ndarray
   ot_prob: linear_problems.LinearProblem
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
@@ -168,8 +168,7 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def converged(self) -> bool:
     return jnp.logical_and(
-        jnp.sum(self.errors == -1) > 0,
-        jnp.sum(jnp.isnan(self.errors)) == 0
+        jnp.any(self.costs == -1, jnp.all(jnp.isfinite(self.costs)))
     )
 
   @property
@@ -515,18 +514,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
     )
-    criterion = state.compute_criterion(previous_state)
+    error = state.compute_error(previous_state)
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
         jnp.logical_and(
-            state.criterions[it - 1] >= self.threshold,
-            criterion < self.threshold
+            state.errors[it - 1] >= self.threshold, error < self.threshold
         )
     )
 
     return state.set(
         costs=state.costs.at[it].set(cost),
-        criterions=state.criterions.at[it].set(criterion),
+        errors=state.errors.at[it].set(error),
         crossed_threshold=crossed_threshold,
     )
 
@@ -581,7 +579,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         g=g,
         gamma=self.gamma,
         costs=-jnp.ones(self.outer_iterations),
-        criterions=-jnp.ones(self.outer_iterations),
+        errors=-jnp.ones(self.outer_iterations),
         crossed_threshold=False,
     )
 
@@ -602,8 +600,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         r=state.r,
         g=state.g,
         ot_prob=ot_prob,
-        errors=state.costs,
-        criterions=state.criterions,
+        costs=state.costs,
+        errors=state.errors,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
@@ -616,9 +614,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
       return jnp.logical_and(curr_err < prev_err, curr_err < self.threshold)
 
-    # for convergence criterion, we consider 2 possibilities:
+    # for convergence error, we consider 2 possibilities:
     # 1. we either crossed the convergence threshold; in this case we require
-    #   that the previous criterion was also below the threshold
+    #   that the previous error was also below the threshold
     # 2. we haven't crossed the threshold; in this case, we can be below or
     #   above the threshold:
     #     if we're above, we wait until we reach the convergence threshold and
@@ -630,13 +628,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     it = iteration // self.inner_iterations
     return jax.lax.cond(
         state.crossed_threshold, conv_crossed, conv_not_crossed,
-        state.criterions[it - 2], state.criterions[it - 1]
+        state.errors[it - 2], state.errors[it - 1]
     )
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
     it = iteration // self.inner_iterations
     return jnp.logical_and(
-        jnp.logical_not(jnp.isfinite(state.criterions[it - 1])),
+        jnp.logical_not(jnp.isfinite(state.errors[it - 1])),
         jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
     )
 

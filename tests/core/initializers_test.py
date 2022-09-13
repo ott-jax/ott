@@ -382,7 +382,7 @@ class TestLRInitializers:
     geom_out = solver(geom_problem)
 
     with pytest.raises(AssertionError):
-      np.testing.assert_allclose(pc_out.errors, geom_out.errors)
+      np.testing.assert_allclose(pc_out.costs, geom_out.costs)
 
     np.testing.assert_allclose(
         pc_out.reg_ot_cost, geom_out.reg_ot_cost, atol=0.5, rtol=0.02

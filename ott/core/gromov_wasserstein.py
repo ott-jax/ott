@@ -138,7 +138,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   Args:
     args: Positional_arguments for
       :class:`~ott.core.was_solver.WassersteinSolver`.
-    quad_initializer: Quadratic initializer. If the solver is not low-rank,
+    quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
       Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
 

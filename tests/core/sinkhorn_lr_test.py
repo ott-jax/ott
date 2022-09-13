@@ -69,10 +69,10 @@ class TestLRSinkhorn:
         initializer=initializer,
     )
     solved = solver(ot_prob)
-    costs = solved.errors
+    costs = solved.costs
     costs = costs[costs > -1]
 
-    criterions = solved.criterions
+    criterions = solved.errors
     criterions = criterions[criterions > -1]
 
     # Check convergence
@@ -92,7 +92,7 @@ class TestLRSinkhorn:
     )
     out = solver(ot_prob)
 
-    costs = out.errors
+    costs = out.costs
     cost_2 = costs[costs > -1][-1]
     # Ensure solution with more rank budget has lower cost (not guaranteed)
     try:
@@ -118,7 +118,7 @@ class TestLRSinkhorn:
     )
     out = solver(ot_prob)
 
-    costs = out.errors
+    costs = out.costs
     cost_3 = costs[costs > -1][-1]
     try:
       assert cost_3 > cost_2

@@ -247,8 +247,7 @@ class SinkhornOutput(NamedTuple):
     if self.errors is None:
       return False
     return jnp.logical_and(
-        jnp.sum(self.errors == -1) > 0,
-        jnp.sum(jnp.isnan(self.errors)) == 0
+        jnp.any(self.errors == -1, jnp.all(jnp.isfinite(self.errors)))
     )
 
   @property
