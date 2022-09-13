@@ -40,9 +40,10 @@ class LRSinkhornState(NamedTuple):
   crossed_threshold: bool
 
   def compute_error(self, previous_state: "LRSinkhornState") -> float:
-    err_1 = mu.kl(self.q, previous_state.q) + mu.kl(previous_state.q, self.q)
-    err_2 = mu.kl(self.r, previous_state.r) + mu.kl(previous_state.r, self.r)
-    err_3 = mu.kl(self.g, previous_state.g) + mu.kl(previous_state.g, self.g)
+    err_1 = mu.js(self.q, previous_state.q, c=1.)
+    err_2 = mu.js(self.r, previous_state.r, c=1.)
+    err_3 = mu.js(self.g, previous_state.g, c=1.)
+
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
   def reg_ot_cost(
