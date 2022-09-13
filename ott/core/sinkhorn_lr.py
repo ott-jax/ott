@@ -168,7 +168,7 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def converged(self) -> bool:
     return jnp.logical_and(
-        jnp.any(self.costs == -1, jnp.all(jnp.isfinite(self.costs)))
+        jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
     )
 
   @property
