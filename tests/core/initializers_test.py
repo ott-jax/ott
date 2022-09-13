@@ -398,10 +398,10 @@ class TestLRInitializers:
     prob = linear_problems.LinearProblem(pc)
 
     solver_random = sinkhorn_lr.LRSinkhorn(
-        rank=rank, epsilon=epsilon, initializer="random", max_iterations=5000
+        rank=rank, epsilon=epsilon, initializer="random", max_iterations=10000
     )
     solver_init = sinkhorn_lr.LRSinkhorn(
-        rank=rank, epsilon=epsilon, initializer="k-means", max_iterations=5000
+        rank=rank, epsilon=epsilon, initializer="k-means", max_iterations=10000
     )
 
     out_random = solver_random(prob)
