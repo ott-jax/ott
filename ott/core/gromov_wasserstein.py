@@ -20,11 +20,16 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import fixed_point_loop
-from ott.core import initializers_lr as init_lr
-from ott.core import linear_problems
-from ott.core import quad_initializers as quad_init
-from ott.core import quad_problems, sinkhorn, sinkhorn_lr, was_solver
+from ott.core import (
+    fixed_point_loop,
+    initializers_lr,
+    linear_problems,
+    quad_initializers,
+    quad_problems,
+    sinkhorn,
+    sinkhorn_lr,
+    was_solver,
+)
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
@@ -166,10 +171,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __init__(
       self,
       *args: Any,
-      quad_initializer: Optional[Union[Literal["random", "rank2", "k-means",
-                                               "generalized-k-means"],
-                                       quad_init.BaseQuadraticInitializer]
-                                ] = None,  # noqa: E124
+      quad_initializer: Optional[
+          Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
+                quad_initializers.BaseQuadraticInitializer]] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
@@ -267,7 +271,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def create_initializer(
       self, prob: quad_problems.QuadraticProblem
-  ) -> quad_init.BaseQuadraticInitializer:
+  ) -> quad_initializers.BaseQuadraticInitializer:
     """Create quadratic, possibly low-rank initializer.
 
     Args:
@@ -276,10 +280,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The initializer.
     """
-    if isinstance(self.quad_initializer, quad_init.BaseQuadraticInitializer):
+    if isinstance(
+        self.quad_initializer, quad_initializers.BaseQuadraticInitializer
+    ):
       if self.is_low_rank:
         assert isinstance(
-            self.quad_initializer, quad_init.LRQuadraticInitializer
+            self.quad_initializer, quad_initializers.LRQuadraticInitializer
         ), f"Expected quadratic initializer to be low rank, " \
            f"found `{type(self.quad_initializer).__name___}`."
         assert self.quad_initializer.rank == self.rank, \
@@ -295,12 +301,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         ) else "random"
       else:
         kind = self.quad_initializer
-      linear_lr_init = init_lr.LRInitializer.from_solver(
+      linear_lr_init = initializers_lr.LRInitializer.from_solver(
           self, kind=kind, **self.kwargs_init
       )
-      return quad_init.LRQuadraticInitializer(linear_lr_init)
+      return quad_initializers.LRQuadraticInitializer(linear_lr_init)
 
-    return quad_init.QuadraticInitializer(**self.kwargs_init)
+    return quad_initializers.QuadraticInitializer(**self.kwargs_init)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
