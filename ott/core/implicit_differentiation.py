@@ -181,7 +181,7 @@ class ImplicitDiff:
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
       schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
-      g0, g1 = vjp_gf(inv_vjp_ff(gr[0])), gr[1]
+      g_p = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
 
       if self.symmetric:
         schur = lambda z: (
@@ -189,38 +189,36 @@ class ImplicitDiff:
         )
       else:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        g0, g1 = schur_t(g0), schur_t(g1)
+        g_p = schur_t(g_p)
         schur = lambda z: (
             schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
             * z
         )
 
-      sch_f = self.solver_fun(schur, g0)[0]
-      sch_g = self.solver_fun(schur, g1)[0]
-      vjp_gr_f = inv_vjp_ff(gr[0] + vjp_fg(sch_f) - vjp_fg(sch_g))
-      vjp_gr_g = -sch_f + sch_g
+      sch = self.solver_fun(schur, g_p)[0]
+      vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
+      vjp_gr_g = sch
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
       schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
-      g0, g1 = vjp_fg(inv_vjp_gg(gr[1])), gr[0]
+      g_p = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
 
       if self.symmetric:
         schur = lambda z: (
-            schur_(z) + self.ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
         )
       else:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        g0, g1 = schur_t(g0), schur_t(g1)
+        g_p = schur_t(g_p)
         schur = lambda z: (
-            schur_t(schur_(z)) + self.ridge_kernel * jnp.sum(z) + self.
-            ridge_identity * z
+            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
+            * z
         )
-      # pylint: enable=g-long-lambda
-      sch_g = self.solver_fun(schur, g0)[0]
-      sch_f = self.solver_fun(schur, g1)[0]
-      vjp_gr_g = inv_vjp_gg(gr[1] + vjp_gf(sch_g) - vjp_gf(sch_f))
-      vjp_gr_f = -sch_g + sch_f
+
+      sch = self.solver_fun(schur, g_p)[0]
+      vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
+      vjp_gr_f = sch
 
     return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
