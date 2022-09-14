@@ -181,7 +181,7 @@ class ImplicitDiff:
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
       schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
-      g_p = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
+      res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
 
       if self.symmetric:
         schur = lambda z: (
@@ -189,20 +189,20 @@ class ImplicitDiff:
         )
       else:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        g_p = schur_t(g_p)
+        res = schur_t(res)
         schur = lambda z: (
             schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
             * z
         )
 
-      sch = self.solver_fun(schur, g_p)[0]
+      sch = self.solver_fun(schur, res)[0]
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
       schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
-      g_p = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
+      res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
 
       if self.symmetric:
         schur = lambda z: (
@@ -210,13 +210,13 @@ class ImplicitDiff:
         )
       else:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        g_p = schur_t(g_p)
+        res = schur_t(res)
         schur = lambda z: (
             schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
             * z
         )
 
-      sch = self.solver_fun(schur, g_p)[0]
+      sch = self.solver_fun(schur, res)[0]
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
