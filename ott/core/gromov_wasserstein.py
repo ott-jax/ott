@@ -143,6 +143,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   Args:
     args: Positional_arguments for
       :class:`~ott.core.was_solver.WassersteinSolver`.
+    warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
+      from previous iteration.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
       Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
@@ -171,6 +173,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __init__(
       self,
       *args: Any,
+      warm_start: bool = True,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
@@ -178,6 +181,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
+    self.warm_start = warm_start
     self.quad_initializer = quad_initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
@@ -310,6 +314,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
+    aux_data["warm_start"] = self.warm_start
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
@@ -333,11 +338,13 @@ def iterations(
   ) -> GWState:
     del compute_error  # Always assumed True for outer loop of GW.
 
+    lin_state = state.linear_state
     if solver.is_low_rank:
-      init = state.linear_state.q, state.linear_state.r, state.linear_state.g
+      init = (lin_state.q, lin_state.r,
+              lin_state.g) if solver.warm_start else (None, None, None)
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
-      init = state.linear_state.f, state.linear_state.g
+      init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
       linear_pb = prob.update_linearization(
           state.linear_state, solver.epsilon, state.old_transport_mass
       )
@@ -383,7 +390,8 @@ def make(
     max_iterations: the maximum number of outer iterations for
       Gromov Wasserstein.
     jit: bool, if True, jits the function.
-    warm_start: deprecated.
+    warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
+      from previous iteration.
     store_inner_errors: whether or not to return all the errors of the inner
       Sinkhorn iterations.
     linear_ot_solver_kwargs: Optionally a dictionary containing the keywords
@@ -395,7 +403,6 @@ def make(
   Returns:
     A GromovWasserstein solver.
   """
-  del warm_start
   if linear_ot_solver_kwargs is None:
     linear_ot_solver_kwargs = {}
 
@@ -406,8 +413,8 @@ def make(
     # passing them to make, we should not pass them in `linear_ot_solver_kwargs`
     # Therefore, the `rank` or `epsilon` passed to `linear_ot_solver_kwargs` are
     # deleted.
-    linear_ot_solver_kwargs.pop('rank', None)
-    linear_ot_solver_kwargs.pop('epsilon', None)
+    _ = linear_ot_solver_kwargs.pop('rank', None)
+    _ = linear_ot_solver_kwargs.pop('epsilon', None)
     sink = sinkhorn_lr.make(
         rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs
     )
@@ -415,14 +422,15 @@ def make(
     raise ValueError(f"Invalid value for `rank={rank}`.")
 
   return GromovWasserstein(
-      epsilon,
-      rank,
-      max_iterations=max_iterations,
-      jit=jit,
+      epsilon=epsilon,
+      rank=rank,
       linear_ot_solver=sink,
       threshold=threshold,
-      store_inner_errors=store_inner_errors,
       min_iterations=min_iterations,
+      max_iterations=max_iterations,
+      jit=jit,
+      store_inner_errors=store_inner_errors,
+      warm_start=warm_start,
       **kwargs
   )
 
