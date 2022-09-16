@@ -58,7 +58,7 @@ class BaseQuadraticInitializer(ABC):
       kwargs: Additional keyword arguments.
 
     Returns:
-      Geometry used to initialize a linear problem.
+      The initial geometry used to initialize a linear problem.
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
@@ -107,7 +107,18 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       self, quad_prob: 'quad_problems.QuadraticProblem', *, epsilon: float,
       **kwargs: Any
   ) -> linear_problems.LinearProblem:
+    """Compute initial geometry for linearization.
+
+    Args:
+      quad_prob: Quadratic OT problem.
+      epsilon: Epsilon regularization.
+      kwargs: Additional keyword arguments, unused.
+
+    Returns:
+      The initial geometry used to initialize a linear problem.
+    """
     from ott.core.quad_problems import apply_cost, update_epsilon_unbalanced
+    del kwargs
 
     unbalanced_correction = 0.0
     tmp = quad_prob.init_transport()
@@ -151,6 +162,16 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
   def _create_geometry(
       self, quad_prob: 'quad_problems.QuadraticProblem', **kwargs: Any
   ) -> geometry.Geometry:
+    """Compute initial geometry for linearization.
+
+    Args:
+      quad_prob: Quadratic OT problem.
+      kwargs: Keyword arguments for
+        :meth:`ott.core.initializers_lr.LRInitializer.__call__`.
+
+    Returns:
+      The initial geometry used to initialize a linear problem.
+    """
     q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
     tmp_out = sinkhorn_lr.LRSinkhornOutput(
         q=q, r=r, g=g, costs=None, errors=None, ot_prob=None
