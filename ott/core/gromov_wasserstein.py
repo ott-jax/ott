@@ -147,7 +147,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     args: Positional_arguments for
       :class:`~ott.core.was_solver.WassersteinSolver`.
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
-      from the previous iteration. If `None`, it's enabled when using low-rank.
+      from the previous iteration. If `None`, warm starts are not used for
+      standard Sinkhorn, but used for low-rank Sinkhorn.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
       Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
@@ -329,8 +330,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   @property
   def warm_start(self) -> bool:
-    """Whether to initialize (low-rank) Sinkhorn calls using values from the \
-      previous iteration."""
+    """Whether to initialize (low-rank) Sinkhorn using previous solutions."""
     return self.is_low_rank if self._warm_start is None else self._warm_start
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
