@@ -361,7 +361,7 @@ def iterations(
 
     lin_state = state.linear_state
     if solver.is_low_rank:
-      key = state.keys.at[iteration]
+      key = state.keys[iteration]
       init = (lin_state.q, lin_state.r,
               lin_state.g) if solver.warm_start else (None, None, None)
       linear_pb = prob.update_lr_linearization(state.linear_state)
@@ -400,7 +400,7 @@ def make(
     jit: bool = False,
     warm_start: Optional[bool] = None,
     store_inner_errors: bool = False,
-    linear_ot_solver_kwargs: Optional[Dict[str, Any]] = None,
+    linear_ot_solver_kwargs: Optional[Mapping[str, Any]] = None,
     threshold: float = 1e-2,
     min_iterations: int = 1,
     **kwargs: Any,
@@ -526,7 +526,8 @@ def gromov_wasserstein(
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
       `'sqeucl'` cost. If :class:`float`, that tolerance is shared across all
       3 geometries.
-    kwargs: keyword arguments to make.
+    kwargs: Keyword arguments to
+      :class:`~ott.core.gromov_wasserstein.GromovWasserstein`.
 
   Returns:
     A GromovWassersteinState named tuple.

@@ -164,9 +164,6 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
-    Uses :meth:`ott.core.quad_problems.QuadraticProblem.update_lr_geom`
-    to compute the geometry.
-
     Args:
       quad_prob: Quadratic OT problem.
       kwargs: Keyword arguments for
