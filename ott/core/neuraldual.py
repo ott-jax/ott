@@ -14,7 +14,7 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Iterator, Optional
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -23,8 +23,11 @@ import optax
 from flax.core import freeze
 from flax.training import train_state
 from optax._src import base
+from typing_extensions import Literal
 
 from ott.core import icnn
+
+Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
 
 
 class NeuralDualSolver:
@@ -99,21 +102,24 @@ class NeuralDualSolver:
     # set optimizer and networks
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
-  def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
+  def setup(
+      self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
+      input_dim: int, optimizer_f, optimizer_g
+  ) -> None:
     """Setup all components required to train the `NeuralDual`."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
     # check setting of network architectures
     if (
-        neural_f.pos_weights != self.pos_weights or
-        (neural_g.pos_weights != self.pos_weights)
+        neural_f.pos_weights is not self.pos_weights or
+        (neural_g.pos_weights is not self.pos_weights)
     ):
       warnings.warn(
           f"Setting of ICNN and the positive weights setting of the \
         `NeuralDualSolver` are not consistent. Proceeding with \
         the `NeuralDualSolver` setting, with positive weigths \
-        being {self.positive_weights}."
+        being {self.pos_weights}."
       )
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights
@@ -138,7 +144,7 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> "NeuralDual":
+  ) -> Union["NeuralDual", Tuple["NeuralDual", Train_t]]:
     logs = self.train_neuraldual(
         trainloader_source,
         trainloader_target,
@@ -147,8 +153,7 @@ class NeuralDualSolver:
     )
     if self.logging:
       return NeuralDual(self.state_f, self.state_g), logs
-    else:
-      return NeuralDual(self.state_f, self.state_g)
+    return NeuralDual(self.state_f, self.state_g)
 
   def train_neuraldual(
       self,
@@ -156,7 +161,7 @@ class NeuralDualSolver:
       trainloader_target,
       validloader_source,
       validloader_target,
-  ):
+  ) -> Train_t:
     """Implementation of the training and validation script."""  # noqa: D401
     try:
       from tqdm.auto import tqdm
@@ -221,7 +226,7 @@ class NeuralDualSolver:
 
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
-  def get_step_fn(self, train, to_optimize="g"):
+  def get_step_fn(self, train: bool, to_optimize: Literal["f", "g"] = "g"):
     """Create a one-step training and evaluation function."""
 
     def loss_fn(params_f, params_g, f, g, batch):
@@ -305,7 +310,9 @@ class NeuralDualSolver:
 
     return step_fn
 
-  def create_train_state(self, rng, model, optimizer, input):
+  def create_train_state(
+      self, rng, model, optimizer, input
+  ) -> train_state.TrainState:
     """Create initial `TrainState`."""
     params = model.init(rng, jnp.ones(input))["params"]
     return train_state.TrainState.create(
@@ -343,7 +350,9 @@ class NeuralDual:
     state_g: optimal potential g
   """
 
-  def __init__(self, state_f, state_g):
+  def __init__(
+      self, state_f: train_state.TrainState, state_g: train_state.TrainState
+  ):
     self.state_f = state_f
     self.state_g = state_g
 
