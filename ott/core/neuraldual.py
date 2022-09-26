@@ -27,7 +27,7 @@ from typing_extensions import Literal
 from ott.core import icnn, potentials
 
 Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
-Potentials_t = potentials.FunctionalPotentials
+Potentials_t = potentials.DualPotentials
 
 
 class NeuralDualSolver:
@@ -306,11 +306,11 @@ class NeuralDualSolver:
 
     return step_fn
 
-  def to_dual_potentials(self) -> potentials.FunctionalPotentials:
+  def to_dual_potentials(self) -> potentials.DualPotentials:
     """Return the neural Kantorovich dual potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
-    return potentials.FunctionalPotentials(f, g)
+    return potentials.DualPotentials(f, g)
 
   @staticmethod
   def _clip_weights_icnn(params):

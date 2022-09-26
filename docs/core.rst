@@ -89,23 +89,21 @@ Gromov-Wasserstein (Entropic and LR)
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
 
-.. TODO(michalk8): rename?
-
-Neural Potentials
------------------
-.. autosummary::
-    :toctree: _autosummary
-
-    icnn.ICNN
-    neuraldual.NeuralDualSolver
-
 Dual Potentials
 ---------------
 .. autosummary::
     :toctree: _autosummary
 
     potentials.EntropicMap
-    potentials.FunctionalPotentials
+    potentials.DualPotentials
+
+Neural Dual Potentials
+----------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    icnn.ICNN
+    neuraldual.NeuralDualSolver
 
 Padding Utilities
 -----------------

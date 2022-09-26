@@ -7,12 +7,12 @@ import jax.tree_util as jtu
 
 from ott.geometry import pointcloud
 
-__all__ = ["EntropicMap", "FunctionalPotentials"]
+__all__ = ["EntropicMap", "DualPotentials"]
 Potential_t = Union[jnp.ndarray, Callable[[jnp.ndarray], float]]
 
 
 @jtu.register_pytree_node_class
-class DualPotentials(abc.ABC):
+class BaseDualPotentials(abc.ABC):
   """Base class holding the Kantorovich dual potentials.
 
   Args:
@@ -58,12 +58,12 @@ class DualPotentials(abc.ABC):
   @classmethod
   def tree_unflatten(
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "DualPotentials":
+  ) -> "BaseDualPotentials":
     return cls(*children, **aux_data)
 
 
 @jtu.register_pytree_node_class
-class EntropicMap(DualPotentials):
+class EntropicMap(BaseDualPotentials):
   """Entropic map estimator :cite:`pooladian:21`.
 
   Args:
@@ -112,7 +112,7 @@ class EntropicMap(DualPotentials):
 
 
 @jtu.register_pytree_node_class
-class FunctionalPotentials(DualPotentials):
+class DualPotentials(BaseDualPotentials):
   r"""The Kantorovich dual potentials :math:`f` and :math:`g`.
 
   :math:`\nabla g` transports the source distribution to the target distribution
