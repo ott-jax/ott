@@ -27,6 +27,7 @@ from typing_extensions import Literal
 from ott.core import icnn, potentials
 
 Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
+Potentials_t = potentials.FunctionalPotentials
 
 
 class NeuralDualSolver:
@@ -139,8 +140,7 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> Union[potentials.FunctionalPotentials, Tuple[
-      potentials.FunctionalPotentials, Train_t]]:
+  ) -> Union[Potentials_t, Tuple[Potentials_t, Train_t]]:
     logs = self.train_neuraldual(
         trainloader_source,
         trainloader_target,
@@ -307,6 +307,7 @@ class NeuralDualSolver:
     return step_fn
 
   def to_dual_potentials(self) -> potentials.FunctionalPotentials:
+    """Return the neural Kantorovich dual potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
     return potentials.FunctionalPotentials(f, g)

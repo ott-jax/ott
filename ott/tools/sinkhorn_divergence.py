@@ -35,11 +35,10 @@ class SinkhornDivergenceOutput(NamedTuple):
   converged: Tuple[bool, bool, bool]
 
   def to_dual_potentials(self) -> "potentials.EntropicMap":
-    """The entropic map estimator."""
+    """Return the entropic map estimator."""
     geom_xy, *_ = self.geoms
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
-    f = jnp.sum(jnp.stack([f_xy, f_x]), axis=0)
-    g = jnp.sum(jnp.stack([g_xy, g_y]), axis=0)
+    f, g = f_xy + f_x, g_xy + g_y
 
     return potentials.EntropicMap(f, g, geom_xy)
 

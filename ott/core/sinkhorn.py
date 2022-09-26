@@ -291,7 +291,7 @@ class SinkhornOutput(NamedTuple):
     return self.marginal(0).sum()
 
   def to_dual_potentials(self) -> potentials.EntropicMap:
-    """The entropic map estimator."""
+    """Return the entropic map estimator."""
     return potentials.EntropicMap(self.f, self.g, self.geom)
 
 

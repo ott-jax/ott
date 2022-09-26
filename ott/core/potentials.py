@@ -8,7 +8,7 @@ import jax.tree_util as jtu
 from ott.geometry import pointcloud
 
 __all__ = ["EntropicMap", "FunctionalPotentials"]
-Potential = Union[jnp.ndarray, Callable[[jnp.ndarray], float]]
+Potential_t = Union[jnp.ndarray, Callable[[jnp.ndarray], float]]
 
 
 @jtu.register_pytree_node_class
@@ -18,9 +18,14 @@ class DualPotentials(abc.ABC):
   Args:
     f: The first dual potential.
     g: The second dual potential.
+
+  Notes:
+    Both potentials can be represented either as an :class:`jax.numpy.ndarray`
+    or as a function taking :class:`jax.numpy.ndarray` and returning
+    :class:`float`.
   """
 
-  def __init__(self, f: Potential, g: Potential):
+  def __init__(self, f: Potential_t, g: Potential_t):
     self._f = f
     self._g = g
 
@@ -38,12 +43,12 @@ class DualPotentials(abc.ABC):
     """
 
   @property
-  def f(self) -> Potential:
+  def f(self) -> Potential_t:
     """The first dual potential."""
     return self._f
 
   @property
-  def g(self) -> Potential:
+  def g(self) -> Potential_t:
     """The second dual potential."""
     return self._g
 
@@ -112,6 +117,10 @@ class FunctionalPotentials(DualPotentials):
 
   :math:`\nabla g` transports the source distribution to the target distribution
   and :math:`\nabla f` the target distribution to the source distribution.
+
+  Args:
+    f: The first dual potential function.
+    g: The second dual potential function.
   """
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
@@ -123,8 +132,8 @@ class FunctionalPotentials(DualPotentials):
     r"""Given the dual potentials functions, compute the transport distance.
 
     Args:
-      src: Samples from the source distribution of shape ``[n, d]``.
-      tgt: Samples from the target distribution of shape ``[m, d]``.
+      src: Samples from the source distribution, array of shape ``[n, d]``.
+      tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
       Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2`
