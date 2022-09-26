@@ -15,11 +15,13 @@
 # Lint as: python3
 """Implementation of Amos+(2017) input convex neural networks (ICNN)."""
 
-from typing import Any, Callable, Sequence, Tuple
+from typing import Any, Callable, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import optax
 from flax import linen as nn
+from flax.training import train_state
 from jax.nn import initializers
 
 from ott.core.layers import PosDefPotentials, PositiveDense
@@ -78,13 +80,13 @@ class ICNN(nn.Module):
     else:
       factor, mean = self._compute_identity_map(self.dim_data)
 
-    self.w_zs = []
+    w_zs = []
     # keep track of previous size to normalize accordingly
     normalization = 1
     # subsequent layers propagate value of potential provided by
     # first layer in x normalization factor is rescaled accordingly
     for i in range(self.num_hidden):
-      self.w_zs.append(
+      w_zs.append(
           hid_dense(
               self.dim_hidden[i],
               kernel_init=initializers.constant(rescale(1.0 / normalization)),
@@ -93,17 +95,18 @@ class ICNN(nn.Module):
       )
       normalization = self.dim_hidden[i]
     # final layer computes average, still with normalized rescaling
-    self.w_zs.append(
+    w_zs.append(
         hid_dense(
             1,
             kernel_init=initializers.constant(rescale(1.0 / normalization)),
             use_bias=False,
         )
     )
+    self.w_zs = w_zs
 
-    self.w_xs = []
+    w_xs = []
     # first square layer, initialized to identity
-    self.w_xs.append(
+    w_xs.append(
         PosDefPotentials(
             self.dim_data,
             num_potentials=1,
@@ -115,7 +118,7 @@ class ICNN(nn.Module):
 
     # subsequent layers reinjected into convex functions
     for i in range(self.num_hidden):
-      self.w_xs.append(
+      w_xs.append(
           nn.Dense(
               self.dim_hidden[i],
               kernel_init=self.init_fn(self.init_std),
@@ -124,7 +127,7 @@ class ICNN(nn.Module):
           )
       )
     # final layer, to output number
-    self.w_xs.append(
+    w_xs.append(
         nn.Dense(
             1,
             kernel_init=self.init_fn(self.init_std),
@@ -132,6 +135,7 @@ class ICNN(nn.Module):
             use_bias=True,
         )
     )
+    self.w_xs = w_xs
 
   def _compute_gaussian_map(self, inputs):
 
@@ -184,3 +188,15 @@ class ICNN(nn.Module):
       if i != 0 or i != self.num_hidden + 1:
         z = self.act_fn(z)
     return jnp.squeeze(z)
+
+  def create_train_state(
+      self,
+      rng: jnp.ndarray,
+      optimizer: optax.OptState,
+      input: Union[int, Tuple[int, ...]],
+  ) -> train_state.TrainState:
+    """Create initial `TrainState`."""
+    params = self.init(rng, jnp.ones(input))["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )
