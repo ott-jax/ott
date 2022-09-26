@@ -413,7 +413,8 @@ class NeuralDual:
       target: samples of target distribution
 
     Returns:
-      Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2` as ground distance
+      Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2`
+      as ground distance
     """
     f_t = self.f.apply_fn({"params": self.f.params}, target)
 

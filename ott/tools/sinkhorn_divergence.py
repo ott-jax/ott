@@ -15,10 +15,15 @@
 from types import MappingProxyType
 from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
-from jax import numpy as jnp
+import jax.numpy as jnp
 
-from ott.core import segment, sinkhorn
+from ott.core import potential, segment, sinkhorn
 from ott.geometry import costs, geometry, pointcloud
+
+__all__ = [
+    "sinkhorn_divergence", "segment_sinkhorn_divergence",
+    "SinkhornDivergenceOutput"
+]
 
 
 class SinkhornDivergenceOutput(NamedTuple):
@@ -28,6 +33,14 @@ class SinkhornDivergenceOutput(NamedTuple):
   errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
+
+  def to_dual_potentials(self) -> potential.EntropicMap:
+    geom_xy, *_ = self.geoms
+    (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
+    f = jnp.sum(jnp.stack([f_xy, f_x]), axis=0)
+    g = jnp.sum(jnp.stack([g_xy, g_y]), axis=0)
+
+    return potential.EntropicMap(f, g, geom_xy)
 
 
 def sinkhorn_divergence(
