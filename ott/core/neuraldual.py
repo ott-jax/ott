@@ -25,7 +25,7 @@ from flax.training import train_state
 from optax._src import base
 from typing_extensions import Literal
 
-from ott.core import icnn
+from ott.core import icnn, potentials
 
 Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
 
@@ -124,12 +124,8 @@ class NeuralDualSolver:
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights
 
-    self.state_f = self.create_train_state(
-        rng_f, neural_f, optimizer_f, input_dim
-    )
-    self.state_g = self.create_train_state(
-        rng_g, neural_g, optimizer_g, input_dim
-    )
+    self.state_f = neural_f.create_train_state(rng_f, optimizer_f, input_dim)
+    self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
 
     # define train and valid step functions
     self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
@@ -144,16 +140,17 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> Union["NeuralDual", Tuple["NeuralDual", Train_t]]:
+  ) -> Union[potentials.FunctionalPotentials, Tuple[
+      potentials.FunctionalPotentials, Train_t]]:
     logs = self.train_neuraldual(
         trainloader_source,
         trainloader_target,
         validloader_source,
         validloader_target,
     )
-    if self.logging:
-      return NeuralDual(self.state_f, self.state_g), logs
-    return NeuralDual(self.state_f, self.state_g)
+    res = self.to_dual_potentials()
+
+    return (res, logs) if self.logging else res
 
   def train_neuraldual(
       self,
@@ -310,14 +307,10 @@ class NeuralDualSolver:
 
     return step_fn
 
-  def create_train_state(
-      self, rng, model, optimizer, input
-  ) -> train_state.TrainState:
-    """Create initial `TrainState`."""
-    params = model.init(rng, jnp.ones(input))["params"]
-    return train_state.TrainState.create(
-        apply_fn=model.apply, params=params, tx=optimizer
-    )
+  def to_dual_potentials(self) -> potentials.FunctionalPotentials:
+    f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
+    g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
+    return potentials.FunctionalPotentials(f, g)
 
   @staticmethod
   def _clip_weights_icnn(params):
@@ -328,11 +321,14 @@ class NeuralDualSolver:
 
     return freeze(params)
 
-  def _penalize_weights_icnn(self, params):
+  @staticmethod
+  def _penalize_weights_icnn(
+      params: Dict[str, jnp.ndarray]
+  ) -> Dict[str, jnp.ndarray]:
     penalty = 0
-    for k in params.keys():
+    for k, param in params.items():
       if k.startswith("w_z"):
-        penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
+        penalty += jnp.linalg.norm(jax.nn.relu(-param["kernel"]))
     return penalty
 
 
