@@ -42,8 +42,10 @@ class TestEntropicMap:
       expected_points = g2.transport(g1, y_test)
       actual_points = potentials.transport(y_test, forward=forward)
 
-    displacement = jnp.linalg.norm(expected_points - actual_points)
-    assert displacement <= 6.1
+    error = jnp.mean(
+        jnp.linalg.norm(expected_points - actual_points, axis=1) ** 2
+    )
+    assert error <= 0.6
 
   def test_sinkhorn_divergence(self):
     pass
