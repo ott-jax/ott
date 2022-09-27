@@ -116,10 +116,10 @@ class NeuralDualSolver:
         (neural_g.pos_weights is not self.pos_weights)
     ):
       warnings.warn(
-          f"Setting of ICNN and the positive weights setting of the \
-        `NeuralDualSolver` are not consistent. Proceeding with \
-        the `NeuralDualSolver` setting, with positive weigths \
-        being {self.pos_weights}."
+          f"Setting of ICNN and the positive weights setting of the "
+          f"`NeuralDualSolver` are not consistent. Proceeding with "
+          f"the `NeuralDualSolver` setting, with positive weights "
+          f"being {self.pos_weights}."
       )
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights

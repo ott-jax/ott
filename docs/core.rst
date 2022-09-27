@@ -94,8 +94,8 @@ Dual Potentials
 .. autosummary::
     :toctree: _autosummary
 
-    potentials.EntropicMap
     potentials.DualPotentials
+    potentials.EntropicMap
 
 Neural Dual Potentials
 ----------------------

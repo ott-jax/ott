@@ -40,7 +40,7 @@ class SinkhornDivergenceOutput(NamedTuple):
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
     f, g = f_xy + f_x, g_xy + g_y
 
-    return potentials.EntropicMap(f, g, geom_xy)
+    return potentials.EntropicMap.from_potentials(f, g, geom_xy)
 
 
 def sinkhorn_divergence(

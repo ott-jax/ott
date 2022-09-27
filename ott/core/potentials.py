@@ -1,35 +1,33 @@
-import abc
-from typing import Any, Callable, Dict, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 import jax.tree_util as jtu
+from typing_extensions import Literal
 
 from ott.geometry import pointcloud
 
-__all__ = ["EntropicMap", "DualPotentials"]
-Potential_t = Union[jnp.ndarray, Callable[[jnp.ndarray], float]]
+__all__ = ["DualPotentials", "EntropicMap"]
+Potential_t = Callable[[jnp.ndarray], float]
 
 
 @jtu.register_pytree_node_class
-class BaseDualPotentials(abc.ABC):
-  """Base class holding the Kantorovich dual potentials.
+class DualPotentials:
+  r"""The Kantorovich dual potentials :math:`f` and :math:`g`.
+
+  :math:`\nabla g` transports the source distribution to the target distribution
+  and :math:`\nabla f` the target distribution to the source distribution.
 
   Args:
-    f: The first dual potential.
-    g: The second dual potential.
-
-  Notes:
-    Both potentials can be represented either as an :class:`jax.numpy.ndarray`
-    or as a function taking :class:`jax.numpy.ndarray` and returning
-    :class:`float`.
+    f: The first dual potential function.
+    g: The second dual potential function.
   """
 
   def __init__(self, f: Potential_t, g: Potential_t):
     self._f = f
     self._g = g
 
-  @abc.abstractmethod
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
     """Transport points using the dual potentials :attr:`f` and :attr:`g`.
 
@@ -41,92 +39,8 @@ class BaseDualPotentials(abc.ABC):
     Returns:
       The transported points.
     """
-
-  @property
-  def f(self) -> Potential_t:
-    """The first dual potential."""
-    return self._f
-
-  @property
-  def g(self) -> Potential_t:
-    """The second dual potential."""
-    return self._g
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self.f, self.g], {}
-
-  @classmethod
-  def tree_unflatten(
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "BaseDualPotentials":
-    return cls(*children, **aux_data)
-
-
-@jtu.register_pytree_node_class
-class EntropicMap(BaseDualPotentials):
-  """Entropic map estimator :cite:`pooladian:21`.
-
-  Args:
-    f: The first dual potential.
-    g: The second dual potential.
-    geom: Geometry associated with the dual potentials.
-  """
-
-  def __init__(
-      self, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
-  ):
-    assert geom.is_squared_euclidean, \
-        "Entropic map is only implemented for squared Euclidean cost."
-    super().__init__(f, g)
-    self._geom = geom
-
-  def transport(
-      self,
-      vec: jnp.ndarray,
-      forward: bool = True,
-  ) -> jnp.ndarray:
     vec = jnp.atleast_2d(vec)
-    f = jnp.zeros(vec.shape[0])  # (k, d)
-    if forward:
-      y, g = self._geom.y, self.g  # (m, d), (m,)
-    else:
-      y, g = self._geom.x, self.f  # (n, d), (n,)
-
-    geom = pointcloud.PointCloud(vec, y, epsilon=self.epsilon)  # (k, {n, m})
-    # (d, k), (d, k)
-    res, sgn = jax.vmap(lambda v: geom._softmax(f, g, self.epsilon, v, 1))(y.T)
-    res, sgn = res.T, sgn.T  # (k, d), (k, d)
-    norm, _ = geom._softmax(f, g, self.epsilon, vec=None, axis=1)  # (k,)
-
-    return sgn * jnp.exp((res - norm[:, None]) / self.epsilon)  # (k, d)
-
-  @property
-  def epsilon(self) -> float:
-    """Epsilon regularizer."""
-    return self._geom.epsilon
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    children, aux_data = super().tree_flatten()
-    aux_data["geom"] = self._geom
-    return children, aux_data
-
-
-@jtu.register_pytree_node_class
-class DualPotentials(BaseDualPotentials):
-  r"""The Kantorovich dual potentials :math:`f` and :math:`g`.
-
-  :math:`\nabla g` transports the source distribution to the target distribution
-  and :math:`\nabla f` the target distribution to the source distribution.
-
-  Args:
-    f: The first dual potential function.
-    g: The second dual potential function.
-  """
-
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    vec = jnp.atleast_2d(vec)
-    fn = self._grad_g if forward else self._grad_f
-    return fn(vec)
+    return self._grad_g(vec) if forward else self._grad_f(vec)
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     r"""Given the dual potentials functions, compute the transport distance.
@@ -154,6 +68,16 @@ class DualPotentials(BaseDualPotentials):
     return 2. * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + t_sq + s_sq)
 
   @property
+  def f(self) -> Potential_t:
+    """The first dual potential."""
+    return self._f
+
+  @property
+  def g(self) -> Potential_t:
+    """The second dual potential."""
+    return self._g
+
+  @property
   def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`f`."""
     return jax.vmap(jax.grad(self.f, argnums=0))
@@ -162,3 +86,67 @@ class DualPotentials(BaseDualPotentials):
   def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return [self.f, self.g], {}
+
+  @classmethod
+  def tree_unflatten(
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "DualPotentials":
+    return cls(*children, **aux_data)
+
+
+@jtu.register_pytree_node_class
+class EntropicMap(DualPotentials):
+  """Entropic map estimator :cite:`pooladian:21`.
+
+  See also :meth:`from_potentials` on how to instantiate it using potentials
+  represented as a :class:`jax.numpy.ndarray`, in which they are assumed to be
+  tied to the sample points in a :class:`~ott.geometry.pointcloud.PointCloud`.
+
+  Args:
+    f: The first dual potential function.
+    g: The second dual potential function.
+  """
+
+  @classmethod
+  def from_potentials(
+      cls, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
+  ) -> "EntropicMap":
+    """Entropic map estimator :cite:`pooladian:21`.
+
+    Args:
+      f: The first dual potential, array of shape ``[n,]``.
+      g: The second dual potential, array of shape ``[m,]``.
+      geom: Geometry associated with the dual potentials.
+    """
+    f = cls._create_potential_function(geom, f, kind="f")
+    g = cls._create_potential_function(geom, g, kind="g")
+
+    return cls(f, g)
+
+  @staticmethod
+  def _create_potential_function(
+      geom: pointcloud.PointCloud, potential: jnp.ndarray, *, kind: Literal["f",
+                                                                            "g"]
+  ) -> Callable[[jnp.ndarray], float]:
+
+    def callback(x: jnp.ndarray) -> float:
+      cost = pointcloud.PointCloud(
+          jnp.atleast_2d(x), y, epsilon=eps
+      ).cost_matrix
+      return 0.5 * eps * jsp.special.logsumexp((potential - cost) / eps)
+
+    y = geom.x if kind == "f" else geom.y
+    eps = geom.epsilon
+
+    return callback
+
+  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
+    return vec + super().transport(vec, forward=forward)
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    children, aux_data = super().tree_flatten()
+    aux_data["geom"] = self._geom
+    return children, aux_data
