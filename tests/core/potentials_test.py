@@ -28,13 +28,12 @@ class TestEntropicMap:
 
     potentials = out.to_dual_potentials()
 
+    expected_dist = out.reg_ot_cost
+    actual_dist = potentials.distance(x, y)
+    assert jnp.abs(expected_dist - actual_dist) < 3.5
+
     x_test = g1.sample(key3, n1 + 1)
-    y_test = g2.sample(key4, n1 + 1)
-
-    expected_dist = g1.w2_dist(g2)
-    actual_dist = potentials.distance(x_test, y_test)
-    assert jnp.abs(expected_dist - actual_dist) < 2.5
-
+    y_test = g2.sample(key4, n2 + 2)
     if forward:
       expected_points = g1.transport(g2, x_test)
       actual_points = potentials.transport(x_test, forward=forward)
@@ -42,9 +41,7 @@ class TestEntropicMap:
       expected_points = g2.transport(g1, y_test)
       actual_points = potentials.transport(y_test, forward=forward)
 
-    error = jnp.mean(
-        jnp.linalg.norm(expected_points - actual_points, axis=1) ** 2
-    )
+    error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
     assert error <= 0.6
 
   def test_sinkhorn_divergence(self):

@@ -45,27 +45,29 @@ class DualPotentials:
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     r"""Given the dual potentials functions, compute the transport distance.
 
+    Uses the eq. 5 from :cite:`makkuva:20`.
+
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
-      tgt: Samples from the target distribution, array of shape ``[n, d]``.
+      tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
       Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2`
       as the ground distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
+    f = jax.vmap(self.f)
 
-    f_t = self.f(tgt)
-    grad_g_s = self._grad_g(src)
-    f_grad_g_s = self.f(grad_g_s)
-    s_dot_grad_g_s = jnp.sum(src * grad_g_s, axis=-1)
+    grad_g_y = self._grad_g(src)
+    term1 = -jnp.mean(f(tgt))
+    term2 = -jnp.mean(jnp.sum(src * grad_g_y, axis=-1) - f(grad_g_y))
 
-    s_sq = 0.5 * jnp.sum(src ** 2, axis=-1)
-    t_sq = 0.5 * jnp.sum(tgt ** 2, axis=-1)
+    C = jnp.mean(jnp.sum(src ** 2, axis=-1)) + \
+        jnp.mean(jnp.sum(tgt ** 2, axis=-1))
 
     # compute final wasserstein distance assuming ground metric |x-y|^2
     # thus an additional multiplication by 2
-    return 2. * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + t_sq + s_sq)
+    return 2. * (term1 + term2) + C
 
   @property
   def f(self) -> Potential_t:
