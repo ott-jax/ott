@@ -120,6 +120,9 @@ class EntropicMap(DualPotentials):
       f: The first dual potential, array of shape ``[n,]``.
       g: The second dual potential, array of shape ``[m,]``.
       geom: Geometry associated with the dual potentials.
+
+    Returns:
+      The estimator.
     """
     f = cls._create_potential_function(geom, f, kind="f")
     g = cls._create_potential_function(geom, g, kind="g")
