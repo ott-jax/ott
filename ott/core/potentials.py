@@ -47,7 +47,7 @@ class DualPotentials:
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
-      tgt: Samples from the target distribution, array of shape ``[m, d]``.
+      tgt: Samples from the target distribution, array of shape ``[n, d]``.
 
     Returns:
       Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2`
