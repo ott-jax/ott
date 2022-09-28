@@ -127,7 +127,7 @@ class EntropicPotentials(DualPotentials):
         :class:`~ott.core.sinkhorn.Sinkhorn`.
 
     Returns:
-      The estimator, built with pair of dual potential functions.
+      The estimator, built with a pair of dual potential functions.
     """
     f = cls._create_potential_function(geom, f, kind="f")
     g = cls._create_potential_function(geom, g, kind="g")
