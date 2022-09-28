@@ -43,7 +43,8 @@ class DualPotentials:
     return self._grad_g(vec) if forward else self._grad_f(vec)
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    r"""Given the dual potentials functions, compute the transport distance.
+    """Using the dual potentials, evaluate the 2-Wasserstein distance \
+      between the samples.
 
     Uses the eq. 5 from :cite:`makkuva:20`.
 
