@@ -1,9 +1,11 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from ott.core import Sinkhorn, linear_problems
 from ott.geometry import pointcloud
+from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian
 
 
@@ -46,8 +48,36 @@ class TestEntropicPotentials:
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
     assert error <= 0.6
 
-  def test_diffentiability(self):
+  def test_differentiability(self):
     pass
 
-  def test_sinkhorn_divergence(self):
-    pass
+  @pytest.mark.parametrize("static_b", [False, True])
+  def test_potentials_sinkhorn_divergence(
+      self, rng: jnp.ndarray, static_b: bool
+  ):
+    key1, key2, key3 = jax.random.split(rng, 3)
+    n, m, d = 32, 36, 2
+    eps, fwd = 1., True
+    mu0, mu1 = -5., 5.
+
+    x = jax.random.normal(key1, (n, d)) + mu0
+    y = jax.random.normal(key2, (m, d)) + mu1
+    x_test = jax.random.normal(key3, (n, d)) + mu0
+    geom = pointcloud.PointCloud(x, y, epsilon=eps)
+    prob = linear_problems.LinearProblem(geom)
+
+    sink_pots = Sinkhorn()(prob).to_dual_potentials()
+    div_pots = sinkhorn_divergence.sinkhorn_divergence(
+        type(geom), x, y, epsilon=eps
+    ).to_dual_potentials()
+
+    sink_dist = sink_pots.distance(x, y)
+    div_dist = div_pots.distance(x, y)
+    assert div_dist < sink_dist
+
+    sink_points = sink_pots.transport(x_test, forward=fwd)
+    div_points = div_pots.transport(x_test, forward=fwd)
+
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(sink_points, div_points)
+    np.testing.assert_allclose(sink_points, div_points, rtol=0.05, atol=0.25)
