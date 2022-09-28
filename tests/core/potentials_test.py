@@ -11,8 +11,9 @@ from ott.tools.gaussian_mixture import gaussian
 
 class TestEntropicPotentials:
 
-  @pytest.mark.parametrize("eps", [1e-2, 1e-1])
-  @pytest.mark.parametrize("forward", [False, True])
+  @pytest.mark.fast.with_args(
+      forward=[False, True], eps=[1e-2, 1e-1], only_fast=0
+  )
   def test_entropic_potentials(
       self, rng: jnp.ndarray, forward: bool, eps: float
   ):
