@@ -48,15 +48,34 @@ class TestEntropicPotentials:
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
     assert error <= 0.6
 
-  def test_differentiability(self):
-    pass
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_distance_differentiability(self, rng: jnp.ndarray, jit: bool):
+    key1, key2, key3 = jax.random.split(rng, 3)
+    n, m, d = 18, 36, 5
+
+    x = jax.random.normal(key1, (n, d))
+    y = jax.random.normal(key2, (m, d))
+    prob = linear_problems.LinearProblem(pointcloud.PointCloud(x, y))
+    v_x = jax.random.normal(key3, shape=x.shape)
+    v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * 1e-3
+
+    pots = Sinkhorn()(prob).to_dual_potentials()
+
+    grad_dist = jax.grad(pots.distance)
+    if jit:
+      grad_dist = jax.jit(grad_dist)
+    dx = grad_dist(x, y)
+
+    expected = pots.distance(x + v_x, y) - pots.distance(x - v_x, y)
+    actual = 2. * jnp.vdot(v_x, dx)
+    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("static_b", [False, True])
   def test_potentials_sinkhorn_divergence(
       self, rng: jnp.ndarray, static_b: bool
   ):
     key1, key2, key3 = jax.random.split(rng, 3)
-    n, m, d = 32, 36, 2
+    n, m, d = 32, 36, 4
     eps, fwd = 1., True
     mu0, mu1 = -5., 5.
 
@@ -80,4 +99,4 @@ class TestEntropicPotentials:
 
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(sink_points, div_points)
-    np.testing.assert_allclose(sink_points, div_points, rtol=0.05, atol=0.25)
+    np.testing.assert_allclose(sink_points, div_points, rtol=0.08, atol=0.31)
