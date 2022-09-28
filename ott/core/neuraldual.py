@@ -52,8 +52,8 @@ class NeuralDualSolver:
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
-    seed: random seed for network initialiations
-    pos_weights: option to train networks with potitive weights or regularizer
+    seed: random seed for network initializations
+    pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
 
   Returns:

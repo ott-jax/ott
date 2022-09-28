@@ -104,9 +104,10 @@ class DualPotentials:
 class EntropicPotentials(DualPotentials):
   """Entropic map estimator :cite:`pooladian:21`.
 
-  See also :meth:`from_potentials` on how to instantiate it using potentials
-  represented as a :class:`jax.numpy.ndarray`, in which they are assumed to be
-  tied to the sample points in a :class:`~ott.geometry.pointcloud.PointCloud`.
+  See also :meth:`from_sinkhorn_potentials` on how to instantiate it using
+  potentials represented as a :class:`jax.numpy.ndarray`, in which they are
+  assumed to be tied to the sample points in a
+  :class:`~ott.geometry.pointcloud.PointCloud`.
 
   Args:
     f: The first dual potential function.
