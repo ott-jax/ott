@@ -37,8 +37,10 @@ class SinkhornDivergenceOutput(NamedTuple):
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return the entropic map estimator."""
     geom_xy, *_ = self.geoms
-    (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
-    f, g = f_xy + f_x, g_xy + g_y
+    (f_xy, g_xy), (f_x, g_x), (f_y, g_y) = self.potentials
+
+    f = f_xy + f_x
+    g = g_xy if g_y is None else (g_xy + g_y)  # case when `static_b=True`
 
     return potentials.EntropicPotentials.from_sinkhorn_potentials(f, g, geom_xy)
 
@@ -58,7 +60,7 @@ def sinkhorn_divergence(
   Args:
     geom: Type of the geometry.
     args: Positional arguments to
-      :meth:`~ott.geometry.geometry.Geometry.prepare_divergences` that is
+      :meth:`~ott.geometry.geometry.Geometry.prepare_divergences` that are
       specific to each geometry.
     a: the weight of each input point. The sum of all elements of `a` must
       match that of `b` to converge.
@@ -80,19 +82,19 @@ def sinkhorn_divergence(
   Returns:
     Sinkhorn divergence value, three pairs of potentials, three costs.
   """
-  geometries = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
-  num_a, num_b = geometries[0].shape
+  geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
+  xy, x, y, *_ = geoms + (None,) * 3
+  num_a, num_b = xy.shape
 
-  geometries = (geometries + (None,) * max(0, 3 - len(geometries)))[:3]
   if share_epsilon:
-    geometries = (geometries[0],) + tuple(
-        geom.copy_epsilon(geometries[0]) if geom is not None else None
-        for geom in geometries[1:(2 if static_b else 3)]
-    )
+    if isinstance(x, geometry.Geometry):
+      x = x.copy_epsilon(xy)
+    if isinstance(y, geometry.Geometry):
+      y = y.copy_epsilon(xy)
 
-  a = jnp.ones((num_a,)) / num_a if a is None else a
-  b = jnp.ones((num_b,)) / num_b if b is None else b
-  return _sinkhorn_divergence(*geometries, a, b, **sinkhorn_kwargs)
+  a = jnp.ones(num_a) / num_a if a is None else a
+  b = jnp.ones(num_b) / num_b if b is None else b
+  return _sinkhorn_divergence(xy, x, y, a=a, b=b, **sinkhorn_kwargs)
 
 
 def _sinkhorn_divergence(
