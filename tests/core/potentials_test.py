@@ -7,11 +7,13 @@ from ott.geometry import pointcloud
 from ott.tools.gaussian_mixture import gaussian
 
 
-class TestEntropicMap:
+class TestEntropicPotentials:
 
   @pytest.mark.parametrize("eps", [1e-2, 1e-1])
   @pytest.mark.parametrize("forward", [False, True])
-  def test_entropic_map(self, rng: jnp.ndarray, forward: bool, eps: float):
+  def test_entropic_potentials(
+      self, rng: jnp.ndarray, forward: bool, eps: float
+  ):
     n1, n2, d = 64, 96, 2
     key1, key2, key3, key4 = jax.random.split(rng, 4)
 
@@ -20,7 +22,7 @@ class TestEntropicMap:
     g1 = gaussian.Gaussian.from_mean_and_cov(mean1, cov1)
     g2 = gaussian.Gaussian.from_mean_and_cov(mean2, cov2)
     x = g1.sample(key1, n1)
-    y = g2.sample(key1, n2)
+    y = g2.sample(key2, n2)
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
     prob = linear_problems.LinearProblem(geom)
@@ -43,6 +45,9 @@ class TestEntropicMap:
 
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
     assert error <= 0.6
+
+  def test_diffentiability(self):
+    pass
 
   def test_sinkhorn_divergence(self):
     pass
