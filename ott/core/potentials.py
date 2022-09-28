@@ -8,7 +8,7 @@ from typing_extensions import Literal
 
 from ott.geometry import pointcloud
 
-__all__ = ["DualPotentials", "EntropicMap"]
+__all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
 
 
@@ -65,7 +65,7 @@ class DualPotentials:
     C = jnp.mean(jnp.sum(src ** 2, axis=-1)) + \
         jnp.mean(jnp.sum(tgt ** 2, axis=-1))
 
-    # compute final wasserstein distance assuming ground metric |x-y|^2
+    # compute final wasserstein distance assuming ground metric |x-y|^2,
     # thus an additional multiplication by 2
     return 2. * (term1 + term2) + C
 
@@ -100,7 +100,7 @@ class DualPotentials:
 
 
 @jtu.register_pytree_node_class
-class EntropicMap(DualPotentials):
+class EntropicPotentials(DualPotentials):
   """Entropic map estimator :cite:`pooladian:21`.
 
   See also :meth:`from_potentials` on how to instantiate it using potentials
@@ -113,18 +113,20 @@ class EntropicMap(DualPotentials):
   """
 
   @classmethod
-  def from_potentials(
+  def from_sinkhorn_potentials(
       cls, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
-  ) -> "EntropicMap":
-    """Entropic map estimator :cite:`pooladian:21`.
+  ) -> "EntropicPotentials":
+    """Dual potential functions computed from finite samples as introduced in \
+      :cite:`pooladian:21`.
 
     Args:
-      f: The first dual potential, array of shape ``[n,]``.
-      g: The second dual potential, array of shape ``[m,]``.
-      geom: Geometry associated with the dual potentials.
+      f: The first dual potential vector of shape ``[n,]``.
+      g: The second dual potential vector of shape ``[m,]``.
+      geom: Geometry used to compute the dual potentials using
+        :class:`~ott.core.sinkhorn.Sinkhorn`.
 
     Returns:
-      The estimator.
+      The estimator, built with pair of dual potential functions.
     """
     f = cls._create_potential_function(geom, f, kind="f")
     g = cls._create_potential_function(geom, g, kind="g")

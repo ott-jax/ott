@@ -34,13 +34,13 @@ class SinkhornDivergenceOutput(NamedTuple):
                 Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
 
-  def to_dual_potentials(self) -> "potentials.EntropicMap":
+  def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return the entropic map estimator."""
     geom_xy, *_ = self.geoms
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
     f, g = f_xy + f_x, g_xy + g_y
 
-    return potentials.EntropicMap.from_potentials(f, g, geom_xy)
+    return potentials.EntropicPotentials.from_sinkhorn_potentials(f, g, geom_xy)
 
 
 def sinkhorn_divergence(

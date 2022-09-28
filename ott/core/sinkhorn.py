@@ -290,9 +290,11 @@ class SinkhornOutput(NamedTuple):
     """Sum of transport matrix."""
     return self.marginal(0).sum()
 
-  def to_dual_potentials(self) -> potentials.EntropicMap:
+  def to_dual_potentials(self) -> potentials.EntropicPotentials:
     """Return the entropic map estimator."""
-    return potentials.EntropicMap.from_potentials(self.f, self.g, self.geom)
+    return potentials.EntropicPotentials.from_sinkhorn_potentials(
+        self.f, self.g, self.geom
+    )
 
 
 @jax.tree_util.register_pytree_node_class
