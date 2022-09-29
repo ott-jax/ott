@@ -89,14 +89,21 @@ Gromov-Wasserstein (Entropic and LR)
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
 
-Neural Potentials
------------------
+Dual Potentials
+---------------
+.. autosummary::
+    :toctree: _autosummary
+
+    potentials.DualPotentials
+    potentials.EntropicPotentials
+
+Neural Dual Potentials
+----------------------
 .. autosummary::
     :toctree: _autosummary
 
     icnn.ICNN
     neuraldual.NeuralDualSolver
-    neuraldual.NeuralDual
 
 Padding Utilities
 -----------------

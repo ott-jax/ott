@@ -34,7 +34,9 @@ class Gaussian:
 
   @classmethod
   def from_samples(
-      cls, points: jnp.ndarray, weights: jnp.ndarray = None
+      cls,
+      points: jnp.ndarray,
+      weights: Optional[jnp.ndarray] = None
   ) -> 'Gaussian':
     """Construct a Gaussian from weighted samples.
 
@@ -90,7 +92,7 @@ class Gaussian:
     return cls(loc=loc, scale=scale)
 
   @classmethod
-  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray):
+  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray) -> 'Gaussian':
     """Construct a Gaussian from a mean and covariance."""
     scale = scale_tril.ScaleTriL.from_covariance(cov)
     return cls(loc=mean, scale=scale)

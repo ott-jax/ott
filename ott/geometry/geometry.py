@@ -402,11 +402,14 @@ class Geometry:
   def _center(self, f: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
     return f[:, jnp.newaxis] + g[jnp.newaxis, :] - self.cost_matrix
 
-  def _softmax(self, f, g, eps, vec, axis):
+  def _softmax(
+      self, f: jnp.ndarray, g: jnp.ndarray, eps: float,
+      vec: Optional[jnp.ndarray], axis: int
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Apply softmax row or column wise, weighted by vec."""
     if vec is not None:
       if axis == 0:
-        vec = vec.reshape((vec.size, 1))
+        vec = vec.reshape((-1, 1))
       lse_output = ops.logsumexp(
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
@@ -418,7 +421,9 @@ class Geometry:
       return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
-  def _apply_transport_from_potentials(self, f, g, vec, axis):
+  def _apply_transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray, vec: jnp.ndarray, axis: int
+  ) -> jnp.ndarray:
     """Apply lse_kernel to arbitrary vector while keeping track of signs."""
     lse_res, lse_sgn = self.apply_lse_kernel(
         f, g, self.epsilon, vec=vec, axis=axis

@@ -26,7 +26,7 @@ from ott.core import implicit_differentiation as implicit_lib
 from ott.core import initializers as init_lib
 from ott.core import linear_problems
 from ott.core import momentum as momentum_lib
-from ott.core import unbalanced_functions
+from ott.core import potentials, unbalanced_functions
 from ott.geometry import geometry
 
 
@@ -289,6 +289,10 @@ class SinkhornOutput(NamedTuple):
   def transport_mass(self) -> float:
     """Sum of transport matrix."""
     return self.marginal(0).sum()
+
+  def to_dual_potentials(self) -> potentials.EntropicPotentials:
+    """Return the entropic map estimator."""
+    return potentials.EntropicPotentials(self.f, self.g, self.geom)
 
 
 @jax.tree_util.register_pytree_node_class

@@ -28,6 +28,7 @@ from . import (
     initializers_lr,
     linear_problems,
     momentum,
+    potentials,
     quad_initializers,
     quad_problems,
     sinkhorn,
