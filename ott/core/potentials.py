@@ -71,12 +71,12 @@ class DualPotentials:
 
   @property
   def f(self) -> Potential_t:
-    """The first dual potential."""
+    """The first dual potential function."""
     return self._f
 
   @property
   def g(self) -> Potential_t:
-    """The second dual potential."""
+    """The second dual potential function."""
     return self._g
 
   @property
@@ -121,6 +121,8 @@ class EntropicPotentials(DualPotentials):
     assert g.shape == (m,), \
         f"Expected `g` to be of shape `{m,}`, found `{g.shape}`."
 
+    # we pass directly the arrays and override the properties
+    # since only the properties need to be callable
     super().__init__(f, g)
     self._geom = geom
 

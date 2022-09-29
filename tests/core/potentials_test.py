@@ -47,6 +47,7 @@ class TestEntropicPotentials:
       expected_points = g2.transport(g1, y_test)
       actual_points = potentials.transport(y_test, forward=forward)
 
+    # TODO(michalk8): better error measure
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
     assert error <= 0.6
 

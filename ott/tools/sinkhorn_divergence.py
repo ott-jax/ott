@@ -83,18 +83,20 @@ def sinkhorn_divergence(
     Sinkhorn divergence value, three pairs of potentials, three costs.
   """
   geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
-  xy, x, y, *_ = geoms + (None,) * 3
-  num_a, num_b = xy.shape
+  geom_xy, geom_x, geom_y, *_ = geoms + (None,) * 3
+  num_a, num_b = geom_xy.shape
 
   if share_epsilon:
-    if isinstance(x, geometry.Geometry):
-      x = x.copy_epsilon(xy)
-    if isinstance(y, geometry.Geometry):
-      y = y.copy_epsilon(xy)
+    if isinstance(geom_x, geometry.Geometry):
+      geom_x = geom_x.copy_epsilon(geom_xy)
+    if isinstance(geom_y, geometry.Geometry):
+      geom_y = geom_y.copy_epsilon(geom_xy)
 
   a = jnp.ones(num_a) / num_a if a is None else a
   b = jnp.ones(num_b) / num_b if b is None else b
-  return _sinkhorn_divergence(xy, x, y, a=a, b=b, **sinkhorn_kwargs)
+  return _sinkhorn_divergence(
+      geom_xy, geom_x, geom_y, a=a, b=b, **sinkhorn_kwargs
+  )
 
 
 def _sinkhorn_divergence(
