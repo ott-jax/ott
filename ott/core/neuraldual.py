@@ -303,7 +303,7 @@ class NeuralDualSolver:
     return step_fn
 
   def to_dual_potentials(self) -> potentials.DualPotentials:
-    """Return the Kantorovich dual potentials from the trained functions."""
+    """Return the Kantorovich dual potentials from the trained potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
     return potentials.DualPotentials(f, g)
