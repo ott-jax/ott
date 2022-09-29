@@ -33,7 +33,7 @@ class TestEntropicPotentials:
 
     potentials = out.to_dual_potentials()
 
-    expected_dist = out.reg_ot_cost
+    expected_dist = jnp.sum(out.matrix * geom.cost_matrix)
     actual_dist = potentials.distance(x, y)
     assert jnp.abs(expected_dist - actual_dist) < 3.5
 

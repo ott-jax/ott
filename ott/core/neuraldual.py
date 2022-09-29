@@ -20,8 +20,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax.core import freeze
-from optax._src import base
+from flax import core
 from typing_extensions import Literal
 
 from ott.core import icnn, potentials
@@ -62,8 +61,8 @@ class NeuralDualSolver:
       input_dim: int,
       neural_f: Optional[nn.Module] = None,
       neural_g: Optional[nn.Module] = None,
-      optimizer_f: Optional[base.GradientTransformation] = None,
-      optimizer_g: Optional[base.GradientTransformation] = None,
+      optimizer_f: Optional[optax.OptState] = None,
+      optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 100,
       num_inner_iters: int = 10,
       valid_freq: int = 100,
@@ -316,7 +315,7 @@ class NeuralDualSolver:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
-    return freeze(params)
+    return core.freeze(params)
 
   @staticmethod
   def _penalize_weights_icnn(

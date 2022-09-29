@@ -46,7 +46,7 @@ class ICNN(nn.Module):
     init_fn: choice of initialization method for weight matrices (default:
       `jax.nn.initializers.normal`).
     act_fn: choice of activation function used in network architecture
-      (needs to be convex, default: `nn.leaky_relu`).
+      (needs to be convex, default: `nn.relu`).
     pos_weights: choice to enforce positivity of weight or use regularizer.
     dim_data: data dimensionality (default: 2).
     gaussian_map: data inputs of source and target measures for
