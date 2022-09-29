@@ -42,7 +42,7 @@ class SinkhornDivergenceOutput(NamedTuple):
     f = f_xy + f_x
     g = g_xy if g_y is None else (g_xy + g_y)  # case when `static_b=True`
 
-    return potentials.EntropicPotentials.from_sinkhorn_potentials(f, g, geom_xy)
+    return potentials.EntropicPotentials(f, g, geom_xy)
 
 
 def sinkhorn_divergence(

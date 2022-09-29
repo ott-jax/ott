@@ -65,7 +65,7 @@ class DualPotentials:
     C = jnp.mean(jnp.sum(src ** 2, axis=-1)) + \
         jnp.mean(jnp.sum(tgt ** 2, axis=-1))
 
-    # compute final wasserstein distance assuming ground metric |x-y|^2,
+    # compute the final Wasserstein distance assuming ground metric |x-y|^2,
     # thus an additional multiplication by 2
     return 2. * (term1 + term2) + C
 
@@ -101,42 +101,40 @@ class DualPotentials:
 
 @jtu.register_pytree_node_class
 class EntropicPotentials(DualPotentials):
-  """Dual potential functions estimated from the entropic OT problem.
-
-  See also :meth:`from_sinkhorn_potentials` on how to instantiate it using
-  potentials represented as a :class:`jax.numpy.ndarray`, in which they are
-  assumed to be tied to the sample points in a
-  :class:`~ott.geometry.pointcloud.PointCloud`.
+  """Dual potential functions from finite samples :cite:`pooladian:21`.
 
   Args:
-    f: The first dual potential function.
-    g: The second dual potential function.
+    f: The first dual potential vector of shape ``[n,]``.
+    g: The second dual potential vector of shape ``[m,]``.
+    geom: Geometry used to compute the dual potentials using
+      :class:`~ott.core.sinkhorn.Sinkhorn`.
   """
 
-  @classmethod
-  def from_sinkhorn_potentials(
-      cls, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
-  ) -> "EntropicPotentials":
-    """Dual potential functions from finite samples :cite:`pooladian:21`.
+  def __init__(
+      self, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
+  ):
+    assert geom.is_squared_euclidean, \
+        "Entropic map is only implemented for squared Euclidean cost."
+    n, m = geom.shape
+    assert f.shape == (n,), \
+        f"Expected `f` to be of shape `{n,}`, found `{f.shape}`."
+    assert g.shape == (m,), \
+        f"Expected `g` to be of shape `{m,}`, found `{g.shape}`."
 
-    Args:
-      f: The first dual potential vector of shape ``[n,]``.
-      g: The second dual potential vector of shape ``[m,]``.
-      geom: Geometry used to compute the dual potentials using
-        :class:`~ott.core.sinkhorn.Sinkhorn`.
+    super().__init__(f, g)
+    self._geom = geom
 
-    Returns:
-      The estimator, built with a pair of dual potential functions.
-    """
-    f = cls._create_potential_function(geom, f, kind="f")
-    g = cls._create_potential_function(geom, g, kind="g")
-    return cls(f, g)
+  @property
+  def f(self) -> Potential_t:
+    return self._create_potential_function(kind="f")
 
-  @staticmethod
+  @property
+  def g(self) -> Potential_t:
+    return self._create_potential_function(kind="g")
+
   def _create_potential_function(
-      geom: pointcloud.PointCloud, potential: jnp.ndarray, *, kind: Literal["f",
-                                                                            "g"]
-  ) -> Callable[[jnp.ndarray], float]:
+      self, *, kind: Literal["f", "g"]
+  ) -> Potential_t:
 
     def callback(x: jnp.ndarray) -> float:
       cost = pointcloud.PointCloud(
@@ -144,15 +142,24 @@ class EntropicPotentials(DualPotentials):
       ).cost_matrix
       return 0.5 * eps * jsp.special.logsumexp((potential - cost) / eps)
 
-    y = geom.x if kind == "f" else geom.y
-    eps = geom.epsilon
+    eps = self.epsilon
+    if kind == "f":
+      potential = self._f
+      y = self._geom.x
+    else:
+      potential = self._g
+      y = self._geom.y
 
     return callback
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
     return vec + super().transport(vec, forward=forward)
 
+  @property
+  def epsilon(self) -> float:
+    """Entropy regularizer."""
+    return self._geom.epsilon
+
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
-    aux_data["geom"] = self._geom
-    return children, aux_data
+    return children + [self._geom], aux_data
