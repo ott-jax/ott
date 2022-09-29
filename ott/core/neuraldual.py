@@ -70,7 +70,7 @@ class NeuralDualSolver:
       logging: bool = False,
       seed: int = 0,
       pos_weights: bool = True,
-      beta: int = 1.0,
+      beta: float = 1.0,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -100,7 +100,7 @@ class NeuralDualSolver:
 
   def setup(
       self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
-      input_dim: int, optimizer_f, optimizer_g
+      input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState
   ) -> None:
     """Setup all components required to train the network."""
     # split random key

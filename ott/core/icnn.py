@@ -62,7 +62,7 @@ class ICNN(nn.Module):
   dim_data: int = 2
   gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
 
-  def setup(self):
+  def setup(self) -> None:
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
@@ -137,7 +137,10 @@ class ICNN(nn.Module):
     )
     self.w_xs = w_xs
 
-  def _compute_gaussian_map(self, inputs):
+  @staticmethod
+  def _compute_gaussian_map(
+      inputs: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
 
     def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
@@ -170,14 +173,15 @@ class ICNN(nn.Module):
 
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
-  def _compute_identity_map(self, input_dim):
+  @staticmethod
+  def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
 
     return A, b
 
   @nn.compact
-  def __call__(self, x):
+  def __call__(self, x: jnp.ndarray) -> float:
     for i in range(self.num_hidden + 2):
       if i == 0:
         z = self.w_xs[i](x)

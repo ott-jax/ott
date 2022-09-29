@@ -35,7 +35,8 @@ class TestEntropicPotentials:
 
     expected_dist = jnp.sum(out.matrix * geom.cost_matrix)
     actual_dist = potentials.distance(x, y)
-    assert jnp.abs(expected_dist - actual_dist) < 3.5
+    rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
+    assert rel_error < 0.11
 
     x_test = g1.sample(key3, n1 + 1)
     y_test = g2.sample(key4, n2 + 2)
