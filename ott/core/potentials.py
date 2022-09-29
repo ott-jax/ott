@@ -14,10 +14,10 @@ Potential_t = Callable[[jnp.ndarray], float]
 
 @jtu.register_pytree_node_class
 class DualPotentials:
-  r"""The Kantorovich dual potentials :math:`f` and :math:`g`.
+  r"""The Kantorovich dual potential functions :math:`f` and :math:`g`.
 
-  :math:`\nabla g` transports the source distribution to the target distribution
-  and :math:`\nabla f` the target distribution to the source distribution.
+  :math:`f` and :math:`g` are a pair of functions, candidates for the dual
+  OT Kantorovich problem, supposedly optimal for a given pair of measures.
 
   Args:
     f: The first dual potential function.
@@ -29,7 +29,7 @@ class DualPotentials:
     self._g = g
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport points using the dual potentials :attr:`f` and :attr:`g`.
+    """Transport ``vec`` according to Benamou-Brenier formula.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
@@ -43,18 +43,17 @@ class DualPotentials:
     return self._grad_g(vec) if forward else self._grad_f(vec)
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    """Using the dual potentials, evaluate the 2-Wasserstein distance \
-      between the samples.
+    """Evaluate 2-Wasserstein distance between samples using dual potentials.
 
-    Uses the eq. 5 from :cite:`makkuva:20`.
+    Uses Eq. 5 from :cite:`makkuva:20`.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-      Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2`
-      as the ground distance.
+      Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2` as the
+      ground distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
     f = jax.vmap(self.f)
@@ -102,7 +101,7 @@ class DualPotentials:
 
 @jtu.register_pytree_node_class
 class EntropicPotentials(DualPotentials):
-  """Entropic map estimator :cite:`pooladian:21`.
+  """Dual potential functions estimated from the entropic OT problem.
 
   See also :meth:`from_sinkhorn_potentials` on how to instantiate it using
   potentials represented as a :class:`jax.numpy.ndarray`, in which they are
@@ -118,8 +117,7 @@ class EntropicPotentials(DualPotentials):
   def from_sinkhorn_potentials(
       cls, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
   ) -> "EntropicPotentials":
-    """Dual potential functions computed from finite samples as introduced in \
-      :cite:`pooladian:21`.
+    """Dual potential functions from finite samples :cite:`pooladian:21`.
 
     Args:
       f: The first dual potential vector of shape ``[n,]``.
@@ -132,7 +130,6 @@ class EntropicPotentials(DualPotentials):
     """
     f = cls._create_potential_function(geom, f, kind="f")
     g = cls._create_potential_function(geom, g, kind="g")
-
     return cls(f, g)
 
   @staticmethod

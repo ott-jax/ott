@@ -55,9 +55,6 @@ class NeuralDualSolver:
     seed: random seed for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
-
-  Returns:
-    the `NeuralDual` containing the optimal dual potentials `f` and `g`
   """
 
   def __init__(
@@ -106,7 +103,7 @@ class NeuralDualSolver:
       self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
       input_dim: int, optimizer_f, optimizer_g
   ) -> None:
-    """Setup all components required to train the `NeuralDual`."""
+    """Setup all components required to train the network."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
@@ -307,7 +304,7 @@ class NeuralDualSolver:
     return step_fn
 
   def to_dual_potentials(self) -> potentials.DualPotentials:
-    """Return the neural Kantorovich dual potentials."""
+    """Return the Kantorovich dual potentials from the trained functions."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
     return potentials.DualPotentials(f, g)
