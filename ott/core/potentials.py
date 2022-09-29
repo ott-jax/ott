@@ -90,7 +90,7 @@ class DualPotentials:
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self.f, self.g], {}
+    return [self._f, self._g], {}
 
   @classmethod
   def tree_unflatten(
