@@ -322,6 +322,8 @@ class QuadraticProblem:
         marginal_2).sum() - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
       transport_matrix, transport_matrix).sum()
+    # cost -= epsilon._target_init * marginal_1loga
+    # cost -= epsilon._target_init * marginal_2logb
     return cost
 
   def init_transport(self) -> jnp.ndarray:

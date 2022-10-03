@@ -130,8 +130,7 @@ class GWState(NamedTuple):
         errors=errors,
         old_transport_mass=old_transport_mass
     )
-
-
+    
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
 
@@ -231,7 +230,9 @@ def iterations(
       init = state.linear_state.q, state.linear_state.r, state.linear_state.g
       linear_pb = prob.update_lr_linearization(state.linear_state)
     else:
-      init = state.linear_state.f, state.linear_state.g
+      
+      init = None, None
+      # init = state.linear_state.f, state.linear_state.g
       linear_pb = prob.update_linearization(
           state.linear_state, solver.epsilon, state.old_transport_mass
       )
