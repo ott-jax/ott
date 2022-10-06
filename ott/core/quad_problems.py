@@ -215,7 +215,6 @@ class QuadraticProblem:
       marginal_1: jnp.ndarray,
       marginal_2: jnp.ndarray,
       epsilon: float,
-      delta: float = 1e-9
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
 
@@ -259,8 +258,6 @@ class QuadraticProblem:
         marginal_2).sum() - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
       transport_matrix, transport_matrix).sum()
-    # cost -= epsilon._target_init * marginal_1loga
-    # cost -= epsilon._target_init * marginal_2logb
     return cost
 
   def init_transport(self) -> jnp.ndarray:
@@ -280,103 +277,6 @@ class QuadraticProblem:
     b = jax.lax.stop_gradient(self.b)
     return a.sum() * b.sum()
 
-<<<<<<< HEAD
-  def init_linearization(
-      self,
-      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None
-  ) -> linear_problems.LinearProblem:
-    """Initialise a linear problem locally around a naive initializer ab'.
-
-    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``),
-    the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
-
-    If the problem is unbalanced (`tau_a<1.0 or tau_b<1.0`), there are two
-    possible cases. A first possibility is to introduce a quadratic KL
-    divergence on the marginals in the objective as done in :cite:`sejourne:21`
-    (``gw_unbalanced_correction = True``), which in turns modifies the
-    local cost matrix.
-
-    Alternatively, it could be possible to leave the formulation of the
-    local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
-    (``gw_unbalanced_correction = False``) and include the unbalanced terms
-    at the level of the linear problem only.
-
-    Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
-    cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
-    `left_x` and `right_y` depend on the loss chosen for GW.
-    `gw_unbalanced_correction` is an boolean indicating whether or not the
-    unbalanced correction applies.
-    The equation of the local cost can be written as:
-
-    `cost_matrix` = `marginal_dep_term`
-                + `left_x`(`cost_xx`) :math:`P` `right_y`(`cost_yy`):math:`^T`
-                + `unbalanced_correction` * `gw_unbalanced_correction`
-
-    When working with the fused problem, a linear term is added to the cost
-    matrix:
-    `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
-
-    Args:
-      epsilon: An epsilon scheduler or a float passed on to the linearization.
-
-    Returns:
-      A linear_problems.LinearProblem, representing local linearization of
-      GW problem.
-    """
-    unbalanced_correction = 0.0
-    tmp = self.init_transport()
-    marginal_1 = tmp.sum(1)
-    marginal_2 = tmp.sum(0)
-
-    # Initialises cost.
-    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
-
-    if not self.is_balanced:
-      transport_mass = marginal_1.sum()
-      # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
-      unbalanced_correction = self.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon)
-
-    h1, h2 = self.quad_loss
-    tmp = apply_cost(self.geom_xx, tmp, axis=1, fn=h1)
-    tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
-    cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
-
-    cost_matrix += self.fused_penalty * self._fused_cost_matrix
-
-    geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
-    return linear_problems.LinearProblem(
-        geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
-    )
-
-  def init_lr_linearization(
-      self,
-      solver: sinkhorn_lr.LRSinkhorn,
-      **kwargs: Any,
-  ) -> linear_problems.LinearProblem:
-    """Linearize a Quad problem with a predefined initializer."""
-    x = self.geom_xx.apply_square_cost(self.a)
-    y = self.geom_yy.apply_square_cost(self.b)
-    geom = pointcloud.PointCloud(x, y).to_LRCGeometry()
-
-    prob = linear_problems.LinearProblem(geom, self.a, self.b)
-    q, r, g = solver.initializer(prob, **kwargs)
-    dummy_out = sinkhorn_lr.LRSinkhornOutput(
-        q=q, r=r, g=g, costs=None, criterions=None, ot_prob=prob
-    )
-
-    prob = linear_problems.LinearProblem(
-        self.update_lr_geom(dummy_out),
-        self.a,
-        self.b,
-        tau_a=self.tau_a,
-        tau_b=self.tau_b
-    )
-    return prob
-
-=======
->>>>>>> origin/master
   def update_lr_geom(
       self, lr_sink: sinkhorn_lr.LRSinkhornOutput
   ) -> geometry.Geometry:

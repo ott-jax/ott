@@ -129,19 +129,16 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     marginal_cost = quad_prob.marginal_dependent_cost(marginal_1, marginal_2)
 
     if not quad_prob.is_balanced:
-      unbalanced_correction = quad_prob.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon, 1.0
-      )
+      transport_mass = marginal_1.sum()
+      # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
+      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
+      unbalanced_correction = self.cost_unbalanced_correction(
+          tmp, marginal_1, marginal_2, epsilon)
 
     h1, h2 = quad_prob.quad_loss
     tmp = apply_cost(quad_prob.geom_xx, tmp, axis=1, fn=h1)
     tmp = apply_cost(quad_prob.geom_yy, tmp.T, axis=1, fn=h2).T
     cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
-
-    # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021).
-    if not quad_prob.is_balanced:
-      transport_mass = marginal_1.sum()
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
 
     cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
 

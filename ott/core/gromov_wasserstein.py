@@ -93,17 +93,14 @@ class GWState(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
-      at each iteration.
     linear_state: State used to solve and store solutions to the local
       linearization of GW.
     linear_pb: Local linearization of the quadratic GW problem.
-<<<<<<< HEAD
-=======
     old_transport_mass: Intermediary value of the mass of the transport matrix.
     keys: Random keys passed to low-rank initializers at every GW iteration
       when not using warm start.
->>>>>>> origin/master
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
   """
 
   costs: jnp.ndarray
@@ -368,13 +365,7 @@ def iterations(
       linear_pb = prob.update_lr_linearization(state.linear_state)
       out = solver.linear_ot_solver(linear_pb, init=init, key=key)
     else:
-<<<<<<< HEAD
-      
-      init = None, None
-      # init = state.linear_state.f, state.linear_state.g
-=======
       init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
->>>>>>> origin/master
       linear_pb = prob.update_linearization(
           lin_state, solver.epsilon, state.old_transport_mass
       )
