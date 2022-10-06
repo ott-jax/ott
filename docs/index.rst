@@ -64,6 +64,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     notebooks/icnn_inits.ipynb
     notebooks/wasserstein_barycenters_gmms.ipynb
     notebooks/gmm_pair_demo.ipynb
+    notebooks/MetaOT.ipynb
 
 .. toctree::
     :maxdepth: 1
