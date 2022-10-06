@@ -5,6 +5,7 @@ import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 from typing_extensions import Literal
 
+from ott.core import _math_utils as mu
 from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
 
@@ -88,7 +89,7 @@ class Graph(geometry.Geometry):
       del iteration, solver_lap
 
       x_old, x_new = old_new
-      x_old, x_new = safe_log(x_old), safe_log(x_new)
+      x_old, x_new = mu.safe_log(x_old), mu.safe_log(x_new)
       # center
       x_old, x_new = x_old - jnp.nanmax(x_old), x_new - jnp.nanmax(x_new)
       # Hilbert metric, see Remark 4.12 in `Computational Optimal Transport`
@@ -174,7 +175,7 @@ class Graph(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
-    return -self.t * safe_log(self.kernel_matrix)
+    return -self.t * mu.safe_log(self.kernel_matrix)
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
@@ -220,7 +221,7 @@ class Graph(geometry.Geometry):
   def _scaled_laplacian(self) -> Union[float, jnp.ndarray, Sparse_t]:
     """Laplacian scaled by a constant, depending on the numerical scheme."""
     if self.is_sparse:
-      return sparse_scale(self._scale, self.laplacian)
+      return mu.sparse_scale(self._scale, self.laplacian)
     return self._scale * self.laplacian
 
   @property
@@ -314,19 +315,3 @@ class Graph(geometry.Geometry):
     obj = cls(graph=graph, laplacian=laplacian, **aux_data)
     obj._solver = solver
     return obj
-
-
-# TODO(michalk8): in future, define math utils
-def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
-  """Scale a sparse matrix by a constant."""
-  if isinstance(mat, jesp.BCOO):
-    # most feature complete, defer to original impl.
-    return c * mat
-  (data, *children), aux_data = mat.tree_flatten()
-  return type(mat).tree_unflatten(aux_data, [c * data] + children)
-
-
-def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
-  if eps is None:
-    eps = jnp.finfo(x.dtype).tiny
-  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))

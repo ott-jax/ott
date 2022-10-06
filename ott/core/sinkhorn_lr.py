@@ -14,17 +14,18 @@
 
 # Lint as: python3
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import Any, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 from typing_extensions import Literal
 
+from ott.core import _math_utils as mu
 from ott.core import fixed_point_loop
 from ott.core import initializers_lr as init_lib
 from ott.core import linear_problems, sinkhorn
-from ott.geometry import geometry
+from ott.geometry import geometry, low_rank, pointcloud
 
 
 class LRSinkhornState(NamedTuple):
@@ -35,13 +36,14 @@ class LRSinkhornState(NamedTuple):
   g: jnp.ndarray
   gamma: float
   costs: jnp.ndarray
-  criterions: jnp.ndarray
+  errors: jnp.ndarray
   crossed_threshold: bool
 
-  def compute_criterion(self, previous_state: "LRSinkhornState") -> float:
-    err_1 = kl(self.q, previous_state.q) + kl(previous_state.q, self.q)
-    err_2 = kl(self.r, previous_state.r) + kl(previous_state.r, self.r)
-    err_3 = kl(self.g, previous_state.g) + kl(previous_state.g, self.g)
+  def compute_error(self, previous_state: "LRSinkhornState") -> float:
+    err_1 = mu.js(self.q, previous_state.q, c=1.)
+    err_2 = mu.js(self.r, previous_state.r, c=1.)
+    err_3 = mu.js(self.g, previous_state.g, c=1.)
+
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
   def reg_ot_cost(
@@ -117,7 +119,9 @@ class LRSinkhornOutput(NamedTuple):
   r: jnp.ndarray
   g: jnp.ndarray
   costs: jnp.ndarray
-  criterions: jnp.ndarray
+  # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
+  # in future, enforce via class hierarchy
+  errors: jnp.ndarray
   ot_prob: linear_problems.LinearProblem
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
@@ -165,8 +169,7 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def converged(self) -> bool:
     return jnp.logical_and(
-        jnp.sum(self.costs == -1) > 0,
-        jnp.sum(jnp.isnan(self.costs)) == 0
+        jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
     )
 
   @property
@@ -219,9 +222,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are:
 
-      - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-      - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
-      - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+        - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
+        - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
+        - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
+        - `'generalized-k-means'` -
+          :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
+
+      If `None`, :class:`~ott.core.initializers_lr.KMeansInitializer`
+      is used when the linear problem's geometry is
+      :class:`~ott.geometry.pointcloud.PointCloud` or
+      :class:`~ott.geometry.low_rank.LRCGeometry`.
+      Otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
 
     lse_mode: whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
@@ -233,7 +244,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ``implicit_diff = False`` is implemented.
     kwargs_dys: keyword arguments passed to :meth:`dykstra_update`.
     kwargs_init: keyword arguments for
-      :class:`~ott.core.initializers_lr.LRSinkhornInitializer`.
+      :class:`~ott.core.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
   """
 
@@ -243,8 +254,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.,
       gamma_rescale: bool = True,
       epsilon: float = 0.,
-      initializer: Union[Literal["random", "rank2", "k-means"],
-                         init_lib.LRSinkhornInitializer] = "random",
+      initializer: Optional[Union[Literal["random", "rank2", "k-means",
+                                          "generalized-k-means"],
+                                  init_lib.LRInitializer]] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -266,7 +278,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self._initializer = initializer
+    self.initializer = initializer
     # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
@@ -283,21 +295,22 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     Args:
       ot_prob: Linear OT problem.
-      init: Initial values for low-rank factors:
+      init: Initial values for the low-rank factors:
 
         - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
         - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
         - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.g`.
 
-        Any `None` values will be initialized using the :attr:`initializer`.
+        Any `None` values will be initialized using the initializer.
       key: Random key for seeding.
-      kwargs: Additional arguments when calling :attr:`initializer`.
+      kwargs: Additional arguments when calling the initializer.
 
     Returns:
       The low-rank Sinkhorn output.
     """
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
-    init = self.initializer(ot_prob, *init, key=key, **kwargs)
+    initializer = self.create_initializer(ot_prob)
+    init = initializer(ot_prob, *init, key=key, **kwargs)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, init)
 
@@ -307,7 +320,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state: LRSinkhornState,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     log_q, log_r, log_g = (
-        safe_log(state.q), safe_log(state.r), safe_log(state.g)
+        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
     )
 
     grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
@@ -465,8 +478,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def kernel_step(
       self, ot_prob: linear_problems.LinearProblem, state: LRSinkhornState,
       iteration: int
-  ) -> LRSinkhornState:
-    """LR Sinkhorn multiplicative update."""
+  ) -> NoReturn:
+    """Not implemented."""
     # TODO(cuturi): kernel step not implemented.
     raise NotImplementedError("Not implemented.")
 
@@ -502,18 +515,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
     )
-    criterion = state.compute_criterion(previous_state)
+    error = state.compute_error(previous_state)
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
         jnp.logical_and(
-            state.criterions[it - 1] >= self.threshold,
-            criterion < self.threshold
+            state.errors[it - 1] >= self.threshold, error < self.threshold
         )
     )
 
     return state.set(
         costs=state.costs.at[it].set(cost),
-        criterions=state.criterions.at[it].set(criterion),
+        errors=state.errors.at[it].set(error),
         crossed_threshold=crossed_threshold,
     )
 
@@ -526,31 +538,35 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Whether entropy regularization is used."""
     return self.epsilon > 0.
 
-  @property
-  def initializer(self) -> init_lib.LRSinkhornInitializer:
-    """Low-rank Sinkhorn initializer."""
-    if isinstance(self._initializer, init_lib.LRSinkhornInitializer):
-      assert self._initializer.rank == self.rank
-      return self._initializer
-    if self._initializer == "k-means":
-      return init_lib.KMeansInitializer(
-          self.rank,
-          sinkhorn_kwargs={
-              "norm_error": self._norm_error,
-              "lse_mode": self.lse_mode,
-              "jit": self.jit,
-              "implicit_diff": self.implicit_diff,
-              "use_danskin": self.use_danskin
-          },
-          **self.kwargs_init,
+  def create_initializer(
+      self, prob: linear_problems.LinearProblem
+  ) -> init_lib.LRInitializer:
+    """Create a low-rank Sinkhorn initializer.
+
+    Args:
+      prob: Linear OT problem used to determine the initializer.
+
+    Returns:
+      Low-rank initializer.
+    """
+    if isinstance(self.initializer, init_lib.LRInitializer):
+      initializer = self.initializer
+    elif self.initializer is None:
+      kind = "k-means" if isinstance(
+          prob.geom, (pointcloud.PointCloud, low_rank.LRCGeometry)
+      ) else "random"
+      initializer = init_lib.LRInitializer.from_solver(
+          self, kind=kind, **self.kwargs_init
       )
-    if self._initializer == "rank2":
-      return init_lib.Rank2Initializer(self.rank, **self.kwargs_init)
-    if self._initializer == "random":
-      return init_lib.RandomInitializer(self.rank, **self.kwargs_init)
-    raise NotImplementedError(
-        f"Initializer `{self._initializer}` is not implemented."
-    )
+    else:
+      initializer = init_lib.LRInitializer.from_solver(
+          self, kind=self.initializer, **self.kwargs_init
+      )
+
+    assert initializer.rank == self.rank, \
+        f"Expected initializer of rank `{self.rank}`, " \
+        f"found `{initializer.rank}`."
+    return initializer
 
   def init_state(
       self, ot_prob: linear_problems.LinearProblem,
@@ -564,7 +580,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         g=g,
         gamma=self.gamma,
         costs=-jnp.ones(self.outer_iterations),
-        criterions=-jnp.ones(self.outer_iterations),
+        errors=-jnp.ones(self.outer_iterations),
         crossed_threshold=False,
     )
 
@@ -586,7 +602,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         g=state.g,
         ot_prob=ot_prob,
         costs=state.costs,
-        criterions=state.criterions,
+        errors=state.errors,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
@@ -599,9 +615,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     def conv_not_crossed(prev_err: float, curr_err: float) -> bool:
       return jnp.logical_and(curr_err < prev_err, curr_err < self.threshold)
 
-    # for convergence criterion, we consider 2 possibilities:
+    # for convergence error, we consider 2 possibilities:
     # 1. we either crossed the convergence threshold; in this case we require
-    #   that the previous criterion was also below the threshold
+    #   that the previous error was also below the threshold
     # 2. we haven't crossed the threshold; in this case, we can be below or
     #   above the threshold:
     #     if we're above, we wait until we reach the convergence threshold and
@@ -613,20 +629,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     it = iteration // self.inner_iterations
     return jax.lax.cond(
         state.crossed_threshold, conv_crossed, conv_not_crossed,
-        state.criterions[it - 2], state.criterions[it - 1]
+        state.errors[it - 2], state.errors[it - 1]
     )
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
     it = iteration // self.inner_iterations
     return jnp.logical_and(
-        jnp.logical_not(jnp.isfinite(state.criterions[it - 1])),
+        jnp.logical_not(jnp.isfinite(state.errors[it - 1])),
         jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
     )
-
-  def tree_flatten(self):
-    children, aux_data = super().tree_flatten()
-    aux_data["initializer"] = aux_data.pop("_initializer")
-    return children, aux_data
 
 
 def run(
@@ -675,16 +686,3 @@ def make(
       jit=jit,
       kwargs_dys=kwargs_dys
   )
-
-
-# TODO(michalk8): move to math utils
-def kl(q1: jnp.ndarray, q2: jnp.ndarray) -> float:
-  res_1 = -jsp.special.entr(q1)
-  res_2 = q1 * safe_log(q2)
-  return jnp.sum(res_1 - res_2)
-
-
-def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
-  if eps is None:
-    eps = jnp.finfo(x.dtype).tiny
-  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))

@@ -415,6 +415,33 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
+  def test_gw_lr_warm_start_helps(self, rng: jnp.ndarray):
+    key1, key2 = jax.random.split(rng, 2)
+    rank = 3
+    geom_x = pointcloud.PointCloud(jax.random.normal(key1, (100, 5)))
+    geom_y = pointcloud.PointCloud(jax.random.normal(key2, (110, 6)))
+
+    out = gromov_wasserstein.gromov_wasserstein(
+        geom_x,
+        geom_y,
+        rank=rank,
+        store_inner_errors=True,
+        warm_start=False,
+    )
+    out_warm_start = gromov_wasserstein.gromov_wasserstein(
+        geom_x,
+        geom_y,
+        rank=rank,
+        store_inner_errors=True,
+        warm_start=True,
+    )
+
+    cost = out.reg_gw_cost
+    cost_warm_start = out_warm_start.reg_gw_cost
+    assert cost_warm_start + 5. < cost
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(out.matrix, out_warm_start.matrix)
+
 
 class TestGromovWassersteinUnbalanced:
 

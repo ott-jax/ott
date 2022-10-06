@@ -15,11 +15,13 @@
 # Lint as: python3
 """Implementation of Amos+(2017) input convex neural networks (ICNN)."""
 
-from typing import Any, Callable, Sequence, Tuple
+from typing import Any, Callable, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import optax
 from flax import linen as nn
+from flax.training import train_state
 from jax.nn import initializers
 
 from ott.core.layers import PosDefPotentials, PositiveDense
@@ -44,7 +46,7 @@ class ICNN(nn.Module):
     init_fn: choice of initialization method for weight matrices (default:
       `jax.nn.initializers.normal`).
     act_fn: choice of activation function used in network architecture
-      (needs to be convex, default: `nn.leaky_relu`).
+      (needs to be convex, default: `nn.relu`).
     pos_weights: choice to enforce positivity of weight or use regularizer.
     dim_data: data dimensionality (default: 2).
     gaussian_map: data inputs of source and target measures for
@@ -60,7 +62,7 @@ class ICNN(nn.Module):
   dim_data: int = 2
   gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
 
-  def setup(self):
+  def setup(self) -> None:
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
@@ -83,7 +85,7 @@ class ICNN(nn.Module):
     normalization = 1
     # subsequent layers propagate value of potential provided by
     # first layer in x normalization factor is rescaled accordingly
-    for i in range(0, self.num_hidden):
+    for i in range(self.num_hidden):
       w_zs.append(
           hid_dense(
               self.dim_hidden[i],
@@ -135,7 +137,10 @@ class ICNN(nn.Module):
     )
     self.w_xs = w_xs
 
-  def _compute_gaussian_map(self, inputs):
+  @staticmethod
+  def _compute_gaussian_map(
+      inputs: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
 
     def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
@@ -168,14 +173,15 @@ class ICNN(nn.Module):
 
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
-  def _compute_identity_map(self, input_dim):
+  @staticmethod
+  def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
 
     return A, b
 
   @nn.compact
-  def __call__(self, x):
+  def __call__(self, x: jnp.ndarray) -> float:
     for i in range(self.num_hidden + 2):
       if i == 0:
         z = self.w_xs[i](x)
@@ -186,3 +192,15 @@ class ICNN(nn.Module):
       if i != 0 or i != self.num_hidden + 1:
         z = self.act_fn(z)
     return jnp.squeeze(z)
+
+  def create_train_state(
+      self,
+      rng: jnp.ndarray,
+      optimizer: optax.OptState,
+      input: Union[int, Tuple[int, ...]],
+  ) -> train_state.TrainState:
+    """Create initial `TrainState`."""
+    params = self.init(rng, jnp.ones(input))["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )

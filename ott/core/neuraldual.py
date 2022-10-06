@@ -14,17 +14,19 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Iterator, Optional
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax.core import freeze
-from flax.training import train_state
-from optax._src import base
+from flax import core
+from typing_extensions import Literal
 
-from ott.core import icnn
+from ott.core import icnn, potentials
+
+Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
+Potentials_t = potentials.DualPotentials
 
 
 class NeuralDualSolver:
@@ -49,12 +51,9 @@ class NeuralDualSolver:
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
-    seed: random seed for network initialiations
-    pos_weights: option to train networks with potitive weights or regularizer
+    seed: random seed for network initializations
+    pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
-
-  Returns:
-    the `NeuralDual` containing the optimal dual potentials `f` and `g`
   """
 
   def __init__(
@@ -62,8 +61,8 @@ class NeuralDualSolver:
       input_dim: int,
       neural_f: Optional[nn.Module] = None,
       neural_g: Optional[nn.Module] = None,
-      optimizer_f: Optional[base.GradientTransformation] = None,
-      optimizer_g: Optional[base.GradientTransformation] = None,
+      optimizer_f: Optional[optax.OptState] = None,
+      optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 100,
       num_inner_iters: int = 10,
       valid_freq: int = 100,
@@ -71,7 +70,7 @@ class NeuralDualSolver:
       logging: bool = False,
       seed: int = 0,
       pos_weights: bool = True,
-      beta: int = 1.0,
+      beta: float = 1.0,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -99,8 +98,11 @@ class NeuralDualSolver:
     # set optimizer and networks
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
-  def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
-    """Setup all components required to train the `NeuralDual`."""
+  def setup(
+      self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
+      input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState
+  ) -> None:
+    """Setup all components required to train the network."""
     # split random key
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
@@ -110,20 +112,16 @@ class NeuralDualSolver:
         (neural_g.pos_weights != self.pos_weights)
     ):
       warnings.warn(
-          f"Setting of ICNN and the positive weights setting of the \
-        `NeuralDualSolver` are not consistent. Proceeding with \
-        the `NeuralDualSolver` setting, with positive weigths \
-        being {self.positive_weights}."
+          f"Setting of ICNN and the positive weights setting of the "
+          f"`NeuralDualSolver` are not consistent. Proceeding with "
+          f"the `NeuralDualSolver` setting, with positive weights "
+          f"being {self.pos_weights}."
       )
       neural_f.pos_weights = self.pos_weights
       neural_g.pos_weights = self.pos_weights
 
-    self.state_f = self.create_train_state(
-        rng_f, neural_f, optimizer_f, input_dim
-    )
-    self.state_g = self.create_train_state(
-        rng_g, neural_g, optimizer_g, input_dim
-    )
+    self.state_f = neural_f.create_train_state(rng_f, optimizer_f, input_dim)
+    self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
 
     # define train and valid step functions
     self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
@@ -138,17 +136,16 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> "NeuralDual":
+  ) -> Union[Potentials_t, Tuple[Potentials_t, Train_t]]:
     logs = self.train_neuraldual(
         trainloader_source,
         trainloader_target,
         validloader_source,
         validloader_target,
     )
-    if self.logging:
-      return NeuralDual(self.state_f, self.state_g), logs
-    else:
-      return NeuralDual(self.state_f, self.state_g)
+    res = self.to_dual_potentials()
+
+    return (res, logs) if self.logging else res
 
   def train_neuraldual(
       self,
@@ -156,7 +153,7 @@ class NeuralDualSolver:
       trainloader_target,
       validloader_source,
       validloader_target,
-  ):
+  ) -> Train_t:
     """Implementation of the training and validation script."""  # noqa: D401
     try:
       from tqdm.auto import tqdm
@@ -221,7 +218,7 @@ class NeuralDualSolver:
 
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
-  def get_step_fn(self, train, to_optimize="g"):
+  def get_step_fn(self, train: bool, to_optimize: Literal["f", "g"] = "g"):
     """Create a one-step training and evaluation function."""
 
     def loss_fn(params_f, params_g, f, g, batch):
@@ -305,12 +302,11 @@ class NeuralDualSolver:
 
     return step_fn
 
-  def create_train_state(self, rng, model, optimizer, input):
-    """Create initial `TrainState`."""
-    params = model.init(rng, jnp.ones(input))["params"]
-    return train_state.TrainState.create(
-        apply_fn=model.apply, params=params, tx=optimizer
-    )
+  def to_dual_potentials(self) -> potentials.DualPotentials:
+    """Return the Kantorovich dual potentials from the trained potentials."""
+    f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
+    g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
+    return potentials.DualPotentials(f, g)
 
   @staticmethod
   def _clip_weights_icnn(params):
@@ -319,113 +315,14 @@ class NeuralDualSolver:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
-    return freeze(params)
+    return core.freeze(params)
 
-  def _penalize_weights_icnn(self, params):
+  @staticmethod
+  def _penalize_weights_icnn(
+      params: Dict[str, jnp.ndarray]
+  ) -> Dict[str, jnp.ndarray]:
     penalty = 0
-    for k in params.keys():
+    for k, param in params.items():
       if k.startswith("w_z"):
-        penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
+        penalty += jnp.linalg.norm(jax.nn.relu(-param["kernel"]))
     return penalty
-
-
-@jax.tree_util.register_pytree_node_class
-class NeuralDual:
-  r"""Neural Kantorovich dual.
-
-  This class contains the solution of the trained Kantorovich neural
-  dual by holding the trained potentials `g` and `f`. :math:`\nabla g`
-  hereby transports source to target cells, and :math:`\nabla f` target
-  to source cells
-
-  Args:
-    state_f: optimal potential f
-    state_g: optimal potential g
-  """
-
-  def __init__(self, state_f, state_g):
-    self.state_f = state_f
-    self.state_g = state_g
-
-  def tree_flatten(self):
-    return ((self.state_f, self.state_g), None)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    return cls(*children, **aux_data)
-
-  @property
-  def f(self):
-    return self.state_f
-
-  @property
-  def g(self):
-    return self.state_g
-
-  def transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    r"""Transport source data samples with potential `g`.
-
-    Args:
-      data: source samples to be transported
-
-    Returns:
-      Transported source samples
-    """
-    return jax.vmap(
-        lambda x: jax.grad(self.g.apply_fn, argnums=1)({
-            "params": self.g.params
-        }, x)
-    )(
-        data
-    )
-
-  def inverse_transport(self, data: jnp.ndarray) -> jnp.ndarray:
-    r"""Transport target data samples with potential `f`.
-
-    Args:
-      data: target samples to be transported
-
-    Returns:
-      Transported target samples
-    """
-    return jax.vmap(
-        lambda x: jax.grad(self.f.apply_fn, argnums=1)({
-            "params": self.f.params
-        }, x)
-    )(
-        data
-    )
-
-  def distance(self, source: jnp.ndarray, target: jnp.ndarray) -> float:
-    r"""Given potentials `f` and `g`, compute the overall distance.
-
-    Args:
-      source: samples of source distribution
-      target: samples of target distribution
-
-    Returns:
-      Wasserstein distance :math:`W^2_2` assuming :math:`|x-y|^2` as ground distance
-    """
-    f_t = self.f.apply_fn({"params": self.f.params}, target)
-
-    grad_g_s = jax.vmap(
-        lambda x: jax.grad(self.g.apply_fn, argnums=1)({
-            "params": self.g.params
-        }, x)
-    )(
-        source
-    )
-
-    f_grad_g_s = self.f.apply_fn({"params": self.f.params}, grad_g_s)
-
-    s_dot_grad_g_s = jnp.sum(source * grad_g_s, axis=1)
-
-    s_sq = jnp.sum(source * source, axis=1)
-    t_sq = jnp.sum(target * target, axis=1)
-
-    # compute final wasserstein distance assuming ground metric |x-y|^2
-    # thus an additional multiplication by 2
-    dist = 2 * jnp.mean(
-        f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
-    )
-    return dist

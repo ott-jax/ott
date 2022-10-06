@@ -72,7 +72,7 @@ class TestLRSinkhorn:
     costs = solved.costs
     costs = costs[costs > -1]
 
-    criterions = solved.criterions
+    criterions = solved.errors
     criterions = criterions[criterions > -1]
 
     # Check convergence

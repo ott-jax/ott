@@ -45,7 +45,7 @@ class GWBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver for \
+  """Gromov-Wasserstein barycenter solver of the \
   :class:`~ott.core.bar_problems.GWBarycenterProblem`.
 
   Args:
@@ -199,7 +199,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
       return (
-          out.reg_gw_cost, out.convergence, out.matrix,
+          out.reg_gw_cost, out.converged, out.matrix,
           out.errors if store_errors else None
       )
 

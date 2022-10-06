@@ -59,6 +59,15 @@ Low-Rank Sinkhorn Initializers
     initializers_lr.RandomInitializer
     initializers_lr.Rank2Initializer
     initializers_lr.KMeansInitializer
+    initializers_lr.GeneralizedKMeansInitializer
+
+Quadratic Initializers
+----------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    quad_initializers.QuadraticInitializer
+    quad_initializers.LRQuadraticInitializer
 
 Barycenters (Entropic and LR)
 -----------------------------
@@ -80,14 +89,21 @@ Gromov-Wasserstein (Entropic and LR)
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
 
-Neural Potentials
------------------
+Dual Potentials
+---------------
+.. autosummary::
+    :toctree: _autosummary
+
+    potentials.DualPotentials
+    potentials.EntropicPotentials
+
+Neural Dual Potentials
+----------------------
 .. autosummary::
     :toctree: _autosummary
 
     icnn.ICNN
     neuraldual.NeuralDualSolver
-    neuraldual.NeuralDual
 
 Padding Utilities
 -----------------
