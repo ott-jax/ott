@@ -33,16 +33,18 @@ class SinkhornDivergenceOutput(NamedTuple):
   errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
+  a: jnp.ndarray
+  b: jnp.ndarray
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
-    """Return the entropic map estimator."""
+    """Return dual estimators, (8) in https://arxiv.org/pdf/2202.08919.pdf ."""
     geom_xy, *_ = self.geoms
     (f_xy, g_xy), (f_x, g_x), (f_y, g_y) = self.potentials
 
-    f = f_xy + f_x
-    g = g_xy if g_y is None else (g_xy + g_y)  # case when `static_b=True`
+    f = f_xy - f_x
+    g = g_xy if g_y is None else (g_xy - g_y)  # case when `static_b=True`
 
-    return potentials.EntropicPotentials(f, g, geom_xy)
+    return potentials.EntropicPotentials(f, g, geom_xy, self.a, self.b)
 
 
 def sinkhorn_divergence(
@@ -162,7 +164,7 @@ def _sinkhorn_divergence(
   return SinkhornDivergenceOutput(
       div, tuple([s.f, s.g] for s in out),
       (geometry_xy, geometry_xx, geometry_yy), tuple(s.errors for s in out),
-      tuple(s.converged for s in out)
+      tuple(s.converged for s in out), a, b
   )
 
 

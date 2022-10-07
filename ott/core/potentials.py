@@ -22,14 +22,23 @@ class DualPotentials:
   Args:
     f: The first dual potential function.
     g: The second dual potential function.
+    cor: whether the duals solve the problem in distance form, or correlation
+      form (as used for instance for ICNNs, see e.g. top right of p.3 in
+      http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf)
   """
 
-  def __init__(self, f: Potential_t, g: Potential_t):
+  def __init__(self, f: Potential_t, g: Potential_t, *, cor: bool = False):
     self._f = f
     self._g = g
+    self._cor = cor
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport ``vec`` according to Benamou-Brenier formula.
+    """Transport ``vec`` according to Brenier formula.
+
+    Theorem 1.17 in http://math.univ-lyon1.fr/~santambrogio/OTAM-cvgmt.pdf
+    for case h(.) = ||.||^2, ∇h(.) = 2 ., [∇h]^-1(.) = 0.5 * .
+
+    or, when solved in correlation form, as ∇g for forward, ∇f for backward.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
@@ -40,12 +49,15 @@ class DualPotentials:
       The transported points.
     """
     vec = jnp.atleast_2d(vec)
-    return self._grad_g(vec) if forward else self._grad_f(vec)
+    if self._cor:
+      return self._grad_g(vec) if forward else self._grad_f(vec)
+    return vec - 0.5 * (self._grad_f(vec) if forward else self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20`.
+    Uses Eq. 5 from :cite:`makkuva:20` when given in cor form, direct estimation
+    by integrating dual function against points when using dual form.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
@@ -56,18 +68,25 @@ class DualPotentials:
       ground distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
+
     f = jax.vmap(self.f)
 
-    grad_g_y = self._grad_g(src)
-    term1 = -jnp.mean(f(tgt))
-    term2 = -jnp.mean(jnp.sum(src * grad_g_y, axis=-1) - f(grad_g_y))
+    if self._cor:
+      grad_g_y = self._grad_g(tgt)
+      term1 = -jnp.mean(f(src))
+      term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
 
-    C = jnp.mean(jnp.sum(src ** 2, axis=-1)) + \
-        jnp.mean(jnp.sum(tgt ** 2, axis=-1))
+      C = jnp.mean(jnp.sum(src ** 2, axis=-1))
+      C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
+      return 2. * (term1 + term2) + C
+    else:
+      g = jax.vmap(self.g)
+      C = jnp.mean(f(src))
+      C += jnp.mean(g(tgt))
+      return C
 
     # compute the final Wasserstein distance assuming ground metric |x-y|^2,
     # thus an additional multiplication by 2
-    return 2. * (term1 + term2) + C
 
   @property
   def f(self) -> Potential_t:
@@ -141,7 +160,11 @@ class EntropicPotentials(DualPotentials):
 
     def callback(x: jnp.ndarray) -> float:
       cost = pointcloud.PointCloud(
-          jnp.atleast_2d(x), y, epsilon=eps
+          jnp.atleast_2d(x),
+          y,
+          cost_fn=self._geom._cost_fn,
+          power=self._geom.power,
+          epsilon=1.0  #  epsilon is not used
       ).cost_matrix
       return -eps * jsp.special.logsumexp((potential - cost) / eps,
                                           b=prob_weights)
@@ -160,9 +183,6 @@ class EntropicPotentials(DualPotentials):
       prob_weights = self._b
 
     return callback
-
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    return vec + super().transport(vec, forward=forward)
 
   @property
   def epsilon(self) -> float:

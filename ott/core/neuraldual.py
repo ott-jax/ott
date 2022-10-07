@@ -306,7 +306,7 @@ class NeuralDualSolver:
     """Return the Kantorovich dual potentials from the trained potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
-    return potentials.DualPotentials(f, g)
+    return potentials.DualPotentials(f, g, cor=True)
 
   @staticmethod
   def _clip_weights_icnn(params):
