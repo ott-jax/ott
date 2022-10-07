@@ -259,17 +259,16 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
     Returns:
       A GaussianMixturePair with updated parameters.
     """
-    params = (pair,)
-    state = opt_init(params)
+    state = opt_init((pair,))
 
     for _ in range(steps):
       grad_objective = grad_objective_fn(pair, obs0, obs1)
-      updates, state = opt_update(grad_objective, state, params)
-      params = optax.apply_updates(params, updates)
-      for j, gmm in enumerate((params[0].gmm0, params[0].gmm1)):
+      updates, state = opt_update(grad_objective, state, (pair,))
+      (pair,) = optax.apply_updates((pair,), updates)
+      for j, gmm in enumerate((pair.gmm0, pair.gmm1)):
         if gmm.has_nans():
           raise ValueError(f'NaN in gmm{j}')
-    return params[0]
+    return pair
 
   return _m_step_fn
 
