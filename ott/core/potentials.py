@@ -111,20 +111,21 @@ class EntropicPotentials(DualPotentials):
   """
 
   def __init__(
-      self, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud
+      self, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud,
+      a: jnp.ndarray, b: jnp.ndarray
   ):
-    assert geom.is_squared_euclidean, \
-        "Entropic map is only implemented for squared Euclidean cost."
     n, m = geom.shape
-    assert f.shape == (n,), \
-        f"Expected `f` to be of shape `{n,}`, found `{f.shape}`."
-    assert g.shape == (m,), \
-        f"Expected `g` to be of shape `{m,}`, found `{g.shape}`."
+    assert f.shape == (n,) and a.shape == (n,), \
+        f"Expected `f` and `a` to be of shape `{n,}`, found `{f.shape}`."
+    assert g.shape == (m,) and b.shape == (m,), \
+        f"Expected `g` and `b` to be of shape `{m,}`, found `{g.shape}`."
 
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
     super().__init__(f, g)
     self._geom = geom
+    self._a = a
+    self._b = b
 
   @property
   def f(self) -> Potential_t:
@@ -142,15 +143,18 @@ class EntropicPotentials(DualPotentials):
       cost = pointcloud.PointCloud(
           jnp.atleast_2d(x), y, epsilon=eps
       ).cost_matrix
-      return 0.5 * eps * jsp.special.logsumexp((potential - cost) / eps)
+      return -eps * jsp.special.logsumexp((potential - cost) / eps,
+                                          b=prob_weights)
 
     eps = self.epsilon
     if kind == "f":
       potential = self._f
       y = self._geom.x
+      prob_weights = self._a
     else:
       potential = self._g
       y = self._geom.y
+      prob_weights = self._b
 
     return callback
 
