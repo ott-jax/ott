@@ -728,6 +728,7 @@ class TestSinkhornJacobianPreconditioning:
 
 class TestSinkhornHessian:
 
+  @pytest.mark.skip(reason="0^0 handling issue.")
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
       tau_a=[1.0, .93],
