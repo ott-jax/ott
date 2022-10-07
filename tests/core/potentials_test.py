@@ -11,16 +11,12 @@ from ott.tools.gaussian_mixture import gaussian
 
 class TestEntropicPotentials:
 
-  @pytest.mark.fast.with_args(
-      forward=[False, True], eps=[1e-2, 1e-1], only_fast=0
-  )
-  def test_entropic_potentials(
-      self, rng: jnp.ndarray, forward: bool, eps: float
-  ):
+  @pytest.mark.fast.with_args(eps=[1e-2, 1e-1], only_fast=0)
+  def test_entropic_potentials_dist(self, rng: jnp.ndarray, eps: float):
     n1, n2, d = 64, 96, 2
     key1, key2, key3, key4 = jax.random.split(rng, 4)
 
-    mean1, mean2 = jnp.zeros(d), jnp.ones(d) * 4
+    mean1, mean2 = jnp.zeros(d), jnp.ones(d) * 2
     cov1, cov2 = jnp.eye(d), jnp.array([[2, 0], [0, 0.5]])
     g1 = gaussian.Gaussian.from_mean_and_cov(mean1, cov1)
     g2 = gaussian.Gaussian.from_mean_and_cov(mean2, cov2)
@@ -36,7 +32,28 @@ class TestEntropicPotentials:
     expected_dist = jnp.sum(out.matrix * geom.cost_matrix)
     actual_dist = potentials.distance(x, y)
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
-    assert rel_error < 0.11
+    assert rel_error < 2 * eps
+
+  @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
+  def test_entropic_potentials_displacement(
+      self, rng: jnp.ndarray, forward: bool
+  ):
+    n1, n2, d = 96, 128, 2
+    eps = 1e-2
+    key1, key2, key3, key4 = jax.random.split(rng, 4)
+
+    mean1, mean2 = jnp.zeros(d), jnp.ones(d) * 2
+    cov1, cov2 = jnp.eye(d), jnp.array([[1.5, 0], [0, 0.8]])
+    g1 = gaussian.Gaussian.from_mean_and_cov(mean1, cov1)
+    g2 = gaussian.Gaussian.from_mean_and_cov(mean2, cov2)
+    x = g1.sample(key1, n1)
+    y = g2.sample(key2, n2)
+
+    geom = pointcloud.PointCloud(x, y, epsilon=eps)
+    prob = linear_problems.LinearProblem(geom)
+    out = Sinkhorn()(prob)
+    assert out.converged
+    potentials = out.to_dual_potentials()
 
     x_test = g1.sample(key3, n1 + 1)
     y_test = g2.sample(key4, n2 + 2)
@@ -48,8 +65,8 @@ class TestEntropicPotentials:
       actual_points = potentials.transport(y_test, forward=forward)
 
     # TODO(michalk8): better error measure
-    error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=1))
-    assert error <= 0.6
+    error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
+    assert error <= 0.3
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(self, rng: jnp.ndarray, jit: bool):
