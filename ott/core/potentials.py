@@ -149,7 +149,7 @@ class EntropicPotentials(DualPotentials):
     eps = self.epsilon
     if kind == "g":
       # When seeking to evaluate 2nd potential function, 1st set of potential
-      # values and support should be used, 
+      # values and support should be used,
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential = self._f
       y = self._geom.x
