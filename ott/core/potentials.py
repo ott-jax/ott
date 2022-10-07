@@ -109,7 +109,7 @@ class DualPotentials:
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g], {}
+    return [self._f, self._g], {"cor": self._cor}
 
   @classmethod
   def tree_unflatten(
@@ -190,5 +190,4 @@ class EntropicPotentials(DualPotentials):
     return self._geom.epsilon
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    children, aux_data = super().tree_flatten()
-    return children + [self._geom], aux_data
+    return [self._f, self._g, self._geom, self._a, self._b], {}
