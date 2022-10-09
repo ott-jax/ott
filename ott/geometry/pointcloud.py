@@ -593,10 +593,9 @@ class PointCloud(geometry.Geometry):
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
         return self._sqeucl_to_lr(scale)
-      (x, y, *children), aux_data = self.tree_flatten()
-      x = x * jnp.sqrt(scale)
-      y = y * jnp.sqrt(scale)
-      return type(self).tree_unflatten(aux_data, [x, y] + children)
+      # TODO(michalk8): explain why we don't update scale factor
+      return self
+    # TODO(michalk8): pass scale factor
     return super().to_LRCGeometry(**kwargs)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
@@ -613,12 +612,10 @@ class PointCloud(geometry.Geometry):
                                   keepdims=True), jnp.sqrt(2) * self.y
     ),
                              axis=1)
-    cost_1 *= jnp.sqrt(scale)
-    cost_2 *= jnp.sqrt(scale)
-
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
+        scale_factor=scale,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,

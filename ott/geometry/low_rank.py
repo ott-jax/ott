@@ -47,7 +47,8 @@ class LRCGeometry(geometry.Geometry):
       self,
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
-      bias: float = 0.0,
+      bias: float = 0.,
+      scale_factor: float = 1.,
       scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
                                                   'max_cost']] = 1.0,
       batch_size: Optional[int] = None,
@@ -57,6 +58,7 @@ class LRCGeometry(geometry.Geometry):
     self._cost_1 = cost_1
     self._cost_2 = cost_2
     self._bias = bias
+    self._scale_factor = scale_factor
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
@@ -66,12 +68,14 @@ class LRCGeometry(geometry.Geometry):
   @property
   def cost_1(self) -> jnp.ndarray:
     """First factor of the :attr:`cost_matrix`."""
-    return self._cost_1 * jnp.sqrt(self.inv_scale_cost)
+    scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
+    return scale_factor * self._cost_1
 
   @property
   def cost_2(self) -> jnp.ndarray:
     """Second factor of the :attr:`cost_matrix`."""
-    return self._cost_2 * jnp.sqrt(self.inv_scale_cost)
+    scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
+    return scale_factor * self._cost_2
 
   @property
   def bias(self) -> float:
@@ -290,6 +294,7 @@ class LRCGeometry(geometry.Geometry):
         self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
     ), {
         'bias': self._bias,
+        'scale_factor': self._scale_factor,
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
     }
