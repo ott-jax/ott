@@ -342,6 +342,8 @@ class KMeansInitializer(LRInitializer):
 
   Args:
     rank: Rank of the factorization.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
     sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
     kwargs: Keyword arguments for :func:`~ott.tools.k_means.k_means`.
   """
@@ -349,10 +351,14 @@ class KMeansInitializer(LRInitializer):
   def __init__(
       self,
       rank: int,
+      min_iterations: int = 100,
+      max_iterations: int = 100,
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(rank, **kwargs)
+    self._min_iter = min_iterations
+    self._max_iter = max_iterations
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
   @staticmethod
@@ -381,7 +387,12 @@ class KMeansInitializer(LRInitializer):
 
     del kwargs
     jit = self._sinkhorn_kwargs.get("jit", True)
-    fn = functools.partial(k_means.k_means, **self._kwargs)
+    fn = functools.partial(
+        k_means.k_means,
+        min_iterations=self._min_iter,
+        max_iterations=self._max_iter,
+        **self._kwargs
+    )
     fn = jax.jit(fn, static_argnames="k") if jit else fn
 
     if isinstance(ot_prob, quad_problems.QuadraticProblem):
@@ -436,6 +447,8 @@ class KMeansInitializer(LRInitializer):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
+    aux_data["min_iterations"] = self._min_iter
+    aux_data["max_iterations"] = self._max_iter
     return children, aux_data
 
 
