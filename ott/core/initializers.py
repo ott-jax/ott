@@ -311,7 +311,7 @@ class MetaOTInitializer(DefaultInitializer):
     geom: The fixed geometry of the problem instances
     meta_model: The model to predict the potential f from the measures
     opt: The optimizer to update the parameters
-    init_key: The PRNG key to use for initializing the model
+    rng: The PRNG key to use for initializing the model
   """
 
   def __init__(
@@ -319,7 +319,7 @@ class MetaOTInitializer(DefaultInitializer):
       geom,
       meta_model: nn.Module = None,
       opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
-      init_key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
@@ -339,8 +339,7 @@ class MetaOTInitializer(DefaultInitializer):
     # Initialize the model.
     a_placeholder = jnp.zeros(na, dtype=self.dtype)
     b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-    params = self.meta_model.init(init_key, a_placeholder,
-                                  b_placeholder)['params']
+    params = self.meta_model.init(rng, a_placeholder, b_placeholder)['params']
     self.state = train_state.TrainState.create(
         apply_fn=self.meta_model.apply, params=params, tx=opt
     )
