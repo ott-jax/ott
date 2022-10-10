@@ -22,7 +22,7 @@ import optax
 from flax import linen as nn
 from flax.training import train_state
 
-from ott.core import linear_problems
+from ott.core import linear_problems, sinkhorn
 from ott.geometry import pointcloud
 
 __all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
@@ -404,63 +404,41 @@ class MetaOTInitializer(DefaultInitializer):
     f_u = init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
     return f_u
 
-  def _dual_obj_from_f(self, a, b, f):
-    r"""Compute the entropic dual objective from the potential.
-
-    The entropic dual objective is
-
-    .. math::
-      \\langle f, a\rangle + \\langle g, b \rangle - \\epsilon\\left\\langle \\exp\\{f/\\epsilon\\}, K\\exp\\{g/\\epsilon\\}\right\rangle,
-
-    where :math:`K_{i,j} := -C_{i,j}/\\epsilon` is the *Gibbs kernel*.
-
-    Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms
-      b: Probabilites of the :math:`\beta` measure's atoms
-      f: Potential :math:``f
-
-    Returns:
-      The entropic dual objective
-    """
-    g = self.geom.update_potential(f, jnp.zeros_like(b), jnp.log(b), 0, axis=0)
-    g = jnp.where(jnp.isfinite(g), g, 0.)
-
-    supp_a = a > 0
-    supp_b = b > 0
-    fa = supp_a * self.geom.potential_from_scaling(a)
-    div_a = jnp.sum(jnp.where(supp_a, a * (f - fa), 0.0))
-
-    gb = supp_b * self.geom.potential_from_scaling(b)
-    div_b = jnp.sum(jnp.where(supp_b, b * (g - gb), 0.0))
-
-    total_sum = jnp.sum(self.geom.marginal_from_potentials(f, g))
-    dual_obj = div_a + div_b + self.geom.epsilon * (
-        jnp.sum(a) * jnp.sum(b) - total_sum
-    )
-
-    return dual_obj
-
-  def _dual_obj_loss(self, a, b, params):
-    r"""Compute the dual loss for a coupling problem (the negated dual objective).
-
-    Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms
-      b: Probabilites of the :math:`\beta` measure's atoms
-      params: The parameters of the Meta model.
-
-    Returns:
-      The dual loss (the negated dual objective)
-    """
-    f_pred = self._compute_f(a, b, params)
-    dual_value = self._dual_obj_from_f(a, b, f_pred)
-    loss = -dual_value
-    return loss, f_pred
-
   def _get_update_fn(self):
     """Return the implementation (and jitted) update function."""
 
+    def dual_obj_loss_single(params, a, b):
+      r"""Compute the loss for a single coupling problem.
+
+      The loss :math:`J` is the negated entropy-regularized objective and
+      is given by
+
+      .. math::
+        -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle - \epsilon\left\langle \exp\{f/\epsilon\}, K\exp\{g/\epsilon\}\right\rangle
+
+      where :math:`K_{i,j} := -C_{i,j}/\\epsilon` is the *Gibbs kernel*.
+
+      Args:
+        a: Probabilites of the :math:`\alpha` measure's atoms
+        b: Probabilites of the :math:`\beta` measure's atoms
+        params: The parameters of the Meta model.
+
+      Returns:
+        The dual loss (the negated dual objective)
+      """
+      f_pred = self._compute_f(a, b, params)
+      g_pred = self.geom.update_potential(
+          f_pred, jnp.zeros_like(b), jnp.log(b), 0, axis=0
+      )
+      g_pred = jnp.where(jnp.isfinite(g_pred), g_pred, 0.)
+
+      ot_prob = linear_problems.LinearProblem(geom=self.geom, a=a, b=b)
+      dual_obj = sinkhorn.ent_reg_cost(f_pred, g_pred, ot_prob, lse_mode=True)
+      loss = -dual_obj
+      return loss, f_pred
+
     def loss_batch(params, a, b):
-      loss_fn = functools.partial(self._dual_obj_loss, params=params)
+      loss_fn = functools.partial(dual_obj_loss_single, params=params)
       loss, f_pred = jax.vmap(loss_fn)(a=a, b=b)
       return jnp.mean(loss), f_pred
 
