@@ -134,6 +134,30 @@ class TestSinkhornInitializers:
     _ = init_sort()
 
   @pytest.mark.parametrize(
+      "init", [
+          "default", "gaussian", "sorting",
+          init_lib.DefaultInitializer(), "non-existent"
+      ]
+  )
+  def test_create_initializer(self, init: str):
+    solver = sinkhorn.Sinkhorn(initializer=init)
+    expected_types = {
+        "default": init_lib.DefaultInitializer,
+        "gaussian": init_lib.GaussianInitializer,
+        "sorting": init_lib.SortingInitializer,
+    }
+
+    if isinstance(init, init_lib.SinkhornInitializer):
+      assert solver.create_initializer() is init
+    elif init == "non-existent":
+      with pytest.raises(NotImplementedError, match=r""):
+        _ = solver.create_initializer()
+    else:
+      actual = solver.create_initializer()
+      expected_type = expected_types[init]
+      assert isinstance(actual, expected_type)
+
+  @pytest.mark.parametrize(
       "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
   )
   def test_sorting_init(self, vector_min: bool, lse_mode: bool):
@@ -267,10 +291,9 @@ class TestSinkhornInitializers:
       assert base_num_iter >= gaus_num_iter
 
 
-# TODO(michalk8): mark tests as fast
 class TestLRInitializers:
 
-  @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
+  @pytest.mark.fast.with_args("kind", ["pc", "lrc", "geom"], only_fast=0)
   def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
     n, d, rank = 110, 2, 3
     x = jax.random.normal(rng, (n, d))
@@ -340,7 +363,7 @@ class TestLRInitializers:
     else:
       raise NotImplementedError(partial_init)
 
-  @pytest.mark.parametrize("rank", [2, 4, 10, 13])
+  @pytest.mark.fast.with_args("rank", [2, 4, 10, 13], only_fast=True)
   def test_generalized_k_means_has_correct_rank(
       self, rng: jnp.ndarray, rank: int
   ):

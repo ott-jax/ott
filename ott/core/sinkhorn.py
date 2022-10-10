@@ -14,11 +14,12 @@
 
 # Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from typing_extensions import Literal
 
 from ott.core import anderson as anderson_lib
 from ott.core import fixed_point_loop
@@ -335,11 +336,12 @@ class Sinkhorn:
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
+    initializer: how to compute the initial potentials/scalings.
+    kwargs_init: keyword arguments when creating the initializer.
     jit: if True, automatically jits the function upon first call.
       Should be set to False when used in a function that is jitted by the user,
       or when computing gradients (in which case the gradient function
       should be jitted by the user)
-    initializer: how to compute the initial potentials/scalings.
   """
 
   def __init__(
@@ -356,7 +358,9 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      initializer: init_lib.SinkhornInitializer = init_lib.DefaultInitializer(),
+      initializer: Union[Literal["default", "gaussian", "sorting"],
+                         init_lib.SinkhornInitializer] = "default",
+      kwargs_init: Optional[Mapping[str, Any]] = None,
       jit: bool = True
   ):
     self.lse_mode = lse_mode
@@ -377,6 +381,7 @@ class Sinkhorn:
     self.implicit_diff = implicit_diff
     self.parallel_dual_updates = parallel_dual_updates
     self.initializer = initializer
+    self.kwargs_init = {} if kwargs_init is None else kwargs_init
     self.jit = jit
 
     # Force implicit_differentiation to True when using Anderson acceleration,
@@ -408,7 +413,8 @@ class Sinkhorn:
     Returns:
       The Sinkhorn output.
     """
-    init_dual_a, init_dual_b = self.initializer(
+    initializer = self.create_initializer()
+    init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode
     )
     run_fn = jax.jit(run) if self.jit else run
@@ -577,6 +583,20 @@ class Sinkhorn:
     if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
       return self._norm_error, 1
     return self._norm_error,
+
+  # TODO(michalk8): in the future, enforce this (+ in GW) via abstract method
+  def create_initializer(self) -> init_lib.SinkhornInitializer:
+    if isinstance(self.initializer, init_lib.SinkhornInitializer):
+      return self.initializer
+    if self.initializer == "default":
+      return init_lib.DefaultInitializer()
+    if self.initializer == "gaussian":
+      return init_lib.GaussianInitializer()
+    if self.initializer == "sorting":
+      return init_lib.SortingInitializer(**self.kwargs_init)
+    raise NotImplementedError(
+        f"Initializer `{self.initializer}` is not yet implemented."
+    )
 
   def tree_flatten(self):
     aux = vars(self).copy()
