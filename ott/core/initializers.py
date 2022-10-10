@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Sinkhorn initializers."""
+import functools
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+import optax
+from flax import linen as nn
+from flax.training import train_state
 
 from ott.core import linear_problems
 from ott.geometry import pointcloud
@@ -276,6 +280,252 @@ class SortingInitializer(DefaultInitializer):
     )
 
     return f_u
+
+
+@jax.tree_util.register_pytree_node_class
+class MetaOTInitializer(DefaultInitializer):
+  """Meta OT Initializer :cite:`amos:22`.
+
+  This initializer predicts the solution to the coupling problem
+  and is useful when repeatedly soving similar problems with
+  fixed geometries and changing measure probabilities.
+  The meta model defaults to the MLP in
+  :class:`~ott.core.initializers.Meta_MLP` and
+  needs to be trained by passing (ideally batched)
+  problem instances into ``update``.
+
+  **Sample training usage.** The following code shows a simple
+  example of using ``update`` to train the model, where
+  ``a`` and ``b`` are the weights of the measures and
+  ``geom`` is the fixed geometry.
+
+  .. code-block:: python
+
+    meta_initializer = init_lib.MetaOTInitializer(geom=geom)
+    while training():
+      a, b = sample_batch()
+      loss, init_f, meta_initializer.state = meta_initializer.update(
+        meta_initializer.state, a=a, b=b)
+
+  Args:
+    geom: The fixed geometry of the problem instances
+    meta_model: The model to predict the potential f from the measures
+    opt: The optimizer to update the parameters
+    init_key: The PRNG key to use for initializing the model
+  """
+
+  def __init__(
+      self,
+      geom,
+      meta_model: nn.Module = None,
+      opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
+      init_key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+  ):
+    self.geom = geom
+    self.dtype = geom.x.dtype
+    self.opt = opt
+
+    na, nb = geom.shape
+    if meta_model is None:
+      # Default to a Meta_MLP if not specified.
+      self.meta_model = Meta_MLP(
+          num_hidden_units=512,
+          num_hidden_layers=2,
+          potential_size=na,
+      )
+    else:
+      self.meta_model = meta_model
+
+    # Initialize the model.
+    a_placeholder = jnp.zeros(na, dtype=self.dtype)
+    b_placeholder = jnp.zeros(nb, dtype=self.dtype)
+    params = self.meta_model.init(init_key, a_placeholder,
+                                  b_placeholder)['params']
+    self.state = train_state.TrainState.create(
+        apply_fn=self.meta_model.apply, params=params, tx=opt
+    )
+    self.update_impl = jax.jit(self._get_update_fn())
+
+  def update(self, state: train_state.TrainState, a: jnp.array, b: jnp.array):
+    r"""Update the meta model with the dual objective.
+
+    The goal is for the model to match the optimal duals, i.e.,
+    :math:`\hat f_\theta \approx f^\star`.
+    This can be done by training the predictions of :math:`\hat f_\theta`
+    to optimize the dual objective, which :math:`f^\star` also optimizes for.
+    The overall learning setup can thus be written as:
+
+    .. math::
+      \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\; J(\hat f_\theta(a, b); \alpha, \beta),
+
+
+    where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`,
+    :math:`\mathcal{D}` is a meta distribution of optimal transport problems,
+
+    .. math::
+      -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle - \epsilon\left\langle \exp\{f/\epsilon\}, K\exp\{g/\epsilon\}\right\rangle
+
+    is the entropic dual objective,
+    and :math:`K_{i,j} := -C_{i,j}/\epsilon` is the *Gibbs kernel*.
+
+    Args:
+      state: Optimizer state of the meta model.
+      a: Probabilites of the :math:`\alpha` measure's atoms
+      b: Probabilites of the :math:`\beta` measure's atoms
+
+    Returns:
+      The training loss, :math:`f`, and updated state
+    """
+    return self.update_impl(state, a, b)
+
+  def init_dual_a(
+      self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
+  ) -> jnp.ndarray:
+    # Detect if the problem is batched.
+    if ot_prob.a.ndim == 1:
+      vmap_a_val = None
+    else:
+      assert ot_prob.a.ndim == 2
+      vmap_a_val = 0
+
+    if ot_prob.b.ndim == 1:
+      vmap_b_val = None
+    else:
+      assert ot_prob.b.ndim == 2
+      vmap_b_val = 0
+
+    if vmap_a_val is not None or vmap_b_val is not None:
+      compute_f_maybe_batch = jax.vmap(
+          self._compute_f, in_axes=(vmap_a_val, vmap_b_val, None)
+      )
+    else:
+      compute_f_maybe_batch = self._compute_f
+
+    init_f = compute_f_maybe_batch(ot_prob.a, ot_prob.b, self.state.params)
+    f_u = init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
+    return f_u
+
+  def _dual_obj_from_f(self, a, b, f):
+    r"""Compute the entropic dual objective from the potential.
+
+    The entropic dual objective is
+
+    .. math::
+      \\langle f, a\rangle + \\langle g, b \rangle - \\epsilon\\left\\langle \\exp\\{f/\\epsilon\\}, K\\exp\\{g/\\epsilon\\}\right\rangle,
+
+    where :math:`K_{i,j} := -C_{i,j}/\\epsilon` is the *Gibbs kernel*.
+
+    Args:
+      a: Probabilites of the :math:`\alpha` measure's atoms
+      b: Probabilites of the :math:`\beta` measure's atoms
+      f: Potential :math:``f
+
+    Returns:
+      The entropic dual objective
+    """
+    g = self.geom.update_potential(f, jnp.zeros_like(b), jnp.log(b), 0, axis=0)
+    g = jnp.where(jnp.isfinite(g), g, 0.)
+
+    supp_a = a > 0
+    supp_b = b > 0
+    fa = supp_a * self.geom.potential_from_scaling(a)
+    div_a = jnp.sum(jnp.where(supp_a, a * (f - fa), 0.0))
+
+    gb = supp_b * self.geom.potential_from_scaling(b)
+    div_b = jnp.sum(jnp.where(supp_b, b * (g - gb), 0.0))
+
+    total_sum = jnp.sum(self.geom.marginal_from_potentials(f, g))
+    dual_obj = div_a + div_b + self.geom.epsilon * (
+        jnp.sum(a) * jnp.sum(b) - total_sum
+    )
+
+    return dual_obj
+
+  def _dual_obj_loss(self, a, b, params):
+    r"""Compute the dual loss for a coupling problem (the negated dual objective).
+
+    Args:
+      a: Probabilites of the :math:`\alpha` measure's atoms
+      b: Probabilites of the :math:`\beta` measure's atoms
+      params: The parameters of the Meta model.
+
+    Returns:
+      The dual loss (the negated dual objective)
+    """
+    f_pred = self._compute_f(a, b, params)
+    dual_value = self._dual_obj_from_f(a, b, f_pred)
+    loss = -dual_value
+    return loss, f_pred
+
+  def _get_update_fn(self):
+    """Return the implementation (and jitted) update function."""
+
+    def loss_batch(params, a, b):
+      loss_fn = functools.partial(self._dual_obj_loss, params=params)
+      loss, f_pred = jax.vmap(loss_fn)(a=a, b=b)
+      return jnp.mean(loss), f_pred
+
+    @jax.jit
+    def update(state, a, b):
+      if a.ndim == 1:
+        a = jnp.expand_dims(a, 0)
+
+      if b.ndim == 1:
+        b = jnp.expand_dims(b, 0)
+
+      grad_fn = jax.value_and_grad(loss_batch, has_aux=True)
+      (loss, init_f), grads = grad_fn(state.params, a, b)
+      return loss, init_f, state.apply_gradients(grads=grads)
+
+    return update
+
+  def _compute_f(self, a, b, params):
+    r"""Predict the optimal :math:`f` potential.
+
+    Args:
+      a: Probabilites of the :math:`\alpha` measure's atoms
+      b: Probabilites of the :math:`\beta` measure's atoms
+      params: The parameters of the Meta model.
+
+    Returns:
+      The :math:`f` potential
+    """
+    return self.meta_model.apply({'params': params}, a, b)
+
+
+class Meta_MLP(nn.Module):
+  r"""A Meta MLP potential for :class:`~ott.core.initializers.MetaOTInitializer`.
+
+  This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the probabilities
+  of the measures to the optimal dual potentials :math:`f`.
+
+  Args:
+    num_hidden_units: The number of hidden units in each layer.
+    num_hidden_layers: The number of hidden layers.
+    potential_size: The dimensionality of :math:`f`.
+  """
+
+  num_hidden_units: int
+  num_hidden_layers: int
+  potential_size: int
+
+  @nn.compact
+  def __call__(self, a, b):
+    r"""Make a prediction.
+
+    Args:
+      a: Probabilites of the :math:`\alpha` measure's atoms
+      b: Probabilites of the :math:`\beta` measure's atoms
+
+    Returns:
+      The :math:`f` potential
+    """
+    dtype = a.dtype
+    z = jnp.concatenate((a, b))
+    for _ in range(self.num_hidden_layers):
+      z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
+    f = nn.Dense(self.potential_size, dtype=dtype)(z)
+    return f
 
 
 def _vectorized_update(
