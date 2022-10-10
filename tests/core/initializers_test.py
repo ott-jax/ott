@@ -316,7 +316,7 @@ class TestSinkhornInitializers:
     base_num_iter = jnp.sum(sink_out.errors > -1)
 
     # Overfit the initializer to the problem.
-    meta_initializer = init_lib.MetaOTInitializer(geom)
+    meta_initializer = init_lib.FixedGeometryMetaOTInitializer(geom)
     for _ in range(100):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b

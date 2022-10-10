@@ -25,7 +25,10 @@ from flax.training import train_state
 from ott.core import linear_problems, sinkhorn
 from ott.geometry import pointcloud
 
-__all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
+__all__ = [
+    "DefaultInitializer", "GaussianInitializer", "SortingInitializer",
+    "FixedGeometryMetaOTInitializer"
+]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -283,16 +286,19 @@ class SortingInitializer(DefaultInitializer):
 
 
 @jax.tree_util.register_pytree_node_class
-class MetaOTInitializer(DefaultInitializer):
-  """Meta OT Initializer :cite:`amos:22`.
+class FixedGeometryMetaOTInitializer(DefaultInitializer):
+  """Meta OT Initializer with a fixed geometry :cite:`amos:22`.
 
-  This initializer predicts the solution to the coupling problem
-  and is useful when repeatedly soving similar problems with
-  fixed geometries and changing measure probabilities.
-  The meta model defaults to the MLP in
-  :class:`~ott.core.initializers.Meta_MLP` and
-  needs to be trained by passing (ideally batched)
-  problem instances into ``update``.
+  This initializer consists of a predictive model that outputs the
+  $f$ duals to solve the entropy-regularized OT problem given
+  input probability weights `a` and `b`, and a given (assumed to be
+  fixed) geometry `geom`.
+  The model's parameters are learned using a training set of OT
+  instances (multiple pairs of probability weights), that assume the
+  **same** geometry `geom` is used throughout, both for training and
+  evaluation. The meta model defaults to the MLP in
+  :class:`~ott.core.initializers.Meta_MLP` and, with batched problem
+  instances passed into `update`.
 
   **Sample training usage.** The following code shows a simple
   example of using ``update`` to train the model, where
@@ -301,7 +307,7 @@ class MetaOTInitializer(DefaultInitializer):
 
   .. code-block:: python
 
-    meta_initializer = init_lib.MetaOTInitializer(geom=geom)
+    meta_initializer = init_lib.FixedGeometryMetaOTInitializer(geom=geom)
     while training():
       a, b = sample_batch()
       loss, init_f, meta_initializer.state = meta_initializer.update(
@@ -471,7 +477,7 @@ class MetaOTInitializer(DefaultInitializer):
 
 
 class Meta_MLP(nn.Module):
-  r"""A Meta MLP potential for :class:`~ott.core.initializers.MetaOTInitializer`.
+  r"""A Meta MLP potential for :class:`~ott.core.initializers.FixedGeometryMetaOTInitializer`.
 
   This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the probabilities
   of the measures to the optimal dual potentials :math:`f`.
