@@ -9,6 +9,11 @@
 **See [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
 ## What is OTT-JAX?
+
+A JAX powered library to compute optimal transport at scale and on accelerators, OTT-JAX includes the fastest implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, acceleration, initializations) and extensions (low-rank), that can be used directly, or applied to more advanced problems (Gromov-Wasserstein, baryceneters). By building on JAX and XLA, our goal is to propose outputs (optimal solutions) that are differentiable w.r.t. inputs, jittable functions, and agnostic to platforms.
+
+## What is optimal transport?
+
 Optimal transport theory can be loosely described as the branch of mathematics and optimization that studies *matching problems*: given two sets of points, how to find (given some prior information, typically a cost function) a good way to associate bijectively every point in the first set with another in the second. A typical matching problem arises, for instance, when sorting numbers (when sorting, one associates to numbers *[3.1, -4.2, -18, 5.4]* the ranks *[3, 2, 1, 4]* that reorder them in increasing fashion) or when matching submitted papers with reviewers at ML conferences!
 
 These problems are easy to describe yet hard to solve. Indeed, while matching optimally two sets of *n* points using a pairwise cost can be solved with the [Hungarian algorithm](https://en.wikipedia.org/wiki/Hungarian_algorithm), this requires an effort that scales as $n^3$. Additionally, one may run into various issues. For instance, the two sets might have different sizes and a relevant matching cost function might not be given (it remains an open problem to set a score to qualify how well a reviewer is likely to be to check a paper!). Fortunately, optimal transport theory has made decisive progresses since the Hungarian algorithm was proposed, and can count on many efficient algorithms and extensions that can handle such situations.
