@@ -31,7 +31,7 @@ class LRCGeometry(geometry.Geometry):
   there exists two matrices :math:`A` and :math:`B` of :math:`r` columns such
   that the cost of the geometry equals :math:`AB^T`. Apart from being faster to
   apply to a vector, these geometries are characterized by the fact that adding
-  two such geometries should be carried out by the concatenating factors, i.e.
+  two such geometries should be carried out by concatenating factors, i.e.
   if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
