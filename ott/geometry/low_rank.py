@@ -31,6 +31,7 @@ class LRCGeometry(geometry.Geometry):
     cost_1: jnp.ndarray<float>[num_a, r]
     cost_2: jnp.ndarray<float>[num_b, r]
     bias: constant added to entire cost matrix.
+    scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'max_bound', 'mean' and 'max_cost'. Alternatively, a float
       factor can be given to rescale the cost such that

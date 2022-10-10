@@ -447,8 +447,9 @@ class QuadraticProblem:
       ) and geom_xy.is_squared_euclidean:
         geom_xy = geom_xy.to_LRCGeometry(scale=self.fused_penalty)
       else:
-        # TODO(michalk8): pass scale
-        geom_xy = geom_xy.to_LRCGeometry(rank=r3, tol=t3, seed=s3)
+        geom_xy = geom_xy.to_LRCGeometry(
+            rank=r3, tol=t3, seed=s3, scale=self.fused_penalty
+        )
 
     return type(self).tree_unflatten(
         aux_data, [geom_xx, geom_yy, geom_xy] + children

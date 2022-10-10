@@ -588,15 +588,32 @@ class PointCloud(geometry.Geometry):
       scale: float = 1.0,
       **kwargs: Any,
   ) -> Union[low_rank.LRCGeometry, 'PointCloud']:
-    """Convert sqEuc. PointCloud to LRCGeometry if useful, and rescale."""
+    r"""Convert point cloud to low-rank geometry.
+
+    Args:
+      scale: Value used to rescale the factors of the low-rank geometry.
+        Useful when this geometry is used in the linear term of fused GW.
+      kwargs: Keyword arguments, such as ``rank``, to
+        :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
+        the point cloud does not squared Euclidean cost.
+
+    Returns:
+      Returns the unmodified point cloud if :math:`n m \ge (n + m) d`, where
+      :math:`n, m` is the shape and :math:`d` is the dimension of the point
+      cloud with squared Euclidean cost.
+      Otherwise, returns the re-scaled low-rank geometry.
+    """
     if self.is_squared_euclidean:
       (n, m), d = self.shape, self.x.shape[1]
       if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
         return self._sqeucl_to_lr(scale)
-      # TODO(michalk8): explain why we don't update scale factor
+      # we don't update the `scale_factor` because in GW, the linear cost
+      # is first materialized and then scaled by `fused_penalty` afterwards
+
+      # TODO(michalk8): in the future, consider defining point cloud as a
+      # subclass of LRCGeometry
       return self
-    # TODO(michalk8): pass scale factor
-    return super().to_LRCGeometry(**kwargs)
+    return super().to_LRCGeometry(scale=scale, **kwargs)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     assert self.is_squared_euclidean, "Geometry must be squared Euclidean."

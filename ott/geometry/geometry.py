@@ -618,7 +618,8 @@ class Geometry:
       self,
       rank: int,
       tol: float = 1e-2,
-      seed: int = 0
+      seed: int = 0,
+      scale: float = 1.
   ) -> 'low_rank.LRCGeometry':
     r"""Factorize the cost matrix in sublinear time :cite:`indyk:19`.
 
@@ -634,9 +635,11 @@ class Geometry:
       tol: Tolerance of the error. The total number of sampled points is
         :math:`min(n, m,\frac{rank}{tol})`.
       seed: Random seed.
+      scale: Value used to rescale the factors of the low-rank geometry.
+        Useful when this geometry is used in the linear term of fused GW.
 
     Returns:
-      Low-rank geometry.
+      The low-rank geometry.
     """
     from ott.geometry import low_rank
 
@@ -696,6 +699,7 @@ class Geometry:
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
+        scale_factor=scale,
         **self._kwargs
     )
 
