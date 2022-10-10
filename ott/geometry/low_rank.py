@@ -290,6 +290,14 @@ class LRCGeometry(geometry.Geometry):
         aux_data, [c1, c2, src_mask, tgt_mask] + children
     )
 
+  def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
+    assert isinstance(other, LRCGeometry), type(other)
+    return type(self)(
+        cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
+        cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
+        **self._kwargs
+    )
+
   def tree_flatten(self):
     return (
         self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
@@ -306,12 +314,3 @@ class LRCGeometry(geometry.Geometry):
     return cls(
         c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data
     )
-
-
-def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry) -> LRCGeometry:
-  """Add geometry in geom1 to that in geom2, keeping other geom1 params."""
-  return LRCGeometry(
-      cost_1=jnp.concatenate((geom1.cost_1, geom2.cost_1), axis=1),
-      cost_2=jnp.concatenate((geom1.cost_2, geom2.cost_2), axis=1),
-      **geom1._kwargs
-  )

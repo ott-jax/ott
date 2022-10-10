@@ -109,7 +109,7 @@ class TestLRGeometry:
 
     geom_lr_c = low_rank.LRCGeometry(c1, c2)
     geom_lr_d = low_rank.LRCGeometry(d1, d2)
-    geom_lr = low_rank.add_lrc_geom(geom_lr_c, geom_lr_d)
+    geom_lr = geom_lr_c + geom_lr_d
 
     for dim, axis in ((m, 1), (n, 0)):
       mat = jax.random.normal(keys[1], (dim, 2))
@@ -124,6 +124,34 @@ class TestLRGeometry:
           geom_lr.apply_cost(vec, axis=axis),
           rtol=1e-4
       )
+
+  @pytest.mark.parametrize(
+      "scale,scale_cost,epsilon", [(0.1, "mean", None), (0.9, "max_cost", 1e-2)]
+  )
+  def test_add_lr_geoms_scale_factor(
+      self, rng: jnp.ndarray, scale: float, scale_cost: str,
+      epsilon: Optional[float]
+  ):
+    n, d = 71, 2
+    key1, key2 = jax.random.split(rng, 2)
+
+    geom1 = pointcloud.PointCloud(
+        jax.random.normal(key1, (n, d)) + 10.,
+        epsilon=epsilon,
+        scale_cost=scale_cost
+    )
+    geom2 = pointcloud.PointCloud(
+        jax.random.normal(key2, (n, d)) + 20.,
+        epsilon=epsilon,
+        scale_cost=scale_cost
+    )
+    geom_lr = geom1.to_LRCGeometry(scale=1 - scale) + \
+        geom2.to_LRCGeometry(scale=scale)
+
+    expected = (1 - scale) * geom1.cost_matrix + scale * geom2.cost_matrix
+    actual = geom_lr.cost_matrix
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
 
   @pytest.mark.parametrize("axis", [0, 1])
   @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])

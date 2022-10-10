@@ -307,10 +307,9 @@ class QuadraticProblem:
     tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
     tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
     if self.is_low_rank:
-      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2)
-      geom = low_rank.add_lrc_geom(geom, marginal_cost)
+      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2) + marginal_cost
       if self.is_fused:
-        geom = low_rank.add_lrc_geom(geom, self.geom_xy)
+        geom = geom + self.geom_xy
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * self._fused_cost_matrix
