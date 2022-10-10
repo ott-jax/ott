@@ -342,8 +342,8 @@ class KMeansInitializer(LRInitializer):
 
   Args:
     rank: Rank of the factorization.
-    min_iterations: Minimum number of iterations.
-    max_iterations: Maximum number of iterations.
+    min_iterations: Minimum number of k-means iterations.
+    max_iterations: Maximum number of k-means iterations.
     sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
     kwargs: Keyword arguments for :func:`~ott.tools.k_means.k_means`.
   """
@@ -461,8 +461,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   Args:
     rank: Rank of the factorization.
     gamma: The (inverse of) gradient step size used by mirror descent.
-    min_iterations: Minimum number of k-means iterations.
-    max_iterations: Maximum number of k-means iterations.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
     inner_iterations: Number of iterations used by the algorithm before
       re-evaluating progress.
     threshold: Convergence threshold.
@@ -620,11 +620,9 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     assert geom.shape[0] == geom.shape[
         1], f"Expected the shape to be square, found `{geom.shape}`."
 
-    min_iter = self._kwargs["min_iterations"]
-    max_iter = self._kwargs["max_iterations"]
     inner_iterations = self._kwargs["inner_iterations"]
-    outer_iterations = np.ceil(max_iter / inner_iterations).astype(int)
-    force_scan = min_iter == max_iter
+    outer_iterations = np.ceil(self._max_iter / inner_iterations).astype(int)
+    force_scan = self._min_iter == self._max_iter
     fixpoint_fn = (
         fixed_point_loop.fixpoint_iter
         if force_scan else fixed_point_loop.fixpoint_iter_backprop
@@ -642,8 +640,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     return fixpoint_fn(
         cond_fn,
         body_fn,
-        min_iterations=min_iter,
-        max_iterations=max_iter,
+        min_iterations=self._min_iter,
+        max_iterations=self._max_iter,
         inner_iterations=inner_iterations,
         constants=consts,
         state=init_fn(),

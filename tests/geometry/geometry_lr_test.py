@@ -190,9 +190,9 @@ class TestLRGeometry:
     if n * m > (n + m) * rank:
       assert isinstance(geom_lr, low_rank.LRCGeometry)
     else:
-      assert isinstance(geom_lr, pointcloud.PointCloud)
-      np.testing.assert_allclose(geom_lr.x, jnp.sqrt(scale) * geom_pc.x)
-      np.testing.assert_allclose(geom_lr.y, jnp.sqrt(scale) * geom_pc.y)
+      # TODO(michalk8): scale is currently ignored by design,
+      # will be changed in the future
+      assert geom_lr is geom_pc
 
 
 class TestCostMatrixFactorization:
