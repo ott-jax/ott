@@ -10,7 +10,7 @@
 
 ## What is OTT-JAX?
 
-A JAX powered library to compute optimal transport at scale and on accelerators, OTT-JAX includes the fastest implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, acceleration, initializations) and extensions (low-rank), that can be used directly, or applied to more advanced problems (Gromov-Wasserstein, baryceneters). By building on JAX and XLA, our goal is to propose outputs (optimal solutions) that are differentiable w.r.t. inputs, jittable functions, and agnostic to platforms.
+A JAX powered library to compute optimal transport at scale and on accelerators, OTT-JAX includes the fastest implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, acceleration, initializations) and extensions (low-rank), that can be used directly, or applied to more advanced problems (Gromov-Wasserstein, barycenters). By building on JAX and XLA, our goal is to propose outputs (optimal solutions) that are differentiable w.r.t. inputs, jittable functions, and platform-agnostic implementation.
 
 ## What is optimal transport?
 
