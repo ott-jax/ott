@@ -342,6 +342,8 @@ class KMeansInitializer(LRInitializer):
 
   Args:
     rank: Rank of the factorization.
+    min_iterations: Minimum number of k-means iterations.
+    max_iterations: Maximum number of k-means iterations.
     sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
     kwargs: Keyword arguments for :func:`~ott.tools.k_means.k_means`.
   """
@@ -349,10 +351,14 @@ class KMeansInitializer(LRInitializer):
   def __init__(
       self,
       rank: int,
+      min_iterations: int = 100,
+      max_iterations: int = 100,
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(rank, **kwargs)
+    self._min_iter = min_iterations
+    self._max_iter = max_iterations
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
   @staticmethod
@@ -381,7 +387,12 @@ class KMeansInitializer(LRInitializer):
 
     del kwargs
     jit = self._sinkhorn_kwargs.get("jit", True)
-    fn = functools.partial(k_means.k_means, **self._kwargs)
+    fn = functools.partial(
+        k_means.k_means,
+        min_iterations=self._min_iter,
+        max_iterations=self._max_iter,
+        **self._kwargs
+    )
     fn = jax.jit(fn, static_argnames="k") if jit else fn
 
     if isinstance(ot_prob, quad_problems.QuadraticProblem):
@@ -436,6 +447,8 @@ class KMeansInitializer(LRInitializer):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
+    aux_data["min_iterations"] = self._min_iter
+    aux_data["max_iterations"] = self._max_iter
     return children, aux_data
 
 
@@ -607,11 +620,9 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     assert geom.shape[0] == geom.shape[
         1], f"Expected the shape to be square, found `{geom.shape}`."
 
-    min_iter = self._kwargs["min_iterations"]
-    max_iter = self._kwargs["max_iterations"]
     inner_iterations = self._kwargs["inner_iterations"]
-    outer_iterations = np.ceil(max_iter / inner_iterations).astype(int)
-    force_scan = min_iter == max_iter
+    outer_iterations = np.ceil(self._max_iter / inner_iterations).astype(int)
+    force_scan = self._min_iter == self._max_iter
     fixpoint_fn = (
         fixed_point_loop.fixpoint_iter
         if force_scan else fixed_point_loop.fixpoint_iter_backprop
@@ -629,8 +640,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     return fixpoint_fn(
         cond_fn,
         body_fn,
-        min_iterations=min_iter,
-        max_iterations=max_iter,
+        min_iterations=self._min_iter,
+        max_iterations=self._max_iter,
         inner_iterations=inner_iterations,
         constants=consts,
         state=init_fn(),

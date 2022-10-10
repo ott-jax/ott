@@ -25,12 +25,20 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class LRCGeometry(geometry.Geometry):
-  """Low-rank Cost Geometry defined by two factors.
+  """Geometry whose cost is defined by product of two low-rank matrices.
+
+  Implements geometries that are defined as low rank products, i.e. for which
+  there exists two matrices :math:`A` and :math:`B` of :math:`r` columns such
+  that the cost of the geometry equals :math:`AB^T`. Apart from being faster to
+  apply to a vector, these geometries are characterized by the fact that adding
+  two such geometries should be carried out by concatenating factors, i.e.
+  if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
     cost_1: jnp.ndarray<float>[num_a, r]
     cost_2: jnp.ndarray<float>[num_b, r]
     bias: constant added to entire cost matrix.
+    scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'max_bound', 'mean' and 'max_cost'. Alternatively, a float
       factor can be given to rescale the cost such that
@@ -47,7 +55,8 @@ class LRCGeometry(geometry.Geometry):
       self,
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
-      bias: float = 0.0,
+      bias: float = 0.,
+      scale_factor: float = 1.,
       scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
                                                   'max_cost']] = 1.0,
       batch_size: Optional[int] = None,
@@ -57,6 +66,7 @@ class LRCGeometry(geometry.Geometry):
     self._cost_1 = cost_1
     self._cost_2 = cost_2
     self._bias = bias
+    self._scale_factor = scale_factor
     self._kwargs = kwargs
 
     super().__init__(**kwargs)
@@ -66,12 +76,14 @@ class LRCGeometry(geometry.Geometry):
   @property
   def cost_1(self) -> jnp.ndarray:
     """First factor of the :attr:`cost_matrix`."""
-    return self._cost_1 * jnp.sqrt(self.inv_scale_cost)
+    scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
+    return scale_factor * self._cost_1
 
   @property
   def cost_2(self) -> jnp.ndarray:
     """Second factor of the :attr:`cost_matrix`."""
-    return self._cost_2 * jnp.sqrt(self.inv_scale_cost)
+    scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
+    return scale_factor * self._cost_2
 
   @property
   def bias(self) -> float:
@@ -285,11 +297,20 @@ class LRCGeometry(geometry.Geometry):
         aux_data, [c1, c2, src_mask, tgt_mask] + children
     )
 
+  def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
+    assert isinstance(other, LRCGeometry), type(other)
+    return type(self)(
+        cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
+        cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
+        **self._kwargs
+    )
+
   def tree_flatten(self):
     return (
         self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
     ), {
         'bias': self._bias,
+        'scale_factor': self._scale_factor,
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
     }
@@ -300,12 +321,3 @@ class LRCGeometry(geometry.Geometry):
     return cls(
         c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data
     )
-
-
-def add_lrc_geom(geom1: LRCGeometry, geom2: LRCGeometry) -> LRCGeometry:
-  """Add geometry in geom1 to that in geom2, keeping other geom1 params."""
-  return LRCGeometry(
-      cost_1=jnp.concatenate((geom1.cost_1, geom2.cost_1), axis=1),
-      cost_2=jnp.concatenate((geom1.cost_2, geom2.cost_2), axis=1),
-      **geom1._kwargs
-  )

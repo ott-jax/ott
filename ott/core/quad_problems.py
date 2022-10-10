@@ -307,10 +307,9 @@ class QuadraticProblem:
     tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
     tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
     if self.is_low_rank:
-      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2)
-      geom = low_rank.add_lrc_geom(geom, marginal_cost)
+      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2) + marginal_cost
       if self.is_fused:
-        geom = low_rank.add_lrc_geom(geom, self.geom_xy)
+        geom = geom + self.geom_xy
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * self._fused_cost_matrix
@@ -445,9 +444,11 @@ class QuadraticProblem:
       if isinstance(
           geom_xy, pointcloud.PointCloud
       ) and geom_xy.is_squared_euclidean:
-        geom_xy = geom_xy.to_LRCGeometry(self.fused_penalty)
+        geom_xy = geom_xy.to_LRCGeometry(scale=self.fused_penalty)
       else:
-        geom_xy = geom_xy.to_LRCGeometry(rank=r3, tol=t3, seed=s3)
+        geom_xy = geom_xy.to_LRCGeometry(
+            rank=r3, tol=t3, seed=s3, scale=self.fused_penalty
+        )
 
     return type(self).tree_unflatten(
         aux_data, [geom_xx, geom_yy, geom_xy] + children
