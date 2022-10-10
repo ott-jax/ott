@@ -461,8 +461,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   Args:
     rank: Rank of the factorization.
     gamma: The (inverse of) gradient step size used by mirror descent.
-    min_iterations: Minimum number of iterations.
-    max_iterations: Maximum number of iterations.
+    min_iterations: Minimum number of k-means iterations.
+    max_iterations: Maximum number of k-means iterations.
     inner_iterations: Number of iterations used by the algorithm before
       re-evaluating progress.
     threshold: Convergence threshold.

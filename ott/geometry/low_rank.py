@@ -25,7 +25,14 @@ from ott.geometry import geometry
 
 @jax.tree_util.register_pytree_node_class
 class LRCGeometry(geometry.Geometry):
-  """Low-rank Cost Geometry defined by two factors.
+  """Geometry whose cost is defined by product of two low-rank matrices.
+
+  Implements geometries that are defined as low rank products, i.e. for which
+  there exists two matrices :math:`A` and :math:`B` of :math:`r` columns such
+  that the cost of the geometry equals :math:`AB^T`. Apart from being faster to
+  apply to a vector, these geometries are characterized by the fact that adding
+  two such geometries should be carried out by the concatenating factors, i.e.
+  if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
     cost_1: jnp.ndarray<float>[num_a, r]
