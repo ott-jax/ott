@@ -11,7 +11,7 @@
 ## What is OTT-JAX?
 
 A JAX powered library to compute optimal transport at scale and on accelerators, OTT-JAX includes the fastest implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, acceleration, initializations) and extensions (low-rank), that can be used directly, or applied to more advanced problems (Gromov-Wasserstein, barycenters). Some of JAX features including [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions), [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html) work towards the goal of having end-to-end differentiable outputs that can scale to your setup. OTT-JAX is developed by a team of researchers from Apple, Google, Meta and many other academic contributors.
- 
+
 ## What is optimal transport?
 
 Optimal transport theory can be loosely described as the branch of mathematics and optimization that studies *matching problems*: given two sets of points, how to find (given some prior information, typically a cost function) a good way to associate bijectively every point in the first set with another in the second. A typical matching problem arises, for instance, when sorting numbers (when sorting, one associates to numbers *[3.1, -4.2, -18, 5.4]* the ranks *[3, 2, 1, 4]* that reorder them in increasing fashion) or when matching submitted papers with reviewers at ML conferences!
