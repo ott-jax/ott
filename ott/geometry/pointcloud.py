@@ -703,6 +703,10 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
+  def dtype(self) -> jnp.dtype:
+    return self.x.dtype
+
+  @property
   def batch_size(self) -> Optional[int]:
     """Batch size for online mode."""
     if self._batch_size is None:

@@ -831,6 +831,13 @@ class Geometry:
     """
     return self._normalize_mask(self._tgt_mask, self.shape[1])
 
+  @property
+  def dtype(self) -> jnp.dtype:
+    """The data type."""
+    return (
+        self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
+    ).dtype
+
   def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
     """Mask geometry based on :attr:`src_mask` and :attr:`tgt_mask`."""
     src_mask, tgt_mask = self.src_mask, self.tgt_mask

@@ -56,7 +56,8 @@ jobs:
       uses: codecov/codecov-action@v3
       with:
         files: ./coverage.xml
-        flags:
+        flags: tests-${{ matrix.test_mark }}
+        name: unittests
         env_vars: OS,PYTHON
         fail_ci_if_error: false
         verbose: true
