@@ -305,6 +305,10 @@ class LRCGeometry(geometry.Geometry):
         **self._kwargs
     )
 
+  @property
+  def dtype(self) -> jnp.dtype:
+    return self._cost_1.dtype
+
   def tree_flatten(self):
     return (
         self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs

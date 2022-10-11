@@ -340,6 +340,10 @@ class Grid(geometry.Geometry):
     size = 2 if static_b else 3
     return tuple(sep_grid for _ in range(size))
 
+  @property
+  def dtype(self) -> jnp.dtype:
+    return self.x[0].dtype
+
   def tree_flatten(self):
     return (self.x, self.cost_fns, self._epsilon), self.kwargs
 

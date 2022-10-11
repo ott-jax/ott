@@ -271,6 +271,10 @@ class Graph(geometry.Geometry):
     # there are some numerical imprecisions, but it should be symmetric
     return True
 
+  @property
+  def dtype(self) -> jnp.dtype:
+    return self._graph.dtype
+
   # TODO(michalk8): in future, use mixins for lse/kernel mode
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray
