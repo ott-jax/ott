@@ -23,7 +23,7 @@ from flax import linen as nn
 from flax.training import train_state
 
 from ott.core import linear_problems, sinkhorn
-from ott.geometry import pointcloud
+from ott.geometry import Geometry, pointcloud
 
 __all__ = [
     "DefaultInitializer", "GaussianInitializer", "SortingInitializer",
@@ -58,9 +58,9 @@ class SinkhornInitializer(ABC):
 
     Args:
       ot_prob: Linear OT problem.
-      a: Initial potential/scaling f_u. If `None`, it will be initialized using
+      a: Initial potential/scaling f_u. If ``None``, it will be initialized using
         :meth:`init_dual_a`.
-      b: Initial potential/scaling g_v. If `None`, it will be initialized using
+      b: Initial potential/scaling g_v. If ``None``, it will be initialized using
         :meth:`init_dual_b`.
       lse_mode: Return potentials if true, scalings otherwise.
 
@@ -291,14 +291,14 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
   This initializer consists of a predictive model that outputs the
   $f$ duals to solve the entropy-regularized OT problem given
-  input probability weights `a` and `b`, and a given (assumed to be
-  fixed) geometry `geom`.
+  input probability weights ``a`` and ``b``, and a given (assumed to be
+  fixed) geometry ``geom``.
   The model's parameters are learned using a training set of OT
   instances (multiple pairs of probability weights), that assume the
-  **same** geometry `geom` is used throughout, both for training and
+  **same** geometry ``geom`` is used throughout, both for training and
   evaluation. The meta model defaults to the MLP in
-  :class:`~ott.core.initializers.Meta_MLP` and, with batched problem
-  instances passed into `update`.
+  :class:`~ott.core.initializers.MetaMLP` and, with batched problem
+  instances passed into :meth:`update`.
 
   **Sample training usage.** The following code shows a simple
   example of using ``update`` to train the model, where
@@ -314,44 +314,47 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
         meta_initializer.state, a=a, b=b)
 
   Args:
-    geom: The fixed geometry of the problem instances
-    meta_model: The model to predict the potential f from the measures
-    opt: The optimizer to update the parameters
-    rng: The PRNG key to use for initializing the model
+    geom: The fixed geometry of the problem instances.
+    meta_model: The model to predict the potential f from the measures.
+    opt: The optimizer to update the parameters.
+    rng: The PRNG key to use for initializing the model.
+    state: The training state of the model to start from.
   """
 
   def __init__(
       self,
-      geom,
+      geom: Geometry,
       meta_model: nn.Module = None,
       opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      state: train_state.TrainState = None
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
     self.opt = opt
+    self.rng = rng
 
     na, nb = geom.shape
-    if meta_model is None:
-      # Default to a Meta_MLP if not specified.
-      self.meta_model = Meta_MLP(
-          num_hidden_units=512,
-          num_hidden_layers=2,
-          potential_size=na,
+    self.meta_model = MetaMLP(
+        potential_size=na
+    ) if meta_model is None else meta_model
+
+    if state is None:
+      # Initialize the model's training state.
+      a_placeholder = jnp.zeros(na, dtype=self.dtype)
+      b_placeholder = jnp.zeros(nb, dtype=self.dtype)
+      params = self.meta_model.init(rng, a_placeholder, b_placeholder)['params']
+      self.state = train_state.TrainState.create(
+          apply_fn=self.meta_model.apply, params=params, tx=opt
       )
     else:
-      self.meta_model = meta_model
+      self.state = state
 
-    # Initialize the model.
-    a_placeholder = jnp.zeros(na, dtype=self.dtype)
-    b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-    params = self.meta_model.init(rng, a_placeholder, b_placeholder)['params']
-    self.state = train_state.TrainState.create(
-        apply_fn=self.meta_model.apply, params=params, tx=opt
-    )
-    self.update_impl = jax.jit(self._get_update_fn())
+    self.update_impl = self._get_update_fn()
 
-  def update(self, state: train_state.TrainState, a: jnp.array, b: jnp.array):
+  def update(
+      self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
+  ):
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -361,25 +364,26 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
     The overall learning setup can thus be written as:
 
     .. math::
-      \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\; J(\hat f_\theta(a, b); \alpha, \beta),
-
+      \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\;
+        J(\hat f_\theta(a, b); \alpha, \beta),
 
     where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`,
     :math:`\mathcal{D}` is a meta distribution of optimal transport problems,
 
     .. math::
-      -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle - \epsilon\left\langle \exp\{f/\epsilon\}, K\exp\{g/\epsilon\}\right\rangle
+      -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle -
+        \varepsilon\left\langle \exp\{f/\varepsilon\}, K\exp\{g/\varepsilon\}\right\rangle
 
     is the entropic dual objective,
-    and :math:`K_{i,j} := -C_{i,j}/\epsilon` is the *Gibbs kernel*.
+    and :math:`K_{i,j} := -C_{i,j}/\varepsilon` is the *Gibbs kernel*.
 
     Args:
       state: Optimizer state of the meta model.
-      a: Probabilites of the :math:`\alpha` measure's atoms
-      b: Probabilites of the :math:`\beta` measure's atoms
+      a: Probabilites of the :math:`\alpha` measure's atoms.
+      b: Probabilites of the :math:`\beta` measure's atoms.
 
     Returns:
-      The training loss, :math:`f`, and updated state
+      The training loss, :math:`f`, and updated state.
     """
     return self.update_impl(state, a, b)
 
@@ -387,17 +391,9 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
       self, ot_prob: linear_problems.LinearProblem, lse_mode: bool
   ) -> jnp.ndarray:
     # Detect if the problem is batched.
-    if ot_prob.a.ndim == 1:
-      vmap_a_val = None
-    else:
-      assert ot_prob.a.ndim == 2
-      vmap_a_val = 0
-
-    if ot_prob.b.ndim == 1:
-      vmap_b_val = None
-    else:
-      assert ot_prob.b.ndim == 2
-      vmap_b_val = 0
+    assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
+    vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
+    vmap_b_val = 0 if ot_prob.b.ndim == 2 else None
 
     if vmap_a_val is not None or vmap_b_val is not None:
       compute_f_maybe_batch = jax.vmap(
@@ -414,24 +410,6 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
     """Return the implementation (and jitted) update function."""
 
     def dual_obj_loss_single(params, a, b):
-      r"""Compute the loss for a single coupling problem.
-
-      The loss :math:`J` is the negated entropy-regularized objective and
-      is given by
-
-      .. math::
-        -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle - \epsilon\left\langle \exp\{f/\epsilon\}, K\exp\{g/\epsilon\}\right\rangle
-
-      where :math:`K_{i,j} := -C_{i,j}/\\epsilon` is the *Gibbs kernel*.
-
-      Args:
-        a: Probabilites of the :math:`\alpha` measure's atoms
-        b: Probabilites of the :math:`\beta` measure's atoms
-        params: The parameters of the Meta model.
-
-      Returns:
-        The dual loss (the negated dual objective)
-      """
       f_pred = self._compute_f(a, b, params)
       g_pred = self.geom.update_potential(
           f_pred, jnp.zeros_like(b), jnp.log(b), 0, axis=0
@@ -450,12 +428,8 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
     @jax.jit
     def update(state, a, b):
-      if a.ndim == 1:
-        a = jnp.expand_dims(a, 0)
-
-      if b.ndim == 1:
-        b = jnp.expand_dims(b, 0)
-
+      a = jnp.atleast_2d(a)
+      b = jnp.atleast_2d(b)
       grad_fn = jax.value_and_grad(loss_batch, has_aux=True)
       (loss, init_f), grads = grad_fn(state.params, a, b)
       return loss, init_f, state.apply_gradients(grads=grads)
@@ -466,42 +440,48 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
     r"""Predict the optimal :math:`f` potential.
 
     Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms
-      b: Probabilites of the :math:`\beta` measure's atoms
+      a: Probabilites of the :math:`\alpha` measure's atoms.
+      b: Probabilites of the :math:`\beta` measure's atoms.
       params: The parameters of the Meta model.
 
     Returns:
-      The :math:`f` potential
+      The :math:`f` potential.
     """
     return self.meta_model.apply({'params': params}, a, b)
 
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+    return [self.geom, self.meta_model, self.opt], {
+        'rng': self.rng,
+        'state': self.state
+    }
 
-class Meta_MLP(nn.Module):
+
+class MetaMLP(nn.Module):
   r"""A Meta MLP potential for :class:`~ott.core.initializers.FixedGeometryMetaOTInitializer`.
 
   This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the probabilities
   of the measures to the optimal dual potentials :math:`f`.
 
   Args:
+    potential_size: The dimensionality of :math:`f`.
     num_hidden_units: The number of hidden units in each layer.
     num_hidden_layers: The number of hidden layers.
-    potential_size: The dimensionality of :math:`f`.
   """
 
-  num_hidden_units: int
-  num_hidden_layers: int
   potential_size: int
+  num_hidden_units: int = 512
+  num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, a, b):
+  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
     r"""Make a prediction.
 
     Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms
-      b: Probabilites of the :math:`\beta` measure's atoms
+      a: Probabilites of the :math:`\alpha` measure's atoms.
+      b: Probabilites of the :math:`\beta` measure's atoms.
 
     Returns:
-      The :math:`f` potential
+      The :math:`f` potential.
     """
     dtype = a.dtype
     z = jnp.concatenate((a, b))

@@ -42,8 +42,8 @@ Sinkhorn Dual Initializers
     initializers.DefaultInitializer
     initializers.GaussianInitializer
     initializers.SortingInitializer
-    initializers.MetaOTInitializer
-    initializers.Meta_MLP
+    initializers.FixedGeometryMetaOTInitializer
+    initializers.MetaMLP
 
 Low-Rank Sinkhorn
 -----------------
