@@ -292,7 +292,7 @@ class TestSinkhornInitializers:
 
   @pytest.mark.parametrize('lse_mode', [True, False])
   def test_meta_initializer(self, lse_mode, rng: jnp.ndarray):
-    """Tests Meta OT initializer"""
+    """Tests Meta initializer"""
     # define OT problem
     n = 200
     m = 200
@@ -316,7 +316,7 @@ class TestSinkhornInitializers:
     base_num_iter = jnp.sum(sink_out.errors > -1)
 
     # Overfit the initializer to the problem.
-    meta_initializer = init_lib.FixedGeometryMetaOTInitializer(geom)
+    meta_initializer = init_lib.MetaInitializer(geom)
     for _ in range(100):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b

@@ -23,11 +23,11 @@ from flax import linen as nn
 from flax.training import train_state
 
 from ott.core import linear_problems, sinkhorn
-from ott.geometry import Geometry, pointcloud
+from ott.geometry import geometry, pointcloud
 
 __all__ = [
     "DefaultInitializer", "GaussianInitializer", "SortingInitializer",
-    "FixedGeometryMetaOTInitializer"
+    "MetaInitializer"
 ]
 
 
@@ -286,11 +286,11 @@ class SortingInitializer(DefaultInitializer):
 
 
 @jax.tree_util.register_pytree_node_class
-class FixedGeometryMetaOTInitializer(DefaultInitializer):
+class MetaInitializer(DefaultInitializer):
   """Meta OT Initializer with a fixed geometry :cite:`amos:22`.
 
   This initializer consists of a predictive model that outputs the
-  $f$ duals to solve the entropy-regularized OT problem given
+  :math:`f` duals to solve the entropy-regularized OT problem given
   input probability weights ``a`` and ``b``, and a given (assumed to be
   fixed) geometry ``geom``.
   The model's parameters are learned using a training set of OT
@@ -307,7 +307,7 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
   .. code-block:: python
 
-    meta_initializer = init_lib.FixedGeometryMetaOTInitializer(geom=geom)
+    meta_initializer = init_lib.MetaInitializer(geom=geom)
     while training():
       a, b = sample_batch()
       loss, init_f, meta_initializer.state = meta_initializer.update(
@@ -315,7 +315,7 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
   Args:
     geom: The fixed geometry of the problem instances.
-    meta_model: The model to predict the potential f from the measures.
+    meta_model: The model to predict the potential :math:`f` from the measures.
     opt: The optimizer to update the parameters.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.
@@ -323,11 +323,11 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
   def __init__(
       self,
-      geom: Geometry,
-      meta_model: nn.Module = None,
+      geom: geometry.Geometry,
+      meta_model: Optional[nn.Module] = None,
       opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
-      state: train_state.TrainState = None
+      state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
@@ -354,7 +354,7 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
   def update(
       self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
-  ):
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -457,7 +457,7 @@ class FixedGeometryMetaOTInitializer(DefaultInitializer):
 
 
 class MetaMLP(nn.Module):
-  r"""A Meta MLP potential for :class:`~ott.core.initializers.FixedGeometryMetaOTInitializer`.
+  r"""A Meta MLP potential for :class:`~ott.core.initializers.MetaInitializer`.
 
   This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the probabilities
   of the measures to the optimal dual potentials :math:`f`.
