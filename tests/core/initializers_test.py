@@ -290,6 +290,52 @@ class TestSinkhornInitializers:
     if lse_mode:
       assert base_num_iter >= gaus_num_iter
 
+  @pytest.mark.parametrize('lse_mode', [True, False])
+  def test_meta_initializer(self, lse_mode, rng: jnp.ndarray):
+    """Tests Meta initializer"""
+    # define OT problem
+    n = 200
+    m = 200
+    d = 2
+    epsilon = 0.01
+
+    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
+    a = ot_problem.a
+    b = ot_problem.b
+    geom = ot_problem.geom
+
+    # run sinkhorn
+    sink_out = run_sinkhorn(
+        x=ot_problem.geom.x,
+        y=ot_problem.geom.y,
+        a=ot_problem.a,
+        b=ot_problem.b,
+        epsilon=epsilon,
+        lse_mode=lse_mode
+    )
+    base_num_iter = jnp.sum(sink_out.errors > -1)
+
+    # Overfit the initializer to the problem.
+    meta_initializer = init_lib.MetaInitializer(geom)
+    for _ in range(100):
+      _, _, meta_initializer.state = meta_initializer.update(
+          meta_initializer.state, a=a, b=b
+      )
+
+    sink_out = sinkhorn.sinkhorn(
+        geom,
+        a=a,
+        b=b,
+        jit=True,
+        initializer=meta_initializer,
+        lse_mode=lse_mode
+    )
+    meta_num_iter = jnp.sum(sink_out.errors > -1)
+
+    # check initializer is better
+    if lse_mode:
+      assert base_num_iter >= meta_num_iter
+
 
 class TestLRInitializers:
 
