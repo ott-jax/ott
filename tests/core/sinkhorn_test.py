@@ -45,18 +45,19 @@ class TestSinkhorn:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,momentum,chg_momentum_from,inner_iterations,norm_error",
-      [(True, 1.0, 29, 10, 1), (False, 1.0, 30, 10, 1), (True, 1.0, 60, 1, 2),
-       (True, 1.0, 12, 24, 4)],
+      "lse_mode,momentum,chg_momentum_from,inner_iterations,norm_error,power",
+      [(True, 1.0, 29, 10, 1, 2.0), (False, 1.0, 30, 10, 1, 2.2),
+       (True, 1.0, 60, 1, 2, 1.0), (True, 1.0, 12, 24, 4, 3.0)],
       ids=["lse-Leh-mom", "scal-Leh-mom", "lse-Leh-1", "lse-Leh-24"],
       only_fast=[0, -1],
   )
   def test_euclidean_point_cloud(
-      self, lse_mode, momentum, chg_momentum_from, inner_iterations, norm_error
+      self, lse_mode, momentum, chg_momentum_from, inner_iterations, norm_error,
+      power
   ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, power=power)
     out = sinkhorn.sinkhorn(
         geom,
         a=self.a,

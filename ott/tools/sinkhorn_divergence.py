@@ -55,6 +55,7 @@ def sinkhorn_divergence(
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
+    symmetric_sinkhorn: bool = False,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
@@ -78,6 +79,8 @@ def sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
@@ -97,7 +100,13 @@ def sinkhorn_divergence(
   a = jnp.ones(num_a) / num_a if a is None else a
   b = jnp.ones(num_b) / num_b if b is None else b
   return _sinkhorn_divergence(
-      geom_xy, geom_x, geom_y, a=a, b=b, **sinkhorn_kwargs
+      geom_xy,
+      geom_x,
+      geom_y,
+      a=a,
+      b=b,
+      symmetric_sinkhorn=symmetric_sinkhorn,
+      **sinkhorn_kwargs
   )
 
 
@@ -107,6 +116,7 @@ def _sinkhorn_divergence(
     geometry_yy: Optional[geometry.Geometry],
     a: jnp.ndarray,
     b: jnp.ndarray,
+    symmetric_sinkhorn: bool,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
   """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
@@ -125,6 +135,8 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: Keyword arguments to :func:`ott.core.sinkhorn.sinkhorn`.
 
   Returns:
@@ -141,13 +153,14 @@ def _sinkhorn_divergence(
   # arising in implicit differentiation (if used) of the potentials computed for
   # the symmetric parts should be marked as symmetric.
   kwargs_symmetric = kwargs.copy()
-  kwargs_symmetric.update(
-      parallel_dual_updates=True,
-      momentum=0.5,
-      chg_momentum_from=0,
-      anderson_acceleration=0,
-      implicit_solver_symmetric=True
-  )
+  if symmetric_sinkhorn:
+    kwargs_symmetric.update(
+        parallel_dual_updates=True,
+        momentum=0.5,
+        chg_momentum_from=0,
+        anderson_acceleration=0,
+        implicit_solver_symmetric=True
+    )
 
   out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
@@ -184,6 +197,7 @@ def segment_sinkhorn_divergence(
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
+    symmetric_sinkhorn: bool = False,
     **kwargs: Any
 ) -> jnp.ndarray:
   """Compute sinkhorn divergence between subsets of vectors given in `x` & `y`.
@@ -242,6 +256,8 @@ def segment_sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments passed to form
       :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
@@ -274,6 +290,7 @@ def segment_sinkhorn_divergence(
         sinkhorn_kwargs=sinkhorn_kwargs,
         static_b=static_b,
         share_epsilon=share_epsilon,
+        symmetric_sinkhorn=symmetric_sinkhorn,
         cost_fn=cost_fn,
         src_mask=mask_x,
         tgt_mask=mask_y,

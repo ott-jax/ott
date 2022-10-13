@@ -41,7 +41,9 @@ class PointCloud(geometry.Geometry):
     x : n x d array of n d-dimensional vectors
     y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
     cost_fn: a CostFn function between two points in dimension d.
-    power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
+    power: a power to raise `(cost_fn(x,y)) ** . / 2.0`. As a result,
+     `power`=2.0 is the default and means no change is applied to the output of
+     `cost_fn`.
     batch_size: When ``None``, the cost matrix corresponding to that point cloud
      is computed, stored and later re-used at each application of
      :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
@@ -184,7 +186,9 @@ class PointCloud(geometry.Geometry):
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    return cost_matrix ** (0.5 * self.power)
+    if self.power != 2.0:
+      cost_matrix = jnp.abs(cost_matrix) ** (0.5 * self.power)
+    return cost_matrix
 
   def apply_lse_kernel(
       self,
@@ -762,8 +766,10 @@ def _transport_from_scalings_xy(
 
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost):
   one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
-  return ((norm_x + norm_y + one_line_pairwise(x, y)) ** (0.5 * cost_pow) *
-          scale_cost)
+  cost = norm_x + norm_y + one_line_pairwise(x, y)
+  if cost_pow != 2.0:
+    cost = jnp.abs(cost) ** (0.5 * cost_pow)
+  return cost * scale_cost
 
 
 def _apply_cost_xy(

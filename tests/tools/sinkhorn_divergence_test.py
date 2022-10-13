@@ -21,6 +21,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from ott.core import sinkhorn
 from ott.geometry import costs, geometry, pointcloud
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
@@ -38,32 +39,51 @@ class TestSinkhornDivergence:
     self._a = a / jnp.sum(a)
     self._b = b / jnp.sum(b)
 
-  def test_euclidean_point_cloud(self):
+  @pytest.mark.fast.with_args(
+      power=[1.0, 2.0, 2.7],
+      epsilon=[.01, .001],
+      only_fast={
+          "power": 2.0,
+          "epsilon": .01
+      },
+  )
+  def test_euclidean_point_cloud(self, power, epsilon):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geometry_xx = pointcloud.PointCloud(x, x, epsilon=0.01)
-    geometry_xy = pointcloud.PointCloud(x, y, epsilon=0.01)
-    geometry_yy = pointcloud.PointCloud(y, y, epsilon=0.01)
-    div = sinkhorn_divergence._sinkhorn_divergence(
-        geometry_xy, geometry_xx, geometry_yy, self._a, self._b, threshold=1e-2
+
+    div = sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud,
+        x,
+        y,
+        a=self._a,
+        b=self._b,
+        epsilon=epsilon,
+        power=power
     )
     assert div.divergence > 0.0
     assert len(div.potentials) == 3
 
-    # Test symmetric setting,
-    # test that symmetric evaluation converges earlier/better.
+    geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, power=power)
+    geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, power=power)
+    geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, power=power)
+
+    div2 = sinkhorn.sinkhorn(geometry_xy, self._a, self._b).reg_ot_cost
+    div2 -= 0.5 * sinkhorn.sinkhorn(geometry_xx, self._a, self._a).reg_ot_cost
+    div2 -= 0.5 * sinkhorn.sinkhorn(geometry_yy, self._b, self._b).reg_ot_cost
+
+    np.testing.assert_allclose(div.divergence, div2, rtol=1e-5, atol=1e-5)
+
+    # Test div of x to itself close to 0.
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         x,
-        epsilon=1e-1,
-        sinkhorn_kwargs={'inner_iterations': 1}
+        epsilon=.1,
+        sinkhorn_kwargs={'inner_iterations': 1},
+        power=power
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
-    iters_xx = jnp.sum(div.errors[0] > 0)
-    iters_xx_sym = jnp.sum(div.errors[1] > 0)
-    assert iters_xx > iters_xx_sym
 
   @pytest.mark.fast
   def test_euclidean_autoepsilon(self):
@@ -76,7 +96,7 @@ class TestSinkhornDivergence:
         cloud_b,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2}
+        sinkhorn_kwargs={"threshold": 1e-2},
     )
     assert div.divergence > 0.0
     assert len(div.potentials) == 3
