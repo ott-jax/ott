@@ -184,7 +184,11 @@ class PointCloud(geometry.Geometry):
     cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    return cost_matrix ** (0.5 * self.power)
+    cost_matrix = jax.lax.cond(
+        self.power == 2.0, lambda x: x,
+        lambda x: jnp.abs(x) ** (0.5 * self.power), cost_matrix
+    )
+    return cost_matrix
 
   def apply_lse_kernel(
       self,
@@ -762,8 +766,11 @@ def _transport_from_scalings_xy(
 
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost):
   one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
-  return ((norm_x + norm_y + one_line_pairwise(x, y)) ** (0.5 * cost_pow) *
-          scale_cost)
+  out = jax.lax.cond(
+      cost_pow == 2.0, lambda x: x, lambda x: jnp.abs(x) ** (0.5 * cost_pow),
+      norm_x + norm_y + one_line_pairwise(x, y)
+  )
+  return out * scale_cost
 
 
 def _apply_cost_xy(
