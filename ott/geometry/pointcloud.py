@@ -41,7 +41,9 @@ class PointCloud(geometry.Geometry):
     x : n x d array of n d-dimensional vectors
     y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
     cost_fn: a CostFn function between two points in dimension d.
-    power: a power to raise (norm(x) + norm(y) + cost(x,y)) **
+    power: a power to raise `(cost_fn(x,y)) ** . / 2.0`. As a result,
+     `power`=2.0 is the default and means no change is applied to the output of
+     `cost_fn`.
     batch_size: When ``None``, the cost matrix corresponding to that point cloud
      is computed, stored and later re-used at each application of
      :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
