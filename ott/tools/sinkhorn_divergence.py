@@ -79,8 +79,8 @@ def sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    symmetric_sinkhorn: Use symmetric setup advocated in Eq. 25 of
-      http://proceedings.mlr.press/v89/feydy19a/feydy19a.pdf
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments to the generic class. This is specific to each
       geometry.
 
@@ -135,8 +135,8 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of b must match that of a to converge.
-    symmetric_sinkhorn: Use symmetric setup advocated in Eq. 25 of
-      http://proceedings.mlr.press/v89/feydy19a/feydy19a.pdf
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: Keyword arguments to :func:`ott.core.sinkhorn.sinkhorn`.
 
   Returns:
@@ -256,8 +256,8 @@ def segment_sinkhorn_divergence(
       geometry). This flag is set to True by default, because in the default
       setting, the epsilon regularization is a function of the mean of the cost
       matrix.
-    symmetric_sinkhorn: Use symmetric setup for (x,x) / (y,y) comparisons, as
-      in Eq. 25 of http://proceedings.mlr.press/v89/feydy19a/feydy19a.pdf
+    symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
+      symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments passed to form
       :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
