@@ -369,16 +369,26 @@ class Sinkhorn:
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self._norm_error = norm_error
+    self.anderson = anderson
+    self.implicit_diff = implicit_diff
+
     if momentum is not None:
       self.momentum = momentum_lib.Momentum(
           momentum.start, momentum.value, self.inner_iterations
       )
     else:
-      self.momentum = momentum_lib.Momentum(
-          inner_iterations=self.inner_iterations
-      )
-    self.anderson = anderson
-    self.implicit_diff = implicit_diff
+      # By default, use adaptive momentum
+      # Switch back to neutral momentum object if using Anderson or unrolling.
+      if self.anderson is not None or self.implicit_diff is None:
+        self.momentum = momentum_lib.Momentum(
+            inner_iterations=self.inner_iterations
+        )
+      # Tuning adaptive momentum from 100th iteration.
+      else:
+        self.momentum = momentum_lib.Momentum(
+            start=100, inner_iterations=self.inner_iterations
+        )
+
     self.parallel_dual_updates = parallel_dual_updates
     self.initializer = initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
