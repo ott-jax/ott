@@ -378,17 +378,17 @@ class Sinkhorn:
           self.inner_iterations
       )
     else:
-      # By default, use adaptive momentum
-      # Switch back to neutral momentum object if using Anderson or unrolling.
+      # Use no momentum if using Anderson or unrolling.
       if self.anderson is not None or self.implicit_diff is None:
         self.momentum = momentum_lib.Momentum(
             inner_iterations=self.inner_iterations
         )
-      # Tuning adaptive momentum from 100th iteration.
+      # Use adaptive momentum from 300th iteration. Only do so
+      # if error is already below threshold below.
       else:
         self.momentum = momentum_lib.Momentum(
-            start=100,
-            error_threshold=1e-1,
+            start=300,
+            error_threshold=1e-2,
             inner_iterations=self.inner_iterations
         )
 
@@ -398,13 +398,14 @@ class Sinkhorn:
     self.jit = jit
 
     # Force implicit_differentiation to True when using Anderson acceleration,
-    # Reset all momentum parameters.
+    # Reset all momentum parameters to default (i.e. no momentum)
     if anderson:
       self.implicit_diff = (
           implicit_lib.ImplicitDiff()
           if self.implicit_diff is None else self.implicit_diff
       )
-      self.momentum = momentum_lib.Momentum(start=0, value=1.0)
+      self.momentum = momentum_lib.Momentum(
+        inner_iterations=self.inner_iterations)
 
     # By default, use Danskin theorem to differentiate
     # the objective when using implicit_lib.
@@ -718,8 +719,8 @@ def make(
     inner_iterations: int = 10,
     min_iterations: int = 0,
     max_iterations: int = 2000,
-    momentum: float = 1.0,
-    chg_momentum_from: int = 0,
+    momentum: Optional[float] = None,
+    chg_momentum_from: Optional[int] = None,
     anderson_acceleration: int = 0,
     refresh_anderson_frequency: int = 1,
     lse_mode: bool = True,
@@ -746,6 +747,15 @@ def make(
         symmetric=implicit_solver_symmetric,
         precondition_fun=precondition_fun
     )
+  # If no params are passed, align default with that provide in Sinkhorn solver.
+  if momentum is None and chg_momentum_from is None:
+    mom= momentum_lib.Momentum(start=300, error_threshold=1e-2)
+  elif momentum is None:
+    mom= momentum_lib.Momentum(start=chg_momentum_from)
+  elif chg_momentum_from is None:
+    mom= momentum_lib.Momentum(value=momentum)
+  else:
+    mom = momentum_lib.Momentum(start=chg_momentum_from, value=momentum)
 
   if anderson_acceleration > 0:
     anderson = anderson_lib.AndersonAcceleration(
@@ -761,7 +771,7 @@ def make(
       inner_iterations=inner_iterations,
       min_iterations=min_iterations,
       max_iterations=max_iterations,
-      momentum=momentum_lib.Momentum(start=chg_momentum_from, value=momentum),
+      momentum=mom,
       anderson=anderson,
       implicit_diff=implicit_diff,
       parallel_dual_updates=parallel_dual_updates,
