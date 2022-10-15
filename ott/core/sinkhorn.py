@@ -388,7 +388,7 @@ class Sinkhorn:
       else:
         self.momentum = momentum_lib.Momentum(
             start=100,
-            error_threshold=1e-2,
+            error_threshold=1e-1,
             inner_iterations=self.inner_iterations
         )
 
