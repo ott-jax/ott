@@ -374,7 +374,8 @@ class Sinkhorn:
 
     if momentum is not None:
       self.momentum = momentum_lib.Momentum(
-          momentum.start, momentum.value, self.inner_iterations
+          momentum.start, momentum.error_threshold, momentum.value,
+          self.inner_iterations
       )
     else:
       # By default, use adaptive momentum
@@ -386,7 +387,9 @@ class Sinkhorn:
       # Tuning adaptive momentum from 100th iteration.
       else:
         self.momentum = momentum_lib.Momentum(
-            start=100, inner_iterations=self.inner_iterations
+            start=100,
+            error_threshold=1e-2,
+            inner_iterations=self.inner_iterations
         )
 
     self.parallel_dual_updates = parallel_dual_updates

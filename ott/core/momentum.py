@@ -28,17 +28,25 @@ class Momentum:
   """Momentum for Sinkhorn updates, either constant or adaptive."""
 
   start: int = 0
+  error_threshold: float = jnp.inf
   value: float = 1.0
   inner_iterations: int = 1
 
   def weight(self, state: "sinkhorn.SinkhornState", iteration: int) -> float:
     """Compute momentum term if needed, using previously seen errors."""
-    return jnp.where(
-        iteration >= jnp.where(self.start == 0, jnp.inf, self.start),
-        self.at(state), self.value
+    if self.start == 0:
+      return self.value
+    idx = self.start // self.inner_iterations
+    weight = jnp.where(
+        iteration >= self.start,
+        jnp.where(
+            state.errors[idx - 1, -1] < self.error_threshold,
+            self.lehmann(state), self.value
+        ), self.value
     )
+    return weight
 
-  def at(self, state: "sinkhorn.SinkhornState") -> float:
+  def lehmann(self, state: "sinkhorn.SinkhornState") -> float:
     """Momentum formula :cite:`lehmann:21`, eq. 5."""
     idx = self.start // self.inner_iterations
     error_ratio = jnp.minimum(
