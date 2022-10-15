@@ -405,7 +405,8 @@ class Sinkhorn:
           if self.implicit_diff is None else self.implicit_diff
       )
       self.momentum = momentum_lib.Momentum(
-        inner_iterations=self.inner_iterations)
+          inner_iterations=self.inner_iterations
+      )
 
     # By default, use Danskin theorem to differentiate
     # the objective when using implicit_lib.
@@ -749,11 +750,11 @@ def make(
     )
   # If no params are passed, align default with that provide in Sinkhorn solver.
   if momentum is None and chg_momentum_from is None:
-    mom= momentum_lib.Momentum(start=300, error_threshold=1e-2)
+    mom = momentum_lib.Momentum(start=300, error_threshold=1e-2)
   elif momentum is None:
-    mom= momentum_lib.Momentum(start=chg_momentum_from)
+    mom = momentum_lib.Momentum(start=chg_momentum_from)
   elif chg_momentum_from is None:
-    mom= momentum_lib.Momentum(value=momentum)
+    mom = momentum_lib.Momentum(value=momentum)
   else:
     mom = momentum_lib.Momentum(start=chg_momentum_from, value=momentum)
 
