@@ -15,6 +15,7 @@
 
 from typing import TYPE_CHECKING
 
+import jax
 import jax.numpy as jnp
 
 from ott.core import dataclasses
@@ -37,12 +38,12 @@ class Momentum:
     if self.start == 0:
       return self.value
     idx = self.start // self.inner_iterations
-    weight = jnp.where(
-        iteration >= self.start,
-        jnp.where(
-            state.errors[idx - 1, -1] < self.error_threshold,
-            self.lehmann(state), self.value
-        ), self.value
+
+    weight = jax.lax.cond(
+        jnp.logical_and(
+            iteration >= self.start,
+            state.errors[idx - 1, -1] < self.error_threshold
+        ), lambda state: self.lehmann(state), lambda state: self.value, state
     )
     return weight
 
