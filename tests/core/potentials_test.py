@@ -11,7 +11,7 @@ from ott.tools.gaussian_mixture import gaussian
 
 class TestEntropicPotentials:
 
-  @pytest.mark.fast.with_args(eps=[1e-2, 1e-1], only_fast=0)
+  @pytest.mark.fast.with_args(eps=[5e-2, 1e-1], only_fast=0)
   def test_entropic_potentials_dist(self, rng: jnp.ndarray, eps: float):
     n1, n2, d = 64, 96, 2
     key1, key2, key3, key4 = jax.random.split(rng, 4)
@@ -26,7 +26,7 @@ class TestEntropicPotentials:
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
     prob = linear_problems.LinearProblem(geom)
     out = Sinkhorn()(prob)
-
+    assert out.converged
     potentials = out.to_dual_potentials()
 
     expected_dist = jnp.sum(out.matrix * geom.cost_matrix)

@@ -131,7 +131,7 @@ class TestGaussianMixturePair:
         sinkhorn_output=sinkhorn_output
     )
     expected = jnp.diag(self.gmm0.component_weights)
-    np.testing.assert_allclose(expected, coupling, atol=1e-3)
+    np.testing.assert_allclose(expected, coupling, atol=5e-3)
 
   @pytest.mark.fast.with_args(
       "epsilon,tau,lock_gmm1",
