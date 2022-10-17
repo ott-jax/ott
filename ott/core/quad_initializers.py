@@ -133,7 +133,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = quad_prob.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon)
+          tmp, marginal_1, marginal_2, epsilon
+      )
 
     h1, h2 = quad_prob.quad_loss
     tmp = apply_cost(quad_prob.geom_xx, tmp, axis=1, fn=h1)

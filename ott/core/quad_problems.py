@@ -252,12 +252,15 @@ class QuadraticProblem:
 
     marginal_1loga = jax.scipy.special.xlogy(marginal_1, self.a).sum()
     marginal_2logb = jax.scipy.special.xlogy(marginal_2, self.b).sum()
-    cost = regulariser(self.tau_a) * (-jax.scipy.special.entr(
-        marginal_1).sum() - marginal_1loga)
-    cost += regulariser(self.tau_b) * (-jax.scipy.special.entr(
-        marginal_2).sum() - marginal_2logb)
+    cost = regulariser(
+        self.tau_a
+    ) * (-jax.scipy.special.entr(marginal_1).sum() - marginal_1loga)
+    cost += regulariser(
+        self.tau_b
+    ) * (-jax.scipy.special.entr(marginal_2).sum() - marginal_2logb)
     cost += epsilon._target_init * jax.scipy.special.xlogy(
-      transport_matrix, transport_matrix).sum()
+        transport_matrix, transport_matrix
+    ).sum()
     return cost
 
   def init_transport(self) -> jnp.ndarray:
@@ -350,7 +353,8 @@ class QuadraticProblem:
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(
-          transport_matrix, marginal_1, marginal_2, epsilon)
+          transport_matrix, marginal_1, marginal_2, epsilon
+      )
 
     h1, h2 = self.quad_loss
     tmp = apply_cost(self.geom_xx, transport_matrix, axis=1, fn=h1)

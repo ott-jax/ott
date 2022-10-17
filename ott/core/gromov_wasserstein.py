@@ -85,6 +85,7 @@ class GWOutput(NamedTuple):
         self.old_transport_mass / self.linear_state.transport_mass()
     )
 
+
 class GWState(NamedTuple):
   """Holds the state of the Gromov-Wasserstein solver.
 
@@ -136,7 +137,8 @@ class GWState(NamedTuple):
         errors=errors,
         old_transport_mass=old_transport_mass
     )
-    
+
+
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
   """Gromov-Wasserstein solver.
