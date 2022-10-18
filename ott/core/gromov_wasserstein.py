@@ -94,14 +94,14 @@ class GWState(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
-      at each iteration.
     linear_state: State used to solve and store solutions to the local
       linearization of GW.
     linear_pb: Local linearization of the quadratic GW problem.
     old_transport_mass: Intermediary value of the mass of the transport matrix.
     keys: Random keys passed to low-rank initializers at every GW iteration
       when not using warm start.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
   """
 
   costs: jnp.ndarray
@@ -258,7 +258,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     linear_state = self.linear_ot_solver(init)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
-
     if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
     else:
