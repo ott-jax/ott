@@ -42,7 +42,7 @@ class BarycenterProblem:
     weights: Array of shape ``[num_measures,]`` containing the weights of the
       measures.
     cost_fn: Cost function used. If `None`,
-      use :class:`~ott.geometry.costs.Euclidean` cost.
+      use :class:`~ott.geometry.costs.SqEuclidean` cost.
     epsilon: Epsilon regularization used to solve reg-OT problems.
     debiased: **Currently not implemented.**
       Whether the problem is debiased, in the sense that
@@ -75,7 +75,7 @@ class BarycenterProblem:
       raise ValueError("Specify weights if `y` is already segmented.")
     self._b = b
     self._weights = weights
-    self.cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
+    self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     self.epsilon = epsilon
     self.debiased = debiased
     self._kwargs = kwargs
@@ -309,7 +309,7 @@ class GWBarycenterProblem(BarycenterProblem):
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
     Uses :cite:`cuturi:14` eq. 8, and is implemented only
-    for the squared :class:`~ott.geometry.costs.Euclidean` cost.
+    for the squared :class:`~ott.geometry.costs.SqEuclidean` cost.
 
     Args:
       transports: Transport maps of shape
@@ -330,7 +330,7 @@ class GWBarycenterProblem(BarycenterProblem):
     transports = transports * inv_a[None, :, None]
 
     if self._loss_name == "sqeucl":
-      cost = costs.Euclidean()
+      cost = costs.SqEuclidean()
       return jnp.sum(
           weights * barycentric_projection(transports, y_fused, cost), axis=0
       )

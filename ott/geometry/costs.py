@@ -92,7 +92,16 @@ class CostFn(abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):
-  """Squared Euclidean distance CostFn."""
+  """Euclidean distance."""
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Compute Euclidean norm."""
+    return jnp.linalg.norm(x - y)
+
+
+@jax.tree_util.register_pytree_node_class
+class SqEuclidean(CostFn):
+  """Squared Euclidean distance."""
 
   def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     """Compute squared Euclidean norm for vector."""

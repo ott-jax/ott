@@ -209,12 +209,12 @@ class TestSinkhorn:
         self.x, self.y, epsilon=eps, batch_size=7
     )
     online_geom_euc = pointcloud.PointCloud(
-        self.x, self.y, cost_fn=costs.Euclidean(), epsilon=eps, batch_size=10
+        self.x, self.y, cost_fn=costs.SqEuclidean(), epsilon=eps, batch_size=10
     )
 
     batch_geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
     batch_geom_euc = pointcloud.PointCloud(
-        self.x, self.y, cost_fn=costs.Euclidean(), epsilon=eps
+        self.x, self.y, cost_fn=costs.SqEuclidean(), epsilon=eps
     )
 
     out_online = sinkhorn.sinkhorn(

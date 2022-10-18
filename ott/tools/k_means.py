@@ -358,7 +358,7 @@ def k_means(
 
   Args:
     geom: Point cloud of shape ``[n, ndim]`` to cluster. If passed as an array,
-      :class:`~ott.geometry.costs.Euclidean` cost is assumed.
+      :class:`~ott.geometry.costs.SqEuclidean` cost is assumed.
     k: The number of clusters.
     weights: The weights of input points. These weights are considered when
       computing the centroids and inertia. If ``None``, use uniform weights.

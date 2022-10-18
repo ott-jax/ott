@@ -24,7 +24,7 @@ def make_blobs(
   if cost_fn is None:
     pass
   elif cost_fn == 'sqeucl':
-    X = pointcloud.PointCloud(X, cost_fn=costs.Euclidean())
+    X = pointcloud.PointCloud(X, cost_fn=costs.SqEuclidean())
   elif cost_fn == 'cosine':
     X = pointcloud.PointCloud(X, cost_fn=costs.Cosine())
   else:
