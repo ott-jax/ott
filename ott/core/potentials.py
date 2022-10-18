@@ -162,7 +162,7 @@ class EntropicPotentials(DualPotentials):
       cost = pointcloud.PointCloud(
           jnp.atleast_2d(x),
           y,
-          cost_fn=self._geom._cost_fn,
+          cost_fn=self._geom.cost_fn,
           power=self._geom.power,
           epsilon=1.0  #  epsilon is not used
       ).cost_matrix

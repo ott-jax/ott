@@ -388,7 +388,7 @@ def k_means(
       0] >= k, f"Cannot cluster `{geom.shape[0]}` points into `{k}` clusters."
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
-  if isinstance(geom._cost_fn, costs.Cosine):
+  if isinstance(geom.cost_fn, costs.Cosine):
     geom = geom._cosine_to_sqeucl()
   assert geom.is_squared_euclidean
 

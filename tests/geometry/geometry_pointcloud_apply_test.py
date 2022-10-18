@@ -105,7 +105,7 @@ class TestPointCloudApply:
     pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
     arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
 
-    assert pc._cost_fn.norm is None
+    assert pc.cost_fn.norm is None
     with pytest.raises(
         AssertionError, match=r"Cost matrix is not a squared Euclidean\."
     ):
