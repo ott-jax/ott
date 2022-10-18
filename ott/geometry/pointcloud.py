@@ -533,7 +533,7 @@ class PointCloud(geometry.Geometry):
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights, valid for p=2.0."""
-    assert self.power == 2.0, self.power
+    assert self.power == 1.0, self.power
     return self.cost_fn.barycenter(self.x, weights)
 
   @classmethod
@@ -578,13 +578,13 @@ class PointCloud(geometry.Geometry):
 
   def _cosine_to_sqeucl(self) -> 'PointCloud':
     assert isinstance(self.cost_fn, costs.Cosine), type(self.cost_fn)
-    assert self.power == 2, self.power
+    assert self.power == 1.0, self.power
     (x, y, *args, _), aux_data = self.tree_flatten()
     x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
     y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
     # TODO(michalk8): find a better way
     aux_data["scale_cost"] = 2. / self.inv_scale_cost
-    cost_fn = costs.Euclidean()
+    cost_fn = costs.SqEuclidean()
     return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 
   def to_LRCGeometry(
