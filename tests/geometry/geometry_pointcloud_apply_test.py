@@ -37,10 +37,10 @@ class TestPointCloudApply:
     vec0 = jax.random.normal(keys[2], (n, b))
     vec1 = jax.random.normal(keys[3], (m, b))
 
-    geom = pointcloud.PointCloud(x, y, power=2, batch_size=3)
+    geom = pointcloud.PointCloud(x, y, batch_size=3)
     prod0_online = geom.apply_cost(vec0, axis=0)
     prod1_online = geom.apply_cost(vec1, axis=1)
-    geom = pointcloud.PointCloud(x, y, power=2, batch_size=None)
+    geom = pointcloud.PointCloud(x, y, batch_size=None)
     prod0 = geom.apply_cost(vec0, axis=0)
     prod1 = geom.apply_cost(vec1, axis=1)
     geom = geometry.Geometry(cost)
@@ -105,7 +105,7 @@ class TestPointCloudApply:
     pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
     arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
 
-    assert pc._cost_fn.norm is None
+    assert pc.cost_fn.norm is None
     with pytest.raises(
         AssertionError, match=r"Cost matrix is not a squared Euclidean\."
     ):

@@ -101,7 +101,7 @@ class Grid(geometry.Geometry):
       raise ValueError('Input either grid_size t-uple or grid locations x.')
 
     if cost_fns is None:
-      cost_fns = [costs.Euclidean()]
+      cost_fns = [costs.SqEuclidean()]
     self.cost_fns = cost_fns
     self.kwargs = {
         'num_a': self.num_a,

@@ -65,7 +65,7 @@ def segment_sinkhorn(
     max_measure_size: Total size of measures after padding. Should ideally be
       set to an upper bound on points clouds processed with the segment
       interface. Providing this number is required for JIT compilation to work.
-    cost_fn: Cost function, defaults to :class:`~ott.core.costs.Euclidean`.
+    cost_fn: Cost function, defaults to :class:`~ott.core.costs.SqEuclidean`.
     segment_ids_x: **1st interface** The segment ID for which each row of x
       belongs. This is a similar interface to `jax.ops.segment_sum`.
     segment_ids_y: **1st interface** The segment ID for which each row of y

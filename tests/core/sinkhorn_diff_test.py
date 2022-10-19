@@ -24,7 +24,7 @@ import pytest
 
 from ott.core import implicit_differentiation as implicit_lib
 from ott.core import linear_problems, sinkhorn
-from ott.geometry import geometry, grid, pointcloud
+from ott.geometry import costs, geometry, grid, pointcloud
 from ott.tools import transport
 
 
@@ -232,13 +232,13 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon",
+      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon,power",
       [
-          (True, True, 0, 2000, 1e-3),
-          (True, True, 1000, 1000, 1e-3),
-          (True, False, 1000, 1000, 1e-2),
-          (True, False, 0, 2000, 1e-2),
-          (False, True, 0, 2000, 1e-2),
+          (True, True, 0, 2000, 1e-3, 1.0),
+          (True, True, 1000, 1000, 1e-3, 1.0),
+          (True, False, 1000, 1000, 1e-2, 2.0),
+          (True, False, 0, 2000, 1e-2, 2.0),
+          (False, True, 0, 2000, 1e-2, 1.0),
       ],
       ids=[
           "lse-implicit", "lse-implicit-force_scan", "lse-backprop-force_scan",
@@ -247,13 +247,8 @@ class TestSinkhornJacobian:
       only_fast=[0, 1],
   )
   def test_gradient_sinkhorn_euclidean(
-      self,
-      rng: jnp.ndarray,
-      lse_mode: bool,
-      implicit_differentiation: bool,
-      min_iter: int,
-      max_iter: int,
-      epsilon: float,
+      self, rng: jnp.ndarray, lse_mode: bool, implicit_differentiation: bool,
+      min_iter: int, max_iter: int, epsilon: float, power: float
   ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
@@ -270,9 +265,16 @@ class TestSinkhornJacobian:
     b = b.at[3].set(0)
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
+    # Adding some near-zero distances to test proper handling with power==1.0
+    y = y.at[0].set(x[0, :] + 1e-3)
 
     def loss_fn(x, y):
-      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      geom = pointcloud.PointCloud(
+          x,
+          y,
+          epsilon=epsilon,
+          cost_fn=costs.SqEuclidean() if power == 2.0 else costs.Euclidean()
+      )
       out = sinkhorn.sinkhorn(
           geom,
           a,
@@ -283,7 +285,7 @@ class TestSinkhornJacobian:
           max_iterations=max_iter,
           jit=False
       )
-      return out.reg_ot_cost, (geom, out.f, out.g)
+      return out.reg_ot_cost, out
 
     delta = jax.random.normal(keys[0], (n, d))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
@@ -291,17 +293,24 @@ class TestSinkhornJacobian:
 
     # first calculation of gradient
     loss_and_grad = jax.value_and_grad(loss_fn, has_aux=True)
-    (loss_value, aux), grad_loss = loss_and_grad(x, y)
+    (loss_value, out), grad_loss = loss_and_grad(x, y)
     custom_grad = jnp.sum(delta * grad_loss)
 
     assert not jnp.isnan(loss_value)
     np.testing.assert_array_equal(grad_loss.shape, x.shape)
     np.testing.assert_array_equal(jnp.isnan(grad_loss), False)
-    # second calculation of gradient
-    tm = aux[0].transport_from_potentials(aux[1], aux[2])
-    tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
-    grad_x = jnp.sum(tmp, 1)
-    other_grad = jnp.sum(delta * grad_x)
+    # second calculation of gradient, only valid for power=2.0
+    tm = out.matrix
+    if power == 2.0:
+      tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
+      grad_x = jnp.sum(tmp, 1)
+      other_grad = jnp.sum(delta * grad_x)
+    if power == 1.0:
+      tmp = tm[:, :, None] * (x[:, None, :] - y[None, :, :])
+      norms = jnp.linalg.norm(x[:, None] - y[None, :], axis=-1)
+      tmp /= norms[:, :, None] + 1e-8  # to stabilize when computed by hand
+      grad_x = jnp.sum(tmp, 1)
+      other_grad = jnp.sum(delta * grad_x)
 
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(x + eps * delta, y)

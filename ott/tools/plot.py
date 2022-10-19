@@ -43,15 +43,15 @@ class Plot:
   possibilities to create animations as matplotlib.animation.FuncAnimation,
   which can in turned be saved to disk at will. There are two design principles
   here: 1) we do not rely on saving to/loading from disk to create animations
-  2) we try as much as possible to disentangle the transport problem(s) from the
-  its visualization(s), leveraging the transport.Transport interface.
+  2) we try as much as possible to disentangle the transport problem(s) from
+  its visualization(s).
   """
 
   def __init__(
       self,
       fig: Optional[plt.Figure] = None,
       ax: Optional[plt.Axes] = None,
-      cost_threshold: float = 0.0,
+      cost_threshold: float = -1.0,  # should be negative for animations.
       scale: int = 200,
       show_lines: bool = True,
       cmap: str = 'cool'
@@ -167,7 +167,7 @@ class Plot:
     return animation.FuncAnimation(
         self.fig,
         lambda i: self.update(transports[i]),
-        np.arange(1, len(transports)),
+        np.arange(0, len(transports)),
         init_func=lambda: self.update(transports[0]),
         interval=1000 / frame_rate,
         blit=True

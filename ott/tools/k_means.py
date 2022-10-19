@@ -358,7 +358,7 @@ def k_means(
 
   Args:
     geom: Point cloud of shape ``[n, ndim]`` to cluster. If passed as an array,
-      :class:`~ott.geometry.costs.Euclidean` cost is assumed.
+      :class:`~ott.geometry.costs.SqEuclidean` cost is assumed.
     k: The number of clusters.
     weights: The weights of input points. These weights are considered when
       computing the centroids and inertia. If ``None``, use uniform weights.
@@ -388,7 +388,7 @@ def k_means(
       0] >= k, f"Cannot cluster `{geom.shape[0]}` points into `{k}` clusters."
   if isinstance(geom, jnp.ndarray):
     geom = pointcloud.PointCloud(geom)
-  if isinstance(geom._cost_fn, costs.Cosine):
+  if isinstance(geom.cost_fn, costs.Cosine):
     geom = geom._cosine_to_sqeucl()
   assert geom.is_squared_euclidean
 

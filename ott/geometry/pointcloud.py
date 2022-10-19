@@ -65,7 +65,7 @@ class PointCloud(geometry.Geometry):
       x: jnp.ndarray,
       y: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
-      power: float = 2.0,
+      power: float = 1.0,
       batch_size: Optional[int] = None,
       scale_cost: Union[bool, int, float,
                         Literal['mean', 'max_norm', 'max_bound', 'max_cost',
@@ -75,9 +75,9 @@ class PointCloud(geometry.Geometry):
     super().__init__(**kwargs)
     self.x = x
     self.y = self.x if y is None else y
-    self._cost_fn = costs.Euclidean() if cost_fn is None else cost_fn
+    self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     self.power = power
-    self._axis_norm = 0 if callable(self._cost_fn.norm) else None
+    self._axis_norm = 0 if callable(self.cost_fn.norm) else None
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
     self._batch_size = batch_size
@@ -86,13 +86,13 @@ class PointCloud(geometry.Geometry):
   @property
   def _norm_x(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
-      return self._cost_fn.norm(self.x)
+      return self.cost_fn.norm(self.x)
     return 0.
 
   @property
   def _norm_y(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
-      return self._cost_fn.norm(self.y)
+      return self.cost_fn.norm(self.y)
     return 0.
 
   @property
@@ -125,7 +125,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_squared_euclidean(self) -> bool:
-    return isinstance(self._cost_fn, costs.Euclidean) and self.power == 2.0
+    return isinstance(self.cost_fn, costs.SqEuclidean) and self.power == 1.0
 
   @property
   def is_online(self) -> bool:
@@ -163,7 +163,7 @@ class PointCloud(geometry.Geometry):
           "the cost matrix with the online mode is not implemented."
       )
     if self._scale_cost == 'max_norm':
-      if self._cost_fn.norm is not None:
+      if self.cost_fn.norm is not None:
         return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
       return 1.0
     if self._scale_cost == 'max_bound':
@@ -183,11 +183,11 @@ class PointCloud(geometry.Geometry):
     raise ValueError(f'Scaling {self._scale_cost} not implemented.')
 
   def _compute_cost_matrix(self) -> jnp.ndarray:
-    cost_matrix = self._cost_fn.all_pairs_pairwise(self.x, self.y)
+    cost_matrix = self.cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    if self.power != 2.0:
-      cost_matrix = jnp.abs(cost_matrix) ** (0.5 * self.power)
+    if self.power != 1.0:
+      cost_matrix = jnp.abs(cost_matrix) ** self.power
     return cost_matrix
 
   def apply_lse_kernel(
@@ -212,7 +212,7 @@ class PointCloud(geometry.Geometry):
             self._norm_y, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
-          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self._cost_fn,
+          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self.cost_fn,
           self.power, self.inv_scale_cost
       )
       return carry, (h_res, h_sgn)
@@ -230,7 +230,7 @@ class PointCloud(geometry.Geometry):
             self._norm_x, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
-          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self._cost_fn,
+          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self.cost_fn,
           self.power, self.inv_scale_cost
       )
       return carry, (h_res, h_sgn)
@@ -240,12 +240,12 @@ class PointCloud(geometry.Geometry):
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
         return app(
             self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec,
-            self._cost_fn, self.power, self.inv_scale_cost
+            self.cost_fn, self.power, self.inv_scale_cost
         )
       norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
       return app(
           self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec,
-          self._cost_fn, self.power, self.inv_scale_cost
+          self.cost_fn, self.power, self.inv_scale_cost
       )
 
     if not self.is_online:
@@ -297,12 +297,12 @@ class PointCloud(geometry.Geometry):
     if axis == 0:
       return app(
           self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
-          self._cost_fn, self.power, self.inv_scale_cost
+          self.cost_fn, self.power, self.inv_scale_cost
       )
     if axis == 1:
       return app(
           self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
-          self._cost_fn, self.power, self.inv_scale_cost
+          self.cost_fn, self.power, self.inv_scale_cost
       )
 
   def transport_from_potentials(
@@ -318,7 +318,7 @@ class PointCloud(geometry.Geometry):
     )
     return transport(
         self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon,
-        self._cost_fn, self.power, self.inv_scale_cost
+        self.cost_fn, self.power, self.inv_scale_cost
     )
 
   def transport_from_scalings(
@@ -334,7 +334,7 @@ class PointCloud(geometry.Geometry):
     )
     return transport(
         self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon,
-        self._cost_fn, self.power, self.inv_scale_cost
+        self.cost_fn, self.power, self.inv_scale_cost
     )
 
   def apply_cost(
@@ -387,12 +387,12 @@ class PointCloud(geometry.Geometry):
         arr = arr.reshape(-1, 1)
       if axis == 0:
         return app(
-            self.x, self.y, self._norm_x, self._norm_y, arr, self._cost_fn,
+            self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
             self.power, self.inv_scale_cost, fn
         )
       if axis == 1:
         return app(
-            self.y, self.x, self._norm_y, self._norm_x, arr, self._cost_fn,
+            self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
             self.power, self.inv_scale_cost, fn
         )
     else:
@@ -464,7 +464,7 @@ class PointCloud(geometry.Geometry):
       else:
         norm_y = self._leading_slice(self._norm_y, i)
       h_res = app(
-          self.x, y, self._norm_x, norm_y, vec, self._cost_fn, self.power,
+          self.x, y, self._norm_x, norm_y, vec, self.cost_fn, self.power,
           scale_cost
       )
       return carry, h_res
@@ -477,7 +477,7 @@ class PointCloud(geometry.Geometry):
       else:
         norm_x = self._leading_slice(self._norm_x, i)
       h_res = app(
-          self.y, x, self._norm_y, norm_x, vec, self._cost_fn, self.power,
+          self.y, x, self._norm_y, norm_x, vec, self.cost_fn, self.power,
           scale_cost
       )
       return carry, h_res
@@ -486,12 +486,12 @@ class PointCloud(geometry.Geometry):
       if batch_for_y:
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
         return app(
-            self.x, self.y[i:], self._norm_x, norm_y, vec, self._cost_fn,
+            self.x, self.y[i:], self._norm_x, norm_y, vec, self.cost_fn,
             self.power, scale_cost
         )
       norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
       return app(
-          self.y, self.x[i:], self._norm_y, norm_x, vec, self._cost_fn,
+          self.y, self.x[i:], self._norm_y, norm_x, vec, self.cost_fn,
           self.power, scale_cost
       )
 
@@ -532,9 +532,9 @@ class PointCloud(geometry.Geometry):
     )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
-    """Compute barycenter of points in self.x using weights, valid for p=2.0."""
-    assert self.power == 2.0, self.power
-    return self._cost_fn.barycenter(self.x, weights)
+    """Compute barycenter of points in self.x using weights, valid for p=1.0."""
+    assert self.power == 1.0, self.power
+    return self.cost_fn.barycenter(self.x, weights)
 
   @classmethod
   def prepare_divergences(
@@ -560,7 +560,7 @@ class PointCloud(geometry.Geometry):
 
   def tree_flatten(self):
     # passing self.power in aux_data to be able to condition on it.
-    return ([self.x, self.y, self._src_mask, self._tgt_mask, self._cost_fn], {
+    return ([self.x, self.y, self._src_mask, self._tgt_mask, self.cost_fn], {
         'epsilon': self._epsilon_init,
         'relative_epsilon': self._relative_epsilon,
         'scale_epsilon': self._scale_epsilon,
@@ -577,14 +577,14 @@ class PointCloud(geometry.Geometry):
     )
 
   def _cosine_to_sqeucl(self) -> 'PointCloud':
-    assert isinstance(self._cost_fn, costs.Cosine), type(self._cost_fn)
-    assert self.power == 2, self.power
+    assert isinstance(self.cost_fn, costs.Cosine), type(self.cost_fn)
+    assert self.power == 1.0, self.power
     (x, y, *args, _), aux_data = self.tree_flatten()
     x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
     y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
     # TODO(michalk8): find a better way
     aux_data["scale_cost"] = 2. / self.inv_scale_cost
-    cost_fn = costs.Euclidean()
+    cost_fn = costs.SqEuclidean()
     return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 
   def to_LRCGeometry(
@@ -767,8 +767,8 @@ def _transport_from_scalings_xy(
 def _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost):
   one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
   cost = norm_x + norm_y + one_line_pairwise(x, y)
-  if cost_pow != 2.0:
-    cost = jnp.abs(cost) ** (0.5 * cost_pow)
+  if cost_pow != 1.0:
+    cost = jnp.abs(cost) ** cost_pow
   return cost * scale_cost
 
 

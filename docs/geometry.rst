@@ -50,6 +50,7 @@ Cost Functions
     :toctree: _autosummary
 
     costs.CostFn
+    costs.SqEuclidean
     costs.Euclidean
     costs.Cosine
     costs.Bures
