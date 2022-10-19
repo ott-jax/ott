@@ -532,7 +532,7 @@ class PointCloud(geometry.Geometry):
     )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
-    """Compute barycenter of points in self.x using weights, valid for p=2.0."""
+    """Compute barycenter of points in self.x using weights, valid for p=1.0."""
     assert self.power == 1.0, self.power
     return self.cost_fn.barycenter(self.x, weights)
 
