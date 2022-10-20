@@ -14,11 +14,13 @@ A JAX powered library to compute optimal transport at scale and on accelerators,
 
 ## What is optimal transport?
 
-Optimal transport can be loosely described as the branch of mathematics and optimization that studies *matching problems*: given two sets of points, how to find (given some prior information, typically a cost function) a good way to associate bijectively to every point in the first set another in the second.
+Optimal transport can be loosely described as the branch of mathematics and optimization that studies *matching problems*: given two families of points, and a cost function on pairs of points, find a `good' (low cost) way to associate bijectively to every point in the first family another in the second.
 
-These problems are easy to describe yet hard to solve. Indeed, while matching optimally two sets of *n* points using a pairwise cost can be solved with the [Hungarian algorithm](https://en.wikipedia.org/wiki/Hungarian_algorithm), this requires an effort that scales as $n^3$ and lacks flexibility (one may encouter sets with different size). Optimal transport extends all of this, through faster algorithms (in $n^2$ or even linear in $n$) along with numerous extensions (wighted sets of different size, partial matchings, so-called quadratic matching problems).
+Such problems appear in all areas of science, are easy to describe, yet hard to solve. Indeed, while matching optimally two sets of *n* points using a pairwise cost can be solved with the [Hungarian algorithm](https://en.wikipedia.org/wiki/Hungarian_algorithm), solving it costs an order of $O(n^3)$ operations, and lacks flexibility, since one may want to couple families of different sizes.
 
-To go back to the basics: the crucial ingredient in OT problems will always consists of two measures, encoded most often as point clouds, and a cost function comparing points. In the simple toy example below, these point clouds are composed of vectors, and that these vectors are compared with a squared Euclidean distance:
+Optimal transport extends all of this, through faster algorithms (in $n^2$ or even linear in $n$) along with numerous generalizations that can help it handle weighted sets of different size, partial matchings, and even more evolved so-called quadratic matching problems.
+
+In the very simple toy example below, we carry out this matching betwee two point clouds (2D vectors), compared with the squared Euclidean distance:
 
 ## Example
 
@@ -39,7 +41,7 @@ ot = transport.solve(x, y, a=a, b=b)
 P = ot.matrix
 ```
 
-The call to `solve` above works out an optimal transport solution. The `ot` object contains a transport matrix that links each point from the first point cloud to one or more points from the second, as illustrated below. In this toy example, most choices were arbitrary, and are reflected in the crude `solve` API. We provide far more flexibility to define custom solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
+The call to `solve` above works out the optimal transport solution. The `ot` object contains a transport matrix (here of size $12\times 14$) that quantifies a `link strength` between each point of the first point cloud, to one or more points from the second, as illustrated in the plot below. In this toy example, most choices were arbitrary, and are reflected in the crude `solve` API. We provide far more flexibility to define custom cost functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
 
 ![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/images/couplings.png)
 ## Citation
