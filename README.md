@@ -20,7 +20,7 @@ Such problems appear in all areas of science, are easy to describe, yet hard to 
 
 Optimal transport extends all of this, through faster algorithms (in $n^2$ or even linear in $n$) along with numerous generalizations that can help it handle weighted sets of different size, partial matchings, and even more evolved so-called quadratic matching problems.
 
-In the very simple toy example below, we carry out this matching betwee two point clouds (2D vectors), compared with the squared Euclidean distance:
+In the simple toy example below, we compute the optimal coupling matrix between two point clouds sampled randomly (2D vectors, compared with the squared Euclidean distance):
 
 ## Example
 
