@@ -16,7 +16,7 @@ To achieve this, `OTT` rests on two families of tools:
 The first family consists in *discrete* solvers computing transport between point clouds,
 using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn :cite:`scetbon:21` algorithms,
 and moving up towards Gromov-Wasserstein :cite:`memoli:11`, :cite:`memoli:11`;
-the second family consists in *continuous* solvers, using suitable neural architectures:cite:`amos:17` coupled
+the second family consists in *continuous* solvers, using suitable neural architectures :cite:`amos:17` coupled
 with SGD type estimators :cite:`makkuva:20`, :cite:`korotin21`.
 
 Design Choices
