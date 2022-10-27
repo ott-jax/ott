@@ -38,7 +38,7 @@ class ImplicitDiff:
       case where the system is guaranteed to be symmetric.
   """
 
-  solver_fun: Callable = jax.scipy.sparse.linalg.cg  # pylint: disable=g-bare-generic
+  solver_fun: Callable = jax.scipy.sparse.linalg.gmres  # pylint: disable=g-bare-generic
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
   symmetric: bool = False
@@ -91,7 +91,7 @@ class ImplicitDiff:
     application elementwise of :math:`h'` to the row (respectively column)
     marginal sum of the transport.
 
-    Note that we take great care in not instantiatiating these transport
+    Note that we take great care in not instantiating these transport
     matrices, to rely instead on calls to the ``app_transport`` method from the
     ``Geometry`` object ``geom`` (which will either use potentials or scalings,
     depending on ``lse_mode``)
@@ -121,7 +121,7 @@ class ImplicitDiff:
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
-      ot_prob: the instantiation of the regularizad transport problem.
+      ot_prob: the instantiation of the regularized transport problem.
       f: potential, w.r.t marginal a.
       g: potential, w.r.t marginal b.
       lse_mode: bool, log-sum-exp mode if True, kernel else.
@@ -143,21 +143,24 @@ class ImplicitDiff:
     derivative = jax.vmap(jax.grad(precond_fun))
 
     n, m = geom.shape
-    # pylint: disable=g-long-lambda
-    vjp_fg = lambda z: app_transport(
-        f, g, z * derivative(marginal_b(f, g)), axis=1
+
+    transport = geom.transport_from_potentials(f=f, g=g)
+    vjp_fg = lambda z: transport.dot(
+        z * derivative(marginal_b(f, g))
     ) / geom.epsilon
-    vjp_gf = lambda z: app_transport(
-        f, g, z * derivative(marginal_a(f, g)), axis=0
+    vjp_gf = lambda z: jnp.transpose(transport).dot(
+        z * derivative(marginal_a(f, g))
     ) / geom.epsilon
 
-    if not self.symmetric:
-      vjp_fgt = lambda z: app_transport(
-          f, g, z, axis=0
-      ) * derivative(marginal_b(f, g)) / geom.epsilon
-      vjp_gft = lambda z: app_transport(
-          f, g, z, axis=1
-      ) * derivative(marginal_a(f, g)) / geom.epsilon
+    if self.symmetric:
+      # pylint: disable=g-long-lambda
+      vjp_fg = lambda z: app_transport(
+          f, g, z * derivative(marginal_b(f, g)), axis=1
+      ) / geom.epsilon
+      vjp_gf = lambda z: app_transport(
+          f, g, z * derivative(marginal_a(f, g)), axis=0
+      ) / geom.epsilon
+      self.solver_fun = jax.scipy.sparse.linalg.cg
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
@@ -172,8 +175,7 @@ class ImplicitDiff:
         )
     )
 
-    n, m = geom.shape
-    # Remove ridge on kernel space if problem is balanced.
+    # Remove ridge on kernel space if problem is unbalanced.
     ridge_kernel = jnp.where(ot_prob.is_balanced, self.ridge_kernel, 0.0)
 
     # Forks on using Schur complement of either A or D, depending on size.
@@ -183,17 +185,9 @@ class ImplicitDiff:
       schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
       res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
-        schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
+      schur = lambda z: (
+          schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      )
 
       sch = self.solver_fun(schur, res)[0]
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
@@ -204,17 +198,9 @@ class ImplicitDiff:
       schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
       res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
-        schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
+      schur = lambda z: (
+          schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      )
 
       sch = self.solver_fun(schur, res)[0]
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
