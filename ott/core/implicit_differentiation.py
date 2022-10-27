@@ -144,14 +144,6 @@ class ImplicitDiff:
 
     n, m = geom.shape
 
-    transport = geom.transport_from_potentials(f=f, g=g)
-    vjp_fg = lambda z: transport.dot(
-        z * derivative(marginal_b(f, g))
-    ) / geom.epsilon
-    vjp_gf = lambda z: jnp.transpose(transport).dot(
-        z * derivative(marginal_a(f, g))
-    ) / geom.epsilon
-
     if self.symmetric:
       # pylint: disable=g-long-lambda
       vjp_fg = lambda z: app_transport(
@@ -161,6 +153,15 @@ class ImplicitDiff:
           f, g, z * derivative(marginal_a(f, g)), axis=0
       ) / geom.epsilon
       self.solver_fun = jax.scipy.sparse.linalg.cg
+
+    else:
+      transport = geom.transport_from_potentials(f=f, g=g)
+      vjp_fg = lambda z: transport.dot(
+          z * derivative(marginal_b(f, g))
+      ) / geom.epsilon
+      vjp_gf = lambda z: jnp.transpose(transport).dot(
+          z * derivative(marginal_a(f, g))
+      ) / geom.epsilon
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
