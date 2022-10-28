@@ -427,7 +427,7 @@ class TestGraph:
       return solver(problem).reg_ot_cost
 
     if implicit_diff:
-      kwargs = {"implicit_diff": implicit_lib.ImplicitDiff()}
+      kwargs = {"implicit_diff": implicit_lib.ImplicitDiff(symmetric=True)}
     else:
       kwargs = {"implicit_diff": None}
 
