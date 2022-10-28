@@ -38,7 +38,7 @@ class ImplicitDiff:
       case where the system is guaranteed to be symmetric.
   """
 
-  solver_fun: Callable = jax.scipy.sparse.linalg.gmres  # pylint: disable=g-bare-generic
+  solver_fun: Callable = None  # pylint: disable=g-bare-generic
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
   symmetric: bool = False
@@ -152,7 +152,8 @@ class ImplicitDiff:
       vjp_gf = lambda z: app_transport(
           f, g, z * derivative(marginal_a(f, g)), axis=0
       ) / geom.epsilon
-      self.solver_fun = jax.scipy.sparse.linalg.cg
+      if self.solver_fun is None:
+        solver_fun = jax.scipy.sparse.linalg.cg
 
     else:
       transport = geom.transport_from_potentials(f=f, g=g)
@@ -162,6 +163,8 @@ class ImplicitDiff:
       vjp_gf = lambda z: jnp.transpose(transport).dot(
           z * derivative(marginal_a(f, g))
       ) / geom.epsilon
+      if self.solver_fun is None:
+        solver_fun = jax.scipy.sparse.linalg.gmres
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
@@ -190,7 +193,7 @@ class ImplicitDiff:
           schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
       )
 
-      sch = self.solver_fun(schur, res)[0]
+      sch = solver_fun(schur, res)[0]
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
     else:
@@ -203,7 +206,7 @@ class ImplicitDiff:
           schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
       )
 
-      sch = self.solver_fun(schur, res)[0]
+      sch = solver_fun(schur, res)[0]
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
