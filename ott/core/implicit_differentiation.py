@@ -152,9 +152,8 @@ class ImplicitDiff:
       vjp_gf = lambda z: app_transport(
           f, g, z * derivative(marginal_a(f, g)), axis=0
       ) / geom.epsilon
-      if self.solver_fun is None:
-        solver_fun = jax.scipy.sparse.linalg.cg
 
+      solver_fun = jax.scipy.sparse.linalg.cg if self.solver_fun is None else self.solver_fun
     else:
       transport = geom.transport_from_potentials(f=f, g=g)
       vjp_fg = lambda z: transport.dot(
@@ -163,8 +162,7 @@ class ImplicitDiff:
       vjp_gf = lambda z: jnp.transpose(transport).dot(
           z * derivative(marginal_a(f, g))
       ) / geom.epsilon
-      if self.solver_fun is None:
-        solver_fun = jax.scipy.sparse.linalg.gmres
+      solver_fun = jax.scipy.sparse.linalg.gmres if self.solver_fun is None else self.solver_fun
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
