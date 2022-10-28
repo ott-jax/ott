@@ -764,14 +764,14 @@ class TestSinkhornHessian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
-    ridge = 1e-5
+    ridge_kernel = 1e-4
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problems.LinearProblem(geom, a, b, tau_a, tau_b)
       implicit_diff = (
           None if not implicit else
-          implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge)
+          implicit_lib.ImplicitDiff(ridge_kernel=ridge_kernel)
       )
       solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode,
