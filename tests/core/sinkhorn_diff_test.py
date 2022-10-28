@@ -764,7 +764,7 @@ class TestSinkhornHessian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
-    ridge = 1e-5
+    ridge = 1e-4
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
