@@ -91,8 +91,75 @@ class CostFn(abc.ABC):
 
 
 @jax.tree_util.register_pytree_node_class
+class RBFCost(CostFn):
+  """A radial-basis function cost class for translation invariant costs.
+
+  Such costs are defined as
+
+  c(x,y) = h(z), where z := x-y.
+
+  where h is a function strictly convex (or concave) function mapping vectors
+  to real-values.
+
+  For completeness (and differentiation using the Brenier theorem), the user
+  is also supposed to provide the Legendre transform of `h`, whose gradient (the
+  inverse of the gradient of `h`) will be used to form a Brenier map.
+  """
+
+  def h(self, z: jnp.ndarray) -> float:
+    pass
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    pass
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Evaluate h on difference between x and y."""
+    return self.h(x - y)
+
+  def tree_flatten(self):
+    return (), None
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del aux_data
+    return cls(*children)
+
+
+@jax.tree_util.register_pytree_node_class
+class SqPNorm(RBFCost):
+  """Squared p-norm of the difference of two vectors.
+  
+  For details on the derivation of the Legendre transform of the norm, see e.g.
+  the reference :cite:`boyd:04`, p.93/94.
+  https://web.stanford.edu/~boyd/cvxbook/bv_cvxbook.pdf
+  """
+  p: float
+
+  def __init__(self, p: float):
+    self.p = p
+    self.q = 1. / (1 - 1 / self.p)
+
+  def h(self, z: jnp.ndarray) -> float:
+    return 0.5 * jnp.linalg.norm(z, self.p) ** 2
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return 0.5 * jnp.linalg.norm(z, self.q) ** 2
+
+  def tree_flatten(self):
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(aux_data[0])
+
+@jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):
-  """Euclidean distance."""
+  """Euclidean distance.
+
+  Note that the Euclidean distance is not cast as a RBF cost, because this
+  would correspond to `h = abs`, whose gradient is not invertible.
+  """
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm."""
@@ -100,7 +167,7 @@ class Euclidean(CostFn):
 
 
 @jax.tree_util.register_pytree_node_class
-class SqEuclidean(CostFn):
+class SqEuclidean(RBFCost):
   """Squared Euclidean distance."""
 
   def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
@@ -110,6 +177,12 @@ class SqEuclidean(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
+
+  def h(self, z: jnp.ndarray) -> float:
+    return jnp.sum(z ** 2)
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return 0.25 * jnp.sum(z ** 2)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Output barycenter of vectors when using squared-Euclidean distance."""

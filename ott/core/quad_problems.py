@@ -23,7 +23,7 @@ from typing_extensions import Literal, Protocol
 
 from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
-
+from ott.core import _math_utils as mu
 
 class Transport(Protocol):
   """Interface for the solution of a transport problem.
@@ -58,16 +58,17 @@ class GWLoss(NamedTuple):
 def make_square_loss() -> GWLoss:
   f1 = Loss(lambda x: x ** 2, is_linear=False)
   f2 = Loss(lambda y: y ** 2, is_linear=False)
-  h1 = Loss(lambda x: x, is_linear=True)
-  h2 = Loss(lambda y: 2.0 * y, is_linear=True)
+  h1 = Loss(lambda x: jnp.sqrt(2) * x, is_linear=True)
+  h2 = Loss(lambda y: jnp.sqrt(2) * y, is_linear=True)
   return GWLoss(f1, f2, h1, h2)
 
 
-def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
+def make_kl_loss(clipping_value: Optional[float] = None) -> GWLoss:
+  assert clipping_value is None, "Clipping deprecated in KL definition."
   f1 = Loss(lambda x: -jax.scipy.special.entr(x) - x, is_linear=False)
   f2 = Loss(lambda y: y, is_linear=True)
   h1 = Loss(lambda x: x, is_linear=True)
-  h2 = Loss(lambda y: jnp.log(jnp.clip(y, clipping_value)), is_linear=False)
+  h2 = Loss(lambda y: mu.safe_log(y), is_linear=False)
   return GWLoss(f1, f2, h1, h2)
 
 

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -6,7 +6,7 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -22,21 +22,31 @@ class DualPotentials:
   Args:
     f: The first dual potential function.
     g: The second dual potential function.
+    cost_fn: The cost function used to solve the OT problem.
     cor: whether the duals solve the problem in distance form, or correlation
       form (as used for instance for ICNNs, see e.g. top right of p.3 in
       http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf)
   """
 
-  def __init__(self, f: Potential_t, g: Potential_t, *, cor: bool = False):
+  def __init__(
+      self,
+      f: Potential_t,
+      g: Potential_t,
+      *,
+      cost_fn: Optional[costs.CostFn] = None,
+      cor: bool = False
+  ):
     self._f = f
     self._g = g
+    self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     self._cor = cor
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
     """Transport ``vec`` according to Brenier formula.
 
     Theorem 1.17 in http://math.univ-lyon1.fr/~santambrogio/OTAM-cvgmt.pdf
-    for case h(.) = ||.||^2, ∇h(.) = 2 ., [∇h]^-1(.) = 0.5 * .
+    for case h(.) = ||.||^2, ∇h(.) = 2 ., 
+    h*(.) = ||.||^2 / 4, [∇h*](.) = [∇h]^-1(.) = 0.5 * .
 
     or, when solved in correlation form, as ∇g for forward, ∇f for backward.
 
@@ -49,9 +59,13 @@ class DualPotentials:
       The transported points.
     """
     vec = jnp.atleast_2d(vec)
-    if self._cor:
+    if self._cor and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
-    return vec - 0.5 * (self._grad_f(vec) if forward else self._grad_g(vec))
+    grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))    
+    if forward:
+      return vec - grad_h_inv(self._grad_f(vec))
+    else:
+      return vec - grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
@@ -64,8 +78,7 @@ class DualPotentials:
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-      Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2` as the
-      ground distance.
+      Wasserstein distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
 
@@ -84,9 +97,6 @@ class DualPotentials:
       C = jnp.mean(f(src))
       C += jnp.mean(g(tgt))
       return C
-
-    # compute the final Wasserstein distance assuming ground metric |x-y|^2,
-    # thus an additional multiplication by 2
 
   @property
   def f(self) -> Potential_t:
@@ -141,7 +151,7 @@ class EntropicPotentials(DualPotentials):
 
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g)
+    super().__init__(f, g, cost_fn=geom.cost_fn, cor=False)
     self._geom = geom
     self._a = a
     self._b = b
@@ -162,14 +172,13 @@ class EntropicPotentials(DualPotentials):
       cost = pointcloud.PointCloud(
           jnp.atleast_2d(x),
           y,
-          cost_fn=self._geom.cost_fn,
-          power=self._geom.power,
-          epsilon=1.0  #  epsilon is not used
+          cost_fn=self._geom.cost_fn
       ).cost_matrix
-      return -eps * jsp.special.logsumexp((potential - cost) / eps,
-                                          b=prob_weights)
+      z = (potential - cost) / epsilon
+      lse = - epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
+      return jnp.squeeze(lse)
 
-    eps = self.epsilon
+    epsilon = self.epsilon
     if kind == "g":
       # When seeking to evaluate 2nd potential function, 1st set of potential
       # values and support should be used,
