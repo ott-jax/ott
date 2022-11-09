@@ -128,7 +128,7 @@ class RBFCost(CostFn):
 @jax.tree_util.register_pytree_node_class
 class SqPNorm(RBFCost):
   """Squared p-norm of the difference of two vectors.
-  
+
   For details on the derivation of the Legendre transform of the norm, see e.g.
   the reference :cite:`boyd:04`, p.93/94.
   https://web.stanford.edu/~boyd/cvxbook/bv_cvxbook.pdf
@@ -152,6 +152,7 @@ class SqPNorm(RBFCost):
   def tree_unflatten(cls, aux_data, children):
     del children
     return cls(aux_data[0])
+
 
 @jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):

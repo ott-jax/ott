@@ -21,9 +21,10 @@ import jax.numpy as jnp
 # Because Protocol is not available in Python < 3.8
 from typing_extensions import Literal, Protocol
 
+from ott.core import _math_utils as mu
 from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
-from ott.core import _math_utils as mu
+
 
 class Transport(Protocol):
   """Interface for the solution of a transport problem.

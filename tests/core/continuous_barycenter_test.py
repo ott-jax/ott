@@ -415,9 +415,10 @@ class TestGWBarycenter:
       weights.append(jnp.concatenate([w, jnp.zeros(shape[0] - r)]))
     return jnp.stack(cs), jnp.stack(weights)
 
-  #TODO(cuturi) add back KL test when KL cost GW is fixed.
+  # TODO(cuturi) add back KL test when KL cost GW is fixed.
   @pytest.mark.parametrize(
-      "gw_loss,bar_size,epsilon", [("sqeucl", 17, None)] #, ("kl", 22, 1e-2)]
+      "gw_loss,bar_size,epsilon",
+      [("sqeucl", 17, None)]  #, ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(
       self, rng: jnp.ndarray, gw_loss: str, bar_size: int,

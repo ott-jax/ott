@@ -45,7 +45,7 @@ class DualPotentials:
     """Transport ``vec`` according to Brenier formula.
 
     Theorem 1.17 in http://math.univ-lyon1.fr/~santambrogio/OTAM-cvgmt.pdf
-    for case h(.) = ||.||^2, ∇h(.) = 2 ., 
+    for case h(.) = ||.||^2, ∇h(.) = 2 .,
     h*(.) = ||.||^2 / 4, [∇h*](.) = [∇h]^-1(.) = 0.5 * .
 
     or, when solved in correlation form, as ∇g for forward, ∇f for backward.
@@ -61,7 +61,7 @@ class DualPotentials:
     vec = jnp.atleast_2d(vec)
     if self._cor and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
-    grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))    
+    grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))
     if forward:
       return vec - grad_h_inv(self._grad_f(vec))
     else:
@@ -170,12 +170,10 @@ class EntropicPotentials(DualPotentials):
 
     def callback(x: jnp.ndarray) -> float:
       cost = pointcloud.PointCloud(
-          jnp.atleast_2d(x),
-          y,
-          cost_fn=self._geom.cost_fn
+          jnp.atleast_2d(x), y, cost_fn=self._geom.cost_fn
       ).cost_matrix
       z = (potential - cost) / epsilon
-      lse = - epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
+      lse = -epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
       return jnp.squeeze(lse)
 
     epsilon = self.epsilon

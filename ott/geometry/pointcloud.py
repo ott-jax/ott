@@ -70,7 +70,7 @@ class PointCloud(geometry.Geometry):
     # For reverse compatibility of deprecated parameter `power`.
     power = kwargs.pop("power", None)
     assert power is None or power == 1.0, "`power` option in `PointCloud` geometries is deprecated. Specify directly a `CostFn` using such an exponent."
-    
+
     super().__init__(**kwargs)
     self.x = x
     self.y = self.x if y is None else y
@@ -432,7 +432,7 @@ class PointCloud(geometry.Geometry):
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
-    cross_term = - 2.0 * jnp.dot(y, jnp.dot(x.T, arr))
+    cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
     applied_cost += cross_term[:, None] if rank == 1 else cross_term
     if fn is not None:
       applied_cost = fn(applied_cost)
@@ -618,8 +618,10 @@ class PointCloud(geometry.Geometry):
     n, m = self.shape
     nx = jnp.sum(self.x ** 2, axis=1, keepdims=True)
     ny = jnp.sum(self.y ** 2, axis=1, keepdims=True)
-    cost_1 = jnp.concatenate((nx, jnp.ones((n, 1)), - jnp.sqrt(2.0) * self.x), axis=1)
-    cost_2 = jnp.concatenate((jnp.ones((m, 1)), ny, jnp.sqrt(2.0) * self.y), axis=1)
+    cost_1 = jnp.concatenate((nx, jnp.ones((n, 1)), -jnp.sqrt(2.0) * self.x),
+                             axis=1)
+    cost_2 = jnp.concatenate((jnp.ones((m, 1)), ny, jnp.sqrt(2.0) * self.y),
+                             axis=1)
 
     return low_rank.LRCGeometry(
         cost_1=cost_1,

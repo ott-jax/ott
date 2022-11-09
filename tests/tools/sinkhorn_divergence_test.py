@@ -40,7 +40,9 @@ class TestSinkhornDivergence:
     self._b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.Euclidean(), costs.SqEuclidean(), costs.PNorm(p=2.7)],
+      cost_fn=[costs.Euclidean(),
+               costs.SqEuclidean(),
+               costs.PNorm(p=2.7)],
       epsilon=[.01, .001],
       only_fast={
           "costs_fn": costs.SqEuclidean(),

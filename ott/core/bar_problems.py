@@ -332,7 +332,8 @@ class GWBarycenterProblem(BarycenterProblem):
     if self._loss_name == "sqeucl":
       cost_fn = costs.SqEuclidean()
       return jnp.sum(
-          weights * barycentric_projection(transports, y_fused, cost_fn), axis=0
+          weights * barycentric_projection(transports, y_fused, cost_fn),
+          axis=0
       )
     raise NotImplementedError(self._loss_name)
 
