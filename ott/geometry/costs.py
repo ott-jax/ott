@@ -94,23 +94,23 @@ class CostFn(abc.ABC):
 class RBFCost(CostFn):
   """A radial-basis function cost class for translation invariant costs.
 
-  Such costs are defined as
+  Such costs are defined using a function :math:`h`, mapping vectors to
+  real-values, to be used as:
 
-  c(x,y) = h(z), where z := x-y.
+  :math:`c(x,y) = h(z)`, where :math:`z := x-y`.
 
-  where h is a function strictly convex (or concave) function mapping vectors
-  to real-values.
-
-  For completeness (and differentiation using the Brenier theorem), the user
-  is also supposed to provide the Legendre transform of `h`, whose gradient (the
-  inverse of the gradient of `h`) will be used to form a Brenier map.
+  If that cost function is used to form an Entropic map using the
+  :cite:`brenier:91` theorem, then the user should ensure :math:`h` is
+  strictly convex, as well as provide the Legendre transform of :math:`h`,
+  whose gradient is necessarily the inverse of the gradient of :math:`h`.
   """
 
+  @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
     pass
 
   def h_legendre(self, z: jnp.ndarray) -> float:
-    pass
+    raise NotImplementedError("`h_legendre` not implemented.")
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Evaluate h on difference between x and y."""
