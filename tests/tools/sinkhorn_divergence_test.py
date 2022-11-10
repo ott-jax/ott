@@ -42,7 +42,7 @@ class TestSinkhornDivergence:
   @pytest.mark.fast.with_args(
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
-               costs.PNorm(p=2.7)],
+               costs.SqPNorm(p=2.1)],
       epsilon=[.01, .001],
       only_fast={
           "costs_fn": costs.SqEuclidean(),
