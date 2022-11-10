@@ -24,6 +24,7 @@ from flax import core
 from typing_extensions import Literal
 
 from ott.core import icnn, potentials
+from ott.geometry import costs
 
 Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
 Potentials_t = potentials.DualPotentials
@@ -306,7 +307,7 @@ class NeuralDualSolver:
     """Return the Kantorovich dual potentials from the trained potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
-    return potentials.DualPotentials(f, g, corr=True)
+    return potentials.DualPotentials(f, g, costs.SqEuclidean(), corr=True)
 
   @staticmethod
   def _clip_weights_icnn(params):
