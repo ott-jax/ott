@@ -169,6 +169,7 @@ class Euclidean(CostFn):
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
 
+
 @jax.tree_util.register_pytree_node_class
 class SqEuclidean(RBFCost):
   """Squared Euclidean distance."""
@@ -419,7 +420,6 @@ class UnbalancedBures(CostFn):
         jnp.nan
     )
 
-  
   def tree_flatten(self):
     return (), (self._dimension, self._gamma, self._sigma2, self._sqrtm_kw)
 
