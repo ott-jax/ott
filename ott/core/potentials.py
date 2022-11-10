@@ -72,8 +72,8 @@ class DualPotentials:
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20` when given in cor form, direct estimation
-    by integrating dual function against points when using dual form.
+    Uses Eq. 5 from :cite:`makkuva:20` when given in `corr` form, direct
+    estimation by integrating dual function against points when using dual form.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
