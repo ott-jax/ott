@@ -145,6 +145,9 @@ class SqPNorm(RBFCost):
   def h_legendre(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+    raise NotImplementedError("Barycenter for Sq. p-norm not implemented.")
+
   def tree_flatten(self):
     return (), (self.p,)
 
@@ -165,6 +168,9 @@ class Euclidean(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
+
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+    raise NotImplementedError("Barycenter for Euclid. norm not implemented.")
 
 
 @jax.tree_util.register_pytree_node_class
