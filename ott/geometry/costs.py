@@ -47,7 +47,7 @@ class CostFn(abc.ABC):
     pass
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    return None
+    raise NotImplementedError("Barycenter not yet implemented for this cost.")
 
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
@@ -148,9 +148,6 @@ class SqPNorm(RBFCost):
   def h_legendre(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    raise NotImplementedError("Barycenter for Sq. p-norm not implemented.")
-
   def tree_flatten(self):
     return (), (self.p,)
 
@@ -171,10 +168,6 @@ class Euclidean(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
-
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    raise NotImplementedError("Barycenter for Euclid. norm not implemented.")
-
 
 @jax.tree_util.register_pytree_node_class
 class SqEuclidean(RBFCost):
@@ -216,9 +209,6 @@ class Cosine(CostFn):
     cosine_distance = 1.0 - cosine_similarity
     # similarity is in [-1, 1], clip because of numerical imprecisions
     return jnp.clip(cosine_distance, 0., 2.)
-
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    raise NotImplementedError("Barycenter for cosine cost not yet implemented.")
 
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
@@ -429,6 +419,7 @@ class UnbalancedBures(CostFn):
         jnp.nan
     )
 
+  
   def tree_flatten(self):
     return (), (self._dimension, self._gamma, self._sigma2, self._sqrtm_kw)
 
