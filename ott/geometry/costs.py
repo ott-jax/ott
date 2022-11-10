@@ -46,7 +46,6 @@ class CostFn(abc.ABC):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
-  @abc.abstractmethod
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
