@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,32 +23,34 @@ class DualPotentials:
     f: The first dual potential function.
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
-    cor: whether the duals solve the problem in distance form, or correlation
-      form (as used for instance for ICNNs, see e.g. top right of p.3 in
-      http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf)
+    corr: whether the duals solve the problem in distance form, or correlation form (as used for instance for ICNNs, see e.g. top right of p.3 in :cite:`makkuva:20`)
   """
 
   def __init__(
       self,
       f: Potential_t,
       g: Potential_t,
+      cost_fn: costs.CostFn,
       *,
-      cost_fn: Optional[costs.CostFn] = None,
-      cor: bool = False
+      corr: bool = False
   ):
     self._f = f
     self._g = g
     self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
-    self._cor = cor
+    self._corr = corr
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport ``vec`` according to Brenier formula.
+    r"""Transport ``vec`` according to Brenier formula.
 
-    Theorem 1.17 in http://math.univ-lyon1.fr/~santambrogio/OTAM-cvgmt.pdf
-    for case h(.) = ||.||^2, ∇h(.) = 2 .,
-    h*(.) = ||.||^2 / 4, [∇h*](.) = [∇h]^-1(.) = 0.5 * .
+    Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
+    given the Legendre transform of the dual potentials.
 
-    or, when solved in correlation form, as ∇g for forward, ∇f for backward.
+    That OT map can be recovered as :math:`x- (\nabla h)^{-1}\circ \nabla f(x)`
+    For the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
+    :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
+
+    When the dual potentials are solved in correlation form (only in the Squared Euclidean distance case), the maps are :math:`\nabla g` for forward, :math:`nabla f` for backward.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
@@ -59,7 +61,7 @@ class DualPotentials:
       The transported points.
     """
     vec = jnp.atleast_2d(vec)
-    if self._cor and isinstance(self.cost_fn, costs.SqEuclidean):
+    if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
     grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))
     if forward:
@@ -84,7 +86,7 @@ class DualPotentials:
 
     f = jax.vmap(self.f)
 
-    if self._cor:
+    if self._corr:
       grad_g_y = self._grad_g(tgt)
       term1 = -jnp.mean(f(src))
       term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
@@ -151,7 +153,7 @@ class EntropicPotentials(DualPotentials):
 
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g, cost_fn=geom.cost_fn, cor=False)
+    super().__init__(f, g, cost_fn=geom.cost_fn, corr=False)
     self._geom = geom
     self._a = a
     self._b = b

@@ -107,25 +107,15 @@ class RBFCost(CostFn):
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
-    pass
+    """RBF function acting on difference of `x-y` to ouput cost."""
 
   def h_legendre(self, z: jnp.ndarray) -> float:
+    """Legendre transform of RBF function `h` (when latter is convex)."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Evaluate h on difference between x and y."""
     return self.h(x - y)
-
-  def tree_flatten(self):
-    return (), None
-
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    pass
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    del aux_data
-    return cls(*children)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -136,9 +126,9 @@ class SqPNorm(RBFCost):
   the reference :cite:`boyd:04`, p.93/94.
   https://web.stanford.edu/~boyd/cvxbook/bv_cvxbook.pdf
   """
-  p: float
 
   def __init__(self, p: float):
+    assert p > 1.0
     self.p = p
     self.q = 1. / (1 - 1 / self.p)
 
