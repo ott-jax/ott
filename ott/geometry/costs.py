@@ -46,6 +46,7 @@ class CostFn(abc.ABC):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
+  @abc.abstractmethod
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
@@ -118,6 +119,9 @@ class RBFCost(CostFn):
 
   def tree_flatten(self):
     return (), None
+
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+    pass
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
