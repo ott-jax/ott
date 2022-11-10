@@ -248,7 +248,7 @@ class TestCostMatrixFactorization:
     geom = pointcloud.PointCloud(
         x,
         y,
-        cost_fn=costs.PNorm(p=3.0),
+        cost_fn=costs.SqPNorm(p=2.1),
         batch_size=batch_size,
         scale_cost=scale_cost
     )
