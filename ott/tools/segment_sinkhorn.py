@@ -17,8 +17,9 @@ from typing import Any, Mapping, Optional, Tuple
 
 from jax import numpy as jnp
 
-from ott.core import segment, sinkhorn
 from ott.geometry import costs, pointcloud
+from ott.solvers.linear import sinkhorn
+from ott.utils import segment
 
 
 def segment_sinkhorn(

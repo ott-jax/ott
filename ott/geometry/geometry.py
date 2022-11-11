@@ -25,7 +25,8 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from typing_extensions import Literal
 
-from ott.geometry import epsilon_scheduler, ops
+from ott.geometry import epsilon_scheduler
+from ott.math import utils
 
 
 @jax.tree_util.register_pytree_node_class
@@ -410,12 +411,12 @@ class Geometry:
     if vec is not None:
       if axis == 0:
         vec = vec.reshape((-1, 1))
-      lse_output = ops.logsumexp(
+      lse_output = utils.logsumexp(
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
     else:
-      lse_output = ops.logsumexp(
+      lse_output = utils.logsumexp(
           self._center(f, g) / eps, axis=axis, return_sign=False
       )
       return eps * lse_output, jnp.array([1.0])
@@ -639,7 +640,7 @@ class Geometry:
         Useful when this geometry is used in the linear term of fused GW.
 
     Returns:
-      The low-rank geometry.
+      Low-rank geometry.
     """
     from ott.geometry import low_rank
 

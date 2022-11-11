@@ -18,7 +18,8 @@ from typing import Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import costs, matrix_square_root
+from ott.geometry import costs
+from ott.math import matrix_square_root
 from ott.tools.gaussian_mixture import linalg
 
 

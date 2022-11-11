@@ -21,19 +21,20 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.geometry import costs, geometry, low_rank, ops
+from ott.geometry import costs, geometry, low_rank
+from ott.math import utils
 
 
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
-  """Defines geometry for 2 point clouds (possibly 1 vs itself) using CostFn.
+  """Defines geometry for 2 point clouds (possibly 1 vs itself).
 
   Creates a geometry, specifying a cost function passed as CostFn type object.
-  When the number of points is large, setting the `online` flag to `True`
-  implies that cost and kernel matrices used to update potentials or scalings
+  When the number of points is large, setting the ``batch_size`` flag implies
+  that cost and kernel matrices used to update potentials or scalings
   will be recomputed on the fly, rather than stored in memory. More precisely,
-  when setting `online`, the cost function will be partially cached by storing
-  norm values for each point in both point clouds, but the pairwise cost
+  when setting ``batch_size``, the cost function will be partially cached by
+  storing norm values for each point in both point clouds, but the pairwise cost
   function evaluations won't be. The sum of norms + the pairwise cost term is
   raised to `power`.
 
@@ -737,7 +738,7 @@ def _apply_lse_kernel_xy(
     x, y, norm_x, norm_y, f, g, eps, vec, cost_fn, cost_pow, scale_cost
 ):
   c = _cost(x, y, norm_x, norm_y, cost_fn, cost_pow, scale_cost)
-  return ops.logsumexp((f + g - c) / eps, b=vec, return_sign=True, axis=-1)
+  return utils.logsumexp((f + g - c) / eps, b=vec, return_sign=True, axis=-1)
 
 
 def _transport_from_potentials_xy(

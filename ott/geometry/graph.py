@@ -5,9 +5,9 @@ import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import _math_utils as mu
-from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
+from ott.math import decomposition, fixed_point_loop
+from ott.math import utils as mu
 
 __all__ = ["Graph"]
 

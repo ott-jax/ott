@@ -17,13 +17,12 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.core import fixed_point_loop
-from ott.geometry import matrix_square_root
+from ott.math import fixed_point_loop, matrix_square_root
 
 
 @jax.tree_util.register_pytree_node_class
@@ -32,9 +31,11 @@ class CostFn(abc.ABC):
 
   Cost functions evaluate a function on a pair of inputs. For convenience,
   that function is split into two norms -- evaluated on each input separately --
-  followed by a pairwise cost that involves both inputs, as in
+  followed by a pairwise cost that involves both inputs, as in:
 
-  c(x,y) = norm(x) + norm(y) + pairwise(x,y)
+  .. math::
+
+    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
 
   If the norm function is not implemented, that value is handled as a 0.
   """
@@ -46,6 +47,7 @@ class CostFn(abc.ABC):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
+  @abc.abstractmethod
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     pass
 
@@ -340,6 +342,7 @@ class UnbalancedBures(CostFn):
     log_m_pi += -0.5 * ldet_c_ab
 
     # If all logdet signs are 1, output value, nan otherwise.
+    # TODO(michalk8): use lax.cond
     return jnp.where(
         sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
         2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
@@ -355,7 +358,8 @@ class UnbalancedBures(CostFn):
     return cls(aux_data[0], aux_data[1], aux_data[2], **aux_data[3])
 
 
-def x_to_means_and_covs(x: jnp.ndarray, dimension: jnp.ndarray) -> jnp.ndarray:
+def x_to_means_and_covs(x: jnp.ndarray,
+                        dimension: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:
@@ -367,7 +371,7 @@ def x_to_means_and_covs(x: jnp.ndarray, dimension: jnp.ndarray) -> jnp.ndarray:
     covariances: [num_gaussians, dimension] array that holds the covariances.
   """
   x = jnp.atleast_2d(x)
-  means = x[:, 0:dimension]
+  means = x[:, :dimension]
   covariances = jnp.reshape(
       x[:, dimension:dimension + dimension ** 2], (-1, dimension, dimension)
   )

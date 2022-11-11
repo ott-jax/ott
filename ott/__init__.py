@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """OTT library."""
-from . import core, geometry, tools
+from . import geometry, initializers, math, problems, solvers, tools, utils
 from ._version import __version__

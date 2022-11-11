@@ -19,8 +19,8 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import fixed_point_loop
 from ott.geometry import costs, pointcloud
+from ott.math import fixed_point_loop
 
 __all__ = ["k_means", "KMeansOutput"]
 

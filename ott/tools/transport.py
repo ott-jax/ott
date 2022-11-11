@@ -27,13 +27,19 @@ ott.core.problems) and their solvers (see ott.core.sinkhorn and
 ott.core.gromov_wasserstein) for better control over the parameters.
 """
 
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Union
 
 import jax.numpy as jnp
+import numpy as np
 from typing_extensions import Literal
 
-from ott.core import gromov_wasserstein, linear_problems, problems, sinkhorn
-from ott.geometry import geometry
+from ott.geometry import geometry, pointcloud
+from ott.problems.linear import linear_problem
+from ott.problems.quadratic import quadratic_problem
+from ott.solvers.linear import sinkhorn
+from ott.solvers.quadratic import gromov_wasserstein
+
+__all__ = ["Transport"]
 
 
 class Transport(NamedTuple):
@@ -44,7 +50,7 @@ class Transport(NamedTuple):
 
   @property
   def linear(self) -> bool:
-    return isinstance(self.problem, linear_problems.LinearProblem)
+    return isinstance(self.problem, linear_problem.LinearProblem)
 
   @property
   def geom(self) -> geometry.Geometry:
@@ -109,7 +115,7 @@ def solve(
   fused_penalty = kwargs.pop('fused_penalty', None)
   eps_keys = ['epsilon', 'init', 'target', 'decay']
   pb_kwargs = {k: v for k, v in kwargs.items() if k in eps_keys}
-  pb = problems.make(
+  pb = make(
       *args,
       objective=objective,
       a=a,
@@ -120,7 +126,7 @@ def solve(
       fused_penalty=fused_penalty,
       **pb_kwargs
   )
-  linear = isinstance(pb, linear_problems.LinearProblem)
+  linear = isinstance(pb, linear_problem.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
   geom_keys = ['cost_fn', 'power', 'online']
 
@@ -130,3 +136,76 @@ def solve(
   solver = solver_fn(**kwargs)
   output = solver(pb, (init_dual_a, init_dual_b))
   return Transport(pb, output)
+
+
+def make(
+    *args: Union[jnp.ndarray, geometry.Geometry, linear_problem.LinearProblem,
+                 quadratic_problem.QuadraticProblem],
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    objective: Optional[str] = None,
+    gw_unbalanced_correction: Optional[bool] = True,
+    fused_penalty: Optional[float] = None,
+    scale_cost: Optional[Union[bool, float, str]] = False,
+    **kwargs: Any,
+):
+  """Make a problem from arrays, assuming PointCloud geometries."""
+  if isinstance(args[0], (jnp.ndarray, np.ndarray)):
+    x = args[0]
+    y = args[1] if len(args) > 1 else args[0]
+    if ((objective == 'linear') or
+        (objective is None and x.shape[1] == y.shape[1])):  # noqa: E129
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return linear_problem.LinearProblem(
+          geom_xy, a=a, b=b, tau_a=tau_a, tau_b=tau_b
+      )
+    elif ((objective == 'quadratic') or
+          (objective is None and x.shape[1] != y.shape[1])):
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      return quadratic_problem.QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=None,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
+    elif objective == 'fused':
+      geom_xx = pointcloud.PointCloud(x, x, **kwargs)
+      geom_yy = pointcloud.PointCloud(y, y, **kwargs)
+      geom_xy = pointcloud.PointCloud(x, y, **kwargs)
+      return quadratic_problem.QuadraticProblem(
+          geom_xx=geom_xx,
+          geom_yy=geom_yy,
+          geom_xy=geom_xy,
+          fused_penalty=fused_penalty,
+          scale_cost=scale_cost,
+          a=a,
+          b=b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
+      )
+    else:
+      raise ValueError(f'Unknown transport problem `{objective}`')
+  elif isinstance(args[0], geometry.Geometry):
+    if len(args) == 1:
+      return linear_problem.LinearProblem(
+          *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b
+      )
+    return quadratic_problem.QuadraticProblem(
+        *args, a=a, b=b, tau_a=tau_a, tau_b=tau_b, scale_cost=scale_cost
+    )
+  elif isinstance(
+      args[0],
+      (linear_problem.LinearProblem, quadratic_problem.QuadraticProblem)
+  ):
+    return args[0]
+  else:
+    raise ValueError('Cannot instantiate a transport problem.')
