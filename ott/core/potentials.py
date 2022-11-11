@@ -23,7 +23,8 @@ class DualPotentials:
     f: The first dual potential function.
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
-    corr: whether the duals solve the problem in distance form, or correlation form (as used for instance for ICNNs, see e.g. top right of p.3 in :cite:`makkuva:20`)
+    corr: Whether the duals solve the problem in distance form, or correlation
+      form (as used for instance for ICNNs, see e.g. top right of p.3 in :cite:`makkuva:20`)
   """
 
   def __init__(
@@ -50,7 +51,9 @@ class DualPotentials:
     and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
     :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
 
-    When the dual potentials are solved in correlation form (only in the Squared Euclidean distance case), the maps are :math:`\nabla g` for forward, :math:`nabla f` for backward.
+    When the dual potentials are solved in correlation form (only in the Sq.
+    Euclidean distance case), the maps are :math:`\nabla g` for forward,
+    :math:`\nabla f` for backward.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
@@ -63,11 +66,10 @@ class DualPotentials:
     vec = jnp.atleast_2d(vec)
     if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
-    grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))
     if forward:
-      return vec - grad_h_inv(self._grad_f(vec))
+      return vec - self._grad_h_inv(self._grad_f(vec))
     else:
-      return vec - grad_h_inv(self._grad_g(vec))
+      return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
@@ -119,6 +121,14 @@ class DualPotentials:
   def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
+
+  @property
+  def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    assert isinstance(self.cost_fn, costs.RBFCost), (
+        "Cost must be RBF and ",
+        "provide access to Legendre Legendre transform of `h`."
+    )
+    return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [self._f, self._g], {"cor": self._cor}

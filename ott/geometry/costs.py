@@ -128,15 +128,39 @@ class SqPNorm(RBFCost):
   """
 
   def __init__(self, p: float):
-    assert p > 1.0
+    assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1 - 1 / self.p)
+    self.q = 1. / (1 - 1 / self.p) if p > 1.0 else 'inf'
 
   def h(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
 
   def h_legendre(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
+
+  def tree_flatten(self):
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(aux_data[0])
+
+
+@jax.tree_util.register_pytree_node_class
+class PNorm(RBFCost):
+  """p-norm (to the power p) of the difference of two vectors."""
+
+  def __init__(self, p: float):
+    assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
+    self.p = p
+    self.q = 1. / (1 - 1 / self.p)
+
+  def h(self, z: jnp.ndarray) -> float:
+    return jnp.linalg.norm(z, self.p) ** self.p / self.p
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
   def tree_flatten(self):
     return (), (self.p,)
