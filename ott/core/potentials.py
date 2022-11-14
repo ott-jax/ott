@@ -37,7 +37,7 @@ class DualPotentials:
   ):
     self._f = f
     self._g = g
-    self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
+    self.cost_fn = cost_fn
     self._corr = corr
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
@@ -124,14 +124,14 @@ class DualPotentials:
 
   @property
   def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    assert isinstance(self.cost_fn, costs.RBFCost), (
+    assert isinstance(self.cost_fn, costs.TICost), (
         "Cost must be RBF and ",
         "provide access to Legendre Legendre transform of `h`."
     )
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g], {"cor": self._cor}
+    return [self._f, self._g, self.cost_fn], {"cor": self._cor}
 
   @classmethod
   def tree_unflatten(
@@ -149,6 +149,8 @@ class EntropicPotentials(DualPotentials):
     g: The second dual potential vector of shape ``[m,]``.
     geom: Geometry used to compute the dual potentials using
       :class:`~ott.core.sinkhorn.Sinkhorn`.
+    a: probability weights for the first measure.
+    b: probaility weights for the second measure.
   """
 
   def __init__(
