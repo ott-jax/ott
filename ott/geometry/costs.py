@@ -91,13 +91,14 @@ class CostFn(abc.ABC):
 
 
 @jax.tree_util.register_pytree_node_class
-class RBFCost(CostFn):
-  """A radial-basis function cost class for translation invariant costs.
+class TICost(CostFn):
+  """A class for translation invariant (TI) costs.
 
   Such costs are defined using a function :math:`h`, mapping vectors to
   real-values, to be used as:
 
-  :math:`c(x,y) = h(z)`, where :math:`z := x-y`.
+  .. math::
+    c(x,y) = h(z), z := x-y.
 
   If that cost function is used to form an Entropic map using the
   :cite:`brenier:91` theorem, then the user should ensure :math:`h` is
@@ -114,17 +115,16 @@ class RBFCost(CostFn):
     raise NotImplementedError("`h_legendre` not implemented.")
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Evaluate h on difference between x and y."""
+    """Compute cost as evaluation of :func:`h` on `x-y`."""
     return self.h(x - y)
 
 
 @jax.tree_util.register_pytree_node_class
-class SqPNorm(RBFCost):
+class SqPNorm(TICost):
   """Squared p-norm of the difference of two vectors.
 
   For details on the derivation of the Legendre transform of the norm, see e.g.
   the reference :cite:`boyd:04`, p.93/94.
-  https://web.stanford.edu/~boyd/cvxbook/bv_cvxbook.pdf
   """
 
   def __init__(self, p: float):
@@ -148,7 +148,7 @@ class SqPNorm(RBFCost):
 
 
 @jax.tree_util.register_pytree_node_class
-class PNorm(RBFCost):
+class PNorm(TICost):
   """p-norm (to the power p) of the difference of two vectors."""
 
   def __init__(self, p: float):
@@ -175,8 +175,9 @@ class PNorm(RBFCost):
 class Euclidean(CostFn):
   """Euclidean distance.
 
-  Note that the Euclidean distance is not cast as a RBF cost, because this
-  would correspond to `h = abs`, whose gradient is not invertible.
+  Note that the Euclidean distance is not cast as a `TICost`, because this
+  would correspond to `h = jnp.linalg.norm`, whose gradient is not invertible,
+  because the function is not strictly convex (it is linear on rays).
   """
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
@@ -185,7 +186,7 @@ class Euclidean(CostFn):
 
 
 @jax.tree_util.register_pytree_node_class
-class SqEuclidean(RBFCost):
+class SqEuclidean(TICost):
   """Squared Euclidean distance."""
 
   def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:

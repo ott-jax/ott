@@ -69,7 +69,10 @@ class PointCloud(geometry.Geometry):
   ):
     # For reverse compatibility of deprecated parameter `power`.
     power = kwargs.pop("power", None)
-    assert power is None or power == 1.0, "`power` option in `PointCloud` geometries is deprecated. Specify directly a `CostFn` using such an exponent."
+    assert power is None or power == 1.0, (
+        "`power` option in `PointCloud` geometries is deprecated."
+        " Specify directly a `CostFn` with that power."
+    )
 
     super().__init__(**kwargs)
     self.x = x
