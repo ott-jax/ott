@@ -125,13 +125,13 @@ class DualPotentials:
   @property
   def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     assert isinstance(self.cost_fn, costs.TICost), (
-        "Cost must be RBF and ",
-        "provide access to Legendre Legendre transform of `h`."
+        "Cost must be a `TICost` and "
+        "provide access to Legendre transform of `h`."
     )
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self.cost_fn], {"cor": self._cor}
+    return [self._f, self._g, self.cost_fn], {"corr": self._corr}
 
   @classmethod
   def tree_unflatten(
