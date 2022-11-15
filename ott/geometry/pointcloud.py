@@ -600,7 +600,7 @@ class PointCloud(geometry.Geometry):
         Useful when this geometry is used in the linear term of fused GW.
       kwargs: Keyword arguments, such as ``rank``, to
         :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
-        the point cloud does not squared Euclidean cost.
+        the point cloud does not have squared Euclidean cost.
 
     Returns:
       Returns the unmodified point cloud if :math:`n m \ge (n + m) d`, where
