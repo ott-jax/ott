@@ -122,7 +122,7 @@ def solve(
   )
   linear = isinstance(pb, linear_problems.LinearProblem)
   solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
-  geom_keys = ['cost_fn', 'power', 'online']
+  geom_keys = ['cost_fn', 'online']
 
   remove_keys = geom_keys + eps_keys if linear else geom_keys
   for key in remove_keys:

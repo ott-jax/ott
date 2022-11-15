@@ -232,13 +232,13 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon,power",
+      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon,cost_fn",
       [
-          (True, True, 0, 2000, 1e-3, 1.0),
-          (True, True, 1000, 1000, 1e-3, 1.0),
-          (True, False, 1000, 1000, 1e-2, 2.0),
-          (True, False, 0, 2000, 1e-2, 2.0),
-          (False, True, 0, 2000, 1e-2, 1.0),
+          (True, True, 0, 2000, 1e-3, costs.Euclidean()),
+          (True, True, 1000, 1000, 1e-3, costs.Euclidean()),
+          (True, False, 1000, 1000, 1e-2, costs.SqEuclidean()),
+          (True, False, 0, 2000, 1e-2, costs.SqEuclidean()),
+          (False, True, 0, 2000, 1e-2, costs.Euclidean()),
       ],
       ids=[
           "lse-implicit", "lse-implicit-force_scan", "lse-backprop-force_scan",
@@ -248,7 +248,7 @@ class TestSinkhornJacobian:
   )
   def test_gradient_sinkhorn_euclidean(
       self, rng: jnp.ndarray, lse_mode: bool, implicit_differentiation: bool,
-      min_iter: int, max_iter: int, epsilon: float, power: float
+      min_iter: int, max_iter: int, epsilon: float, cost_fn: costs.CostFn
   ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
@@ -265,16 +265,11 @@ class TestSinkhornJacobian:
     b = b.at[3].set(0)
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
-    # Adding some near-zero distances to test proper handling with power==1.0
+    # Adding some near-zero distances to test proper handling with p_norm=1.
     y = y.at[0].set(x[0, :] + 1e-3)
 
     def loss_fn(x, y):
-      geom = pointcloud.PointCloud(
-          x,
-          y,
-          epsilon=epsilon,
-          cost_fn=costs.SqEuclidean() if power == 2.0 else costs.Euclidean()
-      )
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       out = sinkhorn.sinkhorn(
           geom,
           a,
@@ -299,13 +294,13 @@ class TestSinkhornJacobian:
     assert not jnp.isnan(loss_value)
     np.testing.assert_array_equal(grad_loss.shape, x.shape)
     np.testing.assert_array_equal(jnp.isnan(grad_loss), False)
-    # second calculation of gradient, only valid for power=2.0
+    # second calculation of gradient
     tm = out.matrix
-    if power == 2.0:
+    if isinstance(cost_fn, costs.SqEuclidean):
       tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
       grad_x = jnp.sum(tmp, 1)
       other_grad = jnp.sum(delta * grad_x)
-    if power == 1.0:
+    if isinstance(cost_fn, costs.Euclidean):
       tmp = tm[:, :, None] * (x[:, None, :] - y[None, :, :])
       norms = jnp.linalg.norm(x[:, None] - y[None, :], axis=-1)
       tmp /= norms[:, :, None] + 1e-8  # to stabilize when computed by hand
