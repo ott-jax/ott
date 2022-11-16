@@ -512,8 +512,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       which: Literal["q", "r"],
       **kwargs: Any,
   ) -> jnp.ndarray:
-    from ott.problems import linear as linear_problems
-    from ott.problems import quadratic as quad_problems
+    from ott.problems.linear import linear_problem
+    from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn
 
     def init_fn() -> GeneralizedKMeansInitializer.State:
@@ -588,7 +588,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
           cost_matrix=cost,
           epsilon=eps,
       )
-      problem = linear_problems.LinearProblem(
+      problem = linear_problem.LinearProblem(
           cost, a=consts.marginal, b=consts.g
       )
 
@@ -614,7 +614,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     del kwargs
 
-    if isinstance(ot_prob, quad_problems.QuadraticProblem):
+    if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
