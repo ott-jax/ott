@@ -15,11 +15,10 @@
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple
 
-from jax import numpy as jnp
+import jax.numpy as jnp
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, segment
 from ott.solvers.linear import sinkhorn
-from ott.utils import segment
 
 
 def segment_sinkhorn(

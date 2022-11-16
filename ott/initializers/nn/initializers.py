@@ -2,10 +2,10 @@ import functools
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 import jax
+import jax.numpy as jnp
 import optax
 from flax import linen as nn
 from flax.training import train_state
-from jax import numpy as jnp
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers

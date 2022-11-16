@@ -17,10 +17,9 @@ from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
 import jax.numpy as jnp
 
-from ott.geometry import costs, geometry, pointcloud
-from ott.math import potentials
+from ott.geometry import costs, geometry, pointcloud, segment
+from ott.problems.linear import potentials
 from ott.solvers.linear import sinkhorn
-from ott.utils import segment
 
 __all__ = [
     "sinkhorn_divergence", "segment_sinkhorn_divergence",

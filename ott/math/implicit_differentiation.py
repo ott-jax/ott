@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.math import unbalanced_functions
-from ott.utils import dataclasses
 
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 __all__ = ["ImplicitDiff"]
 
 
-@dataclasses.register_pytree_node
+@utils.register_pytree_node
 class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 

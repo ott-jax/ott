@@ -28,6 +28,7 @@ State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
               "continuous_barycenter.BarycenterState"]
 
 
+# TODO(michalk8): refactor to have generic nested solver API
 @jax.tree_util.register_pytree_node_class
 class WassersteinSolver:
   """A generic solver for problems that use a linear reg-OT pb in inner loop."""

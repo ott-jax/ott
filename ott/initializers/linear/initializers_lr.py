@@ -13,8 +13,8 @@ from typing import (
 )
 
 import jax
+import jax.numpy as jnp
 import numpy as np
-from jax import numpy as jnp
 from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud

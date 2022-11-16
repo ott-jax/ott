@@ -14,7 +14,7 @@
 from typing import Callable, Optional, Tuple
 
 import jax
-from jax import numpy as jnp
+import jax.numpy as jnp
 
 __all__ = ["segment_point_cloud"]
 

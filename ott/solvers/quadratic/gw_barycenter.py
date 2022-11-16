@@ -8,8 +8,8 @@ from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import gw_barycenter
+from ott.solvers import was_solver
 from ott.solvers.quadratic import gromov_wasserstein
-from ott.utils import was_solver
 
 __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 

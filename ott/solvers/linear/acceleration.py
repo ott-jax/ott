@@ -1,17 +1,17 @@
 from typing import TYPE_CHECKING
 
 import jax
-from jax import numpy as jnp
+import jax.numpy as jnp
+
+from ott import utils
 
 if TYPE_CHECKING:
   from ott.solvers.linear import sinkhorn
 
-from ott.utils import dataclasses
-
 __all__ = ["AndersonAcceleration", "Momentum"]
 
 
-@dataclasses.register_pytree_node
+@utils.register_pytree_node
 class AndersonAcceleration:
   """Implements Anderson acceleration for Sinkhorn."""
 
@@ -107,7 +107,7 @@ class AndersonAcceleration:
     return state.set(old_mapped_fus=mapped)
 
 
-@dataclasses.register_pytree_node
+@utils.register_pytree_node
 class Momentum:
   """Momentum for Sinkhorn updates, either constant or adaptive."""
 

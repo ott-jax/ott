@@ -21,13 +21,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, segment
 from ott.problems.linear import barycenter_problem
 from ott.problems.quadratic import gw_barycenter as gwb
 from ott.solvers.linear import continuous_barycenter as cb
 from ott.solvers.quadratic import gw_barycenter as gwb_solver
 from ott.tools.gaussian_mixture import gaussian_mixture
-from ott.utils import segment
 
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
 

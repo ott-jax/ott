@@ -24,7 +24,7 @@ from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem, linear_problem
-from ott.utils import was_solver
+from ott.solvers import was_solver
 
 __all__ = ["BarycenterState", "WassersteinBarycenter"]
 

@@ -26,8 +26,8 @@ from ott.initializers.quadratic import initializers as quad_initializers
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
+from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
-from ott.utils import was_solver
 
 __all__ = ["GWOutput", "GromovWasserstein", "gromov_wasserstein"]
 

@@ -2,14 +2,13 @@ import functools
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
-from jax import numpy as jnp
+import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.geometry import costs, geometry, pointcloud
+from ott.geometry import costs, geometry, pointcloud, segment
 from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
-from ott.utils import segment
 
 __all__ = ["GWBarycenterProblem"]
 

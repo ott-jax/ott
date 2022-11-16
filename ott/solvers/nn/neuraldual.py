@@ -24,7 +24,7 @@ from flax import core
 from typing_extensions import Literal
 
 from ott.geometry import costs
-from ott.math import potentials
+from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
 
 __all__ = ["NeuralDualSolver"]

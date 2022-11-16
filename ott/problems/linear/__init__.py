@@ -1,1 +1,1 @@
-from . import barycenter_problem, linear_problem
+from . import barycenter_problem, linear_problem, potentials

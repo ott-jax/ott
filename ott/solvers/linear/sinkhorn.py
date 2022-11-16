@@ -25,8 +25,8 @@ from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
 from ott.math import fixed_point_loop
 from ott.math import implicit_differentiation as implicit_lib
-from ott.math import potentials, unbalanced_functions
-from ott.problems.linear import linear_problem
+from ott.math import unbalanced_functions
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 
 __all__ = ["Sinkhorn", "SinkhornOutput"]

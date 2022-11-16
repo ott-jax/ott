@@ -17,8 +17,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import costs
-from ott.utils import segment
+from ott.geometry import costs, segment
 
 __all__ = ["BarycenterProblem"]
 
