@@ -24,7 +24,10 @@ import jax.numpy as jnp
 
 from ott.math import fixed_point_loop, matrix_square_root
 
-__all__ = ["Euclidean", "SqEuclidean", "Cosine", "Bures", "UnbalancedBures"]
+__all__ = [
+    "PNorm", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
+    "UnbalancedBures"
+]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -51,7 +54,7 @@ class CostFn(abc.ABC):
 
   @abc.abstractmethod
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    pass
+    raise NotImplementedError("Barycenter not yet implemented for this cost.")
 
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:
@@ -95,8 +98,94 @@ class CostFn(abc.ABC):
 
 
 @jax.tree_util.register_pytree_node_class
+class TICost(CostFn):
+  """A class for translation invariant (TI) costs.
+
+  Such costs are defined using a function :math:`h`, mapping vectors to
+  real-values, to be used as:
+
+  .. math::
+    c(x,y) = h(z), z := x-y.
+
+  If that cost function is used to form an Entropic map using the
+  :cite:`brenier:91` theorem, then the user should ensure :math:`h` is
+  strictly convex, as well as provide the Legendre transform of :math:`h`,
+  whose gradient is necessarily the inverse of the gradient of :math:`h`.
+  """
+
+  @abc.abstractmethod
+  def h(self, z: jnp.ndarray) -> float:
+    """RBF function acting on difference of `x-y` to ouput cost."""
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    """Legendre transform of RBF function `h` (when latter is convex)."""
+    raise NotImplementedError("`h_legendre` not implemented.")
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Compute cost as evaluation of :func:`h` on `x-y`."""
+    return self.h(x - y)
+
+
+@jax.tree_util.register_pytree_node_class
+class SqPNorm(TICost):
+  """Squared p-norm of the difference of two vectors.
+
+  For details on the derivation of the Legendre transform of the norm, see e.g.
+  the reference :cite:`boyd:04`, p.93/94.
+  """
+
+  def __init__(self, p: float):
+    assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
+    self.p = p
+    self.q = 1. / (1 - 1 / self.p) if p > 1.0 else 'inf'
+
+  def h(self, z: jnp.ndarray) -> float:
+    return 0.5 * jnp.linalg.norm(z, self.p) ** 2
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return 0.5 * jnp.linalg.norm(z, self.q) ** 2
+
+  def tree_flatten(self):
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(aux_data[0])
+
+
+@jax.tree_util.register_pytree_node_class
+class PNorm(TICost):
+  """p-norm (to the power p) of the difference of two vectors."""
+
+  def __init__(self, p: float):
+    assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
+    self.p = p
+    self.q = 1. / (1 - 1 / self.p)
+
+  def h(self, z: jnp.ndarray) -> float:
+    return jnp.linalg.norm(z, self.p) ** self.p / self.p
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return jnp.linalg.norm(z, self.q) ** self.q / self.q
+
+  def tree_flatten(self):
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(aux_data[0])
+
+
+@jax.tree_util.register_pytree_node_class
 class Euclidean(CostFn):
-  """Euclidean distance."""
+  """Euclidean distance.
+
+  Note that the Euclidean distance is not cast as a `TICost`, because this
+  would correspond to `h = jnp.linalg.norm`, whose gradient is not invertible,
+  because the function is not strictly convex (it is linear on rays).
+  """
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm."""
@@ -104,7 +193,7 @@ class Euclidean(CostFn):
 
 
 @jax.tree_util.register_pytree_node_class
-class SqEuclidean(CostFn):
+class SqEuclidean(TICost):
   """Squared Euclidean distance."""
 
   def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
@@ -114,6 +203,12 @@ class SqEuclidean(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
+
+  def h(self, z: jnp.ndarray) -> float:
+    return jnp.sum(z ** 2)
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    return 0.25 * jnp.sum(z ** 2)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Output barycenter of vectors when using squared-Euclidean distance."""
@@ -137,9 +232,6 @@ class Cosine(CostFn):
     cosine_distance = 1.0 - cosine_similarity
     # similarity is in [-1, 1], clip because of numerical imprecisions
     return jnp.clip(cosine_distance, 0., 2.)
-
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    raise NotImplementedError("Barycenter for cosine cost not yet implemented.")
 
   @classmethod
   def padder(cls, dim: int) -> jnp.ndarray:

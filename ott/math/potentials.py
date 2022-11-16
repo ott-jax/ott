@@ -6,6 +6,8 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
+from ott.geometry import costs
+
 if TYPE_CHECKING:
   from ott.geometry import pointcloud
 
@@ -23,23 +25,38 @@ class DualPotentials:
   Args:
     f: The first dual potential function.
     g: The second dual potential function.
-    cor: whether the duals solve the problem in distance form, or correlation
-      form (as used for instance for ICNNs, see e.g. top right of p.3 in
-      http://proceedings.mlr.press/v119/makkuva20a/makkuva20a.pdf)
+    cost_fn: The cost function used to solve the OT problem.
+    corr: Whether the duals solve the problem in distance form, or correlation
+      form (as used for instance for ICNNs, see e.g. top right of p.3 in :cite:`makkuva:20`)
   """
 
-  def __init__(self, f: Potential_t, g: Potential_t, *, cor: bool = False):
+  def __init__(
+      self,
+      f: Potential_t,
+      g: Potential_t,
+      cost_fn: costs.CostFn,
+      *,
+      corr: bool = False
+  ):
     self._f = f
     self._g = g
-    self._cor = cor
+    self.cost_fn = cost_fn
+    self._corr = corr
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport ``vec`` according to Brenier formula.
+    r"""Transport ``vec`` according to Brenier formula.
 
-    Theorem 1.17 in http://math.univ-lyon1.fr/~santambrogio/OTAM-cvgmt.pdf
-    for case h(.) = ||.||^2, ∇h(.) = 2 ., [∇h]^-1(.) = 0.5 * .
+    Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
+    given the Legendre transform of the dual potentials.
 
-    or, when solved in correlation form, as ∇g for forward, ∇f for backward.
+    That OT map can be recovered as :math:`x- (\nabla h)^{-1}\circ \nabla f(x)`
+    For the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
+    :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
+
+    When the dual potentials are solved in correlation form (only in the Sq.
+    Euclidean distance case), the maps are :math:`\nabla g` for forward,
+    :math:`\nabla f` for backward.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
@@ -50,29 +67,31 @@ class DualPotentials:
       The transported points.
     """
     vec = jnp.atleast_2d(vec)
-    if self._cor:
+    if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
-    return vec - 0.5 * (self._grad_f(vec) if forward else self._grad_g(vec))
+    if forward:
+      return vec - self._grad_h_inv(self._grad_f(vec))
+    else:
+      return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20` when given in cor form, direct estimation
-    by integrating dual function against points when using dual form.
+    Uses Eq. 5 from :cite:`makkuva:20` when given in `corr` form, direct
+    estimation by integrating dual function against points when using dual form.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-      Wasserstein distance :math:`W^2_2`, assuming :math:`|x-y|^2` as the
-      ground distance.
+      Wasserstein distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
 
     f = jax.vmap(self.f)
 
-    if self._cor:
+    if self._corr:
       grad_g_y = self._grad_g(tgt)
       term1 = -jnp.mean(f(src))
       term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
@@ -85,9 +104,6 @@ class DualPotentials:
       C = jnp.mean(f(src))
       C += jnp.mean(g(tgt))
       return C
-
-    # compute the final Wasserstein distance assuming ground metric |x-y|^2,
-    # thus an additional multiplication by 2
 
   @property
   def f(self) -> Potential_t:
@@ -109,8 +125,16 @@ class DualPotentials:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
 
+  @property
+  def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    assert isinstance(self.cost_fn, costs.TICost), (
+        "Cost must be a `TICost` and "
+        "provide access to Legendre transform of `h`."
+    )
+    return jax.vmap(jax.grad(self.cost_fn.h_legendre))
+
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g], {"cor": self._cor}
+    return [self._f, self._g, self.cost_fn], {"corr": self._corr}
 
   @classmethod
   def tree_unflatten(
@@ -128,6 +152,8 @@ class EntropicPotentials(DualPotentials):
     g: The second dual potential vector of shape ``[m,]``.
     geom: Geometry used to compute the dual potentials using
       :class:`~ott.core.sinkhorn.Sinkhorn`.
+    a: probability weights for the first measure.
+    b: probaility weights for the second measure.
   """
 
   def __init__(
@@ -142,7 +168,7 @@ class EntropicPotentials(DualPotentials):
 
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g)
+    super().__init__(f, g, cost_fn=geom.cost_fn, corr=False)
     self._geom = geom
     self._a = a
     self._b = b
@@ -164,14 +190,13 @@ class EntropicPotentials(DualPotentials):
       cost = pointcloud.PointCloud(
           jnp.atleast_2d(x),
           y,
-          cost_fn=self._geom.cost_fn,
-          power=self._geom.power,
-          epsilon=1.0  # epsilon is not used
+          cost_fn=self.cost_fn,
       ).cost_matrix
-      return -eps * jsp.special.logsumexp((potential - cost) / eps,
-                                          b=prob_weights)
+      z = (potential - cost) / epsilon
+      lse = -epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
+      return jnp.squeeze(lse)
 
-    eps = self.epsilon
+    epsilon = self.epsilon
     if kind == "g":
       # When seeking to evaluate 2nd potential function, 1st set of potential
       # values and support should be used,

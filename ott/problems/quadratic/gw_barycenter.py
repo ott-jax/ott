@@ -160,9 +160,9 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     transports = transports * inv_a[None, :, None]
 
     if self._loss_name == "sqeucl":
-      cost = costs.SqEuclidean()
+      cost_fn = costs.SqEuclidean()
       return jnp.sum(
-          weights * mu.barycentric_projection(transports, y_fused, cost),
+          weights * mu.barycentric_projection(transports, y_fused, cost_fn),
           axis=0
       )
     raise NotImplementedError(self._loss_name)
@@ -227,7 +227,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       b: jnp.ndarray,
       f: Optional[jnp.ndarray] = None
   ) -> quadratic_problem.QuadraticProblem:
-    # TODO(michalk8): in the future, mask in the problem for convenience?
+    # TODO(michalk8): in future, mask in the problem for convenience?
     bary_mask = state.a > 0.
     y_mask = b > 0.
 

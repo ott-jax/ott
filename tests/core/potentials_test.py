@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
@@ -68,6 +68,78 @@ class TestEntropicPotentials:
     # TODO(michalk8): better error measure
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.3
+
+  @pytest.mark.fast.with_args(p=[1.3, 2.2], forward=[False, True], only_fast=0)
+  def test_entropic_potentials_sqpnorm(
+      self, rng: jnp.ndarray, p: float, forward: bool
+  ):
+    epsilon = None
+    cost_fn = costs.SqPNorm(p=p)
+    n1, n2, d = 93, 127, 2
+    eps = 1e-2
+    keys = jax.random.split(rng, 4)
+
+    x = jax.random.uniform(keys[0], (n1, d))
+    y = jax.random.normal(keys[1], (n2, d)) + 2
+
+    geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=cost_fn)
+    prob = linear_problem.LinearProblem(geom)
+    out = sinkhorn.Sinkhorn()(prob)
+    assert out.converged
+    potentials = out.to_dual_potentials()
+
+    x_test = jax.random.uniform(keys[2], (n1 + 3, d))
+    y_test = jax.random.normal(keys[3], (n2 + 5, d)) + 2
+
+    sdiv = lambda x, y: sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud, x, y, cost_fn=cost_fn, epsilon=epsilon
+    )
+
+    if forward:
+      z = potentials.transport(x_test, forward=forward)
+      div = sdiv(z, y).divergence
+    else:
+      z = potentials.transport(y_test, forward=forward)
+      div = sdiv(x, z).divergence
+
+    div_0 = sdiv(x, y).divergence
+    assert div < .1 * div_0  # check we have moved points much closer to target.
+
+  @pytest.mark.fast.with_args(p=[1.45, 2.2], forward=[False, True], only_fast=0)
+  def test_entropic_potentials_pnorm(
+      self, rng: jnp.ndarray, p: float, forward: bool
+  ):
+    epsilon = None
+    cost_fn = costs.PNorm(p=p)
+    n1, n2, d = 43, 77, 2
+    eps = 1e-2
+    keys = jax.random.split(rng, 4)
+
+    x = jax.random.uniform(keys[0], (n1, d))
+    y = jax.random.normal(keys[1], (n2, d)) + 2
+
+    geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=cost_fn)
+    prob = linear_problem.LinearProblem(geom)
+    out = sinkhorn.Sinkhorn()(prob)
+    assert out.converged
+    potentials = out.to_dual_potentials()
+
+    x_test = jax.random.uniform(keys[2], (n1 + 3, d))
+    y_test = jax.random.normal(keys[3], (n2 + 5, d)) + 2
+
+    sdiv = lambda x, y: sinkhorn_divergence.sinkhorn_divergence(
+        pointcloud.PointCloud, x, y, cost_fn=cost_fn, epsilon=epsilon
+    )
+
+    if forward:
+      z = potentials.transport(x_test, forward=forward)
+      div = sdiv(z, y).divergence
+    else:
+      z = potentials.transport(y_test, forward=forward)
+      div = sdiv(x, z).divergence
+
+    div_0 = sdiv(x, y).divergence
+    assert div < .1 * div_0  # check we have moved points much closer to target.
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(self, rng: jnp.ndarray, jit: bool):

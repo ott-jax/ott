@@ -233,13 +233,13 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon,power",
+      "lse_mode,implicit_differentiation,min_iter,max_iter,epsilon,cost_fn",
       [
-          (True, True, 0, 2000, 1e-3, 1.0),
-          (True, True, 1000, 1000, 1e-3, 1.0),
-          (True, False, 1000, 1000, 1e-2, 2.0),
-          (True, False, 0, 2000, 1e-2, 2.0),
-          (False, True, 0, 2000, 1e-2, 1.0),
+          (True, True, 0, 2000, 1e-3, costs.Euclidean()),
+          (True, True, 1000, 1000, 1e-3, costs.Euclidean()),
+          (True, False, 1000, 1000, 1e-2, costs.SqEuclidean()),
+          (True, False, 0, 2000, 1e-2, costs.SqEuclidean()),
+          (False, True, 0, 2000, 1e-2, costs.Euclidean()),
       ],
       ids=[
           "lse-implicit", "lse-implicit-force_scan", "lse-backprop-force_scan",
@@ -249,7 +249,7 @@ class TestSinkhornJacobian:
   )
   def test_gradient_sinkhorn_euclidean(
       self, rng: jnp.ndarray, lse_mode: bool, implicit_differentiation: bool,
-      min_iter: int, max_iter: int, epsilon: float, power: float
+      min_iter: int, max_iter: int, epsilon: float, cost_fn: costs.CostFn
   ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
@@ -266,16 +266,11 @@ class TestSinkhornJacobian:
     b = b.at[3].set(0)
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
-    # Adding some near-zero distances to test proper handling with power==1.0
+    # Adding some near-zero distances to test proper handling with p_norm=1.
     y = y.at[0].set(x[0, :] + 1e-3)
 
     def loss_fn(x, y):
-      geom = pointcloud.PointCloud(
-          x,
-          y,
-          epsilon=epsilon,
-          cost_fn=costs.SqEuclidean() if power == 2.0 else costs.Euclidean()
-      )
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       out = sinkhorn.sinkhorn(
           geom,
           a,
@@ -300,13 +295,13 @@ class TestSinkhornJacobian:
     assert not jnp.isnan(loss_value)
     np.testing.assert_array_equal(grad_loss.shape, x.shape)
     np.testing.assert_array_equal(jnp.isnan(grad_loss), False)
-    # second calculation of gradient, only valid for power=2.0
+    # second calculation of gradient
     tm = out.matrix
-    if power == 2.0:
+    if isinstance(cost_fn, costs.SqEuclidean):
       tmp = 2 * tm[:, :, None] * (x[:, None, :] - y[None, :, :])
       grad_x = jnp.sum(tmp, 1)
       other_grad = jnp.sum(delta * grad_x)
-    if power == 1.0:
+    if isinstance(cost_fn, costs.Euclidean):
       tmp = tm[:, :, None] * (x[:, None, :] - y[None, :, :])
       norms = jnp.linalg.norm(x[:, None] - y[None, :], axis=-1)
       tmp /= norms[:, :, None] + 1e-8  # to stabilize when computed by hand
@@ -420,6 +415,7 @@ class TestSinkhornJacobian:
         j_imp * delta[jnp.newaxis, ...],
         axis=tuple(range(1, 1 + len(delta.shape)))
     )
+
     if lse_mode:  # only check unrolling if using lse_mode, too unstable else.
       # Compute backprop (unrolling) jacobian
       jac_apply_back = jax.jit(
@@ -738,7 +734,6 @@ class TestSinkhornJacobianPreconditioning:
 
 class TestSinkhornHessian:
 
-  @pytest.mark.skip(reason="0^0 handling issue.")
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
       tau_a=[1.0, .93],
@@ -752,6 +747,9 @@ class TestSinkhornHessian:
       shape: Tuple[int, int], arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
+    # TODO(cuturi): reinstate this flag to True when JAX bug fixed.
+    test_back = False
+
     n, m = shape
     dim = 3
     rngs = jax.random.split(rng, 6)
@@ -783,15 +781,17 @@ class TestSinkhornHessian:
     delta_a = delta_a - jnp.mean(delta_a)
     delta_x = jax.random.uniform(rngs[5], (n, dim))
 
-    # Test that Hessians produced with either backprop or implicit do match.
     hess_loss_imp = jax.jit(
         jax.hessian(lambda a, x: loss(a, x, True), argnums=arg)
     )
     hess_imp = hess_loss_imp(a, x)
-    hess_loss_back = jax.jit(
-        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
-    )
-    hess_back = hess_loss_back(a, x)
+
+    # Test that Hessians produced with either backprop or implicit do match.
+    if test_back:
+      hess_loss_back = jax.jit(
+          jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+      )
+      hess_back = hess_loss_back(a, x)
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
     # but only need to be so on the orthogonal space to 1s.
@@ -799,16 +799,18 @@ class TestSinkhornHessian:
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       hess_imp -= jnp.mean(hess_imp, axis=1)[:, None]
-      hess_back -= jnp.mean(hess_back, axis=1)[:, None]
+      if test_back:
+        hess_back -= jnp.mean(hess_back, axis=1)[:, None]
 
     # Uniform equality is difficult to obtain numerically on the
     # entire matrices. We switch to relative 1-norm of difference.
-    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
-    rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-    assert 0.1 > rel_dif_norm
+    if test_back:
+      dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
+      rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
+      assert 0.1 > rel_dif_norm
 
     eps = 1e-3
-    for impl in [True, False]:
+    for impl in [True, False] if test_back else [True]:
       grad_ = jax.jit(
           jax.grad(functools.partial(loss, implicit=impl), argnums=arg)
       )
@@ -833,4 +835,4 @@ class TestSinkhornHessian:
         grad_dif -= jnp.mean(grad_dif)
 
       # No rtol here because many of these values can be close to 0.
-      np.testing.assert_allclose(grad_dif, hess_delta, atol=0.1, rtol=0)
+      np.testing.assert_allclose(grad_dif, hess_delta, atol=0.1, rtol=0.1)

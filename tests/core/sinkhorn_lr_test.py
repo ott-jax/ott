@@ -29,8 +29,8 @@ class TestLRSinkhorn:
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jnp.ndarray):
     self.dim = 4
-    self.n = 29
-    self.m = 27
+    self.n = 33
+    self.m = 37
     self.rng, *rngs = jax.random.split(rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -64,7 +64,7 @@ class TestLRSinkhorn:
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
-        rank=10,
+        rank=6,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
         initializer=initializer,

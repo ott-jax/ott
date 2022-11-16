@@ -46,19 +46,22 @@ class TestSinkhorn:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,momentum,chg_momentum_from,inner_iterations,norm_error,power",
-      [(True, 1.0, 29, 10, 1, 2.0), (False, 1.0, 30, 10, 1, 2.2),
-       (True, 1.0, 60, 1, 2, 1.0), (True, 1.0, 12, 24, 4, 3.0)],
+      "lse_mode,momentum,chg_momentum_from,inner_iterations,norm_error,cost_fn",
+      [(True, 1.0, 29, 10, 1, costs.SqEuclidean()),
+       (False, 1.0, 30, 10, 1, costs.SqPNorm(p=2.2)),
+       (True, 1.0, 60, 1, 2, costs.Euclidean()),
+       (True, 1.0, 12, 24, 4, costs.SqPNorm(p=1.0))],
       ids=["lse-Leh-mom", "scal-Leh-mom", "lse-Leh-1", "lse-Leh-24"],
       only_fast=[0, -1],
   )
   def test_euclidean_point_cloud(
       self, lse_mode, momentum, chg_momentum_from, inner_iterations, norm_error,
-      power
+      cost_fn
   ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, power=power)
+
+    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=0.1)
     out = sinkhorn.sinkhorn(
         geom,
         a=self.a,
@@ -240,7 +243,9 @@ class TestSinkhorn:
     )
 
     # Checks regularized transport costs match.
-    np.testing.assert_allclose(out_online.reg_ot_cost, out_batch.reg_ot_cost)
+    np.testing.assert_allclose(
+        out_online.reg_ot_cost, out_batch.reg_ot_cost, rtol=1e-6
+    )
     # check regularized transport matrices match
     np.testing.assert_allclose(
         online_geom.transport_from_potentials(out_online.f, out_online.g),

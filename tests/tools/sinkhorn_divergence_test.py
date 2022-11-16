@@ -40,14 +40,16 @@ class TestSinkhornDivergence:
     self._b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      power=[1.0, 2.0, 2.7],
+      cost_fn=[costs.Euclidean(),
+               costs.SqEuclidean(),
+               costs.SqPNorm(p=2.1)],
       epsilon=[.01, .001],
       only_fast={
-          "power": 2.0,
+          "costs_fn": costs.SqEuclidean(),
           "epsilon": .01
       },
   )
-  def test_euclidean_point_cloud(self, power, epsilon):
+  def test_euclidean_point_cloud(self, cost_fn, epsilon):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
@@ -56,17 +58,17 @@ class TestSinkhornDivergence:
         pointcloud.PointCloud,
         x,
         y,
+        cost_fn=cost_fn,
         a=self._a,
         b=self._b,
-        epsilon=epsilon,
-        power=power
+        epsilon=epsilon
     )
     assert div.divergence > 0.0
     assert len(div.potentials) == 3
 
-    geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, power=power)
-    geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, power=power)
-    geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, power=power)
+    geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
+    geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
+    geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
     div2 = sinkhorn.sinkhorn(geometry_xy, self._a, self._b).reg_ot_cost
     div2 -= 0.5 * sinkhorn.sinkhorn(geometry_xx, self._a, self._a).reg_ot_cost
@@ -79,9 +81,9 @@ class TestSinkhornDivergence:
         pointcloud.PointCloud,
         x,
         x,
+        cost_fn=cost_fn,
         epsilon=.1,
         sinkhorn_kwargs={'inner_iterations': 1},
-        power=power
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
 
