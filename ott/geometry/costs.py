@@ -52,7 +52,6 @@ class CostFn(abc.ABC):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
-  @abc.abstractmethod
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
     raise NotImplementedError("Barycenter not yet implemented for this cost.")
 
@@ -115,14 +114,14 @@ class TICost(CostFn):
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
-    """RBF function acting on difference of `x-y` to ouput cost."""
+    """TI function acting on difference of :math:`x-y` to output cost."""
 
   def h_legendre(self, z: jnp.ndarray) -> float:
-    """Legendre transform of RBF function `h` (when latter is convex)."""
+    """Legendre transform of TI function :func:`h` (when latter is convex)."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute cost as evaluation of :func:`h` on `x-y`."""
+    """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
 
@@ -135,9 +134,10 @@ class SqPNorm(TICost):
   """
 
   def __init__(self, p: float):
+    super().__init__()
     assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1 - 1 / self.p) if p > 1.0 else 'inf'
+    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else "inf"
 
   def h(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
@@ -159,9 +159,10 @@ class PNorm(TICost):
   """p-norm (to the power p) of the difference of two vectors."""
 
   def __init__(self, p: float):
+    super().__init__()
     assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1 - 1 / self.p)
+    self.q = 1. / (1. - 1. / self.p) if p > 1. else "inf"
 
   def h(self, z: jnp.ndarray) -> float:
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
@@ -182,8 +183,9 @@ class PNorm(TICost):
 class Euclidean(CostFn):
   """Euclidean distance.
 
-  Note that the Euclidean distance is not cast as a `TICost`, because this
-  would correspond to `h = jnp.linalg.norm`, whose gradient is not invertible,
+  Note that the Euclidean distance is not cast as a
+  :class:`~ott.geometry.costs.TICost`, since this would correspond to :math:`h`
+  being :func:`jax.numpy.linalg.norm`, whose gradient is not invertible,
   because the function is not strictly convex (it is linear on rays).
   """
 

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -6,10 +6,8 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
-from ott.geometry import costs
-
 if TYPE_CHECKING:
-  from ott.geometry import pointcloud
+  from ott.geometry import costs, pointcloud
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -27,15 +25,16 @@ class DualPotentials:
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
     corr: Whether the duals solve the problem in distance form, or correlation
-      form (as used for instance for ICNNs, see e.g. top right of p.3 in :cite:`makkuva:20`)
+      form (as used for instance for ICNNs, see, e.g., top right of p.3 in
+      :cite:`makkuva:20`)
   """
 
   def __init__(
       self,
       f: Potential_t,
       g: Potential_t,
-      cost_fn: costs.CostFn,
       *,
+      cost_fn: 'costs.CostFn',
       corr: bool = False
   ):
     self._f = f
@@ -44,7 +43,7 @@ class DualPotentials:
     self._corr = corr
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    r"""Transport ``vec`` according to Brenier formula.
+    r"""Transport ``vec`` according to Brenier formula :cite:`brenier:91`.
 
     Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
     given the Legendre transform of the dual potentials.
@@ -66,6 +65,8 @@ class DualPotentials:
     Returns:
       The transported points.
     """
+    from ott.geometry import costs
+
     vec = jnp.atleast_2d(vec)
     if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_g(vec) if forward else self._grad_f(vec)
@@ -127,6 +128,8 @@ class DualPotentials:
 
   @property
   def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    from ott.geometry import costs
+
     assert isinstance(self.cost_fn, costs.TICost), (
         "Cost must be a `TICost` and "
         "provide access to Legendre transform of `h`."
@@ -152,15 +155,22 @@ class EntropicPotentials(DualPotentials):
     g: The second dual potential vector of shape ``[m,]``.
     geom: Geometry used to compute the dual potentials using
       :class:`~ott.core.sinkhorn.Sinkhorn`.
-    a: probability weights for the first measure.
-    b: probaility weights for the second measure.
+    a: Probability weights for the first measure. If `None`, use uniform.
+    b: Probability weights for the second measure. If `None`, use uniform.
   """
 
   def __init__(
-      self, f: jnp.ndarray, g: jnp.ndarray, geom: "pointcloud.PointCloud",
-      a: jnp.ndarray, b: jnp.ndarray
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      geom: "pointcloud.PointCloud",
+      a: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None,
   ):
     n, m = geom.shape
+    a = jnp.ones(n) / n if a is None else a
+    b = jnp.ones(m) / m if b is None else b
+
     assert f.shape == (n,) and a.shape == (n,), \
         f"Expected `f` and `a` to be of shape `{n,}`, found `{f.shape}`."
     assert g.shape == (m,) and b.shape == (m,), \
