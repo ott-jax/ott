@@ -380,8 +380,8 @@ class KMeansInitializer(LRInitializer):
       which: Literal["q", "r"],
       **kwargs: Any,
   ) -> jnp.ndarray:
-    from ott.problems import linear as linear_problems
-    from ott.problems import quadratic as quad_problems
+    from ott.problems.linear import linear_problem
+    from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn
     from ott.tools import k_means
 
@@ -395,7 +395,7 @@ class KMeansInitializer(LRInitializer):
     )
     fn = jax.jit(fn, static_argnames="k") if jit else fn
 
-    if isinstance(ot_prob, quad_problems.QuadraticProblem):
+    if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
@@ -407,7 +407,7 @@ class KMeansInitializer(LRInitializer):
         arr, centroids, epsilon=0.1, scale_cost="max_cost"
     )
 
-    prob = linear_problems.LinearProblem(geom, marginals, init_g)
+    prob = linear_problem.LinearProblem(geom, marginals, init_g)
     solver = sinkhorn.Sinkhorn(**self._sinkhorn_kwargs)
     return solver(prob).matrix
 
