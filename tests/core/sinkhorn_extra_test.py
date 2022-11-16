@@ -15,7 +15,7 @@
 # Lint as: python3
 """Tests Anderson acceleration for sinkhorn."""
 import functools
-from typing import Any, Callable, Tuple
+from typing import Callable, Tuple
 
 import chex
 import jax
@@ -23,8 +23,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import sinkhorn
 from ott.geometry import costs, geometry, pointcloud
+from ott.solvers.linear import sinkhorn
 
 non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
@@ -330,7 +330,7 @@ class TestSinkhornJIT:
   def test_jit_vs_non_jit_bwd(self, implicit: bool):
 
     def loss(
-        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[[Any],
+        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[...,
                                                       sinkhorn.SinkhornOutput]
     ):
       out = fun(

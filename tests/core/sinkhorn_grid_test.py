@@ -20,8 +20,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import sinkhorn
 from ott.geometry import grid, pointcloud
+from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhornGrid:

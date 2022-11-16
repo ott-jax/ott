@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core.icnn import ICNN
+from ott.solvers.nn import icnn
 
 
 @pytest.mark.fast
@@ -32,22 +32,22 @@ class TestICNN:
     dim_hidden = (64, 64)
 
     # define icnn model
-    icnn = ICNN(dim_hidden)
+    model = icnn.ICNN(dim_hidden)
 
     # initialize model
     key1, key2, key3 = jax.random.split(rng, 3)
-    params = icnn.init(key1, jnp.ones(n_features))['params']
+    params = model.init(key1, jnp.ones(n_features))['params']
 
     # check convexity
     x = jax.random.normal(key1, (n_samples, n_features)) * 0.1
     y = jax.random.normal(key2, (n_samples, n_features))
 
-    out_x = icnn.apply({'params': params}, x)
-    out_y = icnn.apply({'params': params}, y)
+    out_x = model.apply({'params': params}, x)
+    out_y = model.apply({'params': params}, y)
 
     out = list()
     for t in jnp.linspace(0, 1):
-      out_xy = icnn.apply({'params': params}, t * x + (1 - t) * y)
+      out_xy = model.apply({'params': params}, t * x + (1 - t) * y)
       out.append((t * out_x + (1 - t) * out_y) - out_xy)
 
     np.testing.assert_array_equal(jnp.asarray(out) >= 0, True)
@@ -58,17 +58,17 @@ class TestICNN:
     # define icnn model
     n_samples = 2
     dim_hidden = (64, 64)
-    icnn = ICNN(dim_hidden)
+    model = icnn.ICNN(dim_hidden)
 
     # initialize model
     key1, key2 = jax.random.split(rng)
-    params = icnn.init(key1, jnp.ones(n_samples))['params']
+    params = model.init(key1, jnp.ones(n_samples))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
     data = jax.random.normal(key2, (n_samples,))
 
     # compute Hessian
-    hessian = jax.jacfwd(jax.jacrev(icnn.apply, argnums=1), argnums=1)
+    hessian = jax.jacfwd(jax.jacrev(model.apply, argnums=1), argnums=1)
     icnn_hess = hessian({'params': params}, data)
 
     # compute eigenvalues

@@ -18,8 +18,8 @@
 import jax.numpy as jnp
 import pytest
 
-from ott.core import discrete_barycenter as db
 from ott.geometry import grid, pointcloud
+from ott.solvers.linear import discrete_barycenter as db
 
 
 class TestDiscreteBarycenter:

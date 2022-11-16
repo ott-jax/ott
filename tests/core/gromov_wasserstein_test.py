@@ -21,8 +21,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import gromov_wasserstein, quad_problems
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.problems.quadratic import quadratic_problem
+from ott.solvers.quadratic import gromov_wasserstein
 
 
 @pytest.mark.fast
@@ -48,7 +49,9 @@ class TestQuadraticProblem:
       geom_yy = geometry.Geometry(geom_yy.cost_matrix)
       geom_xy = geometry.Geometry(geom_xy.cost_matrix)
 
-    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, geom_xy, ranks=rank)
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, geom_xy, ranks=rank
+    )
     assert not prob.is_low_rank
 
     # point clouds are always converted, if possible
@@ -94,7 +97,7 @@ class TestQuadraticProblem:
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y).to_LRCGeometry()
 
-    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, ranks=-1)
+    prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy, ranks=-1)
     lr_prob = prob.to_low_rank()
 
     assert prob._is_low_rank_convertible
@@ -325,7 +328,7 @@ class TestGromovWasserstein:
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
-    prob = quad_problems.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
+    prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
     solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=0.2)
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
@@ -347,7 +350,7 @@ class TestGromovWasserstein:
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
     geom_xy = pointcloud.PointCloud(x, z)  # only used to compute n x m matrix
-    prob = quad_problems.QuadraticProblem(
+    prob = quadratic_problem.QuadraticProblem(
         geom_xx, geom_yy, geom_xy=geom_xy, fused_penalty=1.3, a=a, b=b
     )
     solver = gromov_wasserstein.GromovWasserstein(rank=6)

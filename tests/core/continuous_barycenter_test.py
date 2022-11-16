@@ -12,7 +12,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for Continuous barycenters."""
+"""Tests for continuous barycenter."""
 import functools
 from typing import Any, Optional, Sequence, Tuple
 
@@ -21,9 +21,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import bar_problems, continuous_barycenter, gw_barycenter, segment
 from ott.geometry import costs, pointcloud
+from ott.problems.linear import barycenter_problem
+from ott.problems.quadratic import gw_barycenter as gwb
+from ott.solvers.linear import continuous_barycenter as cb
+from ott.solvers.quadratic import gw_barycenter as gwb_solver
 from ott.tools.gaussian_mixture import gaussian_mixture
+from ott.utils import segment
 
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
 
@@ -70,7 +74,7 @@ class TestBarycenter:
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
-    bar_prob = bar_problems.BarycenterProblem(
+    bar_prob = barycenter_problem.BarycenterProblem(
         y,
         b,
         epsilon=epsilon,
@@ -84,9 +88,7 @@ class TestBarycenter:
 
     # Define solver
     threshold = 1e-3
-    solver = continuous_barycenter.WassersteinBarycenter(
-        rank=rank, threshold=threshold, jit=jit
-    )
+    solver = cb.WassersteinBarycenter(rank=rank, threshold=threshold, jit=jit)
 
     # Set barycenter size to 31.
     bar_size = 31
@@ -119,19 +121,21 @@ class TestBarycenter:
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
-        y: jnp.ndarray, b: jnp.ndarray, segment_before: bool,
-        num_per_segment: int
-    ) -> continuous_barycenter.BarycenterState:
+        y: jnp.ndarray,
+        b: jnp.ndarray,
+        segment_before: bool,
+        num_per_segment: Tuple[int, ...],
+    ) -> cb.BarycenterState:
       if segment_before:
         y, b = segment.segment_point_cloud(
             x=y, a=b, num_per_segment=num_per_segment
         )
-        bar_prob = bar_problems.BarycenterProblem(y, b, epsilon=1e-1)
+        bar_prob = barycenter_problem.BarycenterProblem(y, b, epsilon=1e-1)
       else:
-        bar_prob = bar_problems.BarycenterProblem(
+        bar_prob = barycenter_problem.BarycenterProblem(
             y, b, epsilon=1e-1, num_per_segment=num_per_segment
         )
-      solver = continuous_barycenter.WassersteinBarycenter(threshold=threshold)
+      solver = cb.WassersteinBarycenter(threshold=threshold)
       return solver(bar_prob)
 
     rngs = jax.random.split(rng, 20)
@@ -220,7 +224,7 @@ class TestBarycenter:
         num_per_segment=(num_components, num_components),
         padding_vector=bures_cost.padder(y.shape[1]),
     )
-    bar_p = bar_problems.BarycenterProblem(
+    bar_p = barycenter_problem.BarycenterProblem(
         seg_y,
         seg_b,
         weights=barycentric_weights,
@@ -231,9 +235,7 @@ class TestBarycenter:
     assert bar_p.max_measure_size == seg_y.shape[1]
     assert bar_p.ndim == seg_y.shape[2]
 
-    solver = continuous_barycenter.WassersteinBarycenter(
-        lse_mode=lse_mode, jit=jit
-    )
+    solver = cb.WassersteinBarycenter(lse_mode=lse_mode, jit=jit)
 
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
@@ -318,17 +320,17 @@ class TestBarycenter:
                   for i in range(num_measures)]
 
     # positions of mass of the measures
-    ys = jnp.vstack(
+    ys = jnp.vstack([
         means_and_covs_to_x(means_covs[i][0], means_covs[i][1], dim)
         for i in range(num_measures)
-    )
+    ])
 
     # mass distribution of the measures
     weights = [
         gmm_generators[i].component_weight_ob.probs()
         for i in range(num_measures)
     ]
-    bs = jnp.hstack(jnp.array(weights[i]) for i in range(num_measures))
+    bs = jnp.hstack([jnp.array(weights[i]) for i in range(num_measures)])
 
     # random initialization of the barycenter
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
@@ -340,7 +342,7 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    bar_p = bar_problems.BarycenterProblem(
+    bar_p = barycenter_problem.BarycenterProblem(
         y=ys,
         b=bs,
         weights=barycentric_weights,
@@ -354,7 +356,7 @@ class TestBarycenter:
     assert bar_p.num_measures == num_measures
     assert bar_p.ndim == ys.shape[-1]
 
-    solver = continuous_barycenter.WassersteinBarycenter(lse_mode=True, jit=jit)
+    solver = cb.WassersteinBarycenter(lse_mode=True, jit=jit)
 
     # Compute the barycenter.
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)
@@ -439,8 +441,8 @@ class TestGWBarycenter:
         "epsilon": epsilon
     }
 
-    problem_pc = bar_problems.GWBarycenterProblem(y=ys, b=bs, **kwargs)
-    problem_cost = bar_problems.GWBarycenterProblem(
+    problem_pc = gwb.GWBarycenterProblem(y=ys, b=bs, **kwargs)
+    problem_cost = gwb.GWBarycenterProblem(
         costs=costs,
         b=cbs,
         **kwargs,
@@ -454,7 +456,7 @@ class TestGWBarycenter:
     assert problem_pc.ndim == self.NDIM
     assert problem_cost.ndim is None
 
-    solver = gw_barycenter.GromovWassersteinBarycenter(jit=True)
+    solver = gwb_solver.GromovWassersteinBarycenter(jit=True)
     out_pc = solver(problem_pc, bar_size=bar_size)
     out_cost = solver(problem_cost, bar_size=bar_size)
 
@@ -479,8 +481,8 @@ class TestGWBarycenter:
 
     def barycenter(
         y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
-    ) -> gw_barycenter.GWBarycenterState:
-      prob = bar_problems.GWBarycenterProblem(
+    ) -> gwb_solver.GWBarycenterState:
+      prob = gwb.GWBarycenterProblem(
           y=y,
           y_fused=y_fused,
           num_per_segment=num_per_segment,
@@ -495,7 +497,7 @@ class TestGWBarycenter:
       assert prob.ndim == self.NDIM
       assert prob.ndim_fused == self.NDIM_F
 
-      solver = gw_barycenter.GromovWassersteinBarycenter(
+      solver = gwb_solver.GromovWassersteinBarycenter(
           jit=False, store_inner_errors=True
       )
 

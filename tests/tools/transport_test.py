@@ -18,8 +18,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import linear_problems
 from ott.geometry import pointcloud
+from ott.problems.linear import linear_problem
 from ott.tools import transport
 
 
@@ -60,7 +60,7 @@ class TestTransport:
     geom = pointcloud.PointCloud(x, y, batch_size=9)
     b = jax.random.uniform(rngs[2], (num_b,))
     b /= jnp.sum(b)
-    pb = linear_problems.LinearProblem(geom, b=b)
+    pb = linear_problem.LinearProblem(geom, b=b)
     ot = transport.solve(pb)
 
     np.testing.assert_array_equal(ot.matrix.shape, (num_a, num_b))

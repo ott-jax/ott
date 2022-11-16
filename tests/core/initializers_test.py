@@ -19,17 +19,15 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import gromov_wasserstein
-from ott.core import initializers as init_lib
-from ott.core import (
-    initializers_lr,
-    linear_problems,
-    quad_initializers,
-    quad_problems,
-    sinkhorn,
-    sinkhorn_lr,
-)
+import ott.initializers.nn.initializers
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.initializers.linear import initializers as lin_init
+from ott.initializers.linear import initializers_lr
+from ott.initializers.quadratic import initializers as quad_init
+from ott.problems.linear import linear_problem
+from ott.problems.quadratic import quadratic_problem
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.quadratic import gromov_wasserstein
 
 
 def create_sorting_problem(rng, n, epsilon=0.01, online=False):
@@ -56,7 +54,7 @@ def create_sorting_problem(rng, n, epsilon=0.01, online=False):
       epsilon=epsilon,
       batch_size=batch_size
   )
-  ot_problem = linear_problems.LinearProblem(geom=geom, a=a, b=b)
+  ot_problem = linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
   return ot_problem
 
@@ -77,7 +75,7 @@ def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
   batch_size = 3 if online else None
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
 
-  ot_problem = linear_problems.LinearProblem(geom=geom, a=a, b=b)
+  ot_problem = linear_problem.LinearProblem(geom=geom, a=a, b=b)
   return ot_problem
 
 
@@ -87,7 +85,7 @@ def run_sinkhorn_sort_init(
     x, y, a=None, b=None, epsilon=0.01, vector_min=True, lse_mode=True
 ):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  sort_init = init_lib.SortingInitializer(vectorized_update=vector_min)
+  sort_init = lin_init.SortingInitializer(vectorized_update=vector_min)
   out = sinkhorn.sinkhorn(
       geom, a=a, b=b, jit=True, initializer=sort_init, lse_mode=lse_mode
   )
@@ -109,7 +107,7 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
       a=a,
       b=b,
       jit=True,
-      initializer=init_lib.GaussianInitializer(),
+      initializer=lin_init.GaussianInitializer(),
       lse_mode=lse_mode
   )
   return out
@@ -122,12 +120,12 @@ class TestSinkhornInitializers:
 
     @jax.jit
     def init_sort():
-      init = init_lib.SortingInitializer()
+      init = lin_init.SortingInitializer()
       return init
 
     @jax.jit
     def init_gaus():
-      init = init_lib.GaussianInitializer()
+      init = lin_init.GaussianInitializer()
       return init
 
     _ = init_gaus()
@@ -136,18 +134,18 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize(
       "init", [
           "default", "gaussian", "sorting",
-          init_lib.DefaultInitializer(), "non-existent"
+          lin_init.DefaultInitializer(), "non-existent"
       ]
   )
   def test_create_initializer(self, init: str):
     solver = sinkhorn.Sinkhorn(initializer=init)
     expected_types = {
-        "default": init_lib.DefaultInitializer,
-        "gaussian": init_lib.GaussianInitializer,
-        "sorting": init_lib.SortingInitializer,
+        "default": lin_init.DefaultInitializer,
+        "gaussian": lin_init.GaussianInitializer,
+        "sorting": lin_init.SortingInitializer,
     }
 
-    if isinstance(init, init_lib.SinkhornInitializer):
+    if isinstance(init, lin_init.SinkhornInitializer):
       assert solver.create_initializer() is init
     elif init == "non-existent":
       with pytest.raises(NotImplementedError, match=r""):
@@ -201,7 +199,7 @@ class TestSinkhornInitializers:
     ot_problem = create_sorting_problem(
         rng=rng, n=n, epsilon=epsilon, online=True
     )
-    sort_init = init_lib.SortingInitializer(vectorized_update=True)
+    sort_init = lin_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
@@ -212,7 +210,7 @@ class TestSinkhornInitializers:
     epsilon = 0.01
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
-    sort_init = init_lib.SortingInitializer(vectorized_update=True)
+    sort_init = lin_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
@@ -225,10 +223,10 @@ class TestSinkhornInitializers:
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 
-    default_potential_a = init_lib.DefaultInitializer().init_dual_a(
+    default_potential_a = lin_init.DefaultInitializer().init_dual_a(
         ot_problem, lse_mode=True
     )
-    default_potential_b = init_lib.DefaultInitializer().init_dual_b(
+    default_potential_b = lin_init.DefaultInitializer().init_dual_b(
         ot_problem, lse_mode=True
     )
 
@@ -244,11 +242,11 @@ class TestSinkhornInitializers:
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, online=False)
 
-    gaus_init = init_lib.GaussianInitializer()
+    gaus_init = lin_init.GaussianInitializer()
     new_geom = geometry.Geometry(
         cost_matrix=ot_problem.geom.cost_matrix, epsilon=epsilon
     )
-    ot_problem = linear_problems.LinearProblem(
+    ot_problem = linear_problem.LinearProblem(
         geom=new_geom, a=ot_problem.a, b=ot_problem.b
     )
 
@@ -316,7 +314,7 @@ class TestSinkhornInitializers:
     base_num_iter = jnp.sum(sink_out.errors > -1)
 
     # Overfit the initializer to the problem.
-    meta_initializer = init_lib.MetaInitializer(geom)
+    meta_initializer = ott.initializers.nn.initializers.MetaInitializer(geom)
     for _ in range(100):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b
@@ -354,7 +352,7 @@ class TestLRInitializers:
       geom = geometry.Geometry(geom.cost_matrix)
     else:
       raise NotImplementedError(geom)
-    prob = linear_problems.LinearProblem(geom)
+    prob = linear_problem.LinearProblem(geom)
 
     solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=None)
     initializer = solver.create_initializer(prob)
@@ -389,7 +387,7 @@ class TestLRInitializers:
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     x = jax.random.normal(key1, (n, d))
     pc = pointcloud.PointCloud(x, epsilon=5e-1)
-    prob = linear_problems.LinearProblem(pc)
+    prob = linear_problem.LinearProblem(pc)
     q_init = jax.random.normal(key2, (n, rank))
     r_init = jax.random.normal(key2, (n, rank))
     g_init = jax.random.normal(key2, (rank,))
@@ -416,7 +414,7 @@ class TestLRInitializers:
     n, d = 100, 10
     x = jax.random.normal(rng, (n, d))
     pc = pointcloud.PointCloud(x, epsilon=5e-1)
-    prob = linear_problems.LinearProblem(pc)
+    prob = linear_problem.LinearProblem(pc)
 
     solver = sinkhorn_lr.LRSinkhorn(
         rank=rank, initializer="generalized-k-means"
@@ -437,8 +435,8 @@ class TestLRInitializers:
 
     pc = pointcloud.PointCloud(x, y, epsilon=eps)
     geom = geometry.Geometry(cost_matrix=pc.cost_matrix, epsilon=eps)
-    pc_problem = linear_problems.LinearProblem(pc)
-    geom_problem = linear_problems.LinearProblem(geom)
+    pc_problem = linear_problem.LinearProblem(pc)
+    geom_problem = linear_problem.LinearProblem(geom)
 
     solver = sinkhorn_lr.LRSinkhorn(
         rank=rank, initializer="k-means", max_iterations=5000
@@ -464,7 +462,7 @@ class TestLRInitializers:
     x = jax.random.normal(key1, (n, d))
     y = jax.random.normal(key2, (n, d))
     pc = pointcloud.PointCloud(x, y, epsilon=5e-1)
-    prob = linear_problems.LinearProblem(pc)
+    prob = linear_problem.LinearProblem(pc)
 
     solver_random = sinkhorn_lr.LRSinkhorn(
         rank=rank, epsilon=epsilon, initializer="random", max_iterations=10000
@@ -507,14 +505,14 @@ class TestQuadraticInitializers:
       geom_y = geometry.Geometry(geom_y.cost_matrix, epsilon=eps)
     else:
       raise NotImplementedError(kind)
-    prob = quad_problems.QuadraticProblem(geom_x, geom_y)
+    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
     solver = gromov_wasserstein.GromovWasserstein(
         rank=rank, quad_initializer=None, kwargs_init=kwargs_init
     )
     initializer = solver.create_initializer(prob)
 
-    assert isinstance(initializer, quad_initializers.LRQuadraticInitializer)
+    assert isinstance(initializer, quad_init.LRQuadraticInitializer)
     assert initializer.rank == rank
     linear_init = initializer._linear_lr_initializer
     if kind in ("pc", "lrc"):
@@ -528,24 +526,24 @@ class TestQuadraticInitializers:
         rank=-1, quad_initializer="not used"
     )
     initializer = solver.create_initializer(prob="not used")
-    assert isinstance(initializer, quad_initializers.QuadraticInitializer)
+    assert isinstance(initializer, quad_init.QuadraticInitializer)
 
   @pytest.mark.parametrize("rank", [-1, 2])
   def test_explicitly_passing_initializer(self, rank: int):
     if rank == -1:
-      linear_init = init_lib.SortingInitializer()
-      quad_init = quad_initializers.QuadraticInitializer()
+      linear_init = lin_init.SortingInitializer()
+      q_init = quad_init.QuadraticInitializer()
     else:
       linear_init = initializers_lr.Rank2Initializer(rank)
-      quad_init = quad_initializers.LRQuadraticInitializer(linear_init)
+      q_init = quad_init.LRQuadraticInitializer(linear_init)
 
     solver = gromov_wasserstein.GromovWasserstein(
         initializer=linear_init,
-        quad_initializer=quad_init,
+        quad_initializer=q_init,
     )
 
     assert solver.linear_ot_solver.initializer is linear_init
-    assert solver.quad_initializer is quad_init
+    assert solver.quad_initializer is q_init
     if solver.is_low_rank:
       assert solver.quad_initializer.rank == rank
 
@@ -564,7 +562,7 @@ class TestQuadraticInitializers:
         jax.random.normal(key4, (m, d2)),
         epsilon=eps,
     )
-    problem = quad_problems.QuadraticProblem(geom_x, geom_y)
+    problem = quadratic_problem.QuadraticProblem(geom_x, geom_y)
     solver_random = gromov_wasserstein.GromovWasserstein(
         rank=rank,
         initializer="random",

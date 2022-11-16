@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import ops
+from ott.math import utils as mu
 
 
 @pytest.mark.fast
@@ -36,7 +36,7 @@ class TestGeometryLse:
     b_1 = jax.random.normal(keys[2], (n, 1))
 
     def lse_(x, axis, b, return_sign):
-      out = ops.logsumexp(x, axis, False, b, return_sign)
+      out = mu.logsumexp(x, axis, False, b, return_sign)
       return jnp.sum(out[0] if return_sign else out)
 
     lse = jax.value_and_grad(lse_, argnums=(0, 2))

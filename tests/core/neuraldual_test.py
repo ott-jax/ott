@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from typing_extensions import Literal
 
-from ott.core.neuraldual import NeuralDualSolver
+from ott.solvers.nn import neuraldual
 
 
 class ToyDataset:
@@ -94,7 +94,7 @@ class TestNeuralDual:
     dataloader_source, dataloader_target = toy_dataset
 
     # initialize neural dual
-    neural_dual_solver = NeuralDualSolver(
+    neural_dual_solver = neuraldual.NeuralDualSolver(
         input_dim=2,
         num_train_iters=num_train_iters,
         logging=True,
@@ -113,7 +113,7 @@ class TestNeuralDual:
     num_train_iters = 10
     dataloader_source, dataloader_target = toy_dataset
     # initialize neural dual
-    neural_dual_solver = NeuralDualSolver(
+    neural_dual_solver = neuraldual.NeuralDualSolver(
         input_dim=2, num_train_iters=num_train_iters
     )
     neural_dual = neural_dual_solver(

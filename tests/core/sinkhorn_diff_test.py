@@ -22,9 +22,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import implicit_differentiation as implicit_lib
-from ott.core import linear_problems, sinkhorn
 from ott.geometry import costs, geometry, grid, pointcloud
+from ott.math import implicit_differentiation as implicit_lib
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
 from ott.tools import transport
 
 
@@ -765,7 +766,7 @@ class TestSinkhornHessian:
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-      prob = linear_problems.LinearProblem(geom, a, b, tau_a, tau_b)
+      prob = linear_problem.LinearProblem(geom, a, b, tau_a, tau_b)
       implicit_diff = (
           None if not implicit else
           implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge)

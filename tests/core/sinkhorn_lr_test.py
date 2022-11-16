@@ -19,8 +19,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import linear_problems, sinkhorn_lr
 from ott.geometry import low_rank, pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn_lr
 
 
 class TestLRSinkhorn:
@@ -58,7 +59,7 @@ class TestLRSinkhorn:
     if use_lrcgeom:
       geom = geom.to_LRCGeometry()
       assert isinstance(geom, low_rank.LRCGeometry)
-    ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
+    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
@@ -131,7 +132,7 @@ class TestLRSinkhorn:
     data = self.a if axis == 0 else self.b
 
     geom = pointcloud.PointCloud(self.x, self.y)
-    ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
+    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=10,

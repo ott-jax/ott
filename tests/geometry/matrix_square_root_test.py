@@ -21,7 +21,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import matrix_square_root
+from ott.math import matrix_square_root
 
 
 def _get_random_spd_matrix(dim: int, key: jnp.ndarray):
@@ -56,7 +56,7 @@ def _get_test_fn(
   unit = jax.random.normal(key=subkey3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
 
-  def _test_fn(x: float) -> float:
+  def _test_fn(x: jnp.ndarray) -> jnp.ndarray:
     # m is the product of 2 symmetric, positive definite matrices
     # so it will be positive definite but not necessarily symmetric
     m = jnp.matmul(m0, m1 + x * dx)

@@ -20,8 +20,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import linear_problems, sinkhorn
 from ott.geometry import costs, geometry, pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhorn:
@@ -455,7 +456,7 @@ class TestSinkhorn:
     x = jax.random.uniform(rngs[0], (n, 2))
     y = jax.random.uniform(rngs[1], (m, 2))
     geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
-    problem = linear_problems.LinearProblem(geom)
+    problem = linear_problem.LinearProblem(geom)
     solver = sinkhorn.Sinkhorn()
 
     out = solver(problem)

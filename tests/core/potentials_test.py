@@ -3,8 +3,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import Sinkhorn, linear_problems
 from ott.geometry import pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian
 
@@ -24,8 +25,8 @@ class TestEntropicPotentials:
     y = g2.sample(key2, n2)
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
-    prob = linear_problems.LinearProblem(geom)
-    out = Sinkhorn()(prob)
+    prob = linear_problem.LinearProblem(geom)
+    out = sinkhorn.Sinkhorn()(prob)
     assert out.converged
     potentials = out.to_dual_potentials()
 
@@ -50,8 +51,8 @@ class TestEntropicPotentials:
     y = g2.sample(key2, n2)
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
-    prob = linear_problems.LinearProblem(geom)
-    out = Sinkhorn()(prob)
+    prob = linear_problem.LinearProblem(geom)
+    out = sinkhorn.Sinkhorn()(prob)
     assert out.converged
     potentials = out.to_dual_potentials()
 
@@ -75,11 +76,11 @@ class TestEntropicPotentials:
 
     x = jax.random.normal(key1, (n, d))
     y = jax.random.normal(key2, (m, d))
-    prob = linear_problems.LinearProblem(pointcloud.PointCloud(x, y))
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
     v_x = jax.random.normal(key3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * 1e-3
 
-    pots = Sinkhorn()(prob).to_dual_potentials()
+    pots = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
 
     grad_dist = jax.grad(pots.distance)
     if jit:
@@ -103,9 +104,9 @@ class TestEntropicPotentials:
     y = jax.random.normal(key2, (m, d)) + mu1
     x_test = jax.random.normal(key3, (n, d)) + mu0
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
-    prob = linear_problems.LinearProblem(geom)
+    prob = linear_problem.LinearProblem(geom)
 
-    sink_pots = Sinkhorn()(prob).to_dual_potentials()
+    sink_pots = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
     div_pots = sinkhorn_divergence.sinkhorn_divergence(
         type(geom), x, y, epsilon=eps
     ).to_dual_potentials()
