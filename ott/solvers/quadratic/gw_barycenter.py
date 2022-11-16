@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
-from ott.problems.quadratic import barycenter_problem
+from ott.problems.quadratic import gw_barycenter
 from ott.solvers.quadratic import gromov_wasserstein
 from ott.utils import was_solver
 
@@ -91,7 +91,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
 
   def __call__(
-      self, problem: barycenter_problem.GWBarycenterProblem, bar_size: int,
+      self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
       **kwargs: Any
   ) -> GWBarycenterState:
     """Solver the (fused) GW barycenter problem.
@@ -111,7 +111,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def init_state(
       self,
-      problem: barycenter_problem.GWBarycenterProblem,
+      problem: gw_barycenter.GWBarycenterProblem,
       bar_size: int,
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
@@ -186,7 +186,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       state: GWBarycenterState,
       iteration: int,
-      problem: barycenter_problem.GWBarycenterProblem,
+      problem: gw_barycenter.GWBarycenterProblem,
       store_errors: bool = True,
   ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
 
@@ -283,8 +283,7 @@ def init_transports(
 
 def iterations(
     solver: GromovWassersteinBarycenter,
-    problem: barycenter_problem.GWBarycenterProblem,
-    init_state: GWBarycenterState
+    problem: gw_barycenter.GWBarycenterProblem, init_state: GWBarycenterState
 ) -> GWBarycenterState:
 
   def cond_fn(
@@ -296,7 +295,7 @@ def iterations(
 
   def body_fn(
       iteration, constants: Tuple[GromovWassersteinBarycenter,
-                                  barycenter_problem.GWBarycenterProblem],
+                                  gw_barycenter.GWBarycenterProblem],
       state: GWBarycenterState, compute_error: bool
   ) -> GWBarycenterState:
     del compute_error  # always assumed true

@@ -36,7 +36,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       Only one of ``y`` and ``cost`` can be specified.
     y_fused: Array of shape ``[num_total_points, ndim_fused]`` containing
       the data of the points of all measures used to define the linear term
-      in the fused case. Similarly as ``y``, can be specified as a pre-segmented
+      in the fused case. Same as ``y``, it can be specified as a pre-segmented
       array of shape ``[num_measures, max_measure_size, ndim_fused]``.
     gw_loss: Gromov-Wasserstein loss.
     fused_penalty: Multiplier of the linear term. Only used when

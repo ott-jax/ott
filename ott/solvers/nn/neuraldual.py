@@ -14,7 +14,7 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -134,10 +134,10 @@ class NeuralDualSolver:
 
   def __call__(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterable[jnp.ndarray],
+      trainloader_target: Iterable[jnp.ndarray],
+      validloader_source: Iterable[jnp.ndarray],
+      validloader_target: Iterable[jnp.ndarray],
   ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
                                               Train_t]]:
     logs = self.train_neuraldual(
@@ -152,10 +152,10 @@ class NeuralDualSolver:
 
   def train_neuraldual(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterable[jnp.ndarray],
+      trainloader_target: Iterable[jnp.ndarray],
+      validloader_source: Iterable[jnp.ndarray],
+      validloader_target: Iterable[jnp.ndarray],
   ) -> Train_t:
     """Implementation of the training and validation script."""  # noqa: D401
     try:
