@@ -13,18 +13,17 @@
 # limitations under the License.
 """Sinkhorn initializers."""
 import abc
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 
 from ott.geometry import pointcloud
-from ott.problems.linear import linear_problem
 
-__all__ = [
-    "SinkhornInitializer", "DefaultInitializer", "GaussianInitializer",
-    "SortingInitializer"
-]
+if TYPE_CHECKING:
+  from ott.problems.linear import linear_problem
+
+__all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -33,19 +32,19 @@ class SinkhornInitializer(abc.ABC):
 
   @abc.abstractmethod
   def init_dual_a(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling f_u."""
 
   @abc.abstractmethod
   def init_dual_b(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling g_v."""
 
   def __call__(
       self,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: 'linear_problem.LinearProblem',
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
@@ -97,7 +96,7 @@ class DefaultInitializer(SinkhornInitializer):
   """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
@@ -113,7 +112,7 @@ class DefaultInitializer(SinkhornInitializer):
     return init_dual_a
 
   def init_dual_b(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
@@ -141,7 +140,7 @@ class GaussianInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
   ) -> jnp.ndarray:
     """Gaussian initialization function.
@@ -243,7 +242,7 @@ class SortingInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:

@@ -39,8 +39,6 @@ class BarycenterState(NamedTuple):
       inner Sinkhorn iterations.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
-    linear_states: State used to solve and store solutions to the OT problems
-      from the barycenter to the measures.
     x: barycenter points.
     a: barycenter weights.
   """

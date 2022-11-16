@@ -17,6 +17,8 @@ import dataclasses
 
 import jax
 
+__all__ = ["register_pytree_node"]
+
 
 def register_pytree_node(cls: type) -> type:
   """Register dataclasses as pytree_nodes."""

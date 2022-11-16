@@ -38,7 +38,7 @@ class AndersonAcceleration:
 
     # Recover linear combination and return it with NaN (caused
     # by 0 weights leading to -jnp.inf potentials, mixed with weights
-    # coefficiences of different signs), disambiguated to -inf.
+    # coefficients of different signs), disambiguated to -inf.
     combination = jnp.sum(fxs * weights[None, :], axis=1)
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 

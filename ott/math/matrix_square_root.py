@@ -24,6 +24,8 @@ import numpy as np
 
 from ott.math import fixed_point_loop
 
+__all__ = ["sqrtm"]
+
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
 def sqrtm(
@@ -33,7 +35,7 @@ def sqrtm(
     inner_iterations: int = 10,
     max_iterations: int = 1000,
     regularization: float = 1e-3
-) -> jnp.ndarray:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Higham algorithm to compute matrix square root of p.d. matrix.
 
   See :cite:`higham:97`, eq. 2.6b
@@ -171,7 +173,7 @@ def sqrtm_fwd(
       max_iterations=max_iterations,
       regularization=regularization,
   )
-  return ((sqrt_x, inv_sqrt_x, errors), (sqrt_x, inv_sqrt_x))
+  return (sqrt_x, inv_sqrt_x, errors), (sqrt_x, inv_sqrt_x)
 
 
 def sqrtm_bwd(
@@ -226,7 +228,7 @@ def sqrtm_bwd(
       axis1=-1,
       axis2=-2
   )
-  return (vjp_cot_sqrt + vjp_cot_inv_sqrt,)
+  return vjp_cot_sqrt + vjp_cot_inv_sqrt,
 
 
 sqrtm.defvjp(sqrtm_fwd, sqrtm_bwd)
@@ -254,7 +256,7 @@ def sqrtm_only_bwd(sqrt_x: jnp.ndarray,
       axis1=-2,
       axis2=-1
   )
-  return (vjp,)
+  return vjp,
 
 
 sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
@@ -270,9 +272,8 @@ def inv_sqrtm_only_fwd(x: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
   return inv_sqrt_x, inv_sqrt_x
 
 
-def inv_sqrtm_only_bwd(
-    residual: jnp.ndarray, cotangent: jnp.ndarray
-) -> jnp.ndarray:
+def inv_sqrtm_only_bwd(residual: jnp.ndarray,
+                       cotangent: jnp.ndarray) -> Tuple[jnp.ndarray]:
   inv_sqrt_x = residual
   inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
   vjp = jnp.swapaxes(
@@ -287,7 +288,7 @@ def inv_sqrtm_only_bwd(
       axis1=-1,
       axis2=-2
   )
-  return (vjp,)
+  return vjp,
 
 
 inv_sqrtm_only.defvjp(inv_sqrtm_only_fwd, inv_sqrtm_only_bwd)

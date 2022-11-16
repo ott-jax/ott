@@ -24,6 +24,8 @@ import jax.numpy as jnp
 
 from ott.math import fixed_point_loop, matrix_square_root
 
+__all__ = ["Euclidean", "SqEuclidean", "Cosine", "Bures", "UnbalancedBures"]
+
 
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):

@@ -14,15 +14,18 @@
 
 # Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.solvers.linear import sinkhorn, sinkhorn_lr
+if TYPE_CHECKING:
+  from ott.solvers.linear import continuous_barycenter, sinkhorn, sinkhorn_lr
 
-State = Union[sinkhorn.SinkhornState, sinkhorn_lr.LRSinkhornState,
-              "continuous_barycenter.BarycenterState"]  # noqa: F821
+__all__ = ["WassersteinSolver"]
+
+State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
+              "continuous_barycenter.BarycenterState"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -33,8 +36,8 @@ class WassersteinSolver:
       self,
       epsilon: Optional[float] = None,
       rank: int = -1,
-      linear_ot_solver: Optional[Union[sinkhorn.Sinkhorn,
-                                       sinkhorn_lr.LRSinkhorn]] = None,
+      linear_ot_solver: Optional[Union["sinkhorn.Sinkhorn",
+                                       "sinkhorn_lr.LRSinkhorn"]] = None,
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
@@ -42,6 +45,7 @@ class WassersteinSolver:
       store_inner_errors: bool = False,
       **kwargs: Any,
   ):
+    from ott.solvers.linear import sinkhorn, sinkhorn_lr
     default_epsilon = 1.0
     # Set epsilon value to default if needed, but keep track of whether None was
     # passed to handle the case where a linear_ot_solver is passed or not.

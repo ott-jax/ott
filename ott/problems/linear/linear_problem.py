@@ -22,6 +22,7 @@ from ott.geometry import geometry
 
 __all__ = ["LinearProblem"]
 
+# TODO(michalk8): move to typing.py when refactoring the types
 MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
                             jnp.ndarray]

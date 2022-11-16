@@ -13,14 +13,18 @@
 # limitations under the License.
 """Functions entering the implicit differentiation of Sinkhorn."""
 
-from typing import Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 
 from ott.math import unbalanced_functions
-from ott.problems import linear as linear_problems
 from ott.utils import dataclasses
+
+if TYPE_CHECKING:
+  from ott.problems.linear import linear_problem
+
+__all__ = ["ImplicitDiff"]
 
 
 @dataclasses.register_pytree_node
@@ -28,7 +32,7 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Attributes:
-    implicit_solver_fun: Callable, should return (solution, ...)
+    solver_fun: Callable, should return (solution, ...)
     ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are colinear, or,
@@ -48,9 +52,9 @@ class ImplicitDiff:
 
   def solve(
       self, gr: Tuple[jnp.ndarray,
-                      jnp.ndarray], ot_prob: linear_problems.LinearProblem,
+                      jnp.ndarray], ot_prob: "linear_problem.LinearProblem",
       f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
-  ):
+  ) -> jnp.ndarray:
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
@@ -271,9 +275,9 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(
-      self, prob: linear_problems.LinearProblem, f: jnp.ndarray, g: jnp.ndarray,
-      lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
-  ) -> linear_problems.LinearProblem:
+      self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
+      g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> "linear_problem.LinearProblem":
     """Apply vjp to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)

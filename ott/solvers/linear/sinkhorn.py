@@ -27,10 +27,9 @@ from ott.math import fixed_point_loop
 from ott.math import implicit_differentiation as implicit_lib
 from ott.math import potentials, unbalanced_functions
 from ott.problems.linear import linear_problem
+from ott.solvers.linear import acceleration
 
 __all__ = ["Sinkhorn", "SinkhornOutput"]
-
-from ott.solvers.linear import acceleration
 
 
 class SinkhornState(NamedTuple):

@@ -35,7 +35,7 @@ class SinkhornBarycenterOutput(NamedTuple):
   errors: jnp.ndarray
 
 
-# TODO(michalk8): refactor as a solver
+# TODO(michalk8): refactor as a solver?
 def discrete_barycenter(
     geom: geometry.Geometry,
     a: jnp.ndarray,

@@ -10,6 +10,7 @@ __all__ = [
     "barycentric_projection"
 ]
 
+# TODO(michalk8): move to typing.py when refactoring types
 Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 

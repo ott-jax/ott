@@ -4,11 +4,10 @@ from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 import jax
 
 from ott.geometry import geometry
-from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn_lr
 
 if TYPE_CHECKING:
   from ott.initializers.linear import initializers_lr
+  from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
 
 __all__ = ["QuadraticInitializer", "LRQuadraticInitializer"]
@@ -27,7 +26,7 @@ class BaseQuadraticInitializer(abc.ABC):
 
   def __call__(
       self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
-  ) -> linear_problem.LinearProblem:
+  ) -> 'linear_problem.LinearProblem':
     """Compute the initial linearization of a quadratic problem.
 
     Args:
@@ -37,6 +36,8 @@ class BaseQuadraticInitializer(abc.ABC):
     Returns:
       Linear problem.
     """
+    from ott.problems.linear import linear_problem
+
     n, m = quad_prob.geom_xx.shape[0], quad_prob.geom_yy.shape[0]
     geom = self._create_geometry(quad_prob, **kwargs)
     assert geom.shape == (n, m), f"Expected geometry of shape `{n, m}`, " \
@@ -134,10 +135,10 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       transport_mass = marginal_1.sum()
       # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
       epsilon = quadratic_problem.update_epsilon_unbalanced(
-          epsilon, transport_mass
+          epsilon=epsilon, transport_mass=transport_mass
       )
       unbalanced_correction = quad_prob.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon
+          tmp, marginal_1, marginal_2, epsilon=epsilon
       )
 
     h1, h2 = quad_prob.quad_loss
@@ -176,6 +177,8 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     Returns:
       The initial geometry used to initialize a linear problem.
     """
+    from ott.solvers.linear import sinkhorn_lr
+
     q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
     tmp_out = sinkhorn_lr.LRSinkhornOutput(
         q=q, r=r, g=g, costs=None, errors=None, ot_prob=None

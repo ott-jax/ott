@@ -21,22 +21,19 @@ from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 
-__all__ = [
-    "RandomInitializer", "Rank2Initializer", "KMeansInitializer",
-    "GeneralizedKMeansInitializer"
-]
-
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
   from ott.solvers.linear import sinkhorn, sinkhorn_lr
   from ott.solvers.quadratic import gromov_wasserstein
 
-  Problem_t = Union[linear_problem.LinearProblem,
-                    quadratic_problem.QuadraticProblem]
-else:
-  Problem_t = "Union[linear_problems.LinearProblem, " \
-              "quad_problems.QuadraticProblem]"
+Problem_t = Union["linear_problem.LinearProblem",
+                  "quadratic_problem.QuadraticProblem"]
+
+__all__ = [
+    "RandomInitializer", "Rank2Initializer", "KMeansInitializer",
+    "GeneralizedKMeansInitializer"
+]
 
 
 @jax.tree_util.register_pytree_node_class

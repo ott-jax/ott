@@ -22,6 +22,8 @@ from typing_extensions import Literal
 
 from ott.geometry import geometry
 
+__all__ = ["LRCGeometry"]
+
 
 @jax.tree_util.register_pytree_node_class
 class LRCGeometry(geometry.Geometry):

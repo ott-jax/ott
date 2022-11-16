@@ -28,6 +28,8 @@ from typing_extensions import Literal
 from ott.geometry import epsilon_scheduler
 from ott.math import utils
 
+__all__ = ["Geometry"]
+
 
 @jax.tree_util.register_pytree_node_class
 class Geometry:

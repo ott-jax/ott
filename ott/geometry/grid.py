@@ -24,6 +24,8 @@ import numpy as np
 from ott.geometry import costs, geometry, pointcloud
 from ott.math import utils
 
+__all__ = ["Grid"]
+
 
 @jax.tree_util.register_pytree_node_class
 class Grid(geometry.Geometry):

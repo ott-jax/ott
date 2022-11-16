@@ -29,6 +29,8 @@ from ott.problems.quadratic import quadratic_costs, quadratic_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.utils import was_solver
 
+__all__ = ["GWOutput", "GromovWasserstein", "gromov_wasserstein"]
+
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 

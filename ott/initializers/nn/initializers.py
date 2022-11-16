@@ -1,30 +1,31 @@
 import functools
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 import jax
-import jax.numpy as jnp
 import optax
 from flax import linen as nn
 from flax.training import train_state
+from jax import numpy as jnp
 
 from ott.geometry import geometry
-from ott.initializers.linear import DefaultInitializer
-from ott.initializers.nn import layers
-from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
+from ott.initializers.linear import initializers
 
-# TODO(michalk8): add Charlotte's initializer?
-__all__ = ["MetaInitializer"]
+if TYPE_CHECKING:
+  from ott.problems.linear import linear_problem
+
+# TODO(michalk8): add initializer for NeuralDual?
+__all__ = ["MetaInitializer", "MetaMLP"]
 
 
 @jax.tree_util.register_pytree_node_class
-class MetaInitializer(DefaultInitializer):
+class MetaInitializer(initializers.DefaultInitializer):
   """Meta OT Initializer with a fixed geometry :cite:`amos:22`.
 
   This initializer consists of a predictive model that outputs the
   :math:`f` duals to solve the entropy-regularized OT problem given
   input probability weights ``a`` and ``b``, and a given (assumed to be
   fixed) geometry ``geom``.
+
   The model's parameters are learned using a training set of OT
   instances (multiple pairs of probability weights), that assume the
   **same** geometry ``geom`` is used throughout, both for training and
@@ -67,7 +68,7 @@ class MetaInitializer(DefaultInitializer):
     self.rng = rng
 
     na, nb = geom.shape
-    self.meta_model = layers.MetaMLP(
+    self.meta_model = MetaMLP(
         potential_size=na
     ) if meta_model is None else meta_model
 
@@ -120,7 +121,7 @@ class MetaInitializer(DefaultInitializer):
     return self.update_impl(state, a, b)
 
   def init_dual_a(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
@@ -140,6 +141,8 @@ class MetaInitializer(DefaultInitializer):
 
   def _get_update_fn(self):
     """Return the implementation (and jitted) update function."""
+    from ott.problems.linear import linear_problem
+    from ott.solvers.linear import sinkhorn
 
     def dual_obj_loss_single(params, a, b):
       f_pred = self._compute_f(a, b, params)
@@ -186,3 +189,38 @@ class MetaInitializer(DefaultInitializer):
         'rng': self.rng,
         'state': self.state
     }
+
+
+class MetaMLP(nn.Module):
+  r"""A Meta MLP potential for :class:`~ott.core.initializers.MetaInitializer`.
+
+  This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the
+  probabilities of the measures to the optimal dual potentials :math:`f`.
+
+  Args:
+    potential_size: The dimensionality of :math:`f`.
+    num_hidden_units: The number of hidden units in each layer.
+    num_hidden_layers: The number of hidden layers.
+  """
+
+  potential_size: int
+  num_hidden_units: int = 512
+  num_hidden_layers: int = 3
+
+  @nn.compact
+  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+    r"""Make a prediction.
+
+    Args:
+      a: Probabilities of the :math:`\alpha` measure's atoms.
+      b: Probabilities of the :math:`\beta` measure's atoms.
+
+    Returns:
+      The :math:`f` potential.
+    """
+    dtype = a.dtype
+    z = jnp.concatenate((a, b))
+    for _ in range(self.num_hidden_layers):
+      z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
+    f = nn.Dense(self.potential_size, dtype=dtype)(z)
+    return f

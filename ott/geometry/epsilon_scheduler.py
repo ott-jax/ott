@@ -19,6 +19,8 @@ from typing import Any, Optional
 import jax
 import jax.numpy as jnp
 
+__all__ = ["Epsilon"]
+
 
 @jax.tree_util.register_pytree_node_class
 class Epsilon:

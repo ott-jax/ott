@@ -1,3 +1,1 @@
-from . import quadratic_costs
-from .barycenter_problem import GWBarycenterProblem
-from .quadratic_problem import QuadraticProblem
+from . import barycenter_problem, quadratic_costs, quadratic_problem

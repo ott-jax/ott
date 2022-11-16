@@ -28,8 +28,7 @@ from ott.solvers.nn import icnn
 
 __all__ = ["NeuralDualSolver"]
 
-Train_t = Dict[Literal["training_logs", "validation_logs"], List[float]]
-Potentials_t = potentials.DualPotentials
+Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 
 
 class NeuralDualSolver:
@@ -139,7 +138,8 @@ class NeuralDualSolver:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-  ) -> Union[Potentials_t, Tuple[Potentials_t, Train_t]]:
+  ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
+                                              Train_t]]:
     logs = self.train_neuraldual(
         trainloader_source,
         trainloader_target,
@@ -152,10 +152,10 @@ class NeuralDualSolver:
 
   def train_neuraldual(
       self,
-      trainloader_source,
-      trainloader_target,
-      validloader_source,
-      validloader_target,
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
   ) -> Train_t:
     """Implementation of the training and validation script."""  # noqa: D401
     try:

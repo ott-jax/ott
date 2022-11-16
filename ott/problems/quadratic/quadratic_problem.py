@@ -13,7 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,8 +22,10 @@ from typing_extensions import Literal
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
-from ott.solvers.linear import sinkhorn_lr
 from ott.typing import Transport
+
+if TYPE_CHECKING:
+  from ott.solvers.linear import sinkhorn_lr
 
 __all__ = ["QuadraticProblem"]
 
@@ -238,7 +240,7 @@ class QuadraticProblem:
     return a.sum() * b.sum()
 
   def update_lr_geom(
-      self, lr_sink: sinkhorn_lr.LRSinkhornOutput
+      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
@@ -325,7 +327,7 @@ class QuadraticProblem:
     )
 
   def update_lr_linearization(
-      self, lr_sink: sinkhorn_lr.LRSinkhornOutput
+      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(

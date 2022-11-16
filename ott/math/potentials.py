@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -6,7 +6,8 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
-from ott.geometry import pointcloud
+if TYPE_CHECKING:
+  from ott.geometry import pointcloud
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -130,7 +131,7 @@ class EntropicPotentials(DualPotentials):
   """
 
   def __init__(
-      self, f: jnp.ndarray, g: jnp.ndarray, geom: pointcloud.PointCloud,
+      self, f: jnp.ndarray, g: jnp.ndarray, geom: "pointcloud.PointCloud",
       a: jnp.ndarray, b: jnp.ndarray
   ):
     n, m = geom.shape
@@ -157,6 +158,7 @@ class EntropicPotentials(DualPotentials):
   def _create_potential_function(
       self, *, kind: Literal["f", "g"]
   ) -> Potential_t:
+    from ott.geometry import pointcloud
 
     def callback(x: jnp.ndarray) -> float:
       cost = pointcloud.PointCloud(
@@ -164,7 +166,7 @@ class EntropicPotentials(DualPotentials):
           y,
           cost_fn=self._geom.cost_fn,
           power=self._geom.power,
-          epsilon=1.0  #  epsilon is not used
+          epsilon=1.0  # epsilon is not used
       ).cost_matrix
       return -eps * jsp.special.logsumexp((potential - cost) / eps,
                                           b=prob_weights)

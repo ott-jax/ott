@@ -1,2 +1,1 @@
-from .barycenter_problem import BarycenterProblem
-from .linear_problem import LinearProblem
+from . import barycenter_problem, linear_problem

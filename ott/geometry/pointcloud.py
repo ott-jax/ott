@@ -24,6 +24,8 @@ from typing_extensions import Literal
 from ott.geometry import costs, geometry, low_rank
 from ott.math import utils
 
+__all__ = ["PointCloud"]
+
 
 @jax.tree_util.register_pytree_node_class
 class PointCloud(geometry.Geometry):
