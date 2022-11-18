@@ -65,12 +65,12 @@ class CholeskySolver(abc.ABC, Generic[T]):
   def create(cls, A: Union[T, sp.spmatrix], **kwargs: Any) -> "CholeskySolver":
     """Instantiate sparse or dense Cholesky solver.
 
-    Optionally converts :class:`scipy.sparse.spmatrix` to its
+    And optionally convert :class:`scipy.sparse.spmatrix` to its
     :mod:`jax` equivalent.
 
     Args:
       A: Symmetric positive definite matrix of shape ``[n, n]``.
-      kwargs: Keyword arguments for the initialization.
+      kwargs: Keyword arguments for the solver initialization.
 
     Returns:
       Sparse or dense Cholesky solver.
