@@ -70,8 +70,9 @@ def sinkhorn_divergence(
       match that of `b` to converge.
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
-    sinkhorn_kwargs: keywords arguments for :func:`~ott.core.sinkhorn.sinkhorn`
-      that is called twice if ``static_b = True`` else 3 times.
+    sinkhorn_kwargs: keywords arguments for
+      :func:`~ott.solvers.linear.sinkhorn.sinkhorn` that is called twice
+      if ``static_b = True`` else 3 times.
     static_b: if True, divergence of measure `b` against itself is **not**
       computed.
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
@@ -138,7 +139,7 @@ def _sinkhorn_divergence(
      all elements of b must match that of a to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
-    kwargs: Keyword arguments to :func:`ott.core.sinkhorn.sinkhorn`.
+    kwargs: Keyword arguments to :func:`~ott.solvers.linear.sinkhorn.sinkhorn`.
 
   Returns:
     SinkhornDivergenceOutput named tuple.
@@ -190,7 +191,7 @@ def segment_sinkhorn_divergence(
     cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
-    indices_are_sorted: Optional[bool] = None,
+    indices_are_sorted: bool = False,
     num_per_segment_x: Optional[Tuple[int, ...]] = None,
     num_per_segment_y: Optional[Tuple[int, ...]] = None,
     weights_x: Optional[jnp.ndarray] = None,
@@ -219,23 +220,24 @@ def segment_sinkhorn_divergence(
   a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
 
   Args:
-    x: Array of input points, of shape [num_x, feature]. Multiple segments are
-      held in this single array.
-    y: Array of target points, of shape [num_y, feature].
-    num_segments: Number of segments contained in x and y. Providing this number
-      is required for JIT compilation to work, see also
-      :func:`~ott.core.segment.segment_point_cloud`.
+    x: Array of input points, of shape `[num_x, feature]`.
+      Multiple segments are held in this single array.
+    y: Array of target points, of shape `[num_y, feature]`.
+    num_segments: Number of segments contained in `x` and `y`.
+      Providing this is required for JIT compilation to work,
+      see also :func:`~ott.geometry.segment.segment_point_cloud`.
     max_measure_size: Total size of measures after padding. Should ideally be
       set to an upper bound on points clouds processed with the segment
       interface. Should also be smaller than total length of `x` or `y`.
-      Providing this number is required for JIT compilation to work.
-    cost_fn: Cost function, defaults to :class:`~ott.core.costs.SqEuclidean`.
-    segment_ids_x: **1st interface** The segment ID for which each row of x
+      Providing this is required for JIT compilation to work.
+    cost_fn: Cost function,
+      defaults to :class:`~ott.geometry.costs.SqEuclidean`.
+    segment_ids_x: **1st interface** The segment ID for which each row of `x`
       belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
-    segment_ids_y: **1st interface** The segment ID for which each row of y
+    segment_ids_y: **1st interface** The segment ID for which each row of `y`
       belongs.
     indices_are_sorted: **1st interface** Whether `segment_ids_x` and
-      `segment_ids_y` are sorted. Default false.
+      `segment_ids_y` are sorted.
     num_per_segment_x: **2nd interface** Number of points in each segment in
       `x`. For example, [100, 20, 30] would imply that `x` is segmented into
       three arrays of length `[100]`, `[20]`, and `[30]` respectively.
@@ -260,7 +262,7 @@ def segment_sinkhorn_divergence(
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments passed to form
-      :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
+      :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
       instance entropy regularization float, scheduler or normalization.
   Returns:
