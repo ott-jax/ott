@@ -192,7 +192,7 @@ class Graph(geometry.Geometry):
 
     # in the sparse case, we don't sum duplicates here because
     # we need to know `nnz` a priori for JIT (could be exposed in `__init__`)
-    # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
+    # instead, `ott.math.decomposition._jax_sparse_to_scipy` handles it on host
     return D - self.graph
 
   @property

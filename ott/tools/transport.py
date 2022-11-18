@@ -21,10 +21,9 @@ For instance, solving the transport between two point clouds.
 >>> ot = ott.transport.solve(x, y)
 >>> Tz = ot.apply(z)
 
-Even if the transport.solve sole function can support many complex use cases, we
-suggest more advanced users to instantiate directly their problem (see
-ott.core.problems) and their solvers (see ott.core.sinkhorn and
-ott.core.gromov_wasserstein) for better control over the parameters.
+Even if the `transport.solve` sole function can support many complex use cases,
+we suggest more advanced users to instantiate directly their :mod:`ott.problems`
+and their :mod:`ott.solvers` for better control over the parameters.
 """
 
 from typing import Any, NamedTuple, Optional, Union
@@ -43,7 +42,7 @@ __all__ = ["Transport"]
 
 
 class Transport(NamedTuple):
-  """Implement a core.problems.Transport interface to transport solutions."""
+  """Transport interface to transport solutions."""
 
   problem: Any = None
   solver_output: Any = None

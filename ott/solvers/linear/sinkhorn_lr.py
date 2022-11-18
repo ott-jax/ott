@@ -300,9 +300,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ot_prob: Linear OT problem.
       init: Initial values for the low-rank factors:
 
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.q`.
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.r`.
-        - :attr:`~ott.core.sinkhorn_lr.LRSinkhornOutput.g`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.q`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.r`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.g`.
 
         Any `None` values will be initialized using the initializer.
       key: Random key for seeding.

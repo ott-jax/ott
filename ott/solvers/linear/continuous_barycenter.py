@@ -149,7 +149,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       x_init: Initial barycenter estimate of shape ``[bar_size, ndim]``.
         If `None`, ``bar_size`` points will be sampled from the input
         measures according to their weights
-        :attr:`~ott.core.bar_problems.BarycenterProblem.flattened_y`.
+        :attr:`~ott.problems.linear.barycenter_problem.BarycenterProblem.flattened_y`.
       rng: Seed for :func:`jax.random.PRNGKey`.
 
     Returns:

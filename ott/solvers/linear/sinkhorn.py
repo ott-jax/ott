@@ -327,8 +327,8 @@ class Sinkhorn:
       unroll-able :func:`jax.lax.while_loop` that monitors convergence.
       In that case the error is not monitored and the ``converged``
       flag will return ``False`` as a consequence.
-    momentum: a Momentum instance. See ott.core.momentum
-    anderson: an AndersonAcceleration instance. See ott.core.anderson.
+    momentum: Momentum instance.
+    anderson: AndersonAcceleration instance.
     implicit_diff: instance used to solve implicit differentiation. Unrolls
       iterations if None.
     parallel_dual_updates: updates potentials or scalings in parallel if True,

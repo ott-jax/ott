@@ -46,7 +46,7 @@ class BarycenterProblem:
       the regularized transportation cost of barycenter to itself will
       be considered when computing gradient. Note that if the debiased option
       is used, the barycenter size in
-      :meth:`~ott.core.continuous_barycenter.WassersteinBarycenter.init_state`
+      :meth:`~ott.solvers.linear.continuous_barycenter.WassersteinBarycenter.init_state`
       needs to be smaller than the maximum measure size for parallelization to
       operate efficiently.
     kwargs: Keyword arguments :func:`~ott.geometry.segment.segment_point_cloud`.

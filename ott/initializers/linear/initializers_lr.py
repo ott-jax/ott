@@ -531,7 +531,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
           crossed_threshold=False
       )
 
-    # see the explanation in `ott.core.sinkhorn_lr`
+    # see the explanation in `ott.solvers.linear.sinkhorn_lr`
     def converged(
         state: GeneralizedKMeansInitializer.State,
         consts: GeneralizedKMeansInitializer.Constants, iteration: int
