@@ -30,7 +30,7 @@ class MetaInitializer(initializers.DefaultInitializer):
   instances (multiple pairs of probability weights), that assume the
   **same** geometry ``geom`` is used throughout, both for training and
   evaluation. The meta model defaults to the MLP in
-  :class:`~ott.core.initializers.MetaMLP` and, with batched problem
+  :class:`~ott.initializers.nn.initializers.MetaMLP` and, with batched problem
   instances passed into :meth:`update`.
 
   **Sample training usage.** The following code shows a simple
@@ -192,7 +192,7 @@ class MetaInitializer(initializers.DefaultInitializer):
 
 
 class MetaMLP(nn.Module):
-  r"""A Meta MLP potential for :class:`~ott.core.initializers.MetaInitializer`.
+  r"""Potential for :class:`~ott.initializers.nn.initializers.MetaInitializer`.
 
   This provides an MLP :math:`\hat f_\theta(a, b)` that maps from the
   probabilities of the measures to the optimal dual potentials :math:`f`.

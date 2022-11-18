@@ -342,7 +342,8 @@ class KMeansInitializer(LRInitializer):
     rank: Rank of the factorization.
     min_iterations: Minimum number of k-means iterations.
     max_iterations: Maximum number of k-means iterations.
-    sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
+    sinkhorn_kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
     kwargs: Keyword arguments for :func:`~ott.tools.k_means.k_means`.
   """
 
@@ -466,7 +467,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     inner_iterations: Number of iterations used by the algorithm before
       re-evaluating progress.
     threshold: Convergence threshold.
-    sinkhorn_kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
+    sinkhorn_kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
 
   def __init__(

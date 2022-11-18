@@ -172,7 +172,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     Args:
       quad_prob: Quadratic OT problem.
       kwargs: Keyword arguments for
-        :meth:`ott.core.initializers_lr.LRInitializer.__call__`.
+        :meth:`~ott.initializers.linear.initializers_lr.LRInitializer.__call__`.
 
     Returns:
       The initial geometry used to initialize a linear problem.
