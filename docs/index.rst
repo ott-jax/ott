@@ -57,46 +57,14 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
 
-.. toctree::
-    :maxdepth: 1
-    :caption: Tutorials:
-
-    notebooks/point_clouds.ipynb
-    notebooks/introduction_grid.ipynb
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Benchmarks:
-
-    notebooks/OTT_&_POT.ipynb
-    notebooks/One_Sinkhorn.ipynb
-    notebooks/LRSinkhorn.ipynb
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Advanced Applications:
-
-    notebooks/Sinkhorn_Barycenters.ipynb
-    notebooks/gromov_wasserstein.ipynb
-    notebooks/GWLRSinkhorn.ipynb
-    notebooks/Hessians.ipynb
-    notebooks/soft_sort.ipynb
-    notebooks/application_biology.ipynb
-    notebooks/gromov_wasserstein_multiomics.ipynb
-    notebooks/fairness.ipynb
-    notebooks/neural_dual.ipynb
-    notebooks/icnn_inits.ipynb
-    notebooks/wasserstein_barycenters_gmms.ipynb
-    notebooks/gmm_pair_demo.ipynb
-    notebooks/MetaOT.ipynb
 
 .. toctree::
     :maxdepth: 1
     :caption: Public API: ott packages
 
     geometry
-    core
-    tools
+    problems/index
+    solvers/index
 
 .. toctree::
     :maxdepth: 1
