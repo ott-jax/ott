@@ -144,33 +144,33 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   Args:
     args: Positional_arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
+      :class:`~ott.solvers.was_solver.WassersteinSolver`.
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
     quad_initializer: Quadratic initializer. If the solver is entropic,
-      :class:`~ott.core.quad_initializers.QuadraticInitializer` is always used.
-      Otherwise, the quadratic initializer wraps low-rank Sinkhorn initializers:
+      :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
+      is always used. Otherwise, the quadratic initializer wraps the low-rank
+      Sinkhorn initializers:
 
-        - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` -
-          :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
+        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
+        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
+        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
 
       If `None`, the low-rank initializer will be selected in a problem-specific
       manner:
 
-        - if both :attr:`~ott.core.quad_problems.QuadraticProblem.geom_xx` and
-          :attr:`~ott.core.quad_problems.QuadraticProblem.geom_yy` are
-          :class:`~ott.geometry.pointcloud.PointCloud`  or
-          :class:`~ott.geometry.low_rank.LRCGeometry`,
-          :class:`~ott.core.initializers_lr.KMeansInitializer` is used.
-        - otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
+        - if both :attr:`~ott.problems.quadratic.quadratic_problem.QuadraticProblem.geom_xx`
+          and :attr:`~ott.problems.quadratic.quadratic_problem.QuadraticProblem.geom_yy`
+          are :class:`~ott.geometry.pointcloud.PointCloud` or :class:`~ott.geometry.low_rank.LRCGeometry`,
+          :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
+          is used.
+        - otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
 
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
-      :class:`~ott.core.was_solver.WassersteinSolver`.
+      :class:`~ott.solvers.was_solver.WassersteinSolver`.
   """
 
   def __init__(
@@ -493,16 +493,14 @@ def gromov_wasserstein(
       - if `True`, use the default for each geometry.
       - if `False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
-        :class:`ott.geometry.geometry.Geometry` or
-        :class:`ott.geometry.pointcloud.PointCloud`.
+        :class:`~ott.geometry.geometry.Geometry` or
+        :class:`~ott.geometry.pointcloud.PointCloud`.
       - if `None`, do not scale the cost matrices.
 
     a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
     b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
     loss: defaults to the square Euclidean distance. Can also pass 'kl'
       to define the GW loss as KL loss.
-      See :class:`~ott.core.gromov_wasserstein.GromovWasserstein` on how to pass
-      custom loss.
     tau_a: float between 0 and 1.0, parameter that controls the strength of the
       KL divergence constraint between the weights and marginals of the
       transport for the first view. If set to 1.0, then it is equivalent to a
@@ -528,8 +526,8 @@ def gromov_wasserstein(
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
       `'sqeucl'` cost. If :class:`float`, that tolerance is shared across all
       3 geometries.
-    kwargs: Keyword arguments to
-      :class:`~ott.core.gromov_wasserstein.GromovWasserstein`.
+    kwargs: Keyword arguments for
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
 
   Returns:
     A GromovWassersteinState named tuple.

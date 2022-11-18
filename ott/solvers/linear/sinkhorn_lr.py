@@ -217,38 +217,38 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   case.
 
   Args:
-    rank: the rank constraint on the coupling to minimize the linear OT problem
-    gamma: the (inverse of) gradient step size used by mirror descent.
+    rank: The rank constraint on the coupling to minimize the linear OT problem
+    gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
-    epsilon: entropic regularization added on top of low-rank problem.
+    epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are:
 
-        - `'random'` - :class:`~ott.core.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.core.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.core.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` -
-          :class:`~ott.core.initializers_lr.GeneralizedKMeansInitializer`.
+        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
+        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
+        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
 
-      If `None`, :class:`~ott.core.initializers_lr.KMeansInitializer`
+      If `None`, :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
       is used when the linear problem's geometry is
       :class:`~ott.geometry.pointcloud.PointCloud` or
       :class:`~ott.geometry.low_rank.LRCGeometry`.
-      Otherwise, use :class:`~ott.core.initializers_lr.RandomInitializer`.
+      Otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
 
-    lse_mode: whether to run computations in lse or kernel mode. At the moment,
+    lse_mode: Whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
-    inner_iterations: number of inner iterations used by the algorithm before
+    inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
-    use_danskin: use Danskin theorem to evaluate gradient of objective w.r.t.
+    use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
-    kwargs_dys: keyword arguments passed to :meth:`dykstra_update`.
-    kwargs_init: keyword arguments for
-      :class:`~ott.core.initializers_lr.LRInitializer`.
-    kwargs: Keyword arguments for :class:`~ott.core.sinkhorn.Sinkhorn`.
+    kwargs_dys: Keyword arguments passed to :meth:`dykstra_update`.
+    kwargs_init: Keyword arguments for
+      :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
+    kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
 
   def __init__(
@@ -268,8 +268,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any,
   ):
-    assert lse_mode, "Kernel mode not yet implemented for LRSinkhorn."
-    assert not implicit_diff, "Implicit diff. not yet implemented for LRSink."
+    assert lse_mode, "Kernel mode not yet implemented."
+    assert not implicit_diff, "Implicit diff. not yet implemented."
     super().__init__(
         lse_mode=lse_mode,
         inner_iterations=inner_iterations,

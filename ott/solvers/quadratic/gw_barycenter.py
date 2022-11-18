@@ -15,7 +15,8 @@ __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
 
 class GWBarycenterState(NamedTuple):
-  """Holds the state of the :class:`~ott.core.bar_problems.GWBarycenterProblem`.
+  """Holds the state of the \
+  :class:`~ott.problems.quadratic.gw_barycenter.GWBarycenterProblem`.
 
   Args:
     c: Barycenter cost matrix of shape ``[bar_size, bar_size]``.
@@ -44,7 +45,7 @@ class GWBarycenterState(NamedTuple):
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   """Gromov-Wasserstein barycenter solver of the \
-  :class:`~ott.core.bar_problems.GWBarycenterProblem`.
+  :class:`~ott.problems.quadratic.gw_barycenter.GWBarycenterProblem`.
 
   Args:
     epsilon: Entropy regulariser.
@@ -56,7 +57,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
     kwargs: Keyword argument for
-      :class:`~ott.core.gromov_wasserstein.GromovWasserstein`.
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
       Only used when ``quad_solver = None``.
   """
 
@@ -129,9 +130,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         - :class:`jax.numpy.ndarray` - barycenter cost matrix of shape
           ``[bar_size, bar_size]``.
           Only used in the non-fused case.
-        - 2- :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
-          corresponds to ``[bar_size, bar_size]`` cost matrix,
-          the 2nd array is ``[bar_size, ndim_fused]`` a feature matrix used in
+        - :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
+          corresponds to a cost matrix of shape ``[bar_size, bar_size]``,
+          the 2nd array is a ``[bar_size, ndim_fused]`` feature matrix used in
           the fused case.
 
       a: An array of shape ``[bar_size,]`` containing the barycenter weights.

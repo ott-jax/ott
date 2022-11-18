@@ -305,7 +305,8 @@ class Sinkhorn:
 
   A Sinkhorn solver takes a linear OT problem object as an input and returns a
   SinkhornOutput object that contains all the information required to compute
-  transports. See :func:`~ott.core.sinkhorn.sinkhorn` for a functional wrapper.
+  transports. See :func:`~ott.solvers.linear.sinkhorn.sinkhorn`
+  for a functional wrapper.
 
   Args:
     lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel

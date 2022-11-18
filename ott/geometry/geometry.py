@@ -65,11 +65,11 @@ class Geometry:
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    tgt_mask: Mask specifying valid rows when computing some statistics of
+    src_mask: Mask specifying valid rows when computing some statistics of
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
-    kwargs: additional kwargs to epsilon scheduler.
+    kwargs: additional kwargs for epsilon scheduler.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to

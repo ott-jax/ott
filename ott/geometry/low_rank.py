@@ -47,10 +47,11 @@ class LRCGeometry(geometry.Geometry):
       ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
     batch_size: optional size of the batch to compute online (without
       instantiating the matrix) the scale factor ``scale_cost`` of the
-      ``cost_matrix`` when ``scale_cost='max_cost'``. If set to ``None``, the
-      batch size is set to 1024 or to the largest number of samples between
-      ``cost_1`` and ``cost_2`` if smaller than `1024`.
-    kwargs: Additional kwargs to :class:`~ott.geometry.geometry.Geometry`.
+      :attr:`cost_matrix` when ``scale_cost = 'max_cost'``. If `None`, the batch
+      size is set to `1024` or to the largest number of samples between
+      :attr:`cost_1` and :attr:`cost_2` if smaller than `1024`.
+    kwargs: Additional keyword arguments for
+      :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -189,10 +190,10 @@ class LRCGeometry(geometry.Geometry):
     Three cases are taken into account:
 
     - If the number of samples of ``cost_1`` and ``cost_2`` are both smaller
-      than 1024 and if ``batch_size`` is ``None``, the ``cost_matrix`` is
+      than 1024 and if ``batch_size`` is `None`, the ``cost_matrix`` is
       computed to obtain its maximum entry.
     - If one of the number of samples of ``cost_1`` or ``cost_2`` is larger
-      than 1024 and if ``batch_size`` is ``None``, then the maximum of the
+      than 1024 and if ``batch_size`` is `None`, then the maximum of the
       cost matrix is calculated by batch. The batches are created on the
       longest axis of the cost matrix and their size is fixed to 1024.
     - If ``batch_size`` is provided as a float, then the maximum of the cost
