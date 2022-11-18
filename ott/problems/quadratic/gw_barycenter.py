@@ -13,6 +13,7 @@ from ott.problems.quadratic import quadratic_costs, quadratic_problem
 __all__ = ["GWBarycenterProblem"]
 
 
+# TODO(michalk8): better abstraction (common superclass for Wasserstein bary)
 @jax.tree_util.register_pytree_node_class
 class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
   """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
@@ -21,10 +22,10 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
       measures. Alternatively, already segmented array of shape
       ``[num_measures, max_measure_size, ndim]`` can be passed.
-      See also :func:`~ott.core.segment.segment_point_cloud`.
+      See also :func:`~ott.geometry.segment.segment_point_cloud`.
     b: Array of shape ``[num_total_points,]`` containing the weights of all
       the points within the measures that define the barycenter problem.
-      Similarly, as ``y``, segmented array of weights of shape
+      Same as ``y``, pre-segmented array of weights of shape
       ``[num_measures, max_measure_size]`` can be passed.
       If ``y`` is already pre-segmented, this array must be passed.
     weights: Array of shape ``[num_measures,]`` containing the weights of the
@@ -42,7 +43,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       ``y_fused != None``.
     scale_cost: Scaling of cost matrices passed to geometries.
     kwargs: Keyword arguments for
-      :class:`~ott.core.bar_problems.BarycenterProblem`.
+      :class:`~ott.problems.linear.barycenter_problem.BarycenterProblem`.
   """
 
   def __init__(
@@ -138,7 +139,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
     Uses :cite:`cuturi:14` eq. 8, and is implemented only
-    for the squared :class:`~ott.geometry.costs.SqEuclidean` cost.
+    for the :class:`~ott.geometry.costs.SqEuclidean` cost.
 
     Args:
       transports: Transport maps of shape

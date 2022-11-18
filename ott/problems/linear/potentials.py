@@ -154,7 +154,7 @@ class EntropicPotentials(DualPotentials):
     f: The first dual potential vector of shape ``[n,]``.
     g: The second dual potential vector of shape ``[m,]``.
     geom: Geometry used to compute the dual potentials using
-      :class:`~ott.core.sinkhorn.Sinkhorn`.
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
     a: Probability weights for the first measure. If `None`, use uniform.
     b: Probability weights for the second measure. If `None`, use uniform.
   """

@@ -30,16 +30,16 @@ class BarycenterProblem:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
       measures. Alternatively, already segmented array of shape
       ``[num_measures, max_measure_size, ndim]`` can be passed.
-      See also :func:`~ott.core.segment.segment_point_cloud`.
+      See also :func:`~ott.geometry.segment.segment_point_cloud`.
     b: Array of shape ``[num_total_points,]`` containing the weights of all
       the points within the measures that define the barycenter problem.
-      Similarly as ``y``, segmented array of weights of shape
+      Same as ``y``, pre-segmented array of weights of shape
       ``[num_measures, max_measure_size]`` can be passed.
       If ``y`` is already pre-segmented, this array must be always specified.
     weights: Array of shape ``[num_measures,]`` containing the weights of the
       measures.
     cost_fn: Cost function used. If `None`,
-      use :class:`~ott.geometry.costs.SqEuclidean` cost.
+      use the :class:`~ott.geometry.costs.SqEuclidean` cost.
     epsilon: Epsilon regularization used to solve reg-OT problems.
     debiased: **Currently not implemented.**
       Whether the problem is debiased, in the sense that
@@ -49,7 +49,7 @@ class BarycenterProblem:
       :meth:`~ott.core.continuous_barycenter.WassersteinBarycenter.init_state`
       needs to be smaller than the maximum measure size for parallelization to
       operate efficiently.
-    kwargs: Keyword arguments :func:`~ott.core.segment.segment_point_cloud`.
+    kwargs: Keyword arguments :func:`~ott.geometry.segment.segment_point_cloud`.
       Only used when ``y`` is not already segmented. When passing
       ``segment_ids``, 2 arguments must be specified for jitting to work:
 
