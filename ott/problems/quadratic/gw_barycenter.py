@@ -263,7 +263,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       return self._y_fused
     y_fused, _ = segment.segment_point_cloud(
         x=self._y_fused,
-        padding_vector=self.cost_fn.padder(self.ndim_fused),
+        padding_vector=self.cost_fn._padder(self.ndim_fused),
         **self._kwargs
     )
     return y_fused

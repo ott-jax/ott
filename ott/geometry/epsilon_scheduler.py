@@ -44,6 +44,7 @@ class Epsilon:
     decay: geometric decay factor, smaller than 1.
   """
 
+  # TODO(michalk8): directly use the defaults instead of `None`
   def __init__(
       self,
       target: Optional[float] = None,

@@ -221,7 +221,7 @@ class TestBarycenter:
         num_segments=num_measures,
         max_measure_size=num_components,
         num_per_segment=(num_components, num_components),
-        padding_vector=bures_cost.padder(y.shape[1]),
+        padding_vector=bures_cost._padder(y.shape[1]),
     )
     bar_p = barycenter_problem.BarycenterProblem(
         seg_y,

@@ -101,7 +101,7 @@ class BarycenterProblem:
       y, b = segment.segment_point_cloud(
           x=self._y,
           a=self._b,
-          padding_vector=self.cost_fn.padder(self.ndim),
+          padding_vector=self.cost_fn._padder(self.ndim),
           **self._kwargs
       )
 

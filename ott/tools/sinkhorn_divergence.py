@@ -270,9 +270,9 @@ def segment_sinkhorn_divergence(
   dim = x.shape[1]
   if cost_fn is None:
     # default padder
-    padding_vector = costs.CostFn.padder(dim=dim)
+    padding_vector = costs.CostFn._padder(dim=dim)
   else:
-    padding_vector = cost_fn.padder(dim=dim)
+    padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
       padded_x: jnp.ndarray,

@@ -28,7 +28,7 @@ from typing_extensions import Literal
 from ott.geometry import epsilon_scheduler
 from ott.math import utils
 
-__all__ = ["Geometry"]
+__all__ = ["Geometry", "is_linear", "is_affine"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -37,7 +37,7 @@ class Geometry:
 
   Optimal transport problems are intrinsically geometric: they compute an
   optimal way to transport mass from one configuration onto another. To define
-  what is meant by optimality of a transport requires defining a cost, of moving
+  what is meant by optimality of transport requires defining a cost, of moving
   mass from one among several sources, towards one out of multiple targets.
   These sources and targets can be provided as points in vectors spaces, grids,
   or more generally exclusively described through a (dissimilarity) cost matrix,
@@ -900,4 +900,4 @@ def is_affine(fn) -> bool:
 
 def is_linear(fn) -> bool:
   """Test heuristically if a function is linear."""
-  return fn(0.0) == 0.0 and is_affine(fn)
+  return jnp.logical_and(fn(0.0) == 0.0, is_affine(fn))
