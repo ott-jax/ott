@@ -65,6 +65,7 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     geometry
     problems/index
     solvers/index
+    initializers/index
 
 .. toctree::
     :maxdepth: 1

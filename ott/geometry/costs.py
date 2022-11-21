@@ -333,7 +333,7 @@ class Bures(CostFn):
       cov, _ = state
       cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
       scaled_cov = jnp.linalg.matrix_power(
-          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+          jnp.sum(scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
       )
       next_cov = (cov_inv_sqrt @ scaled_cov) @ cov_inv_sqrt
       diff = jnp.sum((next_cov - cov) ** 2) / jnp.prod(jnp.array(cov.shape))

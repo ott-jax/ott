@@ -3,7 +3,7 @@ ott.solvers.quadratic package
 .. currentmodule:: ott.solvers.quadratic
 .. automodule:: ott.solvers.quadratic
 
-Gromov Wasserstein Solvers
+Gromov-Wasserstein Solvers
 --------------------------
 .. autosummary::
     :toctree: _autosummary
