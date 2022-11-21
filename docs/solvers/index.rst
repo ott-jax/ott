@@ -11,4 +11,4 @@ TODO(cuturi): add some nice text here please.
 
     linear
     quadratic
-    neural
+    nn
