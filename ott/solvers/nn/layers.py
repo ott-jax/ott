@@ -42,8 +42,9 @@ class PositiveDense(nn.Module):
     bias_init: initializer function for the bias.
   """
   dim_hidden: int
-  rectifier_fn: Callable = nn.softplus
-  inv_rectifier_fn: Callable = lambda x: jnp.log(jnp.exp(x) - 1)
+  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
+  inv_rectifier_fn: Callable[[jnp.ndarray],
+                             jnp.ndarray] = lambda x: jnp.log(jnp.exp(x) - 1)
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
