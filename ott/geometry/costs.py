@@ -320,14 +320,14 @@ class Bures(CostFn):
           (cov_sqrt @ cov_i) @ cov_sqrt
       )
 
-    def cond_fn(iteration: int, constants: Tuple[...], state) -> bool:
+    def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
       del iteration, constants
       _, diff = state
       return diff > rtol
 
     def body_fn(
-        iteration: int, constants: Tuple[...], state: Tuple[jnp.ndarray, float],
-        compute_error: bool
+        iteration: int, constants: Tuple[Any, ...],
+        state: Tuple[jnp.ndarray, float], compute_error: bool
     ) -> Tuple[jnp.ndarray, float]:
       del iteration, constants, compute_error
       cov, _ = state
