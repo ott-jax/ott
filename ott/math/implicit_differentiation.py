@@ -120,8 +120,7 @@ class ImplicitDiff:
     or kernel matrix are numerically close. To avoid this, we add a more global
     ``ridge_identity * z`` regularizer to achieve better conditioning.
 
-    These linear systems are solved using the user defined
-    ``implicit_solver_fun``,
+    These linear systems are solved using the user defined ``solver_fun``,
     which is set by default to ``cg``. When the system is symmetric (as detected
     by the corresponding flag ``symmetric``), ``cg`` is applied directly. When
     it is not, normal equations are used (i.e. the Schur complement is
@@ -129,7 +128,7 @@ class ImplicitDiff:
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
-      ot_prob: the instantiation of the regularizad transport problem.
+      ot_prob: the instantiation of the regularized transport problem.
       f: potential, w.r.t marginal a.
       g: potential, w.r.t marginal b.
       lse_mode: bool, log-sum-exp mode if True, kernel else.

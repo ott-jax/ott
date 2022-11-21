@@ -188,6 +188,7 @@ class PNorm(TICost):
     super().__init__()
     assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
     self.p = p
+    # TODO(marcocuturi): fid case when `p=1`
     self.q = 1. / (1. - 1. / self.p) if p > 1. else "inf"
 
   def h(self, z: jnp.ndarray) -> float:

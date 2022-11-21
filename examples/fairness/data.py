@@ -19,8 +19,6 @@ import jax
 import numpy as np
 import pandas as pd
 
-open_fn = open
-
 
 def load_df(
     data_path: str,
@@ -30,12 +28,12 @@ def load_df(
     **kwargs
 ):
   """Load a pandas dataframe from two filenames."""
-  with open_fn(data_path, 'r') as fp:
+  with open(data_path) as fp:
     df = pd.read_csv(fp, skipinitialspace=True, header=None, **kwargs)
 
   headers = []
   targets = []
-  with open_fn(info_path, 'r') as fp:
+  with open(info_path) as fp:
     for line in fp:
       if line.startswith('|') or not line.strip():
         continue
