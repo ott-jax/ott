@@ -74,7 +74,8 @@ source_suffix = ['.rst']
 
 autosummary_generate = True
 autosummary_filename_map = {
-    "ott.solvers.linear.sinkhorn.sinkhorn": "sinkhorn-function"
+    "ott.solvers.linear.sinkhorn.sinkhorn":
+        "ott.solvers.linear.sinkhorn.sinkhorn-function"
 }
 
 autodoc_typehints = 'description'
