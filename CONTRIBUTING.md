@@ -9,7 +9,7 @@ to the project, participating in discussions or raising issues.
 1. fork the repository using the **Fork** button on GitHub or the following
    [link](https://github.com/ott-jax/ott/fork)
 2. ```bash
-   git clone https://github.com/YOUR_USERNAME/ott
+   git clone https://github.com/<YOUR_USERNAME>/ott
    cd ott
    pip install -e .'[dev,test]'
    pre-commit install
