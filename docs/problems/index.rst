@@ -1,3 +1,5 @@
+.. _problems:
+
 ott.problems package
 ====================
 

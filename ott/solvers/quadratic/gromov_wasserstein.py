@@ -249,7 +249,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       prob: Quadratic OT problem.
       init: Initial linearization of the quadratic problem.
       key: Random key for low-rank initializers. Only used when
-      :attr:`warm_start` is `False`.
+        :attr:`warm_start` is `False`.
 
     Returns:
       The initial Gromov-Wasserstein state.

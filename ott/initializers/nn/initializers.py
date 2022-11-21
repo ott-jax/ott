@@ -33,25 +33,27 @@ class MetaInitializer(initializers.DefaultInitializer):
   :class:`~ott.initializers.nn.initializers.MetaMLP` and, with batched problem
   instances passed into :meth:`update`.
 
-  **Sample training usage.** The following code shows a simple
-  example of using ``update`` to train the model, where
-  ``a`` and ``b`` are the weights of the measures and
-  ``geom`` is the fixed geometry.
-
-  .. code-block:: python
-
-    meta_initializer = init_lib.MetaInitializer(geom=geom)
-    while training():
-      a, b = sample_batch()
-      loss, init_f, meta_initializer.state = meta_initializer.update(
-        meta_initializer.state, a=a, b=b)
-
   Args:
     geom: The fixed geometry of the problem instances.
     meta_model: The model to predict the potential :math:`f` from the measures.
     opt: The optimizer to update the parameters.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.
+
+  Examples:
+    The following code shows a simple
+    example of using ``update`` to train the model, where
+    ``a`` and ``b`` are the weights of the measures and
+    ``geom`` is the fixed geometry.
+
+    .. code-block:: python
+
+      meta_initializer = init_lib.MetaInitializer(geom)
+      while training():
+        a, b = sample_batch()
+        loss, init_f, meta_initializer.state = meta_initializer.update(
+          meta_initializer.state, a=a, b=b
+        )
   """
 
   def __init__(

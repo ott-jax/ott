@@ -8,6 +8,7 @@ Sinkhorn Solvers
 .. autosummary::
     :toctree: _autosummary
 
+    sinkhorn.sinkhorn
     sinkhorn.Sinkhorn
     sinkhorn.SinkhornOutput
     sinkhorn_lr.LRSinkhorn

@@ -24,7 +24,7 @@ import numpy as np
 
 from ott.math import fixed_point_loop
 
-__all__ = ["sqrtm"]
+__all__ = ["sqrtm", "sqrtm_only", "inv_sqrtm_only"]
 
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))

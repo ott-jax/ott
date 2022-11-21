@@ -1,3 +1,5 @@
+.. _initializers:
+
 ott.initializers package
 ========================
 

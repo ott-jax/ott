@@ -1,3 +1,5 @@
+.. _solvers:
+
 ott.solvers package
 ===================
 
@@ -12,3 +14,10 @@ TODO(cuturi): add some nice text here please.
     linear
     quadratic
     nn
+
+Wasserstein Solver
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    was_solver.WassersteinSolver

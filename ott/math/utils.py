@@ -1,9 +1,12 @@
 import functools
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+
+if TYPE_CHECKING:
+  from ott.geometry import costs
 
 __all__ = [
     "safe_log", "kl", "js", "sparse_scale", "logsumexp",
@@ -93,6 +96,6 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(
-    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn
+    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
 ) -> jnp.ndarray:
   return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)

@@ -25,7 +25,7 @@ try:
 except ImportError:
   cholmod = None
 
-__all__ = ["CholeskySolver", "DenseCholeskySolver", "SparseCholeskySolver"]
+__all__ = ["DenseCholeskySolver", "SparseCholeskySolver"]
 
 T = TypeVar("T")
 

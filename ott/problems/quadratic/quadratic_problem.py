@@ -22,7 +22,7 @@ from typing_extensions import Literal
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
-from ott.typing import Transport
+from ott.types import Transport
 
 if TYPE_CHECKING:
   from ott.solvers.linear import sinkhorn_lr

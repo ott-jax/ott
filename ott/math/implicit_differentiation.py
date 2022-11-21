@@ -31,24 +31,26 @@ __all__ = ["ImplicitDiff"]
 class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
-  Attributes:
+  Args:
     solver_fun: Callable, should return (solution, ...)
     ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
     ridge_identity: handles rank deficient transport matrices (this happens
-      typically when rows/cols in cost/kernel matrices are colinear, or,
+      typically when rows/cols in cost/kernel matrices are collinear, or,
       equivalently when two points from either measure are close).
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when either
       ``a == b`` or the precondition_fun is the identity. False by default, and,
       at the moment, needs to be set manually by the user in the more favorable
       case where the system is guaranteed to be symmetric.
+    precondition_fun: TODO(marcocuturi)
   """
 
-  solver_fun: Callable = jax.scipy.sparse.linalg.cg  # pylint: disable=g-bare-generic
+  solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
+                       Tuple[jnp.ndarray, ...]] = jax.scipy.sparse.linalg.cg
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
   symmetric: bool = False
-  precondition_fun: Optional[Callable[[float], float]] = None
+  precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
 
   def solve(
       self, gr: Tuple[jnp.ndarray,
@@ -64,9 +66,11 @@ class ImplicitDiff:
 
     Given a ``precondition_fun``, written here for short as :math:`h`,
     the first order conditions for the dual energy
-    :math:`E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> + <b,
-    \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K
-      \exp^{g/\epsilon}>`
+
+    .. math::
+
+      E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> + <b,
+      \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K \exp^{g/\epsilon}>
 
     form the basis of the Sinkhorn algorithm. To differentiate optimal solutions
     to that problem, we exploit the fact that :math:`h(\nabla E = 0)` and
@@ -97,7 +101,7 @@ class ImplicitDiff:
     application elementwise of :math:`h'` to the row (respectively column)
     marginal sum of the transport.
 
-    Note that we take great care in not instantiatiating these transport
+    Note that we take great care in not instantiating these transport
     matrices, to rely instead on calls to the ``app_transport`` method from the
     ``Geometry`` object ``geom`` (which will either use potentials or scalings,
     depending on ``lse_mode``)
@@ -112,7 +116,7 @@ class ImplicitDiff:
     that subspace to enforce solutions have zero sum.
 
     The Schur complement can also be rank deficient if two lines or columns of T
-    are colinear. This will typically happen it two rows or columns of the cost
+    are collinear. This will typically happen it two rows or columns of the cost
     or kernel matrix are numerically close. To avoid this, we add a more global
     ``ridge_identity * z`` regularizer to achieve better conditioning.
 
@@ -120,10 +124,8 @@ class ImplicitDiff:
     ``implicit_solver_fun``,
     which is set by default to ``cg``. When the system is symmetric (as detected
     by the corresponding flag ``symmetric``), ``cg`` is applied directly. When
-    it
-    is not, normal equations are used (i.e. the Schur complement is multiplied
-    by
-    its transpose before solving the system).
+    it is not, normal equations are used (i.e. the Schur complement is
+    multiplied by its transpose before solving the system).
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
