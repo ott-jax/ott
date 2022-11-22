@@ -49,35 +49,35 @@ class CostFn(abc.ABC):
   norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     pass
 
   # TODO(michalk8): make weights optional?
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Barycentric projection.
 
     Args:
-      weights: TODO.
-      xs: TODO.
+      weights: Weights of the points.
+      xs: Points to project.
 
     Returns:
-      TODO.
+      The barycentric projection.
     """
     raise NotImplementedError("Barycenter is not yet implemented.")
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
-    """TODO.
+    """Create a padding vector for easier jitting.
 
     Args:
-      dim: TODO.
+      dim: Dimensionality of the data.
 
     Returns:
-      TODO.
+      The padding vector.
     """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
@@ -139,7 +139,7 @@ class TICost(CostFn):
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -152,7 +152,7 @@ class SqPNorm(TICost):
   the reference :cite:`boyd:04`, p.93/94.
 
   Args:
-    p: TODO.
+    p: Power of the p-norm.
   """
 
   def __init__(self, p: float):
@@ -181,14 +181,14 @@ class PNorm(TICost):
   """p-norm (to the power p) of the difference of two vectors.
 
   Args:
-    p: TODO.
+    p: Power of the p-norm.
   """
 
   def __init__(self, p: float):
     super().__init__()
     assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
     self.p = p
-    # TODO(marcocuturi): fid case when `p=1`
+    # TODO(marcocuturi): fix case when `p=1`
     self.q = 1. / (1. - 1. / self.p) if p > 1. else "inf"
 
   def h(self, z: jnp.ndarray) -> float:
@@ -216,7 +216,7 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
 
@@ -229,7 +229,7 @@ class SqEuclidean(TICost):
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
@@ -249,14 +249,14 @@ class Cosine(CostFn):
   """Cosine distance cost function.
 
   Args:
-    ridge: TODO.
+    ridge: Ridge regularization.
   """
 
   def __init__(self, ridge: float = 1e-8):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Cosine distance between vectors, denominator regularized with ridge."""
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -408,10 +408,10 @@ class UnbalancedBures(CostFn):
   triplets (mass, mean, covariance) raveled as vectors, in that order.
 
   Args:
-    dimension: TODO.
-    gamma: TODO.
-    sigma: TODO.
-    kwargs: TODO.
+    dimension: Dimensionality of the data.
+    gamma: KL-divergence regularization for the marginals.
+    sigma: Entropic regularization.
+    kwargs: Keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
   def __init__(
@@ -431,7 +431,7 @@ class UnbalancedBures(CostFn):
     """Compute norm of Gaussian for unbalanced Bures."""
     return self._gamma * x[0]
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute dot-product for unbalanced Bures."""
     # Sets a few constants
     gam = self._gamma
@@ -481,6 +481,7 @@ class UnbalancedBures(CostFn):
 
     # If all logdet signs are 1, output value, nan otherwise.
     # TODO(michalk8): use lax.cond
+
     return jnp.where(
         sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
         2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
