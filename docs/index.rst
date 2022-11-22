@@ -1,6 +1,8 @@
+|Downloads| |Tests| |Docs| |Coverage|
+
 Optimal Transport Tools (OTT) documentation
 ===========================================
-`Code <https://github.com/ott-jax/ott>`_ on github.
+`Code <https://github.com/ott-jax/ott>`_ on GitHub.
 To install, simply run ``pip install ott-jax``.
 
 Intro
@@ -105,6 +107,23 @@ Packages
     :caption: References:
 
     references
+
+
+.. |Downloads| image:: https://pepy.tech/badge/ott-jax
+    :target: https://pypi.org/project/ott-jax/
+    :alt: Documentation
+
+.. |Tests| image:: https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main
+    :target: https://github.com/ott-jax/ott/actions/workflows/tests.yml
+    :alt: Documentation
+
+.. |Docs| image:: https://img.shields.io/readthedocs/ott-jax/latest
+    :target: https://ott-jax.readthedocs.io/en/latest/
+    :alt: Documentation
+
+.. |Coverage| image:: https://img.shields.io/codecov/c/github/ott-jax/ott/main
+    :target: https://app.codecov.io/gh/ott-jax/ott
+    :alt: Coverage
 
 .. _Just-in-time (JIT) compilation: https://jax.readthedocs.io/en/latest/jax.html#just-in-time-compilation-jit
 .. _auto-vectorization (VMAP): https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap
