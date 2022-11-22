@@ -11,7 +11,9 @@ Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
 
 
 @pytest.fixture()
-def pc_masked(rng: jnp.ndarray) -> Tuple[pointcloud.PointCloud, Tuple]:
+def pc_masked(
+    rng: jnp.ndarray
+) -> Tuple[pointcloud.PointCloud, pointcloud.PointCloud]:
   n, m = 20, 30
   key1, key2 = jax.random.split(rng, 2)
   # x = jnp.full((n,), fill_value=1.)

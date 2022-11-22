@@ -23,7 +23,7 @@ import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.quadratic import gromov_wasserstein as gwb_solver
+from ott.solvers.quadratic import gromov_wasserstein as gw_solver
 
 
 class TestFusedGromovWasserstein:
@@ -50,13 +50,13 @@ class TestFusedGromovWasserstein:
     self.cy = jax.random.uniform(keys[5], (self.m, self.m))
     self.cxy = jax.random.uniform(keys[6], (self.n, self.m))
 
-  def test_flag_store_errors_fused(self):
+  def test_fgw_flag_store_errors_fused(self):
     """Tests whether errors are properly stored if requested."""
     threshold_sinkhorn = 1e-2
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
-    out = gwb_solver.gromov_wasserstein(
+    out = gw_solver.gromov_wasserstein(
         geom_xx=geom_x,
         geom_yy=geom_y,
         geom_xy=geom_xy,
@@ -67,7 +67,7 @@ class TestFusedGromovWasserstein:
     ).errors
     assert out is None
 
-    out = gwb_solver.gromov_wasserstein(
+    out = gw_solver.gromov_wasserstein(
         geom_xx=geom_x,
         geom_yy=geom_y,
         geom_xy=geom_xy,
@@ -87,7 +87,7 @@ class TestFusedGromovWasserstein:
     assert out.ndim == 2
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=1)
-  def test_gradient_marginals_fused_gwb_solver(self, jit: bool):
+  def test_gradient_marginals_fgw_solver(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -99,7 +99,7 @@ class TestFusedGromovWasserstein:
           'implicit_differentiation': implicit,
           'max_iterations': 1001
       }
-      out = gwb_solver.gromov_wasserstein(
+      out = gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -137,14 +137,14 @@ class TestFusedGromovWasserstein:
     )
 
   @pytest.mark.fast.with_args(lse_mode=[False, True], only_fast=1)
-  def test_fused_gwb_solver_pointcloud(self, lse_mode: bool):
+  def test_fgw_solver_pointcloud(self, lse_mode: bool):
     """Test basic computations pointclouds."""
 
     def reg_gw(x, y, x_2, y_2, fused_penalty, a, b):
       geom_x = pointcloud.PointCloud(x)
       geom_y = pointcloud.PointCloud(y)
       geom_xy = pointcloud.PointCloud(x_2, y_2)
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -164,7 +164,7 @@ class TestFusedGromovWasserstein:
     assert cost is not None
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_fused_gwb_solver_pointcloud(self, lse_mode: bool):
+  def test_gradient_fgw_solver_pointcloud(self, lse_mode: bool):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, x_2, y_2, fused_penalty, a, b, implicit):
@@ -176,7 +176,7 @@ class TestFusedGromovWasserstein:
           'max_iterations': 1001,
           'lse_mode': lse_mode
       }
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -207,7 +207,7 @@ class TestFusedGromovWasserstein:
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_fused_gwb_solver_geometry(self, lse_mode: bool):
+  def test_gradient_fgw_solver_geometry(self, lse_mode: bool):
     """Test gradient w.r.t. cost matrices."""
 
     def reg_gw(cx, cy, cxy, fused_penalty, a, b, implicit):
@@ -219,7 +219,7 @@ class TestFusedGromovWasserstein:
           'max_iterations': 1001,
           'lse_mode': lse_mode
       }
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -252,7 +252,7 @@ class TestFusedGromovWasserstein:
         grad_matrices[0][2], grad_matrices[1][2], rtol=1e-02, atol=1e-02
     )
 
-  def test_adaptive_threshold_fused(self):
+  def test_fgw_adaptive_threshold(self):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(self.x, self.x)
     geom_y = pointcloud.PointCloud(self.y, self.y)
@@ -260,7 +260,7 @@ class TestFusedGromovWasserstein:
 
     # without warm start for calls to sinkhorn
     def loss_thre(threshold: float) -> float:
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_xx=geom_x,
           geom_yy=geom_y,
           geom_xy=geom_xy,
@@ -275,7 +275,7 @@ class TestFusedGromovWasserstein:
     assert loss_thre(1e-3) > loss_thre(1e-5)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_fused_gwb_solver_penalty(self, lse_mode: bool):
+  def test_gradient_fgw_solver_penalty(self, lse_mode: bool):
     """Test gradient w.r.t. penalty."""
 
     def reg_gw(cx, cy, cxy, fused_penalty, a, b, implicit):
@@ -287,7 +287,7 @@ class TestFusedGromovWasserstein:
           'max_iterations': 1001,
           'lse_mode': lse_mode
       }
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -319,7 +319,7 @@ class TestFusedGromovWasserstein:
       geom_y = pointcloud.PointCloud(y)
       geom_xy = pointcloud.PointCloud(x_2, y_2)
       sinkhorn_kwargs = {'max_iterations': 1001}
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           geom_xy=geom_xy,
@@ -334,7 +334,7 @@ class TestFusedGromovWasserstein:
       geom_x = pointcloud.PointCloud(x)
       geom_y = pointcloud.PointCloud(y)
       sinkhorn_kwargs = {'max_iterations': 1001}
-      return gwb_solver.gromov_wasserstein(
+      return gw_solver.gromov_wasserstein(
           geom_x,
           geom_y,
           a=a,
@@ -367,7 +367,7 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(y)
     geom_xy = pointcloud.PointCloud(xx, yy)
 
-    ot_gwlr = gwb_solver.gromov_wasserstein(
+    ot_gwlr = gw_solver.gromov_wasserstein(
         geom_x, geom_y, geom_xy, rank=5, jit=jit
     )
     res0 = ot_gwlr.apply(x.T, axis=0)
@@ -399,7 +399,7 @@ class TestFusedGromovWasserstein:
     lr_prob = problem.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gwb_solver.GromovWasserstein(rank=5, epsilon=1)
+    solver = gw_solver.GromovWasserstein(rank=5, epsilon=1)
     out = solver(problem)
 
     assert solver.rank == 5

@@ -88,7 +88,7 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
-  def test_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
+  def test_gw_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
     n, m, d1, d2 = 200, 300, 20, 25
     k1, k2 = jax.random.split(rng, 2)
     x = jax.random.normal(k1, (n, d1))
@@ -152,7 +152,7 @@ class TestGromovWasserstein:
     assert out.ndim == 2
 
   @pytest.mark.parametrize("jit", [False, True])
-  def test_gradient_marginals_gromov_wasserstein(self, jit: bool):
+  def test_gradient_marginals_gw(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -199,7 +199,7 @@ class TestGromovWasserstein:
     )
 
   @pytest.mark.fast
-  def test_gromov_wasserstein_pointcloud(self):
+  def test_gw_pointcloud(self):
     """Test basic computations pointclouds."""
 
     def reg_gw(x, y, a, b):
@@ -212,7 +212,7 @@ class TestGromovWasserstein:
     assert not jnp.isnan(reg_gw(self.x, self.y, self.a, self.b))
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_gromov_wasserstein_pointcloud(self, lse_mode: bool):
+  def test_gradient_gw_pointcloud(self, lse_mode: bool):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, a, b, implicit):
@@ -254,7 +254,7 @@ class TestGromovWasserstein:
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_gromov_wasserstein_geometry(self, lse_mode: bool):
+  def test_gradient_gw_geometry(self, lse_mode: bool):
     """Test gradient w.r.t. cost matrices."""
 
     def reg_gw(cx, cy, a, b, implicit):
@@ -296,7 +296,7 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
-  def test_adaptive_threshold(self):
+  def test_gw_adaptive_threshold(self):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(self.x, self.x)
     geom_y = pointcloud.PointCloud(self.y, self.y)
@@ -466,7 +466,7 @@ class TestGromovWassersteinUnbalanced:
     self.tau_b = 0.9
 
   @pytest.mark.fast
-  def test_gromov_wasserstein_pointcloud(self):
+  def test_gw_pointcloud(self):
     """Test basic computations pointclouds."""
 
     def reg_gw(x, y, a, b):
@@ -487,9 +487,7 @@ class TestGromovWassersteinUnbalanced:
     assert not jnp.isnan(cost)
 
   @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
-  def test_gradient_gromov_wasserstein_pointcloud(
-      self, gw_unbalanced_correction: bool
-  ):
+  def test_gradient_gw_pointcloud(self, gw_unbalanced_correction: bool):
     """Test gradient w.r.t. pointclouds."""
 
     def reg_gw(x, y, a, b, implicit):
@@ -533,9 +531,7 @@ class TestGromovWassersteinUnbalanced:
     )
 
   @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
-  def test_gradient_gromov_wasserstein_geometry(
-      self, gw_unbalanced_correction: bool
-  ):
+  def test_gradient_gw_geometry(self, gw_unbalanced_correction: bool):
     """Test gradient w.r.t. cost matrices."""
 
     def reg_gw(cx, cy, a, b, implicit):

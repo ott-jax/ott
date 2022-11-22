@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests Anderson acceleration for sinkhorn."""
+"""Tests Anderson acceleration for Sinkhorn."""
 import functools
 from typing import Callable, Tuple
 

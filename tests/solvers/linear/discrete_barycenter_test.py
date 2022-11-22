@@ -13,8 +13,6 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Tests for the Policy."""
-
 import jax.numpy as jnp
 import pytest
 
