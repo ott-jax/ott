@@ -52,7 +52,6 @@ class CostFn(abc.ABC):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     pass
 
-  # TODO(michalk8): make weights optional?
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Barycentric projection.
 
@@ -436,8 +435,8 @@ class UnbalancedBures(CostFn):
     # Sets a few constants
     gam = self._gamma
     sig2 = self._sigma ** 2
-    lam = sig2 + gam / 2
-    tau = gam / (2 * lam)
+    lam = sig2 + gam / 2.0
+    tau = gam / (2.0 * lam)
 
     # Extracts mass, mean vector, covariance matrices
     mass_x, mass_y = x[0], y[0]
@@ -463,29 +462,24 @@ class UnbalancedBures(CostFn):
     sldet_c, ldet_c = jnp.linalg.slogdet(c_mat)
     sldet_t_ab, ldet_t_ab = jnp.linalg.slogdet(tilde_a_b)
     sldet_ab, ldet_ab = jnp.linalg.slogdet(jnp.matmul(cov_x, cov_y))
-    sldet_c_ab, ldet_c_ab = jnp.linalg.slogdet(c_mat - 2 * tilde_a_b / gam)
+    sldet_c_ab, ldet_c_ab = jnp.linalg.slogdet(c_mat - 2.0 * tilde_a_b / gam)
 
     # Gathers all these results to compute log total mass of transport
     log_m_pi = (0.5 * self._dimension * sig2 / (gam + sig2)) * jnp.log(sig2)
-
-    log_m_pi += (1 / (tau + 1)) * (
+    log_m_pi += (1.0 / (tau + 1.0)) * (
         jnp.log(mass_x) + jnp.log(mass_y) + ldet_c + 0.5 *
         (tau * ldet_t_ab - ldet_ab)
     )
-
     log_m_pi += -jnp.sum(
         diff_means * jnp.linalg.solve(cov_x + cov_y + lam * iden, diff_means)
-    ) / (2 * (tau + 1))
-
+    ) / (2.0 * (tau + 1.0))
     log_m_pi += -0.5 * ldet_c_ab
 
-    # If all logdet signs are 1, output value, nan otherwise.
-    # TODO(michalk8): use lax.cond
-
-    return jnp.where(
-        sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
-        2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
-        jnp.nan
+    # if all logdet signs are 1, output value, nan otherwise
+    pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
+    return jax.lax.cond(
+        pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
+        (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
 
   def tree_flatten(self):
