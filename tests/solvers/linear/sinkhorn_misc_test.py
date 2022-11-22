@@ -131,25 +131,40 @@ class TestSinkhornBures:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  def test_bures_point_cloud(self):
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  @pytest.mark.parametrize("unbalanced,thresh", [(False, 1e-3), (True, 1e-4)])
+  def test_bures_point_cloud(
+      self, rng: jnp.ndarray, lse_mode: bool, unbalanced: bool, thresh: float
+  ):
     """Two point clouds of Gaussians, tested with various parameters."""
-    threshold = 1e-3
-    geom = pointcloud.PointCloud(
-        self.x,
-        self.y,
-        cost_fn=costs.Bures(dimension=self.dim, regularization=1e-4),
-        epsilon=self.eps
-    )
-    errors = sinkhorn.sinkhorn(geom, a=self.a, b=self.b, lse_mode=False).errors
-    err = errors[errors > -1][-1]
-    assert threshold > err
+    if unbalanced:
+      rng1, rng2 = jax.random.split(rng, 2)
+      ws_x = jnp.abs(jax.random.normal(rng1, (self.x.shape[0], 1))) + 1e-1
+      ws_y = jnp.abs(jax.random.normal(rng2, (self.y.shape[0], 1))) + 1e-1
+      ws_x = ws_x.at[0].set(0.)
+      x = jnp.concatenate([ws_x, self.x], axis=1)
+      y = jnp.concatenate([ws_y, self.y], axis=1)
+      cost_fn = costs.UnbalancedBures(dimension=self.dim, gamma=0.9, sigma=0.98)
+    else:
+      x, y = self.x, self.y
+      cost_fn = costs.Bures(dimension=self.dim, regularization=1e-4)
 
-  def test_regularized_unbalanced_bures(self):
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=self.eps)
+
+    out = sinkhorn.sinkhorn(
+        geom, a=self.a, b=self.b, lse_mode=lse_mode, threshold=thresh
+    )
+    err = out.errors[out.errors > -1][-1]
+
+    assert out.converged
+    assert thresh > err
+
+  def test_regularized_unbalanced_bures_cost(self):
     """Tests Regularized Unbalanced Bures."""
     x = jnp.concatenate((jnp.array([0.9]), self.x[0, :]))
     y = jnp.concatenate((jnp.array([1.1]), self.y[0, :]))
 
-    rub = costs.UnbalancedBures(self.dim, 1, 0.8)
+    rub = costs.UnbalancedBures(self.dim, gamma=1.0, sigma=0.8)
     assert not jnp.any(jnp.isnan(rub(x, y)))
     assert not jnp.any(jnp.isnan(rub(y, x)))
     np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=5e-3, atol=5e-3)

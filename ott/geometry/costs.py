@@ -400,38 +400,55 @@ class Bures(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class UnbalancedBures(CostFn):
-  """Regularized/unbalanced Bures dist between two triplets of (mass,mean,cov).
+  """Unbalanced Bures distance between two triplets of `(mass, mean, cov)`.
 
-  This cost implements the value defined in :cite:`janati:20`, eq. 37, 39, 40.
-  We follow their notations. It is assumed inputs are given as
-  triplets (mass, mean, covariance) raveled as vectors, in that order.
+  This cost uses the notation defined in :cite:`janati:20`, eq. 37, 39, 40.
 
   Args:
     dimension: Dimensionality of the data.
-    gamma: KL-divergence regularization for the marginals.
     sigma: Entropic regularization.
+    gamma: KL-divergence regularization for the marginals.
     kwargs: Keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
   def __init__(
       self,
       dimension: int,
-      gamma: float = 1.0,
+      *,
       sigma: float = 1.0,
+      gamma: float = 1.0,
       **kwargs: Any,
   ):
     super().__init__()
     self._dimension = dimension
-    self._gamma = gamma
     self._sigma = sigma
+    self._gamma = gamma
     self._sqrtm_kw = kwargs
 
   def norm(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Compute norm of Gaussian for unbalanced Bures."""
-    return self._gamma * x[0]
+    """Compute norm of Gaussian for unbalanced Bures.
+
+    Args:
+      x: Array of shape ``[n_points + n_points + n_dim ** 2,]``
+        corresponding to the raveled mass, means and the covariance matrix.
+
+    Returns:
+      The norm, array of shape ``[n_points,]``.
+    """
+    return self._gamma * x[:, 0]
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute dot-product for unbalanced Bures."""
+    """Compute dot-product for unbalanced Bures.
+
+    Args:
+      x: Array of shape ``[n_points + n_points + n_dim ** 2,]``
+        corresponding to the raveled mass, means and the covariance matrix.
+      y: Array of shape ``[n_points + n_points + n_dim ** 2,]``
+        corresponding to the raveled mass, means and the covariance matrix.
+
+    Returns:
+      The cost.
+    """
     # Sets a few constants
     gam = self._gamma
     sig2 = self._sigma ** 2
@@ -477,19 +494,20 @@ class UnbalancedBures(CostFn):
 
     # if all logdet signs are 1, output value, nan otherwise
     pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
+
     return jax.lax.cond(
         pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
         (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
 
   def tree_flatten(self):
-    return (), (self._dimension, self._gamma, self._sigma, self._sqrtm_kw)
+    return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     del children
-    dim, gamma, sigma, kwargs = aux_data
-    return cls(dim, gamma=gamma, sigma=sigma, **kwargs)
+    dim, sigma, gamma, kwargs = aux_data
+    return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
@@ -498,7 +516,7 @@ def x_to_means_and_covs(x: jnp.ndarray,
 
   Args:
     x: [num_gaussians, dimension, (1 + dimension)] array of concatenated means
-    and covariances (raveled) dimension: the dimension of the Gaussians.
+      and covariances (raveled) dimension: the dimension of the Gaussians.
 
   Returns:
     means: [num_gaussians, dimension] array that holds the means.
