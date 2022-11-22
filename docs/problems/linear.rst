@@ -3,6 +3,8 @@ ott.problems.linear package
 .. currentmodule:: ott.problems.linear
 .. automodule:: ott.problems.linear
 
+.. TODO(marcocuturi): maybe add some text here
+
 OT Problems
 -----------
 .. autosummary::

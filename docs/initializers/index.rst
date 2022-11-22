@@ -3,7 +3,7 @@
 ott.initializers package
 ========================
 
-TODO(cuturi): add some nice text here please.
+.. TODO(cuturi): add some nice text here please
 
 .. currentmodule:: ott.initializers
 .. automodule:: ott.initializers

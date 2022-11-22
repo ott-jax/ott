@@ -17,7 +17,7 @@ such as differentiable approximations to ranking or even clustering.
 To achieve this, `OTT` rests on two families of tools:
 The first family consists in *discrete* solvers computing transport between point clouds,
 using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn :cite:`scetbon:21` algorithms,
-and moving up towards Gromov-Wasserstein :cite:`memoli:11`, :cite:`memoli:11`;
+and moving up towards Gromov-Wasserstein :cite:`memoli:11,peyre:16`;
 the second family consists in *continuous* solvers, using suitable neural architectures :cite:`amos:17` coupled
 with SGD type estimators :cite:`makkuva:20,korotin:21`.
 
@@ -43,20 +43,22 @@ Design Choices
   automatically in higher level calls (e.g. updates in Gromov-Wasserstein),
   without requiring any attention from the user.
 
+.. TODO(marcocuturi): add missing package descriptions below
+
 Packages
 --------
 - :ref:`geometry` contains classes to instantiate objects that describe
   *two point clouds* paired with a *cost* function. Geometry objects are used to
   describe OT problems, handled by solvers in the :ref:`solvers`.
-- :ref:`problems` TODO(marcocuturi)
-- :ref:`solvers` TODO(marcocuturi)
-- :ref:`initializers` TODO(marcocuturi)
+- :ref:`problems`
+- :ref:`solvers`
+- :ref:`initializers`
 - :ref:`tools` provides an interface to exploit OT solutions, as produced by
   solvers in the :ref:`solvers`. Such tasks include computing approximations
   to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
-- :ref:`math` TODO(marcocuturi)
+- :ref:`math`
 
 .. toctree::
     :maxdepth: 1

@@ -3,6 +3,8 @@ ott.solvers.linear package
 .. currentmodule:: ott.solvers.linear
 .. automodule:: ott.solvers.linear
 
+.. TODO(marcocuturi): maybe add some text here
+
 Sinkhorn Solvers
 ----------------
 .. autosummary::
@@ -31,3 +33,10 @@ Sinkhorn Acceleration
 
     acceleration.Momentum
     acceleration.AndersonAcceleration
+
+Implicit Differentiation
+------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    implicit_differentiation.ImplicitDiff

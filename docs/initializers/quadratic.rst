@@ -3,6 +3,8 @@ ott.initializers.quadratic package
 .. currentmodule:: ott.initializers.quadratic
 .. automodule:: ott.initializers.quadratic
 
+.. TODO(marcocuturi): maybe add some text here
+
 Gromov-Wasserstein Initializers
 -------------------------------
 .. autosummary::

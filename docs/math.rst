@@ -5,12 +5,7 @@ ott.math package
 .. currentmodule:: ott.math
 .. automodule:: ott.math
 
-Implicit Differentiation
-------------------------
-.. autosummary::
-    :toctree: _autosummary
-
-    implicit_differentiation.ImplicitDiff
+.. TODO(marcocuturi): maybe add some text here
 
 Fixed-point Iteration
 ---------------------

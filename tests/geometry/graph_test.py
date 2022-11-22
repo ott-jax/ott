@@ -13,8 +13,8 @@ from typing_extensions import Literal
 
 from ott.geometry import geometry, graph
 from ott.math import decomposition
-from ott.math import implicit_differentiation as implicit_lib
 from ott.problems.linear import linear_problem
+from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 
 # we mix both dense/sparse tests

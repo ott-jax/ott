@@ -3,7 +3,7 @@
 ott.problems package
 ====================
 
-TODO(cuturi): add some nice text here please.
+.. TODO(marcocuturi): add some nice text here please
 
 .. currentmodule:: ott.problems
 .. automodule:: ott.problems

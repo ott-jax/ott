@@ -3,6 +3,8 @@ ott.problems.quadratic package
 .. currentmodule:: ott.problems.quadratic
 .. automodule:: ott.problems.quadratic
 
+.. TODO(marcocuturi): maybe add some text here
+
 OT Problems
 -----------
 .. autosummary::

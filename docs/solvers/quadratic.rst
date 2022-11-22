@@ -3,6 +3,8 @@ ott.solvers.quadratic package
 .. currentmodule:: ott.solvers.quadratic
 .. automodule:: ott.solvers.quadratic
 
+.. TODO(marcocuturi): maybe add some text here
+
 Gromov-Wasserstein Solvers
 --------------------------
 .. autosummary::

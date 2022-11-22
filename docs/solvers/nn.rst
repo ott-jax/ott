@@ -3,6 +3,8 @@ ott.solvers.nn package
 .. currentmodule:: ott.solvers.nn
 .. automodule:: ott.solvers.nn
 
+.. TODO(marcocuturi): maybe add some text here
+
 Neural Dual
 -----------
 .. autosummary::

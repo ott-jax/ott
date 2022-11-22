@@ -3,7 +3,7 @@
 ott.solvers package
 ===================
 
-TODO(cuturi): add some nice text here please.
+.. TODO(marcocuturi): add some nice text here please
 
 .. currentmodule:: ott.solvers
 .. automodule:: ott.solvers
