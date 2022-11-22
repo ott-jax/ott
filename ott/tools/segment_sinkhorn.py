@@ -15,10 +15,10 @@
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple
 
-from jax import numpy as jnp
+import jax.numpy as jnp
 
-from ott.core import segment, sinkhorn
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, segment
+from ott.solvers.linear import sinkhorn
 
 
 def segment_sinkhorn(
@@ -29,9 +29,9 @@ def segment_sinkhorn(
     cost_fn: Optional[costs.CostFn] = None,
     segment_ids_x: Optional[jnp.ndarray] = None,
     segment_ids_y: Optional[jnp.ndarray] = None,
-    indices_are_sorted: Optional[bool] = None,
-    num_per_segment_x: Tuple[int] = None,
-    num_per_segment_y: Tuple[int] = None,
+    indices_are_sorted: bool = False,
+    num_per_segment_x: Optional[Tuple[int, ...]] = None,
+    num_per_segment_y: Optional[Tuple[int, ...]] = None,
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
@@ -56,22 +56,23 @@ def segment_sinkhorn(
   parallel.
 
   Args:
-    x: Array of input points, of shape [num_x, feature]. Multiple segments are
-      held in this single array.
-    y: Array of target points, of shape [num_y, feature].
-    num_segments: Number of segments contained in x and y. Providing this number
-      is required for JIT compilation to work, see also
-      :func:`~ott.core.segment.segment_point_cloud`.
+    x: Array of input points, of shape `[num_x, feature]`.
+      Multiple segments are held in this single array.
+    y: Array of target points, of shape `[num_y, feature]`.
+    num_segments: Number of segments contained in `x` and `y`.
+      Providing this is required for JIT compilation to work,
+      see also :func:`~ott.geometry.segment.segment_point_cloud`.
     max_measure_size: Total size of measures after padding. Should ideally be
       set to an upper bound on points clouds processed with the segment
-      interface. Providing this number is required for JIT compilation to work.
-    cost_fn: Cost function, defaults to :class:`~ott.core.costs.SqEuclidean`.
-    segment_ids_x: **1st interface** The segment ID for which each row of x
+      interface. Providing this is required for JIT compilation to work.
+    cost_fn: Cost function, defaults to
+      :class:`~ott.geometry.costs.SqEuclidean`.
+    segment_ids_x: **1st interface** The segment ID for which each row of `x`
       belongs. This is a similar interface to `jax.ops.segment_sum`.
-    segment_ids_y: **1st interface** The segment ID for which each row of y
+    segment_ids_y: **1st interface** The segment ID for which each row of `y`
       belongs.
     indices_are_sorted: **1st interface** Whether `segment_ids_x` and
-      `segment_ids_y` are sorted. Default false.
+      `segment_ids_y` are sorted.
     num_per_segment_x: **2nd interface** Number of points in each segment in
       `x`. For example, [100, 20, 30] would imply that `x` is segmented into
       three arrays of length `[100]`, `[20]`, and `[30]` respectively.
@@ -87,9 +88,9 @@ def segment_sinkhorn(
       `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
       evaluated).
     kwargs: keywords arguments passed to form
-      :class:`ott.geometry.pointcloud.PointCloud` geometry objects from the
+      :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, possibly a
-      :class:`ott.geometry.costs.CostFn` or an entropy regularizer.
+      :class:`~ott.geometry.costs.CostFn` or an entropy regularizer.
 
   Returns:
     An array of sinkhorn reg_ot_cost for each segment.
@@ -98,9 +99,9 @@ def segment_sinkhorn(
   dim = x.shape[1]
   if cost_fn is None:
     # default padder
-    padding_vector = costs.CostFn.padder(dim=dim)
+    padding_vector = costs.CostFn._padder(dim=dim)
   else:
-    padding_vector = cost_fn.padder(dim=dim)
+    padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
       padded_x: jnp.ndarray,

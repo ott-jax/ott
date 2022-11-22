@@ -25,7 +25,10 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from typing_extensions import Literal
 
-from ott.geometry import epsilon_scheduler, ops
+from ott.geometry import epsilon_scheduler
+from ott.math import utils
+
+__all__ = ["Geometry", "is_linear", "is_affine"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -34,7 +37,7 @@ class Geometry:
 
   Optimal transport problems are intrinsically geometric: they compute an
   optimal way to transport mass from one configuration onto another. To define
-  what is meant by optimality of a transport requires defining a cost, of moving
+  what is meant by optimality of transport requires defining a cost, of moving
   mass from one among several sources, towards one out of multiple targets.
   These sources and targets can be provided as points in vectors spaces, grids,
   or more generally exclusively described through a (dissimilarity) cost matrix,
@@ -62,11 +65,11 @@ class Geometry:
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    tgt_mask: Mask specifying valid rows when computing some statistics of
+    src_mask: Mask specifying valid rows when computing some statistics of
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
-    kwargs: additional kwargs to epsilon scheduler.
+    kwargs: additional kwargs for epsilon scheduler.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to
@@ -410,12 +413,12 @@ class Geometry:
     if vec is not None:
       if axis == 0:
         vec = vec.reshape((-1, 1))
-      lse_output = ops.logsumexp(
+      lse_output = utils.logsumexp(
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
     else:
-      lse_output = ops.logsumexp(
+      lse_output = utils.logsumexp(
           self._center(f, g) / eps, axis=axis, return_sign=False
       )
       return eps * lse_output, jnp.array([1.0])
@@ -639,7 +642,7 @@ class Geometry:
         Useful when this geometry is used in the linear term of fused GW.
 
     Returns:
-      The low-rank geometry.
+      Low-rank geometry.
     """
     from ott.geometry import low_rank
 
@@ -897,4 +900,4 @@ def is_affine(fn) -> bool:
 
 def is_linear(fn) -> bool:
   """Test heuristically if a function is linear."""
-  return fn(0.0) == 0.0 and is_affine(fn)
+  return jnp.logical_and(fn(0.0) == 0.0, is_affine(fn))

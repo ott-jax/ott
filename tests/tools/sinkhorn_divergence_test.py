@@ -21,8 +21,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.core import sinkhorn
 from ott.geometry import costs, geometry, pointcloud
+from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
 

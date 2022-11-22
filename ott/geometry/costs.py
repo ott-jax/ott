@@ -17,13 +17,17 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.core import fixed_point_loop
-from ott.geometry import matrix_square_root
+from ott.math import fixed_point_loop, matrix_square_root
+
+__all__ = [
+    "PNorm", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
+    "UnbalancedBures"
+]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -32,9 +36,11 @@ class CostFn(abc.ABC):
 
   Cost functions evaluate a function on a pair of inputs. For convenience,
   that function is split into two norms -- evaluated on each input separately --
-  followed by a pairwise cost that involves both inputs, as in
+  followed by a pairwise cost that involves both inputs, as in:
 
-  c(x,y) = norm(x) + norm(y) + pairwise(x,y)
+  .. math::
+
+    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
 
   If the norm function is not implemented, that value is handled as a 0.
   """
@@ -43,17 +49,34 @@ class CostFn(abc.ABC):
   norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     pass
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> float:
-    raise NotImplementedError("Barycenter not yet implemented for this cost.")
+  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+    """Barycentric projection.
+
+    Args:
+      weights: Weights of the points.
+      xs: Points to project.
+
+    Returns:
+      The barycentric projection.
+    """
+    raise NotImplementedError("Barycenter is not yet implemented.")
 
   @classmethod
-  def padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> jnp.ndarray:
+    """Create a padding vector for easier jitting.
+
+    Args:
+      dim: Dimensionality of the data.
+
+    Returns:
+      The padding vector.
+    """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
@@ -98,6 +121,7 @@ class TICost(CostFn):
   real-values, to be used as:
 
   .. math::
+
     c(x,y) = h(z), z := x-y.
 
   If that cost function is used to form an Entropic map using the
@@ -108,14 +132,14 @@ class TICost(CostFn):
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
-    """RBF function acting on difference of `x-y` to ouput cost."""
+    """TI function acting on difference of :math:`x-y` to output cost."""
 
   def h_legendre(self, z: jnp.ndarray) -> float:
-    """Legendre transform of RBF function `h` (when latter is convex)."""
+    """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute cost as evaluation of :func:`h` on `x-y`."""
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
 
@@ -125,12 +149,16 @@ class SqPNorm(TICost):
 
   For details on the derivation of the Legendre transform of the norm, see e.g.
   the reference :cite:`boyd:04`, p.93/94.
+
+  Args:
+    p: Power of the p-norm.
   """
 
   def __init__(self, p: float):
+    super().__init__()
     assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1 - 1 / self.p) if p > 1.0 else 'inf'
+    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else "inf"
 
   def h(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
@@ -149,12 +177,18 @@ class SqPNorm(TICost):
 
 @jax.tree_util.register_pytree_node_class
 class PNorm(TICost):
-  """p-norm (to the power p) of the difference of two vectors."""
+  """p-norm (to the power p) of the difference of two vectors.
+
+  Args:
+    p: Power of the p-norm.
+  """
 
   def __init__(self, p: float):
+    super().__init__()
     assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1 - 1 / self.p)
+    # TODO(marcocuturi): fix case when `p=1`
+    self.q = 1. / (1. - 1. / self.p) if p > 1. else "inf"
 
   def h(self, z: jnp.ndarray) -> float:
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
@@ -175,12 +209,13 @@ class PNorm(TICost):
 class Euclidean(CostFn):
   """Euclidean distance.
 
-  Note that the Euclidean distance is not cast as a `TICost`, because this
-  would correspond to `h = jnp.linalg.norm`, whose gradient is not invertible,
+  Note that the Euclidean distance is not cast as a
+  :class:`~ott.geometry.costs.TICost`, since this would correspond to :math:`h`
+  being :func:`jax.numpy.linalg.norm`, whose gradient is not invertible,
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
 
@@ -193,7 +228,7 @@ class SqEuclidean(TICost):
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
@@ -210,13 +245,17 @@ class SqEuclidean(TICost):
 
 @jax.tree_util.register_pytree_node_class
 class Cosine(CostFn):
-  """Cosine distance CostFn."""
+  """Cosine distance cost function.
+
+  Args:
+    ridge: Ridge regularization.
+  """
 
   def __init__(self, ridge: float = 1e-8):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Cosine distance between vectors, denominator regularized with ridge."""
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -227,27 +266,32 @@ class Cosine(CostFn):
     return jnp.clip(cosine_distance, 0., 2.)
 
   @classmethod
-  def padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
 
 
 @jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
-  """Bures distance between a pair of (mean, cov matrix) raveled as vectors."""
+  """Bures distance between a pair of (mean, cov matrix) raveled as vectors.
+
+  Args:
+    dimension: Dimensionality of the data.
+    kwargs: Keyword arguments for :func:`ott.math.matrix_square_root.sqrtm`.
+  """
 
   def __init__(self, dimension: int, **kwargs: Any):
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray):
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
     mean, cov = x_to_means_and_covs(x, self._dimension)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -259,17 +303,6 @@ class Bures(CostFn):
     )[0]
     return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
 
-  @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-  def scale_covariances(self, cov_sqrt, cov_i, lambda_i):
-    """Iterate update needed to compute barycenter of covariances."""
-    return lambda_i * matrix_square_root.sqrtm_only(
-        jnp.matmul(jnp.matmul(cov_sqrt, cov_i), cov_sqrt)
-    )
-
-  def relative_diff(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Monitor change in two successive estimates of matrices."""
-    return jnp.sum(jnp.square(x - y)) / jnp.prod(jnp.array(x.shape))
-
   def covariance_fixpoint_iter(
       self,
       covs: jnp.ndarray,
@@ -278,27 +311,40 @@ class Bures(CostFn):
   ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians."""
 
-    def cond_fn(iteration, constants, state):
-      _, diff = state
-      return diff > jnp.array(rtol)
+    @functools.partial(jax.vmap, in_axes=[None, 0, 0])
+    def scale_covariances(
+        cov_sqrt: jnp.ndarray, cov_i: jnp.ndarray, lambda_i: jnp.ndarray
+    ) -> jnp.ndarray:
+      """Iterate update needed to compute barycenter of covariances."""
+      return lambda_i * matrix_square_root.sqrtm_only(
+          (cov_sqrt @ cov_i) @ cov_sqrt
+      )
 
-    def body_fn(iteration, constants, state, compute_error):
-      del compute_error
+    def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
+      del iteration, constants
+      _, diff = state
+      return diff > rtol
+
+    def body_fn(
+        iteration: int, constants: Tuple[Any, ...],
+        state: Tuple[jnp.ndarray, float], compute_error: bool
+    ) -> Tuple[jnp.ndarray, float]:
+      del iteration, constants, compute_error
       cov, _ = state
       cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
       scaled_cov = jnp.linalg.matrix_power(
-          jnp.sum(self.scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+          jnp.sum(scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
       )
-      next_cov = jnp.matmul(jnp.matmul(cov_inv_sqrt, scaled_cov), cov_inv_sqrt)
-      diff = self.relative_diff(next_cov, cov)
+      next_cov = (cov_inv_sqrt @ scaled_cov) @ cov_inv_sqrt
+      diff = jnp.sum((next_cov - cov) ** 2) / jnp.prod(jnp.array(cov.shape))
       return next_cov, diff
 
-    def init_state():
+    def init_state() -> Tuple[jnp.ndarray, float]:
       cov_init = jnp.eye(self._dimension)
       diff = jnp.inf
       return cov_init, diff
 
-    state = fixed_point_loop.fixpoint_iter(
+    cov, _ = fixed_point_loop.fixpoint_iter(
         cond_fn=cond_fn,
         body_fn=body_fn,
         min_iterations=10,
@@ -307,8 +353,6 @@ class Bures(CostFn):
         constants=(),
         state=init_state()
     )
-
-    cov, _ = state
     return cov
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
@@ -336,7 +380,7 @@ class Bures(CostFn):
     return barycenter
 
   @classmethod
-  def padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> jnp.ndarray:
     """Pad with concatenated zero means and \
       raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
@@ -356,37 +400,61 @@ class Bures(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class UnbalancedBures(CostFn):
-  """Regularized/unbalanced Bures dist between two triplets of (mass,mean,cov).
+  """Unbalanced Bures distance between two triplets of `(mass, mean, cov)`.
 
-  This cost implements the value defined in :cite:`janati:20`, eq. 37, 39, 40.
-  We follow their notations. It is assumed inputs are given as
-  triplets (mass, mean, covariance) raveled as vectors, in that order.
+  This cost uses the notation defined in :cite:`janati:20`, eq. 37, 39, 40.
+
+  Args:
+    dimension: Dimensionality of the data.
+    sigma: Entropic regularization.
+    gamma: KL-divergence regularization for the marginals.
+    kwargs: Keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
   def __init__(
       self,
       dimension: int,
-      gamma: float = 1.0,
+      *,
       sigma: float = 1.0,
+      gamma: float = 1.0,
       **kwargs: Any,
   ):
     super().__init__()
     self._dimension = dimension
+    self._sigma = sigma
     self._gamma = gamma
-    self._sigma2 = sigma ** 2
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
-    """Compute norm of Gaussian for unbalanced Bures."""
-    return self._gamma * x[0]
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
+    """Compute norm of Gaussian for unbalanced Bures.
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute dot-product for unbalanced Bures."""
+    Args:
+      x: Array of shape ``[n_points + n_points + n_dim ** 2,]``, potentially
+        batched, corresponding to the raveled mass, means and the covariance
+        matrix.
+
+    Returns:
+      The norm, array of shape ``[]`` or ``[batch,]`` in the batched case.
+    """
+    return self._gamma * x[..., 0]
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compute dot-product for unbalanced Bures.
+
+    Args:
+      x: Array of shape ``[n_points + n_points + n_dim ** 2,]``
+        corresponding to the raveled mass, means and the covariance matrix.
+      y: Array of shape ``[n_points + n_points + n_dim ** 2,]``
+        corresponding to the raveled mass, means and the covariance matrix.
+
+    Returns:
+      The cost.
+    """
     # Sets a few constants
     gam = self._gamma
-    sig2 = self._sigma2
-    lam = sig2 + gam / 2
-    tau = gam / (2 * lam)
+    sig2 = self._sigma ** 2
+    lam = sig2 + gam / 2.0
+    tau = gam / (2.0 * lam)
 
     # Extracts mass, mean vector, covariance matrices
     mass_x, mass_y = x[0], y[0]
@@ -412,51 +480,51 @@ class UnbalancedBures(CostFn):
     sldet_c, ldet_c = jnp.linalg.slogdet(c_mat)
     sldet_t_ab, ldet_t_ab = jnp.linalg.slogdet(tilde_a_b)
     sldet_ab, ldet_ab = jnp.linalg.slogdet(jnp.matmul(cov_x, cov_y))
-    sldet_c_ab, ldet_c_ab = jnp.linalg.slogdet(c_mat - 2 * tilde_a_b / gam)
+    sldet_c_ab, ldet_c_ab = jnp.linalg.slogdet(c_mat - 2.0 * tilde_a_b / gam)
 
     # Gathers all these results to compute log total mass of transport
     log_m_pi = (0.5 * self._dimension * sig2 / (gam + sig2)) * jnp.log(sig2)
-
-    log_m_pi += (1 / (tau + 1)) * (
+    log_m_pi += (1.0 / (tau + 1.0)) * (
         jnp.log(mass_x) + jnp.log(mass_y) + ldet_c + 0.5 *
         (tau * ldet_t_ab - ldet_ab)
     )
-
     log_m_pi += -jnp.sum(
         diff_means * jnp.linalg.solve(cov_x + cov_y + lam * iden, diff_means)
-    ) / (2 * (tau + 1))
-
+    ) / (2.0 * (tau + 1.0))
     log_m_pi += -0.5 * ldet_c_ab
 
-    # If all logdet signs are 1, output value, nan otherwise.
-    return jnp.where(
-        sldet_c == 1 and sldet_c_ab == 1 and sldet_ab == 1 and sldet_t_ab == 1,
-        2 * sig2 * mass_x * mass_y - 2 * (sig2 + gam) * jnp.exp(log_m_pi),
-        jnp.nan
+    # if all logdet signs are 1, output value, nan otherwise
+    pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
+
+    return jax.lax.cond(
+        pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
+        (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
 
   def tree_flatten(self):
-    return (), (self._dimension, self._gamma, self._sigma2, self._sqrtm_kw)
+    return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
     del children
-    return cls(aux_data[0], aux_data[1], aux_data[2], **aux_data[3])
+    dim, sigma, gamma, kwargs = aux_data
+    return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
 
 
-def x_to_means_and_covs(x: jnp.ndarray, dimension: jnp.ndarray) -> jnp.ndarray:
+def x_to_means_and_covs(x: jnp.ndarray,
+                        dimension: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:
     x: [num_gaussians, dimension, (1 + dimension)] array of concatenated means
-    and covariances (raveled) dimension: the dimension of the Gaussians.
+      and covariances (raveled) dimension: the dimension of the Gaussians.
 
   Returns:
     means: [num_gaussians, dimension] array that holds the means.
     covariances: [num_gaussians, dimension] array that holds the covariances.
   """
   x = jnp.atleast_2d(x)
-  means = x[:, 0:dimension]
+  means = x[:, :dimension]
   covariances = jnp.reshape(
       x[:, dimension:dimension + dimension ** 2], (-1, dimension, dimension)
   )

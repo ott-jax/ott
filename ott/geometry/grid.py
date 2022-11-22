@@ -21,19 +21,22 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, ops, pointcloud
+from ott.geometry import costs, geometry, pointcloud
+from ott.math import utils
+
+__all__ = ["Grid"]
 
 
 @jax.tree_util.register_pytree_node_class
 class Grid(geometry.Geometry):
-  r"""Class describing the geometry of points taken in a cartestian product.
+  r"""Class describing the geometry of points taken in a Cartesian product.
 
   This class implements a geometry in which probability measures are supported
   on a :math:`d`-dimensional cartesian grid, a cartesian product of :math:`d`
   lists of values, each list being itself of size :math:`n_i`.
 
   The transportation cost between points in the grid is assumed to be separable,
-  namely a sum of coordinate-wise cost functions, as in
+  namely a sum of coordinate-wise cost functions, as in:
 
   .. math::
 
@@ -52,7 +55,7 @@ class Grid(geometry.Geometry):
 
   Args:
     x : list of arrays of varying sizes, describing the locations of the grid.
-      Locations are provided as a list of jnp.ndarrays, that is :math:`d`
+      Locations are provided as a list of arrays, that is :math:`d`
       vectors of (possibly varying) size :math:`n_i`. The resulting grid
       is the Cartesian product of these vectors.
     grid_size: tuple of integers describing grid sizes, namely
@@ -201,14 +204,13 @@ class Grid(geometry.Geometry):
 
     if vec is not None:
       vec = jnp.transpose(vec, indices)
-      softmax_res, softmax_sgn = ops.logsumexp(
+      softmax_res, softmax_sgn = utils.logsumexp(
           centered_cost, b=vec, axis=1, return_sign=True
       )
       return eps * jnp.transpose(softmax_res,
                                  indices), jnp.transpose(softmax_sgn, indices)
-    else:
-      softmax_res = ops.logsumexp(centered_cost, axis=1)
-      return eps * jnp.transpose(softmax_res, indices), None
+    softmax_res = utils.logsumexp(centered_cost, axis=1)
+    return eps * jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
       self, vec: jnp.ndarray, axis: int = 0, fn=None

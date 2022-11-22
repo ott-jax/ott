@@ -58,3 +58,10 @@ Cost Functions
     costs.Cosine
     costs.Bures
     costs.UnbalancedBures
+
+Utilities
+---------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment.segment_point_cloud

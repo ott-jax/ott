@@ -12,9 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """OTT ground geometries: Classes and cost functions to instantiate them."""
-from . import costs, low_rank, ops
-from .epsilon_scheduler import Epsilon
-from .geometry import Geometry
-from .graph import Graph
-from .grid import Grid
-from .pointcloud import PointCloud
+from . import costs, epsilon_scheduler, geometry, graph, grid, pointcloud, segment

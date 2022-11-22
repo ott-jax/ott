@@ -23,7 +23,6 @@ Segmented Sinkhorn
 
     segment_sinkhorn.segment_sinkhorn
 
-
 Sinkhorn Divergence
 -------------------
 .. autosummary::

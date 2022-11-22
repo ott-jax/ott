@@ -5,9 +5,9 @@ import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 from typing_extensions import Literal
 
-from ott.core import _math_utils as mu
-from ott.core import decomposition, fixed_point_loop
 from ott.geometry import geometry
+from ott.math import decomposition, fixed_point_loop
+from ott.math import utils as mu
 
 __all__ = ["Graph"]
 
@@ -192,7 +192,7 @@ class Graph(geometry.Geometry):
 
     # in the sparse case, we don't sum duplicates here because
     # we need to know `nnz` a priori for JIT (could be exposed in `__init__`)
-    # instead, `ott.core.decomposition._jax_sparse_to_scipy` handles it on host
+    # instead, `ott.math.decomposition._jax_sparse_to_scipy` handles it on host
     return D - self.graph
 
   @property

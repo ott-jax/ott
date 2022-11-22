@@ -185,7 +185,7 @@ def fit_model_em(
 def _get_dist_sq(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
   """Get the squared distance from each point to each loc."""
 
-  def _dist_sq_one_loc(points: jnp.ndarray, loc: jnp.ndarray):
+  def _dist_sq_one_loc(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum((points - loc[None]) ** 2., axis=-1)
 
   dist_sq_fn = jax.vmap(_dist_sq_one_loc, in_axes=(None, 0), out_axes=1)
@@ -266,9 +266,9 @@ def initialize(
     key: jnp.ndarray,
     points: jnp.ndarray,
     point_weights: Optional[jnp.ndarray],
-    n_components: jnp.ndarray,
-    n_attempts=50,
-    verbose=False
+    n_components: int,
+    n_attempts: int = 50,
+    verbose: bool = False
 ) -> gaussian_mixture.GaussianMixture:
   """Initialize a GMM via K-means++ with retries on failure.
 
@@ -289,7 +289,7 @@ def initialize(
   for attempt in range(n_attempts):
     key, subkey = jax.random.split(key)
     try:
-      gmm = from_kmeans_plusplus(
+      return from_kmeans_plusplus(
           key=subkey,
           points=points,
           point_weights=point_weights,
@@ -297,6 +297,5 @@ def initialize(
       )
     except ValueError:
       if verbose:
-        print(f'Failed to initialize, attempt {attempt}', flush=True)
-    return gmm
-  raise ValueError('Failed to initialize')
+        print(f'Failed to initialize, attempt {attempt}.', flush=True)
+  raise ValueError('Failed to initialize.')

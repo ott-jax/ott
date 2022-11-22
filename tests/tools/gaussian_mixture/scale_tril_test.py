@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import matrix_square_root
+from ott.math import matrix_square_root
 from ott.tools.gaussian_mixture import scale_tril
 
 

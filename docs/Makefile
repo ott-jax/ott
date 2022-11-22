@@ -22,3 +22,4 @@ help:
 clean:
 	@rm -rf $(BUILDDIR)/
 	@rm -rf $(SOURCEDIR)/_autosummary
+	@rm -rf $(SOURCEDIR)/**/_autosummary
