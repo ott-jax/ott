@@ -4,13 +4,34 @@ import numpy as np
 import pytest
 
 from ott.geometry import costs, pointcloud
-from ott.problems.linear import linear_problem
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian
 
 
+class TestDualPotentials:
+
+  def test_device_put(self):
+    pot = potentials.DualPotentials(
+        lambda x: x, lambda x: x, cost_fn=costs.SqEuclidean(), corr=True
+    )
+    _ = jax.device_put(pot, "cpu")
+
+
 class TestEntropicPotentials:
+
+  def test_device_put(self, rng: jax.random.PRNGKeyArray):
+    n = 10
+    device = jax.devices()[0]
+    key1, key2, key3 = jax.random.split(rng, 3)
+    f = jax.random.normal(key1, (n,))
+    g = jax.random.normal(key2, (n,))
+    x = jax.random.normal(key3, (n, 3))
+
+    pot = potentials.EntropicPotentials(f, g, pointcloud.PointCloud(x))
+
+    _ = jax.device_put(pot, device)
 
   @pytest.mark.fast.with_args(eps=[5e-2, 1e-1], only_fast=0)
   def test_entropic_potentials_dist(self, rng: jnp.ndarray, eps: float):

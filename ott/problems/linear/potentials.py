@@ -89,7 +89,6 @@ class DualPotentials:
       Wasserstein distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
-
     f = jax.vmap(self.f)
 
     if self._corr:
@@ -100,11 +99,9 @@ class DualPotentials:
       C = jnp.mean(jnp.sum(src ** 2, axis=-1))
       C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
       return 2. * (term1 + term2) + C
-    else:
-      g = jax.vmap(self.g)
-      C = jnp.mean(f(src))
-      C += jnp.mean(g(tgt))
-      return C
+
+    g = jax.vmap(self.g)
+    return jnp.mean(f(src)) + jnp.mean(g(tgt))
 
   @property
   def f(self) -> Potential_t:
@@ -137,7 +134,12 @@ class DualPotentials:
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self.cost_fn], {"corr": self._corr}
+    return [], {
+        "f": self._f,
+        "g": self._g,
+        "cost_fn": self.cost_fn,
+        "corr": self._corr
+    }
 
   @classmethod
   def tree_unflatten(
@@ -167,15 +169,6 @@ class EntropicPotentials(DualPotentials):
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
   ):
-    n, m = geom.shape
-    a = jnp.ones(n) / n if a is None else a
-    b = jnp.ones(m) / m if b is None else b
-
-    assert f.shape == (n,) and a.shape == (n,), \
-        f"Expected `f` and `a` to be of shape `{n,}`, found `{f.shape}`."
-    assert g.shape == (m,) and b.shape == (m,), \
-        f"Expected `g` and `b` to be of shape `{m,}`, found `{g.shape}`."
-
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
     super().__init__(f, g, cost_fn=geom.cost_fn, corr=False)
@@ -213,13 +206,29 @@ class EntropicPotentials(DualPotentials):
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential = self._f
       y = self._geom.x
-      prob_weights = self._a
+      prob_weights = self.a
     else:
       potential = self._g
       y = self._geom.y
-      prob_weights = self._b
+      prob_weights = self.b
 
     return callback
+
+  @property
+  def a(self) -> jnp.ndarray:
+    """Probability weights of the first measure."""
+    if self._a is not None:
+      return self._a
+    n, _ = self._geom.shape
+    return jnp.ones(n) / n
+
+  @property
+  def b(self) -> jnp.ndarray:
+    """Probability weights of the second measure."""
+    if self._b is not None:
+      return self._b
+    _, m = self._geom.shape
+    return jnp.ones(m) / m
 
   @property
   def epsilon(self) -> float:
