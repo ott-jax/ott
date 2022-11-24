@@ -186,7 +186,8 @@ class Geometry:
     """Check quickly if casting geometry as LRC makes sense.
 
     This check is only carried out using basic considerations from the geometry,
-    not using a rigorous check involving, e.g., svd."""
+    not using a rigorous check involving, e.g., svd.
+    """
     return False
 
   @property
@@ -658,12 +659,12 @@ class Geometry:
     from ott.geometry import low_rank
 
     if rank == 0 or rank >= min(*self.shape):
+      # TODO(marcocuturi): add hermitian=self.is_symmetric, currently bugging.
       u, s, vh = jnp.linalg.svd(
-        self.cost_matrix,
-        full_matrices=False,
-        compute_uv=True,
-        #hermitian=self.is_symmetric #TODO(marcocuturi): fix this.
-        )
+          self.cost_matrix,
+          full_matrices=False,
+          compute_uv=True,
+      )
 
       cost_1 = u
       cost_2 = (s[:, None] * vh).T

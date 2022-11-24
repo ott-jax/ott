@@ -312,4 +312,5 @@ class TestCostMatrixFactorization:
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNorm(1.4))
     geom_lrc = geom.to_LRCGeometry(rank=0)
     np.testing.assert_allclose(
-      geom.cost_matrix, geom_lrc.cost_matrix, rtol=1e-5, atol=1e-5)
+        geom.cost_matrix, geom_lrc.cost_matrix, rtol=1e-5, atol=1e-5
+    )
