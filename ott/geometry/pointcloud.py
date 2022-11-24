@@ -101,6 +101,15 @@ class PointCloud(geometry.Geometry):
     return 0.
 
   @property
+  def _can_LRC(self):
+    return self.is_squared_euclidean and self.check_LRC_dim
+
+  @property
+  def check_LRC_dim(self):
+    (n, m), d = self.shape, self.x.shape[1]
+    return n * m > (n + m) * d
+
+  @property
   def cost_matrix(self) -> Optional[jnp.ndarray]:
     if self.is_online:
       return None
@@ -608,8 +617,7 @@ class PointCloud(geometry.Geometry):
       Otherwise, returns the re-scaled low-rank geometry.
     """
     if self.is_squared_euclidean:
-      (n, m), d = self.shape, self.x.shape[1]
-      if n * m > (n + m) * d:  # here apply_cost using LRCGeometry preferable.
+      if self.check_LRC_dim:
         return self._sqeucl_to_lr(scale)
       # we don't update the `scale_factor` because in GW, the linear cost
       # is first materialized and then scaled by `fused_penalty` afterwards

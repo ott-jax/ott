@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, pointcloud
+from ott.geometry import costs, geometry, low_rank, pointcloud
 from ott.math import utils
 
 __all__ = ["Grid"]
@@ -115,30 +115,27 @@ class Grid(geometry.Geometry):
     super().__init__(**kwargs)
 
   @property
-  def cost_matrices(self) -> List[jnp.ndarray]:
+  def geometries(self) -> List[geometry.Geometry]:
     """Cost matrices along each dimension of the grid."""
-    cost_matrices = []
+    geometries = []
     for dimension, cost_fn in itertools.zip_longest(
         range(self.grid_dimension), self.cost_fns, fillvalue=self.cost_fns[-1]
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
-      cost_matrices.append(
-          pointcloud.PointCloud(x_values, cost_fn=cost_fn).cost_matrix
+      geom = pointcloud.PointCloud(
+          x_values, cost_fn=cost_fn, epsilon=self._epsilon_init
       )
-    return cost_matrices
-
-  @property
-  def kernel_matrices(self) -> List[jnp.ndarray]:
-    """Kernel matrices along each dimension of the grid."""
-    kernel_matrices = []
-    for cost_matrix in self.cost_matrices:
-      kernel_matrices.append(jnp.exp(-cost_matrix / self.epsilon))
-    return kernel_matrices
+      geometries.append(geom)
+    return geometries
 
   @property
   def median_cost_matrix(self) -> NoReturn:
     """Not implemented."""
     raise NotImplementedError('Median cost not implemented for grids.')
+
+  @property
+  def _can_LRC(self) -> bool:
+    return True
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -197,7 +194,7 @@ class Grid(geometry.Geometry):
     f, g = jnp.transpose(f, indices), jnp.transpose(g, indices)
     centered_cost = (
         f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...] - jnp.expand_dims(
-            self.cost_matrices[dimension],
+            self.geometries[dimension].cost_matrix,
             axis=tuple(range(2, 1 + self.grid_dimension))
         )
     ) / eps
@@ -219,8 +216,8 @@ class Grid(geometry.Geometry):
 
     The `apply_cost` operation on grids rests on the following identity.
     If it were to be cast as a [num_a, num_a] matrix, the corresponding cost
-    matrix :math:`C` would be a sum of grid_dimension matrices, each of the form
-    (here for the j-th slice)
+    matrix :math:`C` would be a sum of `grid_dimension` matrices, each of the
+    form (here for the j-th slice)
     :math:`\tilde{C}_j : = 1_{n_1} \otimes \dots \otimes C_j \otimes 1_{n_d}`
     where each :math:`1_{n}` is the :math:`n\times n` square matrix full of 1's.
 
@@ -244,7 +241,8 @@ class Grid(geometry.Geometry):
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
     indices = list(range(1, self.grid_dimension))
-    for dimension, cost in enumerate(self.cost_matrices):
+    for dimension, geom in enumerate(self.geometries):
+      cost = geom.cost_matrix
       ind = indices.copy()
       ind.insert(dimension, 0)
       if axis == 0:
@@ -281,10 +279,11 @@ class Grid(geometry.Geometry):
     """
     scaling = jnp.reshape(scaling, self.grid_size)
     indices = list(range(1, self.grid_dimension))
-    for dimension, kernel in enumerate(self.kernel_matrices):
+    for dimension, geom in enumerate(self.geometries):
+      kernel = geom.kernel_matrix
+      kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       ind = indices.copy()
       ind.insert(dimension, 0)
-      kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       scaling = jnp.tensordot(
           kernel, scaling, axes=([0], [dimension])
       ).transpose(ind)
@@ -300,6 +299,17 @@ class Grid(geometry.Geometry):
         ' apply the transport matrix to a vector, or use a point '
         ' cloud geometry instead'
     )
+
+  def apply_transport_from_potentials(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      vec: jnp.ndarray,
+      axis: int = 0
+  ) -> jnp.ndarray:
+    """Since applying from potentials is not feasible in grids, use scalings."""
+    u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
+    return self.apply_transport_from_scalings(u, v, vec, axis=axis)
 
   def transport_from_scalings(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
@@ -353,4 +363,40 @@ class Grid(geometry.Geometry):
   def tree_unflatten(cls, aux_data, children):
     return cls(
         x=children[0], cost_fns=children[1], epsilon=children[2], **aux_data
+    )
+
+  def to_LRCGeometry(
+      self,
+      scale: float = 1.0,
+      **kwargs: Any,
+  ) -> low_rank.LRCGeometry:
+    r"""Convert grid to low-rank geometry."""
+    cost_1 = []
+    cost_2 = []
+    for dimension, geom in enumerate(self.geometries):
+      geom = geom.to_LRCGeometry()
+      c_1, c_2 = geom.cost_1, geom.cost_2
+      l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
+      l = 1 if l is None else int(jnp.prod(jnp.array(l)))
+      r = 1 if r is None else int(jnp.prod(jnp.array(r)))
+      cost_1.append(
+          jnp.kron(jnp.ones((l, 1)), jnp.kron(c_1, jnp.ones((r, 1),)))
+      )
+      cost_2.append(
+          jnp.kron(jnp.ones((l, 1)), jnp.kron(c_2, jnp.ones((r, 1),)))
+      )
+    cost_1 = jnp.concatenate(cost_1, axis=-1)
+    cost_2 = jnp.concatenate(cost_2, axis=-1)
+
+    return low_rank.LRCGeometry(
+        cost_1=cost_1,
+        cost_2=cost_2,
+        scale_factor=scale,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+        scale=self._scale_epsilon,
+        scale_cost=self._scale_cost,
+        src_mask=self.src_mask,
+        tgt_mask=self.tgt_mask,
+        **self._kwargs
     )

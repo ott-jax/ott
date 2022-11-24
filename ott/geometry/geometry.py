@@ -182,6 +182,14 @@ class Geometry:
     return 0, 0
 
   @property
+  def _can_LRC(self) -> bool:
+    """Check quickly if casting geometry as LRC makes sense.
+
+    This check is only carried out using basic considerations from the geometry,
+    not using a rigorous check involving, e.g., svd."""
+    return False
+
+  @property
   def is_squared_euclidean(self) -> bool:
     """Whether cost is computed by taking squared-Eucl. distance of points."""
     return False
@@ -619,13 +627,16 @@ class Geometry:
 
   def to_LRCGeometry(
       self,
-      rank: int,
+      rank: int = 0,
       tol: float = 1e-2,
       seed: int = 0,
       scale: float = 1.
   ) -> 'low_rank.LRCGeometry':
-    r"""Factorize the cost matrix in sublinear time :cite:`indyk:19`.
+    r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
+    When rank=min(n,m) or is equal to 0 (default), use SVD.
+
+    For other values, use the routine in sublinear time :cite:`indyk:19`.
     Uses the implementation of :cite:`scetbon:21`, algorithm 4.
 
     It holds that with probability *0.99*,
@@ -646,58 +657,70 @@ class Geometry:
     """
     from ott.geometry import low_rank
 
-    assert rank > 0, f"Rank must be positive, got {rank}."
-    rng = jax.random.PRNGKey(seed)
-    key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
-    n, m = self.shape
-    n_subset = min(int(rank / tol), n, m)
+    if rank == 0 or rank >= min(*self.shape):
+      u, s, vh = jnp.linalg.svd(
+        self.cost_matrix,
+        full_matrices=False,
+        compute_uv=True,
+        #hermitian=self.is_symmetric #TODO(marcocuturi): fix this.
+        )
 
-    i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
-    j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+      cost_1 = u
+      cost_2 = (s[:, None] * vh).T
+    else:
+      rng = jax.random.PRNGKey(seed)
+      key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+      n, m = self.shape
+      n_subset = min(int(rank / tol), n, m)
 
-    # force `batch_size=None` since `cost_matrix` would be `None`
-    ci_star = self.subset(
-        i_star, None, batch_size=None
-    ).cost_matrix.ravel() ** 2  # (m,)
-    cj_star = self.subset(
-        None, j_star, batch_size=None
-    ).cost_matrix.ravel() ** 2  # (n,)
+      i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
+      j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-    p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
-    p_row /= jnp.sum(p_row)
-    row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
-    # (n_subset, m)
-    S = self.subset(row_ixs, None, batch_size=None).cost_matrix
-    S /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
+      # force `batch_size=None` since `cost_matrix` would be `None`
+      ci_star = self.subset(
+          i_star, None, batch_size=None
+      ).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(
+          None, j_star, batch_size=None
+      ).cost_matrix.ravel() ** 2  # (n,)
 
-    p_col = jnp.sum(S ** 2, axis=0)  # (m,)
-    p_col /= jnp.sum(p_col)
-    # (n_subset,)
-    col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
-    # (n_subset, n_subset)
-    W = S[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
+      p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
+      p_row /= jnp.sum(p_row)
+      row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+      # (n_subset, m)
+      s = self.subset(row_ixs, None, batch_size=None).cost_matrix
+      s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
-    U, _, V = jsp.linalg.svd(W)
-    U = U[:, :rank]  # (n_subset, rank)
-    U = (S.T @ U) / jnp.linalg.norm(W.T @ U, axis=0)  # (m, rank)
+      p_col = jnp.sum(s ** 2, axis=0)  # (m,)
+      p_col /= jnp.sum(p_col)
+      # (n_subset,)
+      col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+      # (n_subset, n_subset)
+      w = s[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
 
-    _, d, v = jnp.linalg.svd(U.T @ U)  # (k,), (k, k)
-    v = v.T / jnp.sqrt(d)[None, :]
+      U, _, V = jsp.linalg.svd(w)
+      U = U[:, :rank]  # (n_subset, rank)
+      U = (s.T @ U) / jnp.linalg.norm(w.T @ U, axis=0)  # (m, rank)
 
-    inv_scale = (1. / jnp.sqrt(n_subset))
-    col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+      _, d, v = jnp.linalg.svd(U.T @ U)  # (k,), (k, k)
+      v = v.T / jnp.sqrt(d)[None, :]
 
-    # (n, n_subset)
-    A_trans = self.subset(
-        None, col_ixs, batch_size=None
-    ).cost_matrix * inv_scale
-    B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
-    M = jnp.linalg.inv(B.T @ B)  # (k, k)
-    V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
+      inv_scale = (1. / jnp.sqrt(n_subset))
+      col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+
+      # (n, n_subset)
+      A_trans = self.subset(
+          None, col_ixs, batch_size=None
+      ).cost_matrix * inv_scale
+      B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
+      M = jnp.linalg.inv(B.T @ B)  # (k, k)
+      V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
+      cost_1 = V
+      cost_2 = U
 
     return low_rank.LRCGeometry(
-        cost_1=V,
-        cost_2=U,
+        cost_1=cost_1,
+        cost_2=cost_2,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale=self._scale_epsilon,

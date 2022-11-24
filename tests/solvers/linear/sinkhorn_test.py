@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import costs, geometry, pointcloud
+from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
@@ -466,3 +466,37 @@ class TestSinkhorn:
 
     out = solver(problem)
     assert out.converged
+
+  def test_ot_cost_grid(self):
+    """Test computation of OT cost for Grids."""
+    ns = [6, 7, 11]
+    xs = [
+        jax.random.normal(jax.random.PRNGKey(i), (n,))
+        for i, n in enumerate(ns)
+    ]
+    geom = grid.Grid(xs)
+    a = jax.random.uniform(jax.random.PRNGKey(0), (geom.shape[0],))
+    b = jax.random.uniform(jax.random.PRNGKey(1), (geom.shape[0],))
+    a = a.at[10].set(0.0)
+    b = a.at[13].set(0.0)
+    a, b = a / jnp.sum(a), b / jnp.sum(b)
+    lin_prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    solver = sinkhorn.Sinkhorn()
+    out = solver(lin_prob)
+
+    # Recover full cost matrix by applying it to columns of identity matrix.
+    cost_matrix = geom.apply_cost(jnp.eye(geom.shape[0]))
+    # Recover full transport by applying it to columns of identity matrix.
+    transport_matrix = out.apply(jnp.eye(geom.shape[0]))
+    cost = jnp.sum(transport_matrix * cost_matrix)
+    np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)
+
+  def test_ot_cost_pointcloud(self):
+    """Test computation of OT cost for Grids."""
+    geom = pointcloud.PointCloud(self.x, self.y)
+
+    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    solver = sinkhorn.Sinkhorn()
+    out = solver(lin_prob)
+    cost = jnp.sum(out.matrix * out.geom.cost_matrix)
+    np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)

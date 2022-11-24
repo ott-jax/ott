@@ -80,9 +80,7 @@ class GWOutput(NamedTuple):
 
   @property
   def _rescale_factor(self) -> float:
-    return jnp.sqrt(
-        self.old_transport_mass / self.linear_state.transport_mass()
-    )
+    return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
 
 
 class GWState(NamedTuple):
@@ -376,7 +374,7 @@ def iterations(
       out = solver.linear_ot_solver(linear_pb, init=init)
 
     old_transport_mass = jax.lax.stop_gradient(
-        state.linear_state.transport_mass()
+        state.linear_state.transport_mass
     )
     return state.update(
         iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass

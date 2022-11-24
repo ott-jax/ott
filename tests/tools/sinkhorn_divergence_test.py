@@ -86,6 +86,9 @@ class TestSinkhornDivergence:
         sinkhorn_kwargs={'inner_iterations': 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
+    iters_xx = jnp.sum(div.errors[0] > 0)
+    iters_xx_sym = jnp.sum(div.errors[1] > 0)
+    assert iters_xx >= iters_xx_sym
 
   @pytest.mark.fast
   def test_euclidean_autoepsilon(self):
@@ -264,7 +267,9 @@ class TestSinkhornDivergence:
         **geom_kwargs
     )
 
-    np.testing.assert_allclose(true_divergence.repeat(2), segmented_divergences)
+    np.testing.assert_allclose(
+        true_divergence.repeat(2), segmented_divergences, rtol=1e-6, atol=1e-6
+    )
 
   def test_segment_sinkhorn_different_segment_sizes(self):
     # Test other array sizes
@@ -352,7 +357,9 @@ class TestSinkhornDivergence:
         cost_fn=b_cost
     )
 
-    np.testing.assert_allclose(segmented_divergences, true_divergences)
+    np.testing.assert_allclose(
+        segmented_divergences, true_divergences, rtol=1e-6, atol=1e-6
+    )
 
   # yapf: disable
   @pytest.mark.fast.with_args(

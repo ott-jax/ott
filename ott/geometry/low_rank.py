@@ -240,6 +240,10 @@ class LRCGeometry(geometry.Geometry):
     """Return self."""
     return self
 
+  @property
+  def _can_LRC(self):
+    return True
+
   def subset(
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any

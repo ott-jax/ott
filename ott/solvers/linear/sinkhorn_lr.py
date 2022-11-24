@@ -191,10 +191,19 @@ class LRSinkhornOutput(NamedTuple):
     return self.apply(jnp.ones(length,), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
-    """Return OT cost for matrix, evaluated at other cost matrix."""
+    """Return OT cost for current solution, evaluated at any cost matrix."""
     return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
 
-  # TODO(michalk8): when refactoring the API, use a property
+  def ot_cost_at_geom(self, other_geom: geometry.Geometry) -> jnp.ndarray:
+    """Return (by recomputing it) bare transport cost of current solution."""
+    return self.cost_at_geom(self, other_geom)
+
+  @property
+  def ot_cost(self) -> jnp.ndarray:
+    """Return (by recomputing it) transport cost of current solution."""
+    return self.cost_at_geom(other_geom=self.geom)
+
+  @property
   def transport_mass(self) -> float:
     """Sum of transport matrix."""
     return self.marginal(0).sum()
