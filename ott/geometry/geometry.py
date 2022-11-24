@@ -657,6 +657,7 @@ class Geometry:
       Low-rank geometry.
     """
     from ott.geometry import low_rank
+    assert rank >= 0, f"Rank must be non-negative, got {rank}."
 
     if rank == 0 or rank >= min(*self.shape):
       # TODO(marcocuturi): add hermitian=self.is_symmetric, currently bugging.
