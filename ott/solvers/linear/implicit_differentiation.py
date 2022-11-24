@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax._src import api
 
 from ott import utils
 from ott.math import unbalanced_functions
@@ -45,8 +46,8 @@ class ImplicitDiff:
     precondition_fun: TODO(marcocuturi)
   """
 
-  solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
-                       Tuple[jnp.ndarray, ...]] = jax.scipy.sparse.linalg.cg
+  solver_fun: Callable[[jnp.ndarray, jnp.ndarray], Tuple[jnp.ndarray,
+                                                         ...]] = None
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
   symmetric: bool = False
@@ -150,21 +151,18 @@ class ImplicitDiff:
     derivative = jax.vmap(jax.grad(precond_fun))
 
     n, m = geom.shape
-    # pylint: disable=g-long-lambda
-    vjp_fg = lambda z: app_transport(
-        f, g, z * derivative(marginal_b(f, g)), axis=1
-    ) / geom.epsilon
-    vjp_gf = lambda z: app_transport(
-        f, g, z * derivative(marginal_a(f, g)), axis=0
+
+    vjp_gf = lambda z: api.linear_call(
+        lambda _, vec: app_transport(f, g, vec, axis=0), lambda _, vec:
+        app_transport(f, g, vec, axis=1), (), z
     ) / geom.epsilon
 
-    if not self.symmetric:
-      vjp_fgt = lambda z: app_transport(
-          f, g, z, axis=0
-      ) * derivative(marginal_b(f, g)) / geom.epsilon
-      vjp_gft = lambda z: app_transport(
-          f, g, z, axis=1
-      ) * derivative(marginal_a(f, g)) / geom.epsilon
+    vjp_fg = lambda z: api.linear_call(
+        lambda _, vec: app_transport(f, g, vec, axis=1), lambda _, vec:
+        app_transport(f, g, vec, axis=0), (), z
+    ) / geom.epsilon
+
+    solver_fun = jax.scipy.sparse.linalg.cg if self.symmetric else jax.scipy.sparse.linalg.gmres
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
@@ -179,8 +177,7 @@ class ImplicitDiff:
         )
     )
 
-    n, m = geom.shape
-    # Remove ridge on kernel space if problem is balanced.
+    # Remove ridge on kernel space if problem is unbalanced.
     ridge_kernel = jnp.where(ot_prob.is_balanced, self.ridge_kernel, 0.0)
 
     # Forks on using Schur complement of either A or D, depending on size.
@@ -190,19 +187,11 @@ class ImplicitDiff:
       schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
       res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
-        schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
+      schur = lambda z: (
+          schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      )
 
-      sch = self.solver_fun(schur, res)[0]
+      sch = solver_fun(schur, res)[0]
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
     else:
@@ -211,19 +200,11 @@ class ImplicitDiff:
       schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
       res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
-        schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
+      schur = lambda z: (
+          schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      )
 
-      sch = self.solver_fun(schur, res)[0]
+      sch = solver_fun(schur, res)[0]
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
