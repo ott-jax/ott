@@ -154,12 +154,12 @@ class ImplicitDiff:
 
     vjp_gf = lambda z: api.linear_call(
         lambda _, vec: app_transport(f, g, vec, axis=0), lambda _, vec:
-        app_transport(f, g, vec, axis=1), (), z
+        app_transport(f, g, vec, axis=1), (), z * derivative(marginal_a(f, g))
     ) / geom.epsilon
 
     vjp_fg = lambda z: api.linear_call(
         lambda _, vec: app_transport(f, g, vec, axis=1), lambda _, vec:
-        app_transport(f, g, vec, axis=0), (), z
+        app_transport(f, g, vec, axis=0), (), z * derivative(marginal_b(f, g))
     ) / geom.epsilon
 
     solver_fun = jax.scipy.sparse.linalg.cg if self.symmetric else jax.scipy.sparse.linalg.gmres
