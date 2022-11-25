@@ -6,8 +6,10 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
+from ott.problems.linear import linear_problem
+
 if TYPE_CHECKING:
-  from ott.geometry import costs, pointcloud
+  from ott.geometry import costs
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -155,7 +157,8 @@ class EntropicPotentials(DualPotentials):
   Args:
     f: The first dual potential vector of shape ``[n,]``.
     g: The second dual potential vector of shape ``[m,]``.
-    geom: Geometry used to compute the dual potentials using
+    prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
+      geometry that was used to compute the dual potentials using, e.g.,
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
     a: Probability weights for the first measure.
     b: Probability weights for the second measure.
@@ -165,16 +168,12 @@ class EntropicPotentials(DualPotentials):
       self,
       f: jnp.ndarray,
       g: jnp.ndarray,
-      geom: "pointcloud.PointCloud",
-      a: jnp.ndarray,
-      b: jnp.ndarray,
+      prob: linear_problem.LinearProblem,
   ):
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g, cost_fn=geom.cost_fn, corr=False)
-    self._geom = geom
-    self._a = a
-    self._b = b
+    super().__init__(f, g, cost_fn=prob.geom.cost_fn, corr=False)
+    self._prob = prob
 
   @property
   def f(self) -> Potential_t:
@@ -199,25 +198,29 @@ class EntropicPotentials(DualPotentials):
       lse = -epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
       return jnp.squeeze(lse)
 
+    assert isinstance(
+        self._prob.geom, pointcloud.PointCloud
+    ), f"Expected point cloud geometry, found `{type(self._prob.geom)}`."
     epsilon = self.epsilon
+
     if kind == "g":
       # When seeking to evaluate 2nd potential function, 1st set of potential
       # values and support should be used,
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential = self._f
-      y = self._geom.x
-      prob_weights = self._a
+      y = self._prob.geom.x
+      prob_weights = self._prob.a
     else:
       potential = self._g
-      y = self._geom.y
-      prob_weights = self._b
+      y = self._prob.geom.y
+      prob_weights = self._prob.b
 
     return callback
 
   @property
   def epsilon(self) -> float:
     """Entropy regularizer."""
-    return self._geom.epsilon
+    return self._prob.geom.epsilon
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self._geom, self._a, self._b], {}
+    return [self._f, self._g, self._prob], {}

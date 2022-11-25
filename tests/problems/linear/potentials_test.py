@@ -27,11 +27,13 @@ class TestEntropicPotentials:
     keys = jax.random.split(rng, 5)
     f = jax.random.normal(keys[0], (n,))
     g = jax.random.normal(keys[1], (n,))
-    x = jax.random.normal(keys[2], (n, 3))
+
+    geom = pointcloud.PointCloud(jax.random.normal(keys[2], (n, 3)))
     a = jax.random.normal(keys[4], (n, 3))
     b = jax.random.normal(keys[5], (n, 3))
+    prob = linear_problem.LinearProblem(geom, a, b)
 
-    pot = potentials.EntropicPotentials(f, g, pointcloud.PointCloud(x), a, b)
+    pot = potentials.EntropicPotentials(f, g, prob)
 
     _ = jax.device_put(pot, device)
 
