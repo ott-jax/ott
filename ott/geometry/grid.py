@@ -371,7 +371,7 @@ class Grid(geometry.Geometry):
       **kwargs: Any,
   ) -> low_rank.LRCGeometry:
     """Converts grid to low-rank geometry.
-    
+
     Conversion is carried out by taking advantage of the fact that the true cost
     matrix of a grid geometry is a sum of kronecker products of local cost
     matrices (for each dimension) with matrice of 1's (both on left and right
@@ -379,7 +379,7 @@ class Grid(geometry.Geometry):
     factorized if each of these cost matrices can be factorized, which we do
     by forcing a conversion to a low rank geometry object.
 
-    Args: 
+    Args:
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
 

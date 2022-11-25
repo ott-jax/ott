@@ -248,7 +248,7 @@ class SinkhornOutput(NamedTuple):
 
   def ot_cost_at_geom(self, other_geom: geometry.Geometry) -> jnp.ndarray:
     """Return bare transport cost of current solution at any geometry.
-    
+
     In order to compute cost, we check first if the geometry can be converted
     to a low-rank cost geometry in order to speed up computations, without
     having to materialize the full cost matrix. If this is not possible,
@@ -256,9 +256,9 @@ class SinkhornOutput(NamedTuple):
 
     Args:
       other_geom: geometry whose cost matrix is used to evaluate tranposrtation.
-    
+
     Returns:
-      the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
+      the transportation cost at :math:`C`, i.e. :math:`\\langle P, C \rangle`.
     """
     # TODO(cuturi): handle online mode for non Euclidean pointcloud geometries.
     if other_geom.can_LRC:
