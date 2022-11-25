@@ -24,12 +24,14 @@ class TestEntropicPotentials:
   def test_device_put(self, rng: jax.random.PRNGKeyArray):
     n = 10
     device = jax.devices()[0]
-    key1, key2, key3 = jax.random.split(rng, 3)
-    f = jax.random.normal(key1, (n,))
-    g = jax.random.normal(key2, (n,))
-    x = jax.random.normal(key3, (n, 3))
+    keys = jax.random.split(rng, 5)
+    f = jax.random.normal(keys[0], (n,))
+    g = jax.random.normal(keys[1], (n,))
+    x = jax.random.normal(keys[2], (n, 3))
+    a = jax.random.normal(keys[4], (n, 3))
+    b = jax.random.normal(keys[5], (n, 3))
 
-    pot = potentials.EntropicPotentials(f, g, pointcloud.PointCloud(x))
+    pot = potentials.EntropicPotentials(f, g, pointcloud.PointCloud(x), a, b)
 
     _ = jax.device_put(pot, device)
 

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -157,8 +157,8 @@ class EntropicPotentials(DualPotentials):
     g: The second dual potential vector of shape ``[m,]``.
     geom: Geometry used to compute the dual potentials using
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
-    a: Probability weights for the first measure. If `None`, use uniform.
-    b: Probability weights for the second measure. If `None`, use uniform.
+    a: Probability weights for the first measure.
+    b: Probability weights for the second measure.
   """
 
   def __init__(
@@ -166,8 +166,8 @@ class EntropicPotentials(DualPotentials):
       f: jnp.ndarray,
       g: jnp.ndarray,
       geom: "pointcloud.PointCloud",
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      a: jnp.ndarray,
+      b: jnp.ndarray,
   ):
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
@@ -206,29 +206,13 @@ class EntropicPotentials(DualPotentials):
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential = self._f
       y = self._geom.x
-      prob_weights = self.a
+      prob_weights = self._a
     else:
       potential = self._g
       y = self._geom.y
-      prob_weights = self.b
+      prob_weights = self._b
 
     return callback
-
-  @property
-  def a(self) -> jnp.ndarray:
-    """Probability weights of the first measure."""
-    if self._a is not None:
-      return self._a
-    n, _ = self._geom.shape
-    return jnp.ones(n) / n
-
-  @property
-  def b(self) -> jnp.ndarray:
-    """Probability weights of the second measure."""
-    if self._b is not None:
-      return self._b
-    _, m = self._geom.shape
-    return jnp.ones(m) / m
 
   @property
   def epsilon(self) -> float:
