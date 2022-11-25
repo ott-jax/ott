@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -6,8 +6,10 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 from typing_extensions import Literal
 
+from ott.problems.linear import linear_problem
+
 if TYPE_CHECKING:
-  from ott.geometry import costs, pointcloud
+  from ott.geometry import costs
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -89,7 +91,6 @@ class DualPotentials:
       Wasserstein distance.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
-
     f = jax.vmap(self.f)
 
     if self._corr:
@@ -100,11 +101,9 @@ class DualPotentials:
       C = jnp.mean(jnp.sum(src ** 2, axis=-1))
       C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
       return 2. * (term1 + term2) + C
-    else:
-      g = jax.vmap(self.g)
-      C = jnp.mean(f(src))
-      C += jnp.mean(g(tgt))
-      return C
+
+    g = jax.vmap(self.g)
+    return jnp.mean(f(src)) + jnp.mean(g(tgt))
 
   @property
   def f(self) -> Potential_t:
@@ -137,7 +136,12 @@ class DualPotentials:
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self.cost_fn], {"corr": self._corr}
+    return [], {
+        "f": self._f,
+        "g": self._g,
+        "cost_fn": self.cost_fn,
+        "corr": self._corr
+    }
 
   @classmethod
   def tree_unflatten(
@@ -153,35 +157,21 @@ class EntropicPotentials(DualPotentials):
   Args:
     f: The first dual potential vector of shape ``[n,]``.
     g: The second dual potential vector of shape ``[m,]``.
-    geom: Geometry used to compute the dual potentials using
+    prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
+      geometry that was used to compute the dual potentials using, e.g.,
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
-    a: Probability weights for the first measure. If `None`, use uniform.
-    b: Probability weights for the second measure. If `None`, use uniform.
   """
 
   def __init__(
       self,
       f: jnp.ndarray,
       g: jnp.ndarray,
-      geom: "pointcloud.PointCloud",
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      prob: linear_problem.LinearProblem,
   ):
-    n, m = geom.shape
-    a = jnp.ones(n) / n if a is None else a
-    b = jnp.ones(m) / m if b is None else b
-
-    assert f.shape == (n,) and a.shape == (n,), \
-        f"Expected `f` and `a` to be of shape `{n,}`, found `{f.shape}`."
-    assert g.shape == (m,) and b.shape == (m,), \
-        f"Expected `g` and `b` to be of shape `{m,}`, found `{g.shape}`."
-
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g, cost_fn=geom.cost_fn, corr=False)
-    self._geom = geom
-    self._a = a
-    self._b = b
+    super().__init__(f, g, cost_fn=prob.geom.cost_fn, corr=False)
+    self._prob = prob
 
   @property
   def f(self) -> Potential_t:
@@ -206,25 +196,29 @@ class EntropicPotentials(DualPotentials):
       lse = -epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
       return jnp.squeeze(lse)
 
+    assert isinstance(
+        self._prob.geom, pointcloud.PointCloud
+    ), f"Expected point cloud geometry, found `{type(self._prob.geom)}`."
     epsilon = self.epsilon
+
     if kind == "g":
       # When seeking to evaluate 2nd potential function, 1st set of potential
       # values and support should be used,
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential = self._f
-      y = self._geom.x
-      prob_weights = self._a
+      y = self._prob.geom.x
+      prob_weights = self._prob.a
     else:
       potential = self._g
-      y = self._geom.y
-      prob_weights = self._b
+      y = self._prob.geom.y
+      prob_weights = self._prob.b
 
     return callback
 
   @property
   def epsilon(self) -> float:
     """Entropy regularizer."""
-    return self._geom.epsilon
+    return self._prob.geom.epsilon
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self._geom, self._a, self._b], {}
+    return [self._f, self._g, self._prob], {}

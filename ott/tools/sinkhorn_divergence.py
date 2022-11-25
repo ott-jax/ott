@@ -18,7 +18,7 @@ from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 import jax.numpy as jnp
 
 from ott.geometry import costs, geometry, pointcloud, segment
-from ott.problems.linear import potentials
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
 
 __all__ = [
@@ -38,14 +38,15 @@ class SinkhornDivergenceOutput(NamedTuple):
   b: jnp.ndarray
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
-    """Return dual estimators, (8) in https://arxiv.org/pdf/2202.08919.pdf ."""
+    """Return dual estimators :cite:`pooladian:22`, eq. 8."""
     geom_xy, *_ = self.geoms
-    (f_xy, g_xy), (f_x, g_x), (f_y, g_y) = self.potentials
+    prob = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
 
+    (f_xy, g_xy), (f_x, g_x), (f_y, g_y) = self.potentials
     f = f_xy - f_x
     g = g_xy if g_y is None else (g_xy - g_y)  # case when `static_b=True`
 
-    return potentials.EntropicPotentials(f, g, geom_xy, self.a, self.b)
+    return potentials.EntropicPotentials(f, g, prob)
 
 
 def sinkhorn_divergence(

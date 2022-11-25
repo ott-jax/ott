@@ -293,9 +293,7 @@ class SinkhornOutput(NamedTuple):
 
   def to_dual_potentials(self) -> potentials.EntropicPotentials:
     """Return the entropic map estimator."""
-    return potentials.EntropicPotentials(
-        self.f, self.g, geom=self.geom, a=self.a, b=self.b
-    )
+    return potentials.EntropicPotentials(self.f, self.g, self.ot_prob)
 
 
 @jax.tree_util.register_pytree_node_class
