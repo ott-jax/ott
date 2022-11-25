@@ -160,8 +160,6 @@ class EntropicPotentials(DualPotentials):
     prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
       geometry that was used to compute the dual potentials using, e.g.,
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
-    a: Probability weights for the first measure.
-    b: Probability weights for the second measure.
   """
 
   def __init__(
