@@ -241,7 +241,7 @@ class LRCGeometry(geometry.Geometry):
     return self
 
   @property
-  def _can_LRC(self):
+  def can_LRC(self):
     return True
 
   def subset(

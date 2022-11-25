@@ -194,9 +194,9 @@ class LRSinkhornOutput(NamedTuple):
     """Return OT cost for current solution, evaluated at any cost matrix."""
     return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
 
-  def ot_cost_at_geom(self, other_geom: geometry.Geometry) -> jnp.ndarray:
+  def ot_cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return (by recomputing it) bare transport cost of current solution."""
-    return self.cost_at_geom(self, other_geom)
+    return self.cost_at_geom(other_geom)
 
   @property
   def ot_cost(self) -> jnp.ndarray:

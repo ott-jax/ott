@@ -78,7 +78,7 @@ class TestSinkhorn:
     assert threshold > err
 
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
-    cost_other = out.cost_at_geom(other_geom)
+    cost_other = out.ot_cost_at_geom(other_geom)
     assert not jnp.isnan(cost_other)
 
   def test_autoepsilon(self):
@@ -466,6 +466,7 @@ class TestSinkhorn:
 
     out = solver(problem)
     assert out.converged
+    assert out.ot_cost > 0.0
 
   def test_ot_cost_grid(self):
     """Test computation of OT cost for Grids."""
@@ -491,12 +492,16 @@ class TestSinkhorn:
     cost = jnp.sum(transport_matrix * cost_matrix)
     np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)
 
-  def test_ot_cost_pointcloud(self):
+  @pytest.mark.fast.with_args(
+      cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.2)],
+  )
+  def test_ot_cost_pointcloud(self, cost_fn):
     """Test computation of OT cost for Grids."""
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
 
     lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
     solver = sinkhorn.Sinkhorn()
     out = solver(lin_prob)
+    assert out.ot_cost > 0.0
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)

@@ -134,7 +134,7 @@ class Grid(geometry.Geometry):
     raise NotImplementedError('Median cost not implemented for grids.')
 
   @property
-  def _can_LRC(self) -> bool:
+  def can_LRC(self) -> bool:
     return True
 
   @property
@@ -370,15 +370,30 @@ class Grid(geometry.Geometry):
       scale: float = 1.0,
       **kwargs: Any,
   ) -> low_rank.LRCGeometry:
-    r"""Convert grid to low-rank geometry."""
+    """Converts grid to low-rank geometry.
+    
+    Conversion is carried out by taking advantage of the fact that the true cost
+    matrix of a grid geometry is a sum of kronecker products of local cost
+    matrices (for each dimension) with matrice of 1's (both on left and right
+    sides) of varying dimension. Each of the matrices in that sum can be
+    factorized if each of these cost matrices can be factorized, which we do
+    by forcing a conversion to a low rank geometry object.
+
+    Args: 
+      scale: Value used to rescale the factors of the low-rank geometry.
+        Useful when this geometry is used in the linear term of fused GW.
+
+    Returns:
+      Low-rank geometry.
+    """
     cost_1 = []
     cost_2 = []
     for dimension, geom in enumerate(self.geometries):
-      geom = geom.to_LRCGeometry()
+      geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
       c_1, c_2 = geom.cost_1, geom.cost_2
       l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
-      l = 1 if l is None else int(jnp.prod(jnp.array(l)))
-      r = 1 if r is None else int(jnp.prod(jnp.array(r)))
+      l = int(np.prod(np.array(l)))
+      r = int(np.prod(np.array(r)))
       cost_1.append(
           jnp.kron(jnp.ones((l, 1)), jnp.kron(c_1, jnp.ones((r, 1),)))
       )

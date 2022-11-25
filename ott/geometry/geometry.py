@@ -182,7 +182,7 @@ class Geometry:
     return 0, 0
 
   @property
-  def _can_LRC(self) -> bool:
+  def can_LRC(self) -> bool:
     """Check quickly if casting geometry as LRC makes sense.
 
     This check is only carried out using basic considerations from the geometry,
@@ -635,7 +635,7 @@ class Geometry:
   ) -> 'low_rank.LRCGeometry':
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
-    When rank=min(n,m) or is equal to 0 (default), use SVD.
+    When `rank=min(n,m)` or `0` (by default), use :func:`jax.numpy.linalg.svd`.
 
     For other values, use the routine in sublinear time :cite:`indyk:19`.
     Uses the implementation of :cite:`scetbon:21`, algorithm 4.
@@ -658,8 +658,9 @@ class Geometry:
     """
     from ott.geometry import low_rank
     assert rank >= 0, f"Rank must be non-negative, got {rank}."
+    n, m = self.shape
 
-    if rank == 0 or rank >= min(*self.shape):
+    if rank == 0 or rank >= min(n, m):
       # TODO(marcocuturi): add hermitian=self.is_symmetric, currently bugging.
       u, s, vh = jnp.linalg.svd(
           self.cost_matrix,
@@ -672,7 +673,6 @@ class Geometry:
     else:
       rng = jax.random.PRNGKey(seed)
       key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
-      n, m = self.shape
       n_subset = min(int(rank / tol), n, m)
 
       i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
