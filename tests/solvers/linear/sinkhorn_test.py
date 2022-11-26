@@ -450,7 +450,7 @@ class TestSinkhorn:
     # check only one iteration suffices when restarting with same data.
     assert num_iter_restarted == 1
 
-  @pytest.mark.limit_memory("90 MB")
+  @pytest.mark.limit_memory("110 MB")
   @pytest.mark.fast.with_args("batch_size", [500, 1000], only_fast=0)
   def test_sinkhorn_online_memory(self, batch_size: int):
     # offline: Total memory allocated: 240.1MiB
