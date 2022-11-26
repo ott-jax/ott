@@ -382,13 +382,20 @@ class Grid(geometry.Geometry):
     Args:
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
-
+      kwargs: Keyword arguments, such as ``rank``, to
+        :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
+        geometries on each slice are not low-rank.
     Returns:
       Low-rank geometry.
     """
     cost_1 = []
     cost_2 = []
     for dimension, geom in enumerate(self.geometries):
+      # Convert to exact LRCGeometry, even if the distance matrix on each slice
+      # is not low-rank. The idea here is that even if the cost matrix on slice
+      # i is full rank n_i, we are better off doing two redundant n_i x n_i
+      # matrix products, because this provides access to an overall low-rank
+      # factorization for the entire cost matrix.
       geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
       c_1, c_2 = geom.cost_1, geom.cost_2
       l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
