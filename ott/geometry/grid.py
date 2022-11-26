@@ -386,16 +386,21 @@ class Grid(geometry.Geometry):
         :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
         geometries on each slice are not low-rank.
     Returns:
-      Low-rank geometry.
+      :class:`~ott.geometry.low_rank.LRCGeometry` object.
     """
     cost_1 = []
     cost_2 = []
     for dimension, geom in enumerate(self.geometries):
-      # Convert to exact LRCGeometry, even if the distance matrix on each slice
-      # is not low-rank. The idea here is that even if the cost matrix on slice
-      # i is full rank n_i, we are better off doing two redundant n_i x n_i
-      # matrix products, because this provides access to an overall low-rank
-      # factorization for the entire cost matrix.
+      # An overall low-rank conversion of the cost matrix on a grid, to an
+      # object of :class:`~ott.geometry.low_rank.LRCGeometry`, necesitates an
+      # exact low-rank matrix decompisition of the cost matrix of each slice
+      # of that grid, even if costs on such slices are not low-rank.
+      # The idea here is that even if the cost matrix on slice `i` is full rank
+      # `n_i`, we are better off doing 2 redundant `n_i x n_i` matrix products,
+      # because this is the only way to access to an overall low-rank
+      # factorization for the entire cost matrix. To get such an exact
+      # decomposition, the parameter `rank` is set to `0`, triggering a full
+      # singular value decomposition if needed.
       geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
       c_1, c_2 = geom.cost_1, geom.cost_2
       l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
