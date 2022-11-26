@@ -102,10 +102,10 @@ class PointCloud(geometry.Geometry):
 
   @property
   def can_LRC(self):
-    return self.is_squared_euclidean and self.check_LRC_dim
+    return self.is_squared_euclidean and self._check_LRC_dim
 
   @property
-  def check_LRC_dim(self):
+  def _check_LRC_dim(self):
     (n, m), d = self.shape, self.x.shape[1]
     return n * m > (n + m) * d
 
