@@ -617,7 +617,7 @@ class PointCloud(geometry.Geometry):
       Otherwise, returns the re-scaled low-rank geometry.
     """
     if self.is_squared_euclidean:
-      if self.check_LRC_dim:
+      if self._check_LRC_dim:
         return self._sqeucl_to_lr(scale)
       # we don't update the `scale_factor` because in GW, the linear cost
       # is first materialized and then scaled by `fused_penalty` afterwards
