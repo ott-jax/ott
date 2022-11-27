@@ -255,7 +255,8 @@ class SinkhornOutput(NamedTuple):
     return self.transport_cost_at_geom(other_geom=self.geom)
 
   def transport_cost_at_geom(
-    self, other_geom: geometry.Geometry) -> jnp.ndarray:
+      self, other_geom: geometry.Geometry
+  ) -> jnp.ndarray:
     r"""Return bare transport cost of current solution at any geometry.
 
     In order to compute cost, we check first if the geometry can be converted

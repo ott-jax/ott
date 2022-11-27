@@ -512,7 +512,9 @@ class TestSinkhorn:
     # Check duality gap
     assert out.primal_cost - out.dual_cost > 0.0
     # Check that it is small
-    np.testing.assert_allclose(
-      (out.primal_cost-out.dual_cost)/out.primal_cost, 0, atol=1e-1)
+    np.testing.assert_allclose((out.primal_cost - out.dual_cost) /
+                               out.primal_cost,
+                               0,
+                               atol=1e-1)
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
