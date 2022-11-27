@@ -104,7 +104,7 @@ class TestLRSinkhorn:
 
     # Ensure cost can still be computed on different geometry.
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
-    cost_other = out.ot_cost_at_geom(other_geom)
+    cost_other = out.transport_cost_at_geom(other_geom)
     assert cost_other > 0.0
 
     # Ensure cost is higher when using high entropy.

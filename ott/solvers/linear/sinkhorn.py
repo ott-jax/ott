@@ -242,11 +242,20 @@ class SinkhornOutput(NamedTuple):
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
-  def ot_cost(self) -> jnp.ndarray:
-    """Return transport cost of current solution at geometry."""
-    return self.ot_cost_at_geom(other_geom=self.geom)
+  def dual_cost(self) -> jnp.ndarray:
+    """Return transport cost in dual form of current solution."""
+    a, b = self.ot_prob.a, self.ot_prob.b
+    dual_cost = jnp.sum(jnp.where(a > 0.0, a * self.f, 0))
+    dual_cost += jnp.sum(jnp.where(b > 0.0, b * self.g, 0))
+    return dual_cost
 
-  def ot_cost_at_geom(self, other_geom: geometry.Geometry) -> jnp.ndarray:
+  @property
+  def primal_cost(self) -> jnp.ndarray:
+    """Return transport cost of current solution at geometry."""
+    return self.transport_cost_at_geom(other_geom=self.geom)
+
+  def transport_cost_at_geom(
+    self, other_geom: geometry.Geometry) -> jnp.ndarray:
     r"""Return bare transport cost of current solution at any geometry.
 
     In order to compute cost, we check first if the geometry can be converted

@@ -78,7 +78,7 @@ class TestSinkhorn:
     assert threshold > err
 
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
-    cost_other = out.ot_cost_at_geom(other_geom)
+    cost_other = out.transport_cost_at_geom(other_geom)
     assert not jnp.isnan(cost_other)
 
   def test_autoepsilon(self):
@@ -466,20 +466,21 @@ class TestSinkhorn:
 
     out = solver(problem)
     assert out.converged
-    assert out.ot_cost > 0.0
+    assert out.primal_cost > 0.0
 
-  def test_ot_cost_grid(self):
-    """Test computation of OT cost for Grids."""
+  @pytest.mark.fast.with_args(
+      cost_fn=[None, costs.SqPNorm(1.6)],
+  )
+  def test_primal_cost_grid(self, cost_fn):
+    """Test computation of primal / costs for Grids."""
     ns = [6, 7, 11]
     xs = [
         jax.random.normal(jax.random.PRNGKey(i), (n,))
         for i, n in enumerate(ns)
     ]
-    geom = grid.Grid(xs)
+    geom = grid.Grid(xs, cost_fns=[cost_fn], epsilon=0.1)
     a = jax.random.uniform(jax.random.PRNGKey(0), (geom.shape[0],))
     b = jax.random.uniform(jax.random.PRNGKey(1), (geom.shape[0],))
-    a = a.at[10].set(0.0)
-    b = a.at[13].set(0.0)
     a, b = a / jnp.sum(a), b / jnp.sum(b)
     lin_prob = linear_problem.LinearProblem(geom, a=a, b=b)
     solver = sinkhorn.Sinkhorn()
@@ -490,18 +491,28 @@ class TestSinkhorn:
     # Recover full transport by applying it to columns of identity matrix.
     transport_matrix = out.apply(jnp.eye(geom.shape[0]))
     cost = jnp.sum(transport_matrix * cost_matrix)
-    np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)
+    assert cost > 0.0
+    assert out.primal_cost > 0.0
+    np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-6, atol=1e-6)
+    assert jnp.isfinite(out.dual_cost)
+    assert out.primal_cost - out.dual_cost > 0.0
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.2)],
+      cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.6)],
   )
-  def test_ot_cost_pointcloud(self, cost_fn):
-    """Test computation of OT cost for Grids."""
-    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
+  def test_primal_cost_pointcloud(self, cost_fn):
+    """Test computation of primal and dual costs for PointCouds."""
+    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=1e-3)
 
     lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
     solver = sinkhorn.Sinkhorn()
     out = solver(lin_prob)
-    assert out.ot_cost > 0.0
+    assert out.primal_cost > 0.0
+    assert jnp.isfinite(out.dual_cost)
+    # Check duality gap
+    assert out.primal_cost - out.dual_cost > 0.0
+    # Check that it is small
+    np.testing.assert_allclose(
+      (out.primal_cost-out.dual_cost)/out.primal_cost, 0, atol=1e-1)
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
-    np.testing.assert_allclose(cost, out.ot_cost, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
