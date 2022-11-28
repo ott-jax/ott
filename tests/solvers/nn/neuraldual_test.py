@@ -10,8 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
 from typing import Iterator, Sequence, Tuple
 

@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """A Jax version of the W barycenter algorithm (Cuturi Doucet 2014)."""
 import functools
 from typing import Any, NamedTuple, Optional, Tuple
