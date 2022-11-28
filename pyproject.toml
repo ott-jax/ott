@@ -1,11 +1,96 @@
 [build-system]
-requires = [
-    "setuptools>=45",
-    "setuptools-scm[toml]>=6.2",
-]
+requires = ["setuptools>=61", "setuptools-scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "ott-jax"
+description = "Optimal Transport Tools in JAX"
+requires-python = ">=3.7"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+authors = [
+    {name = "ott", email = "optimal.transport.tools@gmail.com"}
+]
+urls = {"Source code" = "https://github.com/ott-jax/ott", "Documentation" = "https://ott-jax.readthedocs.io"}
+dynamic = ["version"]
+dependencies = [
+    'importlib-metadata>=1.0; python_version<"3.8"',
+    "absl-py>=0.7.0",
+    "jax>=0.1.67",
+    "jaxlib>=0.1.47",
+    # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
+    "numpy>=1.18.4, !=1.23.0",
+    "matplotlib>=2.0.1",
+    "flax>=0.5.2",
+    "optax>=0.1.1",
+    'typing_extensions; python_version<"3.8"',
+    "scipy>=1.7.0",
+    "scikit-learn>=1.0",
+]
+keywords = [
+    "optimal transport",
+    "gromov wasserstein",
+    "sinkhorn",
+    "low-rank sinkhorn",
+    "sinkhorn divergences",
+    "wasserstein",
+    "wasserstein barycenter",
+    "jax",
+    "autodiff",
+    "implicit differentiation",
+]
+classifiers = [
+    "Typing :: Typed",
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Natural Language :: English",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+]
+test = [
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "testbook",
+    "chex",
+    "networkx>=2.5",
+]
+experimental = [
+    "scikit-sparse>=0.4.6",
+]
+docs = [
+    "sphinx>=4.0",
+    "nbsphinx>=0.8.0",
+    "recommonmark>=0.7.1",
+    "ipython>=7.20.0",
+    "sphinx_autodoc_typehints>=1.12.0",
+    "sphinx-book-theme>=0.3.3",
+    "sphinxcontrib-bibtex",
+]
+
+[tool.setuptools.packages]
+find = {where = ["src"], namespaces = false}
+
 [tool.setuptools_scm]
+
+[tool.black]
+line-length = 80
+target-version = ['py38']
+include = '\.ipynb$'
 
 [tool.isort]
 profile = "black"
@@ -13,7 +98,33 @@ include_trailing_comma = true
 multi_line_output = 3
 skip_glob = ["docs/*"]
 
-[tool.black]
-line-length = 80
-target-version = ['py38']
-include = '\.ipynb$'
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = '-v -m "not notebook"'
+testpaths = [
+    "tests",
+]
+markers = [
+    "fast: Mark tests as fast.",
+    "notebook: Mark tests as notebook related.",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = "src/"
+omit = "*/__init__.py"
+
+
+[tool.coverage.report]
+exclude_lines = [
+    '\#.*pragma:\s*no.?cover',
+    "^if __name__ == .__main__.:$",
+    '^\s*raise AssertionError\b',
+    '^\s*raise NotImplementedError\b',
+    '^\s*return NotImplemented\b',
+]
+precision = 2
+show_missing = true
+skip_empty = true
+sort = "Miss"
