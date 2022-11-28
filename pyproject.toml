@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ott-jax"
-description = "Optimal Transport Tools in JAX"
+description = "Optimal Transport Tools in JAX."
 requires-python = ">=3.7"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -12,7 +12,6 @@ license = {file = "LICENSE"}
 authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
-urls = {"Source code" = "https://github.com/ott-jax/ott", "Documentation" = "https://ott-jax.readthedocs.io"}
 dependencies = [
     'importlib-metadata>=1.0; python_version<"3.8"',
     "jax>=0.1.67",
@@ -55,6 +54,12 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
 ]
 
+[project.urls]
+"Source Code" = "https://github.com/ott-jax/ott"
+Documentation = "https://ott-jax.readthedocs.io"
+"Issue Tracker" = "https://github.com/ott-jax/ott/issues"
+Changelog = "https://github.com/ott-jax/ott/releases"
+
 [project.optional-dependencies]
 dev = [
     "pre-commit",
@@ -63,6 +68,7 @@ test = [
     "pytest",
     "pytest-xdist",
     "pytest-cov",
+    "coverage[toml]",
     "testbook",
     "chex",
     "networkx>=2.5",

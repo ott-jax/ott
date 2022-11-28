@@ -41,10 +41,10 @@ class TestSinkhornDivergence:
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
                costs.SqPNorm(p=2.1)],
-      epsilon=[.01, .001],
+      epsilon=[1e-2, 1e-3],
       only_fast={
-          "costs_fn": costs.SqEuclidean(),
-          "epsilon": .01
+          "cost_fn": costs.SqEuclidean(),
+          "epsilon": 1e-2
       },
   )
   def test_euclidean_point_cloud(self, cost_fn, epsilon):
