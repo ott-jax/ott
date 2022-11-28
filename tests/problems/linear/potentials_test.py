@@ -94,7 +94,7 @@ class TestEntropicPotentials:
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.3
 
-  @pytest.mark.fast.with_args(p=[1.3, 2.2], forward=[False, True], only_fast=0)
+  @pytest.mark.fast.with_args(p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0)
   def test_entropic_potentials_sqpnorm(
       self, rng: jnp.ndarray, p: float, forward: bool
   ):
@@ -128,7 +128,7 @@ class TestEntropicPotentials:
       div = sdiv(x, z).divergence
 
     div_0 = sdiv(x, y).divergence
-    assert div < .1 * div_0  # check we have moved points much closer to target.
+    assert div < (.1 if p > 1.0 else .25) * div_0  # check we have moved points much closer to target.
 
   @pytest.mark.fast.with_args(
       p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0
