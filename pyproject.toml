@@ -10,22 +10,20 @@ dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
 authors = [
-    {name = "ott", email = "optimal.transport.tools@gmail.com"}
+    {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 urls = {"Source code" = "https://github.com/ott-jax/ott", "Documentation" = "https://ott-jax.readthedocs.io"}
 dependencies = [
     'importlib-metadata>=1.0; python_version<"3.8"',
-    "absl-py>=0.7.0",
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
     "numpy>=1.18.4, !=1.23.0",
-    "matplotlib>=2.0.1",
+    "matplotlib>=3.0.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
     'typing_extensions; python_version<"3.8"',
     "scipy>=1.7.0",
-    "scikit-learn>=1.0",
 ]
 keywords = [
     "optimal transport",
