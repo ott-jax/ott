@@ -57,7 +57,7 @@ def sinkhorn_divergence(
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
-    symmetric_sinkhorn: bool = False,
+    symmetric_sinkhorn: bool = True,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.

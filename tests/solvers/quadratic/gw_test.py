@@ -56,7 +56,7 @@ class TestQuadraticProblem:
 
     # point clouds are always converted, if possible
     if not as_pc and rank == -1:
-      with pytest.raises(AssertionError, match=r"Rank must be positive"):
+      with pytest.raises(AssertionError, match=r"Rank must"):
         _ = prob.to_low_rank()
       return
     lr_prob = prob.to_low_rank()

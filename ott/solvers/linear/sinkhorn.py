@@ -46,9 +46,17 @@ class SinkhornState(NamedTuple):
 
   def solution_error(
       self, ot_prob: linear_problem.LinearProblem, norm_error: Sequence[int],
-      lse_mode: bool
+      lse_mode: bool, parallel_dual_updates: bool
   ) -> jnp.ndarray:
-    return solution_error(self.fu, self.gv, ot_prob, norm_error, lse_mode)
+    """State dependent function to return error."""
+    return solution_error(
+        self.fu,
+        self.gv,
+        ot_prob,
+        norm_error,
+        lse_mode,
+        only_check_b=ot_prob.is_balanced and not parallel_dual_updates
+    )
 
   def ent_reg_cost(
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
@@ -57,14 +65,24 @@ class SinkhornState(NamedTuple):
 
 
 def solution_error(
-    f_u: jnp.ndarray, g_v: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
-    norm_error: Sequence[int], lse_mode: bool
+    f_u: jnp.ndarray,
+    g_v: jnp.ndarray,
+    ot_prob: linear_problem.LinearProblem,
+    norm_error: Sequence[int],
+    lse_mode: bool,
+    only_check_b: bool = False
 ) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
-  When the ``ot_prob`` problem is balanced, this is simply deviation to the
-  target marginals defined in ``ot_prob.a`` and ``ot_prob.b``. When the problem
-  is unbalanced, additional quantities must be taken into account.
+  When the ``ot_prob`` problem is balanced and the usual Sinkhorn updates are
+  used, this is simply deviation of the coupling's marginal to ``ot_prob.b``.
+  This is the case because the second (and last) update of the Sinkhorn
+  algorithm equalizes the row marginal of the coupling to ``ot_prob.a``. To
+  simplify the logic, this is parameterized by checking whether `only_check_b`
+  is `True`.
+
+  When that flag is `False`, typically, When the problem is unbalanced,
+  additional quantities to qualify optimality must be taken into account.
 
   Args:
     f_u: jnp.ndarray, potential or scaling
@@ -76,7 +94,7 @@ def solution_error(
   Returns:
     a positive number quantifying how far from optimality current solution is.
   """
-  if ot_prob.is_balanced:
+  if only_check_b:
     return marginal_error(
         f_u, g_v, ot_prob.b, ot_prob.geom, 0, norm_error, lse_mode
     )
@@ -224,6 +242,41 @@ class SinkhornOutput(NamedTuple):
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
+  def dual_cost(self) -> jnp.ndarray:
+    """Return transport cost in dual form of current solution."""
+    a, b = self.ot_prob.a, self.ot_prob.b
+    dual_cost = jnp.sum(jnp.where(a > 0.0, a * self.f, 0))
+    dual_cost += jnp.sum(jnp.where(b > 0.0, b * self.g, 0))
+    return dual_cost
+
+  @property
+  def primal_cost(self) -> jnp.ndarray:
+    """Return transport cost of current solution at geometry."""
+    return self.transport_cost_at_geom(other_geom=self.geom)
+
+  def transport_cost_at_geom(
+      self, other_geom: geometry.Geometry
+  ) -> jnp.ndarray:
+    r"""Return bare transport cost of current solution at any geometry.
+
+    In order to compute cost, we check first if the geometry can be converted
+    to a low-rank cost geometry in order to speed up computations, without
+    having to materialize the full cost matrix. If this is not possible,
+    we resort to instantiating both transport matrix and cost matrix.
+
+    Args:
+      other_geom: geometry whose cost matrix is used to evaluate tranposrtation.
+
+    Returns:
+      the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
+    """
+    # TODO(cuturi): handle online mode for non Euclidean pointcloud geometries.
+    if other_geom.can_LRC:
+      geom = other_geom.to_LRCGeometry()
+      return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
+    return jnp.sum(self.matrix * other_geom.cost_matrix)
+
+  @property
   def linear(self) -> bool:
     return isinstance(self.ot_prob, linear_problem.LinearProblem)
 
@@ -265,17 +318,16 @@ class SinkhornOutput(NamedTuple):
     except ValueError:
       return self.ot_prob.geom.transport_from_scalings(*self.scalings)
 
+  @property
+  def transport_mass(self) -> float:
+    """Sum of transport matrix."""
+    return self.marginal(0).sum()
+
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a ndarray; axis=1 for its transpose."""
-    try:
-      return self.ot_prob.geom.apply_transport_from_potentials(
-          self.f, self.g, inputs, axis=axis
-      )
-    except ValueError:
-      u, v = self.scalings
-      return self.ot_prob.geom.apply_transport_from_scalings(
-          u, v, inputs, axis=axis
-      )
+    return self.ot_prob.geom.apply_transport_from_potentials(
+        self.f, self.g, inputs, axis=axis
+    )
 
   def marginal(self, axis: int) -> jnp.ndarray:
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
@@ -286,10 +338,6 @@ class SinkhornOutput(NamedTuple):
         jnp.sum(self.matrix * other_geom.cost_matrix) -
         self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix))
     )
-
-  def transport_mass(self) -> float:
-    """Sum of transport matrix."""
-    return self.marginal(0).sum()
 
   def to_dual_potentials(self) -> potentials.EntropicPotentials:
     """Return the entropic map estimator."""
@@ -513,7 +561,9 @@ class Sinkhorn:
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.solution_error(ot_prob, self.norm_error, self.lse_mode), jnp.inf
+        state.solution_error(
+            ot_prob, self.norm_error, self.lse_mode, self.parallel_dual_updates
+        ), jnp.inf
     )
     errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
     return state.set(errors=errors)
