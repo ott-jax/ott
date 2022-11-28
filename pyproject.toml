@@ -112,9 +112,8 @@ markers = [
 [tool.coverage.run]
 branch = true
 parallel = true
-source = "src/"
-omit = "*/__init__.py"
-
+source = ["src/"]
+omit = ["*/__init__.py"]
 
 [tool.coverage.report]
 exclude_lines = [

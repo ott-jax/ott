@@ -39,18 +39,18 @@ jobs:
     - name: Print versions
       run: |
         python -VV
-        python -c "import jax; print('jax', jax.__version__)"
-        python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
+        python -c "import jax; print('jax==', jax.__version__)"
+        python -c "import jaxlib; print('jaxlib==', jaxlib.__version__)"
 
     - name: Run fast tests
       if: ${{ matrix.test_mark == 'fast' }}
       run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -m fast -n auto
+        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --memray -m fast -n auto
 
     - name: Run all tests
       if: ${{ matrix.test_mark == 'all' }}
       run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray
+        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --memray
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
