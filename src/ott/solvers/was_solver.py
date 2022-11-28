@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 

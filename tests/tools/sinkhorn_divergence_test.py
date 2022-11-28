@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
 
@@ -43,10 +41,10 @@ class TestSinkhornDivergence:
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
                costs.SqPNorm(p=2.1)],
-      epsilon=[.01, .001],
+      epsilon=[1e-2, 1e-3],
       only_fast={
-          "costs_fn": costs.SqEuclidean(),
-          "epsilon": .01
+          "cost_fn": costs.SqEuclidean(),
+          "epsilon": 1e-2
       },
   )
   def test_euclidean_point_cloud(self, cost_fn, epsilon):

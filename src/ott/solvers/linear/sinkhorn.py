@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """A Jax implementation of the Sinkhorn algorithm."""
 from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
