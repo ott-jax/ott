@@ -130,7 +130,9 @@ class TestEntropicPotentials:
     div_0 = sdiv(x, y).divergence
     assert div < .1 * div_0  # check we have moved points much closer to target.
 
-  @pytest.mark.fast.with_args(p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0)
+  @pytest.mark.fast.with_args(
+      p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0
+  )
   def test_entropic_potentials_pnorm(
       self, rng: jnp.ndarray, p: float, forward: bool
   ):
