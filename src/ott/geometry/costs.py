@@ -36,10 +36,10 @@ class CostFn(abc.ABC):
   that function is split into two norms -- evaluated on each input separately --
   followed by a pairwise cost that involves both inputs, as in:
 
-  `c(x,y) = norm(x) + norm(y) + pairwise(x,y)`
+  ``c(x,y) = norm(x) + norm(y) + pairwise(x,y)``
 
-  If the `norm` function is not implemented, that value is handled as a 0, and
-  only `pairwise(x,y)` is used.
+  If the :attr:`norm` function is not implemented, that value is handled as a 0,
+  and only :attr:`pairwise` is used.
   """
 
   # no norm function created by default.
