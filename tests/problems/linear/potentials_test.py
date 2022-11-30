@@ -140,7 +140,7 @@ class TestEntropicPotentials:
       self, rng: jnp.ndarray, p: float, forward: bool
   ):
     epsilon = None
-    cost_fn = costs.PNorm(p=p)
+    cost_fn = costs.PNormP(p=p)
     n1, n2, d = 43, 77, 2
     eps = 1e-2
     keys = jax.random.split(rng, 4)

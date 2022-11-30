@@ -23,7 +23,7 @@ import jax.numpy as jnp
 from ott.math import fixed_point_loop, matrix_square_root
 
 __all__ = [
-    "PNorm", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
+    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
     "UnbalancedBures"
 ]
 
@@ -173,16 +173,16 @@ class SqPNorm(TICost):
 
 
 @jax.tree_util.register_pytree_node_class
-class PNorm(TICost):
-  """p-norm (to the power p, and divided by p) of the difference of two vectors.
+class PNormP(TICost):
+  """p-norm to the power p (and divided by p) of the difference of two vectors.
 
   Args:
-    p: Power of the p-norm.
+    p: Power of the p-norm, a finite float larger than 1.0.
   """
 
   def __init__(self, p: float):
     super().__init__()
-    assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
+    assert p >= 1.0, "p parameter in p-norm should be larger than 1.0"
     assert p < jnp.inf, "p parameter in p-norm should be finite"
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
@@ -191,7 +191,7 @@ class PNorm(TICost):
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
 
   def h_legendre(self, z: jnp.ndarray) -> float:
-    assert self.q < jnp.inf, "Legendre transform not defined for p=1."
+    assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
   def tree_flatten(self):
