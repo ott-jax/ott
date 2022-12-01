@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Tests Sinkhorn Low-Rank solver with various initializations."""
 import jax
 import jax.numpy as jnp
@@ -104,7 +102,7 @@ class TestLRSinkhorn:
 
     # Ensure cost can still be computed on different geometry.
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
-    cost_other = out.cost_at_geom(other_geom)
+    cost_other = out.transport_cost_at_geom(other_geom)
     assert cost_other > 0.0
 
     # Ensure cost is higher when using high entropy.

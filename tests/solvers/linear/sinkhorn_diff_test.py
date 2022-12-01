@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 import functools
 from typing import Tuple

@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Test Low-Rank Geometry."""
 from typing import Callable, Optional, Union
 
@@ -21,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from ott.geometry import costs, geometry, low_rank, pointcloud
+from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 
 
 @pytest.mark.fast
@@ -286,3 +284,31 @@ class TestCostMatrixFactorization:
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
     # self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
+
+  def test_conversion_grid(self):
+    """Test conversion from Grid to LRCGeometry."""
+    ns = [6, 7, 11]
+    xs = [
+        jax.random.normal(jax.random.PRNGKey(i), (n,))
+        for i, n in enumerate(ns)
+    ]
+    geom = grid.Grid(xs)
+
+    # Recovering cost matrix by applying it to columns of identity matrix.
+    cost_matrix = geom.apply_cost(jnp.eye(geom.shape[0]))
+    # Recovering cost matrix using LRC conversion
+    grid_lrc = geom.to_LRCGeometry()
+    cost_matrix_lrc = grid_lrc.cost_1 @ grid_lrc.cost_2.T
+    np.testing.assert_allclose(
+        cost_matrix, cost_matrix_lrc, rtol=1e-5, atol=1e-5
+    )
+
+  def test_full_to_lrc_geometry(self, rng: jnp.ndarray):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, shape=(13, 7))
+    y = jax.random.normal(key2, shape=(29, 7))
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNorm(1.4))
+    geom_lrc = geom.to_LRCGeometry(rank=0)
+    np.testing.assert_allclose(
+        geom.cost_matrix, geom_lrc.cost_matrix, rtol=1e-5, atol=1e-5
+    )

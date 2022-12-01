@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python3
 """Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
 
@@ -43,10 +41,10 @@ class TestSinkhornDivergence:
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
                costs.SqPNorm(p=2.1)],
-      epsilon=[.01, .001],
+      epsilon=[1e-2, 1e-3],
       only_fast={
-          "costs_fn": costs.SqEuclidean(),
-          "epsilon": .01
+          "cost_fn": costs.SqEuclidean(),
+          "epsilon": 1e-2
       },
   )
   def test_euclidean_point_cloud(self, cost_fn, epsilon):
@@ -86,6 +84,9 @@ class TestSinkhornDivergence:
         sinkhorn_kwargs={'inner_iterations': 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
+    iters_xx = jnp.sum(div.errors[0] > 0)
+    iters_xx_sym = jnp.sum(div.errors[1] > 0)
+    assert iters_xx >= iters_xx_sym
 
   @pytest.mark.fast
   def test_euclidean_autoepsilon(self):
@@ -264,7 +265,9 @@ class TestSinkhornDivergence:
         **geom_kwargs
     )
 
-    np.testing.assert_allclose(true_divergence.repeat(2), segmented_divergences)
+    np.testing.assert_allclose(
+        true_divergence.repeat(2), segmented_divergences, rtol=1e-6, atol=1e-6
+    )
 
   def test_segment_sinkhorn_different_segment_sizes(self):
     # Test other array sizes
@@ -352,7 +355,9 @@ class TestSinkhornDivergence:
         cost_fn=b_cost
     )
 
-    np.testing.assert_allclose(segmented_divergences, true_divergences)
+    np.testing.assert_allclose(
+        segmented_divergences, true_divergences, rtol=1e-6, atol=1e-6
+    )
 
   # yapf: disable
   @pytest.mark.fast.with_args(
