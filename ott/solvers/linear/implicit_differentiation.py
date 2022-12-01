@@ -152,6 +152,7 @@ class ImplicitDiff:
 
     n, m = geom.shape
 
+    # use custom transpose
     vjp_gf = lambda z: api.linear_call(
         lambda _, vec: app_transport(f, g, vec, axis=0), lambda _, vec:
         app_transport(f, g, vec, axis=1), (), z * derivative(marginal_a(f, g))
