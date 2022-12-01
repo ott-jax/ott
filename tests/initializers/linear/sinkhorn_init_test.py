@@ -81,7 +81,7 @@ def run_sinkhorn_sort_init(
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   sort_init = lin_init.SortingInitializer(vectorized_update=vector_min)
   out = sinkhorn.sinkhorn(
-      geom, a=a, b=b, jit=True, initializer=sort_init, lse_mode=lse_mode
+      geom, a=a, b=b, initializer=sort_init, lse_mode=lse_mode
   )
   return out
 
@@ -89,7 +89,7 @@ def run_sinkhorn_sort_init(
 @functools.partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  out = sinkhorn.sinkhorn(geom, a=a, b=b, jit=True, lse_mode=lse_mode)
+  out = sinkhorn.sinkhorn(geom, a=a, b=b, lse_mode=lse_mode)
   return out
 
 
@@ -100,7 +100,6 @@ def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
       geom,
       a=a,
       b=b,
-      jit=True,
       initializer=lin_init.GaussianInitializer(),
       lse_mode=lse_mode
   )
@@ -307,7 +306,7 @@ class TestSinkhornInitializers:
     )
     base_num_iter = jnp.sum(sink_out.errors > -1)
 
-    # Overfit the initializer to the problem.
+    # overfit the initializer to the problem.
     meta_initializer = ott.initializers.nn.initializers.MetaInitializer(geom)
     for _ in range(100):
       _, _, meta_initializer.state = meta_initializer.update(
@@ -315,12 +314,7 @@ class TestSinkhornInitializers:
       )
 
     sink_out = sinkhorn.sinkhorn(
-        geom,
-        a=a,
-        b=b,
-        jit=True,
-        initializer=meta_initializer,
-        lse_mode=lse_mode
+        geom, a=a, b=b, initializer=meta_initializer, lse_mode=lse_mode
     )
     meta_num_iter = jnp.sum(sink_out.errors > -1)
 

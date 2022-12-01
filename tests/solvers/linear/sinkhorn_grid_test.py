@@ -40,7 +40,11 @@ class TestSinkhornGrid:
     threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
     errors = sinkhorn.sinkhorn(
-        geom, a=a, b=b, threshold=threshold, lse_mode=lse_mode, jit=False
+        geom,
+        a=a,
+        b=b,
+        threshold=threshold,
+        lse_mode=lse_mode,
     ).errors
     err = errors[jnp.isfinite(errors)][-1]
     assert threshold > err
@@ -63,7 +67,10 @@ class TestSinkhornGrid:
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
     out_mat = sinkhorn.sinkhorn(
-        geometry_mat, a=a, b=b, lse_mode=lse_mode, jit=False
+        geometry_mat,
+        a=a,
+        b=b,
+        lse_mode=lse_mode,
     )
     out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     np.testing.assert_allclose(

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests Anderson acceleration for Sinkhorn."""
-import functools
-from typing import Callable, Tuple
+from typing import Tuple
 
 import chex
 import jax
@@ -23,8 +22,6 @@ import pytest
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.solvers.linear import sinkhorn
-
-non_jitted_sinkhorn = functools.partial(sinkhorn.sinkhorn, jit=False)
 
 
 class TestSinkhornAnderson:
@@ -227,8 +224,8 @@ class TestSinkhornOnline:
         sol_online.b, sol_offline.b, rtol=rtol, atol=atol
     )
 
-  @pytest.mark.parametrize("outer_jit", [False, True])
-  def test_online_sinkhorn_jit(self, outer_jit: bool):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_online_sinkhorn_jit(self, jit: bool):
 
     def callback(epsilon: float, batch_size: int) -> sinkhorn.SinkhornOutput:
       geom = pointcloud.PointCloud(
@@ -239,13 +236,12 @@ class TestSinkhornOnline:
           a=self.a,
           b=self.b,
           threshold=threshold,
-          jit=True,
           lse_mode=True,
           implicit_differentiation=True
       )
 
     threshold = 1e-1
-    fun = jax.jit(callback, static_argnums=(1,)) if outer_jit else callback
+    fun = jax.jit(callback, static_argnums=(1,)) if jit else callback
 
     errors = fun(epsilon=1.0, batch_size=42).errors
     err = errors[errors > -1][-1]
@@ -322,39 +318,31 @@ class TestSinkhornJIT:
   def test_jit_vs_non_jit_fwd(self):
 
     def assert_output_close(x: jnp.ndarray, y: jnp.ndarray) -> None:
-      """Asserst SinkhornOutputs are close."""
+      """Assert SinkhornOutputs are close."""
       x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
       y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
       return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
-    def f(
-        g: geometry.Geometry, a: jnp.ndarray, b: jnp.ndarray
-    ) -> sinkhorn.SinkhornOutput:
-      return non_jitted_sinkhorn(g, a, b)
+    jitted_result = jax.jit(sinkhorn.sinkhorn)(self.geometry, self.a, self.b)
+    non_jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
 
-    jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
-    non_jitted_result = non_jitted_sinkhorn(self.geometry, self.a, self.b)
-    user_jitted_result = jax.jit(f)(self.geometry, self.a, self.b)
-
-    assert_output_close(jitted_result, non_jitted_result)
-    assert_output_close(jitted_result, user_jitted_result)
+    assert_output_close(non_jitted_result, jitted_result)
 
   @pytest.mark.parametrize("implicit", [False, True])
   def test_jit_vs_non_jit_bwd(self, implicit: bool):
 
-    def loss(
-        a: jnp.ndarray, x: jnp.ndarray, fun: Callable[...,
-                                                      sinkhorn.SinkhornOutput]
-    ):
-      out = fun(
-          geometry.Geometry(
-              cost_matrix=(
-                  jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
-                  jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
-                  2 * jnp.dot(x, self.y.T)
-              ),
-              epsilon=self.epsilon
+    @jax.value_and_grad
+    def val_grad(a: jnp.ndarray, x: jnp.ndarray):
+      geom = geometry.Geometry(
+          cost_matrix=(
+              jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
+              jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
+              2 * jnp.dot(x, self.y.T)
           ),
+          epsilon=self.epsilon
+      )
+      out = sinkhorn.sinkhorn(
+          geom,
           a=a,
           b=self.b,
           tau_a=0.94,
@@ -365,18 +353,8 @@ class TestSinkhornJIT:
       )
       return out.reg_ot_cost
 
-    def value_and_grad(a: jnp.ndarray, x: jnp.ndarray):
-      return jax.value_and_grad(loss)(a, x, non_jitted_sinkhorn)
+    jitted_loss, jitted_grad = jax.jit(val_grad)(self.a, self.x)
+    non_jitted_loss, non_jitted_grad = val_grad(self.a, self.x)
 
-    jitted_loss, jitted_grad = jax.value_and_grad(loss)(
-        self.a, self.x, sinkhorn.sinkhorn
-    )
-    non_jitted_loss, non_jitted_grad = jax.value_and_grad(loss)(
-        self.a, self.x, non_jitted_sinkhorn
-    )
-
-    user_jitted_loss, user_jitted_grad = jax.jit(value_and_grad)(self.a, self.x)
-    chex.assert_tree_all_close(jitted_loss, non_jitted_loss, atol=1e-6, rtol=0)
-    chex.assert_tree_all_close(jitted_grad, non_jitted_grad, atol=1e-6, rtol=0)
-    chex.assert_tree_all_close(user_jitted_loss, jitted_loss, atol=1e-6, rtol=0)
-    chex.assert_tree_all_close(user_jitted_grad, jitted_grad, atol=1e-6, rtol=0)
+    chex.assert_tree_all_close(jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.)
+    chex.assert_tree_all_close(jitted_grad, non_jitted_grad, atol=1e-6, rtol=0.)

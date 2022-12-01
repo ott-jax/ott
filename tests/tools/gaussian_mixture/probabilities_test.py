@@ -28,7 +28,7 @@ class TestProbabilities:
     pp = probabilities.Probabilities(jnp.array([1., 2.]))
     probs = pp.probs()
     np.testing.assert_array_equal(probs.shape, (3,))
-    np.testing.assert_allclose(jnp.sum(probs), 1.0)
+    np.testing.assert_allclose(jnp.sum(probs), 1.0, rtol=1e-6, atol=1e-6)
     np.testing.assert_array_equal(probs > 0., True)
 
   def test_log_probs(self):
@@ -38,7 +38,7 @@ class TestProbabilities:
 
     np.testing.assert_array_equal(log_probs.shape, (3,))
     np.testing.assert_array_equal(probs.shape, (3,))
-    np.testing.assert_allclose(jnp.sum(probs), 1.0)
+    np.testing.assert_allclose(jnp.sum(probs), 1.0, rtol=1e-6, atol=1e-6)
     np.testing.assert_array_equal(probs > 0., True)
 
   def test_from_random(self):
@@ -52,7 +52,7 @@ class TestProbabilities:
   def test_from_probs(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
     pp = probabilities.Probabilities.from_probs(probs)
-    np.testing.assert_allclose(probs, pp.probs())
+    np.testing.assert_allclose(probs, pp.probs(), rtol=1e-6, atol=1e-6)
 
   def test_sample(self):
     p = 0.4
@@ -74,4 +74,6 @@ class TestProbabilities:
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
     pp = probabilities.Probabilities.from_probs(probs)
     pp_x_2 = jax.tree_map(lambda x: 2 * x, pp)
-    np.testing.assert_allclose(2. * pp.params, pp_x_2.params)
+    np.testing.assert_allclose(
+        2. * pp.params, pp_x_2.params, rtol=1e-6, atol=1e-6
+    )

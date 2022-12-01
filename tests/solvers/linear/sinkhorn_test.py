@@ -85,14 +85,18 @@ class TestSinkhorn:
     # First geom specifies explicitly relative_epsilon to be True. This is not
     # needed in principle, but introduced here to test logic.
     geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
-    # jit first with jit inside sinkhorn call.
+    # not jitting
     f_1 = sinkhorn.sinkhorn(
-        geom_1, a=self.a, b=self.b, tau_a=.99, tau_b=.97, jit=True
+        geom_1,
+        a=self.a,
+        b=self.b,
+        tau_a=.99,
+        tau_b=.97,
     ).f
 
     # Second geom does not provide whether epsilon is relative.
     geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
-    # jit now with jit outside sinkhorn call.
+    # jitting
     compute_f = jax.jit(
         lambda g, a, b: sinkhorn.sinkhorn(g, a, b, tau_a=.99, tau_b=.97).f
     )
@@ -132,7 +136,6 @@ class TestSinkhorn:
         b=self.b,
         tau_a=tau_a,
         tau_b=tau_b,
-        jit=True,
         lse_mode=lse_mode,
         threshold=1e-5
     )
@@ -144,7 +147,6 @@ class TestSinkhorn:
         b=self.b,
         tau_a=tau_a,
         tau_b=tau_b,
-        jit=True,
         lse_mode=lse_mode,
         threshold=1e-5
     )

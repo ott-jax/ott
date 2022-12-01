@@ -84,8 +84,8 @@ class TestFusedGromovWasserstein:
     assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
     assert out.ndim == 2
 
-  @pytest.mark.fast.with_args(jit=[False, True], only_fast=1)
-  def test_gradient_marginals_fgw_solver(self, jit: bool):
+  @pytest.mark.fast
+  def test_gradient_marginals_fgw_solver(self):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -107,7 +107,6 @@ class TestFusedGromovWasserstein:
           epsilon=1.0,
           loss='sqeucl',
           max_iterations=10,
-          jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
@@ -352,8 +351,7 @@ class TestFusedGromovWasserstein:
       )
 
   @pytest.mark.limit_memory("400 MB")
-  @pytest.mark.parametrize("jit", [False, True])
-  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
+  def test_fgw_lr_memory(self, rng: jnp.ndarray):
     # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
@@ -366,7 +364,10 @@ class TestFusedGromovWasserstein:
     geom_xy = pointcloud.PointCloud(xx, yy)
 
     ot_gwlr = gw_solver.gromov_wasserstein(
-        geom_x, geom_y, geom_xy, rank=5, jit=jit
+        geom_x,
+        geom_y,
+        geom_xy,
+        rank=5,
     )
     res0 = ot_gwlr.apply(x.T, axis=0)
     res1 = ot_gwlr.apply(y.T, axis=1)

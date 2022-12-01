@@ -140,7 +140,6 @@ class LRInitializer(abc.ABC):
     sinkhorn_kwargs = {
         "norm_error": lin_sol._norm_error,
         "lse_mode": lin_sol.lse_mode,
-        "jit": lin_sol.jit,
         "implicit_diff": lin_sol.implicit_diff,
         "use_danskin": lin_sol.use_danskin
     }
@@ -387,14 +386,12 @@ class KMeansInitializer(LRInitializer):
     from ott.tools import k_means
 
     del kwargs
-    jit = self._sinkhorn_kwargs.get("jit", True)
     fn = functools.partial(
         k_means.k_means,
         min_iterations=self._min_iter,
         max_iterations=self._max_iter,
         **self._kwargs
     )
-    fn = jax.jit(fn, static_argnames="k") if jit else fn
 
     if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
       geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy

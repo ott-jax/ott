@@ -149,8 +149,7 @@ class TestGromovWasserstein:
     assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
     assert out.ndim == 2
 
-  @pytest.mark.parametrize("jit", [False, True])
-  def test_gradient_marginals_gw(self, jit: bool):
+  def test_gradient_marginals_gw(self):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
@@ -168,7 +167,6 @@ class TestGromovWasserstein:
           epsilon=1.0,
           loss='sqeucl',
           max_iterations=10,
-          jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
