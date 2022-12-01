@@ -25,8 +25,7 @@ from ott.solvers.linear import sinkhorn_lr
 class TestLRSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self):
-    rng = jax.random.PRNGKey(0)
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 4
     self.n = 33
     self.m = 37
@@ -66,7 +65,7 @@ class TestLRSinkhorn:
         rank=6,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
-        initializer=initializer,
+        initializer=initializer
     )
     solved = solver(ot_prob)
     costs = solved.costs
