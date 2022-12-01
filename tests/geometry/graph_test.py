@@ -95,7 +95,7 @@ class TestGraph:
 
     assert geom.shape == (n, n)
     assert geom.graph is G
-    assert geom._laplacian is None
+    assert geom._lap is None
     # compute the laplacian on the fly
     assert isinstance(geom.laplacian, type(geom.graph))
 

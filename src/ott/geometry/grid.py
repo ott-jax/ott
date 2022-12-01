@@ -52,7 +52,7 @@ class Grid(geometry.Geometry):
   convolutions one dimension at a time.
 
   Args:
-    x : list of arrays of varying sizes, describing the locations of the grid.
+    x: list of arrays of varying sizes, describing the locations of the grid.
       Locations are provided as a list of arrays, that is :math:`d`
       vectors of (possibly varying) size :math:`n_i`. The resulting grid
       is the Cartesian product of these vectors.
