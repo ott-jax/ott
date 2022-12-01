@@ -273,8 +273,8 @@ class TestGraph:
         atol=eps * 1e2,
     )
 
-  @pytest.mark.parametrize("jit", [False, True])
-  def test_directed_graph(self, jit: bool):
+  @pytest.mark.parametrize("jit,normalize", [(False, True), (True, False)])
+  def test_directed_graph(self, jit: bool, normalize: bool):
 
     def callback(geom: graph.Graph,
                  laplacian: bool) -> Union[jnp.ndarray, jesp.BCOO]:
@@ -283,16 +283,39 @@ class TestGraph:
     G = random_graph(16, p=0.25, directed=True)
     fn = jax.jit(callback, static_argnums=1) if jit else callback
 
-    geom = graph.Graph(G, directed=True)
+    geom = graph.Graph(G, directed=True, normalize=normalize)
 
     with pytest.raises(AssertionError):
-      np.testing.assert_array_equal(G, G.T)
+      np.testing.assert_allclose(G, G.T)
 
     G = fn(geom, laplacian=False)
     L = fn(geom, laplacian=True)
 
-    np.testing.assert_array_equal(G, G.T)
-    np.testing.assert_array_equal(L, L.T)
+    np.testing.assert_allclose(G, G.T, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(L, L.T, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize("fmt", [None, "coo"])
+  @pytest.mark.parametrize("normalize", [False, True])
+  def test_normalize_laplacian(self, fmt: Optional[str], normalize: bool):
+
+    def laplacian(geom: graph.Graph) -> jnp.ndarray:
+      graph = geom.graph.todense() if geom.is_sparse else geom.graph
+      data = G.sum(1)
+      deg = jnp.diag(data)
+      lap = deg - graph
+      if not normalize:
+        return lap
+      inv_sqrt_deg = jnp.diag(jnp.where(data > 0., 1. / jnp.sqrt(data), 0.))
+      return inv_sqrt_deg @ lap @ inv_sqrt_deg
+
+    directed = False
+    G = random_graph(51, p=0.35, directed=directed)
+    geom = graph.Graph(G, directed=directed, normalize=normalize)
+
+    expected = laplacian(geom)
+    actual = geom.laplacian
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast
   def test_factor_cache_works(self, rng: jnp.ndarray):
