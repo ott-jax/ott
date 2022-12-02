@@ -307,7 +307,7 @@ class TestCostMatrixFactorization:
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(13, 7))
     y = jax.random.normal(key2, shape=(29, 7))
-    geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNorm(1.4))
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNormP(1.4))
     geom_lrc = geom.to_LRCGeometry(rank=0)
     np.testing.assert_allclose(
         geom.cost_matrix, geom_lrc.cost_matrix, rtol=1e-5, atol=1e-5

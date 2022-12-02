@@ -181,6 +181,7 @@ class Grid(geometry.Geometry):
     for dimension in range(self.grid_dimension):
       g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
       g -= jnp.where(jnp.isfinite(f), f, 0)
+
     if vec is None:
       vec = jnp.array(1.0)
     return g.ravel(), vec.ravel()
@@ -204,8 +205,8 @@ class Grid(geometry.Geometry):
       )
       return eps * jnp.transpose(softmax_res,
                                  indices), jnp.transpose(softmax_sgn, indices)
-    softmax_res = utils.logsumexp(centered_cost, axis=1)
-    return eps * jnp.transpose(softmax_res, indices), None
+    softmax_res = eps * utils.logsumexp(centered_cost, axis=1)
+    return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
       self, vec: jnp.ndarray, axis: int = 0, fn=None
@@ -297,17 +298,6 @@ class Grid(geometry.Geometry):
         ' apply the transport matrix to a vector, or use a point '
         ' cloud geometry instead'
     )
-
-  def apply_transport_from_potentials(
-      self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
-      axis: int = 0
-  ) -> jnp.ndarray:
-    """Since applying from potentials is not feasible in grids, use scalings."""
-    u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
-    return self.apply_transport_from_scalings(u, v, vec, axis=axis)
 
   def transport_from_scalings(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0

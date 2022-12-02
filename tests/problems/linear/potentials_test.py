@@ -94,7 +94,9 @@ class TestEntropicPotentials:
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.3
 
-  @pytest.mark.fast.with_args(p=[1.3, 2.2], forward=[False, True], only_fast=0)
+  @pytest.mark.fast.with_args(
+      p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
+  )
   def test_entropic_potentials_sqpnorm(
       self, rng: jnp.ndarray, p: float, forward: bool
   ):
@@ -128,14 +130,17 @@ class TestEntropicPotentials:
       div = sdiv(x, z).divergence
 
     div_0 = sdiv(x, y).divergence
-    assert div < .1 * div_0  # check we have moved points much closer to target.
+    mult = .1 if p > 1.0 else .25
+    assert div < mult * div_0  # check we have moved points much closer to target.
 
-  @pytest.mark.fast.with_args(p=[1.45, 2.2], forward=[False, True], only_fast=0)
+  @pytest.mark.fast.with_args(
+      p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0
+  )
   def test_entropic_potentials_pnorm(
       self, rng: jnp.ndarray, p: float, forward: bool
   ):
     epsilon = None
-    cost_fn = costs.PNorm(p=p)
+    cost_fn = costs.PNormP(p=p)
     n1, n2, d = 43, 77, 2
     eps = 1e-2
     keys = jax.random.split(rng, 4)
@@ -156,15 +161,19 @@ class TestEntropicPotentials:
         pointcloud.PointCloud, x, y, cost_fn=cost_fn, epsilon=epsilon
     )
 
-    if forward:
-      z = potentials.transport(x_test, forward=forward)
-      div = sdiv(z, y).divergence
+    if p == 1.0:
+      with pytest.raises(AssertionError, match="Legendre transform not"):
+        z = potentials.transport(x_test, forward=forward)
     else:
-      z = potentials.transport(y_test, forward=forward)
-      div = sdiv(x, z).divergence
+      if forward:
+        z = potentials.transport(x_test, forward=forward)
+        div = sdiv(z, y).divergence
+      else:
+        z = potentials.transport(y_test, forward=forward)
+        div = sdiv(x, z).divergence
 
-    div_0 = sdiv(x, y).divergence
-    assert div < .1 * div_0  # check we have moved points much closer to target.
+      div_0 = sdiv(x, y).divergence
+      assert div < .1 * div_0  # check we have moved points much closer to target.
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(self, rng: jnp.ndarray, jit: bool):
