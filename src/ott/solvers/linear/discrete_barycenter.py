@@ -75,8 +75,8 @@ def discrete_barycenter(
 
   if weights is None:
     weights = jnp.ones((batch_size,)) / batch_size
-  if not jnp.alltrue(weights > 0) or weights.shape[0] != batch_size:
-    raise ValueError(f'weights must have positive values and size {batch_size}')
+  if weights.shape[0] != batch_size:
+    raise ValueError(f'weights must have size `{batch_size}`.')
 
   if dual_initialization is None:
     # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
