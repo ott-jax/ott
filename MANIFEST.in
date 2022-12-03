@@ -1,4 +1,5 @@
 prune docs
-prune .github
+prune examples
 prune images
 prune tests
+prune .github

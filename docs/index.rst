@@ -1,6 +1,8 @@
+|Downloads| |Tests| |Docs| |Coverage|
+
 Optimal Transport Tools (OTT) documentation
 ===========================================
-`Code <https://github.com/ott-jax/ott>`_ on github.
+`Code <https://github.com/ott-jax/ott>`_ on GitHub.
 To install, simply run ``pip install ott-jax``.
 
 Intro
@@ -15,13 +17,12 @@ such as differentiable approximations to ranking or even clustering.
 To achieve this, `OTT` rests on two families of tools:
 The first family consists in *discrete* solvers computing transport between point clouds,
 using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn :cite:`scetbon:21` algorithms,
-and moving up towards Gromov-Wasserstein :cite:`memoli:11`, :cite:`memoli:11`;
+and moving up towards Gromov-Wasserstein :cite:`memoli:11,peyre:16`;
 the second family consists in *continuous* solvers, using suitable neural architectures :cite:`amos:17` coupled
-with SGD type estimators :cite:`makkuva:20`, :cite:`korotin:21`.
+with SGD type estimators :cite:`makkuva:20,korotin:21`.
 
 Design Choices
 --------------
-
 `OTT` is designed with the following choices:
 
 - Take advantage whenever possible of JAX features, such as `Just-in-time (JIT) compilation`_,
@@ -42,20 +43,22 @@ Design Choices
   automatically in higher level calls (e.g. updates in Gromov-Wasserstein),
   without requiring any attention from the user.
 
+.. TODO(marcocuturi): add missing package descriptions below
+
 Packages
 --------
-There are currently three packages, ``geometry``, ``core`` and ``tools``, playing the following roles:
-
 - :ref:`geometry` contains classes to instantiate objects that describe
   *two point clouds* paired with a *cost* function. Geometry objects are used to
-  describe OT problems, handled by solvers in ``core``.
-- :ref:`core` classes describe OT problems (linear, quadratic, barycenters), and
-  solver classes, to instantiate algorithms that will output an OT.
+  describe OT problems, handled by solvers in the :ref:`solvers`.
+- :ref:`problems`
+- :ref:`solvers`
+- :ref:`initializers`
 - :ref:`tools` provides an interface to exploit OT solutions, as produced by
-  solvers in the ``core`` package. Such tasks include computing approximations
+  solvers in the :ref:`solvers`. Such tasks include computing approximations
   to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
+- :ref:`math`
 
 .. toctree::
     :maxdepth: 1
@@ -95,14 +98,34 @@ There are currently three packages, ``geometry``, ``core`` and ``tools``, playin
     :caption: Public API: ott packages
 
     geometry
-    core
+    problems/index
+    solvers/index
+    initializers/index
     tools
+    math
 
 .. toctree::
     :maxdepth: 1
     :caption: References:
 
     references
+
+
+.. |Downloads| image:: https://pepy.tech/badge/ott-jax
+    :target: https://pypi.org/project/ott-jax/
+    :alt: Documentation
+
+.. |Tests| image:: https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main
+    :target: https://github.com/ott-jax/ott/actions/workflows/tests.yml
+    :alt: Documentation
+
+.. |Docs| image:: https://img.shields.io/readthedocs/ott-jax/latest
+    :target: https://ott-jax.readthedocs.io/en/latest/
+    :alt: Documentation
+
+.. |Coverage| image:: https://img.shields.io/codecov/c/github/ott-jax/ott/main
+    :target: https://app.codecov.io/gh/ott-jax/ott
+    :alt: Coverage
 
 .. _Just-in-time (JIT) compilation: https://jax.readthedocs.io/en/latest/jax.html#just-in-time-compilation-jit
 .. _auto-vectorization (VMAP): https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap

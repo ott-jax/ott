@@ -11,10 +11,11 @@ from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from typing_extensions import Literal
 
-from ott.core import decomposition
-from ott.core import implicit_differentiation as implicit_lib
-from ott.core import linear_problems, sinkhorn
 from ott.geometry import geometry, graph
+from ott.math import decomposition
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import implicit_differentiation as implicit_lib
+from ott.solvers.linear import sinkhorn
 
 # we mix both dense/sparse tests
 sksparse = pytest.importorskip("sksparse")
@@ -373,7 +374,7 @@ class TestGraph:
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problems.LinearProblem(geom)
+      problem = linear_problem.LinearProblem(geom)
       return solver(problem)
 
     n, eps, tol = 11, 1e-5, 1e-3
@@ -422,7 +423,7 @@ class TestGraph:
 
       geom = graph.Graph(G, t=1.)
       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
-      problem = linear_problems.LinearProblem(geom)
+      problem = linear_problem.LinearProblem(geom)
 
       return solver(problem).reg_ot_cost
 

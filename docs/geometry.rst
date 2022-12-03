@@ -50,8 +50,18 @@ Cost Functions
     :toctree: _autosummary
 
     costs.CostFn
+    costs.TICost
+    costs.SqPNorm
+    costs.PNorm
     costs.SqEuclidean
     costs.Euclidean
     costs.Cosine
     costs.Bures
     costs.UnbalancedBures
+
+Utilities
+---------
+.. autosummary::
+    :toctree: _autosummary
+
+    segment.segment_point_cloud

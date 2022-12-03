@@ -161,7 +161,7 @@ cython_debug/
 
 # generated documentation
 docs/html
-docs/_autosummary
+**/_autosummary
 
 # macos
 **/.DS_Store
