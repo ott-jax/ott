@@ -302,7 +302,9 @@ class TestSinkhornDivergence:
             pointcloud.PointCloud, x, y, epsilon=0.01
         ).divergence for x, y in zip((x1, x2), (y1, y2))
     ])
-    np.testing.assert_allclose(segmented_divergences, true_divergences)
+    np.testing.assert_allclose(
+        segmented_divergences, true_divergences, rtol=1e-6, atol=1e-6
+    )
 
   def test_sinkhorn_divergence_segment_custom_padding(self, rng):
     rngs = jax.random.split(rng, 4)
