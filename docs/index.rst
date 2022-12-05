@@ -1,29 +1,41 @@
 |Downloads| |Tests| |Docs| |Coverage|
 
-Optimal Transport Tools (OTT) documentation
-===========================================
-`Code <https://github.com/ott-jax/ott>`_ on GitHub.
-To install, simply run ``pip install ott-jax``.
+Optimal Transport Tools (OTT)
+=============================
 
-Intro
------
-`OTT` is a `JAX <https://jax.readthedocs.io/en/latest/index.html>`_ package that bundles a few utilities to compute, and
-differentiate as needed, the solution to optimal transport (OT) problems, taken in a fairly wide sense.
-For instance, `OTT` can of course compute Wasserstein (or Gromov-Wasserstein) distances between
+Introduction
+------------
+``OTT`` is a `JAX <https://jax.readthedocs.io/en/latest/>`_ package that bundles a few utilities to compute,
+and differentiate as needed, the solution to optimal transport (OT) problems, taken in a fairly wide sense.
+For instance, ``OTT`` can of course compute Wasserstein (or Gromov-Wasserstein) distances between
 weighted clouds of points (or histograms) in a wide variety of scenarios,
 but also estimate Monge maps, Wasserstein barycenters, and help with simpler tasks
 such as differentiable approximations to ranking or even clustering.
 
-To achieve this, `OTT` rests on two families of tools:
+To achieve this, ``OTT`` rests on two families of tools:
 The first family consists in *discrete* solvers computing transport between point clouds,
 using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn :cite:`scetbon:21` algorithms,
 and moving up towards Gromov-Wasserstein :cite:`memoli:11,peyre:16`;
 the second family consists in *continuous* solvers, using suitable neural architectures :cite:`amos:17` coupled
 with SGD type estimators :cite:`makkuva:20,korotin:21`.
 
+Installation
+------------
+Install ``OTT`` from `PyPI <https://pypi.org/project/ott-jax/>`_ as:
+
+.. code-block:: bash
+
+    pip install ott-jax
+
+or with ``conda`` via `conda-forge <https://anaconda.org/conda-forge/ott-jax>`_ as:
+
+.. code-block:: bash
+
+    conda install -c conda-forge ott-jax
+
 Design Choices
 --------------
-`OTT` is designed with the following choices:
+``OTT`` is designed with the following choices:
 
 - Take advantage whenever possible of JAX features, such as `Just-in-time (JIT) compilation`_,
   `auto-vectorization (VMAP)`_ and both `automatic`_ but most importantly `implicit`_ differentiation.
@@ -108,6 +120,7 @@ Packages
     :maxdepth: 1
     :caption: References:
 
+    GitHub <https://github.com/ott-jax/ott>
     references
 
 
