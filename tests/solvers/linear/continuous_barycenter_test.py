@@ -246,7 +246,7 @@ class TestBarycenter:
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dimension)
 
     try:
-      np.testing.assert_allclose.allclose(
+      np.testing.assert_allclose(
           means_bary, jnp.array([[0., 1.], [0., -1.]]), rtol=1e-02, atol=1e-02
       )
     except AssertionError:
