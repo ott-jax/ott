@@ -103,7 +103,9 @@ class TestLRSinkhorn:
     # Ensure cost can still be computed on different geometry.
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
     cost_other = out.transport_cost_at_geom(other_geom)
+    cost_other_lr = out.transport_cost_at_geom(other_geom.to_LRCGeometry())
     assert cost_other > 0.0
+    np.testing.assert_allclose(cost_other, cost_other_lr, rtol=1e-6, atol=1e-6)
 
     # Ensure cost is higher when using high entropy.
     # (Note that for small entropy regularizers, this can be the opposite

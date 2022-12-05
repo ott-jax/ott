@@ -73,7 +73,7 @@ class TestSinkhornGrid:
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
   def test_apply_transport_grid(self, rng: jnp.ndarray, lse_mode: bool):
     grid_size = (5, 6, 7)
-    keys = jax.random.split(rng, 3)
+    keys = jax.random.split(rng, 4)
     a = jax.random.uniform(keys[0], grid_size)
     b = jax.random.uniform(keys[1], grid_size)
     a = a.ravel() / jnp.sum(a)
@@ -91,8 +91,8 @@ class TestSinkhornGrid:
 
     batch_a = 3
     batch_b = 4
-    vec_a = jax.random.normal(keys[4], [batch_a, np.prod(np.array(grid_size))])
-    vec_b = jax.random.normal(keys[4], [batch_b, np.prod(grid_size)])
+    vec_a = jax.random.normal(keys[2], [batch_a, np.prod(np.array(grid_size))])
+    vec_b = jax.random.normal(keys[3], [batch_b, np.prod(grid_size)])
 
     vec_a = vec_a / jnp.sum(vec_a, axis=1)[:, jnp.newaxis]
     vec_b = vec_b / jnp.sum(vec_b, axis=1)[:, jnp.newaxis]
