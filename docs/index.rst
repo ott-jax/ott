@@ -3,9 +3,9 @@
 Optimal Transport Tools (OTT)
 =============================
 
-Intro
------
-``OTT`` is a `JAX <https://jax.readthedocs.io/en/latest/index.html>`_ package that bundles a few utilities to compute,
+Introduction
+------------
+``OTT`` is a `JAX <https://jax.readthedocs.io/en/latest/>`_ package that bundles a few utilities to compute,
 and differentiate as needed, the solution to optimal transport (OT) problems, taken in a fairly wide sense.
 For instance, ``OTT`` can of course compute Wasserstein (or Gromov-Wasserstein) distances between
 weighted clouds of points (or histograms) in a wide variety of scenarios,
