@@ -30,7 +30,7 @@ class TestICNN:
     dim_hidden = (64, 64)
 
     # define icnn model
-    model = icnn.ICNN(dim_hidden)
+    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     key1, key2, key3 = jax.random.split(rng, 3)
@@ -54,16 +54,16 @@ class TestICNN:
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model
-    n_samples = 2
+    n_features = 2
     dim_hidden = (64, 64)
-    model = icnn.ICNN(dim_hidden)
+    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     key1, key2 = jax.random.split(rng)
-    params = model.init(key1, jnp.ones(n_samples))['params']
+    params = model.init(key1, jnp.ones(n_features))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
-    data = jax.random.normal(key2, (n_samples,))
+    data = jax.random.normal(key2, (n_features,))
 
     # compute Hessian
     hessian = jax.jacfwd(jax.jacrev(model.apply, argnums=1), argnums=1)

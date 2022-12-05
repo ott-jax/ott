@@ -40,6 +40,7 @@ class ICNN(nn.Module):
   :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
 
   Args:
+    dim_data: data dimensionality.
     dim_hidden: sequence specifying size of hidden dimensions. The
       output dimension of the last layer is 1 by default.
     init_std: value of standard deviation of weight initialization method.
@@ -48,18 +49,17 @@ class ICNN(nn.Module):
     act_fn: choice of activation function used in network architecture
       (needs to be convex, default: `nn.relu`).
     pos_weights: choice to enforce positivity of weight or use regularizer.
-    dim_data: data dimensionality (default: 2).
     gaussian_map: data inputs of source and target measures for
       initialization scheme based on Gaussian approximation of input and
       target measure (if None, identity initialization is used).
   """
 
+  dim_data: int
   dim_hidden: Sequence[int]
   init_std: float = 1e-1
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable = nn.relu
   pos_weights: bool = True
-  dim_data: int = 2
   gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
 
   def setup(self) -> None:
