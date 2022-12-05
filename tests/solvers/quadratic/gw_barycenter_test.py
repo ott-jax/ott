@@ -100,7 +100,9 @@ class TestGWBarycenter:
     assert problem_pc.ndim == self.ndim
     assert problem_cost.ndim is None
 
-    solver = gwb_solver.GromovWassersteinBarycenter()
+    solver = jax.jit(
+        gwb_solver.GromovWassersteinBarycenter(), static_argnames="bar_size"
+    )
     out_pc = solver(problem_pc, bar_size=bar_size)
     out_cost = solver(problem_cost, bar_size=bar_size)
 

@@ -84,15 +84,15 @@ class TestFusedGromovWasserstein:
     assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
     assert out.ndim == 2
 
-  @pytest.mark.fast
-  def test_gradient_marginals_fgw_solver(self):
+  @pytest.mark.fast.with_args("jit", [False, True], only_fast=0)
+  def test_gradient_marginals_fgw_solver(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
     fused_penalty = self.fused_penalty
 
-    def reg_gw(a, b, implicit):
+    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       sinkhorn_kwargs = {
           'implicit_differentiation': implicit,
           'max_iterations': 1001
@@ -110,6 +110,9 @@ class TestFusedGromovWasserstein:
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
+
+    if jit:
+      reg_gw = jax.jit(reg_gw, static_argnames="implicit")
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
@@ -351,7 +354,8 @@ class TestFusedGromovWasserstein:
       )
 
   @pytest.mark.limit_memory("400 MB")
-  def test_fgw_lr_memory(self, rng: jnp.ndarray):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
     # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
@@ -363,7 +367,11 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(y)
     geom_xy = pointcloud.PointCloud(xx, yy)
 
-    ot_gwlr = gw_solver.gromov_wasserstein(
+    solver = gw_solver.gromov_wasserstein
+    if jit:
+      solver = jax.jit(solver, static_argnames="rank")
+
+    ot_gwlr = solver(
         geom_x,
         geom_y,
         geom_xy,

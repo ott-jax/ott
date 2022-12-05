@@ -149,12 +149,11 @@ class TestGromovWasserstein:
     assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
     assert out.ndim == 2
 
-  def test_gradient_marginals_gw(self):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_gradient_marginals_gw(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
 
-    def reg_gw(a, b, implicit):
+    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       sinkhorn_kwargs = {
           'implicit_differentiation': implicit,
           'max_iterations': 1001
@@ -170,6 +169,12 @@ class TestGromovWasserstein:
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
+
+    if jit:
+      reg_gw = jax.jit(reg_gw, static_argnames="implicit")
+
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
