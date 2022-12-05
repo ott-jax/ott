@@ -40,7 +40,10 @@ class Graph(geometry.Geometry):
     directed: Whether the ``graph`` is directed. If not, it will be made
       undirected as :math:`G + G^T`. This parameter is ignored when  directly
       passing the Laplacian, which is assumed to be symmetric.
-    normalize: Whether to normalize the Laplacian.
+    normalize: Whether to normalize the Laplacian as
+      :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
+      \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
+      unnormalized Laplacian and :math:`D` the degree matrix.
     tol: Relative tolerance with respect to the Hilbert metric, see
       :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
       If negative, this option is ignored and only ``n_steps`` is used.
