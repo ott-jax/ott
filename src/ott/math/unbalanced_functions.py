@@ -47,9 +47,8 @@ def grad_of_marginal_fit(
   """
   if tau == 1.0:
     return c
-  else:
-    rho = epsilon * tau / (1 - tau)
-    return jnp.where(c > 0, c * derivative_phi_star(-h, rho), 0.0)
+  r = rho(epsilon, tau)
+  return jnp.where(c > 0, c * derivative_phi_star(-h, r), 0.0)
 
 
 def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
@@ -77,12 +76,16 @@ def diag_jacobian_of_marginal_fit(
     a vector of the same size as c or h.
   """
   if tau == 1.0:
-    return 0
-  else:
-    rho = epsilon * tau / (1 - tau)
-    # here no minus sign because we are taking derivative w.r.t -h
-    return jnp.where(
-        c > 0,
-        c * second_derivative_phi_star(-h, rho) *
-        derivative(c * derivative_phi_star(-h, rho)), 0.0
-    )
+    return 0.
+
+  r = rho(epsilon, tau)
+  # here no minus sign because we are taking derivative w.r.t -h
+  return jnp.where(
+      c > 0,
+      c * second_derivative_phi_star(-h, r) *
+      derivative(c * derivative_phi_star(-h, r)), 0.0
+  )
+
+
+def rho(epsilon: float, tau: float) -> float:
+  return (epsilon * tau) / (1. - tau)

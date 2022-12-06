@@ -21,7 +21,9 @@ from typing_extensions import Literal
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
-from ott.math import fixed_point_loop, unbalanced_functions, utils
+from ott.math import fixed_point_loop
+from ott.math import unbalanced_functions as uf
+from ott.math import utils
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -43,13 +45,22 @@ class SinkhornState(NamedTuple):
     return self._replace(**kwargs)
 
   def solution_error(
-      self, ot_prob: linear_problem.LinearProblem, norm_error: Sequence[int],
-      lse_mode: bool, parallel_dual_updates: bool
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      norm_error: Sequence[int],
+      *,
+      lse_mode: bool,
+      parallel_dual_updates: bool,
+      shift: bool,
   ) -> jnp.ndarray:
     """State dependent function to return error."""
+    fu, gv = self.fu, self.gv
+    if shift:
+      fu, gv = self.shift(fu, gv, ot_prob=ot_prob)
+
     return solution_error(
-        self.fu,
-        self.gv,
+        fu,
+        gv,
         ot_prob,
         norm_error,
         lse_mode,
@@ -60,6 +71,28 @@ class SinkhornState(NamedTuple):
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
+
+  def shift(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      ot_prob: linear_problem.LinearProblem,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    if ot_prob.is_balanced:
+      # center the potentials for numerical stability if the problem is balanced
+      is_finite = jnp.isfinite(f)
+      shift = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
+      return f - shift, g + shift
+
+    rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
+    rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
+    tau = rho_a * rho_b / (rho_a + rho_b)
+
+    shift = tau * (
+        utils.logsumexp(-f / rho_a, b=ot_prob.a) -
+        utils.logsumexp(-g / rho_b, b=ot_prob.b)
+    )
+    return f + shift, g - shift
 
 
 def solution_error(
@@ -103,19 +136,19 @@ def solution_error(
   # and h is either f or g. Note this is equal to z if rho_z → inf, which
   # is the case when tau_z → 1.0
   if lse_mode:
-    grad_a = unbalanced_functions.grad_of_marginal_fit(
+    grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon
     )
-    grad_b = unbalanced_functions.grad_of_marginal_fit(
+    grad_b = uf.grad_of_marginal_fit(
         ot_prob.b, g_v, ot_prob.tau_b, ot_prob.epsilon
     )
   else:
     u = ot_prob.geom.potential_from_scaling(f_u)
     v = ot_prob.geom.potential_from_scaling(g_v)
-    grad_a = unbalanced_functions.grad_of_marginal_fit(
+    grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, u, ot_prob.tau_a, ot_prob.epsilon
     )
-    grad_b = unbalanced_functions.grad_of_marginal_fit(
+    grad_b = uf.grad_of_marginal_fit(
         ot_prob.b, v, ot_prob.tau_b, ot_prob.epsilon
     )
   err = marginal_error(f_u, g_v, grad_a, ot_prob.geom, 1, norm_error, lse_mode)
@@ -188,10 +221,7 @@ def ent_reg_cost(
   else:
     rho_a = ot_prob.epsilon * (ot_prob.tau_a / (1 - ot_prob.tau_a))
     div_a = -jnp.sum(
-        jnp.where(
-            supp_a, ot_prob.a * unbalanced_functions.phi_star(-(f - fa), rho_a),
-            0.0
-        )
+        jnp.where(supp_a, ot_prob.a * uf.phi_star(-(f - fa), rho_a), 0.0)
     )
 
   gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
@@ -200,10 +230,7 @@ def ent_reg_cost(
   else:
     rho_b = ot_prob.epsilon * (ot_prob.tau_b / (1 - ot_prob.tau_b))
     div_b = -jnp.sum(
-        jnp.where(
-            supp_b, ot_prob.b * unbalanced_functions.phi_star(-(g - gb), rho_b),
-            0.0
-        )
+        jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
 
   # Using https://arxiv.org/pdf/1910.12958.pdf (24)
@@ -483,9 +510,6 @@ class Sinkhorn:
   ) -> SinkhornState:
     """Sinkhorn LSE update."""
 
-    def rho(tau: float) -> float:
-      return (ot_prob.epsilon * tau) / (1 - tau)
-
     def k(tau_i: float, tau_j: float) -> float:
       num = -tau_j * (tau_a - 1) * (tau_b - 1) * (tau_i - 1)
       denom = (tau_j - 1) * (tau_a * (tau_b - 1) + tau_b * (tau_a - 1))
@@ -498,18 +522,8 @@ class Sinkhorn:
     def smin(
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
     ) -> float:
-      r = rho(tau)
-      return -r * utils.logsumexp(-potential / r, b=marginal)
-
-    def shift(f: jnp.ndarray,
-              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-      rho_a, rho_b = rho(tau_a), rho(tau_b)
-      tau = rho_a * rho_b / (rho_a + rho_b)
-      t = tau * (
-          utils.logsumexp(-f / rho_a, b=ot_prob.a) -
-          utils.logsumexp(-g / rho_b, b=ot_prob.b)
-      )
-      return f + t, g - t
+      rho = uf.rho(ot_prob.epsilon, tau)
+      return -rho * utils.logsumexp(-potential / rho, b=marginal)
 
     w = self.momentum.weight(state, iteration)
     normalize = not ot_prob.is_balanced and self.normalize_potentials
@@ -540,9 +554,6 @@ class Sinkhorn:
       new_fu -= k11 * smin(gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
     fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
-
-    if normalize:
-      fu, gv = shift(fu, gv)
 
     return state.set(fu=fu, gv=gv)
 
@@ -600,11 +611,16 @@ class Sinkhorn:
     if self.anderson:
       state = self.anderson.update_history(state, ot_prob, self.lse_mode)
 
+    # TODO(michalk8): use `jax.lax.cond`
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         state.solution_error(
-            ot_prob, self.norm_error, self.lse_mode, self.parallel_dual_updates
+            ot_prob,
+            self.norm_error,
+            lse_mode=self.lse_mode,
+            parallel_dual_updates=self.parallel_dual_updates,
+            shift=self.normalize_potentials,
         ), jnp.inf
     )
     errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
@@ -675,14 +691,12 @@ class Sinkhorn:
       A SinkhornOutput.
     """
     geom = ot_prob.geom
+
     f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
     g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
-    if ot_prob.is_balanced:
-      # center the potentials for numerical stability if the problem is balanced
-      is_finite = jnp.isfinite(f)
-      center = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
-      f -= center
-      g += center
+    if self.normalize_potentials:
+      f, g = state.shift(f, g, ot_prob=ot_prob)
+
     return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
 
   @property

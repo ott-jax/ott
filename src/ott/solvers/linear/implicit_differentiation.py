@@ -19,7 +19,7 @@ import jax
 import jax.numpy as jnp
 
 from ott import utils
-from ott.math import unbalanced_functions
+from ott.math import unbalanced_functions as uf
 
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
@@ -168,13 +168,13 @@ class ImplicitDiff:
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
-        unbalanced_functions.diag_jacobian_of_marginal_fit(
+        uf.diag_jacobian_of_marginal_fit(
             ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative
         )
     )
     diag_hess_b = (
         marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
-        unbalanced_functions.diag_jacobian_of_marginal_fit(
+        uf.diag_jacobian_of_marginal_fit(
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
         )
     )
@@ -254,12 +254,8 @@ class ImplicitDiff:
     """
     geom = prob.geom
     marginal_a, marginal_b, _ = prob.get_transport_functions(lse_mode)
-    grad_a = unbalanced_functions.grad_of_marginal_fit(
-        prob.a, f, prob.tau_a, geom.epsilon
-    )
-    grad_b = unbalanced_functions.grad_of_marginal_fit(
-        prob.b, g, prob.tau_b, geom.epsilon
-    )
+    grad_a = uf.grad_of_marginal_fit(prob.a, f, prob.tau_a, geom.epsilon)
+    grad_b = uf.grad_of_marginal_fit(prob.b, g, prob.tau_b, geom.epsilon)
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
     else:
