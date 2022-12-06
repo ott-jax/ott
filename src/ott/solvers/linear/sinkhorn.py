@@ -487,9 +487,9 @@ class Sinkhorn:
       return (epsilon * tau) / (1 - tau)
 
     def k(tau_i: float, tau_j: float) -> float:
-      rho_i = rho(tau_i)
-      rho_j = rho(tau_j)
-      return (epsilon * rho_j) / ((epsilon + rho_i) * (rho_a + rho_b))
+      num = -tau_j * (tau_a - 1) * (tau_b - 1) * (tau_i - 1)
+      denom = (tau_j - 1) * (tau_a * (tau_b - 1) + tau_b * (tau_a - 1))
+      return num / denom
 
     def xi(tau_i: float, tau_j: float) -> float:
       k_ij = k(tau_i, tau_j)
@@ -499,7 +499,6 @@ class Sinkhorn:
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
     ) -> float:
       r = rho(tau)
-      # TODO(michalk8): check
       return -r * utils.logsumexp(-potential / r, b=marginal)
 
     def shift(f: jnp.ndarray,
@@ -524,8 +523,6 @@ class Sinkhorn:
     if normalize:
       k11, k22 = k(tau_a, tau_a), k(tau_b, tau_b)
       xi12, xi21 = xi(tau_a, tau_b), xi(tau_b, tau_a)
-      # k1 = 1. / ((1. + (rho_a / epsilon)) * (1. + (rho_b / rho_a)))
-      # k2 = 1. / ((1. + (rho_b / epsilon)) * (1. + (rho_a / rho_b)))
 
     # update g potential
     new_gv = tau_b * ot_prob.geom.update_potential(
