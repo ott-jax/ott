@@ -400,7 +400,7 @@ class Sinkhorn:
       momentum: Optional[acceleration.Momentum] = None,
       anderson: Optional[acceleration.AndersonAcceleration] = None,
       parallel_dual_updates: bool = False,
-      normalize_potentials: bool = True,
+      normalize_potentials: bool = False,
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
@@ -484,7 +484,7 @@ class Sinkhorn:
     """Sinkhorn LSE update."""
 
     def rho(tau: float) -> float:
-      return (epsilon * tau) / (1 - tau)
+      return (ot_prob.epsilon * tau) / (1 - tau)
 
     def k(tau_i: float, tau_j: float) -> float:
       num = -tau_j * (tau_a - 1) * (tau_b - 1) * (tau_i - 1)
@@ -503,6 +503,7 @@ class Sinkhorn:
 
     def shift(f: jnp.ndarray,
               g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      rho_a, rho_b = rho(tau_a), rho(tau_b)
       tau = rho_a * rho_b / (rho_a + rho_b)
       t = tau * (
           utils.logsumexp(-f / rho_a, b=ot_prob.a) -
@@ -510,14 +511,11 @@ class Sinkhorn:
       )
       return f + t, g - t
 
-    epsilon = ot_prob.epsilon
-    normalize = not ot_prob.is_balanced and self.normalize_potentials
-    tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
-    rho_a, rho_b = rho(tau_a), rho(tau_b)
-
-    log_a = jnp.log(ot_prob.a)
-    log_b = jnp.log(ot_prob.b)
     w = self.momentum.weight(state, iteration)
+    normalize = not ot_prob.is_balanced and self.normalize_potentials
+
+    tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+    log_a, log_b = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
     old_gv, old_fu = state.gv, state.fu
 
     if normalize:
