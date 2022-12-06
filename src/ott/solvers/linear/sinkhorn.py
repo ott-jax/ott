@@ -513,10 +513,8 @@ class Sinkhorn:
 
     w = self.momentum.weight(state, iteration)
     normalize = not ot_prob.is_balanced and self.normalize_potentials
-
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
-    log_a, log_b = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
-    old_gv, old_fu = state.gv, state.fu
+    old_fu, old_gv = state.fu, state.gv
 
     if normalize:
       k11, k22 = k(tau_a, tau_a), k(tau_b, tau_b)
@@ -524,7 +522,7 @@ class Sinkhorn:
 
     # update g potential
     new_gv = tau_b * ot_prob.geom.update_potential(
-        old_fu, old_gv, log_b, iteration, axis=0
+        old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
     )
     if normalize:
       new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
@@ -536,7 +534,7 @@ class Sinkhorn:
 
     # update f potential
     new_fu = tau_a * ot_prob.geom.update_potential(
-        old_fu, old_gv, log_a, iteration, axis=1
+        old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
     )
     if normalize:
       new_fu -= k11 * smin(gv, ot_prob.b, tau_b)
