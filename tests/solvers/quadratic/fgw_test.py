@@ -111,12 +111,12 @@ class TestFusedGromovWasserstein:
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
 
-    if jit:
-      reg_gw = jax.jit(reg_gw, static_argnames="implicit")
-
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True, argnums=(0, 1))
+      if jit:
+        reg_gw_and_grad = jax.jit(reg_gw_and_grad, static_argnames="implicit")
+
       (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)
