@@ -263,7 +263,8 @@ class SinkhornOutput(NamedTuple):
     we resort to instantiating both transport matrix and cost matrix.
 
     Args:
-      other_geom: geometry whose cost matrix is used to evaluate the transport.
+      other_geom: geometry whose cost matrix is used to evaluate the transport
+        cost.
 
     Returns:
       the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.

@@ -50,17 +50,18 @@ def discrete_barycenter(
   """Compute discrete barycenter :cite:`janati:20a`.
 
   Args:
-    geom: a Cost object able to apply kernels with a certain epsilon.
-    a: jnp.ndarray<float>[batch, geom.num_a]: batch of histograms.
-    weights: jnp.ndarray of weights in the probability simplex
-    dual_initialization: jnp.ndarray, size [batch, num_b] initialization for g_v
-    threshold: (float) tolerance to monitor convergence.
-    norm_error: int, power used to define p-norm of error for marginal/target.
-    inner_iterations: (int32) the Sinkhorn error is not recomputed at each
+    geom: geometry object.
+    a: batch of histograms of shape ``[batch, num_a]``.
+    weights: positive weights in the probability simplex.
+    dual_initialization: array of shape ``[batch, num_b]`` for the
+      initialization of `g_v`.
+    threshold: tolerance to monitor convergence.
+    norm_error: power used to define p-norm of error for marginal/target.
+    inner_iterations: the Sinkhorn error is not recomputed at each
      iteration but every inner_num_iter instead to avoid computational overhead.
-    min_iterations: (int32) the minimum number of Sinkhorn iterations carried
+    min_iterations: the minimum number of Sinkhorn iterations carried
      out before the error is computed and monitored.
-    max_iterations: (int32) the maximum number of Sinkhorn iterations.
+    max_iterations: the maximum number of Sinkhorn iterations.
     lse_mode: True for log-sum-exp computations, False for kernel multiply.
     debiased: whether to run the debiased version of the Sinkhorn divergence.
 
