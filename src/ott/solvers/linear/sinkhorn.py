@@ -21,7 +21,7 @@ from typing_extensions import Literal
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
-from ott.math import fixed_point_loop, unbalanced_functions
+from ott.math import fixed_point_loop, unbalanced_functions, utils
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -400,6 +400,7 @@ class Sinkhorn:
       momentum: Optional[acceleration.Momentum] = None,
       anderson: Optional[acceleration.AndersonAcceleration] = None,
       parallel_dual_updates: bool = False,
+      normalize_potentials: bool = True,
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
@@ -433,6 +434,7 @@ class Sinkhorn:
         self.momentum = acceleration.Momentum()
 
     self.parallel_dual_updates = parallel_dual_updates
+    self.normalize_potentials = normalize_potentials
     self.initializer = initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
     self.jit = jit
@@ -480,21 +482,75 @@ class Sinkhorn:
       iteration: int
   ) -> SinkhornState:
     """Sinkhorn LSE update."""
-    w = self.momentum.weight(state, iteration)
-    old_gv = state.gv
 
-    new_gv = ot_prob.tau_b * ot_prob.geom.update_potential(
-        state.fu, state.gv, jnp.log(ot_prob.b), iteration, axis=0
+    def rho(tau: float) -> float:
+      return (epsilon * tau) / (1 - tau)
+
+    def k(tau_i: float, tau_j: float) -> float:
+      rho_i = rho(tau_i)
+      rho_j = rho(tau_j)
+      return (epsilon * rho_j) / ((epsilon + rho_i) * (rho_a + rho_b))
+
+    def xi(tau_i: float, tau_j: float) -> float:
+      k_ij = k(tau_i, tau_j)
+      return k_ij / (1. - k_ij)
+
+    def smin(
+        potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
+    ) -> float:
+      r = rho(tau)
+      # TODO(michalk8): check
+      return -r * utils.logsumexp(jnp.log(marginal) - potential / r)
+
+    def shift(f: jnp.ndarray,
+              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      tau = rho_a * rho_b / (rho_a + rho_b)
+      t = tau * (
+          utils.logsumexp(-f / rho_a, b=ot_prob.a) -
+          utils.logsumexp(-g / rho_b, b=ot_prob.b)
+      )
+      return f + t, g - t
+
+    epsilon = ot_prob.epsilon
+    normalize = not ot_prob.is_balanced and self.normalize_potentials
+    tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+    rho_a, rho_b = rho(tau_a), rho(tau_b)
+
+    log_a = jnp.log(ot_prob.a)
+    log_b = jnp.log(ot_prob.b)
+    w = self.momentum.weight(state, iteration)
+    old_gv, old_fu = state.gv, state.fu
+
+    if normalize:
+      k11, k22 = k(tau_a, tau_a), k(tau_b, tau_b)
+      xi12, xi21 = xi(tau_a, tau_b), xi(tau_b, tau_a)
+      # k1 = 1. / ((1. + (rho_a / epsilon)) * (1. + (rho_b / rho_a)))
+      # k2 = 1. / ((1. + (rho_b / epsilon)) * (1. + (rho_a / rho_b)))
+
+    # update g potential
+    new_gv = tau_b * ot_prob.geom.update_potential(
+        old_fu, old_gv, log_b, iteration, axis=0
     )
-    gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
-    new_fu = ot_prob.tau_a * ot_prob.geom.update_potential(
-        state.fu,
-        old_gv if self.parallel_dual_updates else gv,
-        jnp.log(ot_prob.a),
-        iteration,
-        axis=1
+    if normalize:
+      new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
+      new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
+    gv = self.momentum(w, old_gv, new_gv, self.lse_mode)
+
+    if not self.parallel_dual_updates:
+      old_gv = gv
+
+    # update f potential
+    new_fu = tau_a * ot_prob.geom.update_potential(
+        old_fu, old_gv, log_a, iteration, axis=1
     )
-    fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
+    if normalize:
+      new_fu -= k11 * smin(gv, ot_prob.b, tau_b)
+      new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
+    fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
+
+    if normalize:
+      fu, gv = shift(fu, gv)
+
     return state.set(fu=fu, gv=gv)
 
   def kernel_step(
