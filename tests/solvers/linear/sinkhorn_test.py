@@ -515,3 +515,15 @@ class TestSinkhorn:
                                atol=1e-1)
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_f_potential_is_centered(self, lse_mode: bool):
+    geom = pointcloud.PointCloud(self.x, self.y)
+    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    assert prob.is_balanced
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+
+    f = solver(prob).f
+    f_mean = jnp.mean(jnp.where(jnp.isfinite(f), f, 0.))
+
+    np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)

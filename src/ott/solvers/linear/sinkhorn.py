@@ -423,14 +423,9 @@ class Sinkhorn:
         self.momentum = acceleration.Momentum(
             inner_iterations=self.inner_iterations
         )
-      # Use adaptive momentum from 300th iteration. Only do so
-      # if error is already below threshold below.
       else:
-        self.momentum = acceleration.Momentum(
-            start=300,
-            error_threshold=1e-2,
-            inner_iterations=self.inner_iterations
-        )
+        # no momentum
+        self.momentum = acceleration.Momentum()
 
     self.parallel_dual_updates = parallel_dual_updates
     self.initializer = initializer
@@ -626,8 +621,13 @@ class Sinkhorn:
     geom = ot_prob.geom
     f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
     g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
-    errors = state.errors[:, 0]
-    return SinkhornOutput(f=f, g=g, errors=errors)
+    if ot_prob.is_balanced:
+      # center the potentials for numerical stability if the problem is balanced
+      is_finite = jnp.isfinite(f)
+      center = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
+      f -= center
+      g += center
+    return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
 
   @property
   def norm_error(self) -> Tuple[int, ...]:

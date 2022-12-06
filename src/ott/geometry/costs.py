@@ -23,7 +23,7 @@ import jax.numpy as jnp
 from ott.math import fixed_point_loop, matrix_square_root
 
 __all__ = [
-    "PNorm", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
+    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
     "UnbalancedBures"
 ]
 
@@ -36,11 +36,10 @@ class CostFn(abc.ABC):
   that function is split into two norms -- evaluated on each input separately --
   followed by a pairwise cost that involves both inputs, as in:
 
-  .. math::
+  ``c(x,y) = norm(x) + norm(y) + pairwise(x,y)``
 
-    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
-
-  If the norm function is not implemented, that value is handled as a 0.
+  If the :attr:`norm` function is not implemented, that value is handled as a 0,
+  and only :attr:`pairwise` is used.
   """
 
   # no norm function created by default.
@@ -51,20 +50,20 @@ class CostFn(abc.ABC):
     pass
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
-    """Barycentric projection.
+    """Barycentric operator.
 
     Args:
-      weights: Weights of the points.
-      xs: Points to project.
+      weights: Convex set of weights.
+      xs: Points.
 
     Returns:
-      The barycentric projection.
+      The barycenter of `xs` using `weights` coefficients.
     """
     raise NotImplementedError("Barycenter is not yet implemented.")
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
-    """Create a padding vector for easier jitting.
+    """Create a padding vector of adequate dimension, well-suited to a cost.
 
     Args:
       dim: Dimensionality of the data.
@@ -156,7 +155,7 @@ class SqPNorm(TICost):
     super().__init__()
     assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
     self.p = p
-    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else "inf"
+    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
   def h(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
@@ -174,24 +173,25 @@ class SqPNorm(TICost):
 
 
 @jax.tree_util.register_pytree_node_class
-class PNorm(TICost):
-  """p-norm (to the power p) of the difference of two vectors.
+class PNormP(TICost):
+  """p-norm to the power p (and divided by p) of the difference of two vectors.
 
   Args:
-    p: Power of the p-norm.
+    p: Power of the p-norm, a finite float larger than 1.0.
   """
 
   def __init__(self, p: float):
     super().__init__()
-    assert p >= 1.0, "p parameter in p-norm should be >= 1.0"
+    assert p >= 1.0, "p parameter in p-norm should be larger than 1.0"
+    assert p < jnp.inf, "p parameter in p-norm should be finite"
     self.p = p
-    # TODO(marcocuturi): fix case when `p=1`
-    self.q = 1. / (1. - 1. / self.p) if p > 1. else "inf"
+    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
   def h(self, z: jnp.ndarray) -> float:
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
 
   def h_legendre(self, z: jnp.ndarray) -> float:
+    assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
   def tree_flatten(self):

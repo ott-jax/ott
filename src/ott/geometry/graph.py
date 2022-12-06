@@ -40,6 +40,10 @@ class Graph(geometry.Geometry):
     directed: Whether the ``graph`` is directed. If not, it will be made
       undirected as :math:`G + G^T`. This parameter is ignored when  directly
       passing the Laplacian, which is assumed to be symmetric.
+    normalize: Whether to normalize the Laplacian as
+      :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
+      \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
+      unnormalized Laplacian and :math:`D` the degree matrix.
     tol: Relative tolerance with respect to the Hilbert metric, see
       :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
       If negative, this option is ignored and only ``n_steps`` is used.
@@ -55,6 +59,7 @@ class Graph(geometry.Geometry):
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
       directed: bool = False,
+      normalize: bool = False,
       tol: float = -1.,
       **kwargs: Any
   ):
@@ -64,13 +69,14 @@ class Graph(geometry.Geometry):
     # arbitrary epsilon; can't use `None` as `mean_cost_matrix` would be used
     super().__init__(epsilon=1., **kwargs)
     self._graph = graph
-    self._laplacian = laplacian
+    self._lap = laplacian
     self._solver: Optional[decomposition.CholeskySolver] = None
 
     self._t = t
     self.n_steps = n_steps
     self.numerical_scheme = numerical_scheme
     self.directed = directed
+    self.normalize = normalize
     self._tol = tol
 
   def apply_kernel(
@@ -179,21 +185,44 @@ class Graph(geometry.Geometry):
 
   @property
   def laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
-    """The graph Laplacian."""
-    if self._laplacian is not None:
-      return self._laplacian
+    """The (normalized) graph Laplacian."""
+    return self._norm_laplacian if self.normalize else self._laplacian
 
-    if self.is_sparse:
-      n, _ = self.shape
-      D, ixs = self.graph.sum(1).todense(), jnp.arange(n)
-      D = jesp.BCOO((D, jnp.c_[ixs, ixs]), shape=(n, n))
-    else:
-      D = jnp.diag(self.graph.sum(1))
+  def _degree_matrix(self,
+                     *,
+                     inv_sqrt: bool = False) -> Union[jnp.ndarray, Sparse_t]:
+    if not self.is_sparse:
+      data = self.graph.sum(1)
+      if inv_sqrt:
+        data = jnp.where(data > 0., 1. / jnp.sqrt(data), 0.)
+      return jnp.diag(data)
 
+    n, _ = self.shape
+    data, ixs = self.graph.sum(1).todense(), jnp.arange(n)
+    if inv_sqrt:
+      data = jnp.where(data > 0., 1. / jnp.sqrt(data), 0.)
+    return jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
+
+  @property
+  def _laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
+    if self._lap is not None:
+      return self._lap
     # in the sparse case, we don't sum duplicates here because
     # we need to know `nnz` a priori for JIT (could be exposed in `__init__`)
     # instead, `ott.math.decomposition._jax_sparse_to_scipy` handles it on host
-    return D - self.graph
+    return self._degree_matrix() - self.graph
+
+  @property
+  def _norm_laplacian(self) -> Union[jnp.ndarray, Sparse_t]:
+    # assumes symmetric Laplacian, as mentioned in `__init__`
+    lap = self._laplacian
+    inv_sqrt_deg = self._degree_matrix(inv_sqrt=True)
+    if not self.is_sparse:
+      return inv_sqrt_deg @ lap @ inv_sqrt_deg
+
+    inv_sqrt_deg = inv_sqrt_deg.data  # (n,)
+    # much faster than doing sparse MM
+    return inv_sqrt_deg[:, None] * lap * inv_sqrt_deg[None, :]
 
   @property
   def t(self) -> float:
@@ -208,7 +237,7 @@ class Graph(geometry.Geometry):
 
   @property
   def _scale(self) -> float:
-    """Constant to scale the Laplacian with."""
+    """Constant used to scale the Laplacian."""
     if self.numerical_scheme == "backward_euler":
       return self.t / (4. * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
@@ -247,14 +276,14 @@ class Graph(geometry.Geometry):
 
   @property
   def shape(self) -> Tuple[int, int]:
-    arr = self._graph if self._graph is not None else self._laplacian
+    arr = self._graph if self._graph is not None else self._lap
     return arr.shape
 
   @property
   def is_sparse(self) -> bool:
     """Whether :attr:`graph` or :attr:`laplacian` is sparse."""
-    if self._laplacian is not None:
-      return isinstance(self.laplacian, Sparse_t.__args__)
+    if self._lap is not None:
+      return isinstance(self._lap, Sparse_t.__args__)
     if isinstance(self._graph, (jesp.CSR, jesp.CSC, jesp.COO)):
       raise NotImplementedError("Graph must be specified in `BCOO` format.")
     return isinstance(self._graph, jesp.BCOO)
@@ -268,7 +297,7 @@ class Graph(geometry.Geometry):
 
   @property
   def is_symmetric(self) -> bool:
-    # there are some numerical imprecisions, but it should be symmetric
+    # there may be some numerical imprecisions, but it should be symmetric
     return True
 
   @property
@@ -303,11 +332,12 @@ class Graph(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._graph, self._laplacian, self.solver], {
+    return [self._graph, self._lap, self.solver], {
         "t": self._t,
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
+        "normalize": self.normalize,
         "tol": self._tol,
         **self._kwargs,
     }

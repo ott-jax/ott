@@ -9,10 +9,10 @@
 **See the [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
 ## What is OTT-JAX?
-A JAX powered library to compute optimal transport at scale and on accelerators, OTT-JAX includes the fastest
+A ``JAX`` powered library to compute optimal transport at scale and on accelerators, ``OTT-JAX`` includes the fastest
 implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling,
 acceleration, initializations) and extensions (low-rank), that can be used directly, or within more advanced problems
-(Gromov-Wasserstein, barycenters). Some of JAX features, including
+(Gromov-Wasserstein, barycenters). Some of ``JAX`` features, including
 [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions),
 [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and
 [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html)
@@ -20,13 +20,24 @@ work towards the goal of having end-to-end differentiable outputs. OTT-JAX is de
 from Apple, Google, Meta and many academic contributors, including TU München, Oxford, ENSAE/IP Paris and the
 Hebrew University.
 
+## Installation
+Install ``OTT-JAX`` from [PyPI](https://pypi.org/project/ott-jax/) as:
+```bash
+pip install ott-jax
+```
+or with ``conda`` via [conda-forge](https://anaconda.org/conda-forge/ott-jax) as:
+```bash
+conda install -c conda-forge ott-jax
+```
+
+
 ## What is optimal transport?
 Optimal transport can be loosely described as the branch of mathematics and optimization that studies
-*matching problems*: given two families of points, and a cost function on pairs of points, find a `good' (low cost) way
+*matching problems*: given two families of points, and a cost function on pairs of points, find a "good" (low cost) way
 to associate bijectively to every point in the first family another in the second.
 
 Such problems appear in all areas of science, are easy to describe, yet hard to solve. Indeed, while matching optimally
-two sets of *n* points using a pairwise cost can be solved with the
+two sets of $n$ points using a pairwise cost can be solved with the
 [Hungarian algorithm](https://en.wikipedia.org/wiki/Hungarian_algorithm), solving it costs an order of $O(n^3)$
 operations, and lacks flexibility, since one may want to couple families of different sizes.
 
