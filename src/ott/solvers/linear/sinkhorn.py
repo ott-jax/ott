@@ -500,7 +500,7 @@ class Sinkhorn:
     ) -> float:
       r = rho(tau)
       # TODO(michalk8): check
-      return -r * utils.logsumexp(jnp.log(marginal) - potential / r)
+      return -r * utils.logsumexp(-potential / r, b=marginal)
 
     def shift(f: jnp.ndarray,
               g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
