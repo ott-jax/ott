@@ -551,7 +551,7 @@ class Sinkhorn:
         old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
     )
     if normalize:
-      new_fu -= k11 * smin(gv, ot_prob.b, tau_b)
+      new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
     fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
 
