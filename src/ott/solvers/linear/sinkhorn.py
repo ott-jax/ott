@@ -435,8 +435,9 @@ class Sinkhorn:
       sequentially (in Gauss-Seidel fashion) if False.
     recenter_potentials: Whether to re-center the dual potentials.
       If the problem is balanced, the ``f`` potential is zero-centered for
-      numerical stability. Otherwise, use the approach of :cite:`sejourne:22` to
-      achieve faster convergence. Only when ``lse_mode = True``.
+      numerical stability. Otherwise, use the approach of :cite:`sejourne:22`
+      to achieve faster convergence. Only used when ``lse_mode = True`` and
+      ``tau_a < 1`` and ``tau_b < 1``.
     use_danskin: when ``True``, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
