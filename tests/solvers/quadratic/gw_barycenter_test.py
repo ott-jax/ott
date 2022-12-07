@@ -38,7 +38,7 @@ class TestGWBarycenter:
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (n, d))
     y = x if m is None else jax.random.normal(key2, (m, d))
-    return pointcloud.PointCloud(x, y, batch_size=None, **kwargs)
+    return pointcloud.PointCloud(x, y, **kwargs)
 
   @staticmethod
   def pad_cost_matrices(
@@ -100,7 +100,9 @@ class TestGWBarycenter:
     assert problem_pc.ndim == self.ndim
     assert problem_cost.ndim is None
 
-    solver = gwb_solver.GromovWassersteinBarycenter(jit=True)
+    solver = jax.jit(
+        gwb_solver.GromovWassersteinBarycenter(), static_argnames="bar_size"
+    )
     out_pc = solver(problem_pc, bar_size=bar_size)
     out_cost = solver(problem_cost, bar_size=bar_size)
 

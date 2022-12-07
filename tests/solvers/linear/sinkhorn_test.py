@@ -85,14 +85,18 @@ class TestSinkhorn:
     # First geom specifies explicitly relative_epsilon to be True. This is not
     # needed in principle, but introduced here to test logic.
     geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
-    # jit first with jit inside sinkhorn call.
+    # not jitting
     f_1 = sinkhorn.sinkhorn(
-        geom_1, a=self.a, b=self.b, tau_a=.99, tau_b=.97, jit=True
+        geom_1,
+        a=self.a,
+        b=self.b,
+        tau_a=.99,
+        tau_b=.97,
     ).f
 
     # Second geom does not provide whether epsilon is relative.
     geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
-    # jit now with jit outside sinkhorn call.
+    # jitting
     compute_f = jax.jit(
         lambda g, a, b: sinkhorn.sinkhorn(g, a, b, tau_a=.99, tau_b=.97).f
     )
@@ -125,38 +129,33 @@ class TestSinkhorn:
       tau_b: float
   ):
     """Check that variations in init/decay work, and result in same solution."""
-    geom = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
-    out_1 = sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        jit=True,
-        lse_mode=lse_mode,
-        threshold=1e-5
-    )
 
-    geom = pointcloud.PointCloud(self.x, self.y)
-    out_2 = sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        jit=True,
-        lse_mode=lse_mode,
-        threshold=1e-5
-    )
+    @jax.jit
+    def run_sinkhorn(geom: pointcloud.PointCloud) -> sinkhorn.SinkhornOutput:
+      return sinkhorn.sinkhorn(
+          geom,
+          a=self.a,
+          b=self.b,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          lse_mode=lse_mode,
+          threshold=1e-5
+      )
+
+    geom1 = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
+    geom2 = pointcloud.PointCloud(self.x, self.y)
+    out_1 = run_sinkhorn(geom1)
+    out_2 = run_sinkhorn(geom2)
     # recenter if problem is balanced, since in that case solution is only
     # valid up to additive constant.
-    unb = (tau_a < 1.0 or tau_b < 1.0)
-    np.testing.assert_allclose(
-        out_1.f if unb else out_1.f - jnp.mean(out_1.f[jnp.isfinite(out_1.f)]),
-        out_2.f if unb else out_2.f - jnp.mean(out_2.f[jnp.isfinite(out_2.f)]),
-        rtol=1e-4,
-        atol=1e-4
-    )
+    if out_1.ot_prob.is_balanced:
+      # TODO(michalk8): remove after https://github.com/ott-jax/ott/pull/194
+      f_1 = out_1.f - jnp.mean(out_1.f[jnp.isfinite(out_1.f)])
+      f_2 = out_2.f - jnp.mean(out_2.f[jnp.isfinite(out_2.f)])
+    else:
+      f_1, f_2 = out_1.f, out_2.f
+
+    np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast
   def test_euclidean_point_cloud_min_iter(self):

@@ -263,7 +263,8 @@ class SinkhornOutput(NamedTuple):
     we resort to instantiating both transport matrix and cost matrix.
 
     Args:
-      other_geom: geometry whose cost matrix is used to evaluate tranposrtation.
+      other_geom: geometry whose cost matrix is used to evaluate the transport
+        cost.
 
     Returns:
       the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
@@ -383,10 +384,6 @@ class Sinkhorn:
       when the algorithm has converged with a low tolerance.
     initializer: how to compute the initial potentials/scalings.
     kwargs_init: keyword arguments when creating the initializer.
-    jit: if True, automatically jits the function upon first call.
-      Should be set to False when used in a function that is jitted by the user,
-      or when computing gradients (in which case the gradient function
-      should be jitted by the user)
   """
 
   def __init__(
@@ -406,7 +403,6 @@ class Sinkhorn:
       initializer: Union[Literal["default", "gaussian", "sorting"],
                          init_lib.SinkhornInitializer] = "default",
       kwargs_init: Optional[Mapping[str, Any]] = None,
-      jit: bool = True
   ):
     self.lse_mode = lse_mode
     self.threshold = threshold
@@ -435,7 +431,6 @@ class Sinkhorn:
     self.parallel_dual_updates = parallel_dual_updates
     self.initializer = initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
-    self.jit = jit
 
     # Force implicit_differentiation to True when using Anderson acceleration,
     # Reset all momentum parameters to default (i.e. no momentum)
@@ -472,8 +467,7 @@ class Sinkhorn:
     init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode
     )
-    run_fn = jax.jit(run) if self.jit else run
-    return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
+    return run(ot_prob, self, (init_dual_a, init_dual_b))
 
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
@@ -781,7 +775,6 @@ def make(
     parallel_dual_updates: bool = False,
     use_danskin: bool = None,
     initializer: init_lib.SinkhornInitializer = init_lib.DefaultInitializer(),
-    jit: bool = False
 ) -> Sinkhorn:
   """For backward compatibility."""
   del tau_a, tau_b
@@ -825,7 +818,6 @@ def make(
       parallel_dual_updates=parallel_dual_updates,
       use_danskin=use_danskin,
       initializer=initializer,
-      jit=jit
   )
 
 
@@ -1132,10 +1124,6 @@ def sinkhorn(
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
-    jit: if True, automatically jits the function upon first call.
-      Should be set to False when used in a function that is jitted by the user,
-      or when computing gradients (in which case the gradient function
-      should be jitted by the user).
     kwargs: Additional keyword arguments (see above).
 
   Returns:

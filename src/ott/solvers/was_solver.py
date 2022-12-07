@@ -40,7 +40,6 @@ class WassersteinSolver:
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
-      jit: bool = True,
       store_inner_errors: bool = False,
       **kwargs: Any,
   ):
@@ -58,7 +57,7 @@ class WassersteinSolver:
         if epsilon is None:
           # Use default entropic regularization in LRSinkhorn if None was passed
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
-              rank=self.rank, jit=False, **kwargs
+              rank=self.rank, **kwargs
           )
         else:
           # If epsilon is passed, use it to replace the default LRSinkhorn value
@@ -67,14 +66,13 @@ class WassersteinSolver:
           )
       else:
         # When using Entropic GW, epsilon is not handled inside Sinkhorn,
-        # but rather added back to the Geometry object reinstantiated
-        # when linearizing the problem. Therefore no need to pass it to solver.
+        # but rather added back to the Geometry object re-instantiated
+        # when linearizing the problem. Therefore, no need to pass it to solver.
         self.linear_ot_solver = sinkhorn.Sinkhorn(**kwargs)
 
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
-    self.jit = jit
     self.store_inner_errors = store_inner_errors
     self._kwargs = kwargs
 
@@ -87,7 +85,6 @@ class WassersteinSolver:
     return ([self.epsilon, self.linear_ot_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
-        "jit": self.jit,
         "rank": self.rank,
         "store_inner_errors": self.store_inner_errors,
         **self._kwargs

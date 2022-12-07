@@ -214,8 +214,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       initializer = self.create_initializer(prob)
       init = initializer(prob, epsilon=self.epsilon, key=key1, **kwargs)
 
-    gromov_fn = jax.jit(iterations) if self.jit else iterations
-    out = gromov_fn(self, prob, init, key2)
+    out = iterations(self, prob, init, key2)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
@@ -395,7 +394,6 @@ def make(
     epsilon: Union[epsilon_scheduler.Epsilon, float] = 1.,
     rank: int = -1,
     max_iterations: int = 50,
-    jit: bool = False,
     warm_start: Optional[bool] = None,
     store_inner_errors: bool = False,
     linear_ot_solver_kwargs: Optional[Mapping[str, Any]] = None,
@@ -410,7 +408,6 @@ def make(
     rank: integer used to constrain the rank of GW solutions if >0.
     max_iterations: the maximum number of outer iterations for
       Gromov Wasserstein.
-    jit: bool, if True, jits the function.
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, it's enabled when using low-rank.
     store_inner_errors: whether or not to return all the errors of the inner
@@ -449,7 +446,6 @@ def make(
       threshold=threshold,
       min_iterations=min_iterations,
       max_iterations=max_iterations,
-      jit=jit,
       store_inner_errors=store_inner_errors,
       warm_start=warm_start,
       **kwargs
@@ -478,9 +474,9 @@ def gromov_wasserstein(
   if the problem is fused) and calls a solver to output a solution.
 
   Args:
-    geom_xx: a Geometry object for the first view.
-    geom_yy: a second Geometry object for the second view.
-    geom_xy: a Geometry object representing the linear cost in FGW.
+    geom_xx: Geometry for the first view.
+    geom_yy: Geometry for the second view.
+    geom_xy: Geometry representing the linear cost in FGW.
     fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
       i.e. loss = quadratic_loss + fused_penalty * linear_loss.
       Ignored if ``geom_xy`` is not specified.

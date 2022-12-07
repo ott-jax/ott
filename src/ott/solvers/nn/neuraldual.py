@@ -92,9 +92,9 @@ class NeuralDualSolver:
 
     # set default neural architectures
     if neural_f is None:
-      neural_f = icnn.ICNN(dim_hidden=[64, 64, 64, 64])
+      neural_f = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
     if neural_g is None:
-      neural_g = icnn.ICNN(dim_hidden=[64, 64, 64, 64])
+      neural_g = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
 
     # set optimizer and networks
     self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
