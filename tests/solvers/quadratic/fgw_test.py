@@ -84,7 +84,7 @@ class TestFusedGromovWasserstein:
     assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
     assert out.ndim == 2
 
-  @pytest.mark.fast.with_args(jit=[False, True], only_fast=1)
+  @pytest.mark.fast.with_args("jit", [False, True], only_fast=0)
   def test_gradient_marginals_fgw_solver(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
     geom_x = pointcloud.PointCloud(self.x)
@@ -92,7 +92,7 @@ class TestFusedGromovWasserstein:
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
     fused_penalty = self.fused_penalty
 
-    def reg_gw(a, b, implicit):
+    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       sinkhorn_kwargs = {
           'implicit_differentiation': implicit,
           'max_iterations': 1001
@@ -107,7 +107,6 @@ class TestFusedGromovWasserstein:
           epsilon=1.0,
           loss='sqeucl',
           max_iterations=10,
-          jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
@@ -115,6 +114,9 @@ class TestFusedGromovWasserstein:
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True, argnums=(0, 1))
+      if jit:
+        reg_gw_and_grad = jax.jit(reg_gw_and_grad, static_argnames="implicit")
+
       (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)
@@ -365,8 +367,15 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(y)
     geom_xy = pointcloud.PointCloud(xx, yy)
 
-    ot_gwlr = gw_solver.gromov_wasserstein(
-        geom_x, geom_y, geom_xy, rank=5, jit=jit
+    solver = gw_solver.gromov_wasserstein
+    if jit:
+      solver = jax.jit(solver, static_argnames="rank")
+
+    ot_gwlr = solver(
+        geom_x,
+        geom_y,
+        geom_xy,
+        rank=5,
     )
     res0 = ot_gwlr.apply(x.T, axis=0)
     res1 = ot_gwlr.apply(y.T, axis=1)

@@ -152,10 +152,8 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize("jit", [False, True])
   def test_gradient_marginals_gw(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
 
-    def reg_gw(a, b, implicit):
+    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       sinkhorn_kwargs = {
           'implicit_differentiation': implicit,
           'max_iterations': 1001
@@ -168,14 +166,19 @@ class TestGromovWasserstein:
           epsilon=1.0,
           loss='sqeucl',
           max_iterations=10,
-          jit=jit,
           sinkhorn_kwargs=sinkhorn_kwargs
       )
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
 
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
       reg_gw_and_grad = jax.value_and_grad(reg_gw, has_aux=True, argnums=(0, 1))
+      if jit:
+        reg_gw_and_grad = jax.jit(reg_gw_and_grad, static_argnames="implicit")
+
       (_, aux), grad_reg_gw = reg_gw_and_grad(self.a, self.b, implicit)
       grad_matrices[i] = grad_reg_gw
       grad_manual_a = aux[0] - jnp.log(self.a)

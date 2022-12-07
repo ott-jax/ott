@@ -39,18 +39,18 @@ class TestBarycenter:
   @pytest.mark.fast.with_args(
       rank=[-1, 6],
       epsilon=[1e-1, 1e-2],
-      jit=[True, False],
       init_random=[True, False],
+      jit=[False, True],
       only_fast={
           "rank": -1,
           "epsilon": 1e-1,
-          "jit": True,
-          "init_random": False
+          "init_random": False,
+          "jit": False,
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jnp.ndarray, rank: int, epsilon: float, jit: bool,
-      init_random: bool
+      self, rng: jnp.ndarray, rank: int, epsilon: float, init_random: bool,
+      jit: bool
   ):
     rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
@@ -83,7 +83,9 @@ class TestBarycenter:
 
     # Define solver
     threshold = 1e-3
-    solver = cb.WassersteinBarycenter(rank=rank, threshold=threshold, jit=jit)
+    solver = cb.WassersteinBarycenter(rank=rank, threshold=threshold)
+    if jit:
+      solver = jax.jit(solver, static_argnames="bar_size")
 
     # Set barycenter size to 31.
     bar_size = 31
@@ -170,12 +172,16 @@ class TestBarycenter:
       jit=[False, True],
       only_fast={
           "lse_mode": True,
+          "jit": False,
           "epsilon": 1e-1,
-          "jit": False
       }
   )
   def test_bures_barycenter(
-      self, rng: jnp.ndarray, lse_mode: bool, epsilon: float, jit: bool
+      self,
+      rng: jnp.ndarray,
+      lse_mode: bool,
+      epsilon: float,
+      jit: bool,
   ):
     num_measures = 2
     num_components = 2
@@ -230,27 +236,23 @@ class TestBarycenter:
     assert bar_p.max_measure_size == seg_y.shape[1]
     assert bar_p.ndim == seg_y.shape[2]
 
-    solver = cb.WassersteinBarycenter(lse_mode=lse_mode, jit=jit)
+    solver = cb.WassersteinBarycenter(lse_mode=lse_mode)
+    if jit:
+      solver = jax.jit(solver, static_argnames="bar_size")
 
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
 
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dimension)
 
-    assert jnp.logical_or(
-        jnp.allclose(
-            means_bary,
-            jnp.array([[0., 1.], [0., -1.]]),
-            rtol=1e-02,
-            atol=1e-02
-        ),
-        jnp.allclose(
-            means_bary,
-            jnp.array([[0., -1.], [0., 1.]]),
-            rtol=1e-02,
-            atol=1e-02
-        )
-    )
+    try:
+      np.testing.assert_allclose(
+          means_bary, jnp.array([[0., 1.], [0., -1.]]), rtol=1e-02, atol=1e-02
+      )
+    except AssertionError:
+      np.testing.assert_allclose(
+          means_bary, jnp.array([[0., -1.], [0., 1.]]), rtol=1e-02, atol=1e-02
+      )
 
     np.testing.assert_allclose(
         covs_bary,
@@ -262,17 +264,22 @@ class TestBarycenter:
   @pytest.mark.fast.with_args(
       alpha=[50., 1.],
       epsilon=[1e-2, 1e-1],
-      jit=[False, True],
       dim=[4, 10],
+      jit=[False, True],
       only_fast={
           "alpha": 50,
           "epsilon": 1e-1,
-          "jit": False,
-          "dim": 4
+          "dim": 4,
+          "jit": False
       }
   )
   def test_bures_barycenter_different_number_of_components(
-      self, rng: jnp.ndarray, dim: int, alpha: float, epsilon: float, jit: bool
+      self,
+      rng: jnp.ndarray,
+      alpha: float,
+      epsilon: float,
+      dim: int,
+      jit: bool,
   ):
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
@@ -351,7 +358,9 @@ class TestBarycenter:
     assert bar_p.num_measures == num_measures
     assert bar_p.ndim == ys.shape[-1]
 
-    solver = cb.WassersteinBarycenter(lse_mode=True, jit=jit)
+    solver = cb.WassersteinBarycenter(lse_mode=True)
+    if jit:
+      solver = jax.jit(solver, static_argnames="bar_size")
 
     # Compute the barycenter.
     out = solver(bar_p, bar_size=bar_size, x_init=x_init)

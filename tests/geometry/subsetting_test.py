@@ -112,10 +112,15 @@ class TestMaskPointCloud:
   ):
     geom, masked = geom_masked
     if stat == "mean":
-      np.testing.assert_allclose(geom.mean_cost_matrix, masked.mean_cost_matrix)
+      np.testing.assert_allclose(
+          geom.mean_cost_matrix, masked.mean_cost_matrix, rtol=1e-6, atol=1e-6
+      )
     else:
       np.testing.assert_allclose(
-          geom.median_cost_matrix, masked.median_cost_matrix
+          geom.median_cost_matrix,
+          masked.median_cost_matrix,
+          rtol=1e-6,
+          atol=1e-6,
       )
 
   def test_mask_permutation(
@@ -173,9 +178,14 @@ class TestMaskPointCloud:
     assert geom.src_mask.shape == (geom.shape[0],)
     assert geom.tgt_mask.shape == (geom.shape[1],)
 
-    np.testing.assert_allclose(geom.mean_cost_matrix, masked.mean_cost_matrix)
     np.testing.assert_allclose(
-        geom.median_cost_matrix, masked.median_cost_matrix
+        geom.mean_cost_matrix, masked.mean_cost_matrix, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        geom.median_cost_matrix,
+        masked.median_cost_matrix,
+        rtol=1e-6,
+        atol=1e-6
     )
     np.testing.assert_allclose(
         geom.cost_matrix, masked.cost_matrix, rtol=1e-6, atol=1e-6

@@ -159,7 +159,7 @@ class TestSinkhornJacobian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
 
-    def reg_ot(a, b):
+    def reg_ot(a: jnp.ndarray, b: jnp.ndarray) -> float:
       return sinkhorn.sinkhorn(
           pointcloud.PointCloud(x, y, epsilon=0.1), a=a, b=b, lse_mode=lse_mode
       ).reg_ot_cost
@@ -267,7 +267,8 @@ class TestSinkhornJacobian:
     # Adding some near-zero distances to test proper handling with p_norm=1.
     y = y.at[0].set(x[0, :] + 1e-3)
 
-    def loss_fn(x, y):
+    def loss_fn(x: jnp.ndarray,
+                y: jnp.ndarray) -> Tuple[float, sinkhorn.SinkhornOutput]:
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       out = sinkhorn.sinkhorn(
           geom,
@@ -277,7 +278,6 @@ class TestSinkhornJacobian:
           implicit_differentiation=implicit_differentiation,
           min_iterations=min_iter,
           max_iterations=max_iter,
-          jit=False
       )
       return out.reg_ot_cost, out
 
@@ -332,13 +332,13 @@ class TestSinkhornJacobian:
 
   @pytest.mark.fast
   def test_differentiability_with_jit(self, rng: jnp.ndarray):
-    cost = jax.random.uniform(rng, (15, 17))
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
       geom = geometry.Geometry(c, epsilon=1e-2)
-      return sinkhorn.sinkhorn(geom, jit=True).reg_ot_cost
+      return sinkhorn.sinkhorn(geom).reg_ot_cost
 
-    gradient = jax.grad(reg_ot_cost)(cost)
+    cost = jax.random.uniform(rng, (15, 17))
+    gradient = jax.jit(jax.grad(reg_ot_cost))(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
   @pytest.mark.fast.with_args(

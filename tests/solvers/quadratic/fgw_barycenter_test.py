@@ -45,7 +45,7 @@ class FGWBarycenterTest:
       assert prob.ndim_fused == self.ndim_f
 
       solver = gwb_solver.GromovWassersteinBarycenter(
-          jit=False, store_inner_errors=True, epsilon=epsilon
+          store_inner_errors=True, epsilon=epsilon
       )
 
       x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
