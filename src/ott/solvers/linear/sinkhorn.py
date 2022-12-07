@@ -62,9 +62,9 @@ class SinkhornState(NamedTuple):
         fu,
         gv,
         ot_prob,
-        norm_error,
-        lse_mode,
-        only_check_b=ot_prob.is_balanced and not parallel_dual_updates
+        norm_error=norm_error,
+        lse_mode=lse_mode,
+        parallel_dual_updates=parallel_dual_updates
     )
 
   def ent_reg_cost(
@@ -81,7 +81,7 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, prop. 2 from :cite:`sejourne:22` is used to re-center.
+    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials.
 
     Args:
       f: The first dual potential.
@@ -112,9 +112,10 @@ def solution_error(
     f_u: jnp.ndarray,
     g_v: jnp.ndarray,
     ot_prob: linear_problem.LinearProblem,
+    *,
     norm_error: Sequence[int],
     lse_mode: bool,
-    only_check_b: bool = False
+    parallel_dual_updates: bool,
 ) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
@@ -122,10 +123,10 @@ def solution_error(
   used, this is simply deviation of the coupling's marginal to ``ot_prob.b``.
   This is the case because the second (and last) update of the Sinkhorn
   algorithm equalizes the row marginal of the coupling to ``ot_prob.a``. To
-  simplify the logic, this is parameterized by checking whether `only_check_b`
-  is `True`.
+  simplify the logic, this is parameterized by checking whether
+  `parallel_dual_updates = True`.
 
-  When that flag is `False`, typically, When the problem is unbalanced,
+  When that flag is `False`, or when the problem is unbalanced,
   additional quantities to qualify optimality must be taken into account.
 
   Args:
@@ -134,11 +135,13 @@ def solution_error(
     ot_prob: linear OT problem
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector products.
+    parallel_dual_updates: Whether potentials/scalings were computed in
+      parallel.
 
   Returns:
     a positive number quantifying how far from optimality current solution is.
   """
-  if only_check_b:
+  if ot_prob.is_balanced and not parallel_dual_updates:
     return marginal_error(
         f_u, g_v, ot_prob.b, ot_prob.geom, 0, norm_error, lse_mode
     )
