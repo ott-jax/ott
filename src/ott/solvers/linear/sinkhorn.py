@@ -124,9 +124,9 @@ def solution_error(
   This is the case because the second (and last) update of the Sinkhorn
   algorithm equalizes the row marginal of the coupling to ``ot_prob.a``. To
   simplify the logic, this is parameterized by checking whether
-  `parallel_dual_updates = True`.
+  `parallel_dual_updates = False`.
 
-  When that flag is `False`, or when the problem is unbalanced,
+  When that flag is `True`, or when the problem is unbalanced,
   additional quantities to qualify optimality must be taken into account.
 
   Args:
