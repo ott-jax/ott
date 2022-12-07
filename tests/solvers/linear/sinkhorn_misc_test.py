@@ -316,7 +316,7 @@ class TestSinkhornUnbalanced:
           parallel_dual_updates=False,
           lse_mode=True,
           max_iterations=4000,
-          threshold=1e-4
+          threshold=1e-3
       )
       return solver(prob)
 
