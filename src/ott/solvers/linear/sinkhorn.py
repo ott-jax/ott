@@ -56,7 +56,7 @@ class SinkhornState(NamedTuple):
     """State dependent function to return error."""
     fu, gv = self.fu, self.gv
     if recenter and lse_mode:
-      fu, gv = self.center(fu, gv, ot_prob=ot_prob)
+      fu, gv = self.recenter(fu, gv, ot_prob=ot_prob)
 
     return solution_error(
         fu,
@@ -72,7 +72,7 @@ class SinkhornState(NamedTuple):
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
-  def center(
+  def recenter(
       self,
       f: jnp.ndarray,
       g: jnp.ndarray,
@@ -707,7 +707,7 @@ class Sinkhorn:
     f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
     g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
     if self.recenter_potentials:
-      f, g = state.center(f, g, ot_prob=ot_prob)
+      f, g = state.recenter(f, g, ot_prob=ot_prob)
 
     return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
 
