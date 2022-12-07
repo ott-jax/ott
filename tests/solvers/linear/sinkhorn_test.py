@@ -184,7 +184,7 @@ class TestSinkhorn:
 
     f_1 = sinkhorn.sinkhorn(geom_1, a=self.a, b=self.b).f
     f_2 = sinkhorn.sinkhorn(geom_2, a=self.a, b=self.b).f
-    # recentering to remove ambiguity on equality up to additive constant.
+    # re-centering to remove ambiguity on equality up to additive constant.
     f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
     f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
 
@@ -517,11 +517,11 @@ class TestSinkhorn:
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_f_potential_is_centered(self, lse_mode: bool):
+  def test_f_potential_is_zero_centered(self, lse_mode: bool):
     geom = pointcloud.PointCloud(self.x, self.y)
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
     assert prob.is_balanced
-    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, recenter_potentials=True)
 
     f = solver(prob).f
     f_mean = jnp.mean(jnp.where(jnp.isfinite(f), f, 0.))

@@ -21,7 +21,9 @@ from typing_extensions import Literal
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
-from ott.math import fixed_point_loop, unbalanced_functions
+from ott.math import fixed_point_loop
+from ott.math import unbalanced_functions as uf
+from ott.math import utils
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -43,17 +45,26 @@ class SinkhornState(NamedTuple):
     return self._replace(**kwargs)
 
   def solution_error(
-      self, ot_prob: linear_problem.LinearProblem, norm_error: Sequence[int],
-      lse_mode: bool, parallel_dual_updates: bool
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      norm_error: Sequence[int],
+      *,
+      lse_mode: bool,
+      parallel_dual_updates: bool,
+      recenter: bool,
   ) -> jnp.ndarray:
     """State dependent function to return error."""
+    fu, gv = self.fu, self.gv
+    if recenter and lse_mode:
+      fu, gv = self.recenter(fu, gv, ot_prob=ot_prob)
+
     return solution_error(
-        self.fu,
-        self.gv,
+        fu,
+        gv,
         ot_prob,
-        norm_error,
-        lse_mode,
-        only_check_b=ot_prob.is_balanced and not parallel_dual_updates
+        norm_error=norm_error,
+        lse_mode=lse_mode,
+        parallel_dual_updates=parallel_dual_updates
     )
 
   def ent_reg_cost(
@@ -61,14 +72,55 @@ class SinkhornState(NamedTuple):
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
+  def recenter(
+      self,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      ot_prob: linear_problem.LinearProblem,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Re-center dual potentials.
+
+    If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
+    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials only
+    iff ``tau_a < 1`` and ``tau_b < 1``.
+
+    Args:
+      f: The first dual potential.
+      g: The second dual potential.
+      ot_prob: Linear OT problem.
+
+    Returns:
+      The centered potentials.
+    """
+    if ot_prob.is_balanced:
+      # center the potentials for numerical stability
+      is_finite = jnp.isfinite(f)
+      shift = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
+      return f - shift, g + shift
+
+    if ot_prob.tau_a == 1. or ot_prob.tau_b == 1.:
+      # re-centering wasn't done during the lse-step, ignore
+      return f, g
+
+    rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
+    rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
+    tau = rho_a * rho_b / (rho_a + rho_b)
+
+    shift = tau * (
+        utils.logsumexp(-f / rho_a, b=ot_prob.a) -
+        utils.logsumexp(-g / rho_b, b=ot_prob.b)
+    )
+    return f + shift, g - shift
+
 
 def solution_error(
     f_u: jnp.ndarray,
     g_v: jnp.ndarray,
     ot_prob: linear_problem.LinearProblem,
+    *,
     norm_error: Sequence[int],
     lse_mode: bool,
-    only_check_b: bool = False
+    parallel_dual_updates: bool,
 ) -> jnp.ndarray:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
@@ -76,10 +128,10 @@ def solution_error(
   used, this is simply deviation of the coupling's marginal to ``ot_prob.b``.
   This is the case because the second (and last) update of the Sinkhorn
   algorithm equalizes the row marginal of the coupling to ``ot_prob.a``. To
-  simplify the logic, this is parameterized by checking whether `only_check_b`
-  is `True`.
+  simplify the logic, this is parameterized by checking whether
+  `parallel_dual_updates = False`.
 
-  When that flag is `False`, typically, When the problem is unbalanced,
+  When that flag is `True`, or when the problem is unbalanced,
   additional quantities to qualify optimality must be taken into account.
 
   Args:
@@ -88,11 +140,13 @@ def solution_error(
     ot_prob: linear OT problem
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector products.
+    parallel_dual_updates: Whether potentials/scalings were computed in
+      parallel.
 
   Returns:
     a positive number quantifying how far from optimality current solution is.
   """
-  if only_check_b:
+  if ot_prob.is_balanced and not parallel_dual_updates:
     return marginal_error(
         f_u, g_v, ot_prob.b, ot_prob.geom, 0, norm_error, lse_mode
     )
@@ -103,19 +157,19 @@ def solution_error(
   # and h is either f or g. Note this is equal to z if rho_z → inf, which
   # is the case when tau_z → 1.0
   if lse_mode:
-    grad_a = unbalanced_functions.grad_of_marginal_fit(
+    grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon
     )
-    grad_b = unbalanced_functions.grad_of_marginal_fit(
+    grad_b = uf.grad_of_marginal_fit(
         ot_prob.b, g_v, ot_prob.tau_b, ot_prob.epsilon
     )
   else:
     u = ot_prob.geom.potential_from_scaling(f_u)
     v = ot_prob.geom.potential_from_scaling(g_v)
-    grad_a = unbalanced_functions.grad_of_marginal_fit(
+    grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, u, ot_prob.tau_a, ot_prob.epsilon
     )
-    grad_b = unbalanced_functions.grad_of_marginal_fit(
+    grad_b = uf.grad_of_marginal_fit(
         ot_prob.b, v, ot_prob.tau_b, ot_prob.epsilon
     )
   err = marginal_error(f_u, g_v, grad_a, ot_prob.geom, 1, norm_error, lse_mode)
@@ -188,10 +242,7 @@ def ent_reg_cost(
   else:
     rho_a = ot_prob.epsilon * (ot_prob.tau_a / (1 - ot_prob.tau_a))
     div_a = -jnp.sum(
-        jnp.where(
-            supp_a, ot_prob.a * unbalanced_functions.phi_star(-(f - fa), rho_a),
-            0.0
-        )
+        jnp.where(supp_a, ot_prob.a * uf.phi_star(-(f - fa), rho_a), 0.0)
     )
 
   gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
@@ -200,10 +251,7 @@ def ent_reg_cost(
   else:
     rho_b = ot_prob.epsilon * (ot_prob.tau_b / (1 - ot_prob.tau_b))
     div_b = -jnp.sum(
-        jnp.where(
-            supp_b, ot_prob.b * unbalanced_functions.phi_star(-(g - gb), rho_b),
-            0.0
-        )
+        jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
 
   # Using https://arxiv.org/pdf/1910.12958.pdf (24)
@@ -270,6 +318,7 @@ class SinkhornOutput(NamedTuple):
       the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
     """
     # TODO(cuturi): handle online mode for non Euclidean pointcloud geometries.
+    # TODO(michalk8): handle SqEucl point cloud is not converted to LRCGeom
     if other_geom.can_LRC:
       geom = other_geom.to_LRCGeometry()
       return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
@@ -302,6 +351,13 @@ class SinkhornOutput(NamedTuple):
     return jnp.logical_and(
         jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
     )
+
+  # TODO(michalk8): this should be always present
+  @property
+  def n_iters(self) -> int:
+    if self.errors is None:
+      return -1
+    return jnp.sum(self.errors > -1)
 
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -377,7 +433,12 @@ class Sinkhorn:
       iterations if None.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
-    use_danskin: when ``True``, it is assumed the entropy regularized cost is
+    recenter_potentials: Whether to re-center the dual potentials.
+      If the problem is balanced, the ``f`` potential is zero-centered for
+      numerical stability. Otherwise, use the approach of :cite:`sejourne:22`
+      to achieve faster convergence. Only used when ``lse_mode = True`` and
+      ``tau_a < 1`` and ``tau_b < 1``.
+    use_danskin: when ``True``, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
@@ -397,6 +458,7 @@ class Sinkhorn:
       momentum: Optional[acceleration.Momentum] = None,
       anderson: Optional[acceleration.AndersonAcceleration] = None,
       parallel_dual_updates: bool = False,
+      recenter_potentials: bool = False,
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
@@ -429,6 +491,7 @@ class Sinkhorn:
         self.momentum = acceleration.Momentum()
 
     self.parallel_dual_updates = parallel_dual_updates
+    self.recenter_potentials = recenter_potentials
     self.initializer = initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
@@ -474,21 +537,55 @@ class Sinkhorn:
       iteration: int
   ) -> SinkhornState:
     """Sinkhorn LSE update."""
-    w = self.momentum.weight(state, iteration)
-    old_gv = state.gv
 
-    new_gv = ot_prob.tau_b * ot_prob.geom.update_potential(
-        state.fu, state.gv, jnp.log(ot_prob.b), iteration, axis=0
+    def k(tau_i: float, tau_j: float) -> float:
+      num = -tau_j * (tau_a - 1) * (tau_b - 1) * (tau_i - 1)
+      denom = (tau_j - 1) * (tau_a * (tau_b - 1) + tau_b * (tau_a - 1))
+      return num / denom
+
+    def xi(tau_i: float, tau_j: float) -> float:
+      k_ij = k(tau_i, tau_j)
+      return k_ij / (1. - k_ij)
+
+    def smin(
+        potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
+    ) -> float:
+      rho = uf.rho(ot_prob.epsilon, tau)
+      return -rho * utils.logsumexp(-potential / rho, b=marginal)
+
+    # only for an unbalanced problems with `tau_{a,b} < 1`
+    recenter = (
+        self.recenter_potentials and ot_prob.tau_a < 1. and ot_prob.tau_b < 1.
     )
-    gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
-    new_fu = ot_prob.tau_a * ot_prob.geom.update_potential(
-        state.fu,
-        old_gv if self.parallel_dual_updates else gv,
-        jnp.log(ot_prob.a),
-        iteration,
-        axis=1
+    w = self.momentum.weight(state, iteration)
+    tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+    old_fu, old_gv = state.fu, state.gv
+
+    if recenter:
+      k11, k22 = k(tau_a, tau_a), k(tau_b, tau_b)
+      xi12, xi21 = xi(tau_a, tau_b), xi(tau_b, tau_a)
+
+    # update g potential
+    new_gv = tau_b * ot_prob.geom.update_potential(
+        old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
     )
-    fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
+    if recenter:
+      new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
+      new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
+    gv = self.momentum(w, old_gv, new_gv, self.lse_mode)
+
+    if not self.parallel_dual_updates:
+      old_gv = gv
+
+    # update f potential
+    new_fu = tau_a * ot_prob.geom.update_potential(
+        old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
+    )
+    if recenter:
+      new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
+      new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
+    fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
+
     return state.set(fu=fu, gv=gv)
 
   def kernel_step(
@@ -545,11 +642,16 @@ class Sinkhorn:
     if self.anderson:
       state = self.anderson.update_history(state, ot_prob, self.lse_mode)
 
+    # TODO(michalk8): use `jax.lax.cond`
     # re-computes error if compute_error is True, else set it to inf.
     err = jnp.where(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
         state.solution_error(
-            ot_prob, self.norm_error, self.lse_mode, self.parallel_dual_updates
+            ot_prob,
+            self.norm_error,
+            lse_mode=self.lse_mode,
+            parallel_dual_updates=self.parallel_dual_updates,
+            recenter=self.recenter_potentials,
         ), jnp.inf
     )
     errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
@@ -599,7 +701,7 @@ class Sinkhorn:
       When differentiating the regularized OT cost, and assuming Sinkhorn has
       run to convergence, Danskin's (or the envelope)
       `theorem <https://en.wikipedia.org/wiki/Danskin%27s_theorem>`_
-      states that the resulting OT cost as a function of any of the inputs
+      states that the resulting OT cost as a function of the inputs
       (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
       potentials were frozen and did not vary with those inputs.
 
@@ -620,14 +722,12 @@ class Sinkhorn:
       A SinkhornOutput.
     """
     geom = ot_prob.geom
+
     f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
     g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
-    if ot_prob.is_balanced:
-      # center the potentials for numerical stability if the problem is balanced
-      is_finite = jnp.isfinite(f)
-      center = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
-      f -= center
-      g += center
+    if self.recenter_potentials:
+      f, g = state.recenter(f, g, ot_prob=ot_prob)
+
     return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
 
   @property
@@ -1119,7 +1219,7 @@ def sinkhorn(
       ``ridge_identity``, to be added to enforce stability of linear solve.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
-    use_danskin: when ``True``, it is assumed the entropy regularized cost is
+    use_danskin: when ``True``, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
