@@ -347,6 +347,13 @@ class SinkhornOutput(NamedTuple):
         jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
     )
 
+  # TODO(michalk8): this should be always present
+  @property
+  def n_iters(self) -> int:
+    if self.errors is None:
+      return -1
+    return jnp.sum(self.errors > -1)
+
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
     u = self.ot_prob.geom.scaling_from_potential(self.f)
@@ -1203,7 +1210,7 @@ def sinkhorn(
       ``ridge_identity``, to be added to enforce stability of linear solve.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
-    use_danskin: when ``True``, it is assumed the entropy regularized cost is
+    use_danskin: when ``True``, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)

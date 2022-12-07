@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests Anderson acceleration for Sinkhorn."""
-from typing import Tuple
+from typing import Optional, Tuple
 
 import chex
 import jax
@@ -21,7 +21,8 @@ import numpy as np
 import pytest
 
 from ott.geometry import costs, geometry, pointcloud
-from ott.solvers.linear import sinkhorn
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import acceleration, sinkhorn
 
 
 class TestSinkhornAnderson:
@@ -285,6 +286,47 @@ class TestSinkhornUnbalanced:
     err = errors[errors > -1][-1]
     assert threshold > err
     assert err > 0
+
+  @pytest.mark.fast.with_args(
+      eps=[1e-1, 1e-2, 1e-3, None],
+      tau_a=[0.65, 0.9999],  # works best for high taus
+      tau_b=[0.95, 0.997],
+      anderson=[
+          None,
+          acceleration.AndersonAcceleration(memory=5, refresh_every=3)
+      ],
+      only_fast=[0, -1],
+  )
+  def test_sinkhorn_unbalanced_recenter_acceleration(
+      self,
+      eps: float,
+      tau_a: float,
+      tau_b: float,
+      anderson: Optional[acceleration.AndersonAcceleration],
+  ):
+
+    def run_sink(*, recenter: bool) -> sinkhorn.SinkhornOutput:
+      geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
+      prob = linear_problem.LinearProblem(
+          geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+      )
+      solver = sinkhorn.Sinkhorn(
+          recenter_potentials=recenter,
+          anderson=anderson,
+          parallel_dual_updates=False,
+          lse_mode=True,
+          max_iterations=4000,
+          threshold=1e-4
+      )
+      return solver(prob)
+
+    out = run_sink(recenter=False)
+    out_center = run_sink(recenter=True)
+
+    assert out.converged
+    assert out_center.converged
+    assert out_center.n_iters <= out.n_iters
+    np.testing.assert_allclose(out.reg_ot_cost, out.reg_ot_cost)
 
 
 class TestSinkhornJIT:
