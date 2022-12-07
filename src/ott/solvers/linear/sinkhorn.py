@@ -51,12 +51,12 @@ class SinkhornState(NamedTuple):
       *,
       lse_mode: bool,
       parallel_dual_updates: bool,
-      shift: bool,
+      recenter: bool,
   ) -> jnp.ndarray:
     """State dependent function to return error."""
     fu, gv = self.fu, self.gv
-    if shift:
-      fu, gv = self.shift(fu, gv, ot_prob=ot_prob)
+    if recenter and lse_mode:
+      fu, gv = self.center(fu, gv, ot_prob=ot_prob)
 
     return solution_error(
         fu,
@@ -72,14 +72,27 @@ class SinkhornState(NamedTuple):
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
-  def shift(
+  def center(
       self,
       f: jnp.ndarray,
       g: jnp.ndarray,
       ot_prob: linear_problem.LinearProblem,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Re-center dual potentials.
+
+    If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
+    Otherwise, prop. 2 from :cite:`sejourne:22` is used to re-center.
+
+    Args:
+      f: The first dual potential.
+      g: The second dual potential.
+      ot_prob: Linear OT problem.
+
+    Returns:
+      The centered potentials.
+    """
     if ot_prob.is_balanced:
-      # center the potentials for numerical stability if the problem is balanced
+      # center the potentials for numerical stability
       is_finite = jnp.isfinite(f)
       shift = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
       return f - shift, g + shift
@@ -297,6 +310,7 @@ class SinkhornOutput(NamedTuple):
       the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
     """
     # TODO(cuturi): handle online mode for non Euclidean pointcloud geometries.
+    # TODO(michalk8): handle SqEucl point cloud is not converted to LRCGeom
     if other_geom.can_LRC:
       geom = other_geom.to_LRCGeometry()
       return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
@@ -404,7 +418,11 @@ class Sinkhorn:
       iterations if None.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
-    use_danskin: when ``True``, it is assumed the entropy regularized cost is
+    recenter_potentials: Whether to re-center the dual potentials.
+      If the problem is balanced, the ``f`` potential is zero-centered for
+      numerical stability. Otherwise, use the approach of :cite:`sejourne:22` to
+      achieve faster convergence. Only when ``lse_mode = True``.
+    use_danskin: when ``True``, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
@@ -424,7 +442,7 @@ class Sinkhorn:
       momentum: Optional[acceleration.Momentum] = None,
       anderson: Optional[acceleration.AndersonAcceleration] = None,
       parallel_dual_updates: bool = False,
-      normalize_potentials: bool = False,
+      recenter_potentials: bool = False,
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
@@ -457,7 +475,7 @@ class Sinkhorn:
         self.momentum = acceleration.Momentum()
 
     self.parallel_dual_updates = parallel_dual_updates
-    self.normalize_potentials = normalize_potentials
+    self.recenter_potentials = recenter_potentials
     self.initializer = initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
@@ -519,12 +537,12 @@ class Sinkhorn:
       rho = uf.rho(ot_prob.epsilon, tau)
       return -rho * utils.logsumexp(-potential / rho, b=marginal)
 
+    recenter = self.recenter_potentials and not ot_prob.is_balanced
     w = self.momentum.weight(state, iteration)
-    normalize = not ot_prob.is_balanced and self.normalize_potentials
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
     old_fu, old_gv = state.fu, state.gv
 
-    if normalize:
+    if recenter:
       k11, k22 = k(tau_a, tau_a), k(tau_b, tau_b)
       xi12, xi21 = xi(tau_a, tau_b), xi(tau_b, tau_a)
 
@@ -532,7 +550,7 @@ class Sinkhorn:
     new_gv = tau_b * ot_prob.geom.update_potential(
         old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
     )
-    if normalize:
+    if recenter:
       new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
       new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
     gv = self.momentum(w, old_gv, new_gv, self.lse_mode)
@@ -544,7 +562,7 @@ class Sinkhorn:
     new_fu = tau_a * ot_prob.geom.update_potential(
         old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
     )
-    if normalize:
+    if recenter:
       new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
     fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
@@ -614,7 +632,7 @@ class Sinkhorn:
             self.norm_error,
             lse_mode=self.lse_mode,
             parallel_dual_updates=self.parallel_dual_updates,
-            shift=self.normalize_potentials,
+            recenter=self.recenter_potentials,
         ), jnp.inf
     )
     errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
@@ -664,7 +682,7 @@ class Sinkhorn:
       When differentiating the regularized OT cost, and assuming Sinkhorn has
       run to convergence, Danskin's (or the envelope)
       `theorem <https://en.wikipedia.org/wiki/Danskin%27s_theorem>`_
-      states that the resulting OT cost as a function of any of the inputs
+      states that the resulting OT cost as a function of the inputs
       (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
       potentials were frozen and did not vary with those inputs.
 
@@ -688,8 +706,8 @@ class Sinkhorn:
 
     f = state.fu if self.lse_mode else geom.potential_from_scaling(state.fu)
     g = state.gv if self.lse_mode else geom.potential_from_scaling(state.gv)
-    if self.normalize_potentials:
-      f, g = state.shift(f, g, ot_prob=ot_prob)
+    if self.recenter_potentials:
+      f, g = state.center(f, g, ot_prob=ot_prob)
 
     return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
 

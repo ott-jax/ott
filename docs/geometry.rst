@@ -52,7 +52,7 @@ Cost Functions
     costs.CostFn
     costs.TICost
     costs.SqPNorm
-    costs.PNorm
+    costs.PNormP
     costs.SqEuclidean
     costs.Euclidean
     costs.Cosine
