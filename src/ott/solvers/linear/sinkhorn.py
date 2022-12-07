@@ -81,7 +81,8 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials.
+    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials only
+    iff ``tau_a < 1`` and ``tau_b < 1``.
 
     Args:
       f: The first dual potential.
@@ -96,6 +97,10 @@ class SinkhornState(NamedTuple):
       is_finite = jnp.isfinite(f)
       shift = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
       return f - shift, g + shift
+
+    if ot_prob.tau_a == 1. or ot_prob.tau_b == 1.:
+      # re-centering wasn't done during the lse-step, ignore
+      return f, g
 
     rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
     rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
@@ -547,7 +552,10 @@ class Sinkhorn:
       rho = uf.rho(ot_prob.epsilon, tau)
       return -rho * utils.logsumexp(-potential / rho, b=marginal)
 
-    recenter = self.recenter_potentials and not ot_prob.is_balanced
+    # only for an unbalanced problems with `tau_{a,b} < 1`
+    recenter = (
+        self.recenter_potentials and ot_prob.tau_a < 1. and ot_prob.tau_b < 1.
+    )
     w = self.momentum.weight(state, iteration)
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
     old_fu, old_gv = state.fu, state.gv
