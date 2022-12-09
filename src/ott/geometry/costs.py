@@ -353,7 +353,7 @@ class Bures(CostFn):
       diff = jnp.inf
       return cov_init, diff
 
-    #TODO(marcocuturi): ideally the integer parameters below should be passed
+    # TODO(marcocuturi): ideally the integer parameters below should be passed
     # by user, if one wants more fine grained control. This could clash with the
     # parameters passed on to :func:`ott.math.matrix_square_root.sqrtm` by the
     # barycenter call. At the moment, only `tolerance` can be used to control
