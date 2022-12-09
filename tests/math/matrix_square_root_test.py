@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for matrix square roots."""
-from typing import Callable, Any
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
