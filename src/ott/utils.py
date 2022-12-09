@@ -34,7 +34,7 @@ def register_pytree_node(cls: type) -> type:
 def deprecate(
     *,
     version: Optional[str] = None,
-    alt_msg: Optional[str] = None,
+    alt: Optional[str] = None,
     func: Optional[Callable[[Any], Any]] = None
 ) -> Callable[[Any], Any]:
 
@@ -43,13 +43,11 @@ def deprecate(
     return func(*args, **kwargs)
 
   if func is None:
-    return lambda fn: deprecate(version=version, alt_msg=alt_msg, func=fn)
+    return lambda fn: deprecate(version=version, alt=alt, func=fn)
 
-  if version is None:
-    msg = f"`{func.__name__}` will be removed the next version."
-  else:
-    msg = f"`{func.__name__}` will be removed in version `{version}`."
-  if alt_msg:
-    msg += " " + alt_msg
+  msg = f"`{func.__name__}` will be removed in the "
+  msg += ("next" if version is None else f"`ott-jax=={version}`") + " release."
+  if alt:
+    msg += " " + alt
 
   return functools.wraps(func)(wrapper)

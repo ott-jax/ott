@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
+from ott import utils
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.initializers.quadratic import initializers as quad_initializers
@@ -452,6 +453,9 @@ def make(
   )
 
 
+@utils.deprecate(
+    version="0.3.2", alt="Use the `GromovWasserstein` class instead."
+)
 def gromov_wasserstein(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
