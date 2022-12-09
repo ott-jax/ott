@@ -15,7 +15,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
