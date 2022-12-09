@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for matrix square roots."""
-from typing import Callable
+from typing import Callable, Any
 
 import jax
 import jax.numpy as jnp
@@ -38,7 +38,8 @@ def _get_random_spd_matrix(dim: int, key: jnp.ndarray):
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, key: jnp.ndarray
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, key: jnp.ndarray,
+    **kwargs: Any
 ) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
@@ -54,11 +55,11 @@ def _get_test_fn(
   unit = jax.random.normal(key=subkey3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
 
-  def _test_fn(x: jnp.ndarray) -> jnp.ndarray:
+  def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
     # m is the product of 2 symmetric, positive definite matrices
     # so it will be positive definite but not necessarily symmetric
     m = jnp.matmul(m0, m1 + x * dx)
-    return jnp.sum(fn(m) * unit)
+    return jnp.sum(fn(m, **kwargs) * unit)
 
   return _test_fn
 
