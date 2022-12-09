@@ -65,3 +65,28 @@ class TestCostFn:
         np.testing.assert_allclose(
             cosine_fn.pairwise(x[i], y[j]), all_pairs[i, j]
         )
+
+  @pytest.mark.fast
+  class TestBuresBarycenter:
+
+    def test_buresb(self, rng: jnp.ndarray):
+      d = 5
+      r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
+      Sigma1 = r * jnp.eye(d)
+      s = jnp.array([0.3075, 0.8545, 0.1110, 0.0054, 0.9206])
+      Sigma2 = s * jnp.eye(d)
+      # initializing Bures cost function
+      weights = jnp.array([.3, .7])
+      bures = costs.Bures(d)
+      # stacking parameter values
+      xs = jnp.vstack((
+          costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma1, d),
+          costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma2, d)
+      ))
+
+      output = bures.barycenter(weights, xs, tolerance=1e-4, threshold=1e-6)
+      _, sigma = costs.x_to_means_and_covs(output, 5)
+      ground_truth = (weights[0] * jnp.sqrt(r) + weights[1] * jnp.sqrt(s)) ** 2
+      np.testing.assert_allclose(
+          ground_truth, jnp.diag(sigma), rtol=1e-5, atol=1e-5
+      )
