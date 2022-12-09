@@ -118,7 +118,7 @@ class TestGaussian:
     delta_mean = jnp.sum((loc1 - loc0) ** 2., axis=-1)
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
     expected = delta_mean + delta_sigma
-    np.testing.assert_allclose(expected, w2)
+    np.testing.assert_allclose(expected, w2, rtol=1e-6, atol=1e-6)
 
   def test_transport(self, rng: jnp.ndarray):
     diag0 = jnp.array([1.])
