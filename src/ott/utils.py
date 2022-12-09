@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """pytree_nodes Dataclasses."""
-
 import dataclasses
+import functools
+import warnings
+from typing import Any, Callable, Optional
 
 import jax
 
-__all__ = ["register_pytree_node"]
+__all__ = ["register_pytree_node", "deprecate"]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -27,3 +29,25 @@ def register_pytree_node(cls: type) -> type:
   unflatten = lambda d, children: cls(**d.unflatten(children))
   jax.tree_util.register_pytree_node(cls, flatten, unflatten)
   return cls
+
+
+def deprecate(
+    *,
+    version: Optional[str] = None,
+    alt: Optional[str] = None,
+    func: Optional[Callable[[Any], Any]] = None
+) -> Callable[[Any], Any]:
+
+  def wrapper(*args: Any, **kwargs: Any) -> Any:
+    warnings.warn(msg, category=DeprecationWarning, stacklevel=2)
+    return func(*args, **kwargs)
+
+  if func is None:
+    return lambda fn: deprecate(version=version, alt=alt, func=fn)
+
+  msg = f"`{func.__name__}` will be removed in the "
+  msg += ("next" if version is None else f"`ott-jax=={version}`") + " release."
+  if alt:
+    msg += " " + alt
+
+  return functools.wraps(func)(wrapper)

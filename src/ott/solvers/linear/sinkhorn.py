@@ -19,11 +19,12 @@ import jax.numpy as jnp
 import numpy as np
 from typing_extensions import Literal
 
+from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
 from ott.math import fixed_point_loop
 from ott.math import unbalanced_functions as uf
-from ott.math import utils
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -107,8 +108,8 @@ class SinkhornState(NamedTuple):
     tau = rho_a * rho_b / (rho_a + rho_b)
 
     shift = tau * (
-        utils.logsumexp(-f / rho_a, b=ot_prob.a) -
-        utils.logsumexp(-g / rho_b, b=ot_prob.b)
+        mu.logsumexp(-f / rho_a, b=ot_prob.a) -
+        mu.logsumexp(-g / rho_b, b=ot_prob.b)
     )
     return f + shift, g - shift
 
@@ -551,7 +552,7 @@ class Sinkhorn:
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
     ) -> float:
       rho = uf.rho(ot_prob.epsilon, tau)
-      return -rho * utils.logsumexp(-potential / rho, b=marginal)
+      return -rho * mu.logsumexp(-potential / rho, b=marginal)
 
     # only for an unbalanced problems with `tau_{a,b} < 1`
     recenter = (
@@ -921,6 +922,7 @@ def make(
   )
 
 
+@utils.deprecate(version="0.3.2", alt="Use the `Sinkhorn` class instead.")
 def sinkhorn(
     geom: geometry.Geometry,
     a: Optional[jnp.ndarray] = None,
