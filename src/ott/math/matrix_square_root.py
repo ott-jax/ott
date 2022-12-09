@@ -242,34 +242,30 @@ def sqrtm_only(
     min_iterations: int = 0,
     inner_iterations: int = 10,
     max_iterations: int = 1000,
-    regularization: float = 1e-6) -> jnp.ndarray:
-  return sqrtm(x, threshold, min_iterations, inner_iterations,
-    max_iterations, regularization)[0]
+    regularization: float = 1e-6
+) -> jnp.ndarray:
+  return sqrtm(
+      x, threshold, min_iterations, inner_iterations, max_iterations,
+      regularization
+  )[0]
 
 
 def sqrtm_only_fwd(
-    x: jnp.ndarray,
-    threshold: float,
-    min_iterations: int,
-    inner_iterations: int,
-    max_iterations: int,
-    regularization: float
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    x: jnp.ndarray, threshold: float, min_iterations: int,
+    inner_iterations: int, max_iterations: int, regularization: float
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   sqrt_x = sqrtm(
-    x, threshold, min_iterations, inner_iterations,
-    max_iterations, regularization)[0]
+      x, threshold, min_iterations, inner_iterations, max_iterations,
+      regularization
+  )[0]
   return sqrt_x, sqrt_x
 
 
 def sqrtm_only_bwd(
-    threshold: float,
-    min_iterations: int,
-    inner_iterations: int,
-    max_iterations: int,
-    regularization: float,
-    sqrt_x: jnp.ndarray,
+    threshold: float, min_iterations: int, inner_iterations: int,
+    max_iterations: int, regularization: float, sqrt_x: jnp.ndarray,
     cotangent: jnp.ndarray
-    ) -> Tuple[jnp.ndarray]:
+) -> Tuple[jnp.ndarray]:
   vjp = jnp.swapaxes(
       solve_sylvester_bartels_stewart(
           a=sqrt_x, b=-sqrt_x, c=jnp.swapaxes(cotangent, axis1=-2, axis2=-1)
@@ -290,9 +286,12 @@ def inv_sqrtm_only(
     min_iterations: int = 0,
     inner_iterations: int = 10,
     max_iterations: int = 1000,
-    regularization: float = 1e-6) -> jnp.ndarray:
-  return sqrtm(x, threshold, min_iterations, inner_iterations,
-    max_iterations, regularization)[1]
+    regularization: float = 1e-6
+) -> jnp.ndarray:
+  return sqrtm(
+      x, threshold, min_iterations, inner_iterations, max_iterations,
+      regularization
+  )[1]
 
 
 def inv_sqrtm_only_fwd(
@@ -302,20 +301,19 @@ def inv_sqrtm_only_fwd(
     inner_iterations: int,
     max_iterations: int,
     regularization: float,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  inv_sqrt_x = sqrtm(x,threshold, min_iterations, inner_iterations,
-    max_iterations, regularization)[1]
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  inv_sqrt_x = sqrtm(
+      x, threshold, min_iterations, inner_iterations, max_iterations,
+      regularization
+  )[1]
   return inv_sqrt_x, inv_sqrt_x
 
 
 def inv_sqrtm_only_bwd(
-    threshold: float,
-    min_iterations: int,
-    inner_iterations: int,
-    max_iterations: int,
-    regularization: float,
-    residual: jnp.ndarray,
-    cotangent: jnp.ndarray) -> Tuple[jnp.ndarray]:
+    threshold: float, min_iterations: int, inner_iterations: int,
+    max_iterations: int, regularization: float, residual: jnp.ndarray,
+    cotangent: jnp.ndarray
+) -> Tuple[jnp.ndarray]:
   inv_sqrt_x = residual
   inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
   vjp = jnp.swapaxes(
