@@ -353,10 +353,15 @@ class Bures(CostFn):
       diff = jnp.inf
       return cov_init, diff
 
+    #TODO(marcocuturi): ideally the integer parameters below should be passed
+    # by user, if one wants more fine grained control. This could clash with the
+    # parameters passed on to :func:`ott.math.matrix_square_root.sqrtm` by the
+    # barycenter call. At the moment, only `tolerance` can be used to control
+    # computational effort.
     cov, _ = fixed_point_loop.fixpoint_iter(
         cond_fn=cond_fn,
         body_fn=body_fn,
-        min_iterations=10,
+        min_iterations=1,
         max_iterations=500,
         inner_iterations=1,
         constants=(),
@@ -378,8 +383,10 @@ class Bures(CostFn):
       xs: The points to be used in the computation of the barycenter, where
         each point is described by a concatenation of the mean and the
         covariance (raveled).
-      kwargs: Passed on to :meth:`covariance_fixpoint_iter`, by extension to
-        `sqrtm`.
+      kwargs: Passed on to :meth:`covariance_fixpoint_iter`, and by extension to
+        :func:`ott.math.matrix_square_root.sqrtm`. Note that `tolerance` is used
+        for the fixed-point iteration of the barycenter, whereas `threshold` will apply to the fixed
+        point iteration of Newton-Schulz iterations.
 
     Returns:
       A concatenation of the mean and the raveled covariance of the barycenter.
