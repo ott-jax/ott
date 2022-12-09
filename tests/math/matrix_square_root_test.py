@@ -189,7 +189,7 @@ class TestMatrixSquareRoot:
     key = self.rng
     for _ in range(n_tests):
       key, subkey = jax.random.split(key)
-      test_fn = _get_test_fn(fn, dim=dim, key=subkey)
+      test_fn = _get_test_fn(fn, dim=dim, key=subkey, threshold=1e-5)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
       actual = jax.grad(test_fn)(0.)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)

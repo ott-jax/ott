@@ -306,7 +306,7 @@ class Bures(CostFn):
       covs: jnp.ndarray,
       weights: jnp.ndarray,
       tolerance: float = 1e-4,
-      kwargs_sqrtm: Optional[Mapping[str, Any]] = None
+      **kwargs
   ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians.
 
@@ -314,13 +314,12 @@ class Bures(CostFn):
       covs: [batch, d^2] covariance matrices
       weights: simplicial weights (nonnegative, sum to 1)
       tolerance: tolerance of the overall fixed-point procedure
-      kwargs_sqrtm: parameters passed on to the sqrtm (Newton-Schulz)
+      kwargs: parameters passed on to the sqrtm (Newton-Schulz)
         algorithm to compute matrix square roots.
 
     Returns:
       a covariance matrix, the weighted Bures average of the covs matrices.
     """
-    kwargs_sqrtm = {} if kwargs_sqrtm is None else kwargs_sqrtm
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
     def scale_covariances(
@@ -328,7 +327,7 @@ class Bures(CostFn):
     ) -> jnp.ndarray:
       """Rescale covariance in barycenter step."""
       return weight * matrix_square_root.sqrtm_only((cov_sqrt @ cov) @ cov_sqrt,
-                                                    **kwargs_sqrtm)
+                                                    **kwargs)
 
     def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
       del iteration, constants
@@ -341,7 +340,7 @@ class Bures(CostFn):
     ) -> Tuple[jnp.ndarray, float]:
       del iteration, constants, compute_error
       cov, _ = state
-      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **kwargs_sqrtm)
+      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **kwargs)
       scaled_cov = jnp.linalg.matrix_power(
           jnp.sum(scale_covariances(cov_sqrt, covs, weights), axis=0), 2
       )
@@ -379,7 +378,8 @@ class Bures(CostFn):
       xs: The points to be used in the computation of the barycenter, where
         each point is described by a concatenation of the mean and the
         covariance (raveled).
-      kwargs: Passed on to :meth:`covariance_fixpoint_iter`
+      kwargs: Passed on to :meth:`covariance_fixpoint_iter`, by extension to
+        `sqrtm`.
 
     Returns:
       A concatenation of the mean and the raveled covariance of the barycenter.
