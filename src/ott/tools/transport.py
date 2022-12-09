@@ -32,6 +32,7 @@ import jax.numpy as jnp
 import numpy as np
 from typing_extensions import Literal
 
+from ott import utils
 from ott.geometry import geometry, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
@@ -79,6 +80,7 @@ class Transport(NamedTuple):
     return self.linear_output.marginal(axis)
 
 
+@utils.deprecate(version="0.3.2")
 def solve(
     *args: Any,
     a: Optional[jnp.ndarray] = None,
