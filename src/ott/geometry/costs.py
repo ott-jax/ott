@@ -365,7 +365,7 @@ class Bures(CostFn):
     return cov
 
   def barycenter(
-      self, weights: jnp.ndarray, xs: jnp.ndarray, **kwargs
+      self, weights: jnp.ndarray, xs: jnp.ndarray, **kwargs: Any
   ) -> jnp.ndarray:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
