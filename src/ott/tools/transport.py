@@ -92,6 +92,11 @@ def solve(
 ) -> Transport:
   """Generic interface to transport problem.
 
+  .. note:
+
+    This function has been deprecated and will be removed in ``0.3.2`` release.
+    Please use :mod:`ott.solvers` module directly.
+
   The geometries can be passed as arrays, geometry.Geometry or directly as a
   problem. The solver is passed via kwargs.
 
