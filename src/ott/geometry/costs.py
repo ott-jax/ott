@@ -304,24 +304,35 @@ class Bures(CostFn):
   def covariance_fixpoint_iter(
       self,
       covs: jnp.ndarray,
-      lambdas: jnp.ndarray,
-      rtol: float = 1e-2
+      weights: jnp.ndarray,
+      tolerance: float = 1e-4,
+      **kwargs: Any
   ) -> jnp.ndarray:
-    """Iterate fix-point updates to compute barycenter of Gaussians."""
+    """Iterate fix-point updates to compute barycenter of Gaussians.
+
+    Args:
+      covs: [batch, d^2] covariance matrices
+      weights: simplicial weights (nonnegative, sum to 1)
+      tolerance: tolerance of the overall fixed-point procedure
+      kwargs: parameters passed on to the sqrtm (Newton-Schulz)
+        algorithm to compute matrix square roots.
+
+    Returns:
+      a covariance matrix, the weighted Bures average of the covs matrices.
+    """
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
     def scale_covariances(
-        cov_sqrt: jnp.ndarray, cov_i: jnp.ndarray, lambda_i: jnp.ndarray
+        cov_sqrt: jnp.ndarray, cov: jnp.ndarray, weight: jnp.ndarray
     ) -> jnp.ndarray:
-      """Iterate update needed to compute barycenter of covariances."""
-      return lambda_i * matrix_square_root.sqrtm_only(
-          (cov_sqrt @ cov_i) @ cov_sqrt
-      )
+      """Rescale covariance in barycenter step."""
+      return weight * matrix_square_root.sqrtm_only((cov_sqrt @ cov) @ cov_sqrt,
+                                                    **kwargs)
 
     def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
       del iteration, constants
       _, diff = state
-      return diff > rtol
+      return diff > tolerance
 
     def body_fn(
         iteration: int, constants: Tuple[Any, ...],
@@ -329,9 +340,9 @@ class Bures(CostFn):
     ) -> Tuple[jnp.ndarray, float]:
       del iteration, constants, compute_error
       cov, _ = state
-      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov)
+      cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **kwargs)
       scaled_cov = jnp.linalg.matrix_power(
-          jnp.sum(scale_covariances(cov_sqrt, covs, lambdas), axis=0), 2
+          jnp.sum(scale_covariances(cov_sqrt, covs, weights), axis=0), 2
       )
       next_cov = (cov_inv_sqrt @ scaled_cov) @ cov_inv_sqrt
       diff = jnp.sum((next_cov - cov) ** 2) / jnp.prod(jnp.array(cov.shape))
@@ -342,10 +353,15 @@ class Bures(CostFn):
       diff = jnp.inf
       return cov_init, diff
 
+    # TODO(marcocuturi): ideally the integer parameters below should be passed
+    # by user, if one wants more fine grained control. This could clash with the
+    # parameters passed on to :func:`ott.math.matrix_square_root.sqrtm` by the
+    # barycenter call. At the moment, only `tolerance` can be used to control
+    # computational effort.
     cov, _ = fixed_point_loop.fixpoint_iter(
         cond_fn=cond_fn,
         body_fn=body_fn,
-        min_iterations=10,
+        min_iterations=1,
         max_iterations=500,
         inner_iterations=1,
         constants=(),
@@ -353,7 +369,9 @@ class Bures(CostFn):
     )
     return cov
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(
+      self, weights: jnp.ndarray, xs: jnp.ndarray, **kwargs: Any
+  ) -> jnp.ndarray:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
     Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
@@ -365,6 +383,10 @@ class Bures(CostFn):
       xs: The points to be used in the computation of the barycenter, where
         each point is described by a concatenation of the mean and the
         covariance (raveled).
+      kwargs: Passed on to :meth:`covariance_fixpoint_iter`, and by extension to
+        :func:`ott.math.matrix_square_root.sqrtm`. Note that `tolerance` is used
+        for the fixed-point iteration of the barycenter, whereas `threshold` will apply to the fixed
+        point iteration of Newton-Schulz iterations.
 
     Returns:
       A concatenation of the mean and the raveled covariance of the barycenter.
@@ -373,7 +395,9 @@ class Bures(CostFn):
     weights = weights / jnp.sum(weights)
     mus, covs = x_to_means_and_covs(xs, self._dimension)
     mu_bary = jnp.sum(weights[:, None] * mus, axis=0)
-    cov_bary = self.covariance_fixpoint_iter(covs=covs, lambdas=weights)
+    cov_bary = self.covariance_fixpoint_iter(
+        covs=covs, weights=weights, **kwargs
+    )
     barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
     return barycenter
 

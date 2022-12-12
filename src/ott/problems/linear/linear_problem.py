@@ -30,13 +30,14 @@ TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
 
 @jax.tree_util.register_pytree_node_class
 class LinearProblem:
-  r"""Linear regularized OT problem.
+  r"""Linear OT problem.
 
-  .. math::
-
-    \min_P \langle C, P \rangle - \varepsilon H(P)
-
-  s.t. :math:`P \mathbf{1}_m = a, P^T \mathbf{1}_n = b`.
+  This class describes the main ingredients appearing in a linear OT problem.
+  Namely, a `geom` object (including cost structure/points) describing point
+  clouds or the support of measures, followed by probability masses `a` and `b`.
+  Unabalancedness of the problem is also kept track of, through two coefficients
+  `tau_a` and `tau_b`, which are both kept between 0 and 1
+  (1 corresponding to a balanced OT problem).
 
   Args:
     geom: The ground geometry cost of the linear problem.
