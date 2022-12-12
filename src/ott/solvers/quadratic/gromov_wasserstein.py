@@ -474,6 +474,13 @@ def gromov_wasserstein(
 ) -> GWOutput:
   """Solve a Gromov Wasserstein problem.
 
+  .. note::
+
+    This function has been deprecated and will be removed in ``0.3.2`` release.
+    Please use the
+    :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
+    solver instead.
+
   Wrapper that instantiates a quadratic problem (possibly with linear term
   if the problem is fused) and calls a solver to output a solution.
 

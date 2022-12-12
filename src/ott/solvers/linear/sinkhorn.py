@@ -935,6 +935,12 @@ def sinkhorn(
 ):
   r"""Solve regularized OT problem using Sinkhorn iterations.
 
+  .. note::
+
+    This function has been deprecated and will be removed in ``0.3.2`` release.
+    Please use the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver
+    instead.
+
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
