@@ -128,7 +128,7 @@ Packages
     :target: https://pypi.org/project/ott-jax/
     :alt: Documentation
 
-.. |Tests| image:: https://img.shields.io/github/workflow/status/ott-jax/ott/tests/main
+.. |Tests| image:: https://img.shields.io/github/actions/workflow/status/ott-jax/ott/tests.yml?branch=main
     :target: https://github.com/ott-jax/ott/actions/workflows/tests.yml
     :alt: Documentation
 
