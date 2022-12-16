@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import jax.scipy.special as jsp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
@@ -206,15 +206,22 @@ class QuadraticProblem:
       The cost term.
     """
 
-    def reg(tau: float) -> float:
-      return 0. if tau == 1. else (eps * tau / (1.0 - tau))
+    def regularizer(tau: float) -> float:
+      return eps * tau / (1.0 - tau)
 
     eps = epsilon._target_init
-    marginal_1loga = jsp.xlogy(marginal_1, self.a).sum()
-    marginal_2logb = jsp.xlogy(marginal_2, self.b).sum()
-    cost = reg(self.tau_a) * (-jsp.entr(marginal_1).sum() - marginal_1loga)
-    cost += reg(self.tau_b) * (-jsp.entr(marginal_2).sum() - marginal_2logb)
-    cost += eps * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
+    marginal_1loga = jsp.special.xlogy(marginal_1, self.a).sum()
+    marginal_2logb = jsp.special.xlogy(marginal_2, self.b).sum()
+
+    cost = eps * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
+    if self.tau_a != 1.0:
+      cost += regularizer(
+          self.tau_a
+      ) * (-jsp.special.entr(marginal_1).sum() - marginal_1loga)
+    if self.tau_b != 1.0:
+      cost += regularizer(
+          self.tau_b
+      ) * (-jsp.special.entr(marginal_2).sum() - marginal_2logb)
     return cost
 
   # TODO(michalk8): highly coupled to the pre-defined initializer, refactor

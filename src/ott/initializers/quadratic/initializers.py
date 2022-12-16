@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 
 from ott.geometry import geometry
 
@@ -138,13 +137,14 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     else:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
       init_transport = jnp.outer(quad_prob.a, quad_prob.b)
+      marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
+
       epsilon = quadratic_problem.update_epsilon_unbalanced(
           epsilon=epsilon, transport_mass=jnp.sum(quad_prob.a)
       )
-      # marginal constrains are always satisfied, only include the entropic term
-      unbalanced_correction = epsilon._target_init * jsp.special.xlogy(
-          init_transport, init_transport
-      ).sum()
+      unbalanced_correction = quad_prob.cost_unbalanced_correction(
+          init_transport, marginal_1, marginal_2, epsilon=epsilon
+      )
       cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
     cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
