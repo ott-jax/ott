@@ -2,6 +2,7 @@ import abc
 from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 
 import jax
+import jax.numpy as jnp
 
 from ott.geometry import geometry
 
@@ -123,33 +124,38 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     from ott.problems.quadratic import quadratic_problem
     del kwargs
 
-    unbalanced_correction = 0.0
-    tmp = quad_prob.init_transport()
-    marginal_1 = tmp.sum(1)
-    marginal_2 = tmp.sum(0)
+    marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
 
-    # Initialises cost.
-    marginal_cost = quad_prob.marginal_dependent_cost(marginal_1, marginal_2)
-
-    if not quad_prob.is_balanced:
-      transport_mass = marginal_1.sum()
+    if quad_prob.is_balanced:
+      # https://github.com/ott-jax/ott/issues/208
+      unbalanced_correction = 0.0
+      h1, h2 = quad_prob.quad_loss
+      tmp1 = quadratic_problem.apply_cost(
+          quad_prob.geom_xx, quad_prob.a, axis=1, fn=h1
+      )
+      tmp2 = quadratic_problem.apply_cost(
+          quad_prob.geom_yy, quad_prob.b, axis=1, fn=h2
+      )
+      tmp = jnp.outer(tmp1, tmp2)
+    else:
+      # TODO(michalk8): reduce to O(n^2)
       # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
       epsilon = quadratic_problem.update_epsilon_unbalanced(
-          epsilon=epsilon, transport_mass=transport_mass
+          epsilon=epsilon, transport_mass=jnp.sum(quad_prob.a)
       )
+      tmp = jnp.outer(quad_prob.a, quad_prob.b)
       unbalanced_correction = quad_prob.cost_unbalanced_correction(
-          tmp, marginal_1, marginal_2, epsilon=epsilon
+          tmp, quad_prob.a, quad_prob.b, epsilon=epsilon
       )
 
-    h1, h2 = quad_prob.quad_loss
-    tmp = quadratic_problem.apply_cost(quad_prob.geom_xx, tmp, axis=1, fn=h1)
-    tmp = quadratic_problem.apply_cost(
-        quad_prob.geom_yy, tmp.T, axis=1, fn=h2
-    ).T
+      h1, h2 = quad_prob.quad_loss
+      tmp = quadratic_problem.apply_cost(quad_prob.geom_xx, tmp, axis=1, fn=h1)
+      tmp = quadratic_problem.apply_cost(
+          quad_prob.geom_yy, tmp.T, axis=1, fn=h2
+      ).T
+
     cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
-
     cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
-
     return geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
 
 
