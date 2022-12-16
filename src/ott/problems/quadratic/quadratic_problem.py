@@ -207,7 +207,7 @@ class QuadraticProblem:
     """
 
     def reg(tau: float) -> float:
-      return 0. if tau == 1. else eps * tau / (1.0 - tau)
+      return 0. if tau == 1. else (eps * tau / (1.0 - tau))
 
     eps = epsilon._target_init
     marginal_1loga = jsp.xlogy(marginal_1, self.a).sum()

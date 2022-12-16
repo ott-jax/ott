@@ -129,7 +129,6 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
 
     h1, h2 = quad_prob.quad_loss
-    # see: https://github.com/ott-jax/ott/issues/208 for more information
     tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
     tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
     tmp = jnp.outer(tmp1, tmp2)
