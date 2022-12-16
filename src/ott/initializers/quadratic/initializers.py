@@ -143,7 +143,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
           epsilon=epsilon, transport_mass=jnp.sum(quad_prob.a)
       )
       # marginal constrains are always satisfied, only include the entropic term
-      unbalanced_correction = epsilon._target_init * jsp.xlogy(
+      unbalanced_correction = epsilon._target_init * jsp.special.xlogy(
           init_transport, init_transport
       ).sum()
       cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
