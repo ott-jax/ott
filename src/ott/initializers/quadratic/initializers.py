@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 
 from ott.geometry import geometry
 
@@ -125,36 +126,28 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     del kwargs
 
     marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
+    geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
+
+    h1, h2 = quad_prob.quad_loss
+    # see: https://github.com/ott-jax/ott/issues/208 for more information
+    tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
+    tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
+    tmp = jnp.outer(tmp1, tmp2)
 
     if quad_prob.is_balanced:
-      # https://github.com/ott-jax/ott/issues/208
-      unbalanced_correction = 0.0
-      h1, h2 = quad_prob.quad_loss
-      tmp1 = quadratic_problem.apply_cost(
-          quad_prob.geom_xx, quad_prob.a, axis=1, fn=h1
-      )
-      tmp2 = quadratic_problem.apply_cost(
-          quad_prob.geom_yy, quad_prob.b, axis=1, fn=h2
-      )
-      tmp = jnp.outer(tmp1, tmp2)
+      cost_matrix = marginal_cost.cost_matrix - tmp
     else:
-      # TODO(michalk8): reduce to O(n^2)
-      # Initialises epsilon for Unbalanced GW according to Sejourne et al (2021)
+      # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
+      init_transport = jnp.outer(quad_prob.a, quad_prob.b)
       epsilon = quadratic_problem.update_epsilon_unbalanced(
           epsilon=epsilon, transport_mass=jnp.sum(quad_prob.a)
       )
-      tmp = jnp.outer(quad_prob.a, quad_prob.b)
-      unbalanced_correction = quad_prob.cost_unbalanced_correction(
-          tmp, quad_prob.a, quad_prob.b, epsilon=epsilon
-      )
+      # marginal constrains are always satisfied, only include the entropic term
+      unbalanced_correction = epsilon._target_init * jsp.xlogy(
+          init_transport, init_transport
+      ).sum()
+      cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
-      h1, h2 = quad_prob.quad_loss
-      tmp = quadratic_problem.apply_cost(quad_prob.geom_xx, tmp, axis=1, fn=h1)
-      tmp = quadratic_problem.apply_cost(
-          quad_prob.geom_yy, tmp.T, axis=1, fn=h2
-      ).T
-
-    cost_matrix = (marginal_cost.cost_matrix - tmp + unbalanced_correction)
     cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
     return geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
 
