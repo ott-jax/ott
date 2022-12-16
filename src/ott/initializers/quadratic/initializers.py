@@ -140,7 +140,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
 
       epsilon = quadratic_problem.update_epsilon_unbalanced(
-          epsilon=epsilon, transport_mass=jnp.sum(quad_prob.a)
+          epsilon=epsilon, transport_mass=marginal_1.sum()
       )
       unbalanced_correction = quad_prob.cost_unbalanced_correction(
           init_transport, marginal_1, marginal_2, epsilon=epsilon
