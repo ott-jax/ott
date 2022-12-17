@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
@@ -173,7 +174,7 @@ class QuadraticProblem:
       transport_matrix: jnp.ndarray,
       marginal_1: jnp.ndarray,
       marginal_2: jnp.ndarray,
-      epsilon: float,
+      epsilon: epsilon_scheduler.Epsilon,
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
 
@@ -200,35 +201,30 @@ class QuadraticProblem:
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
       epsilon: regulariser.
-      delta: small quantity to avoid diverging KLs.
 
     Returns:
       The cost term.
     """
 
-    def regulariser(tau: float) -> float:
-      return epsilon._target_init * tau / (1.0 - tau) if tau != 1.0 else 0
+    def regularizer(tau: float) -> float:
+      return eps * tau / (1.0 - tau)
 
-    marginal_1loga = jax.scipy.special.xlogy(marginal_1, self.a).sum()
-    marginal_2logb = jax.scipy.special.xlogy(marginal_2, self.b).sum()
-    cost = regulariser(
-        self.tau_a
-    ) * (-jax.scipy.special.entr(marginal_1).sum() - marginal_1loga)
-    cost += regulariser(
-        self.tau_b
-    ) * (-jax.scipy.special.entr(marginal_2).sum() - marginal_2logb)
-    cost += epsilon._target_init * jax.scipy.special.xlogy(
-        transport_matrix, transport_matrix
-    ).sum()
+    eps = epsilon._target_init
+    marginal_1loga = jsp.special.xlogy(marginal_1, self.a).sum()
+    marginal_2logb = jsp.special.xlogy(marginal_2, self.b).sum()
+
+    cost = eps * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
+    if self.tau_a != 1.0:
+      cost += regularizer(
+          self.tau_a
+      ) * (-jsp.special.entr(marginal_1).sum() - marginal_1loga)
+    if self.tau_b != 1.0:
+      cost += regularizer(
+          self.tau_b
+      ) * (-jsp.special.entr(marginal_2).sum() - marginal_2logb)
     return cost
 
-  def init_transport(self) -> jnp.ndarray:
-    """Initialise the transport matrix."""
-    # TODO(oliviert, cuturi): consider passing a custom initialization.
-    a = jax.lax.stop_gradient(self.a)
-    b = jax.lax.stop_gradient(self.b)
-    return a[:, None] * b[None, :]
-
+  # TODO(michalk8): highly coupled to the pre-defined initializer, refactor
   def init_transport_mass(self) -> float:
     """Initialise the transport mass.
 
