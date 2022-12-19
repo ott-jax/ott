@@ -14,8 +14,8 @@ authors = [
 ]
 dependencies = [
     'importlib-metadata>=1.0; python_version<"3.8"',
-    "jax>=0.2.0",
-    "jaxlib>=0.2.0",
+    "jax>=0.1.67",
+    "jaxlib>=0.1.47",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
     "numpy>=1.18.4, !=1.23.0",
     "matplotlib>=3.0.0",
