@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import Literal
 
+from ott import utils
 from ott.geometry import geometry
 
 __all__ = ["LRCGeometry"]
@@ -113,7 +114,8 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:
-    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
+    if isinstance(self._scale_cost,
+                  (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == 'max_bound':
