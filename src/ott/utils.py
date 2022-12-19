@@ -18,8 +18,9 @@ import warnings
 from typing import Any, Callable, Optional
 
 import jax
+import jax.numpy as jnp
 
-__all__ = ["register_pytree_node", "deprecate"]
+__all__ = ["register_pytree_node", "deprecate", "is_jax_array"]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -51,3 +52,10 @@ def deprecate(
     msg += " " + alt
 
   return functools.wraps(func)(wrapper)
+
+
+def is_jax_array(obj: Any) -> bool:
+  if hasattr(jax, "Array"):
+    # https://jax.readthedocs.io/en/latest/jax_array_migration.html
+    return isinstance(obj, (jax.Array, jnp.DeviceArray))
+  return isinstance(obj, jnp.DeviceArray)

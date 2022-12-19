@@ -23,8 +23,9 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from typing_extensions import Literal
 
+from ott import utils
 from ott.geometry import epsilon_scheduler
-from ott.math import utils
+from ott.math import utils as mu
 
 __all__ = ["Geometry", "is_linear", "is_affine"]
 
@@ -209,7 +210,8 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost, (int, float, jnp.DeviceArray)):
+    if isinstance(self._scale_cost,
+                  (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == 'max_cost':
@@ -420,12 +422,12 @@ class Geometry:
     if vec is not None:
       if axis == 0:
         vec = vec.reshape((-1, 1))
-      lse_output = utils.logsumexp(
+      lse_output = mu.logsumexp(
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
     else:
-      lse_output = utils.logsumexp(
+      lse_output = mu.logsumexp(
           self._center(f, g) / eps, axis=axis, return_sign=False
       )
       return eps * lse_output, jnp.array([1.0])
