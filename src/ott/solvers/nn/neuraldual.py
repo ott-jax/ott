@@ -102,7 +102,7 @@ class NeuralDualSolver:
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Optional[Callable] = default_conjugate_solver,
-      amortization_loss: str = 'objective',
+      amortization_loss: str = 'regression',
       parallel_updates: bool = True,
   ):
     self.num_train_iters = num_train_iters
