@@ -79,7 +79,7 @@ class DualPotentials:
 
     vec = jnp.atleast_2d(vec)
     if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
-      return self._grad_g(vec) if forward else self._grad_f(vec)
+      return self._grad_f(vec) if forward else self._grad_g(vec)
     if forward:
       return vec - self._grad_h_inv(self._grad_f(vec))
     else:

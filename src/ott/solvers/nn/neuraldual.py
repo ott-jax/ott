@@ -12,48 +12,78 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
 from flax import core
+from jax.lax import stop_gradient
+from typing_extensions import Literal
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
+from ott.solvers.nn.conjugate_solver import ConjugateSolverLBFGS
 
 __all__ = ["NeuralDualSolver"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
+Potentials_t = potentials.DualPotentials
+
+default_conjugate_solver = ConjugateSolverLBFGS(
+    gtol=1e-3, max_iter=10, max_linesearch_iter=10
+)
 
 
 class NeuralDualSolver:
   r"""Solver of the ICNN-based Kantorovich dual.
 
-  Learn the optimal transport between two distributions, denoted source
-  and target, respectively. This is achieved by parameterizing the two
-  Kantorovich potentials, `g` and `f`, by two input convex neural networks.
-  :math:`\nabla g` hereby transports source to target cells, and
-  :math:`\nabla f` target to source cells.
+  Learn the Wasserstein-2 optimal transport between two measures
+  :math:`\alpha` and :math:`\beta` in
+  :math:`n`-dimensional Euclidean space,
+  denoted source and target, respectively.
+  This is achieved by parameterizing a Kantorovich potential
+  :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
+  associated with the :math:`\alpha` measure with
+  an input-convex neural network or MLP where
+  :math:`\nabla f` transports source to target cells.
+  This potential is learned by optimizing the dual
+  form associated with the negative inner product cost
+  :math:`\argsup_{\theta}\; -\E_{x\sim\alpha}[f_\theta(x)] - \E_{y\sim\beta}[f^\star_\theta(y)]`
+  where
+  :math:`f^\star(y) := -\inf_{x\in\gX} f(x)-\langle x, y\rangle`
+  is the convex conjugate.
+  :math:`\nabla f^\star` transports from the target
+  to source cells.
 
-  Original algorithm is described in :cite:`makkuva:20`.
+  TODO(bamos): Describe how :math:`g` approximates the convex conjugate :math:`f^\star(y):
+  and how :cite:`makkuva:20` and :cite:`amos:22a` learn it.
+
+  TODO(bamos): Describe the conjugate solver.
+
+  TODO(bamos): Decide on defaults here (conjugate solver, num_inner_iters,
+  amortization_loss, parallel_updates)
 
   Args:
     input_dim: input dimensionality of data required for network init
-    neural_f: network architecture for potential f
-    neural_g: network architecture for potential g
-    optimizer_f: optimizer function for potential f
-    optimizer_g: optimizer function for potential g
+    neural_f: network architecture for potential :math:`f`
+    neural_g: network architecture for the conjugate potential :math:`g\approx f^\star`
+    optimizer_f: optimizer function for potential :math:`f`
+    optimizer_g: optimizer function for the conjugate potential :math:`g`
     num_train_iters: number of total training iterations
-    num_inner_iters: number of training iterations of g per iteration of f
+    num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
     seed: random seed for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
+    conjugate_solver: numerical solver for the conjugate.
+    amortization_loss: amortization loss for the conjugate :math:`g\approx f^\star`.
+      Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:22a`.
+    parallel_updates: Update :math:`f` and :math`g` at the same time
   """
 
   def __init__(
@@ -63,14 +93,17 @@ class NeuralDualSolver:
       neural_g: Optional[nn.Module] = None,
       optimizer_f: Optional[optax.OptState] = None,
       optimizer_g: Optional[optax.OptState] = None,
-      num_train_iters: int = 100,
-      num_inner_iters: int = 10,
-      valid_freq: int = 100,
-      log_freq: int = 100,
+      num_train_iters: int = 50000,
+      num_inner_iters: int = 1,
+      valid_freq: int = 1000,
+      log_freq: int = 1000,
       logging: bool = False,
       seed: int = 0,
       pos_weights: bool = True,
       beta: float = 1.0,
+      conjugate_solver: Optional[Callable] = default_conjugate_solver,
+      amortization_loss: str = 'objective',
+      parallel_updates: bool = True,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -79,6 +112,9 @@ class NeuralDualSolver:
     self.logging = logging
     self.pos_weights = pos_weights
     self.beta = beta
+    self.parallel_updates = parallel_updates
+    self.conjugate_solver = conjugate_solver
+    self.amortization_loss = amortization_loss
 
     # set random key
     rng = jax.random.PRNGKey(seed)
@@ -107,28 +143,45 @@ class NeuralDualSolver:
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
     # check setting of network architectures
-    if (
-        neural_f.pos_weights != self.pos_weights or
-        (neural_g.pos_weights != self.pos_weights)
-    ):
-      warnings.warn(
-          f"Setting of ICNN and the positive weights setting of the "
-          f"`NeuralDualSolver` are not consistent. Proceeding with "
-          f"the `NeuralDualSolver` setting, with positive weights "
-          f"being {self.pos_weights}."
-      )
-      neural_f.pos_weights = self.pos_weights
-      neural_g.pos_weights = self.pos_weights
+    warn_str = f"Setting of ICNN and the positive weights setting of the " \
+        f"`NeuralDualSolver` are not consistent. Proceeding with " \
+        f"the `NeuralDualSolver` setting, with positive weights " \
+        f"being {self.pos_weights}."
+    if isinstance(neural_f, icnn.ICNN):
+      if neural_f.pos_weights != self.pos_weights:
+        warnings.warn(warn_str)
+        neural_f.pos_weights = self.pos_weights
+
+    if isinstance(neural_g, icnn.ICNN):
+      if neural_g.pos_weights != self.pos_weights:
+        warnings.warn(warn_str)
+        neural_g.pos_weights = self.pos_weights
 
     self.state_f = neural_f.create_train_state(rng_f, optimizer_f, input_dim)
     self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
 
-    # define train and valid step functions
-    self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
-    self.valid_step_f = self.get_step_fn(train=False, to_optimize="f")
+    # Assume g defines the potential unless this attribute is set.
+    self.g_provides_gradient = neural_g.provides_gradient \
+        if hasattr(neural_g, 'provides_gradient') else False
 
-    self.train_step_g = self.get_step_fn(train=True, to_optimize="g")
-    self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
+    if self.num_inner_iters == 1 and self.parallel_updates:
+      self.train_step_parallel = self.get_step_fn(
+          train=True, to_optimize="both"
+      )
+      self.valid_step_parallel = self.get_step_fn(
+          train=False, to_optimize="both"
+      )
+      self.train_fn = self.train_neuraldual_parallel
+    else:
+      if self.parallel_updates:
+        warnings.warn(
+            'parallel_updates set to True but disabling it because num_inner_iters>1'
+        )
+      self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
+      self.valid_step_f = self.get_step_fn(train=False, to_optimize="f")
+      self.train_step_g = self.get_step_fn(train=True, to_optimize="g")
+      self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
+      self.train_fn = self.train_neuraldual_alternating
 
   def __call__(
       self,
@@ -136,26 +189,92 @@ class NeuralDualSolver:
       trainloader_target: Iterable[jnp.ndarray],
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
-  ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
-                                              Train_t]]:
-    logs = self.train_neuraldual(
+      callback: Optional[Callable] = None,
+  ) -> Union[Potentials_t, Tuple[Potentials_t, Train_t]]:
+    logs = self.train_fn(
         trainloader_source,
         trainloader_target,
         validloader_source,
         validloader_target,
+        callback=callback,
     )
     res = self.to_dual_potentials()
 
     return (res, logs) if self.logging else res
 
-  def train_neuraldual(
+  def train_neuraldual_parallel(
       self,
       trainloader_source: Iterable[jnp.ndarray],
       trainloader_target: Iterable[jnp.ndarray],
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
+      callback: Optional[Callable] = None,
   ) -> Train_t:
-    """Implementation of the training and validation script."""  # noqa: D401
+    """Implementation of the training and validation with parallel updates."""  # noqa: D401
+    try:
+      from tqdm.auto import tqdm
+    except ImportError:
+      tqdm = lambda _: _
+    # define dict to contain source and target batch
+    train_batch = {}
+    valid_batch = {}
+
+    # set logging dictionaries
+    train_logs = {"train_loss_f": [], "train_loss_g": [], "train_w_dist": []}
+    valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
+
+    for step in tqdm(range(self.num_train_iters)):
+      # execute training steps
+      train_batch["source"] = jnp.array(next(trainloader_source))
+      train_batch["target"] = jnp.array(next(trainloader_target))
+
+      self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = \
+          self.train_step_parallel(
+              self.state_f, self.state_g, train_batch
+          )
+
+      if callback is not None:
+        callback(step, self.to_dual_potentials())
+
+      if not self.pos_weights:
+        self.state_f = self.state_f.replace(
+            params=self._clip_weights_icnn(self.state_f.params)
+        )
+
+      # log to wandb
+      if self.logging and step % self.log_freq == 0:
+        train_logs["train_loss_f"].append(float(loss_f))
+        train_logs["train_loss_g"].append(float(loss_g))
+        train_logs["train_w_dist"].append(float(w_dist))
+
+      # report the loss on an validation dataset periodically
+      if step != 0 and step % self.valid_freq == 0:
+        # get batch
+        valid_batch["source"] = jnp.array(next(validloader_source))
+        valid_batch["target"] = jnp.array(next(validloader_target))
+
+        valid_loss_f, valid_loss_g, valid_w_dist = \
+            self.valid_step_parallel(
+                self.state_f, self.state_g, valid_batch
+            )
+
+        if self.logging:
+          # log training progress
+          valid_logs["valid_loss_f"].append(float(valid_loss_f))
+          valid_logs["valid_loss_g"].append(float(valid_loss_g))
+          valid_logs["valid_w_dist"].append(float(valid_w_dist))
+
+    return {"train_logs": train_logs, "valid_logs": valid_logs}
+
+  def train_neuraldual_alternating(
+      self,
+      trainloader_source: Iterable[jnp.ndarray],
+      trainloader_target: Iterable[jnp.ndarray],
+      validloader_source: Iterable[jnp.ndarray],
+      validloader_target: Iterable[jnp.ndarray],
+      callback: Optional[Callable] = None,
+  ) -> Train_t:
+    """Implementation of the training and validation with alternating updates."""  # noqa: D401
     try:
       from tqdm.auto import tqdm
     except ImportError:
@@ -192,6 +311,9 @@ class NeuralDualSolver:
             params=self._clip_weights_icnn(self.state_f.params)
         )
 
+      if callback is not None:
+        callback(step, self.to_dual_potentials())
+
       # log to wandb
       if self.logging and step % self.log_freq == 0:
         train_logs["train_loss_f"].append(float(loss_f))
@@ -219,65 +341,75 @@ class NeuralDualSolver:
 
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
-  def get_step_fn(self, train: bool, to_optimize: Literal["f", "g"] = "g"):
-    """Create a one-step training and evaluation function."""
+  def get_step_fn(
+      self, train: bool, to_optimize: Literal["f", "g", "parallel"]
+  ):
+    """Create a parallel training and evaluation function."""
 
     def loss_fn(params_f, params_g, f, g, batch):
-      """Loss function for potential f."""
+      """Loss function for both potentials."""
       # get two distributions
-      source, target = batch["source"], batch["target"]
+      X, Y = batch["source"], batch["target"]
 
-      # get loss terms of kantorovich dual
-      f_t = f({"params": params_f}, batch["target"])
+      if self.g_provides_gradient:
+        init_X_hat = g({'params': params_g}, Y)
+      else:
+        init_X_hat = jax.vmap(
+            lambda y: jax.grad(g, argnums=1)({
+                "params": params_g
+            }, y)
+        )(
+            Y
+        )
 
-      grad_g_s = jax.vmap(
-          lambda x: jax.grad(g, argnums=1)({
-              "params": params_g
-          }, x)
-      )(
-          batch["source"]
-      )
+      f_apply = lambda x: f({'params': params_f}, x)
+      finetune_X_hat = lambda y, x_init: self.conjugate_solver.solve(
+          f_apply, y, x_init=x_init
+      ).grad
+      finetune_X_hat = jax.vmap(finetune_X_hat)
+      X_hat_detach = stop_gradient(finetune_X_hat(Y, init_X_hat))
 
-      f_grad_g_s = f({"params": params_f}, grad_g_s)
+      batch_dot = jax.vmap(jnp.dot)
 
-      s_dot_grad_g_s = jnp.sum(source * grad_g_s, axis=1)
+      f_x = f_apply(X)
+      f_star_y = batch_dot(X_hat_detach, Y) - f_apply(X_hat_detach)
+      dual_x = f_x.mean()
+      dual_y = f_star_y.mean()
+      dual_loss = dual_x + dual_y
 
-      s_sq = jnp.sum(source * source, axis=1)
-      t_sq = jnp.sum(target * target, axis=1)
+      if self.amortization_loss == 'regression':
+        amor_loss = ((init_X_hat - X_hat_detach) ** 2).mean()
+      elif self.amortization_loss == 'objective':
+        f_apply_parameters_detached = lambda x: f({
+            'params': stop_gradient(params_f)
+        }, x)
+        amor_loss = (
+            f_apply_parameters_detached(init_X_hat) - batch_dot(init_X_hat, Y)
+        ).mean()
+      else:
+        raise ValueError("Amortization loss has been misspecified.")
 
-      # compute final wasserstein distance
-      dist = 2 * jnp.mean(
-          f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq
-      )
-
-      loss_f = jnp.mean(f_t - f_grad_g_s)
-      loss_g = jnp.mean(f_grad_g_s - s_dot_grad_g_s)
-
-      if to_optimize == "f":
-        return loss_f, dist
+      if to_optimize == "both":
+        loss = dual_loss + amor_loss
+      elif to_optimize == "f":
+        loss = dual_loss
       elif to_optimize == "g":
-        if not self.pos_weights:
-          penalty = self._penalize_weights_icnn(params_g)
-          loss_g += self.beta * penalty
-        return loss_g, dist
+        loss = amor_loss
       else:
         raise ValueError("Optimization target has been misspecified.")
+
+      # compute final wasserstein distance
+      dist = -1.  # TODO(bamos): Add back
+
+      return loss, (dual_loss, amor_loss, dist)
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
       """Step function of either training or validation."""
-      if to_optimize == "f":
-        grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
-        state = state_f
-      elif to_optimize == "g":
-        grad_fn = jax.value_and_grad(loss_fn, argnums=1, has_aux=True)
-        state = state_g
-      else:
-        raise ValueError("Potential to be optimize might be misspecified.")
-
+      grad_fn = jax.value_and_grad(loss_fn, argnums=[0, 1], has_aux=True)
       if train:
         # compute loss and gradients
-        (loss, dist), grads = grad_fn(
+        (loss, (loss_f, loss_g, dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
             state_f.apply_fn,
@@ -286,11 +418,22 @@ class NeuralDualSolver:
         )
 
         # update state
-        return state.apply_gradients(grads=grads), loss, dist
+        if to_optimize == "both":
+          return state_f.apply_gradients(grads=grads_f), \
+              state_g.apply_gradients(grads=grads_g), \
+              loss, loss_f, loss_g, dist
+        elif to_optimize == "f":
+          return state_f.apply_gradients(grads=grads_f), \
+              loss_f, dist
+        elif to_optimize == "g":
+          return state_g.apply_gradients(grads=grads_g), \
+              loss_g, dist
+        else:
+          raise ValueError("Optimization target has been misspecified.")
 
       else:
         # compute loss and gradients
-        (loss, dist), _ = grad_fn(
+        (loss, (loss_f, loss_g, dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
             state_f.apply_fn,
@@ -299,14 +442,34 @@ class NeuralDualSolver:
         )
 
         # do not update state
-        return loss, dist
+        return loss_f, loss_g, dist
 
     return step_fn
 
   def to_dual_potentials(self) -> potentials.DualPotentials:
     """Return the Kantorovich dual potentials from the trained potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
-    g = lambda x: self.state_g.apply_fn({"params": self.state_g.params}, x)
+    if self.g_provides_gradient:
+      # The network provides the gradient of the g potential, \nabla_y g.
+      # Construct the value of the potential from it with
+      #
+      #   g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
+      #
+      # where \nabla_y g(y) is detached for the envelope theorem
+      # to give the appropriate first derivatives of this construction.
+      def g(y):
+        squeeze = y.ndim == 1
+        if squeeze:
+          y = jnp.expand_dims(y, 0)
+        grad_g_y = stop_gradient(
+            self.state_g.apply_fn({"params": self.state_g.params}, y)
+        )
+        g_y = -f(grad_g_y) + jax.vmap(jnp.dot)(grad_g_y, y)
+        if squeeze:
+          g_y = g_y.squeeze(0)
+        return g_y
+    else:
+      g = lambda y: self.state_g.apply_fn({"params": self.state_g.params}, y)
     return potentials.DualPotentials(
         f, g, cost_fn=costs.SqEuclidean(), corr=True
     )
