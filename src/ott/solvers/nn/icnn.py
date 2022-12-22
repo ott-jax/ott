@@ -189,7 +189,7 @@ class ICNN(nn.Module):
       # x is one step ahead as there is one more hidden layer for x
       else:
         z = jnp.add(self.w_zs[i - 1](z), self.w_xs[i](x))
-      if i != 0 or i != self.num_hidden + 1:
+      if i > 0:
         z = self.act_fn(z)
     return jnp.squeeze(z)
 
