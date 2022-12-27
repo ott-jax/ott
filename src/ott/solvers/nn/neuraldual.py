@@ -366,13 +366,16 @@ class NeuralDualSolver:
         )
 
       f_apply = lambda x: f({'params': params_f}, x)
-      finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
-          f_apply, y, x_init=x_init
-      ).grad
-      finetune_source_hat = jax.vmap(finetune_source_hat)
-      source_hat_detach = stop_gradient(
-          finetune_source_hat(target, init_source_hat)
-      )
+      if self.conjugate_solver is not None:
+        finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
+            f_apply, y, x_init=x_init
+        ).grad
+        finetune_source_hat = jax.vmap(finetune_source_hat)
+        source_hat_detach = stop_gradient(
+            finetune_source_hat(target, init_source_hat)
+        )
+      else:
+        source_hat_detach = init_source_hat
 
       batch_dot = jax.vmap(jnp.dot)
 
@@ -449,7 +452,14 @@ class NeuralDualSolver:
         )
 
         # do not update state
-        return loss_f, loss_g, dist
+        if to_optimize == "both":
+          return loss_f, loss_g, dist
+        elif to_optimize == "f":
+          return loss_f, dist
+        elif to_optimize == "g":
+          return loss_g, dist
+        else:
+          raise ValueError("Optimization target has been misspecified.")
 
     return step_fn
 
