@@ -13,7 +13,7 @@
 # limitations under the License.
 """Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
 
-from typing import Any, Callable, Sequence, Tuple, Union
+from typing import Callable, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -26,11 +26,6 @@ from ott.math import matrix_square_root
 from ott.solvers.nn.layers import PosDefPotentials, PositiveDense
 
 __all__ = ["ICNN"]
-
-PRNGKey = Any
-Shape = Tuple[int]
-Dtype = Any
-Array = Any
 
 
 class ICNN(nn.Module):
@@ -83,9 +78,8 @@ class ICNN(nn.Module):
     w_zs = []
     # keep track of previous size to normalize accordingly
     normalization = 1
-    # subsequent layers propagate value of potential provided by
-    # first layer in x normalization factor is rescaled accordingly
-    for i in range(self.num_hidden):
+
+    for i in range(1, self.num_hidden):
       w_zs.append(
           hid_dense(
               self.dim_hidden[i],
@@ -104,25 +98,23 @@ class ICNN(nn.Module):
     )
     self.w_zs = w_zs
 
-    w_xs = []
-    # first square layer, initialized to identity
-    w_xs.append(
-        PosDefPotentials(
-            self.dim_data,
-            num_potentials=1,
-            kernel_init=lambda *args, **kwargs: factor,
-            bias_init=lambda *args, **kwargs: mean,
-            use_bias=True,
-        )
+    # positive definite potential (the identity mapping or linear OT)
+    self.pos_def_potential = PosDefPotentials(
+        self.dim_data,
+        num_potentials=1,
+        kernel_init=lambda *args, **kwargs: factor,
+        bias_init=lambda *args, **kwargs: mean,
+        use_bias=True,
     )
 
     # subsequent layers reinjected into convex functions
+    w_xs = []
     for i in range(self.num_hidden):
       w_xs.append(
           nn.Dense(
               self.dim_hidden[i],
               kernel_init=self.init_fn(self.init_std),
-              bias_init=self.init_fn(self.init_std),
+              bias_init=initializers.constant(0.),
               use_bias=True,
           )
       )
@@ -131,7 +123,7 @@ class ICNN(nn.Module):
         nn.Dense(
             1,
             kernel_init=self.init_fn(self.init_std),
-            bias_init=self.init_fn(self.init_std),
+            bias_init=initializers.constant(0.),
             use_bias=True,
         )
     )
@@ -182,15 +174,11 @@ class ICNN(nn.Module):
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> float:
-    for i in range(self.num_hidden + 2):
-      if i == 0:
-        z = self.w_xs[i](x)
-      # apply both transform on hidden state and x
-      # x is one step ahead as there is one more hidden layer for x
-      else:
-        z = jnp.add(self.w_zs[i - 1](z), self.w_xs[i](x))
-      if i > 0:
-        z = self.act_fn(z)
+    z = self.act_fn(self.w_xs[0](x))
+    for i in range(self.num_hidden):
+      z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
+      z = self.act_fn(z)
+    z += self.pos_def_potential(x)
     return jnp.squeeze(z)
 
   def create_train_state(
