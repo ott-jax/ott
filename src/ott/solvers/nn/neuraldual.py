@@ -33,12 +33,15 @@ Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Potentials_t = potentials.DualPotentials
 
 default_conjugate_solver = ConjugateSolverLBFGS(
-    gtol=1e-3, max_iter=10, max_linesearch_iter=10
+    gtol=1e-3,
+    max_iter=10,
+    max_linesearch_iter=10,
+    linesearch_type='backtracking',
 )
 
 
 class NeuralDualSolver:
-  r"""Solver of the ICNN-based Kantorovich dual.
+  r"""Solver for the Wasserstein-2 Kantorovich dual between Euclidean spaces.
 
   Learn the Wasserstein-2 optimal transport between two measures
   :math:`\alpha` and :math:`\beta` in
@@ -349,42 +352,46 @@ class NeuralDualSolver:
     def loss_fn(params_f, params_g, f, g, batch):
       """Loss function for both potentials."""
       # get two distributions
-      X, Y = batch["source"], batch["target"]
+      source, target = batch["source"], batch["target"]
 
       if self.g_provides_gradient:
-        init_X_hat = g({'params': params_g}, Y)
+        init_source_hat = g({'params': params_g}, target)
       else:
-        init_X_hat = jax.vmap(
+        init_source_hat = jax.vmap(
             lambda y: jax.grad(g, argnums=1)({
                 "params": params_g
             }, y)
         )(
-            Y
+            target
         )
 
       f_apply = lambda x: f({'params': params_f}, x)
-      finetune_X_hat = lambda y, x_init: self.conjugate_solver.solve(
+      finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
           f_apply, y, x_init=x_init
       ).grad
-      finetune_X_hat = jax.vmap(finetune_X_hat)
-      X_hat_detach = stop_gradient(finetune_X_hat(Y, init_X_hat))
+      finetune_source_hat = jax.vmap(finetune_source_hat)
+      source_hat_detach = stop_gradient(
+          finetune_source_hat(target, init_source_hat)
+      )
 
       batch_dot = jax.vmap(jnp.dot)
 
-      f_x = f_apply(X)
-      f_star_y = batch_dot(X_hat_detach, Y) - f_apply(X_hat_detach)
-      dual_x = f_x.mean()
-      dual_y = f_star_y.mean()
-      dual_loss = dual_x + dual_y
+      f_source = f_apply(source)
+      f_star_target = batch_dot(source_hat_detach,
+                                target) - f_apply(source_hat_detach)
+      dual_source = f_source.mean()
+      dual_target = f_star_target.mean()
+      dual_loss = dual_source + dual_target
 
       if self.amortization_loss == 'regression':
-        amor_loss = ((init_X_hat - X_hat_detach) ** 2).mean()
+        amor_loss = ((init_source_hat - source_hat_detach) ** 2).mean()
       elif self.amortization_loss == 'objective':
         f_apply_parameters_detached = lambda x: f({
             'params': stop_gradient(params_f)
         }, x)
         amor_loss = (
-            f_apply_parameters_detached(init_X_hat) - batch_dot(init_X_hat, Y)
+            f_apply_parameters_detached(init_source_hat) -
+            batch_dot(init_source_hat, target)
         ).mean()
       else:
         raise ValueError("Amortization loss has been misspecified.")
