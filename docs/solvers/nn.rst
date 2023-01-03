@@ -10,7 +10,7 @@ Neural Dual
 .. autosummary::
     :toctree: _autosummary
 
-    neuraldual.NeuralDualSolver
+    neuraldual.W2NeuralDual
 
 ICNN
 ----

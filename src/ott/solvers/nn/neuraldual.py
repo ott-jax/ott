@@ -27,7 +27,7 @@ from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
 from ott.solvers.nn.conjugate_solver import ConjugateSolverLBFGS
 
-__all__ = ["NeuralDualSolver"]
+__all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Potentials_t = potentials.DualPotentials
@@ -40,7 +40,7 @@ default_conjugate_solver = ConjugateSolverLBFGS(
 )
 
 
-class NeuralDualSolver:
+class W2NeuralDual:
   r"""Solver for the Wasserstein-2 Kantorovich dual between Euclidean spaces.
 
   Learn the Wasserstein-2 optimal transport between two measures
@@ -147,8 +147,8 @@ class NeuralDualSolver:
 
     # check setting of network architectures
     warn_str = f"Setting of ICNN and the positive weights setting of the " \
-        f"`NeuralDualSolver` are not consistent. Proceeding with " \
-        f"the `NeuralDualSolver` setting, with positive weights " \
+        f"`W2NeuralDual` are not consistent. Proceeding with " \
+        f"the `W2NeuralDual` setting, with positive weights " \
         f"being {self.pos_weights}."
     if isinstance(neural_f, icnn.ICNN):
       if neural_f.pos_weights != self.pos_weights:

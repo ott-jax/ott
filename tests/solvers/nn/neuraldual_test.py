@@ -92,7 +92,7 @@ class TestNeuralDual:
     dataloader_source, dataloader_target = toy_dataset
 
     # initialize neural dual
-    neural_dual_solver = neuraldual.NeuralDualSolver(
+    neural_dual_solver = neuraldual.W2NeuralDual(
         input_dim=2,
         num_train_iters=num_train_iters,
         logging=True,
@@ -111,7 +111,7 @@ class TestNeuralDual:
     num_train_iters = 10
     dataloader_source, dataloader_target = toy_dataset
     # initialize neural dual
-    neural_dual_solver = neuraldual.NeuralDualSolver(
+    neural_dual_solver = neuraldual.W2NeuralDual(
         input_dim=2, num_train_iters=num_train_iters
     )
     neural_dual = neural_dual_solver(
