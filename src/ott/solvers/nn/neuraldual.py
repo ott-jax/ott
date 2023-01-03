@@ -244,7 +244,6 @@ class W2NeuralDual:
             params=self._clip_weights_icnn(self.state_f.params)
         )
 
-      # log to wandb
       if self.logging and step % self.log_freq == 0:
         train_logs["train_loss_f"].append(float(loss_f))
         train_logs["train_loss_g"].append(float(loss_g))
@@ -317,7 +316,6 @@ class W2NeuralDual:
       if callback is not None:
         callback(step, self.to_dual_potentials())
 
-      # log to wandb
       if self.logging and step % self.log_freq == 0:
         train_logs["train_loss_f"].append(float(loss_f))
         train_logs["train_loss_g"].append(float(loss_g))
