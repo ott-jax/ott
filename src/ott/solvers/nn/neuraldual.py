@@ -231,10 +231,9 @@ class W2NeuralDual:
       train_batch["source"] = jnp.array(next(trainloader_source))
       train_batch["target"] = jnp.array(next(trainloader_target))
 
-      self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = \
-          self.train_step_parallel(
-              self.state_f, self.state_g, train_batch
-          )
+      self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
+          self.state_f, self.state_g, train_batch
+      )
 
       if callback is not None:
         callback(step, self.to_dual_potentials())
@@ -255,10 +254,9 @@ class W2NeuralDual:
         valid_batch["source"] = jnp.array(next(validloader_source))
         valid_batch["target"] = jnp.array(next(validloader_target))
 
-        valid_loss_f, valid_loss_g, valid_w_dist = \
-            self.valid_step_parallel(
-                self.state_f, self.state_g, valid_batch
-            )
+        valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
+            self.state_f, self.state_g, valid_batch
+        )
 
         if self.logging:
           # log training progress
