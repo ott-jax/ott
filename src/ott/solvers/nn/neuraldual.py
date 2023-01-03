@@ -164,8 +164,8 @@ class NeuralDualSolver:
     self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
 
     # Assume g defines the potential unless this attribute is set.
-    self.g_provides_gradient = neural_g.provides_gradient \
-        if hasattr(neural_g, 'provides_gradient') else False
+    self.g_returns_potential = neural_g.returns_potential \
+        if hasattr(neural_g, 'returns_potential') else False
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
@@ -354,9 +354,7 @@ class NeuralDualSolver:
       # get two distributions
       source, target = batch["source"], batch["target"]
 
-      if self.g_provides_gradient:
-        init_source_hat = g({'params': params_g}, target)
-      else:
+      if self.g_returns_potential:
         init_source_hat = jax.vmap(
             lambda y: jax.grad(g, argnums=1)({
                 "params": params_g
@@ -364,6 +362,8 @@ class NeuralDualSolver:
         )(
             target
         )
+      else:
+        init_source_hat = g({'params': params_g}, target)
 
       f_apply = lambda x: f({'params': params_f}, x)
       if self.conjugate_solver is not None:
@@ -466,7 +466,9 @@ class NeuralDualSolver:
   def to_dual_potentials(self) -> potentials.DualPotentials:
     """Return the Kantorovich dual potentials from the trained potentials."""
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
-    if self.g_provides_gradient:
+    if self.g_returns_potential:
+      g = lambda y: self.state_g.apply_fn({"params": self.state_g.params}, y)
+    else:
       # The network provides the gradient of the g potential, \nabla_y g.
       # Construct the value of the potential from it with
       #
@@ -485,8 +487,7 @@ class NeuralDualSolver:
         if squeeze:
           g_y = g_y.squeeze(0)
         return g_y
-    else:
-      g = lambda y: self.state_g.apply_fn({"params": self.state_g.params}, y)
+
     return potentials.DualPotentials(
         f, g, cost_fn=costs.SqEuclidean(), corr=True
     )

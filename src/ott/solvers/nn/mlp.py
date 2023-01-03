@@ -24,8 +24,8 @@ class PotentialGradientMLP(nn.Module):
   dim_hidden: Sequence[int]
 
   @property
-  def provides_gradient(self):
-    return True
+  def returns_potential(self):
+    return False
 
   @nn.compact
   def __call__(self, x):
