@@ -21,7 +21,7 @@ ConjugateResults = namedtuple("ConjugateResults", "val grad num_iter")
 
 
 @dataclass
-class ConjugateSolverLBFGS:
+class FenchelConjugateBFGS:
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10

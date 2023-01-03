@@ -25,14 +25,14 @@ from typing_extensions import Literal
 from ott.geometry import costs
 from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
-from ott.solvers.nn.conjugate_solver import ConjugateSolverLBFGS
+from ott.solvers.nn.conjugate_solver import FenchelConjugateLBFGS
 
 __all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Potentials_t = potentials.DualPotentials
 
-default_conjugate_solver = ConjugateSolverLBFGS(
+default_conjugate_solver = FenchelConjugateLBFGS(
     gtol=1e-3,
     max_iter=10,
     max_linesearch_iter=10,
@@ -83,7 +83,7 @@ class W2NeuralDual:
     seed: random seed for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
-    conjugate_solver: numerical solver for the conjugate.
+    conjugate_solver: numerical solver for the Fenchel conjugate.
     amortization_loss: amortization loss for the conjugate :math:`g\approx f^\star`.
       Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:22a`.
     parallel_updates: Update :math:`f` and :math`g` at the same time
