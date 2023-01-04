@@ -52,6 +52,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
+    jit: Whether to jit the iteration loop.
     store_inner_errors: Whether to store the errors of the GW solver, as well
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
@@ -66,6 +67,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
+      jit: bool = True,
       store_inner_errors: bool = False,
       quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
       # TODO(michalk8): maintain the API compatibility with `was_solver`
@@ -79,14 +81,16 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         min_iterations=min_iterations,
         max_iterations=max_iterations,
         threshold=threshold,
-        store_inner_errors=store_inner_errors
+        store_inner_errors=store_inner_errors,
+        jit=jit,
     )
-    self._quad_solver = quad_solver
     if quad_solver is None:
       kwargs["epsilon"] = epsilon
       # TODO(michalk8): store only GW errors?
       kwargs["store_inner_errors"] = store_inner_errors
       self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
+    else:
+      self._quad_solver = quad_solver
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
@@ -103,7 +107,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       The solution.
     """
     state = self.init_state(problem, bar_size, **kwargs)
-    state = iterations(solver=self, problem=problem, init_state=state)
+    run_fn = jax.jit(iterations) if self.jit else iterations
+    state = run_fn(solver=self, problem=problem, init_state=state)
     return self.output_from_state(state)
 
   def init_state(

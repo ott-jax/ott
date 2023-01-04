@@ -321,7 +321,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, key=key, **kwargs)
-    return run(ot_prob, self, init)
+    run_fn = jax.jit(run) if self.jit else run
+    return run_fn(ot_prob, self, init)
 
   def _lr_costs(
       self,
@@ -676,6 +677,7 @@ def make(
     max_iterations: int = 2000,
     use_danskin: bool = True,
     implicit_diff: bool = False,
+    jit: bool = True,
     kwargs_dys: Optional[Mapping[str, Any]] = None
 ) -> LRSinkhorn:
   return LRSinkhorn(
@@ -691,5 +693,6 @@ def make(
       max_iterations=max_iterations,
       use_danskin=use_danskin,
       implicit_diff=implicit_diff,
+      jit=jit,
       kwargs_dys=kwargs_dys
   )
