@@ -25,14 +25,14 @@ from typing_extensions import Literal
 from ott.geometry import costs
 from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
-from ott.solvers.nn.conjugate_solver import FenchelConjugateLBFGS
+from ott.solvers.nn.conjugate_solver import ConjugateSolver, FenchelConjugateLBFGS
 
 __all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
-Potentials_t = potentials.DualPotentials
+Callback_t = Callable[[int, potentials.DualPotentials], None]
 
-default_conjugate_solver = FenchelConjugateLBFGS(
+DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
     gtol=1e-3,
     max_iter=10,
     max_linesearch_iter=10,
@@ -54,7 +54,12 @@ class W2NeuralDual:
   :math:`\nabla f` transports source to target cells.
   This potential is learned by optimizing the dual
   form associated with the negative inner product cost
-  :math:`\argsup_{\theta}\; -\E_{x\sim\alpha}[f_\theta(x)] - \E_{y\sim\beta}[f^\star_\theta(y)]`
+
+  .. math::
+
+    \argsup_{\theta}\; -\E_{x\sim\alpha}[f_\theta(x)] -
+      \E_{y\sim\beta}[f^\star_\theta(y)]`,
+
   where
   :math:`f^\star(y) := -\inf_{x\in\gX} f(x)-\langle x, y\rangle`
   is the convex conjugate.
@@ -104,8 +109,8 @@ class W2NeuralDual:
       seed: int = 0,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Optional[Callable] = default_conjugate_solver,
-      amortization_loss: str = 'regression',
+      conjugate_solver: Optional[ConjugateSolver] = DEFAULT_CONJUGATE_SOLVER,
+      amortization_loss: Literal['objective', 'regression'] = 'regression',
       parallel_updates: bool = True,
   ):
     self.num_train_iters = num_train_iters
@@ -150,22 +155,23 @@ class W2NeuralDual:
         f"`W2NeuralDual` are not consistent. Proceeding with " \
         f"the `W2NeuralDual` setting, with positive weights " \
         f"being {self.pos_weights}."
-    if isinstance(neural_f, icnn.ICNN):
-      if neural_f.pos_weights != self.pos_weights:
-        warnings.warn(warn_str)
-        neural_f.pos_weights = self.pos_weights
+    if isinstance(
+        neural_f, icnn.ICNN
+    ) and neural_f.pos_weights is not self.pos_weights:
+      warnings.warn(warn_str)
+      neural_f.pos_weights = self.pos_weights
 
-    if isinstance(neural_g, icnn.ICNN):
-      if neural_g.pos_weights != self.pos_weights:
-        warnings.warn(warn_str)
-        neural_g.pos_weights = self.pos_weights
+    if isinstance(
+        neural_g, icnn.ICNN
+    ) and neural_g.pos_weights is not self.pos_weights:
+      warnings.warn(warn_str)
+      neural_g.pos_weights = self.pos_weights
 
     self.state_f = neural_f.create_train_state(rng_f, optimizer_f, input_dim)
     self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
 
     # Assume g defines the potential unless this attribute is set.
-    self.g_returns_potential = neural_g.returns_potential \
-        if hasattr(neural_g, 'returns_potential') else False
+    self.g_returns_potential = getattr(neural_g, 'returns_potential', True)
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
@@ -192,8 +198,9 @@ class W2NeuralDual:
       trainloader_target: Iterable[jnp.ndarray],
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
-      callback: Optional[Callable] = None,
-  ) -> Union[Potentials_t, Tuple[Potentials_t, Train_t]]:
+      callback: Optional[Callback_t] = None,
+  ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
+                                              Train_t]]:
     logs = self.train_fn(
         trainloader_source,
         trainloader_target,
@@ -211,7 +218,7 @@ class W2NeuralDual:
       trainloader_target: Iterable[jnp.ndarray],
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
-      callback: Optional[Callable] = None,
+      callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Implementation of the training and validation with parallel updates."""  # noqa: D401
     try:
@@ -228,15 +235,15 @@ class W2NeuralDual:
 
     for step in tqdm(range(self.num_train_iters)):
       # execute training steps
-      train_batch["source"] = jnp.array(next(trainloader_source))
-      train_batch["target"] = jnp.array(next(trainloader_target))
+      train_batch["source"] = jnp.asarray(next(trainloader_source))
+      train_batch["target"] = jnp.asarray(next(trainloader_target))
 
       self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
           self.state_f, self.state_g, train_batch
       )
 
       if callback is not None:
-        callback(step, self.to_dual_potentials())
+        _ = callback(step, self.to_dual_potentials())
 
       if not self.pos_weights:
         self.state_f = self.state_f.replace(
@@ -251,8 +258,8 @@ class W2NeuralDual:
       # report the loss on an validation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
         # get batch
-        valid_batch["source"] = jnp.array(next(validloader_source))
-        valid_batch["target"] = jnp.array(next(validloader_target))
+        valid_batch["source"] = jnp.asarray(next(validloader_source))
+        valid_batch["target"] = jnp.asarray(next(validloader_target))
 
         valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
             self.state_f, self.state_g, valid_batch
@@ -272,7 +279,7 @@ class W2NeuralDual:
       trainloader_target: Iterable[jnp.ndarray],
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
-      callback: Optional[Callable] = None,
+      callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Implementation of the training and validation with alternating updates."""  # noqa: D401
     try:
@@ -292,16 +299,16 @@ class W2NeuralDual:
       # execute training steps
       for _ in range(self.num_inner_iters):
         # get train batch for potential g
-        batch_g["source"] = jnp.array(next(trainloader_source))
-        batch_g["target"] = jnp.array(next(trainloader_target))
+        batch_g["source"] = jnp.asarray(next(trainloader_source))
+        batch_g["target"] = jnp.asarray(next(trainloader_target))
 
         self.state_g, loss_g, _ = self.train_step_g(
             self.state_f, self.state_g, batch_g
         )
 
       # get train batch for potential f
-      batch_f["source"] = jnp.array(next(trainloader_source))
-      batch_f["target"] = jnp.array(next(trainloader_target))
+      batch_f["source"] = jnp.asarray(next(trainloader_source))
+      batch_f["target"] = jnp.asarray(next(trainloader_target))
 
       self.state_f, loss_f, w_dist = self.train_step_f(
           self.state_f, self.state_g, batch_f
@@ -322,8 +329,8 @@ class W2NeuralDual:
       # report the loss on an validuation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
         # get batch
-        valid_batch["source"] = jnp.array(next(validloader_source))
-        valid_batch["target"] = jnp.array(next(validloader_target))
+        valid_batch["source"] = jnp.asarray(next(validloader_source))
+        valid_batch["target"] = jnp.asarray(next(validloader_target))
 
         valid_loss_f, _ = self.valid_step_f(
             self.state_f, self.state_g, valid_batch
@@ -351,13 +358,12 @@ class W2NeuralDual:
       source, target = batch["source"], batch["target"]
 
       if self.g_returns_potential:
-        init_source_hat = jax.vmap(
+        g_grad = jax.vmap(
             lambda y: jax.grad(g, argnums=1)({
                 "params": params_g
             }, y)
-        )(
-            target
         )
+        init_source_hat = g_grad(target)
       else:
         init_source_hat = g({'params': params_g}, target)
 
@@ -402,7 +408,9 @@ class W2NeuralDual:
       elif to_optimize == "g":
         loss = amor_loss
       else:
-        raise ValueError("Optimization target has been misspecified.")
+        raise ValueError(
+            f"Optimization target {to_optimize} has been misspecified."
+        )
 
       # compute final wasserstein distance
       dist = -1.  # TODO(bamos): Add back
@@ -460,19 +468,24 @@ class W2NeuralDual:
     return step_fn
 
   def to_dual_potentials(self) -> potentials.DualPotentials:
-    """Return the Kantorovich dual potentials from the trained potentials."""
+    r"""Return the Kantorovich dual potentials from the trained potentials.
+
+    If `g` returns the gradient of the g potential, \nabla_y g,
+    i.e. `g.returns_potential == False`,
+    construct the value of the potential with
+
+    .. math::
+      g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
+
+    where :math:`\nabla_y g(y)` is detached for the envelope theorem
+    to give the appropriate first derivatives of this construction.
+    """
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
     if self.g_returns_potential:
       g = lambda y: self.state_g.apply_fn({"params": self.state_g.params}, y)
     else:
-      # The network provides the gradient of the g potential, \nabla_y g.
-      # Construct the value of the potential from it with
-      #
-      #   g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
-      #
-      # where \nabla_y g(y) is detached for the envelope theorem
-      # to give the appropriate first derivatives of this construction.
-      def g(y):
+
+      def g(y: jnp.ndarray):
         squeeze = y.ndim == 1
         if squeeze:
           y = jnp.expand_dims(y, 0)
@@ -480,9 +493,7 @@ class W2NeuralDual:
             self.state_g.apply_fn({"params": self.state_g.params}, y)
         )
         g_y = -f(grad_g_y) + jax.vmap(jnp.dot)(grad_g_y, y)
-        if squeeze:
-          g_y = g_y.squeeze(0)
-        return g_y
+        return g_y.squeeze(0) if squeeze else g_y
 
     return potentials.DualPotentials(
         f, g, cost_fn=costs.SqEuclidean(), corr=True

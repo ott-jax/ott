@@ -102,8 +102,8 @@ class ICNN(nn.Module):
     self.pos_def_potential = PosDefPotentials(
         self.dim_data,
         num_potentials=1,
-        kernel_init=lambda *args, **kwargs: factor,
-        bias_init=lambda *args, **kwargs: mean,
+        kernel_init=lambda *_: factor,
+        bias_init=lambda *_: mean,
         use_bias=True,
     )
 
@@ -179,7 +179,7 @@ class ICNN(nn.Module):
       z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
       z = self.act_fn(z)
     z += self.pos_def_potential(x)
-    return jnp.squeeze(z)
+    return z.squeeze()
 
   def create_train_state(
       self,

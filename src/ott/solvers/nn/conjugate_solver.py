@@ -11,35 +11,57 @@
 # limitations under the License.
 """Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
 
-import functools
-from collections import namedtuple
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Callable, NamedTuple, Optional
 
+import jax.numpy as jnp
 from jaxopt import LBFGS
+from typing_extensions import Literal
 
-ConjugateResults = namedtuple("ConjugateResults", "val grad num_iter")
+from ott import utils
+
+
+class ConjugateResults(NamedTuple):
+  val: float
+  grad: jnp.array
+  num_iter: int
+
+
+class ConjugateSolver(ABC):
+
+  @abstractmethod
+  def solve(
+      self,
+      f: Callable,
+      y: jnp.ndarray,
+      x_init: Optional[jnp.array] = None
+  ) -> ConjugateResults:
+    pass
 
 
 @dataclass
-class FenchelConjugateLBFGS:
+@utils.register_pytree_node
+class FenchelConjugateLBFGS(ConjugateSolver):
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10
-  linesearch_type: str = 'backtracking'
+  linesearch_type: Literal['zoom', 'backtracking'] = 'backtracking'
   decrease_factor: float = 2. / 3.
-  ls_method: str = 'strong-wolfe'
+  ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
-  def conj_min_obj(self, x, f, y):
-    # f^*(y) = -inf_x f(x) - y^T x
-    return f(x) - x.dot(y)
-
-  def solve(self, f, y, x_init=None):
+  def solve(
+      self,
+      f: Callable,
+      y: jnp.ndarray,
+      x_init: Optional[jnp.array] = None
+  ) -> ConjugateResults:
     assert y.ndim == 1
 
     if x_init is None:
       x_init = y
 
-    conj_min_obj = functools.partial(self.conj_min_obj, y=y, f=f)
+    conj_min_obj = lambda x: f(x) - x.dot(y)
     solver = LBFGS(
         fun=conj_min_obj,
         tol=self.gtol,

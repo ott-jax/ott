@@ -17,22 +17,22 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 
-__all__ = ["PotentialGradientMLP"]
+__all__ = ["MLP"]
 
 
-class PotentialGradientMLP(nn.Module):
+class MLP(nn.Module):
   dim_hidden: Sequence[int]
 
   @property
-  def returns_potential(self):
+  def returns_potential(self) -> bool:
     return False
 
   @nn.compact
-  def __call__(self, x):
-    single = x.ndim == 1
-    if single:
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+    squeeze = x.ndim == 1
+    if squeeze:
       x = jnp.expand_dims(x, 0)
-    assert x.ndim == 2
+    assert x.ndim == 2, x.ndim
     n_input = x.shape[-1]
 
     z = x
@@ -44,9 +44,7 @@ class PotentialGradientMLP(nn.Module):
 
     z = x + Wx(z)  # Encourage identity initialization.
 
-    if single:
-      z = jnp.squeeze(z, 0)
-    return z
+    return z.squeeze(0) if squeeze else z
 
   def create_train_state(
       self,
