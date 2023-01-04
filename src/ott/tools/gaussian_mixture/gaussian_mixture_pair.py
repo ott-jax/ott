@@ -13,10 +13,13 @@
 # limitations under the License.
 """Pytree containing parameters for a pair of coupled Gaussian mixture models.
 """  # noqa: D200
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs, geometry, pointcloud
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools.gaussian_mixture import gaussian_mixture
 
@@ -129,19 +132,22 @@ class GaussianMixturePair:
     """Get matrix of W2^2 costs between all pairs of (gmm0, gmm1) components."""
     return self.get_bures_geometry().cost_matrix
 
-  def get_sinkhorn(self, cost_matrix: jnp.ndarray) -> sinkhorn.SinkhornOutput:
-    """Get the output of ott.sinkhorn's method for a given cost matrix."""
+  def get_sinkhorn(
+      self, cost_matrix: jnp.ndarray, **kwargs: Any
+  ) -> sinkhorn.SinkhornOutput:
+    """Get the output of Sinkhorn's method for a given cost matrix."""
     # We use a Geometry here rather than the PointCloud created in
-    # in get_bures_geometry to avoid recomputing the cost matrix, since
+    # get_bures_geometry to avoid recomputing the cost matrix, since
     # the cost matrix is quite expensive
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=self.epsilon)
-    return sinkhorn.sinkhorn(
+    prob = linear_problem.LinearProblem(
         geom,
         a=self.gmm0.component_weights,
         b=self.gmm1.component_weights,
         tau_a=self.tau,
         tau_b=self.tau
     )
+    return sinkhorn.Sinkhorn(**kwargs)(prob)
 
   def get_normalized_sinkhorn_coupling(
       self,

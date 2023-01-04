@@ -48,9 +48,7 @@ def create_sorting_problem(rng, n, epsilon=0.01, online=False):
       epsilon=epsilon,
       batch_size=batch_size
   )
-  ot_problem = linear_problem.LinearProblem(geom=geom, a=a, b=b)
-
-  return ot_problem
+  return linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
 
 def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
@@ -69,41 +67,36 @@ def create_ot_problem(rng, n, m, d, epsilon=0.01, online=False):
   batch_size = 3 if online else None
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
 
-  ot_problem = linear_problem.LinearProblem(geom=geom, a=a, b=b)
-  return ot_problem
+  return linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
 
-# define sinkhorn functions
+# TODO(michalk8): combine to 1 function parametrized by initializer
 @functools.partial(jax.jit, static_argnames=['lse_mode', 'vector_min'])
 def run_sinkhorn_sort_init(
     x, y, a=None, b=None, epsilon=0.01, vector_min=True, lse_mode=True
 ):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+  prob = linear_problem.LinearProblem(geom, a, b)
   sort_init = lin_init.SortingInitializer(vectorized_update=vector_min)
-  out = sinkhorn.sinkhorn(
-      geom, a=a, b=b, initializer=sort_init, lse_mode=lse_mode
-  )
-  return out
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=sort_init)
+  return solver(prob)
 
 
 @functools.partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  out = sinkhorn.sinkhorn(geom, a=a, b=b, lse_mode=lse_mode)
-  return out
+  prob = linear_problem.LinearProblem(geom, a, b)
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+  return solver(prob)
 
 
 @functools.partial(jax.jit, static_argnames=['lse_mode'])
 def run_sinkhorn_gaus_init(x, y, a=None, b=None, epsilon=0.01, lse_mode=True):
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  out = sinkhorn.sinkhorn(
-      geom,
-      a=a,
-      b=b,
-      initializer=lin_init.GaussianInitializer(),
-      lse_mode=lse_mode
-  )
-  return out
+  prob = linear_problem.LinearProblem(geom, a, b)
+  init = lin_init.GaussianInitializer()
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init)
+  return solver(prob)
 
 
 @pytest.mark.fast
@@ -313,9 +306,10 @@ class TestSinkhornInitializers:
           meta_initializer.state, a=a, b=b
       )
 
-    sink_out = sinkhorn.sinkhorn(
-        geom, a=a, b=b, initializer=meta_initializer, lse_mode=lse_mode
-    )
+    prob = linear_problem.LinearProblem(geom, a, b)
+    solver = sinkhorn.Sinkhorn(initializer=meta_initializer, lse_mode=lse_mode)
+    sink_out = solver(prob)
+
     meta_num_iter = jnp.sum(sink_out.errors > -1)
 
     # check initializer is better

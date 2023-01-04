@@ -19,7 +19,7 @@ import jax.numpy as jnp
 
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import acceleration, sinkhorn
 
 __all__ = [
     "sinkhorn_divergence", "segment_sinkhorn_divergence",
@@ -135,19 +135,31 @@ def _sinkhorn_divergence(
     geometry_yy: a Cost object able to apply kernels with a certain epsilon,
     between elements of the view Y.
     a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
-     all elements of b must match that of a to converge.
+     all elements of ``b`` must match that of ``a`` to converge.
     b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
-     all elements of b must match that of a to converge.
+     all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
-    kwargs: Keyword arguments to :func:`~ott.solvers.linear.sinkhorn.sinkhorn`.
+    kwargs: Keyword arguments to :func:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
+
+  def run_sinkhorn(
+      geom: geometry.Geometry,
+      a: jnp.ndarray,
+      b: jnp.ndarray,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+      **kwargs: Any
+  ) -> sinkhorn.SinkhornOutput:
+    prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
+    return sinkhorn.Sinkhorn(**kwargs)(prob)
+
   # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
   # terms are computed independently. The user might want to pass some
-  # sinkhorn_kwargs to parameterize sinkhorn's behavior, but those should
+  # sinkhorn_kwargs to parameterize Sinkhorn's behavior, but those should
   # only apply to the (x,y) part. For the (x,x) / (y,y) part we fall back
   # on a simpler choice (parallel_dual_updates + momentum 0.5) that is known
   # to work well in such settings. In the future we might want to give some
@@ -159,18 +171,17 @@ def _sinkhorn_divergence(
   if symmetric_sinkhorn:
     kwargs_symmetric.update(
         parallel_dual_updates=True,
-        momentum=0.5,
-        chg_momentum_from=0,
-        anderson_acceleration=0,
-        implicit_solver_symmetric=True
+        momentum=acceleration.Momentum(start=0, value=0.5),
+        anderson=None,
+        # TODO(michalk8): implicit_diff
     )
 
-  out_xy = sinkhorn.sinkhorn(geometry_xy, a, b, **kwargs)
-  out_xx = sinkhorn.sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
+  out_xy = run_sinkhorn(geometry_xy, a, b, **kwargs)
+  out_xx = run_sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
     out_yy = sinkhorn.SinkhornOutput(errors=jnp.array([]), reg_ot_cost=0)
   else:
-    out_yy = sinkhorn.sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
+    out_yy = run_sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
 
   div = (
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +

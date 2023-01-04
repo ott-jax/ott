@@ -15,6 +15,7 @@ __all__ = ["AndersonAcceleration", "Momentum"]
 class AndersonAcceleration:
   """Implements Anderson acceleration for Sinkhorn."""
 
+  # TODO(michalk8): use memory=0 as no Anderson acceleration?
   memory: int = 2  # Number of iterates considered to form interpolation.
   refresh_every: int = 1  # Recompute interpolation periodically.
   ridge_identity: float = 1e-2  # Ridge used in the linear system.

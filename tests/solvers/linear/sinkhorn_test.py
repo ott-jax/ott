@@ -17,10 +17,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from helpers import test_utils
 
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import acceleration, sinkhorn
 
 
 class TestSinkhorn:
@@ -58,18 +59,17 @@ class TestSinkhorn:
   ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
+    momentum = acceleration.Momentum(start=chg_momentum_from, value=momentum)
 
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=0.1)
-    out = sinkhorn.sinkhorn(
+    out = test_utils.run_sinkhorn(
         geom,
         a=self.a,
         b=self.b,
-        threshold=threshold,
-        momentum=momentum,
-        chg_momentum_from=chg_momentum_from,
-        inner_iterations=inner_iterations,
+        lse_mode=lse_mode,
         norm_error=norm_error,
-        lse_mode=lse_mode
+        inner_iterations=inner_iterations,
+        momentum=momentum
     )
     errors = out.errors
     err = errors[errors > -1][-1]
@@ -86,7 +86,7 @@ class TestSinkhorn:
     # needed in principle, but introduced here to test logic.
     geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
     # not jitting
-    f_1 = sinkhorn.sinkhorn(
+    f_1 = test_utils.run_sinkhorn(
         geom_1,
         a=self.a,
         b=self.b,
@@ -98,9 +98,9 @@ class TestSinkhorn:
     geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
     # jitting
     compute_f = jax.jit(
-        lambda g, a, b: sinkhorn.sinkhorn(g, a, b, tau_a=.99, tau_b=.97).f
+        test_utils.run_sinkhorn, static_argnames=["tau_a", "tau_b"]
     )
-    f_2 = compute_f(geom_2, self.a, self.b)
+    f_2 = compute_f(geom_2, self.a, self.b, tau_a=0.99, tau_b=0.97).f
 
     # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
     np.testing.assert_allclose(
@@ -129,32 +129,38 @@ class TestSinkhorn:
       tau_b: float
   ):
     """Check that variations in init/decay work, and result in same solution."""
-
-    @jax.jit
-    def run_sinkhorn(geom: pointcloud.PointCloud) -> sinkhorn.SinkhornOutput:
-      return sinkhorn.sinkhorn(
-          geom,
-          a=self.a,
-          b=self.b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          lse_mode=lse_mode,
-          threshold=1e-5
-      )
-
     geom1 = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
     geom2 = pointcloud.PointCloud(self.x, self.y)
-    out_1 = run_sinkhorn(geom1)
-    out_2 = run_sinkhorn(geom2)
-    # recenter if problem is balanced, since in that case solution is only
-    # valid up to additive constant.
-    if out_1.ot_prob.is_balanced:
-      # TODO(michalk8): remove after https://github.com/ott-jax/ott/pull/194
-      f_1 = out_1.f - jnp.mean(out_1.f[jnp.isfinite(out_1.f)])
-      f_2 = out_2.f - jnp.mean(out_2.f[jnp.isfinite(out_2.f)])
-    else:
-      f_1, f_2 = out_1.f, out_2.f
+    run_fn = jax.jit(
+        test_utils.run_sinkhorn,
+        static_argnames=[
+            "tau_a", "tau_b", "lse_mode", "threshold", "recenter_potentials"
+        ]
+    )
 
+    out_1 = run_fn(
+        geom1,
+        self.a,
+        self.b,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        lse_mode=lse_mode,
+        threshold=1e-5,
+        recenter_potentials=True
+    )
+    out_2 = run_fn(
+        geom2,
+        self.a,
+        self.b,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        lse_mode=lse_mode,
+        threshold=1e-5,
+        recenter_potentials=True
+    )
+    # recenter the problem, since in that case solution is only
+    # valid up to additive constant in the balanced case
+    f_1, f_2 = out_1.f, out_2.f
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast
@@ -162,13 +168,12 @@ class TestSinkhorn:
     """Testing the min_iterations parameter."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(
+    errors = test_utils.run_sinkhorn(
         geom,
         a=self.a,
         b=self.b,
         threshold=threshold,
         min_iterations=34,
-        implicit_differentiation=False
     ).errors
     err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
     assert threshold > err
@@ -182,8 +187,8 @@ class TestSinkhorn:
     geom_1 = pointcloud.PointCloud(self.x, self.y)
     geom_2 = geometry.Geometry(geom_1.cost_matrix)
 
-    f_1 = sinkhorn.sinkhorn(geom_1, a=self.a, b=self.b).f
-    f_2 = sinkhorn.sinkhorn(geom_2, a=self.a, b=self.b).f
+    f_1 = test_utils.run_sinkhorn(geom_1, a=self.a, b=self.b).f
+    f_2 = test_utils.run_sinkhorn(geom_2, a=self.a, b=self.b).f
     # re-centering to remove ambiguity on equality up to additive constant.
     f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
     f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
@@ -195,7 +200,7 @@ class TestSinkhorn:
     """Testing the online way to handle geometry."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, batch_size=5)
-    errors = sinkhorn.sinkhorn(
+    errors = test_utils.run_sinkhorn(
         geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
     ).errors
     err = errors[errors > -1][-1]
@@ -218,20 +223,20 @@ class TestSinkhorn:
         self.x, self.y, cost_fn=costs.SqEuclidean(), epsilon=eps
     )
 
-    out_online = sinkhorn.sinkhorn(
+    out_online = test_utils.run_sinkhorn(
         online_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
     )
-    out_batch = sinkhorn.sinkhorn(
+    out_batch = test_utils.run_sinkhorn(
         batch_geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
     )
-    out_online_euc = sinkhorn.sinkhorn(
+    out_online_euc = test_utils.run_sinkhorn(
         online_geom_euc,
         a=self.a,
         b=self.b,
         threshold=threshold,
         lse_mode=lse_mode
     )
-    out_batch_euc = sinkhorn.sinkhorn(
+    out_batch_euc = test_utils.run_sinkhorn(
         batch_geom_euc,
         a=self.a,
         b=self.b,
@@ -293,16 +298,16 @@ class TestSinkhorn:
     for j, lse_mode in enumerate([True, False]):
       for i, batch_size in enumerate([16, None]):
         geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
-        sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
+        out = test_utils.run_sinkhorn(geom, a, b, lse_mode=lse_mode)
 
         transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_potentials(
-            sink.f, sink.g, vec_a, axis=0
+            out.f, out.g, vec_a, axis=0
         )
         transport_vec_b[i + 2 * j] = geom.apply_transport_from_potentials(
-            sink.f, sink.g, vec_b, axis=1
+            out.f, out.g, vec_b, axis=1
         )
 
-        transport = geom.transport_from_potentials(sink.f, sink.g)
+        transport = geom.transport_from_potentials(out.f, out.g)
 
         np.testing.assert_allclose(
             transport_t_vec_a[i + 2 * j],
@@ -347,10 +352,10 @@ class TestSinkhorn:
     for j, lse_mode in enumerate([True, False]):
       for i, batch_size in enumerate([64, None]):
         geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
-        sink = sinkhorn.sinkhorn(geom, a, b, lse_mode=lse_mode)
+        out = test_utils.run_sinkhorn(geom, a, b, lse_mode=lse_mode)
 
-        u = geom.scaling_from_potential(sink.f)
-        v = geom.scaling_from_potential(sink.g)
+        u = geom.scaling_from_potential(out.f)
+        v = geom.scaling_from_potential(out.g)
 
         transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_scalings(
             u, v, vec_a, axis=0
@@ -390,7 +395,7 @@ class TestSinkhorn:
     """Two point clouds, tested with various parameters."""
     threshold = 1e-4
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.01)
-    out = sinkhorn.sinkhorn(
+    out = test_utils.run_sinkhorn(
         geom,
         a=self.a,
         b=self.b,
@@ -424,16 +429,11 @@ class TestSinkhorn:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(default_b, init_dual_b)
 
-    out_restarted = sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
-        threshold=threshold,
-        lse_mode=lse_mode,
-        init_dual_a=init_dual_a,
-        init_dual_b=init_dual_b,
-        inner_iterations=1
+    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    solver = sinkhorn.Sinkhorn(
+        threshold=threshold, lse_mode=lse_mode, inner_iterations=1
     )
+    out_restarted = solver(prob, (init_dual_a, init_dual_b))
 
     errors_restarted = out_restarted.errors
     err_restarted = errors_restarted[errors_restarted > -1][-1]

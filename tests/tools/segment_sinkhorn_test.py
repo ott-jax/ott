@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 from ott.geometry import costs, pointcloud
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import segment_sinkhorn
 from ott.tools.gaussian_mixture import gaussian_mixture
@@ -43,14 +44,13 @@ class TestSegmentSinkhorn:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geom_kwargs = dict(epsilon=0.014)
-    sinkhorn_kwargs = dict(threshold=.2e-2)
-    true_regotcost = sinkhorn.sinkhorn(
-        pointcloud.PointCloud(x, y, **geom_kwargs),
-        a=self._a,
-        b=self._b,
-        **sinkhorn_kwargs
-    ).reg_ot_cost
+    geom_kwargs = {"epsilon": 0.014}
+    sinkhorn_kwargs = {"threshold": 2e-3}
+
+    geom = pointcloud.PointCloud(x, y, **geom_kwargs)
+    prob = linear_problem.LinearProblem(geom, a=self._a, b=self._b)
+    solver = sinkhorn.Sinkhorn(**sinkhorn_kwargs)
+    true_reg_ot_cost = solver(prob).reg_ot_cost
 
     if shuffle:
       # Now, shuffle the order of both arrays, but
@@ -88,7 +88,7 @@ class TestSegmentSinkhorn:
         **geom_kwargs
     )
 
-    np.testing.assert_allclose(true_regotcost.repeat(2), segmented_regotcost)
+    np.testing.assert_allclose(true_reg_ot_cost.repeat(2), segmented_regotcost)
 
   def test_segment_sinkhorn_different_segment_sizes(self):
     # Test other array sizes
@@ -116,13 +116,15 @@ class TestSegmentSinkhorn:
     assert segmented_regotcost.shape[0] == 2
     assert segmented_regotcost[1] > segmented_regotcost[0]
 
-    true_regotcost = jnp.array([
-        sinkhorn.sinkhorn(pointcloud.PointCloud(x, y,
-                                                epsilon=0.01),).reg_ot_cost
-        for x, y in zip((x1, x2), (y1, y2))
-    ])
+    true_reg_ot_cost = []
+    for x, y in zip((x1, x2), (y1, y2)):
+      geom = pointcloud.PointCloud(x, y, epsilon=1e-2)
+      prob = linear_problem.LinearProblem(geom)
+      solver = sinkhorn.Sinkhorn()
+      true_reg_ot_cost.append(solver(prob).reg_ot_cost)
+
     np.testing.assert_allclose(
-        segmented_regotcost, true_regotcost, atol=1e-4, rtol=1e-4
+        segmented_regotcost, true_reg_ot_cost, atol=1e-4, rtol=1e-4
     )
 
   def test_sinkhorn_divergence_segment_custom_padding(self, rng):
@@ -146,16 +148,17 @@ class TestSegmentSinkhorn:
 
     x1, x2, y1, y2 = (g(rngs[i], ns[i]) for i in range(4))
 
-    true_regotcost = jnp.array([
-        sinkhorn.sinkhorn(
-            pointcloud.PointCloud(x, y, cost_fn=b_cost, epsilon=0.1)
-        ).reg_ot_cost for x, y in zip((x1, x2), (y1, y2))
-    ])
+    true_reg_ot_cost = []
+    for x, y in zip((x1, x2), (y1, y2)):
+      geom = pointcloud.PointCloud(x, y, cost_fn=b_cost, epsilon=1e-1)
+      prob = linear_problem.LinearProblem(geom)
+      solver = sinkhorn.Sinkhorn()
+      true_reg_ot_cost.append(solver(prob).reg_ot_cost)
 
     x = jnp.vstack((x1, x2))
     y = jnp.vstack((y1, y2))
 
-    segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
+    segmented_reg_ot_cost = segment_sinkhorn.segment_sinkhorn(
         x,
         y,
         num_segments=2,
@@ -166,4 +169,4 @@ class TestSegmentSinkhorn:
         sinkhorn_kwargs={'lse_mode': True},
         epsilon=0.1,
     )
-    np.testing.assert_allclose(segmented_regotcost, true_regotcost)
+    np.testing.assert_allclose(segmented_reg_ot_cost, true_reg_ot_cost)

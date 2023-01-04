@@ -60,7 +60,9 @@ class TestScaleCost:
       geom = pointcloud.PointCloud(
           x, y, epsilon=self.eps, scale_cost=scale_cost
       )
-      out = sinkhorn.sinkhorn(geom, a, b)
+      prob = linear_problem.LinearProblem(geom, a, b)
+      solver = sinkhorn.Sinkhorn()
+      out = solver(prob)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
@@ -123,7 +125,9 @@ class TestScaleCost:
         scale_cost: Union[str, float]
     ):
       geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
-      out = sinkhorn.sinkhorn(geom, a, b)
+      prob = linear_problem.LinearProblem(geom, a, b)
+      solver = sinkhorn.Sinkhorn()
+      out = solver(prob)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 

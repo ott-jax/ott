@@ -17,8 +17,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from helpers import test_utils
 
 from ott.geometry import grid, pointcloud
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
 
@@ -39,13 +41,9 @@ class TestSinkhornGrid:
 
     threshold = 0.01
     geom = grid.Grid(grid_size=grid_size, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(
-        geom,
-        a=a,
-        b=b,
-        threshold=threshold,
-        lse_mode=lse_mode,
-    ).errors
+    prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    solver = sinkhorn.Sinkhorn(threshold=threshold, lse_mode=lse_mode)
+    errors = solver(prob).errors
     err = errors[jnp.isfinite(errors)][-1]
     assert threshold > err
 
@@ -66,13 +64,8 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
-    out_mat = sinkhorn.sinkhorn(
-        geometry_mat,
-        a=a,
-        b=b,
-        lse_mode=lse_mode,
-    )
-    out_grid = sinkhorn.sinkhorn(geometry_grid, a=a, b=b, lse_mode=lse_mode)
+    out_mat = test_utils.run_sinkhorn(geometry_mat, a=a, b=b)
+    out_grid = test_utils.run_sinkhorn(geometry_grid, a=a, b=b)
     np.testing.assert_allclose(
         out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1e-5, atol=1e-5
     )
@@ -93,8 +86,8 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
-    sink_mat = sinkhorn.sinkhorn(geom_mat, a=a, b=b, lse_mode=lse_mode)
-    sink_grid = sinkhorn.sinkhorn(geom_grid, a=a, b=b, lse_mode=lse_mode)
+    sink_mat = test_utils.run_sinkhorn(geom_mat, a=a, b=b)
+    sink_grid = test_utils.run_sinkhorn(geom_grid, a=a, b=b)
 
     batch_a = 3
     batch_b = 4

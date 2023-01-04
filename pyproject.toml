@@ -107,6 +107,7 @@ skip_glob = ["docs/*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+norecursedirs = "tests/helpers"
 addopts = '-v -m "not notebook"'
 testpaths = [
     "tests",

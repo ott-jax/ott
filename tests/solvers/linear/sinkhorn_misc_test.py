@@ -19,10 +19,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from helpers import test_utils
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import acceleration, sinkhorn
+from ott.solvers.linear import acceleration
+from ott.solvers.linear import implicit_differentiation as implicit_lib
+from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhornAnderson:
@@ -37,7 +40,7 @@ class TestSinkhornAnderson:
       only_fast=0,
   )
   def test_anderson(
-      self, rng: jnp.ndarray, lse_mode: float, tau_a: float, tau_b: float,
+      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
       shape: Tuple[int, int], refresh_anderson_frequency: int
   ):
     """Test efficiency of Anderson acceleration.
@@ -71,19 +74,20 @@ class TestSinkhornAnderson:
     threshold = 1e-3
     iterations_anderson = []
 
-    anderson_memory = [0, 5]
-    for anderson_acceleration in anderson_memory:
-      out = sinkhorn.sinkhorn(
-          pointcloud.PointCloud(x, y, epsilon=epsilon),
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
+    anderson_memory = [None, 5]
+    for memory in anderson_memory:
+      anderson = None if memory is None else acceleration.AndersonAcceleration(
+          memory=memory, refresh_every=refresh_anderson_frequency
+      )
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
+      solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode,
           threshold=threshold,
-          anderson_acceleration=anderson_acceleration,
-          refresh_anderson_frequency=refresh_anderson_frequency
+          anderson=anderson,
       )
+      out = solver(prob)
+
       errors = out.errors
       clean_errors = errors[errors > -1]
       # Check convergence
@@ -146,10 +150,10 @@ class TestSinkhornBures:
       cost_fn = costs.Bures(dimension=self.dim, regularization=1e-4)
 
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=self.eps)
+    prob = linear_problem.LinearProblem(geom, self.a, self.b)
+    solver = sinkhorn.Sinkhorn(threshold=thresh, lse_mode=lse_mode)
+    out = solver(prob)
 
-    out = sinkhorn.sinkhorn(
-        geom, a=self.a, b=self.b, lse_mode=lse_mode, threshold=thresh
-    )
     err = out.errors[out.errors > -1][-1]
 
     assert out.converged
@@ -194,26 +198,12 @@ class TestSinkhornOnline:
         self.x, self.y, epsilon=1, batch_size=batch_size
     )
 
-    sol_online = sinkhorn.sinkhorn(
-        geom_online,
-        a=self.a,
-        b=self.b,
-        threshold=threshold,
-        lse_mode=True,
-        implicit_differentiation=True
-    )
+    sol_online = test_utils.run_sinkhorn(geom_online)
     errors_online = sol_online.errors
     err_online = errors_online[errors_online > -1][-1]
     assert threshold > err_online
 
-    sol_offline = sinkhorn.sinkhorn(
-        geom_offline,
-        a=self.a,
-        b=self.b,
-        threshold=threshold,
-        lse_mode=True,
-        implicit_differentiation=True
-    )
+    sol_offline = test_utils.run_sinkhorn(geom_offline)
 
     np.testing.assert_allclose(
         sol_online.matrix, sol_offline.matrix, rtol=rtol, atol=atol
@@ -232,14 +222,9 @@ class TestSinkhornOnline:
       geom = pointcloud.PointCloud(
           self.x, self.y, epsilon=epsilon, batch_size=batch_size
       )
-      return sinkhorn.sinkhorn(
-          geom,
-          a=self.a,
-          b=self.b,
-          threshold=threshold,
-          lse_mode=True,
-          implicit_differentiation=True
-      )
+      prob = linear_problem.LinearProblem(geom, self.a, self.b)
+      solver = sinkhorn.Sinkhorn(threshold=threshold)
+      return solver(prob)
 
     threshold = 1e-1
     fun = jax.jit(callback, static_argnums=(1,)) if jit else callback
@@ -271,18 +256,19 @@ class TestSinkhornUnbalanced:
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
-    errors = sinkhorn.sinkhorn(
-        geom,
-        a=self.a,
-        b=self.b,
+    prob = linear_problem.LinearProblem(
+        geom, self.a, self.b, tau_a=0.8, tau_b=0.9
+    )
+    solver = sinkhorn.Sinkhorn(
         threshold=threshold,
-        momentum=momentum,
-        inner_iterations=10,
-        norm_error=1,
         lse_mode=lse_mode,
-        tau_a=0.8,
-        tau_b=0.9
-    ).errors
+        norm_error=1,
+        momentum=acceleration.Momentum(value=momentum),
+        inner_iterations=10
+    )
+
+    errors = solver(prob).errors
+
     err = errors[errors > -1][-1]
     assert threshold > err
     assert err > 0
@@ -359,14 +345,17 @@ class TestSinkhornJIT:
   @pytest.mark.fast
   def test_jit_vs_non_jit_fwd(self):
 
-    def assert_output_close(x: jnp.ndarray, y: jnp.ndarray) -> None:
+    def assert_output_close(
+        x: sinkhorn.SinkhornOutput, y: sinkhorn.SinkhornOutput
+    ) -> None:
       """Assert SinkhornOutputs are close."""
       x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
       y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
       return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
-    jitted_result = jax.jit(sinkhorn.sinkhorn)(self.geometry, self.a, self.b)
-    non_jitted_result = sinkhorn.sinkhorn(self.geometry, self.a, self.b)
+    geom = self.geometry
+    jitted_result = jax.jit(test_utils.run_sinkhorn)(geom, a=self.a, b=self.b)
+    non_jitted_result = test_utils.run_sinkhorn(geom, a=self.a, b=self.b)
 
     assert_output_close(non_jitted_result, jitted_result)
 
@@ -374,7 +363,8 @@ class TestSinkhornJIT:
   def test_jit_vs_non_jit_bwd(self, implicit: bool):
 
     @jax.value_and_grad
-    def val_grad(a: jnp.ndarray, x: jnp.ndarray):
+    def val_grad(a: jnp.ndarray, x: jnp.ndarray) -> float:
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = geometry.Geometry(
           cost_matrix=(
               jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
@@ -383,17 +373,11 @@ class TestSinkhornJIT:
           ),
           epsilon=self.epsilon
       )
-      out = sinkhorn.sinkhorn(
-          geom,
-          a=a,
-          b=self.b,
-          tau_a=0.94,
-          tau_b=0.97,
-          threshold=1e-4,
-          lse_mode=True,
-          implicit_differentiation=implicit
+      prob = linear_problem.LinearProblem(
+          geom, a=a, b=self.b, tau_a=0.94, tau_b=0.97
       )
-      return out.reg_ot_cost
+      solver = sinkhorn.Sinkhorn(threshold=1e-4, implicit_diff=implicit_diff)
+      return solver(prob).reg_ot_cost
 
     jitted_loss, jitted_grad = jax.jit(val_grad)(self.a, self.x)
     non_jitted_loss, non_jitted_grad = val_grad(self.a, self.x)
