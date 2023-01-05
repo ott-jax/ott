@@ -162,8 +162,8 @@ class TestSinkhornJacobian:
       solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
       return solver(prob).reg_ot_cost
 
-    reg_ot_and_grad = jax.jit(jax.value_and_grad(reg_ot))
-    _, grad_reg_ot = reg_ot_and_grad(a, b)
+    reg_ot_and_grad = jax.jit(jax.grad(reg_ot))
+    grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[4], (n,))
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     delta = delta - jnp.sum(delta) / jnp.sum(a > 0)  # center perturbation
@@ -561,8 +561,8 @@ class TestSinkhornGradGrid:
       solver = sinkhorn.Sinkhorn(threshold=1e-1, lse_mode=lse_mode)
       return solver(prob).reg_ot_cost
 
-    reg_ot_and_grad = jax.value_and_grad(reg_ot)
-    _, grad_reg_ot = reg_ot_and_grad(x)
+    reg_ot_and_grad = jax.grad(reg_ot)
+    grad_reg_ot = reg_ot_and_grad(x)
     delta = [jax.random.uniform(keys[i], (g,)) for i, g in enumerate(grid_size)]
 
     x_p_delta = [(xs + eps * delt) for xs, delt in zip(x, delta)]
@@ -609,8 +609,8 @@ class TestSinkhornGradGrid:
       solver = sinkhorn.Sinkhorn(threshold=1e-3, lse_mode=lse_mode)
       return solver(prob).reg_ot_cost
 
-    reg_ot_and_grad = jax.value_and_grad(reg_ot)
-    _, grad_reg_ot = reg_ot_and_grad(a, b)
+    reg_ot_and_grad = jax.grad(reg_ot)
+    grad_reg_ot = reg_ot_and_grad(a, b)
     delta = jax.random.uniform(keys[2], grid_size).ravel()
     delta = delta - jnp.mean(delta)
 
@@ -682,7 +682,7 @@ class TestSinkhornJacobianPreconditioning:
 
     # Compute implicit gradient
     loss_imp_no_precond = jax.jit(
-        jax.grad(
+        jax.value_and_grad(
             functools.partial(
                 loss_from_potential,
                 precondition_fun=lambda x: x,
@@ -694,7 +694,7 @@ class TestSinkhornJacobianPreconditioning:
 
     loss_imp_log_precond = jax.jit(jax.grad(loss_from_potential, argnums=arg))
 
-    g_imp_np = loss_imp_no_precond(a, x)
+    _, g_imp_np = loss_imp_no_precond(a, x)
     imp_dif_np = jnp.sum(g_imp_np * (delta_a if arg == 0 else delta_x))
 
     g_imp_lp = loss_imp_log_precond(a, x)
