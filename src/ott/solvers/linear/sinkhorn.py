@@ -1074,7 +1074,7 @@ def _iterations_implicit_bwd(res, gr):
 
 
 # Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
-# non static. Only differentiability w.r.t. geom, a and b will be used.
+# non-static. Only differentiability w.r.t. geom, a and b will be used.
 _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
 
