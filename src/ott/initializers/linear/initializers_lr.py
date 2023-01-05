@@ -4,6 +4,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Literal,
     Mapping,
     NamedTuple,
     Optional,
@@ -15,7 +16,6 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import numpy as np
-from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import fixed_point_loop

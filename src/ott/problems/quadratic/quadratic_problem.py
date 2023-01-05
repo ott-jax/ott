@@ -13,12 +13,11 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import TYPE_CHECKING, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
-from typing_extensions import Literal
 
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem

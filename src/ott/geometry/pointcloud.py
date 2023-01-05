@@ -13,11 +13,10 @@
 # limitations under the License.
 """A geometry defined using 2 point clouds and a cost function between them."""
 import math
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott import utils
 from ott.geometry import costs, geometry, low_rank

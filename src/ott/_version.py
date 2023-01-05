@@ -1,7 +1,4 @@
-try:
-  from importlib_metadata import PackageNotFoundError, version  # Python < 3.8
-except ImportError:
-  from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version
 
 try:
   __version__ = version("ott-jax")
