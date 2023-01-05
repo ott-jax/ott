@@ -52,7 +52,7 @@ class TestSinkhornImplicit:
     epsilon = 0.05
 
     def loss_g(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True) -> float:
-      implicit = implicit_lib.ImplicitDiff() if implicit else None
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = geometry.Geometry(
           cost_matrix=jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
           jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
@@ -63,20 +63,20 @@ class TestSinkhornImplicit:
           geom, a=a, b=self.b, tau_a=0.9, tau_b=0.87
       )
       solver = sinkhorn.Sinkhorn(
-          threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit
+          threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit_diff
       )
       return solver(prob).reg_ot_cost
 
     def loss_pcg(
         a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True
     ) -> float:
-      implicit = implicit_lib.ImplicitDiff() if implicit else None
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = pointcloud.PointCloud(x, self.y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(
           geom, a=a, b=self.b, tau_a=1.0, tau_b=0.95
       )
       solver = sinkhorn.Sinkhorn(
-          threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit
+          threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit_diff
       )
       return solver(prob).reg_ot_cost
 
@@ -231,7 +231,7 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
   @pytest.mark.fast.with_args(
-      "lse_mode,implicit_diff,min_iter,max_iter,epsilon,cost_fn",
+      "lse_mode,implicit,min_iter,max_iter,epsilon,cost_fn",
       [
           (True, True, 0, 2000, 1e-3, costs.Euclidean()),
           (True, True, 1000, 1000, 1e-3, costs.Euclidean()),
@@ -246,8 +246,8 @@ class TestSinkhornJacobian:
       only_fast=[0, 1],
   )
   def test_gradient_sinkhorn_euclidean(
-      self, rng: jnp.ndarray, lse_mode: bool, implicit_diff: bool,
-      min_iter: int, max_iter: int, epsilon: float, cost_fn: costs.CostFn
+      self, rng: jnp.ndarray, lse_mode: bool, implicit: bool, min_iter: int,
+      max_iter: int, epsilon: float, cost_fn: costs.CostFn
   ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
@@ -269,14 +269,14 @@ class TestSinkhornJacobian:
 
     def loss_fn(x: jnp.ndarray,
                 y: jnp.ndarray) -> Tuple[float, sinkhorn.SinkhornOutput]:
-      implicit = implicit_lib.ImplicitDiff() if implicit_diff else None
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       prob = linear_problem.LinearProblem(geom, a, b)
       solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode,
           min_iterations=min_iter,
           max_iterations=max_iter,
-          implicit_diff=implicit,
+          implicit_diff=implicit_diff,
       )
       out = solver(prob)
       return out.reg_ot_cost, out
