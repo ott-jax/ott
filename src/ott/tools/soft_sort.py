@@ -32,7 +32,7 @@ def transport_for_sort(
     squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
     epsilon: float = 1e-2,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> sinkhorn.SinkhornOutput:
   r"""Solve reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
@@ -72,7 +72,7 @@ def transport_for_sort(
 
   solver = sinkhorn.Sinkhorn(**kwargs)
 
-  return solver(prob).matrix
+  return solver(prob)
 
 
 def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:

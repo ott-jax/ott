@@ -20,6 +20,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from ott.solvers.linear import acceleration
+from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.tools import soft_sort
 
 
@@ -41,10 +43,14 @@ class TestSoftSort:
         axis=0,
         squashing_fun=lambda x: x,
         epsilon=5e-4,
-        chg_momentum_from=100
+        momentum=acceleration.Momentum(start=100),
     )
     xs_sig = soft_sort.sort(
-        x, axis=0, squashing_fun=None, epsilon=2e-4, chg_momentum_from=100
+        x,
+        axis=0,
+        squashing_fun=None,
+        epsilon=2e-4,
+        momentum=acceleration.Momentum(start=100)
     )
     # Notice xs_lin and xs_sig have no reason to be equal, since they use
     # different squashing functions, but they should be similar.
@@ -159,11 +165,12 @@ class TestSoftSort:
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
     def loss_fn(logits: jnp.ndarray) -> float:
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
           num_targets=167,
-          implicit_differentiation=implicit
+          implicit_diff=implicit_diff,
       )
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 
