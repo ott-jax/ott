@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
 if TYPE_CHECKING:
   from ott.geometry import low_rank
 
-from typing_extensions import Literal
+from typing import Literal
 
 import jax
 import jax.numpy as jnp

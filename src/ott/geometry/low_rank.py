@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A class describing low-rank geometries."""
-from typing import Any, Callable, Optional, Tuple, Union
-
-from typing_extensions import Literal
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp

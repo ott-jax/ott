@@ -4,6 +4,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Literal,
     Mapping,
     NamedTuple,
     Optional,
@@ -11,8 +12,6 @@ from typing import (
     Tuple,
     Union,
 )
-
-from typing_extensions import Literal
 
 import jax
 import jax.numpy as jnp

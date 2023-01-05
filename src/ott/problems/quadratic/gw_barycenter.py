@@ -1,7 +1,5 @@
 import functools
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
-
-from typing_extensions import Literal
+from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp

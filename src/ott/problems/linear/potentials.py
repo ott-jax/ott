@@ -1,6 +1,4 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
-
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp

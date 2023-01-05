@@ -13,9 +13,7 @@
 # limitations under the License.
 """Classes defining OT problem(s) (objective function + utilities)."""
 
-from typing import TYPE_CHECKING, Optional, Tuple, Union
-
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp

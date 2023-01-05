@@ -12,9 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
-
-from typing_extensions import Literal
+from typing import (
+    Any,
+    Dict,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp

@@ -13,9 +13,7 @@
 # limitations under the License.
 import functools
 import math
-from typing import Callable, NamedTuple, Optional, Tuple, Union
-
-from typing_extensions import Literal
+from typing import Callable, Literal, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
