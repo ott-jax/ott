@@ -36,7 +36,7 @@ keywords = [
 ]
 classifiers = [
     "Typing :: Typed",
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Natural Language :: English",
