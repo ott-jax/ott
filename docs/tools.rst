@@ -9,13 +9,6 @@ The tools package contains high level functions that build on outputs produced b
 They can be used to compute Sinkhorn divergences :cite:`sejourne:19`, instantiate transport matrices,
 provide differentiable approximations to ranks and quantile functions :cite:`cuturi:19`, etc.
 
-Optimal Transport
------------------
-.. autosummary::
-    :toctree: _autosummary
-
-    transport.Transport
-
 Segmented Sinkhorn
 ------------------
 .. autosummary::

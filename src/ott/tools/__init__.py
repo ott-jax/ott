@@ -13,4 +13,4 @@
 # limitations under the License.
 """OTT tools: A set of tools to use OT in differentiable ML pipelines."""
 
-from . import gaussian_mixture, k_means, plot, sinkhorn_divergence, soft_sort, transport
+from . import gaussian_mixture, k_means, plot, sinkhorn_divergence, soft_sort
