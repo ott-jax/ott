@@ -12,14 +12,13 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
 from flax import core
-from typing_extensions import Literal
 
 from ott.geometry import costs
 from ott.problems.linear import potentials

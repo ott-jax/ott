@@ -12,12 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from typing_extensions import Literal
 
 from ott import utils
 from ott.geometry import geometry

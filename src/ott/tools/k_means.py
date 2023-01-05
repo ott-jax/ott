@@ -13,11 +13,10 @@
 # limitations under the License.
 import functools
 import math
-from typing import Callable, NamedTuple, Optional, Tuple, Union
+from typing import Callable, Literal, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott.geometry import costs, pointcloud
 from ott.math import fixed_point_loop

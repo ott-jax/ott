@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
-from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
