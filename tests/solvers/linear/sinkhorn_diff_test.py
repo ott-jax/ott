@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 import functools
-from typing import List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +24,6 @@ from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-from ott.tools import transport
 
 
 class TestSinkhornImplicit:
@@ -391,18 +390,14 @@ class TestSinkhornJacobian:
     # general rule, even more so when using backprop.
     epsilon = 0.01 if lse_mode else 0.1
 
-    def apply_ot(a: jnp.ndarray, x: jnp.ndarray, implicit: bool):
-      out = transport.solve(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          lse_mode=lse_mode,
-          implicit_differentiation=implicit
-      )
+    def apply_ot(a: jnp.ndarray, x: jnp.ndarray, implicit: bool) -> jnp.ndarray:
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
+
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, implicit_diff=implicit_diff)
+      out = solver(prob)
+
       return out.apply(vec, axis=axis)
 
     delta = delta_x if arg else delta_a
@@ -492,19 +487,16 @@ class TestSinkhornJacobian:
     # differentiating.
     epsilon = 0.01 if lse_mode else 0.1
 
-    def loss_from_potential(a, x, implicit):
-      out = transport.solve(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          lse_mode=lse_mode,
-          implicit_differentiation=implicit
-      )
-      return jnp.sum(random_dir * out.solver_output.f)
+    def loss_from_potential(a: jnp.ndarray, x: jnp.ndarray, implicit: bool):
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
+
+      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, implicit_diff=implicit_diff)
+
+      out = solver(prob)
+
+      return jnp.sum(random_dir * out.f)
 
     # Compute implicit gradient
     loss_imp = jax.jit(
@@ -671,44 +663,41 @@ class TestSinkhornJacobianPreconditioning:
     epsilon = 0.01 if lse_mode else 0.1
 
     def loss_from_potential(
-        a, x, precondition_fun=None, linear_solve_kwargs=None
-    ):
-      if linear_solve_kwargs is None:
-        linear_solve_kwargs = {}
-      out = transport.solve(
-          x,
-          y,
-          epsilon=epsilon,
-          a=a,
-          b=b,
-          tau_a=tau_a,
-          tau_b=tau_b,
-          lse_mode=lse_mode,
-          precondition_fun=precondition_fun,
-          **linear_solve_kwargs
+        a: jnp.ndarray,
+        x: jnp.ndarray,
+        precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+        symmetric: bool = False
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+      prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
+
+      implicit_diff = implicit_lib.ImplicitDiff(
+          symmetric=symmetric, precondition_fun=precondition_fun
       )
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, implicit_diff=implicit_diff)
+
+      out = solver(prob)
+
       return jnp.sum(random_dir * out.solver_output.f)
 
     # Compute implicit gradient
     loss_imp_no_precond = jax.jit(
-        jax.value_and_grad(
+        jax.grad(
             functools.partial(
                 loss_from_potential,
                 precondition_fun=lambda x: x,
-                linear_solve_kwargs={'implicit_solver_symmetric': True}
+                symmetric=True,
             ),
             argnums=arg
         )
     )
 
-    loss_imp_log_precond = jax.jit(
-        jax.value_and_grad(loss_from_potential, argnums=arg)
-    )
+    loss_imp_log_precond = jax.jit(jax.grad(loss_from_potential, argnums=arg))
 
-    _, g_imp_np = loss_imp_no_precond(a, x)
+    g_imp_np = loss_imp_no_precond(a, x)
     imp_dif_np = jnp.sum(g_imp_np * (delta_a if arg == 0 else delta_x))
 
-    _, g_imp_lp = loss_imp_log_precond(a, x)
+    g_imp_lp = loss_imp_log_precond(a, x)
     imp_dif_lp = jnp.sum(g_imp_lp * (delta_a if arg == 0 else delta_x))
 
     # Compute finite difference
