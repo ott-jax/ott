@@ -12,10 +12,11 @@ from typing import (
     Union,
 )
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import fixed_point_loop

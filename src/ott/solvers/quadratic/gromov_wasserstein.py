@@ -14,9 +14,10 @@
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr

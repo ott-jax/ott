@@ -1,9 +1,10 @@
 import functools
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.math import utils as mu

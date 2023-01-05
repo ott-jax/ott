@@ -17,10 +17,11 @@ import collections
 import functools
 from typing import Any
 
+import ml_collections
+
 import flax
 import jax
 import jax.numpy as jnp
-import ml_collections
 from flax import jax_utils
 from flax.metrics import tensorboard
 from flax.training import checkpoints, common_utils

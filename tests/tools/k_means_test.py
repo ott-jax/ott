@@ -1,14 +1,15 @@
 from typing import Any, Optional, Tuple, Union
 
+import pytest
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 from sklearn import datasets
 from sklearn.cluster import KMeans
 from sklearn.cluster._k_means_common import _is_same_clustering
 from sklearn.cluster._kmeans import kmeans_plusplus
-from typing_extensions import Literal
 
 from ott.geometry import costs, pointcloud
 from ott.tools import k_means

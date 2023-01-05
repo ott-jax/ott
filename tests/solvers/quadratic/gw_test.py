@@ -14,10 +14,11 @@
 """Tests for the Gromov Wasserstein."""
 from typing import Tuple, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem

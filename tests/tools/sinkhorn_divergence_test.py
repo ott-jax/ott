@@ -14,11 +14,12 @@
 """Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
 
+import pytest
+from helpers import test_utils
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from helpers import test_utils
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.solvers.linear import acceleration

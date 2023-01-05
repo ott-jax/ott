@@ -15,9 +15,10 @@
 import math
 from typing import Any, Callable, Optional, Tuple, Union
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott import utils
 from ott.geometry import costs, geometry, low_rank

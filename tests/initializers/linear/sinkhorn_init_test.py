@@ -12,10 +12,11 @@
 """Tests for Sinkhorn initializers."""
 import functools
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 import ott.initializers.nn.initializers
 from ott.geometry import geometry, pointcloud

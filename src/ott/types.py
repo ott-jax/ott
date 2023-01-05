@@ -1,5 +1,6 @@
-import jax.numpy as jnp
 from typing_extensions import Protocol
+
+import jax.numpy as jnp
 
 # TODO(michalk8): introduce additional types here
 

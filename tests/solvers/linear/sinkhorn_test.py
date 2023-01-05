@@ -13,11 +13,12 @@
 # limitations under the License.
 """Tests for Sinkhorn."""
 
+import pytest
+from helpers import test_utils
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from helpers import test_utils
 
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem

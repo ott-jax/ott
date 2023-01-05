@@ -13,10 +13,11 @@
 # limitations under the License.
 """Tests for Segmented Sinkhorn."""
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem

@@ -13,10 +13,11 @@
 # limitations under the License.
 """Tests for gaussian_mixture."""
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 

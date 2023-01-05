@@ -14,12 +14,13 @@
 import warnings
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from typing_extensions import Literal
+
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
 from flax import core
-from typing_extensions import Literal
 
 from ott.geometry import costs
 from ott.problems.linear import potentials

@@ -1,9 +1,10 @@
 from typing import Optional, Sequence, Tuple, Type, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import geometry, low_rank, pointcloud
 

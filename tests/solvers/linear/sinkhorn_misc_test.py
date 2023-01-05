@@ -15,11 +15,12 @@
 from typing import Optional, Tuple
 
 import chex
+import pytest
+from helpers import test_utils
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from helpers import test_utils
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem

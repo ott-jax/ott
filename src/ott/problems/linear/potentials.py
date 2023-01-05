@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, Tuple
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
-from typing_extensions import Literal
 
 from ott.problems.linear import linear_problem
 

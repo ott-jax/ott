@@ -14,10 +14,11 @@
 """A Jax implementation of the Sinkhorn algorithm."""
 from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from typing_extensions import Literal
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib

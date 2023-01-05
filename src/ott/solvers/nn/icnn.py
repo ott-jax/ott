@@ -15,10 +15,10 @@
 
 from typing import Any, Callable, Sequence, Tuple, Union
 
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax import linen as nn
 from flax.training import train_state
 from jax.nn import initializers
 

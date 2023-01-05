@@ -1,9 +1,10 @@
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
+from typing_extensions import Literal
+
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
-from typing_extensions import Literal
 
 from ott.geometry import geometry
 from ott.math import decomposition, fixed_point_loop
