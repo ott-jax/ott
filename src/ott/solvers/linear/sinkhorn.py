@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -1077,71 +1077,3 @@ def _iterations_implicit_bwd(res, gr):
 # non-static. Only differentiability w.r.t. geom, a and b will be used.
 _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
-
-
-def make(
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    threshold: float = 1e-3,
-    norm_error: int = 1,
-    inner_iterations: int = 10,
-    min_iterations: int = 0,
-    max_iterations: int = 2000,
-    momentum: Optional[float] = None,
-    chg_momentum_from: Optional[int] = None,
-    anderson_acceleration: int = 0,
-    refresh_anderson_frequency: int = 1,
-    lse_mode: bool = True,
-    implicit_differentiation: bool = True,
-    implicit_solver_fun=jax.scipy.sparse.linalg.cg,
-    implicit_solver_ridge_kernel: float = 0.0,
-    implicit_solver_ridge_identity: float = 0.0,
-    implicit_solver_symmetric: bool = False,
-    precondition_fun: Optional[Callable[[float], float]] = None,
-    parallel_dual_updates: bool = False,
-    use_danskin: bool = None,
-    initializer: init_lib.SinkhornInitializer = init_lib.DefaultInitializer(),
-) -> Sinkhorn:
-  """For backward compatibility."""
-  del tau_a, tau_b
-  if not implicit_differentiation:
-    implicit_diff = None
-  else:
-    implicit_diff = implicit_lib.ImplicitDiff(
-        solver_fun=implicit_solver_fun,
-        ridge_kernel=implicit_solver_ridge_kernel,
-        ridge_identity=implicit_solver_ridge_identity,
-        symmetric=implicit_solver_symmetric,
-        precondition_fun=precondition_fun
-    )
-  # If no params are passed, align default with that provide in Sinkhorn solver.
-  if momentum is None and chg_momentum_from is None:
-    mom = acceleration.Momentum(start=300, error_threshold=1e-2)
-  elif momentum is None:
-    mom = acceleration.Momentum(start=chg_momentum_from)
-  elif chg_momentum_from is None:
-    mom = acceleration.Momentum(value=momentum)
-  else:
-    mom = acceleration.Momentum(start=chg_momentum_from, value=momentum)
-
-  if anderson_acceleration > 0:
-    anderson = acceleration.AndersonAcceleration(
-        memory=anderson_acceleration, refresh_every=refresh_anderson_frequency
-    )
-  else:
-    anderson = None
-
-  return Sinkhorn(
-      lse_mode=lse_mode,
-      threshold=threshold,
-      norm_error=norm_error,
-      inner_iterations=inner_iterations,
-      min_iterations=min_iterations,
-      max_iterations=max_iterations,
-      momentum=mom,
-      anderson=anderson,
-      implicit_diff=implicit_diff,
-      parallel_dual_updates=parallel_dual_updates,
-      use_danskin=use_danskin,
-      initializer=initializer,
-  )

@@ -133,7 +133,7 @@ def solve(
       **pb_kwargs
   )
   linear = isinstance(pb, linear_problem.LinearProblem)
-  solver_fn = sinkhorn.make if linear else gromov_wasserstein.make
+  solver_fn = sinkhorn.Sinkhorn if linear else gromov_wasserstein.GromovWasserstein
   geom_keys = ['cost_fn', 'online']
 
   remove_keys = geom_keys + eps_keys if linear else geom_keys
