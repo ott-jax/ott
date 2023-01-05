@@ -678,7 +678,7 @@ class TestSinkhornJacobianPreconditioning:
 
       out = solver(prob)
 
-      return jnp.sum(random_dir * out.solver_output.f)
+      return jnp.sum(random_dir * out.f)
 
     # Compute implicit gradient
     loss_imp_no_precond = jax.jit(
