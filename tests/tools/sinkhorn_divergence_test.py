@@ -21,6 +21,7 @@ import pytest
 from helpers import test_utils
 
 from ott.geometry import costs, geometry, pointcloud
+from ott.solvers.linear import acceleration
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
 
@@ -368,12 +369,12 @@ class TestSinkhornDivergence:
   # yapf: disable
   @pytest.mark.fast.with_args(
       "sinkhorn_kwargs,epsilon", [
-          ({"anderson_acceleration": 3}, 1e-2),
-          ({"anderson_acceleration": 6}, None),
-          ({"chg_momentum_from": 20}, 1e-3),
-          ({"chg_momentum_from": 30}, None),
-          ({"momentum": 1.05}, 1e-3),
-          ({"momentum": 1.01}, None),
+          ({"anderson": acceleration.AndersonAcceleration(memory=3)}, 1e-2),
+          ({"anderson": acceleration.AndersonAcceleration(memory=6)}, None),
+          ({"momentum": acceleration.Momentum(start=20)}, 1e-3),
+          ({"momentum": acceleration.Momentum(start=30)}, None),
+          ({"momentum": acceleration.Momentum(value=1.05)}, 1e-3),
+          ({"momentum": acceleration.Momentum(value=1.01)}, None),
       ],
       only_fast=[0, -1],
   )
