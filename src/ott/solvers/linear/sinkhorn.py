@@ -540,7 +540,6 @@ class Sinkhorn:
     ``chg_momentum_from`` iterations, as a function of progress in the error,
     as proposed in the literature.
 
-    TODO(michalk8): check docs
     Another upgrade to the standard Sinkhorn updates provided to the users lies
     in using Anderson acceleration. This can be parameterized by setting the
     otherwise null ``anderson`` to a positive integer. When selected,the

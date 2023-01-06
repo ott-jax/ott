@@ -286,7 +286,7 @@ def _vectorized_update(
   """Inner loop DualSort Update.
 
   Args:
-    f : potential f, array of size n.
+    f: potential f, array of size n.
     modified_cost: cost matrix minus diagonal column-wise.
 
   Returns:
