@@ -1121,5 +1121,5 @@ def solve(
     The Sinkhorn output.
   """
   prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-  solver = LRSinkhorn(**kwargs) if rank > 0 else Sinkhorn(**kwargs)
+  solver = LRSinkhorn(rank=rank, **kwargs) if rank > 0 else Sinkhorn(**kwargs)
   return solver(prob)
