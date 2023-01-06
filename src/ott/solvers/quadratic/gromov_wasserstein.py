@@ -439,12 +439,12 @@ def solve(
       Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
 
-      - if `True`, use the default for each geometry.
-      - if `False`, keep the original scaling in geometries.
+      - if :obj:`True`, use the default for each geometry.
+      - if :obj:`False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
         :class:`~ott.geometry.geometry.Geometry` or
         :class:`~ott.geometry.pointcloud.PointCloud`.
-      - if `None`, do not scale the cost matrices.
+      - if :obj:`None`, do not scale the cost matrices.
 
     a: array representing the probability weights of the samples
       from ``geom_xx``. If `None`, it will be uniform.
