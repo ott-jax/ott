@@ -53,9 +53,10 @@ extensions = [
     'sphinxcontrib.bibtex',
     'sphinx_copybutton',
     'nbsphinx',
+    'myst_nb',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
-    'recommonmark',
+    # 'recommonmark',
 ]
 
 intersphinx_mapping = {
@@ -64,14 +65,27 @@ intersphinx_mapping = {
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "pot": ("https://pythonot.github.io/", None),
 }
 
 master_doc = 'index'
-source_suffix = ['.rst']
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.ipynb': 'myst-nb',
+}
+todo_include_todos = False
 
 autosummary_generate = True
-
 autodoc_typehints = 'description'
+
+# myst-nb
+myst_heading_anchors = 2
+nb_execution_mode = "off"
+myst_enable_extensions = [
+    'amsmath',
+    'colon_fence',
+    'dollarmath',
+]
 
 # bibliography
 bibtex_bibfiles = ["references.bib"]

@@ -110,7 +110,8 @@ class AndersonAcceleration:
 
 @utils.register_pytree_node
 class Momentum:
-  """Momentum for Sinkhorn updates, either constant or adaptive."""
+  """Momentum for Sinkhorn updates, either constant :cite:`thibault:21` or \
+  adaptive :cite:`lehmann:21`."""
 
   start: int = 0
   error_threshold: float = jnp.inf
