@@ -145,18 +145,6 @@ def _sinkhorn_divergence(
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
-
-  def run_sinkhorn(
-      geom: geometry.Geometry,
-      a: jnp.ndarray,
-      b: jnp.ndarray,
-      tau_a: float = 1.0,
-      tau_b: float = 1.0,
-      **kwargs: Any
-  ) -> sinkhorn.SinkhornOutput:
-    prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
-    return sinkhorn.Sinkhorn(**kwargs)(prob)
-
   # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
   # terms are computed independently. The user might want to pass some
   # sinkhorn_kwargs to parameterize Sinkhorn's behavior, but those should
@@ -176,12 +164,12 @@ def _sinkhorn_divergence(
         # TODO(michalk8): implicit_diff
     )
 
-  out_xy = run_sinkhorn(geometry_xy, a, b, **kwargs)
-  out_xx = run_sinkhorn(geometry_xx, a, a, **kwargs_symmetric)
+  out_xy = sinkhorn.solve(geometry_xy, a, b, **kwargs)
+  out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
-    out_yy = sinkhorn.SinkhornOutput(errors=jnp.array([]), reg_ot_cost=0)
+    out_yy = sinkhorn.SinkhornOutput(errors=jnp.array([]), reg_ot_cost=0.0)
   else:
-    out_yy = run_sinkhorn(geometry_yy, b, b, **kwargs_symmetric)
+    out_yy = sinkhorn.solve(geometry_yy, b, b, **kwargs_symmetric)
 
   div = (
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +

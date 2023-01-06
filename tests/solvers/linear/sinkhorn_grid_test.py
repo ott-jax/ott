@@ -14,7 +14,6 @@
 """Tests for Sinkhorn when applied on a grid."""
 
 import pytest
-from helpers import test_utils
 
 import jax
 import jax.numpy as jnp
@@ -65,8 +64,8 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
-    out_mat = test_utils.run_sinkhorn(geometry_mat, a=a, b=b)
-    out_grid = test_utils.run_sinkhorn(geometry_grid, a=a, b=b)
+    out_mat = sinkhorn.solve(geometry_mat, a=a, b=b)
+    out_grid = sinkhorn.solve(geometry_grid, a=a, b=b)
     np.testing.assert_allclose(
         out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1e-5, atol=1e-5
     )
@@ -87,8 +86,8 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
-    sink_mat = test_utils.run_sinkhorn(geom_mat, a=a, b=b)
-    sink_grid = test_utils.run_sinkhorn(geom_grid, a=a, b=b)
+    sink_mat = sinkhorn.solve(geom_mat, a=a, b=b)
+    sink_grid = sinkhorn.solve(geom_grid, a=a, b=b)
 
     batch_a = 3
     batch_b = 4

@@ -27,7 +27,7 @@ from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
-__all__ = ["Sinkhorn", "SinkhornOutput"]
+__all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
 
 class SinkhornState(NamedTuple):
@@ -400,7 +400,7 @@ class SinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
-  r"""Solve regularized OT problem using Sinkhorn iterations.
+  r"""Sinkhorn solver.
 
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
@@ -1071,7 +1071,36 @@ def _iterations_implicit_bwd(res, gr):
   )
 
 
-# Sets threshold, norm_errors, geom, a and b to be differentiable, as those are
+# sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non-static. Only differentiability w.r.t. geom, a and b will be used.
 _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
+
+
+def solve(
+    geom: geometry.Geometry,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    **kwargs: Any
+) -> SinkhornOutput:
+  """Solve regularized OT problem using Sinkhorn iterations.
+
+  Args:
+    geom: The ground geometry cost of the linear problem.
+    a: The first marginal. If `None`, it will be uniform.
+    b: The second marginal. If `None`, it will be uniform.
+    tau_a: If smaller than `1`, defines how much unbalanced the problem is on
+      the first marginal.
+    tau_b: If smaller than `1`, defines how much unbalanced the problem is on
+      the second marginal.
+    kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+
+  Returns:
+    The Sinkhorn output.
+  """
+  prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
+  solver = Sinkhorn(**kwargs)
+  return solver(prob)
