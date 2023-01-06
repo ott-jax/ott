@@ -223,7 +223,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   case.
 
   Args:
-    rank: The rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the linear OT problem
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.

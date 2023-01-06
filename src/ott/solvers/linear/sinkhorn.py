@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Sinkhorn algorithm."""
-from typing import Any, Literal, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -26,6 +36,9 @@ from ott.math import utils as mu
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
+
+if TYPE_CHECKING:
+  from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
 
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
@@ -1083,9 +1096,10 @@ def solve(
     b: Optional[jnp.ndarray] = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
+    rank: int = -1,
     **kwargs: Any
-) -> SinkhornOutput:
-  """Solve linear regularized OT problem.
+) -> Union[SinkhornOutput, 'LRSinkhornOutput']:
+  """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:
     geom: The ground geometry cost of the linear problem.
@@ -1095,12 +1109,17 @@ def solve(
       on the first marginal.
     tau_b: If `< 1`, defines how much unbalanced the problem is
       on the second marginal.
+    rank:
+      Rank constraint on the coupling to minimize the linear OT problem
+      :cite:`scetbon:21`. If `-1`, no rank constraint is used.
     kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
+      depending ``rank``.
 
   Returns:
     The Sinkhorn output.
   """
   prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-  solver = Sinkhorn(**kwargs)
+  solver = LRSinkhorn(**kwargs) if rank > 0 else Sinkhorn(**kwargs)
   return solver(prob)
