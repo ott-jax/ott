@@ -148,7 +148,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   """Gromov-Wasserstein solver.
 
   Args:
-    args: Positional_arguments for
+    args: Positional arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for

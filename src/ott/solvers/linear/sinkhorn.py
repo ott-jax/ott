@@ -431,12 +431,12 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\\max_{f, g}{- \\langle a, \\phi_a^{*}(-f) \rangle -  \\langle b,
-      \\phi_b^{*}(-g) \rangle - \varepsilon \\langle e^{f/\varepsilon},
+      \arg\max_{f, g}{- \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
+      \phi_b^{*}(-g) \rangle - \varepsilon \langle e^{f/\varepsilon},
       e^{-C/\varepsilon} e^{-g/\varepsilon}} \rangle
 
-    where :math:`\\phi_a(z) = \rho_a z(\\log z - 1)` is a scaled entropy, and
-    :math:`\\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform.
+    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
+    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform.
 
     That problem can also be written, instead, using positive scaling vectors
     `u`, `v` of size ``n``, ``m``, handled with the kernel
@@ -444,8 +444,8 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\\max_{u, v >0} - \\langle a,\\phi_a^{*}(-\varepsilon\\log u) \rangle +
-      \\langle b, \\phi_b^{*}(-\varepsilon\\log v) \rangle - \\langle u, K v \rangle
+      \arg\max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle +
+      \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle - \langle u, K v \rangle
 
     Both of these problems corresponds, in their *primal* formulation, to
     solving the unbalanced optimal transport problem with a variable matrix
@@ -453,8 +453,8 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\\min_{P>0} \\langle P,C \rangle -\varepsilon \text{KL}(P | ab^T)
-      + \rho_a \text{KL}(P\\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \\mathbf{1}_n
+      \arg\min_{P>0} \langle P,C \rangle -\varepsilon \text{KL}(P | ab^T)
+      + \rho_a \text{KL}(P\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \mathbf{1}_n
       | b)
 
     where :math:`KL` is the generalized Kullback-Leibler divergence.
@@ -464,13 +464,13 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\\min_{P} \varepsilon KL(P|K) + \rho_a \text{KL}(P\\mathbf{1}_m | a) +
-      \rho_b \text{KL}(P^T \\mathbf{1}_n | b)
+      \arg\min_{P} \varepsilon KL(P|K) + \rho_a \text{KL}(P\mathbf{1}_m | a) +
+      \rho_b \text{KL}(P^T \mathbf{1}_n | b)
 
     The *original* OT problem taught in linear programming courses is recovered
     by using the formulation above relying on the cost :math:`C`, and letting
     :math:`\varepsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow
-    \\infty`.
+    \infty`.
     In that case the entropy disappears, whereas the :math:`KL` regularization
     above become constraints on the marginals of :math:`P`: This results in a
     standard min cost flow problem. This problem is not handled for now in this
@@ -478,13 +478,13 @@ class Sinkhorn:
 
     The *balanced* regularized OT problem is recovered for finite
     :math:`\varepsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow
-    \\infty`. This problem can be shown to be equivalent to a matrix scaling
+    \infty`. This problem can be shown to be equivalent to a matrix scaling
     problem, which can be solved using the Sinkhorn fixed-point algorithm.
-    To handle the case :math:`\rho_a, \rho_b \rightarrow \\infty`, the
-    ``sinkhorn`` function uses parameters :math:`tau\\_a := \rho_a /
-    (\varepsilon + \rho_a)` and :math:`tau\\_b := \rho_b / (\varepsilon +
+    To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
+    ``sinkhorn`` function uses parameters :math:`tau\_a := \rho_a /
+    (\varepsilon + \rho_a)` and :math:`tau\_b := \rho_b / (\varepsilon +
     \rho_b)` instead. Setting either of these parameters to 1 corresponds to
-    setting the corresponding :math:`\rho_a, \rho_b` to :math:`\\infty`.
+    setting the corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
     potentials (or alternatively their parametrization as positive scalings
@@ -498,7 +498,7 @@ class Sinkhorn:
 
     .. math::
 
-      P^* = \\exp\\left(\frac{f^*\\mathbf{1}_m^T + \\mathbf{1}_n g^{*T} -
+      P^* = \exp\left(\frac{f^*\mathbf{1}_m^T + \mathbf{1}_n g^{*T} -
       C}{\varepsilon}\right) \text{ or } P^* = \text{diag}(u^*) K
       \text{diag}(v^*)
 
@@ -521,10 +521,10 @@ class Sinkhorn:
     - kernel mode (``lse_mode=False``), in which case it will require access
       to a matrix vector multiplication operator :math:`z \rightarrow K z`,
       where :math:`K` is either instantiated from :math:`C` as
-      :math:`\\exp(-C/\varepsilon)`, or provided directly. In that case, rather
+      :math:`\exp(-C/\varepsilon)`, or provided directly. In that case, rather
       than optimizing on :math:`f` and :math:`g`, it is more convenient to
       optimize on their so called scaling formulations,
-      :math:`u := \\exp(f / \varepsilon)` and :math:`v := \\exp(g / \varepsilon)`.
+      :math:`u := \exp(f / \varepsilon)` and :math:`v := \exp(g / \varepsilon)`.
       While faster (applying matrices is faster than applying ``lse`` repeatedly
       over lines), this mode is also less stable numerically, notably for
       smaller :math:`\varepsilon`.
@@ -622,7 +622,7 @@ class Sinkhorn:
 
     * The weight vectors ``a`` and ``b`` can be passed on with coordinates that
       have zero weight. This is then handled by relying on simple arithmetic for
-      ``inf`` values that will likely arise (due to :math:`\\log 0` when
+      ``inf`` values that will likely arise (due to :math:`\log 0` when
       ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is
       ``False``). Whenever that arithmetic is likely to produce ``NaN`` values
       (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use
