@@ -1085,16 +1085,16 @@ def solve(
     tau_b: float = 1.0,
     **kwargs: Any
 ) -> SinkhornOutput:
-  """Solve regularized OT problem using Sinkhorn iterations.
+  """Solve linear regularized OT problem.
 
   Args:
     geom: The ground geometry cost of the linear problem.
     a: The first marginal. If `None`, it will be uniform.
     b: The second marginal. If `None`, it will be uniform.
-    tau_a: If smaller than `1`, defines how much unbalanced the problem is on
-      the first marginal.
-    tau_b: If smaller than `1`, defines how much unbalanced the problem is on
-      the second marginal.
+    tau_a: If `< 1`, defines how much unbalanced the problem is
+      on the first marginal.
+    tau_b: If `< 1`, defines how much unbalanced the problem is
+      on the second marginal.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 

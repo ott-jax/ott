@@ -10,6 +10,7 @@ Gromov-Wasserstein Solvers
 .. autosummary::
     :toctree: _autosummary
 
+    gromov_wasserstein.solve
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
 

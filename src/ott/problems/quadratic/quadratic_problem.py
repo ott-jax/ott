@@ -32,7 +32,7 @@ __all__ = ["QuadraticProblem"]
 
 @jax.tree_util.register_pytree_node_class
 class QuadraticProblem:
-  r"""Quadratic regularized OT problem.
+  r"""Quadratic OT problem.
 
   The quadratic loss of a single OT matrix is assumed to
   have the form given in :cite:`peyre:16`, eq. 4.
@@ -48,10 +48,10 @@ class QuadraticProblem:
   Args:
     geom_xx: Ground geometry of the first space.
     geom_yy: Ground geometry of the second space.
-    geom_xy: Geometry defining the linear penalty term for Fused Gromov
-      Wasserstein. If `None`, the problem reduces to a
-      plain Gromov Wasserstein problem.
-    fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
+    geom_xy: Geometry defining the linear penalty term for
+      Fused Gromov-Wasserstein. If `None`, the problem reduces to a plain
+      Gromov-Wasserstein problem.
+    fused_penalty: multiplier of the linear term in Fused Gromov-Wasserstein,
       i.e. problem = purely quadratic + fused_penalty * linear problem.
       Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
@@ -63,22 +63,22 @@ class QuadraticProblem:
         :class:`~ott.geometry.pointcloud.PointCloud`.
       - if `None`, do not scale the cost matrices.
 
-    a: jnp.ndarray[n] representing the probability weights of the samples
-      from geom_xx. If None, it will be uniform.
-    b: jnp.ndarray[n] representing the probability weights of the samples
-      from geom_yy. If None, it will be uniform.
+    a: array representing the probability weights of the samples
+      from ``geom_xx``. If `None`, it will be uniform.
+    b: array representing the probability weights of the samples
+      from ``geom_yy``. If `None`, it will be uniform.
     loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
-      part of the loss (see in the pydoc of the class lin1, lin2). The second
-      one is the quadratic part (quad1, quad2). By default, the loss
-      is set as the 4 functions representing the squared Euclidean loss, and
-      this property is taken advantage of in subsequent computations. See
-      Alternatively, KL loss can be specified in no less optimized way.
-    tau_a: if lower that 1.0, defines how much unbalanced the problem is on
+      part of the loss. The second one is the quadratic part (quad1, quad2).
+      By default, the loss is set as the 4 functions representing the squared
+      Euclidean loss, and this property is taken advantage of in subsequent
+      computations. Alternatively, KL loss can be specified in no less optimized
+      way.
+    tau_a: if `< 1.0`, defines how much unbalanced the problem is on
       the first marginal.
-    tau_b: if lower that 1.0, defines how much unbalanced the problem is on
+    tau_b: if `< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise ``tau_a`` and ``tau_b`` only affect
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
       the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
@@ -274,7 +274,7 @@ class QuadraticProblem:
 
     If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
     possible, as explained in :meth:`init_linearization` above.
-    Finally, it is also possible to consider a Fused Gromov Wasserstein problem.
+    Finally, it is also possible to consider a Fused Gromov-Wasserstein problem.
     Details about the resulting cost matrix are also given in
     :meth:`init_linearization`.
 
