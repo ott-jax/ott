@@ -135,3 +135,12 @@ precision = 2
 show_missing = true
 skip_empty = true
 sort = "Miss"
+
+[tool.yapf]
+based_on_style = "yapf"
+column_limit = 80
+indent_width = 2
+split_before_named_assigns = true
+spaces_around_power_operator = true
+dedent_closing_brackets = true
+coalesce_brackets = true
