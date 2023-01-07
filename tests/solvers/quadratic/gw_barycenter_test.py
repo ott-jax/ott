@@ -13,10 +13,11 @@
 """Tests for Gromov-Wasserstein barycenter."""
 from typing import Any, Optional, Sequence, Tuple
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import pointcloud
 from ott.problems.quadratic import gw_barycenter as gwb

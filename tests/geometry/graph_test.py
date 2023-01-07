@@ -1,15 +1,16 @@
 import time
 from typing import Any, Callable, Optional, Tuple, Union
 
-import jax
-import jax.experimental.sparse as jesp
-import jax.numpy as jnp
 import networkx as nx
-import numpy as np
 import pytest
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from typing_extensions import Literal
+
+import jax
+import jax.experimental.sparse as jesp
+import jax.numpy as jnp
+import numpy as np
 
 from ott.geometry import geometry, graph
 from ott.math import decomposition

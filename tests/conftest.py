@@ -2,11 +2,12 @@ import collections.abc
 import itertools
 from typing import Any, Mapping, Optional, Sequence
 
-import jax
-import jax.numpy as jnp
 import pytest
 from _pytest.config.argparsing import Parser
 from _pytest.python import Metafunc
+
+import jax
+import jax.numpy as jnp
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:

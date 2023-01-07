@@ -14,10 +14,11 @@
 import functools
 from typing import Tuple
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import costs, segment
 from ott.problems.linear import barycenter_problem

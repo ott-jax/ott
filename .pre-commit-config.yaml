@@ -11,12 +11,15 @@ repos:
   hooks:
   - id: yapf
     additional_dependencies: [toml]
-- repo: https://github.com/tomcatling/black-nb
-  rev: '0.7'
+- repo: https://github.com/nbQA-dev/nbQA
+  rev: 1.6.0
   hooks:
-  - id: black-nb
+  - id: nbqa-pyupgrade
+    args: [--py38-plus]
+  - id: nbqa-black
+  - id: nbqa-isort
 - repo: https://github.com/PyCQA/isort
-  rev: 5.10.1
+  rev: 5.11.4
   hooks:
   - id: isort
 - repo: https://github.com/asottile/yesqa
@@ -30,7 +33,7 @@ repos:
     - flake8-bugbear
     - flake8-blind-except
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v2.4.0
+  rev: v2.5.0
   hooks:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']
@@ -65,7 +68,7 @@ repos:
     - flake8-blind-except
     args: [--docstring-convention, google]
 - repo: https://github.com/asottile/pyupgrade
-  rev: v3.2.2
+  rev: v3.3.1
   hooks:
   - id: pyupgrade
     args: [--py3-plus, --py37-plus, --keep-runtime-typing]

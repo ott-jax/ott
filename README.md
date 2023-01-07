@@ -52,9 +52,13 @@ In the simple toy example below, we compute the optimal coupling matrix between 
 ```python
 import jax
 import jax.numpy as jnp
-from ott.tools import transport
-# Samples two point clouds and their weights.
-rngs = jax.random.split(jax.random.PRNGKey(0),4)
+
+from ott.geometry import pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
+
+# sample two point clouds and their weights.
+rngs = jax.random.split(jax.random.PRNGKey(0), 4)
 n, m, d = 12, 14, 2
 x = jax.random.normal(rngs[0], (n,d)) + 1
 y = jax.random.uniform(rngs[1], (m,d))
@@ -62,15 +66,17 @@ a = jax.random.uniform(rngs[2], (n,))
 b = jax.random.uniform(rngs[3], (m,))
 a, b = a / jnp.sum(a), b / jnp.sum(b)
 # Computes the couplings using the Sinkhorn algorithm.
-ot = transport.solve(x, y, a=a, b=b)
-P = ot.matrix
+geom = pointcloud.PointCloud(x, y)
+prob = linear_problem.LinearProblem(geom, a, b)
+
+solver = sinkhorn.Sinkhorn()
+out = solver(prob)
 ```
 
-The call to `solve` above works out the optimal transport solution. The `ot` object contains a transport matrix
+The call to `solver(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
 (here of size $12\times 14$) that quantifies a `link strength` between each point of the first point cloud, to one or
-more points from the second, as illustrated in the plot below. In this toy example, most choices were arbitrary, and
-are reflected in the crude `solve` API. We provide far more flexibility to define custom cost functions, objectives,
-and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
+more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
+functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
 
 ![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/images/couplings.png)
 
