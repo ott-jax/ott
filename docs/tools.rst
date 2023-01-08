@@ -43,3 +43,22 @@ Clustering
 
     k_means.k_means
     k_means.KMeansOutput
+
+ott.tools.gaussian_mixture package
+----------------------------------
+.. currentmodule:: ott.tools.gaussian_mixture
+.. automodule:: ott.tools.gaussian_mixture
+
+.. TODO(cuturi): add a description
+
+Gaussian Mixtures
+^^^^^^^^^^^^^^^^^
+.. autosummary::
+    :toctree: _autosummary
+
+    gaussian.Gaussian
+    gaussian_mixture.GaussianMixture
+    gaussian_mixture_pair.GaussianMixturePair
+    fit_gmm.initialize
+    fit_gmm.fit_model_em
+    fit_gmm_pair.get_fit_model_em_fn

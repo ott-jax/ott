@@ -22,6 +22,8 @@ from ott.geometry import costs
 from ott.math import matrix_square_root
 from ott.tools.gaussian_mixture import linalg
 
+__all__ = ["ScaleTriL"]
+
 
 @jax.tree_util.register_pytree_node_class
 class ScaleTriL:

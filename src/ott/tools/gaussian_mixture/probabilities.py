@@ -18,6 +18,8 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 
+__all__ = ["Probabilities"]
+
 
 @jax.tree_util.register_pytree_node_class
 class Probabilities:

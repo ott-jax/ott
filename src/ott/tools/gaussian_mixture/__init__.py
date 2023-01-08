@@ -11,4 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""OTT tools: A set of tools to use OT in differentiable ML pipelines."""
+from . import fit_gmm_pair, gaussian, gaussian_mixture, gaussian_mixture_pair

@@ -24,6 +24,8 @@ from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
+__all__ = ["sort", "ranks", "quantile"]
+
 
 def transport_for_sort(
     inputs: jnp.ndarray,
