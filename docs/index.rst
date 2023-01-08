@@ -124,7 +124,7 @@ Packages
     references
 
 
-.. |Downloads| image:: https://pepy.tech/badge/ott-jax
+.. |Downloads| image:: https://static.pepy.tech/badge/ott-jax
     :target: https://pypi.org/project/ott-jax/
     :alt: Documentation
 
