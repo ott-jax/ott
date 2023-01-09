@@ -128,7 +128,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       rng: int = 0
   ) -> BarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
-    run_fn = jax.jit(iterations) if self.jit else iterations
+    run_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
     return run_fn(self, bar_size, bar_prob, x_init, rng)
 
   def init_state(

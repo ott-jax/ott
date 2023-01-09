@@ -109,10 +109,10 @@ class BarycenterProblem:
       return self._add_slice_for_debiased(y, b)
     return y, b
 
+  @staticmethod
   def _add_slice_for_debiased(
-      self, y: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    y, b = self._y, self._b
+      y: jnp.ndarray, b: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     _, n, ndim = y.shape  # (num_measures, max_measure_size, ndim)
     # yapf: disable
     y = jnp.concatenate((y, jnp.zeros((1, n, ndim))), axis=0)

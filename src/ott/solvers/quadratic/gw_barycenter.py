@@ -108,7 +108,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     """
     state = self.init_state(problem, bar_size, **kwargs)
     run_fn = jax.jit(iterations) if self.jit else iterations
-    state = run_fn(solver=self, problem=problem, init_state=state)
+    state = run_fn(self, problem, state)
     return self.output_from_state(state)
 
   def init_state(
