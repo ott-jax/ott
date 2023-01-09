@@ -3,9 +3,10 @@ from pathlib import Path
 import pytest
 from testbook import testbook
 
-ROOT = Path("docs/notebooks")
+ROOT = Path("docs/tutorials/notebooks")
 
 
+# TODO(michalk8): consider using `myst-nb` to execute these notebooks
 @pytest.mark.notebook
 class TestNotebook:
 
