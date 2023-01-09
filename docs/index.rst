@@ -74,8 +74,9 @@ Packages
 
 .. toctree::
     :maxdepth: 1
-    :caption: Tutorials
+    :caption: Examples
 
+    Getting Started <tutorials/notebooks/point_clouds>
     tutorials/index
 
 .. toctree::

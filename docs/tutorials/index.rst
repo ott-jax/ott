@@ -6,7 +6,6 @@ Geometry
 .. toctree::
     :maxdepth: 1
 
-    notebooks/point_clouds
     notebooks/introduction_grid
 
 Linear Optimal Transport
