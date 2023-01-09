@@ -1,0 +1,6 @@
+name: ott
+channels:
+- conda-forge
+dependencies:
+- python>=3.8
+- ott-jax>=0.3.1
