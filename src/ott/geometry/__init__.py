@@ -11,5 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""OTT ground geometries: Classes and cost functions to instantiate them."""
 from . import costs, epsilon_scheduler, geometry, graph, grid, pointcloud, segment

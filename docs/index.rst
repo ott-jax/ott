@@ -94,7 +94,6 @@ Packages
     :maxdepth: 1
     :caption: References
 
-    GitHub <https://github.com/ott-jax/ott>
     references
 
 .. |Downloads| image:: https://static.pepy.tech/badge/ott-jax

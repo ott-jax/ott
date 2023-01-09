@@ -52,11 +52,9 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.bibtex',
     'sphinx_copybutton',
-    'nbsphinx',
     'myst_nb',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
-    # 'recommonmark',
 ]
 
 intersphinx_mapping = {
@@ -113,17 +111,16 @@ html_favicon = '_static/images/logoOTT.ico'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-
-nbsphinx_codecell_lexer = "ipython3"
-nbsphinx_execute = 'never'
-nbsphinx_prolog = r"""
-{% set docname = 'docs/' + env.doc2path(env.docname, base=None) %}
-.. raw:: html
-
-    <div class="docutils container">
-        <a class="reference external"
-           href="https://colab.research.google.com/github/ott-jax/ott/blob/main/{{ docname|e }}">
-        <img alt="Open in Colab" src="../_static/images/colab-badge.svg" width="125px">
-        </a>
-    </div>
-"""
+html_theme_options = {
+    'repository_url': 'https://github.com/ott-jax/ott',
+    'repository_branch': 'main',
+    'path_to_docs': 'docs/',
+    'use_repository_button': True,
+    'use_fullscreen_button': False,
+    'logo_only': True,
+    'launch_buttons': {
+        'colab_url': 'https://colab.research.google.com',
+        'binderhub_url': 'https://mybinder.org',
+        'notebook_interface': 'jupyterlab',
+    },
+}
