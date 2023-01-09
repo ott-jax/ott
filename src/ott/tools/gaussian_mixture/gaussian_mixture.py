@@ -20,6 +20,8 @@ import jax.numpy as jnp
 
 from ott.tools.gaussian_mixture import gaussian, linalg, probabilities, scale_tril
 
+__all__ = ["GaussianMixture"]
+
 
 def get_summary_stats_from_points_and_assignment_probs(
     points: jnp.ndarray, point_weights: jnp.ndarray,

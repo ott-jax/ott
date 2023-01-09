@@ -23,6 +23,8 @@ from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools.gaussian_mixture import gaussian_mixture
 
+__all__ = ["GaussianMixturePair"]
+
 
 @jax.tree_util.register_pytree_node_class
 class GaussianMixturePair:
@@ -42,7 +44,7 @@ class GaussianMixturePair:
   Our generalization of this algorithm allows for a mismatch between the
   marginals of the coupling and the GMM component weights. This mismatch can be
   interpreted as components being re-weighted rather than being transported.
-  We penalize reweighting with a generalized KL-divergence penalty, and we give
+  We penalize re-weighting with a generalized KL-divergence penalty, and we give
   the option to use the unbalanced Sinkhorn algorithm rather than the balanced
   to compute the divergence between GMMs.
   """

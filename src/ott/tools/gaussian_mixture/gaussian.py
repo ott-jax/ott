@@ -21,6 +21,8 @@ import jax.numpy as jnp
 
 from ott.tools.gaussian_mixture import scale_tril
 
+__all__ = ["Gaussian"]
+
 LOG2PI = math.log(2. * math.pi)
 
 
