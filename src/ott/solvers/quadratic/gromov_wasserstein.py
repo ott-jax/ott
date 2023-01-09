@@ -12,14 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Literal
 
-from ott import utils
-from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
+from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.initializers.quadratic import initializers as quad_initializers
 from ott.math import fixed_point_loop
@@ -28,7 +36,7 @@ from ott.problems.quadratic import quadratic_costs, quadratic_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
-__all__ = ["GWOutput", "GromovWasserstein", "gromov_wasserstein"]
+__all__ = ["GWOutput", "GromovWasserstein", "solve"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -140,7 +148,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   """Gromov-Wasserstein solver.
 
   Args:
-    args: Positional_arguments for
+    args: Positional arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
@@ -392,72 +400,7 @@ def iterations(
   return solver.output_from_state(state)
 
 
-def make(
-    epsilon: Union[epsilon_scheduler.Epsilon, float] = 1.,
-    rank: int = -1,
-    max_iterations: int = 50,
-    warm_start: Optional[bool] = None,
-    store_inner_errors: bool = False,
-    linear_ot_solver_kwargs: Optional[Mapping[str, Any]] = None,
-    threshold: float = 1e-2,
-    min_iterations: int = 1,
-    **kwargs: Any,
-) -> GromovWasserstein:
-  """Create a GromovWasserstein solver.
-
-  Args:
-    epsilon: a regularization parameter or a epsilon_scheduler.Epsilon object.
-    rank: integer used to constrain the rank of GW solutions if >0.
-    max_iterations: the maximum number of outer iterations for
-      Gromov Wasserstein.
-    warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
-      from the previous iteration. If `None`, it's enabled when using low-rank.
-    store_inner_errors: whether or not to return all the errors of the inner
-      Sinkhorn iterations.
-    linear_ot_solver_kwargs: Optionally a dictionary containing the keywords
-      arguments for the linear OT solver (e.g. sinkhorn)
-    threshold: threshold (progress between two iterate costs) used to stop GW.
-    min_iterations: see fixed_point_loop.
-    kwargs: additional kwargs for epsilon.
-
-  Returns:
-    A GromovWasserstein solver.
-  """
-  if linear_ot_solver_kwargs is None:
-    linear_ot_solver_kwargs = {}
-
-  if rank == -1:
-    sink = sinkhorn.make(**linear_ot_solver_kwargs)
-  elif rank > 0:
-    # `rank` and `epsilon` are arguments of the `sinkhorn_lr` solver. As we are
-    # passing them to make, we should not pass them in `linear_ot_solver_kwargs`
-    # Therefore, the `rank` or `epsilon` passed to `linear_ot_solver_kwargs` are
-    # deleted.
-    _ = linear_ot_solver_kwargs.pop('rank', None)
-    _ = linear_ot_solver_kwargs.pop('epsilon', None)
-    sink = sinkhorn_lr.make(
-        rank=rank, epsilon=epsilon, **linear_ot_solver_kwargs
-    )
-  else:
-    raise ValueError(f"Invalid value for `rank={rank}`.")
-
-  return GromovWasserstein(
-      epsilon=epsilon,
-      rank=rank,
-      linear_ot_solver=sink,
-      threshold=threshold,
-      min_iterations=min_iterations,
-      max_iterations=max_iterations,
-      store_inner_errors=store_inner_errors,
-      warm_start=warm_start,
-      **kwargs
-  )
-
-
-@utils.deprecate(
-    version="0.3.2", alt="Use the `GromovWasserstein` class instead."
-)
-def gromov_wasserstein(
+def solve(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
@@ -473,68 +416,69 @@ def gromov_wasserstein(
     tolerances: Union[float, Tuple[float, ...]] = 1e-2,
     **kwargs: Any,
 ) -> GWOutput:
-  """Solve a Gromov Wasserstein problem.
+  r"""Solve quadratic regularized OT problem.
 
-  .. note::
+  The quadratic loss of a single OT matrix is assumed to
+  have the form given in :cite:`peyre:16`, eq. 4.
 
-    This function has been deprecated and will be removed in ``0.3.2`` release.
-    Please use the
-    :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
-    solver instead.
+  The two geometries below parameterize matrices :math:`C` and :math:`\bar{C}`
+  in that equation. The function :math:`L` (of two real values) in that equation
+  is assumed to match the form given in eq. 5., with our notations:
 
-  Wrapper that instantiates a quadratic problem (possibly with linear term
-  if the problem is fused) and calls a solver to output a solution.
+  .. math::
+
+    L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
 
   Args:
-    geom_xx: Geometry for the first view.
-    geom_yy: Geometry for the second view.
-    geom_xy: Geometry representing the linear cost in FGW.
-    fused_penalty: multiplier of the linear term in Fused Gromov Wasserstein,
-      i.e. loss = quadratic_loss + fused_penalty * linear_loss.
+    geom_xx: Ground geometry of the first space.
+    geom_yy: Ground geometry of the second space.
+    geom_xy: Geometry defining the linear penalty term for
+      Fused Gromov-Wasserstein. If `None`, the problem reduces to
+      a plain Gromov-Wasserstein problem.
+    fused_penalty: multiplier of the linear term in Fused Gromov-Wasserstein,
+      i.e. problem = purely quadratic + fused_penalty * linear problem.
       Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
 
-      - if `True`, use the default for each geometry.
-      - if `False`, keep the original scaling in geometries.
+      - if :obj:`True`, use the default for each geometry.
+      - if :obj:`False`, keep the original scaling in geometries.
       - if :class:`str`, use a specific method available in
         :class:`~ott.geometry.geometry.Geometry` or
         :class:`~ott.geometry.pointcloud.PointCloud`.
-      - if `None`, do not scale the cost matrices.
+      - if :obj:`None`, do not scale the cost matrices.
 
-    a: jnp.ndarray<float>[num_a,] or jnp.ndarray<float>[batch,num_a] weights.
-    b: jnp.ndarray<float>[num_b,] or jnp.ndarray<float>[batch,num_b] weights.
-    loss: defaults to the square Euclidean distance. Can also pass 'kl'
-      to define the GW loss as KL loss.
-    tau_a: float between 0 and 1.0, parameter that controls the strength of the
-      KL divergence constraint between the weights and marginals of the
-      transport for the first view. If set to 1.0, then it is equivalent to a
-      hard constraint and if smaller to a softer constraint.
-    tau_b: float between 0 and 1.0, parameter that controls the strength of the
-      KL divergence constraint between the weights and marginals of the
-      transport for the second view. If set to 1.0, then it is equivalent to a
-      hard constraint and if smaller to a softer constraint.
-    gw_unbalanced_correction: True (default) if the unbalanced version of
-      :cite:`sejourne:21` is used, False if tau_a and tau_b
-      only affect the inner Sinkhorn loop.
-    ranks: Switch to a low rank approximation of all cost matrices, using
-      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`, to gain speed.
-      This is only relevant if the geometries of interest are *not*
-      :class:`~ott.geometry.pointcloud.PointCloud` with `'sqeucl'` cost
-      function, in which case they would be low-rank by construction (as long
-      as the sizes of these point clouds is larger than dimension).
-      If `-1`, geometries are left as they are, and not converted.
-      If :class:`tuple`, these 2 or 3 :class:`int` specify the ranks of
-      ``geom_xx``, ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`,
-      all 3 geometries are converted using that rank.
-    tolerances: Tolerances used when converting geometries to low-rank. Used when
+    a: array representing the probability weights of the samples
+      from ``geom_xx``. If `None`, it will be uniform.
+    b: array representing the probability weights of the samples
+      from ``geom_yy``. If `None`, it will be uniform.
+    loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
+      part of the loss. The second one is the quadratic part (quad1, quad2).
+      By default, the loss is set as the 4 functions representing the squared
+      Euclidean loss, and this property is taken advantage of in subsequent
+      computations. Alternatively, KL loss can be specified in no less optimized
+      way.
+    tau_a: if `< 1.0`, defines how much unbalanced the problem is on
+      the first marginal.
+    tau_b: if `< 1.0`, defines how much unbalanced the problem is on
+      the second marginal.
+    gw_unbalanced_correction: Whether the unbalanced version of
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
+      the inner Sinkhorn loop.
+    ranks: Ranks of the cost matrices, see
+      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost. If :class:`float`, that tolerance is shared across all
-      3 geometries.
+      `'sqeucl'` cost function. If `-1`, the geometries will not be converted
+      to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
+      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
+      across all geometries.
+    tolerances: Tolerances used when converting geometries to low-rank. Used
+      when geometries are not :class:`~ott.geometry.pointcloud.PointCloud` with
+      `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
 
   Returns:
-    A GromovWassersteinState named tuple.
+    Gromov-Wasserstein output.
   """
   prob = quadratic_problem.QuadraticProblem(
       geom_xx,
@@ -551,5 +495,5 @@ def gromov_wasserstein(
       ranks=ranks,
       tolerances=tolerances
   )
-  solver = make(**kwargs)
+  solver = GromovWasserstein(**kwargs)
   return solver(prob)

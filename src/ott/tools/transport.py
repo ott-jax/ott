@@ -26,11 +26,10 @@ we suggest more advanced users to instantiate directly their :mod:`ott.problems`
 and their :mod:`ott.solvers` for better control over the parameters.
 """
 
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, Literal, NamedTuple, Optional, Union
 
 import jax.numpy as jnp
 import numpy as np
-from typing_extensions import Literal
 
 from ott import utils
 from ott.geometry import geometry, pointcloud

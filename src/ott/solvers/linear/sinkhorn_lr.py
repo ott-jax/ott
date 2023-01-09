@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
-from typing_extensions import Literal
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
@@ -224,7 +223,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   case.
 
   Args:
-    rank: The rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the linear OT problem
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
@@ -662,37 +661,3 @@ def run(
       ot_prob, lse_mode=solver.lse_mode, use_danskin=solver.use_danskin
   )
   return out.set(ot_prob=ot_prob)
-
-
-def make(
-    rank: int,
-    gamma: float = 1.0,
-    epsilon: float = 1e-4,
-    initializer: Literal['random', 'rank2', 'k-means'] = 'k-means',
-    lse_mode: bool = True,
-    threshold: float = 1e-3,
-    norm_error: int = 10,
-    inner_iterations: int = 1,
-    min_iterations: int = 0,
-    max_iterations: int = 2000,
-    use_danskin: bool = True,
-    implicit_diff: bool = False,
-    jit: bool = True,
-    kwargs_dys: Optional[Mapping[str, Any]] = None
-) -> LRSinkhorn:
-  return LRSinkhorn(
-      rank=rank,
-      gamma=gamma,
-      epsilon=epsilon,
-      initializer=initializer,
-      lse_mode=lse_mode,
-      threshold=threshold,
-      norm_error=norm_error,
-      inner_iterations=inner_iterations,
-      min_iterations=min_iterations,
-      max_iterations=max_iterations,
-      use_danskin=use_danskin,
-      implicit_diff=implicit_diff,
-      jit=jit,
-      kwargs_dys=kwargs_dys
-  )

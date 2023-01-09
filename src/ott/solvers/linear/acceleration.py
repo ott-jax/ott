@@ -15,6 +15,7 @@ __all__ = ["AndersonAcceleration", "Momentum"]
 class AndersonAcceleration:
   """Implements Anderson acceleration for Sinkhorn."""
 
+  # TODO(michalk8): use memory=0 as no Anderson acceleration?
   memory: int = 2  # Number of iterates considered to form interpolation.
   refresh_every: int = 1  # Recompute interpolation periodically.
   ridge_identity: float = 1e-2  # Ridge used in the linear system.
@@ -109,7 +110,8 @@ class AndersonAcceleration:
 
 @utils.register_pytree_node
 class Momentum:
-  """Momentum for Sinkhorn updates, either constant or adaptive."""
+  """Momentum for Sinkhorn updates, either constant :cite:`thibault:21` or \
+  adaptive :cite:`lehmann:21`."""
 
   start: int = 0
   error_threshold: float = jnp.inf

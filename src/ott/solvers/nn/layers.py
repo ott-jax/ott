@@ -13,9 +13,9 @@
 
 from typing import Any, Callable, Tuple
 
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
-from flax import linen as nn
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
 

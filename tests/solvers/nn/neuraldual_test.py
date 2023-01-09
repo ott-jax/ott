@@ -13,11 +13,12 @@
 """Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
 from typing import Iterator, Sequence, Tuple
 
+import pytest
+from typing_extensions import Literal
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from typing_extensions import Literal
 
 from ott.solvers.nn import neuraldual
 

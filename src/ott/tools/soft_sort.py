@@ -20,7 +20,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.tools import transport
+from ott.geometry import pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
+
+__all__ = ["sort", "ranks", "quantile"]
 
 
 def transport_for_sort(
@@ -30,7 +34,7 @@ def transport_for_sort(
     squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
     epsilon: float = 1e-2,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> sinkhorn.SinkhornOutput:
   r"""Solve reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
@@ -42,7 +46,8 @@ def transport_for_sort(
       sigmoid of whitened values by default. Can be set to be the identity by
       passing ``squashing_fun = lambda x : x`` instead.
     epsilon: the regularization parameter.
-    kwargs: keyword arguments for `sinkhorn` and / or `PointCloud`.
+    kwargs: keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 
   Returns:
     A jnp.ndarray<float> num_points x num_target transport matrix, from all
@@ -64,7 +69,12 @@ def transport_for_sort(
   num_targets = b.shape[0]
   y = jnp.linspace(0.0, 1.0, num_targets)[:, jnp.newaxis]
 
-  return transport.solve(x, y, a=a, b=b, epsilon=epsilon, **kwargs)
+  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
+  prob = linear_problem.LinearProblem(geom, a=a, b=b)
+
+  solver = sinkhorn.Sinkhorn(**kwargs)
+
+  return solver(prob)
 
 
 def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:

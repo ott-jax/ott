@@ -13,19 +13,27 @@
 # limitations under the License.
 """Plotting utils."""
 
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy
+
+import matplotlib.pyplot as plt
 from matplotlib import animation
 
+from ott import utils
 from ott.geometry import pointcloud
-from ott.tools import transport
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.quadratic import gromov_wasserstein
+
+# TODO(michalk8): make sure all outputs conform to a unified transport interface
+Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
+                  gromov_wasserstein.GWOutput]
 
 
-def bidimensional(x: jnp.ndarray, y: jnp.ndarray):
+def bidimensional(x: jnp.ndarray,
+                  y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Apply PCA to reduce to bimensional data."""
   if x.shape[1] < 3:
     return x, y
@@ -72,7 +80,7 @@ class Plot:
     self._scale = scale
     self._cmap = cmap
 
-  def _scatter(self, ot: transport.Transport):
+  def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
     if not isinstance(ot.geom, pointcloud.PointCloud):
       raise ValueError('So far we only plot PointCloud geometry.')
@@ -95,7 +103,7 @@ class Plot:
       result.append((xy[i, [0, 2]], xy[i, [1, 3]], strength))
     return result
 
-  def __call__(self, ot: transport.Transport) -> List[plt.Artist]:
+  def __call__(self, ot: Transport) -> List[plt.Artist]:
     """Plot 2-D couplings. Projects via PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
@@ -123,8 +131,8 @@ class Plot:
       self._lines.append(line)
     return [self._points_x, self._points_y] + self._lines
 
-  def update(self, ot: transport.Transport) -> List[plt.Artist]:
-    """Update a plot with a transport.Transport instance."""
+  def update(self, ot: Transport) -> List[plt.Artist]:
+    """Update a plot with a transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
     self._points_y.set_offsets(y)
@@ -159,11 +167,11 @@ class Plot:
 
   def animate(
       self,
-      transports: Sequence[transport.Transport],
+      transports: Sequence[Transport],
       frame_rate: float = 10.0
   ) -> animation.FuncAnimation:
-    """Make an animation from several transport.Transport."""
-    self(transports[0])
+    """Make an animation from several transports."""
+    _ = self(transports[0])
     return animation.FuncAnimation(
         self.fig,
         lambda i: self.update(transports[i]),
@@ -191,7 +199,7 @@ def _barycenters(
 
 
 def barycentric_projections(
-    arg: Union[transport.Transport, jnp.ndarray],
+    arg: Union[Transport, jnp.ndarray],
     a: jnp.ndarray = None,
     b: jnp.ndarray = None,
     matrix: jnp.ndarray = None,
@@ -202,13 +210,17 @@ def barycentric_projections(
   if ax is None:
     _, ax = plt.subplots(1, 1, figsize=(8, 5))
 
-  if isinstance(arg, transport.Transport):
-    ot = arg
-    return _barycenters(ax, ot.geom.y, ot.a, ot.b, ot.matrix, **kwargs)
+  if utils.is_jax_array(arg):
+    if matrix is None:
+      raise ValueError('The `matrix` argument cannot be None.')
 
-  if matrix is None:
-    raise ValueError('The `matrix` argument cannot be None.')
+    a = jnp.ones(matrix.shape[0]) / matrix.shape[0] if a is None else a
+    b = jnp.ones(matrix.shape[1]) / matrix.shape[1] if b is None else b
+    return _barycenters(ax, arg, a, b, matrix, **kwargs)
 
-  a = jnp.ones(matrix.shape[0]) / matrix.shape[0] if a is None else a
-  b = jnp.ones(matrix.shape[1]) / matrix.shape[1] if b is None else b
-  return _barycenters(ax, arg, a, b, matrix, **kwargs)
+  if isinstance(arg, gromov_wasserstein.GWOutput):
+    geom = arg.linear_state.geom
+  else:
+    geom = arg.geom
+
+  return _barycenters(ax, geom.y, arg.a, arg.b, arg.matrix, **kwargs)

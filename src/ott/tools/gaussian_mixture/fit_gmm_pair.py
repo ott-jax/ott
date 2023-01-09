@@ -87,6 +87,8 @@ import optax
 
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture, gaussian_mixture_pair
 
+__all__ = ["get_fit_model_em_fn"]
+
 LOG2 = math.log(2)
 
 

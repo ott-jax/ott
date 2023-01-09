@@ -18,6 +18,7 @@ from typing import Any, Mapping, Optional, Tuple
 import jax.numpy as jnp
 
 from ott.geometry import costs, pointcloud, segment
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
 
@@ -111,19 +112,20 @@ def segment_sinkhorn(
   ) -> float:
     mask_x = padded_weight_x > 0.
     mask_y = padded_weight_y > 0.
-    return sinkhorn.sinkhorn(
-        pointcloud.PointCloud(
-            padded_x,
-            padded_y,
-            cost_fn=cost_fn,
-            src_mask=mask_x,
-            tgt_mask=mask_y,
-            **kwargs
-        ),
-        a=padded_weight_x,
-        b=padded_weight_y,
-        **sinkhorn_kwargs
-    ).reg_ot_cost
+
+    geom = pointcloud.PointCloud(
+        padded_x,
+        padded_y,
+        cost_fn=cost_fn,
+        src_mask=mask_x,
+        tgt_mask=mask_y,
+        **kwargs,
+    )
+    prob = linear_problem.LinearProblem(
+        geom, a=padded_weight_x, b=padded_weight_y
+    )
+    solver = sinkhorn.Sinkhorn(**sinkhorn_kwargs)
+    return solver(prob).reg_ot_cost
 
   return segment._segment_interface(
       x,

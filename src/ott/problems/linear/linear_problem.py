@@ -33,20 +33,20 @@ class LinearProblem:
   r"""Linear OT problem.
 
   This class describes the main ingredients appearing in a linear OT problem.
-  Namely, a `geom` object (including cost structure/points) describing point
-  clouds or the support of measures, followed by probability masses `a` and `b`.
-  Unabalancedness of the problem is also kept track of, through two coefficients
-  `tau_a` and `tau_b`, which are both kept between 0 and 1
+  Namely, a ``geom`` object (including cost structure/points) describing point
+  clouds or the support of measures, followed by probability masses ``a`` and
+  ``b``. Unbalancedness of the problem is also kept track of, through two
+  coefficients ``tau_a`` and ``tau_b``, which are both kept between 0 and 1
   (1 corresponding to a balanced OT problem).
 
   Args:
     geom: The ground geometry cost of the linear problem.
     a: The first marginal. If `None`, it will be uniform.
     b: The second marginal. If `None`, it will be uniform.
-    tau_a: If smaller than `1`, defines how much unbalanced the problem is on
-      the first marginal.
-    tau_b: If smaller than `1`, defines how much unbalanced the problem is on
-      the second marginal.
+    tau_a: If `< 1`, defines how much unbalanced the problem is
+      on the first marginal.
+    tau_b: If `< 1`, defines how much unbalanced the problem is
+      on the second marginal.
   """
 
   def __init__(

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ott-jax"
 description = "Optimal Transport Tools in JAX."
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
@@ -13,7 +13,6 @@ authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 dependencies = [
-    'importlib-metadata>=1.0; python_version<"3.8"',
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
@@ -21,7 +20,6 @@ dependencies = [
     "matplotlib>=3.0.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
-    'typing_extensions; python_version<"3.8"',
     "scipy>=1.7.0",
 ]
 keywords = [
@@ -38,7 +36,7 @@ keywords = [
 ]
 classifiers = [
     "Typing :: Typed",
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Natural Language :: English",
@@ -48,7 +46,6 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -79,13 +76,12 @@ experimental = [
 ]
 docs = [
     "sphinx>=4.0",
-    "nbsphinx>=0.8.0",
-    "recommonmark>=0.7.1",
     "ipython>=7.20.0",
     "sphinx_autodoc_typehints>=1.12.0",
     "sphinx-book-theme>=0.3.3",
     "sphinx-copybutton>=0.5.1",
-    "sphinxcontrib-bibtex",
+    "sphinxcontrib-bibtex>=2.5.0",
+    "myst-nb>=0.17.1",
 ]
 
 [tool.setuptools]
@@ -103,6 +99,9 @@ include = '\.ipynb$'
 profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "NUMERIC", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
+known_numeric = ["numpy", "scipy", "pandas", "sklearn", "jax", "flax", "optax", "torch"]
+known_plotting = ["matplotlib", "mpl_toolkits", "seaborn"]
 skip_glob = ["docs/*"]
 
 [tool.pytest.ini_options]
@@ -134,3 +133,12 @@ precision = 2
 show_missing = true
 skip_empty = true
 sort = "Miss"
+
+[tool.yapf]
+based_on_style = "yapf"
+column_limit = 80
+indent_width = 2
+split_before_named_assigns = true
+spaces_around_power_operator = true
+dedent_closing_brackets = true
+coalesce_brackets = true

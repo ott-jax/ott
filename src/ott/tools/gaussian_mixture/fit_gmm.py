@@ -56,6 +56,8 @@ import jax.numpy as jnp
 
 from ott.tools.gaussian_mixture import gaussian_mixture
 
+__all__ = ["initialize", "fit_model_em"]
+
 # EM algorithm for parameter estimation
 
 

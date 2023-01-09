@@ -14,13 +14,14 @@
 """Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import costs, geometry, pointcloud
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import acceleration, sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
 
@@ -47,7 +48,7 @@ class TestSinkhornDivergence:
           "epsilon": 1e-2
       },
   )
-  def test_euclidean_point_cloud(self, cost_fn, epsilon):
+  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, epsilon: float):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
@@ -68,9 +69,9 @@ class TestSinkhornDivergence:
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
-    div2 = sinkhorn.sinkhorn(geometry_xy, self._a, self._b).reg_ot_cost
-    div2 -= 0.5 * sinkhorn.sinkhorn(geometry_xx, self._a, self._a).reg_ot_cost
-    div2 -= 0.5 * sinkhorn.sinkhorn(geometry_yy, self._b, self._b).reg_ot_cost
+    div2 = sinkhorn.solve(geometry_xy, self._a, self._b).reg_ot_cost
+    div2 -= 0.5 * sinkhorn.solve(geometry_xx, self._a, self._a).reg_ot_cost
+    div2 -= 0.5 * sinkhorn.solve(geometry_yy, self._b, self._b).reg_ot_cost
 
     np.testing.assert_allclose(div.divergence, div2, rtol=1e-5, atol=1e-5)
 
@@ -80,7 +81,7 @@ class TestSinkhornDivergence:
         x,
         x,
         cost_fn=cost_fn,
-        epsilon=.1,
+        epsilon=1e-1,
         sinkhorn_kwargs={'inner_iterations': 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
@@ -364,12 +365,12 @@ class TestSinkhornDivergence:
   # yapf: disable
   @pytest.mark.fast.with_args(
       "sinkhorn_kwargs,epsilon", [
-          ({"anderson_acceleration": 3}, 1e-2),
-          ({"anderson_acceleration": 6}, None),
-          ({"chg_momentum_from": 20}, 1e-3),
-          ({"chg_momentum_from": 30}, None),
-          ({"momentum": 1.05}, 1e-3),
-          ({"momentum": 1.01}, None),
+          ({"anderson": acceleration.AndersonAcceleration(memory=3)}, 1e-2),
+          ({"anderson": acceleration.AndersonAcceleration(memory=6)}, None),
+          ({"momentum": acceleration.Momentum(start=20)}, 1e-3),
+          ({"momentum": acceleration.Momentum(start=30)}, None),
+          ({"momentum": acceleration.Momentum(value=1.05)}, 1e-3),
+          ({"momentum": acceleration.Momentum(value=1.01)}, None),
       ],
       only_fast=[0, -1],
   )
