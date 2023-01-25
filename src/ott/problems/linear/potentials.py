@@ -1,4 +1,13 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import jax
 import jax.numpy as jnp
@@ -154,65 +163,94 @@ class EntropicPotentials(DualPotentials):
   """Dual potential functions from finite samples :cite:`pooladian:21`.
 
   Args:
-    f: The first dual potential vector of shape ``[n,]``.
-    g: The second dual potential vector of shape ``[m,]``.
+    f_xy: The first dual potential vector of shape ``[n,]``.
+    g_xy: The second dual potential vector of shape ``[m,]``.
     prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
       geometry that was used to compute the dual potentials using, e.g.,
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+    f_xx: The first dual potential vector of shape ``[n,]`` used for debiasing
+      :cite:`pooladian:22`.
+    g_yy: The second dual potential vector of shape ``[m,]`` used for debiasing.
   """
 
   def __init__(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f_xy: jnp.ndarray,
+      g_xy: jnp.ndarray,
       prob: linear_problem.LinearProblem,
+      f_xx: Optional[jnp.ndarray] = None,
+      g_yy: Optional[jnp.ndarray] = None,
   ):
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
-    super().__init__(f, g, cost_fn=prob.geom.cost_fn, corr=False)
+    super().__init__(f_xy, g_xy, cost_fn=prob.geom.cost_fn, corr=False)
     self._prob = prob
+    self._f_xx = f_xx
+    self._g_yy = g_yy
 
   @property
   def f(self) -> Potential_t:
-    return self._create_potential_function(kind="f")
+    return self._potential_fn(kind="f")
 
   @property
   def g(self) -> Potential_t:
-    return self._create_potential_function(kind="g")
+    return self._potential_fn(kind="g")
 
-  def _create_potential_function(
-      self, *, kind: Literal["f", "g"]
-  ) -> Potential_t:
+  def _potential_fn(self, *, kind: Literal["f", "g"]) -> Potential_t:
     from ott.geometry import pointcloud
 
-    def callback(x: jnp.ndarray) -> float:
+    def callback(
+        x: jnp.ndarray,
+        *,
+        potential: jnp.ndarray,
+        y: jnp.ndarray,
+        weights: jnp.ndarray,
+        epsilon: float,
+    ) -> float:
       cost = pointcloud.PointCloud(
           jnp.atleast_2d(x),
           y,
           cost_fn=self.cost_fn,
       ).cost_matrix
       z = (potential - cost) / epsilon
-      lse = -epsilon * jsp.special.logsumexp(z, b=prob_weights, axis=-1)
+      lse = -epsilon * jsp.special.logsumexp(z, b=weights, axis=-1)
       return jnp.squeeze(lse)
 
     assert isinstance(
         self._prob.geom, pointcloud.PointCloud
     ), f"Expected point cloud geometry, found `{type(self._prob.geom)}`."
-    epsilon = self.epsilon
+    x, y = self._prob.geom.x, self._prob.geom.y
+    a, b = self._prob.a, self._prob.b
 
-    if kind == "g":
-      # When seeking to evaluate 2nd potential function, 1st set of potential
-      # values and support should be used,
+    if kind == "f":
+      # When seeking to evaluate 1st potential function,
+      # the 2nd set of potential values and support should be used,
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
-      potential = self._f
-      y = self._prob.geom.x
-      prob_weights = self._prob.a
+      potential, arr, weights = self._g, y, b
     else:
-      potential = self._g
-      y = self._prob.geom.y
-      prob_weights = self._prob.b
+      potential, arr, weights = self._f, x, a
 
-    return callback
+    potential_xy = jax.tree_util.Partial(
+        callback,
+        potential=potential,
+        y=arr,
+        weights=weights,
+        epsilon=self.epsilon,
+    )
+    if not self.is_debiased:
+      return potential_xy
+
+    ep = EntropicPotentials(self._f_xx, self._g_yy, prob=self._prob)
+    # switch the order because for `kind='f'` we require `f/x/a` in `other`
+    # which is accessed when `kind='g'`
+    potential_other = ep._potential_fn(kind="g" if kind == "f" else "f")
+
+    return lambda x: (potential_xy(x) - potential_other(x))
+
+  @property
+  def is_debiased(self) -> bool:
+    """Whether the entropic map is debiased."""
+    return self._f_xx is not None and self._g_yy is not None
 
   @property
   def epsilon(self) -> float:
@@ -220,4 +258,4 @@ class EntropicPotentials(DualPotentials):
     return self._prob.geom.epsilon
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._f, self._g, self._prob], {}
+    return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}

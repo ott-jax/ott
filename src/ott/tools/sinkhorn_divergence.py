@@ -40,13 +40,11 @@ class SinkhornDivergenceOutput(NamedTuple):
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
     geom_xy, *_ = self.geoms
-    prob = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
-
-    (f_xy, g_xy), (f_x, g_x), (f_y, g_y) = self.potentials
-    f = f_xy - f_x
-    g = g_xy if g_y is None else (g_xy - g_y)  # case when `static_b=True`
-
-    return potentials.EntropicPotentials(f, g, prob)
+    prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
+    (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
+    return potentials.EntropicPotentials(
+        f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
+    )
 
 
 def sinkhorn_divergence(
