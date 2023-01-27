@@ -207,11 +207,10 @@ class EntropicPotentials(DualPotentials):
         weights: jnp.ndarray,
         epsilon: float,
     ) -> float:
-      cost = pointcloud.PointCloud(
-          jnp.atleast_2d(x),
-          y,
-          cost_fn=self.cost_fn,
-      ).cost_matrix
+      x = jnp.atleast_2d(x)
+      assert x.shape[-1] == y.shape[-1], (x.shape, y.shape)
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.cost_fn)
+      cost = geom.cost_matrix
       z = (potential - cost) / epsilon
       lse = -epsilon * jsp.special.logsumexp(z, b=weights, axis=-1)
       return jnp.squeeze(lse)
