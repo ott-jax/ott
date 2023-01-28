@@ -198,13 +198,11 @@ class TestEntropicPotentials:
     actual = 2. * jnp.vdot(v_x, dx)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.parametrize("static_b", [False, True])
-  def test_potentials_sinkhorn_divergence(
-      self, rng: jnp.ndarray, static_b: bool
-  ):
+  @pytest.mark.parametrize("eps", [None, 1e-1, 1e1, 1e2, 1e3])
+  def test_potentials_sinkhorn_divergence(self, rng: jnp.ndarray, eps: float):
     key1, key2, key3 = jax.random.split(rng, 3)
     n, m, d = 32, 36, 4
-    eps, fwd = 1., True
+    fwd = True
     mu0, mu1 = -5., 5.
 
     x = jax.random.normal(key1, (n, d)) + mu0
@@ -218,6 +216,9 @@ class TestEntropicPotentials:
         type(geom), x, y, epsilon=eps
     ).to_dual_potentials()
 
+    assert not sink_pots.is_debiased
+    assert div_pots.is_debiased
+
     sink_dist = sink_pots.distance(x, y)
     div_dist = div_pots.distance(x, y)
     assert div_dist < sink_dist
@@ -227,4 +228,12 @@ class TestEntropicPotentials:
 
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(sink_points, div_points)
-    np.testing.assert_allclose(sink_points, div_points, rtol=0.08, atol=0.31)
+
+    # test collapse for high epsilon
+    if eps is not None and eps >= 1e2:
+      sink_ref = jnp.repeat(sink_points[:1], n, axis=0)
+      div_ref = jnp.repeat(div_points[:1], n, axis=0)
+
+      np.testing.assert_allclose(sink_ref, sink_points, rtol=1e-1, atol=1e-1)
+      with pytest.raises(AssertionError):
+        np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
