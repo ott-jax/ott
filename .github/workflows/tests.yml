@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   fast-tests:
-    name: Fast tests
+    name: Fast tests Python 3.9 on ubuntu-latest
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -44,6 +44,9 @@ jobs:
       matrix:
         python-version: ['3.8', '3.10']
         os: [ubuntu-latest]
+        include:
+        - python-version: '3.9'
+          ot: macos-latest
 
     steps:
     - uses: actions/checkout@v3

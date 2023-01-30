@@ -14,12 +14,12 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint ${{ tox_env }}
+    name: Lint ${{ matrix.lint-kind }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        tox_env: [code, docs]
+        lint-kind: [code, docs]
 
     steps:
     - uses: actions/checkout@v3
@@ -33,6 +33,6 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install tox
 
-    - name: Lint code
+    - name: Lint ${{ matrix.lint-kind }}
       run: |
-        tox -e lint-${{ tox_env }}
+        tox -e lint-${{ matrix.lint-kind }}
