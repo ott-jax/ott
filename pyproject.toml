@@ -151,12 +151,6 @@ legacy_tox_ini = """
     envlist = lint-code,py{38,39,310}
     skip_missing_interpreters = true
 
-    [gh]
-    python =
-        3.8 = py38
-        3.9 = py39
-        3.10 = lint-code,py310
-
     [testenv]
     extras = test
     passenv = PYTEST_*
@@ -175,7 +169,9 @@ legacy_tox_ini = """
     [testenv:lint-docs]
     description = Lint the documentation.
     extras = docs
-    allowlist_externals = rm, sphinx-build
+    allowlist_externals =
+        rm
+        sphinx-build
     ignore_outcome = true
     ignore_errors = true
     commands_pre =
@@ -183,7 +179,7 @@ legacy_tox_ini = """
         rm -rf {tox_root}/docs/_build/linkcheck
     commands =
         sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
-        # sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
 
     [testenv:build-docs]
     description = Build the documentation.
