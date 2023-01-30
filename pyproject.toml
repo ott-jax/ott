@@ -158,10 +158,11 @@ legacy_tox_ini = """
 
     [testenv]
     extras = test
-    use_develop = true
     passenv = PYTEST_*
     commands =
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml {posargs:}
+        python -m pytest {tty:--color=yes} {posargs: \
+            --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
+            --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
 
     [testenv:lint-code]
     description = Lint the code.
@@ -172,7 +173,6 @@ legacy_tox_ini = """
 
     [testenv:lint-docs]
     description = Lint the documentation.
-    use_develop = true
     extras = docs
     allowlist_externals = rm, sphinx-build
     ignore_outcome = true
