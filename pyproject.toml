@@ -65,6 +65,7 @@ test = [
     "pytest",
     "pytest-xdist",
     "pytest-cov",
+    "pytest-memray",
     "coverage[toml]",
     "testbook",
     "chex",

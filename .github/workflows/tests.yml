@@ -27,16 +27,16 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install tox-gh
 
-    - name: Setup test suite
+    - name: Setup environment
       run: |
-        tox -e py39 --notest -vv
+        tox -e py39 --notest -v
 
     - name: Run tests
       run: |
-        tox -e py39 --skip-pkg-install -- -m fast -m memray -n auto
+        tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
 
   tests:
-    name: Test ${{ matrix.python-version }} on ${{ matrix.os }}
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -55,15 +55,15 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install tox-gh
 
-    - name: Setup test suite
+    - name: Setup environment
       run: |
-        tox -e py${{ matrix.python-version }} --notest -vv
+        tox -e py${{ matrix.python-version }} --notest -v
 
     - name: Run tests
       run: |
         tox -e py${{ matrix.python-version }} --skip-pkg-install
       env:
-        PYTEST_ADDOPTS: -m memray --durations 10 -vv
+        PYTEST_ADDOPTS: --memray --durations 10 -vv
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
