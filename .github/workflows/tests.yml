@@ -46,7 +46,7 @@ jobs:
         os: [ubuntu-latest]
         include:
         - python-version: '3.9'
-          ot: macos-latest
+          os: macos-latest
 
     steps:
     - uses: actions/checkout@v3
