@@ -106,7 +106,7 @@ skip_glob = ["docs/*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = '-v -m "not notebook"'
+addopts = '-m "not notebook"'
 testpaths = [
     "tests",
 ]
@@ -142,3 +142,63 @@ split_before_named_assigns = true
 spaces_around_power_operator = true
 dedent_closing_brackets = true
 coalesce_brackets = true
+
+[tool.tox]
+legacy_tox_ini = """
+    [tox]
+    min_version = 4.0
+    envlist = lint-code,py{38,39,310}
+    skip_missing_interpreters = true
+
+    [gh]
+    python =
+        3.8 = py38
+        3.9 = py39
+        3.10 = lint-code,py310
+
+    [testenv]
+    extras = test
+    use_develop = true
+    passenv = PYTEST_*
+    commands =
+        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml {posargs:}
+
+    [testenv:lint-code]
+    description = Lint the code.
+    deps = pre-commit>=2.16.0
+    skip_install = true
+    commands =
+        pre-commit run --all-files --show-diff-on-failure {posargs}
+
+    [testenv:lint-docs]
+    description = Lint the documentation.
+    use_develop = true
+    extras = docs
+    allowlist_externals = rm, sphinx-build
+    ignore_outcome = true
+    ignore_errors = true
+    commands_pre =
+        rm -rf {tox_root}/docs/_build/spellcheck
+        rm -rf {tox_root}/docs/_build/linkcheck
+    commands =
+        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
+        # sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+
+    [testenv:build-docs]
+    description = Build the documentation.
+    use_develop = true
+    extras = docs
+    allowlist_externals = sphinx-build
+    commands =
+        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+    commands_post =
+        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+
+    [testenv:clean-docs]
+    description = Remove the documentation.
+    skip_install = true
+    changedir = {tox_root}/docs
+    allowlist_externals = make
+    commands =
+        make clean
+"""
