@@ -321,10 +321,8 @@ class NeuralDualSolver:
     return core.freeze(params)
 
   @staticmethod
-  def _penalize_weights_icnn(
-      params: Dict[str, jnp.ndarray]
-  ) -> Dict[str, jnp.ndarray]:
-    penalty = 0
+  def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:
+    penalty = 0.0
     for k, param in params.items():
       if k.startswith("w_z"):
         penalty += jnp.linalg.norm(jax.nn.relu(-param["kernel"]))

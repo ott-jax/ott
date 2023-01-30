@@ -24,6 +24,8 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 from datetime import datetime
+import sphinx
+import logging
 
 import ott
 
@@ -124,3 +126,17 @@ html_theme_options = {
         'notebook_interface': 'jupyterlab',
     },
 }
+
+
+class AutodocExternalFilter(logging.Filter):
+
+  def filter(self, record: logging.LogRecord) -> bool:
+    msg = record.getMessage()
+    return not (
+        "name 'ArrayTree' is not defined" in msg or
+        "PositiveDense.kernel_init" in msg
+    )
+
+
+filt = AutodocExternalFilter()
+sphinx.util.logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(filt)
