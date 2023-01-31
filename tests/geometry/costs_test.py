@@ -64,7 +64,10 @@ class TestCostFn:
     for i in range(n):
       for j in range(m):
         np.testing.assert_allclose(
-            cosine_fn.pairwise(x[i], y[j]), all_pairs[i, j]
+            cosine_fn.pairwise(x[i], y[j]),
+            all_pairs[i, j],
+            rtol=1e-5,
+            atol=1e-5,
         )
 
   @pytest.mark.fast

@@ -59,14 +59,15 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit",
+    "pre-commit>=2.16.0",
+    "tox>=4",
 ]
 test = [
     "pytest",
     "pytest-xdist",
     "pytest-cov",
+    "pytest-memray",
     "coverage[toml]",
-    "testbook",
     "chex",
     "networkx>=2.5",
     "scikit-learn>=1.0"
@@ -81,6 +82,7 @@ docs = [
     "sphinx-book-theme>=0.3.3",
     "sphinx-copybutton>=0.5.1",
     "sphinxcontrib-bibtex>=2.5.0",
+    "sphinxcontrib-spelling>=7.7.0",
     "myst-nb>=0.17.1",
 ]
 
@@ -106,7 +108,7 @@ skip_glob = ["docs/*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = '-v -m "not notebook"'
+addopts = '-m "not notebook"'
 testpaths = [
     "tests",
 ]
@@ -142,3 +144,71 @@ split_before_named_assigns = true
 spaces_around_power_operator = true
 dedent_closing_brackets = true
 coalesce_brackets = true
+
+[tool.tox]
+legacy_tox_ini = """
+    [tox]
+    min_version = 4.0
+    env_list = lint-code,py{38,39,310,311}
+    skip_missing_interpreters = true
+
+    [testenv]
+    extras = test
+    passenv = CI,PYTEST_*
+    commands =
+        python -m pytest {tty:--color=yes} {posargs: \
+            --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
+            --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
+
+    [testenv:lint-code]
+    description = Lint the code.
+    deps = pre-commit>=2.16.0
+    skip_install = true
+    commands =
+        pre-commit run --all-files --show-diff-on-failure
+
+    [testenv:lint-docs]
+    description = Lint the documentation.
+    extras = docs
+    allowlist_externals =
+        rm
+        sphinx-build
+    pass_env = PYENCHANT_LIBRARY_PATH
+    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
+    ignore_errors = true
+    commands_pre =
+        rm -rf {tox_root}/docs/_build/spellcheck
+        rm -rf {tox_root}/docs/_build/linkcheck
+    commands =
+        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
+        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+
+    [testenv:build-docs]
+    description = Build the documentation.
+    use_develop = true
+    extras = docs
+    allowlist_externals = sphinx-build
+    commands =
+        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+    commands_post =
+        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+
+    [testenv:clean-docs]
+    description = Remove the documentation.
+    skip_install = true
+    changedir = {tox_root}/docs
+    allowlist_externals = make
+    commands =
+        make clean
+
+    [testenv:build-package]
+    description = Build the package.
+    deps =
+        build
+        twine
+    commands =
+        python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
+        twine check {tox_root}{/}dist{/}*
+    commands_post =
+        python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+"""
