@@ -154,7 +154,7 @@ legacy_tox_ini = """
 
     [testenv]
     extras = test
-    passenv = PYTEST_*
+    passenv = CI,PYTEST_*
     commands =
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
