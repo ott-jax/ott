@@ -42,6 +42,9 @@ tox -e build-docs  # build documentation
 tox -e clean-docs  # remove documentation
 tox -e lint-docs  # run spellchecker and linkchecker
 ```
+Installing ``pyEnchant`` is required to run spellchecker, please refer to the
+[installation instructions](https://pyenchant.github.io/pyenchant/install.html). On macOS Silicon, it may be necessary
+to also set ``PYENCHANT_LIBRARY_PATH`` environment variable.
 
 ## Building the package
 The package can be built using:
