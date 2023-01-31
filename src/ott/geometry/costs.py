@@ -17,14 +17,16 @@ import functools
 import math
 from typing import Any, Callable, Optional, Tuple, Union
 
+from jaxopt import prox
+
 import jax
 import jax.numpy as jnp
 
 from ott.math import fixed_point_loop, matrix_square_root
 
 __all__ = [
-    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "Bures",
-    "UnbalancedBures"
+    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticNet",
+    "ElasticSTVS", "ElasticSqKOverlap", "Bures", "UnbalancedBures"
 ]
 
 
@@ -260,12 +262,195 @@ class Cosine(CostFn):
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
     cosine_distance = 1.0 - cosine_similarity
-    # similarity is in [-1, 1], clip because of numerical imprecisions
+    # similarity is in [-1, 1], clip because of numerical imprecision
     return jnp.clip(cosine_distance, 0., 2.)
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
+
+
+class RegTICost(TICost, abc.ABC):
+
+  @abc.abstractmethod
+  def reg(self, z: jnp.ndarray) -> float:
+    pass
+
+  @abc.abstractmethod
+  def prox_reg(self, z: jnp.ndarray) -> float:
+    pass
+
+  def h(self, z: jnp.ndarray) -> float:
+    return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
+
+  def h_legendre(self, z: jnp.ndarray) -> float:
+    q = jax.lax.stop_gradient(self.prox_reg(z))
+    return jnp.sum(q * z) - self.h(q)
+
+
+@jax.tree_util.register_pytree_node_class
+class ElasticNet(RegTICost):
+  """Elastic net.
+
+  lam / 2 * || . ||^2_2 + gam || . ||_1
+
+  (e.g. https://proceedings.mlr.press/v130/mehmood21a/mehmood21a.pdf but with
+  minor typo when giving Legendre)
+
+  Args:
+    lam: weight in front of 0.5 L2^2 penalization
+    gam: L1 penalization
+  """
+
+  def __init__(self, lam: float = 1.0, gam: float = 1.0):
+    super().__init__()
+    self.lam = lam
+    self.gam = gam
+
+  def reg(self, z: jnp.ndarray) -> float:
+    out = 0.5 * self.lam * jnp.linalg.norm(z, ord=2) ** 2
+    return out + self.gam * jnp.linalg.norm(z, ord=1)
+
+  def prox_reg(self, z: jnp.ndarray) -> float:
+    return prox.prox_elastic_net(z, (self.gam, self.lam / self.gam))
+
+  def tree_flatten(self):
+    return (), (self.lam, self.gam)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(*aux_data)
+
+
+@jax.tree_util.register_pytree_node_class
+class ElasticSTVS(RegTICost):
+  """Elastic with sparsifying norm, reducing shrinkage.
+
+  1 / 2 * || . ||^2_2 + t(x)
+
+  https://arxiv.org/pdf/1312.5658.pdf Lemma 2.1
+
+  Args:
+    gam: penalization for `t` function
+  """
+
+  def __init__(self, gam=1.0):
+    super().__init__()
+    self.gam = gam
+
+  def reg(self, z: jnp.ndarray) -> float:
+    u = jnp.arcsinh(jnp.abs(z) / (2 * self.gam))
+    out = u - 0.5 * jnp.exp(-2.0 * u)
+    return (self.gam ** 2) * jnp.sum(out + 0.5)  # make positive
+
+  def prox_reg(self, z: jnp.ndarray) -> float:
+    return jax.nn.relu(1 - (self.gam / (jnp.abs(z) + 1e-12)) ** 2) * z
+
+  def tree_flatten(self):
+    return (), (self.gam,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(*aux_data)
+
+
+@jax.tree_util.register_pytree_node_class
+class ElasticSqKOverlap(RegTICost):
+  """Squared k-overlap group norm.
+
+  0.5 L2 + 0.5 * gam * ( )_k-ov^2
+
+  https://proceedings.neurips.cc/paper/2012/file/99bcfcd754a98ce89cb86f73acc04645-Paper.pdf
+
+  Args:
+    k: Number of groups.
+    gam: TODO(michalk8)
+  """
+
+  def __init__(self, k: int, gam: float = 1.0):
+    self.k = k
+    self.gam = gam
+
+  def reg(self, z: jnp.ndarray) -> float:
+    # Prop 2.1 in reference.
+    k = self.k
+    top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
+    top_w = jnp.flip(top_w)  # Sort k-largest from smallest to largest
+    # sum (dim - k) smallest values
+    sum_bottom = jnp.sum(jnp.abs(z)) - jnp.sum(top_w)
+    cumsum_top = jnp.cumsum(top_w)
+    # Cesaro mean of top_w (each term offset with sum_bottom).
+    cesaro = sum_bottom + cumsum_top
+    cesaro /= jnp.arange(0, k) + 1
+    # Choose first index satisfying constraint in Prop 2.1
+    lower_bound = cesaro - top_w >= 0
+    # Last upper bound is always True.
+    upper_bound = jnp.concatenate(((top_w[1:] - cesaro[:-1] > 0),
+                                   jnp.array((True,))))
+    r = jnp.argmax(lower_bound * upper_bound)
+    s = jnp.sum(
+        jnp.where(
+            jnp.arange(k, dtype=int) < k - r - 1,
+            jnp.flip(top_w) ** 2, 0
+        )
+    )
+    return self.gam * 0.5 * (s + (r + 1) * cesaro[r] ** 2)
+
+  def prox_reg(self, z: jnp.ndarray) -> float:
+
+    @functools.partial(jax.vmap, in_axes=[None, 0, None])
+    def inner(r: int, l: int,
+              z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      i = k - r - 1
+      res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
+      res /= l - k + (beta + 1) * r + beta + 1
+
+      cond1_left = jnp.logical_or(i == 0, (z[i - 1] / beta + 1) > res)
+      cond1_right = res >= (z[i] / (beta + 1))
+      cond1 = jnp.logical_and(cond1_left, cond1_right)
+
+      cond2_left = z[l - 1] > res
+      cond2_right = jnp.logical_or(l == d, res >= z[l])
+      cond2 = jnp.logical_and(cond2_left, cond2_right)
+
+      return res, cond1 & cond2
+
+    @functools.partial(jax.vmap, in_axes=[0, None, None])
+    def outer(r: int, l: jnp.ndarray,
+              z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      return inner(r, l, z)
+
+    beta = 1 / self.gam
+    d = z.shape[-1]
+    k = self.k
+
+    ixs = jnp.arange(len(z))
+    sign = jnp.sign(z)
+    z = jnp.abs(z)
+    z_ixs = jnp.argsort(z)[::-1]
+    z_sorted = z[z_ixs]
+
+    T, mask = outer(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
+    (r,), (l,) = jnp.where(mask, size=1)
+    shift = T[r, l]
+    l = l + k - 1
+
+    q1 = (beta / (beta + 1)) * z_sorted * (ixs < (k - r))
+    q2 = (z_sorted - shift) * jnp.logical_and((k - r) <= ixs, ixs <= l)
+    q = q1 + q2
+
+    idx = jnp.argsort(z_ixs.astype(float))
+    return sign * q[idx]
+
+  def tree_flatten(self):
+    return (), (self.k, self.gam)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -274,7 +459,7 @@ class Bures(CostFn):
 
   Args:
     dimension: Dimensionality of the data.
-    kwargs: Keyword arguments for :func:`ott.math.matrix_square_root.sqrtm`.
+    kwargs: Keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
   def __init__(self, dimension: int, **kwargs: Any):
@@ -385,8 +570,8 @@ class Bures(CostFn):
         covariance (raveled).
       kwargs: Passed on to :meth:`covariance_fixpoint_iter`, and by extension to
         :func:`ott.math.matrix_square_root.sqrtm`. Note that `tolerance` is used
-        for the fixed-point iteration of the barycenter, whereas `threshold` will apply to the fixed
-        point iteration of Newton-Schulz iterations.
+        for the fixed-point iteration of the barycenter, whereas `threshold`
+        will apply to the fixed point iteration of Newton-Schulz iterations.
 
     Returns:
       A concatenation of the mean and the raveled covariance of the barycenter.
