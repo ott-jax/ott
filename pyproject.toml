@@ -59,7 +59,8 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit",
+    "pre-commit>=2.16.0",
+    "tox>=4",
 ]
 test = [
     "pytest",
@@ -67,7 +68,6 @@ test = [
     "pytest-cov",
     "pytest-memray",
     "coverage[toml]",
-    "testbook",
     "chex",
     "networkx>=2.5",
     "scikit-learn>=1.0"
@@ -149,7 +149,7 @@ coalesce_brackets = true
 legacy_tox_ini = """
     [tox]
     min_version = 4.0
-    envlist = lint-code,py{38,39,310}
+    env_list = lint-code,py{38,39,310,311}
     skip_missing_interpreters = true
 
     [testenv]
@@ -165,7 +165,7 @@ legacy_tox_ini = """
     deps = pre-commit>=2.16.0
     skip_install = true
     commands =
-        pre-commit run --all-files --show-diff-on-failure {posargs}
+        pre-commit run --all-files --show-diff-on-failure
 
     [testenv:lint-docs]
     description = Lint the documentation.
