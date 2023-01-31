@@ -82,6 +82,7 @@ docs = [
     "sphinx-book-theme>=0.3.3",
     "sphinx-copybutton>=0.5.1",
     "sphinxcontrib-bibtex>=2.5.0",
+    "sphinxcontrib-spelling>=7.7.0",
     "myst-nb>=0.17.1",
 ]
 
@@ -172,7 +173,8 @@ legacy_tox_ini = """
     allowlist_externals =
         rm
         sphinx-build
-    ignore_outcome = true
+    pass_env = PYENCHANT_LIBRARY_PATH
+    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
     ignore_errors = true
     commands_pre =
         rm -rf {tox_root}/docs/_build/spellcheck

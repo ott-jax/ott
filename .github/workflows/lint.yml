@@ -33,6 +33,12 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install tox
 
+    - name: Install PyEnchant
+      if: ${{ matrix.lint-kind == 'docs' }}
+      run: |
+        sudo apt install libenchant
+        python -m pip install pyenchant
+
     - name: Lint ${{ matrix.lint-kind }}
       run: |
         tox -e lint-${{ matrix.lint-kind }}
