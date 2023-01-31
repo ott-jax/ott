@@ -36,7 +36,8 @@ jobs:
     - name: Install PyEnchant
       if: ${{ matrix.lint-kind == 'docs' }}
       run: |
-        sudo apt install libenchant-dev
+        sudo apt update -y
+        sudo apt install libenchant-2-dev
         python -m pip install pyenchant
 
     - name: Lint ${{ matrix.lint-kind }}
