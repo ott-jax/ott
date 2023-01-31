@@ -49,8 +49,6 @@ Cost Functions
 .. autosummary::
     :toctree: _autosummary
 
-    costs.CostFn
-    costs.TICost
     costs.SqPNorm
     costs.PNormP
     costs.SqEuclidean
@@ -58,6 +56,9 @@ Cost Functions
     costs.Cosine
     costs.Bures
     costs.UnbalancedBures
+    costs.ElasticNet
+    costs.ElasticSTVS
+    costs.ElasticSqKOverlap
 
 Utilities
 ---------

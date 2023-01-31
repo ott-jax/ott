@@ -32,7 +32,7 @@ __all__ = [
 
 @jax.tree_util.register_pytree_node_class
 class CostFn(abc.ABC):
-  """A generic cost function, taking two vectors as input.
+  """Base class for all costs.
 
   Cost functions evaluate a function on a pair of inputs. For convenience,
   that function is split into two norms -- evaluated on each input separately --
@@ -41,14 +41,14 @@ class CostFn(abc.ABC):
   ``c(x,y) = norm(x) + norm(y) + pairwise(x,y)``
 
   If the :attr:`norm` function is not implemented, that value is handled as a 0,
-  and only :attr:`pairwise` is used.
+  and only :func:`pairwise` is used.
   """
 
   # no norm function created by default.
   norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     pass
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
@@ -61,7 +61,7 @@ class CostFn(abc.ABC):
     Returns:
       The barycenter of `xs` using `weights` coefficients.
     """
-    raise NotImplementedError("Barycenter is not yet implemented.")
+    raise NotImplementedError("Barycenter is not implemented.")
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
@@ -75,7 +75,7 @@ class CostFn(abc.ABC):
     """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
@@ -114,7 +114,7 @@ class CostFn(abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class TICost(CostFn):
-  """A class for translation invariant (TI) costs.
+  """Base class for translation invariant (TI) costs.
 
   Such costs are defined using a function :math:`h`, mapping vectors to
   real-values, to be used as:
@@ -137,7 +137,7 @@ class TICost(CostFn):
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -145,9 +145,6 @@ class TICost(CostFn):
 @jax.tree_util.register_pytree_node_class
 class SqPNorm(TICost):
   """Squared p-norm of the difference of two vectors.
-
-  For details on the derivation of the Legendre transform of the norm, see e.g.
-  the reference :cite:`boyd:04`, p.93/94.
 
   Args:
     p: Power of the p-norm.
@@ -163,6 +160,10 @@ class SqPNorm(TICost):
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
 
   def h_legendre(self, z: jnp.ndarray) -> float:
+    """Legendre transform of :func:`h`.
+
+    For details on the derivation, see e.g., :cite:`boyd:04`, p. 93/94.
+    """
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
   def tree_flatten(self):
@@ -215,7 +216,7 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
 
@@ -228,7 +229,7 @@ class SqEuclidean(TICost):
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
@@ -255,7 +256,7 @@ class Cosine(CostFn):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -271,14 +272,22 @@ class Cosine(CostFn):
 
 
 class RegTICost(TICost, abc.ABC):
+  r"""Base class for regularized translation-invariant costs.
+
+  .. math::
+
+    \frac{1}{2} \|\cdot\|_2^2 + reg\left(\cdot\right)
+
+  where :func:`reg` is the regularization function.
+  """
 
   @abc.abstractmethod
   def reg(self, z: jnp.ndarray) -> float:
-    pass
+    """Regularization function."""
 
-  @abc.abstractmethod
-  def prox_reg(self, z: jnp.ndarray) -> float:
-    pass
+  def prox_reg(self, z: jnp.ndarray) -> jnp.ndarray:
+    """Proximal operator of :func:`reg`."""
+    raise NotImplementedError("Proximal operator is not implemented.")
 
   def h(self, z: jnp.ndarray) -> float:
     return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
@@ -290,32 +299,31 @@ class RegTICost(TICost, abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class ElasticNet(RegTICost):
-  """Elastic net.
+  r"""Cost with ElasticNet :cite:`zou:05` regularization.
 
-  lam / 2 * || . ||^2_2 + gam || . ||_1
+  .. math::
 
-  (e.g. https://proceedings.mlr.press/v130/mehmood21a/mehmood21a.pdf but with
-  minor typo when giving Legendre)
+    \frac{1}{2} \lambda \|\cdot\|_2^2 + \gamma \|\cdot\|_1
 
   Args:
-    lam: weight in front of 0.5 L2^2 penalization
-    gam: L1 penalization
+    lam: Strength of :math:`\|\cdot\|_2^2` penalization.
+    gamma: Strength of :math:`\|\cdot\|_1` penalization.
   """
 
-  def __init__(self, lam: float = 1.0, gam: float = 1.0):
+  def __init__(self, lam: float = 1.0, gamma: float = 1.0):
     super().__init__()
     self.lam = lam
-    self.gam = gam
+    self.gamma = gamma
 
   def reg(self, z: jnp.ndarray) -> float:
     out = 0.5 * self.lam * jnp.linalg.norm(z, ord=2) ** 2
-    return out + self.gam * jnp.linalg.norm(z, ord=1)
+    return out + self.gamma * jnp.linalg.norm(z, ord=1)
 
   def prox_reg(self, z: jnp.ndarray) -> float:
-    return prox.prox_elastic_net(z, (self.gam, self.lam / self.gam))
+    return prox.prox_elastic_net(z, (self.gamma, self.lam / self.gamma))
 
   def tree_flatten(self):
-    return (), (self.lam, self.gam)
+    return (), (self.lam, self.gamma)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -325,30 +333,34 @@ class ElasticNet(RegTICost):
 
 @jax.tree_util.register_pytree_node_class
 class ElasticSTVS(RegTICost):
-  """Elastic with sparsifying norm, reducing shrinkage.
+  r"""Cost with soft thresholding operator with vanishing shrinkage (STVS)
+  :cite:`schreck:15` regularization.
 
-  1 / 2 * || . ||^2_2 + t(x)
+  .. math::
 
-  https://arxiv.org/pdf/1312.5658.pdf Lemma 2.1
+    \frac{1}{2} \|\cdot\|_2^2 + \gamma^2\mathbf{1}_d^T\left(\sigma(\cdot) -
+    \frac{1}{2} \exp\left(-2\sigma(\cdot)\right) + \frac{1}{2}\right)
+
+  where :math:`\sigma(\cdot):= \text{asinh}\left(\frac{\cdot}{2\gamma}\right)`
 
   Args:
-    gam: penalization for `t` function
-  """
+    gamma: Strength of the STVS regularization.
+  """  # noqa
 
-  def __init__(self, gam=1.0):
+  def __init__(self, gamma: float = 1.0):
     super().__init__()
-    self.gam = gam
+    self.gamma = gamma
 
   def reg(self, z: jnp.ndarray) -> float:
-    u = jnp.arcsinh(jnp.abs(z) / (2 * self.gam))
+    u = jnp.arcsinh(jnp.abs(z) / (2 * self.gamma))
     out = u - 0.5 * jnp.exp(-2.0 * u)
-    return (self.gam ** 2) * jnp.sum(out + 0.5)  # make positive
+    return (self.gamma ** 2) * jnp.sum(out + 0.5)  # make positive
 
   def prox_reg(self, z: jnp.ndarray) -> float:
-    return jax.nn.relu(1 - (self.gam / (jnp.abs(z) + 1e-12)) ** 2) * z
+    return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
 
   def tree_flatten(self):
-    return (), (self.gam,)
+    return (), (self.gamma,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -358,23 +370,27 @@ class ElasticSTVS(RegTICost):
 
 @jax.tree_util.register_pytree_node_class
 class ElasticSqKOverlap(RegTICost):
-  """Squared k-overlap group norm.
+  r"""Cost with squared k-overlap norm regularization :cite:`argyriou:12`.
 
-  0.5 L2 + 0.5 * gam * ( )_k-ov^2
+  .. math::
 
-  https://proceedings.neurips.cc/paper/2012/file/99bcfcd754a98ce89cb86f73acc04645-Paper.pdf
+    \frac{1}{2} \|\cdot\| + \gamma \|\cdot\|_{ovk}^2
+
+  where :math:`\|\cdot\|_{ovk}^2` is the squared k-overlap norm,
+  see def. 2.1 of :cite:`argyriou:12`.
 
   Args:
-    k: Number of groups.
-    gam: TODO(michalk8)
+    k: Number of groups. Must be in ``[0, d)`` where :math:`d` is the
+      dimensionality of the data.
+    gamma: Strength of the squared k-overlap norm regularization.
   """
 
-  def __init__(self, k: int, gam: float = 1.0):
+  def __init__(self, k: int, gamma: float = 1.0):
     self.k = k
-    self.gam = gam
+    self.gamma = gamma
 
   def reg(self, z: jnp.ndarray) -> float:
-    # Prop 2.1 in reference.
+    # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
     top_w = jnp.flip(top_w)  # Sort k-largest from smallest to largest
@@ -396,7 +412,7 @@ class ElasticSqKOverlap(RegTICost):
             jnp.flip(top_w) ** 2, 0
         )
     )
-    return self.gam * 0.5 * (s + (r + 1) * cesaro[r] ** 2)
+    return self.gamma * 0.5 * (s + (r + 1) * cesaro[r] ** 2)
 
   def prox_reg(self, z: jnp.ndarray) -> float:
 
@@ -422,7 +438,8 @@ class ElasticSqKOverlap(RegTICost):
               z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
       return inner(r, l, z)
 
-    beta = 1 / self.gam
+    # Alg 1 of :cite:`argyriou:12`
+    beta = 1 / self.gamma
     d = z.shape[-1]
     k = self.k
 
@@ -433,7 +450,7 @@ class ElasticSqKOverlap(RegTICost):
     z_sorted = z[z_ixs]
 
     T, mask = outer(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
-    (r,), (l,) = jnp.where(mask, size=1)
+    (r,), (l,) = jnp.where(mask, size=1)  # size=1 for jitting
     shift = T[r, l]
     l = l + k - 1
 
@@ -445,7 +462,7 @@ class ElasticSqKOverlap(RegTICost):
     return sign * q[idx]
 
   def tree_flatten(self):
-    return (), (self.k, self.gam)
+    return (), (self.k, self.gamma)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
@@ -474,7 +491,7 @@ class Bures(CostFn):
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -645,7 +662,7 @@ class UnbalancedBures(CostFn):
     """
     return self._gamma * x[..., 0]
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute dot-product for unbalanced Bures.
 
     Args:

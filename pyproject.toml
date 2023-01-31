@@ -20,6 +20,7 @@ dependencies = [
     "matplotlib>=3.0.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
+    "jaxopt>=0.3.0",
     "scipy>=1.7.0",
 ]
 keywords = [
@@ -49,6 +50,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 ]
 
 [project.urls]
