@@ -17,8 +17,6 @@ import functools
 import math
 from typing import Any, Callable, Optional, Tuple, Union
 
-from jaxopt import prox
-
 import jax
 import jax.numpy as jnp
 
@@ -320,7 +318,8 @@ class ElasticNet(RegTICost):
     return out + self.gamma * jnp.linalg.norm(z, ord=1)
 
   def prox_reg(self, z: jnp.ndarray) -> float:
-    return prox.prox_elastic_net(z, (self.gamma, self.lam / self.gamma))
+    prox_l1 = jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
+    return prox_l1 / (1 + self.lam)
 
   def tree_flatten(self):
     return (), (self.lam, self.gamma)
