@@ -297,7 +297,7 @@ class RegTICost(TICost, abc.ABC):
 
 @jax.tree_util.register_pytree_node_class
 class ElasticNet(RegTICost):
-  r"""Cost with ElasticNet :cite:`zou:05` regularization.
+  r"""Cost with elastic net :cite:`zou:05` regularization.
 
   .. math::
 
@@ -342,7 +342,7 @@ class ElasticSTVS(RegTICost):
     \frac{1}{2} \|\cdot\|_2^2 + \gamma^2\mathbf{1}_d^T\left(\sigma(\cdot) -
     \frac{1}{2} \exp\left(-2\sigma(\cdot)\right) + \frac{1}{2}\right)
 
-  where :math:`\sigma(\cdot):= \text{asinh}\left(\frac{\cdot}{2\gamma}\right)`
+  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}{2\gamma}\right)`
 
   Args:
     gamma: Strength of the STVS regularization.
@@ -376,7 +376,7 @@ class ElasticSqKOverlap(RegTICost):
 
   .. math::
 
-    \frac{1}{2} \|\cdot\| + \gamma \|\cdot\|_{ovk}^2
+    \frac{1}{2} \|\cdot\|_2 ^2 + \gamma \|\cdot\|_{ovk}^2
 
   where :math:`\|\cdot\|_{ovk}^2` is the squared k-overlap norm,
   see def. 2.1 of :cite:`argyriou:12`.
