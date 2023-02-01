@@ -454,11 +454,10 @@ class ElasticSqKOverlap(RegTICost):
     # (k, d - k + 1)
     T, mask = find_indices(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
     (r,), (l,) = jnp.where(mask, size=1)  # size=1 for jitting
-    shift = T[r, l]
-    l += k - 1
+    T = T[r, l]
 
-    q1 = (beta / (beta + 1)) * z_sorted * (ixs < (k - r))
-    q2 = (z_sorted - shift) * jnp.logical_and((k - r) <= ixs, ixs <= l)
+    q1 = (beta / (beta + 1)) * z_sorted * (ixs < (k - r - 1))
+    q2 = (z_sorted - T) * jnp.logical_and((k - r - 1) <= ixs, ixs < (l + k))
     q = q1 + q2
 
     # change sign and reorder
