@@ -126,4 +126,16 @@ class TestRegTICost:
       rng, rng1 = jax.random.split(rng)
       expected = jax.random.normal(rng1, (d,))
       actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
-      np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+      np.testing.assert_allclose(
+          actual, expected, rtol=1e-5, atol=1e-5, err_msg=f"d={d}"
+      )
+
+  @pytest.mark.parametrize("k", [1, 2, 7, 10])
+  @pytest.mark.parametrize("d", [10, 50, 100])
+  def test_elastic_sq_k_overlap(self, rng: jax.random.PRNGKey, k: int, d: int):
+    expected = jax.random.normal(rng, (d,))
+
+    cost_fn = costs.ElasticSqKOverlap(k=k, gamma=1e-2)
+    actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
+    # should hold for small gamma
+    assert np.corrcoef(expected, actual)[0][1] > 0.97

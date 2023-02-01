@@ -443,7 +443,7 @@ class ElasticSqKOverlap(RegTICost):
 
       return inner(r, l, z)
 
-    # Alg 1 of :cite:`argyriou:12`
+    # Alg. 1 of :cite:`argyriou:12`
     k, d, beta = self.k, z.shape[-1], 1.0 / self.gamma
 
     ixs = jnp.arange(d)
