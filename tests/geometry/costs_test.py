@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for the cost/norm functions."""
+from typing import Type
 
 import pytest
 
@@ -151,16 +152,37 @@ class TestRegTICost:
   def test_sparse_displacement(
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
   ):
+    frac_sparse = 0.8 if isinstance(cost_fn, costs.ElasticSqKOverlap) else 0.9
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (50, 30))
     y = jax.random.normal(key2, (71, 30))
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
     dp = sinkhorn.solve(geom).to_dual_potentials()
-    x_fwd = dp.transport(x, forward=True)
-    y_bwd = dp.transport(y, forward=False)
 
-    frac_sparse = 0.8 if isinstance(cost_fn, costs.ElasticSqKOverlap) else 0.9
+    for arr, fwd in zip([x, y], [True, False]):
+      arr_t = dp.transport(arr, forward=fwd)
+      assert np.sum(np.isclose(arr, arr_t)) / arr.size > frac_sparse
 
-    assert np.sum(np.isclose(x, x_fwd)) / x.size > frac_sparse
-    assert np.sum(np.isclose(y, y_bwd)) / x.size > frac_sparse
+  @pytest.mark.parametrize("cost_clazz", [costs.ElasticNet, costs.ElasticSTVS])
+  def test_stronger_regularization_increases_sparsity(
+      self, rng: jax.random.PRNGKeyArray, cost_clazz: Type[costs.RegTICost]
+  ):
+    d, keys = 30, jax.random.split(rng, 4)
+    x = jax.random.normal(keys[0], (50, d))
+    y = jax.random.normal(keys[1], (71, d))
+    xx = jax.random.normal(keys[2], (25, d))
+    yy = jax.random.normal(keys[3], (35, d))
+
+    sparsity = {False: [], True: []}
+    for gamma in [9, 10, 100]:
+      cost_fn = cost_clazz(gamma=gamma)
+      geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
+
+      dp = sinkhorn.solve(geom).to_dual_potentials()
+      for arr, fwd in zip([xx, yy], [True, False]):
+        arr_t = dp.transport(arr, forward=True)
+        sparsity[fwd].append(np.sum(np.isclose(arr, arr_t)))
+
+    for fwd in [False, True]:
+      np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
