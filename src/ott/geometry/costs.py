@@ -376,7 +376,7 @@ class ElasticSqKOverlap(RegTICost):
 
   .. math::
 
-    \frac{1}{2} \|\cdot\|_2 ^2 + \gamma \|\cdot\|_{ovk}^2
+    \frac{1}{2} \|\cdot\|_2^2 + \frac{1}{2} \gamma \|\cdot\|_{ovk}^2
 
   where :math:`\|\cdot\|_{ovk}^2` is the squared k-overlap norm,
   see def. 2.1 of :cite:`argyriou:12`.
@@ -403,20 +403,16 @@ class ElasticSqKOverlap(RegTICost):
     cumsum_top = jnp.cumsum(top_w)
     # Cesaro mean of top_w (each term offset with sum_bottom).
     cesaro = sum_bottom + cumsum_top
-    cesaro /= jnp.arange(0, k) + 1
+    cesaro /= jnp.arange(k) + 1
     # Choose first index satisfying constraint in Prop 2.1
     lower_bound = cesaro - top_w >= 0
     # Last upper bound is always True.
     upper_bound = jnp.concatenate(((top_w[1:] - cesaro[:-1] > 0),
                                    jnp.array((True,))))
     r = jnp.argmax(lower_bound * upper_bound)
-    s = jnp.sum(
-        jnp.where(
-            jnp.arange(k, dtype=int) < k - r - 1,
-            jnp.flip(top_w) ** 2, 0
-        )
-    )
-    return self.gamma * 0.5 * (s + (r + 1) * cesaro[r] ** 2)
+    s = jnp.sum(jnp.where(jnp.arange(k) < k - r - 1, jnp.flip(top_w) ** 2, 0))
+
+    return 0.5 * self.gamma * (s + (r + 1) * cesaro[r] ** 2)
 
   def prox_reg(self, z: jnp.ndarray) -> float:
 
