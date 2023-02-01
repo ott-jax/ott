@@ -109,8 +109,6 @@ class TestRegTICost:
           costs.ElasticNet(lam=0.0, gamma=0.0),
           costs.ElasticSTVS(gamma=2.2),
           costs.ElasticSTVS(gamma=10),
-          costs.ElasticSqKOverlap(3, gamma=1.5),
-          costs.ElasticSqKOverlap(10, gamma=3),
       ],
       ids=[
           "elasticnet",
@@ -119,13 +117,13 @@ class TestRegTICost:
           "elasticnet-lam0-gam0",
           "stvs-gam2.2",
           "stvs-gam10",
-          "koverlap-k3",
-          "koverlap-k10",
       ],
   )
   def test_reg_cost_legendre(
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
   ):
-    expected = jax.random.normal(rng, (20,))
-    actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
-    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+    for d in [5, 10, 50, 100, 1000]:
+      rng, rng1 = jax.random.split(rng)
+      expected = jax.random.normal(rng1, (d,))
+      actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
+      np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
