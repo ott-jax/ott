@@ -23,7 +23,7 @@ import jax.numpy as jnp
 from ott.math import fixed_point_loop, matrix_square_root
 
 __all__ = [
-    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticNet",
+    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticL1",
     "ElasticSTVS", "ElasticSqKOverlap", "Bures", "UnbalancedBures"
 ]
 
@@ -296,35 +296,30 @@ class RegTICost(TICost, abc.ABC):
 
 
 @jax.tree_util.register_pytree_node_class
-class ElasticNet(RegTICost):
-  r"""Cost with elastic net :cite:`zou:05` regularization.
+class ElasticL1(RegTICost):
+  r"""Cost inspired by elastic net :cite:`zou:05` regularization.
 
   .. math::
 
-    \frac{1}{2} \lambda \|\cdot\|_2^2 + \gamma \|\cdot\|_1
+    \frac{1}{2} \|\cdot\|_2^2 + \gamma \|\cdot\|_1
 
   Args:
-    lam: Strength of :math:`\|\cdot\|_2^2` penalization.
-    gamma: Strength of :math:`\|\cdot\|_1` penalization.
+    gamma: Strength of the :math:`\|\cdot\|_1` regularization.
   """
 
-  def __init__(self, lam: float = 1.0, gamma: float = 1.0):
+  def __init__(self, gamma: float = 1.0):
     super().__init__()
-    assert lam >= 0, "Lambda must be non-negative."
     assert gamma >= 0, "Gamma must be non-negative."
-    self.lam = lam
     self.gamma = gamma
 
   def reg(self, z: jnp.ndarray) -> float:
-    out = 0.5 * self.lam * jnp.linalg.norm(z, ord=2) ** 2
-    return out + self.gamma * jnp.linalg.norm(z, ord=1)
+    return self.gamma * jnp.linalg.norm(z, ord=1)
 
   def prox_reg(self, z: jnp.ndarray) -> float:
-    prox_l1 = jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
-    return prox_l1 / (1 + self.lam)
+    return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
 
   def tree_flatten(self):
-    return (), (self.lam, self.gamma)
+    return (), (self.gamma,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):

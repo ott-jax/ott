@@ -56,7 +56,7 @@ Cost Functions
     costs.Cosine
     costs.Bures
     costs.UnbalancedBures
-    costs.ElasticNet
+    costs.ElasticL1
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
 

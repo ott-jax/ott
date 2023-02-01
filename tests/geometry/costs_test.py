@@ -105,18 +105,14 @@ class TestRegTICost:
   @pytest.mark.parametrize(
       "cost_fn",
       [
-          costs.ElasticNet(lam=2, gamma=1e-2),
-          costs.ElasticNet(lam=0.0, gamma=20),
-          costs.ElasticNet(lam=0.5, gamma=0.0),
-          costs.ElasticNet(lam=0.0, gamma=0.0),
+          costs.ElasticL1(gamma=5),
+          costs.ElasticL1(gamma=0.0),
           costs.ElasticSTVS(gamma=2.2),
           costs.ElasticSTVS(gamma=10),
       ],
       ids=[
           "elasticnet",
-          "elasticnet-lam0",
           "elasticnet-gam0",
-          "elasticnet-lam0-gam0",
           "stvs-gam2.2",
           "stvs-gam10",
       ],
@@ -144,7 +140,7 @@ class TestRegTICost:
 
   @pytest.mark.parametrize(
       "cost_fn", [
-          costs.ElasticNet(gamma=100),
+          costs.ElasticL1(gamma=100),
           costs.ElasticSTVS(gamma=10),
           costs.ElasticSqKOverlap(k=3, gamma=20)
       ]
@@ -164,7 +160,7 @@ class TestRegTICost:
       arr_t = dp.transport(arr, forward=fwd)
       assert np.sum(np.isclose(arr, arr_t)) / arr.size > frac_sparse
 
-  @pytest.mark.parametrize("cost_clazz", [costs.ElasticNet, costs.ElasticSTVS])
+  @pytest.mark.parametrize("cost_clazz", [costs.ElasticL1, costs.ElasticSTVS])
   def test_stronger_regularization_increases_sparsity(
       self, rng: jax.random.PRNGKeyArray, cost_clazz: Type[costs.RegTICost]
   ):
