@@ -19,7 +19,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs
+from ott.geometry import costs, pointcloud
+from ott.solvers.linear import sinkhorn
 
 
 @pytest.mark.fast
@@ -139,3 +140,27 @@ class TestRegTICost:
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
     # should hold for small gamma
     assert np.corrcoef(expected, actual)[0][1] > 0.97
+
+  @pytest.mark.parametrize(
+      "cost_fn", [
+          costs.ElasticNet(gamma=100),
+          costs.ElasticSTVS(gamma=10),
+          costs.ElasticSqKOverlap(k=3, gamma=20)
+      ]
+  )
+  def test_sparse_displacement(
+      self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
+  ):
+    key1, key2 = jax.random.split(rng, 2)
+    x = jax.random.normal(key1, (50, 30))
+    y = jax.random.normal(key2, (71, 30))
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
+
+    dp = sinkhorn.solve(geom).to_dual_potentials()
+    x_fwd = dp.transport(x, forward=True)
+    y_bwd = dp.transport(y, forward=False)
+
+    frac_sparse = 0.8 if isinstance(cost_fn, costs.ElasticSqKOverlap) else 0.9
+
+    assert np.sum(np.isclose(x, x_fwd)) / x.size > frac_sparse
+    assert np.sum(np.isclose(y, y_bwd)) / x.size > frac_sparse
