@@ -310,6 +310,8 @@ class ElasticNet(RegTICost):
 
   def __init__(self, lam: float = 1.0, gamma: float = 1.0):
     super().__init__()
+    assert lam >= 0, "Lambda must be non-negative."
+    assert gamma >= 0, "Gamma must be non-negative."
     self.lam = lam
     self.gamma = gamma
 
@@ -348,6 +350,7 @@ class ElasticSTVS(RegTICost):
 
   def __init__(self, gamma: float = 1.0):
     super().__init__()
+    assert gamma > 0, "Gamma must be positive."
     self.gamma = gamma
 
   def reg(self, z: jnp.ndarray) -> float:
@@ -385,6 +388,8 @@ class ElasticSqKOverlap(RegTICost):
   """
 
   def __init__(self, k: int, gamma: float = 1.0):
+    super().__init__()
+    assert gamma > 0, "Gamma must be positive."
     self.k = k
     self.gamma = gamma
 

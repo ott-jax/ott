@@ -70,27 +70,62 @@ class TestCostFn:
             atol=1e-5,
         )
 
-  @pytest.mark.fast
-  class TestBuresBarycenter:
 
-    def test_buresb(self, rng: jnp.ndarray):
-      d = 5
-      r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
-      Sigma1 = r * jnp.eye(d)
-      s = jnp.array([0.3075, 0.8545, 0.1110, 0.0054, 0.9206])
-      Sigma2 = s * jnp.eye(d)
-      # initializing Bures cost function
-      weights = jnp.array([.3, .7])
-      bures = costs.Bures(d)
-      # stacking parameter values
-      xs = jnp.vstack((
-          costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma1, d),
-          costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma2, d)
-      ))
+@pytest.mark.fast
+class TestBuresBarycenter:
 
-      output = bures.barycenter(weights, xs, tolerance=1e-4, threshold=1e-6)
-      _, sigma = costs.x_to_means_and_covs(output, 5)
-      ground_truth = (weights[0] * jnp.sqrt(r) + weights[1] * jnp.sqrt(s)) ** 2
-      np.testing.assert_allclose(
-          ground_truth, jnp.diag(sigma), rtol=1e-5, atol=1e-5
-      )
+  def test_bures(self, rng: jnp.ndarray):
+    d = 5
+    r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
+    Sigma1 = r * jnp.eye(d)
+    s = jnp.array([0.3075, 0.8545, 0.1110, 0.0054, 0.9206])
+    Sigma2 = s * jnp.eye(d)
+    # initializing Bures cost function
+    weights = jnp.array([.3, .7])
+    bures = costs.Bures(d)
+    # stacking parameter values
+    xs = jnp.vstack((
+        costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma1, d),
+        costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma2, d)
+    ))
+
+    output = bures.barycenter(weights, xs, tolerance=1e-4, threshold=1e-6)
+    _, sigma = costs.x_to_means_and_covs(output, 5)
+    ground_truth = (weights[0] * jnp.sqrt(r) + weights[1] * jnp.sqrt(s)) ** 2
+    np.testing.assert_allclose(
+        ground_truth, jnp.diag(sigma), rtol=1e-5, atol=1e-5
+    )
+
+
+@pytest.mark.fast
+class TestRegTICost:
+
+  @pytest.mark.parametrize(
+      "cost_fn",
+      [
+          costs.ElasticNet(lam=2, gamma=1e-2),
+          costs.ElasticNet(lam=0.0, gamma=20),
+          costs.ElasticNet(lam=0.5, gamma=0.0),
+          costs.ElasticNet(lam=0.0, gamma=0.0),
+          costs.ElasticSTVS(gamma=2.2),
+          costs.ElasticSTVS(gamma=10),
+          costs.ElasticSqKOverlap(3, gamma=1.5),
+          costs.ElasticSqKOverlap(10, gamma=3),
+      ],
+      ids=[
+          "elasticnet",
+          "elasticnet-lam0",
+          "elasticnet-gam0",
+          "elasticnet-lam0-gam0",
+          "stvs-gam2.2",
+          "stvs-gam10",
+          "koverlap-k3",
+          "koverlap-k10",
+      ],
+  )
+  def test_reg_cost_legendre(
+      self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
+  ):
+    expected = jax.random.normal(rng, (20,))
+    actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
