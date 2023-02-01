@@ -420,50 +420,49 @@ class ElasticSqKOverlap(RegTICost):
 
   def prox_reg(self, z: jnp.ndarray) -> float:
 
-    @functools.partial(jax.vmap, in_axes=[None, 0, None])
-    def inner(r: int, l: int,
-              z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-      i = k - r - 1
-      res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
-      res /= l - k + (beta + 1) * r + beta + 1
-
-      cond1_left = jnp.logical_or(i == 0, (z[i - 1] / beta + 1) > res)
-      cond1_right = res >= (z[i] / (beta + 1))
-      cond1 = jnp.logical_and(cond1_left, cond1_right)
-
-      cond2_left = z[l - 1] > res
-      cond2_right = jnp.logical_or(l == d, res >= z[l])
-      cond2 = jnp.logical_and(cond2_left, cond2_right)
-
-      return res, cond1 & cond2
-
     @functools.partial(jax.vmap, in_axes=[0, None, None])
-    def outer(r: int, l: jnp.ndarray,
-              z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    def find_indices(r: int, l: jnp.ndarray,
+                     z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+
+      @functools.partial(jax.vmap, in_axes=[None, 0, None])
+      def inner(r: int, l: int,
+                z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        i = k - r - 1
+        res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
+        res /= l - k + (beta + 1) * r + beta + 1
+
+        cond1_left = jnp.logical_or(i == 0, (z[i - 1] / beta + 1) > res)
+        cond1_right = res >= (z[i] / (beta + 1))
+        cond1 = jnp.logical_and(cond1_left, cond1_right)
+
+        cond2_left = z[l - 1] > res
+        cond2_right = jnp.logical_or(l == d, res >= z[l])
+        cond2 = jnp.logical_and(cond2_left, cond2_right)
+
+        return res, cond1 & cond2
+
       return inner(r, l, z)
 
     # Alg 1 of :cite:`argyriou:12`
-    beta = 1 / self.gamma
-    d = z.shape[-1]
-    k = self.k
+    k, d, beta = self.k, z.shape[-1], 1.0 / self.gamma
 
-    ixs = jnp.arange(len(z))
-    sign = jnp.sign(z)
-    z = jnp.abs(z)
+    ixs = jnp.arange(d)
+    z, sgn = jnp.abs(z), jnp.sign(z)
     z_ixs = jnp.argsort(z)[::-1]
     z_sorted = z[z_ixs]
 
-    T, mask = outer(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
+    # (k, d - k + 1)
+    T, mask = find_indices(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
     (r,), (l,) = jnp.where(mask, size=1)  # size=1 for jitting
     shift = T[r, l]
-    l = l + k - 1
+    l += k - 1
 
     q1 = (beta / (beta + 1)) * z_sorted * (ixs < (k - r))
     q2 = (z_sorted - shift) * jnp.logical_and((k - r) <= ixs, ixs <= l)
     q = q1 + q2
 
-    idx = jnp.argsort(z_ixs.astype(float))
-    return sign * q[idx]
+    # change sign and reorder
+    return sgn * q[jnp.argsort(z_ixs.astype(float))]
 
   def tree_flatten(self):
     return (), (self.k, self.gamma)
