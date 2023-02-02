@@ -1,9 +1,8 @@
 import os
 import sys
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Literal, Optional, Tuple, Union
 
 import pytest
-from typing_extensions import Literal
 
 import jax
 import jax.numpy as jnp

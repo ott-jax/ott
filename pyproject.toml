@@ -145,6 +145,25 @@ spaces_around_power_operator = true
 dedent_closing_brackets = true
 coalesce_brackets = true
 
+[tool.rstcheck]
+ignore_directives = [
+    "toctree",
+    "currentmodule",
+    "autosummary",
+    "automodule",
+    "autoclass",
+    "bibliography"
+]
+ignore_roles = [
+    "class",
+    "doc",
+    "cite",
+]
+
+[tool.doc8]
+max_line_length = 80
+ignore_path = ['docs/**/_autosummary']
+
 [tool.tox]
 legacy_tox_ini = """
     [tox]

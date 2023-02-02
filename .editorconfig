@@ -5,7 +5,7 @@ end_of_line = lf
 insert_final_newline = true
 charset = utf-8
 
-[*py]
+[{*py,*.rst}]
 indent_size = 2
 indent_style = space
 max_line_length = 80
