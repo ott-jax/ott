@@ -883,19 +883,21 @@ class Sinkhorn:
     if self.anderson:
       state = self.anderson.update_history(state, ot_prob, self.lse_mode)
 
-    # TODO(michalk8): use `jax.lax.cond`
     # re-computes error if compute_error is True, else set it to inf.
-    err = jnp.where(
+    err = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        state.solution_error(
-            ot_prob,
+        lambda state, prob: state.solution_error(
+            prob,
             self.norm_error,
             lse_mode=self.lse_mode,
             parallel_dual_updates=self.parallel_dual_updates,
-            recenter=self.recenter_potentials,
-        ), jnp.inf
+            recenter=self.recenter_potentials
+        )[0],
+        lambda *_: jnp.inf,
+        state,
+        ot_prob,
     )
-    errors = (state.errors.at[iteration // self.inner_iterations, :].set(err))
+    errors = state.errors.at[iteration // self.inner_iterations, :].set(err)
     return state.set(errors=errors)
 
   def _converged(self, state: SinkhornState, iteration: int) -> bool:

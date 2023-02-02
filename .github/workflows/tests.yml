@@ -8,57 +8,73 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
+  fast-tests:
+    name: Fast tests Python 3.9 on ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+
+    - name: Setup environment
+      run: |
+        tox -e py39 --notest -v
+
+    - name: Run tests
+      run: |
+        tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
+
+  tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8]
+        python-version: ['3.8', '3.10', '3.11']
         os: [ubuntu-latest]
-        test_mark: [fast, all]
+        include:
+        - python-version: '3.9'
+          os: macos-latest
 
     steps:
     - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
-      if: runner.os == 'Linux'
       run: |
-        sudo apt install libsuitesparse-dev
+        python -m pip install --upgrade pip
+        python -m pip install tox
 
-    - name: Build
+    - name: Setup environment
       run: |
-        set -xe
-        python -VV
-        pip install --upgrade pip
-        pip install pytest-memray
-        pip install -e '.[test,experimental]'
+        tox -e py${{ matrix.python-version }} --notest -v
 
-    - name: Print versions
+    - name: Run tests
       run: |
-        python -VV
-        python -c "import jax; print('jax==', jax.__version__)"
-        python -c "import jaxlib; print('jaxlib==', jaxlib.__version__)"
-
-    - name: Run fast tests
-      if: ${{ matrix.test_mark == 'fast' }}
-      run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --memray -m fast -n auto
-
-    - name: Run all tests
-      if: ${{ matrix.test_mark == 'all' }}
-      run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --memray
+        tox -e py${{ matrix.python-version }} --skip-pkg-install
+      env:
+        PYTEST_ADDOPTS: --memray --durations 10 -vv
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:
         files: ./coverage.xml
-        flags: tests-${{ matrix.test_mark }}
+        flags: tests-${{ matrix.os }}-${{ matrix.python-version }}
         name: unittests
         env_vars: OS,PYTHON
         fail_ci_if_error: false
