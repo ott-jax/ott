@@ -13,12 +13,10 @@
 # limitations under the License.
 """A class describing operations used to instantiate and use a geometry."""
 import functools
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Tuple, Union
 
 if TYPE_CHECKING:
   from ott.geometry import low_rank
-
-from typing import Literal
 
 import jax
 import jax.numpy as jnp

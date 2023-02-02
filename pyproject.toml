@@ -173,8 +173,9 @@ legacy_tox_ini = """
 
     [testenv]
     extras = test
-    passenv = CI,PYTEST_*
+    pass_env = CUDA_VISIBLE_DEVICES,CI,PYTEST_*
     commands =
+        gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
             --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
