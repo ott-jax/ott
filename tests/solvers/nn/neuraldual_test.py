@@ -11,10 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
-from typing import Iterator, Sequence, Tuple
+from typing import Iterator, Literal, Sequence, Tuple
 
 import pytest
-from typing_extensions import Literal
 
 import jax
 import jax.numpy as jnp
