@@ -37,6 +37,7 @@ jobs:
         tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
 
   gpu-tests:
+    name: GPU tests Python 3.8
     runs-on: [self-hosted, cml-gpu]
     container:
       image: docker://iterativeai/cml:0-dvc2-base1-gpu
@@ -48,9 +49,13 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install tox
 
+    - name: Nvidia SMI
+      run: |
+        nvidia-smi
+
     - name: Run tests
       run: |
-        tox -e py310-gpu -- -m fast --memray -vv
+        tox -e py38-gpu -- -m fast --memray -vv
       env:
         # TODO(michalk8): select automatically
         CUDA_VISIBLE_DEVICES: 0
