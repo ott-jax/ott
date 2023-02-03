@@ -680,6 +680,7 @@ class Sinkhorn:
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
+    jit: Whether to jit the iteration loop.
     initializer: how to compute the initial potentials/scalings.
     kwargs_init: keyword arguments when creating the initializer.
   """
@@ -697,6 +698,7 @@ class Sinkhorn:
       parallel_dual_updates: bool = False,
       recenter_potentials: bool = False,
       use_danskin: Optional[bool] = None,
+      jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
       initializer: Union[Literal["default", "gaussian", "sorting"],
@@ -711,6 +713,7 @@ class Sinkhorn:
     self._norm_error = norm_error
     self.anderson = anderson
     self.implicit_diff = implicit_diff
+    self.jit = jit
 
     if momentum is not None:
       self.momentum = acceleration.Momentum(
@@ -767,7 +770,8 @@ class Sinkhorn:
     init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode
     )
-    return run(ot_prob, self, (init_dual_a, init_dual_b))
+    run_fn = jax.jit(run) if self.jit else run
+    return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
 
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,

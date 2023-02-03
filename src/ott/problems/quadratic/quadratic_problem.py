@@ -108,7 +108,6 @@ class QuadraticProblem:
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
   ):
-    assert fused_penalty > 0, fused_penalty
     self._geom_xx = geom_xx._set_scale_cost(scale_cost)
     self._geom_yy = geom_yy._set_scale_cost(scale_cost)
     self._geom_xy = (
