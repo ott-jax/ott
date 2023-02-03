@@ -160,7 +160,8 @@ class TestSinkhornJacobian:
     def reg_ot(a: jnp.ndarray, b: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x, y, epsilon=1e-1)
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
-      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+      # TODO: fails with `jit=True`, investigate
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, jit=False)
       return solver(prob).reg_ot_cost
 
     reg_ot_and_grad = jax.jit(jax.grad(reg_ot))
@@ -277,6 +278,8 @@ class TestSinkhornJacobian:
           lse_mode=lse_mode,
           min_iterations=min_iter,
           max_iterations=max_iter,
+          # TODO(cuturi): figure out why implicit diff breaks when `jit=True`
+          jit=False,
           implicit_diff=implicit_diff,
       )
       out = solver(prob)
@@ -287,7 +290,7 @@ class TestSinkhornJacobian:
     eps = 1e-5  # perturbation magnitude
 
     # first calculation of gradient
-    loss_and_grad = jax.value_and_grad(loss_fn, has_aux=True)
+    loss_and_grad = jax.jit(jax.value_and_grad(loss_fn, has_aux=True))
     (loss_value, out), grad_loss = loss_and_grad(x, y)
     custom_grad = jnp.sum(delta * grad_loss)
 

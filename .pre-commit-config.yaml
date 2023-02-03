@@ -48,7 +48,7 @@ repos:
   - id: trailing-whitespace
   - id: check-case-conflict
 - repo: https://github.com/myint/autoflake
-  rev: v2.0.0
+  rev: v2.0.1
   hooks:
   - id: autoflake
     args:
@@ -71,4 +71,4 @@ repos:
   rev: v3.3.1
   hooks:
   - id: pyupgrade
-    args: [--py3-plus, --py37-plus, --keep-runtime-typing]
+    args: [--py38-plus, --keep-runtime-typing]

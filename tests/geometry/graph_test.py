@@ -1,11 +1,10 @@
 import time
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import networkx as nx
 import pytest
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
-from typing_extensions import Literal
 
 import jax
 import jax.experimental.sparse as jesp

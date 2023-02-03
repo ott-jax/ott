@@ -223,7 +223,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       initializer = self.create_initializer(prob)
       init = initializer(prob, epsilon=self.epsilon, key=key1, **kwargs)
 
-    out = iterations(self, prob, init, key2)
+    run_fn = jax.jit(iterations) if self.jit else iterations
+    out = run_fn(self, prob, init, key2)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
