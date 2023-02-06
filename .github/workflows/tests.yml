@@ -47,7 +47,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y --no-install-recommends python3-{pip,dev}
+        apt-get install -y --no-install-recommends python3-dev python3-pip
         python3 -m pip install tox
 
     - name: Nvidia SMI
