@@ -173,7 +173,7 @@ legacy_tox_ini = """
 
     [testenv]
     extras = test
-    pass_env = CUDA_VISIBLE_DEVICES,CI,PYTEST_*
+    pass_env = CUDA_*,PYTEST_*,CI
     commands =
         gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         python -m pytest {tty:--color=yes} {posargs: \

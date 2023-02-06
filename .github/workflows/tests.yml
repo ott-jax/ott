@@ -40,15 +40,15 @@ jobs:
     name: GPU tests Python 3.8
     runs-on: [self-hosted, cml-gpu]
     container:
-      image: docker://iterativeai/cml:0-dvc2-base1-gpu
-      options: --gpus all
+      image: docker://nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
+      options: --gpus='"device=0"'
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install '.[test]'
-        python -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        apt update
+        apt install -y --no-install-recommends python3-{pip,dev}
+        python3 -m pip install tox
 
     - name: Nvidia SMI
       run: |
@@ -56,10 +56,7 @@ jobs:
 
     - name: Run tests
       run: |
-        python -m pytest -m fast --memray -vv
-      env:
-        # TODO(michalk8): select automatically
-        CUDA_VISIBLE_DEVICES: 0
+        tox -e py38-gpu -- -m fast --memray -vv
 
   tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
