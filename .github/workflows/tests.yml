@@ -41,7 +41,7 @@ jobs:
     runs-on: [self-hosted, cml-gpu]
     container:
       image: docker://nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
-      options: --gpus='"device=0"'
+      options: --gpus="device=0"
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
