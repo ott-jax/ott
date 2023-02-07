@@ -451,11 +451,14 @@ class TestSinkhorn:
     # check only one iteration suffices when restarting with same data.
     assert num_iter_restarted == 1
 
+  @pytest.mark.cpu
   @pytest.mark.limit_memory("110 MB")
-  @pytest.mark.fast.with_args("batch_size", [500, 1000], only_fast=0)
-  def test_sinkhorn_online_memory(self, batch_size: int):
+  @pytest.mark.fast.with_args(
+      "batch_size,jit", [(500, True), (1000, False)], only_fast=0
+  )
+  def test_sinkhorn_online_memory(self, batch_size: int, jit: bool):
     # offline: Total memory allocated: 240.1MiB
-    # online (500): Total memory allocated: 33.4MiB
+    # online (500): Total memory allocated: 33.4MiB; GPU: 203.4MiB
     # online (1000): Total memory allocated: 45.6MiB
     rngs = jax.random.split(jax.random.PRNGKey(0), 4)
     n, m = 5000, 4000
@@ -463,7 +466,9 @@ class TestSinkhorn:
     y = jax.random.uniform(rngs[1], (m, 2))
     geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
     problem = linear_problem.LinearProblem(geom)
-    solver = sinkhorn.Sinkhorn()
+    solver = sinkhorn.Sinkhorn(jit=False)
+    if jit:
+      solver = jax.jit(solver)
 
     out = solver(problem)
     assert out.converged
