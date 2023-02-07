@@ -57,7 +57,7 @@ jobs:
 
     - name: Run tests
       run: |
-        python3 -m pytest -m "fast and not cpu" --memray -vv
+        python3 -m pytest -m "not cpu" --memray -vv
 
   tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
