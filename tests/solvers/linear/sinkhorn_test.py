@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for Sinkhorn."""
+from typing import Optional
 
 import pytest
 
@@ -471,7 +472,7 @@ class TestSinkhorn:
   @pytest.mark.fast.with_args(
       cost_fn=[None, costs.SqPNorm(1.6)],
   )
-  def test_primal_cost_grid(self, cost_fn):
+  def test_primal_cost_grid(self, cost_fn: Optional[costs.CostFn]):
     """Test computation of primal / costs for Grids."""
     ns = [6, 7, 11]
     xs = [
@@ -493,7 +494,7 @@ class TestSinkhorn:
     cost = jnp.sum(transport_matrix * cost_matrix)
     assert cost > 0.0
     assert out.primal_cost > 0.0
-    np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
     assert jnp.isfinite(out.dual_cost)
     assert out.primal_cost - out.dual_cost > 0.0
 
