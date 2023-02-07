@@ -171,6 +171,8 @@ class TestMatrixSquareRoot:
     )
     np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
 
+  # gradient needs Schur decomposition, currently not implemented in jax for GPU
+  @pytest.mark.cpu
   @pytest.mark.fast.with_args(
       "fn,n_tests,dim,epsilon,atol,rtol",
       [(lambda x: matrix_square_root.sqrtm(x)[0], 3, 3, 1e-6, 1e-6, 1e-6),

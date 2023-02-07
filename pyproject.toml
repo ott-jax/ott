@@ -113,8 +113,8 @@ testpaths = [
     "tests",
 ]
 markers = [
+    "cpu: Mark tests as CPU only.",
     "fast: Mark tests as fast.",
-    "notebook: Mark tests as notebook related.",
 ]
 
 [tool.coverage.run]
