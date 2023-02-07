@@ -70,6 +70,6 @@ class TestICNN:
     hessian = jax.hessian(model.apply, argnums=1)({'params': params}, data)
 
     # compute eigenvalues
-    w, _ = jnp.linalg.eigh((hessian + hessian.T) / 2.0)
+    w = jnp.linalg.eigvalsh((hessian + hessian.T) / 2.0)
 
     np.testing.assert_array_equal(w >= 0, True)
