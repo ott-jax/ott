@@ -119,9 +119,11 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-parallel = true
 source = ["src/"]
-omit = ["*/__init__.py"]
+omit = [
+    "*/__init__.py",
+    "*/_version.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
