@@ -83,7 +83,8 @@ class W2NeuralDual:
     optimizer_g: optimizer function for the conjugate potential :math:`g`
     num_train_iters: number of total training iterations
     num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
-    alternate_update_directions: alternative between updating the forward and backward directions
+    back_and_forth: alternative between updating the forward and backward directions.
+      Inspired from from :cite:`jacobs2020fast`
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
@@ -105,7 +106,7 @@ class W2NeuralDual:
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 50000,
       num_inner_iters: int = 1,
-      alternate_update_directions: bool = True,
+      back_and_forth: bool = True,
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
@@ -120,7 +121,7 @@ class W2NeuralDual:
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
-    self.alternate_update_directions = alternate_update_directions
+    self.back_and_forth = back_and_forth
     self.valid_freq = valid_freq
     self.log_freq = log_freq
     self.logging = logging
@@ -248,7 +249,7 @@ class W2NeuralDual:
     valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
-      if not self.alternate_update_directions or step % 2 == 0:
+      if not self.back_and_forth or step % 2 == 0:
         # Update the forward direction
         train_batch["source"] = jnp.asarray(next(trainloader_source))
         train_batch["target"] = jnp.asarray(next(trainloader_target))
