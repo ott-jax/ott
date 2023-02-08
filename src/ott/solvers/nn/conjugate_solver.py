@@ -13,11 +13,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, NamedTuple, Optional
+from typing import Callable, Literal, NamedTuple, Optional
+
+from jaxopt import LBFGS
 
 import jax.numpy as jnp
-from jaxopt import LBFGS
-from typing_extensions import Literal
 
 from ott import utils
 

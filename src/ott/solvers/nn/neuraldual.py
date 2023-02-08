@@ -12,7 +12,7 @@
 """A Jax implementation of the ICNN based Kantorovich dual."""
 
 import warnings
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -21,7 +21,6 @@ import optax
 from flax import core
 from flax.core.frozen_dict import FrozenDict
 from jax.lax import stop_gradient
-from typing_extensions import Literal
 
 from ott.geometry import costs
 from ott.problems.linear import potentials

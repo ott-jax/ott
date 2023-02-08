@@ -13,12 +13,13 @@
 # limitations under the License.
 """Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
 
-from typing import Callable, Sequence, Tuple, Union
+from typing import Callable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
+from flax.core.frozen_dict import FrozenDict
 from flax.training import train_state
 from jax.nn import initializers
 
@@ -43,7 +44,6 @@ class ICNN(nn.Module):
       `jax.nn.initializers.normal`).
     act_fn: choice of activation function used in network architecture
       (needs to be convex, default: `nn.relu`).
-    pos_weights: choice to enforce positivity of weight or use regularizer.
     gaussian_map: data inputs of source and target measures for
       initialization scheme based on Gaussian approximation of input and
       target measure (if None, identity initialization is used).
@@ -186,6 +186,7 @@ class ICNN(nn.Module):
       rng: jnp.ndarray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
+      params: Optional[FrozenDict] = None,
   ) -> train_state.TrainState:
     """Create initial `TrainState`."""
     params = self.init(rng, jnp.ones(input))["params"]
