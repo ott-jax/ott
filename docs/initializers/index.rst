@@ -1,7 +1,5 @@
-.. _initializers:
-
-ott.initializers package
-========================
+ott.initializers
+================
 
 .. TODO(cuturi): add some nice text here please
 

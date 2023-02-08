@@ -301,7 +301,7 @@ class QuadraticProblem:
     transport_matrix = transport.matrix * rescale_factor
 
     if not self.is_balanced:
-      # Rescales transport for Unbalanced GW according to Sejourne et al (2021).
+      # Rescales transport for Unbalanced GW according to Sejourne et al. (2021)
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
       unbalanced_correction = self.cost_unbalanced_correction(

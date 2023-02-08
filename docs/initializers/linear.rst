@@ -1,5 +1,5 @@
-ott.initializers.linear package
-===============================
+ott.initializers.linear
+=======================
 .. currentmodule:: ott.initializers.linear
 .. automodule:: ott.initializers.linear
 

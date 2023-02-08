@@ -1,5 +1,5 @@
-ott.initializers.nn package
-===========================
+ott.initializers.nn
+===================
 .. currentmodule:: ott.initializers.nn
 .. automodule:: ott.initializers.nn
 

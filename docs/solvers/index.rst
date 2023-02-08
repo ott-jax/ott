@@ -1,7 +1,5 @@
-.. _solvers:
-
-ott.solvers package
-===================
+ott.solvers
+===========
 
 .. TODO(marcocuturi): add some nice text here please
 

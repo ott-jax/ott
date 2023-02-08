@@ -1,5 +1,5 @@
-ott.problems.quadratic package
-==============================
+ott.problems.quadratic
+======================
 .. currentmodule:: ott.problems.quadratic
 .. automodule:: ott.problems.quadratic
 
