@@ -1,7 +1,5 @@
-.. _problems:
-
-ott.problems package
-====================
+ott.problems
+============
 
 .. TODO(marcocuturi): add some nice text here please
 

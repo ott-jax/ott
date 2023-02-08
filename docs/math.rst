@@ -1,7 +1,5 @@
-.. _math:
-
-ott.math package
-================
+ott.math
+========
 .. currentmodule:: ott.math
 .. automodule:: ott.math
 

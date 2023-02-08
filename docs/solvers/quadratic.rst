@@ -1,5 +1,5 @@
-ott.solvers.quadratic package
-=============================
+ott.solvers.quadratic
+=====================
 .. currentmodule:: ott.solvers.quadratic
 .. automodule:: ott.solvers.quadratic
 

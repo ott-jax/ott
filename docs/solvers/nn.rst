@@ -1,5 +1,5 @@
-ott.solvers.nn package
-======================
+ott.solvers.nn
+==============
 .. currentmodule:: ott.solvers.nn
 .. automodule:: ott.solvers.nn
 

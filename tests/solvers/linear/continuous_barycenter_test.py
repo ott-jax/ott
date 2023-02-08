@@ -29,7 +29,8 @@ means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
 def is_positive_semidefinite(c: jnp.ndarray) -> bool:
-  w = jnp.linalg.eigvals(c)
+  # GPU friendly, eigvals not implemented for non-symmetric matrices
+  w = jnp.linalg.eigvalsh((c + c.T) / 2.0)
   return jnp.all(w >= 0)
 
 

@@ -1,5 +1,5 @@
-ott.initializers.quadratic package
-==================================
+ott.initializers.quadratic
+==========================
 .. currentmodule:: ott.initializers.quadratic
 .. automodule:: ott.initializers.quadratic
 

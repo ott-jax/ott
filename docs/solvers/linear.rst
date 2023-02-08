@@ -1,5 +1,5 @@
-ott.solvers.linear package
-==========================
+ott.solvers.linear
+==================
 .. currentmodule:: ott.solvers.linear
 .. automodule:: ott.solvers.linear
 

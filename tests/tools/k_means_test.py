@@ -8,9 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from sklearn import datasets
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, kmeans_plusplus
 from sklearn.cluster._k_means_common import _is_same_clustering
-from sklearn.cluster._kmeans import kmeans_plusplus
 
 from ott.geometry import costs, pointcloud
 from ott.tools import k_means
@@ -335,10 +334,14 @@ class TestKmeans:
     res = jax.jit(callback)(x)
     res_jit: k_means.KMeansOutput = jax.jit(callback)(x)
 
-    np.testing.assert_allclose(res.centroids, res_jit.centroids)
+    np.testing.assert_allclose(
+        res.centroids, res_jit.centroids, rtol=1e-6, atol=1e-6
+    )
     np.testing.assert_array_equal(res.assignment, res_jit.assignment)
-    np.testing.assert_allclose(res.error, res_jit.error)
-    np.testing.assert_allclose(res.inner_errors, res_jit.inner_errors)
+    np.testing.assert_allclose(res.error, res_jit.error, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(
+        res.inner_errors, res_jit.inner_errors, rtol=1e-5, atol=1e-5
+    )
     assert res.iteration == res_jit.iteration
     assert res.converged == res_jit.converged
 

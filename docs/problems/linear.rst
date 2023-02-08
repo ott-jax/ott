@@ -1,5 +1,5 @@
-ott.problems.linear package
-===========================
+ott.problems.linear
+===================
 .. currentmodule:: ott.problems.linear
 .. automodule:: ott.problems.linear
 

@@ -1,13 +1,12 @@
-.. _tools:
-
-ott.tools package
-=================
+ott.tools
+=========
 .. currentmodule:: ott.tools
 .. automodule:: ott.tools
 
-The tools package contains high level functions that build on outputs produced by core functions.
-They can be used to compute Sinkhorn divergences :cite:`sejourne:19`, instantiate transport matrices,
-provide differentiable approximations to ranks and quantile functions :cite:`cuturi:19`, etc.
+The tools package contains high level functions that build on outputs produced
+by core functions. They can be used to compute Sinkhorn divergences
+:cite:`sejourne:19`, instantiate transport matrices, provide differentiable
+approximations to ranks and quantile functions :cite:`cuturi:19`, etc.
 
 Segmented Sinkhorn
 ------------------
