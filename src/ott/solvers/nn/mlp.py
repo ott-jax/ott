@@ -10,9 +10,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Tuple, Union
+from typing import Callable, Sequence, Tuple, Union
 
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
 import optax
 from flax.training import train_state
@@ -22,10 +23,8 @@ __all__ = ["MLP"]
 
 class MLP(nn.Module):
   dim_hidden: Sequence[int]
-
-  @property
-  def returns_potential(self) -> bool:
-    return False
+  returns_potential: bool
+  act_fn: Callable = nn.leaky_relu
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
@@ -38,11 +37,17 @@ class MLP(nn.Module):
     z = x
     for n_hidden in self.dim_hidden:
       Wx = nn.Dense(n_hidden, use_bias=True)
-      z = nn.elu(Wx(z))
+      z = self.act_fn(Wx(z))
 
-    Wx = nn.Dense(n_input, use_bias=True)
+    if self.returns_potential:
+      Wx = nn.Dense(1, use_bias=True)
+      z = Wx(z).squeeze(-1)
 
-    z = x + Wx(z)  # Encourage identity initialization.
+      quad_term = 0.5 * jax.vmap(jnp.dot)(x, x)
+      z += quad_term
+    else:
+      Wx = nn.Dense(n_input, use_bias=True)
+      z = x + Wx(z)
 
     return z.squeeze(0) if squeeze else z
 
