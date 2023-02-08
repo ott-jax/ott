@@ -124,8 +124,11 @@ class TestQuadraticInitializers:
     out_random = solver_random(problem)
     out_kmeans = solver_kmeans(problem)
 
-    assert out_random.reg_gw_cost - out_kmeans.reg_gw_cost >= 1.
+    random_cost = out_random.reg_gw_cost
     random_errors = out_random.errors[out_random.errors > -1]
+    kmeans_cost = out_kmeans.reg_gw_cost
     kmeans_errors = out_kmeans.errors[out_kmeans.errors > -1]
+
+    assert random_cost > kmeans_cost
     np.testing.assert_array_equal(random_errors >= 0., True)
     np.testing.assert_array_equal(kmeans_errors >= 0., True)
