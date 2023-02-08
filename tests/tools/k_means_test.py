@@ -8,9 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from sklearn import datasets
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, kmeans_plusplus
 from sklearn.cluster._k_means_common import _is_same_clustering
-from sklearn.cluster._kmeans import kmeans_plusplus
 
 from ott.geometry import costs, pointcloud
 from ott.tools import k_means
@@ -46,7 +45,7 @@ def compute_assignment(
   assignment = jnp.argmin(cost_matrix, axis=1)
   dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
 
-  return assignment, jnp.sum(weights * dist_to_centers)
+  return assignment, float(jnp.sum(weights * dist_to_centers))
 
 
 class TestKmeansPlusPlus:
