@@ -37,11 +37,11 @@ jobs:
         tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
 
   gpu-tests:
-    name: GPU tests Python 3.8
+    name: Fast GPU tests Python 3.8
     runs-on: [self-hosted, ott-gpu]
     container:
       image: docker://michalk8/cuda:11.3.0-ubuntu20.04
-      options: --gpus="device=12"
+      options: --gpus="device=10"
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
@@ -57,7 +57,7 @@ jobs:
 
     - name: Run tests
       run: |
-        python3 -m pytest -m "not cpu" --memray -vv
+        python3 -m pytest -m "fast and not cpu" --memray --durations 10 -vv
 
   tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
@@ -91,7 +91,7 @@ jobs:
       run: |
         tox -e py${{ matrix.python-version }} --skip-pkg-install
       env:
-        PYTEST_ADDOPTS: --memray --durations 10 -vv
+        PYTEST_ADDOPTS: --memray -vv
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
