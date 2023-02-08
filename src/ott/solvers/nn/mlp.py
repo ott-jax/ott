@@ -10,12 +10,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Sequence, Tuple, Union
+from typing import Callable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
+from flax.core.frozen_dict import FrozenDict
 from flax.training import train_state
 
 __all__ = ["MLP"]
@@ -56,9 +57,11 @@ class MLP(nn.Module):
       rng: jnp.ndarray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
+      params: Optional[FrozenDict] = None,
   ) -> train_state.TrainState:
     """Create initial `TrainState`."""
-    params = self.init(rng, jnp.ones(input))["params"]
+    if params is None:
+      params = self.init(rng, jnp.ones(input))["params"]
     return train_state.TrainState.create(
         apply_fn=self.apply, params=params, tx=optimizer
     )

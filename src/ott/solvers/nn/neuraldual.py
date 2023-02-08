@@ -19,6 +19,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import core
+from flax.core.frozen_dict import FrozenDict
 from jax.lax import stop_gradient
 from typing_extensions import Literal
 
@@ -33,9 +34,9 @@ Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
 
 DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
-    gtol=1e-3,
-    max_iter=10,
-    max_linesearch_iter=10,
+    gtol=1e-5,
+    max_iter=20,
+    max_linesearch_iter=20,
     linesearch_type='backtracking',
 )
 
@@ -82,6 +83,7 @@ class W2NeuralDual:
     optimizer_g: optimizer function for the conjugate potential :math:`g`
     num_train_iters: number of total training iterations
     num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
+    alternate_update_directions: alternative between updating the forward and backward directions
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
@@ -103,6 +105,7 @@ class W2NeuralDual:
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 50000,
       num_inner_iters: int = 1,
+      alternate_update_directions: bool = True,
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
@@ -112,9 +115,12 @@ class W2NeuralDual:
       conjugate_solver: Optional[ConjugateSolver] = DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal['objective', 'regression'] = 'regression',
       parallel_updates: bool = True,
+      init_f_params: Optional[FrozenDict] = None,
+      init_g_params: Optional[FrozenDict] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
+    self.alternate_update_directions = alternate_update_directions
     self.valid_freq = valid_freq
     self.log_freq = log_freq
     self.logging = logging
@@ -140,11 +146,15 @@ class W2NeuralDual:
       neural_g = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
 
     # set optimizer and networks
-    self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
+    self.setup(
+        rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g,
+        init_f_params, init_g_params
+    )
 
   def setup(
       self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
-      input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState
+      input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState,
+      init_f_params: Optional[FrozenDict], init_g_params: Optional[FrozenDict]
   ) -> None:
     """Setup all components required to train the network."""
     # split random key
@@ -167,8 +177,12 @@ class W2NeuralDual:
       warnings.warn(warn_str)
       neural_g.pos_weights = self.pos_weights
 
-    self.state_f = neural_f.create_train_state(rng_f, optimizer_f, input_dim)
-    self.state_g = neural_g.create_train_state(rng_g, optimizer_g, input_dim)
+    self.state_f = neural_f.create_train_state(
+        rng_f, optimizer_f, input_dim, init_f_params
+    )
+    self.state_g = neural_g.create_train_state(
+        rng_g, optimizer_g, input_dim, init_g_params
+    )
 
     # Assume g defines the potential unless this attribute is set.
     self.g_returns_potential = getattr(neural_g, 'returns_potential', True)
@@ -234,13 +248,24 @@ class W2NeuralDual:
     valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
-      # execute training steps
-      train_batch["source"] = jnp.asarray(next(trainloader_source))
-      train_batch["target"] = jnp.asarray(next(trainloader_target))
-
-      self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
-          self.state_f, self.state_g, train_batch
-      )
+      if not self.alternate_update_directions or step % 2 == 0:
+        # Update the forward direction
+        train_batch["source"] = jnp.asarray(next(trainloader_source))
+        train_batch["target"] = jnp.asarray(next(trainloader_target))
+        self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
+            self.state_f,
+            self.state_g,
+            train_batch,
+        )
+      else:
+        # Update the backward direction
+        train_batch["target"] = jnp.asarray(next(trainloader_source))
+        train_batch["source"] = jnp.asarray(next(trainloader_target))
+        self.state_g, self.state_f, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
+            self.state_g,
+            self.state_f,
+            train_batch,
+        )
 
       if callback is not None:
         _ = callback(step, self.to_dual_potentials())
@@ -262,7 +287,9 @@ class W2NeuralDual:
         valid_batch["target"] = jnp.asarray(next(validloader_target))
 
         valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
-            self.state_f, self.state_g, valid_batch
+            self.state_f,
+            self.state_g,
+            valid_batch,
         )
 
         if self.logging:
