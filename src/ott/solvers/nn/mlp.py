@@ -24,7 +24,7 @@ __all__ = ["MLP"]
 
 class MLP(nn.Module):
   dim_hidden: Sequence[int]
-  returns_potential: bool
+  returns_potential: bool = True
   act_fn: Callable = nn.leaky_relu
 
   @nn.compact
