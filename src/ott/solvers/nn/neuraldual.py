@@ -200,6 +200,10 @@ class W2NeuralDual:
         warnings.warn(
             'parallel_updates set to True but disabling it because num_inner_iters>1'
         )
+      if self.back_and_forth:
+        raise NotImplementedError(
+            "back_and_forth not implemented without parallel updates"
+        )
       self.train_step_f = self.get_step_fn(train=True, to_optimize="f")
       self.valid_step_f = self.get_step_fn(train=False, to_optimize="f")
       self.train_step_g = self.get_step_fn(train=True, to_optimize="g")
@@ -244,7 +248,12 @@ class W2NeuralDual:
     valid_batch = {}
 
     # set logging dictionaries
-    train_logs = {"train_loss_f": [], "train_loss_g": [], "train_w_dist": []}
+    train_logs = {
+        "train_loss_f": [],
+        "train_loss_g": [],
+        "train_w_dist": [],
+        "directions": []
+    }
     valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
@@ -257,6 +266,12 @@ class W2NeuralDual:
             self.state_g,
             train_batch,
         )
+
+        if self.logging and step % self.log_freq == 0:
+          train_logs["train_loss_f"].append(float(loss_f))
+          train_logs["train_loss_g"].append(float(loss_g))
+          train_logs["train_w_dist"].append(float(w_dist))
+          train_logs["directions"].append('forward')
       else:
         # Update the backward direction
         train_batch["target"] = jnp.asarray(next(trainloader_source))
@@ -267,6 +282,12 @@ class W2NeuralDual:
             train_batch,
         )
 
+        if self.logging and step % self.log_freq == 0:
+          train_logs["train_loss_f"].append(float(loss_f))
+          train_logs["train_loss_g"].append(float(loss_g))
+          train_logs["train_w_dist"].append(float(w_dist))
+          train_logs["directions"].append('backward')
+
       if callback is not None:
         _ = callback(step, self.to_dual_potentials())
 
@@ -275,11 +296,6 @@ class W2NeuralDual:
         self.state_f = self.state_f.replace(
             params=self._clip_weights_icnn(self.state_f.params)
         )
-
-      if self.logging and step % self.log_freq == 0:
-        train_logs["train_loss_f"].append(float(loss_f))
-        train_logs["train_loss_g"].append(float(loss_g))
-        train_logs["train_w_dist"].append(float(w_dist))
 
       # report the loss on an validation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
