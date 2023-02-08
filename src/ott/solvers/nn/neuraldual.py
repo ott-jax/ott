@@ -494,7 +494,9 @@ class W2NeuralDual:
 
     return step_fn
 
-  def to_dual_potentials(self) -> potentials.DualPotentials:
+  def to_dual_potentials(
+      self, finetune_g: bool = True
+  ) -> potentials.DualPotentials:
     r"""Return the Kantorovich dual potentials from the trained potentials.
 
     If `g` returns the gradient of the g potential, \nabla_y g,
@@ -506,13 +508,16 @@ class W2NeuralDual:
 
     where :math:`\nabla_y g(y)` is detached for the envelope theorem
     to give the appropriate first derivatives of this construction.
+
+    Args:
+      finetune_g: Run the conjugate solver to finetune the prediction.
     """
     f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
-    if self.g_returns_potential:
-      g = lambda y: self.state_g.apply_fn({"params": self.state_g.params}, y)
-    else:
 
-      def g(y: jnp.ndarray):
+    def g_prediction(y):
+      if self.g_returns_potential:
+        return self.state_g.apply_fn({"params": self.state_g.params}, y)
+      else:
         squeeze = y.ndim == 1
         if squeeze:
           y = jnp.expand_dims(y, 0)
@@ -522,6 +527,15 @@ class W2NeuralDual:
         g_y = -f(grad_g_y) + jax.vmap(jnp.dot)(grad_g_y, y)
         return g_y.squeeze(0) if squeeze else g_y
 
+    def g_finetuned(y):
+      x_hat = jax.grad(g_prediction)(y)
+      grad_g_y = stop_gradient(
+          self.conjugate_solver.solve(f, y, x_init=x_hat).grad
+      )
+      g_y = -f(grad_g_y) + jnp.dot(grad_g_y, y)
+      return g_y
+
+    g = g_prediction if not finetune_g else g_finetuned
     return potentials.DualPotentials(
         f, g, cost_fn=costs.SqEuclidean(), corr=True
     )
