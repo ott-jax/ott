@@ -103,7 +103,7 @@ class W2NeuralDual:
       neural_g: Optional[nn.Module] = None,
       optimizer_f: Optional[optax.OptState] = None,
       optimizer_g: Optional[optax.OptState] = None,
-      num_train_iters: int = 50000,
+      num_train_iters: int = 20000,
       num_inner_iters: int = 1,
       back_and_forth: bool = True,
       valid_freq: int = 1000,
@@ -271,6 +271,7 @@ class W2NeuralDual:
         _ = callback(step, self.to_dual_potentials())
 
       if not self.pos_weights:
+        # Only clip the weights of the f network
         self.state_f = self.state_f.replace(
             params=self._clip_weights_icnn(self.state_f.params)
         )
@@ -341,6 +342,7 @@ class W2NeuralDual:
           self.state_f, self.state_g, batch_f
       )
       if not self.pos_weights:
+        # Only clip the weights of the f network
         self.state_f = self.state_f.replace(
             params=self._clip_weights_icnn(self.state_f.params)
         )
@@ -439,10 +441,20 @@ class W2NeuralDual:
             f"Optimization target {to_optimize} has been misspecified."
         )
 
-      # compute final wasserstein distance
-      dist = -1.  # TODO(bamos): Add back
+      if self.pos_weights:
+        # Penalize the weights of both networks, even though one
+        # of them will be exactly clipped.
+        # Having both here is necessary in case this is being called with
+        # the potentials reversed with the back_and_forth.
+        loss += self._penalize_weights_icnn(params_f) + \
+            self._penalize_weights_icnn(params_g)
 
-      return loss, (dual_loss, amor_loss, dist)
+      # compute Wasserstein-2 distance
+      C = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
+          jnp.mean(jnp.sum(target ** 2, axis=-1))
+      W2_dist = C - 2. * (f_source.mean() + f_star_target.mean())
+
+      return loss, (dual_loss, amor_loss, W2_dist)
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -450,7 +462,7 @@ class W2NeuralDual:
       grad_fn = jax.value_and_grad(loss_fn, argnums=[0, 1], has_aux=True)
       if train:
         # compute loss and gradients
-        (loss, (loss_f, loss_g, dist)), (grads_f, grads_g) = grad_fn(
+        (loss, (loss_f, loss_g, W2_dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
             state_f.apply_fn,
@@ -462,19 +474,19 @@ class W2NeuralDual:
         if to_optimize == "both":
           return state_f.apply_gradients(grads=grads_f), \
               state_g.apply_gradients(grads=grads_g), \
-              loss, loss_f, loss_g, dist
+              loss, loss_f, loss_g, W2_dist
         elif to_optimize == "f":
           return state_f.apply_gradients(grads=grads_f), \
-              loss_f, dist
+              loss_f, W2_dist
         elif to_optimize == "g":
           return state_g.apply_gradients(grads=grads_g), \
-              loss_g, dist
+              loss_g, W2_dist
         else:
           raise ValueError("Optimization target has been misspecified.")
 
       else:
         # compute loss and gradients
-        (loss, (loss_f, loss_g, dist)), (grads_f, grads_g) = grad_fn(
+        (loss, (loss_f, loss_g, W2_dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
             state_f.apply_fn,
@@ -484,11 +496,11 @@ class W2NeuralDual:
 
         # do not update state
         if to_optimize == "both":
-          return loss_f, loss_g, dist
+          return loss_f, loss_g, W2_dist
         elif to_optimize == "f":
-          return loss_f, dist
+          return loss_f, W2_dist
         elif to_optimize == "g":
-          return loss_g, dist
+          return loss_g, W2_dist
         else:
           raise ValueError("Optimization target has been misspecified.")
 
