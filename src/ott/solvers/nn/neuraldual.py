@@ -462,8 +462,8 @@ class W2NeuralDual:
         # of them will be exactly clipped.
         # Having both here is necessary in case this is being called with
         # the potentials reversed with the back_and_forth.
-        loss += self._penalize_weights_icnn(params_f) + \
-            self._penalize_weights_icnn(params_g)
+        loss += self.beta * self._penalize_weights_icnn(params_f) + \
+            self.beta * self._penalize_weights_icnn(params_g)
 
       # compute Wasserstein-2 distance
       C = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
