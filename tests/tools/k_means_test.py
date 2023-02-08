@@ -45,7 +45,7 @@ def compute_assignment(
   assignment = jnp.argmin(cost_matrix, axis=1)
   dist_to_centers = cost_matrix[jnp.arange(len(assignment)), assignment]
 
-  return assignment, float(jnp.sum(weights * dist_to_centers))
+  return assignment, jnp.sum(weights * dist_to_centers)
 
 
 class TestKmeansPlusPlus:
