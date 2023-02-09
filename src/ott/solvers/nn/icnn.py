@@ -51,7 +51,7 @@ class ICNN(nn.Module):
 
   dim_data: int
   dim_hidden: Sequence[int]
-  init_std: float = 1e-1
+  init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable = nn.relu
   pos_weights: bool = True
