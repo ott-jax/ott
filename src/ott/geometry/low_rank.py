@@ -63,7 +63,6 @@ class LRCGeometry(geometry.Geometry):
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
-    assert cost_1.shape[1] == cost_2.shape[1]
     self._cost_1 = cost_1
     self._cost_2 = cost_2
     self._bias = bias
