@@ -49,7 +49,8 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        python3 -m pip install "flax<0.6.5"
+        python3 -m pip install "jax[cuda]<0.4.3" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
     - name: Nvidia SMI
       run: |

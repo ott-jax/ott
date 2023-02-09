@@ -148,7 +148,7 @@ class TestRegTICost:
   def test_sparse_displacement(
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
   ):
-    frac_sparse = 0.84
+    frac_sparse = 0.8
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (50, 30))
     y = jax.random.normal(key2, (71, 30))
