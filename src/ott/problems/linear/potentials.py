@@ -168,22 +168,28 @@ class DualPotentials:
       inverse: bool = False,
       alpha: float = 0.5,
       ax: Optional[matplotlib.axes.Axes] = None,
-      **kwargs: Any,
+      legend_kwargs: Optional[Dict[str, Any]] = None,
+      scatter_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     """Plot data and learned optimal transport map.
 
     Args:
-      learned_potentials: the potentials object for the map
       source: samples from the source measure
       target: samples from the target measure
       inverse: if the inverse map from the potentials
         should be used
       ax: axis to add the plot to
       alpha: transparency of the scatter plot points
-      kwargs: additional kwargs passed into ``scatter``
+      scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
 
     Returns: matplotlib figure and axis with the plots
     """
+    if scatter_kwargs is None:
+      scatter_kwargs = {}
+    if legend_kwargs is None:
+      legend_kwargs = {}
+
     if ax is None:
       fig = plt.figure(facecolor="white")
       ax = fig.add_subplot(111)
@@ -204,7 +210,7 @@ class DualPotentials:
         color=source_color,
         alpha=alpha,
         label='source',
-        **kwargs,
+        **scatter_kwargs,
     )
     ax.scatter(
         target[:, 0],
@@ -212,7 +218,7 @@ class DualPotentials:
         color=target_color,
         alpha=alpha,
         label='target',
-        **kwargs,
+        **scatter_kwargs,
     )
 
     # plot the transported samples
@@ -224,7 +230,7 @@ class DualPotentials:
         color="#F2545B",
         alpha=alpha,
         label=label_transport,
-        **kwargs,
+        **scatter_kwargs,
     )
 
     for i in range(base_samples.shape[0]):
@@ -237,7 +243,7 @@ class DualPotentials:
           alpha=0.3
       )
 
-    ax.legend()
+    ax.legend(**legend_kwargs)
     return fig, ax
 
   def plot_potential(
@@ -245,9 +251,10 @@ class DualPotentials:
       inverse: bool = False,
       alpha: float = 0.05,
       ax: Optional[matplotlib.axes.Axes] = None,
-      bounds: Tuple[float] = (-6, 6, -6, 6),
-      num_grid: float = 50,
-      **kwargs: Any
+      x_bounds: Tuple[float] = (-6, 6),
+      y_bounds: Tuple[float] = (-6, 6),
+      num_grid: int = 50,
+      contourf_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     """Plot the potential.
 
@@ -256,23 +263,25 @@ class DualPotentials:
         should be used
       alpha: quantile to filter the potentials with
       ax: axis to add the plot to
-      bounds: bounds of the plot (xmin, xmax, ymin, ymax)
+      x_bounds: x-axis bounds of the plot (xmin, xmax)
+      y_bounds: y-axis bounds of the plot (ymin, ymax)
       num_grid: number of points to discretize the domain into a grid
         along each dimension
-      kwargs: additional kwargs passed into ``contourf``
+      contourf_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns: matplotlib figure and axis with the plots.
     """
+    if contourf_kwargs is None:
+      contourf_kwargs = {}
+
     ax_specified = ax is not None
     if not ax_specified:
       fig, ax = plt.subplots(figsize=(6, 6), facecolor="white")
     else:
       fig = ax.get_figure()
 
-    xmin, xmax, ymin, ymax = bounds
-
-    x1 = jnp.linspace(xmin, xmax, num=num_grid)
-    x2 = jnp.linspace(ymin, ymax, num=num_grid)
+    x1 = jnp.linspace(*x_bounds, num=num_grid)
+    x2 = jnp.linspace(*y_bounds, num=num_grid)
     X1, X2 = jnp.meshgrid(x1, x2)
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     if not inverse:
@@ -284,9 +293,9 @@ class DualPotentials:
     Zflat = Zflat.clip(vmin, vmax)
     Z = Zflat.reshape(X1.shape)
 
-    CS = ax.contourf(X1, X2, Z, cmap="Blues", **kwargs)
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
+    CS = ax.contourf(X1, X2, Z, cmap="Blues", **contourf_kwargs)
+    ax.set_xlim(*x_bounds)
+    ax.set_ylim(*y_bounds)
     fig.colorbar(CS, ax=ax)
     if not ax_specified:
       fig.tight_layout()

@@ -11,8 +11,6 @@ Neural Dual
     :toctree: _autosummary
 
     neuraldual.W2NeuralDual
-    neuraldual.plot_ot_map
-    neuraldual.plot_potential
 
 Potentials
 ----------

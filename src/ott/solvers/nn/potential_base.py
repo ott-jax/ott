@@ -48,7 +48,7 @@ class PotentialBase(abc.ABC, nn.Module):
 
     Returns:
       ``True`` if the module defines the potential's value, ``False``
-      if it defined the gradient.
+      if it defines the gradient.
     """
 
   def potential_value_fn(

@@ -249,13 +249,8 @@ class W2NeuralDual:
     valid_batch = {}
 
     # set logging dictionaries
-    train_logs = {
-        "train_loss_f": [],
-        "train_loss_g": [],
-        "train_w_dist": [],
-        "directions": []
-    }
-    valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
+    train_logs = {"loss_f": [], "loss_g": [], "w_dist": [], "directions": []}
+    valid_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
       update_forward = not self.back_and_forth or step % 2 == 0
@@ -304,10 +299,9 @@ class W2NeuralDual:
         )
 
         if self.logging:
-          # log training progress
-          valid_logs["valid_loss_f"].append(float(valid_loss_f))
-          valid_logs["valid_loss_g"].append(float(valid_loss_g))
-          valid_logs["valid_w_dist"].append(float(valid_w_dist))
+          self._update_logs(
+              valid_logs, valid_loss_f, valid_loss_g, valid_w_dist
+          )
 
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
@@ -330,8 +324,8 @@ class W2NeuralDual:
     valid_batch = {}
 
     # set logging dictionaries
-    train_logs = {"train_loss_f": [], "train_loss_g": [], "train_w_dist": []}
-    valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
+    train_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
+    valid_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
       # execute training steps
@@ -512,25 +506,28 @@ class W2NeuralDual:
 
     Args:
       finetune_g: Run the conjugate solver to finetune the prediction.
+
+    Returns:
+      A dual potential object
     """
-    f = self.state_f.potential_value_fn(self.state_f.params)
-    g = self.state_g.potential_value_fn(self.state_g.params, f)
+    f_value = self.state_f.potential_value_fn(self.state_f.params)
+    g_value_prediction = self.state_g.potential_value_fn(
+        self.state_g.params, f_value
+    )
 
-    if finetune_g:
-      g_prediction = g
-
-      def g_finetuned(y: jnp.ndarray) -> jnp.ndarray:
-        x_hat = jax.grad(g_prediction)(y)
-        grad_g_y = jax.lax.stop_gradient(
-            self.conjugate_solver.solve(f, y, x_init=x_hat).grad
-        )
-        g_y = -f(grad_g_y) + jnp.dot(grad_g_y, y)
-        return g_y
-
-      g = g_finetuned
+    def g_value_finetuned(y: jnp.ndarray) -> jnp.ndarray:
+      x_hat = jax.grad(g_value_prediction)(y)
+      grad_g_y = jax.lax.stop_gradient(
+          self.conjugate_solver.solve(f_value, y, x_init=x_hat).grad
+      )
+      g_y = -f_value(grad_g_y) + jnp.dot(grad_g_y, y)
+      return g_y
 
     return potentials.DualPotentials(
-        f, g, cost_fn=costs.SqEuclidean(), corr=True
+        f=f_value,
+        g=g_value_prediction if not finetune_g else g_value_finetuned,
+        cost_fn=costs.SqEuclidean(),
+        corr=True
     )
 
   @staticmethod
