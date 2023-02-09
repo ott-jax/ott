@@ -165,7 +165,7 @@ class DualPotentials:
       self,
       source: jnp.ndarray,
       target: jnp.ndarray,
-      inverse: bool = False,
+      forward: bool = True,
       alpha: float = 0.5,
       ax: Optional[matplotlib.axes.Axes] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
@@ -176,8 +176,8 @@ class DualPotentials:
     Args:
       source: samples from the source measure
       target: samples from the target measure
-      inverse: if the inverse map from the potentials
-        should be used
+      forward: use the forward map from the potentials
+        if ``True``, otherwise use the inverse map
       ax: axis to add the plot to
       alpha: transparency of the scatter plot points
       scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
@@ -197,7 +197,7 @@ class DualPotentials:
       fig = ax.get_figure()
 
     # plot the source and target samples
-    if not inverse:
+    if forward:
       label_transport = r"$\nabla f(source)$"
       source_color, target_color = "#1A254B", "#A7BED3"
     else:
@@ -222,8 +222,8 @@ class DualPotentials:
     )
 
     # plot the transported samples
-    base_samples = source if not inverse else target
-    transported_samples = self.transport(base_samples, forward=not inverse)
+    base_samples = source if forward else target
+    transported_samples = self.transport(base_samples, forward=forward)
     ax.scatter(
         transported_samples[:, 0],
         transported_samples[:, 1],
@@ -248,7 +248,7 @@ class DualPotentials:
 
   def plot_potential(
       self,
-      inverse: bool = False,
+      forward: bool = True,
       alpha: float = 0.05,
       ax: Optional[matplotlib.axes.Axes] = None,
       x_bounds: Tuple[float] = (-6, 6),
@@ -259,8 +259,8 @@ class DualPotentials:
     """Plot the potential.
 
     Args:
-      inverse: if the inverse map from the potentials
-        should be used
+      forward: use the forward map from the potentials
+        if ``True``, otherwise use the inverse map
       alpha: quantile to filter the potentials with
       ax: axis to add the plot to
       x_bounds: x-axis bounds of the plot (xmin, xmax)
@@ -284,10 +284,7 @@ class DualPotentials:
     x2 = jnp.linspace(*y_bounds, num=num_grid)
     X1, X2 = jnp.meshgrid(x1, x2)
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
-    if not inverse:
-      Zflat = jax.vmap(self.f)(X12flat)
-    else:
-      Zflat = jax.vmap(self.g)(X12flat)
+    Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
     Zflat = np.asarray(Zflat)
     vmin, vmax = np.quantile(Zflat, [alpha, 1. - alpha])
     Zflat = Zflat.clip(vmin, vmax)
@@ -299,10 +296,7 @@ class DualPotentials:
     fig.colorbar(CS, ax=ax)
     if not ax_specified:
       fig.tight_layout()
-    if not inverse:
-      ax.set_title(r"$f$")
-    else:
-      ax.set_title(r"$g$")
+    ax.set_title(r"$f$" if forward else r"$g$")
     return fig, ax
 
 
