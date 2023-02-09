@@ -14,7 +14,6 @@
 import warnings
 from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
-import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
@@ -23,7 +22,7 @@ from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
-from ott.solvers.nn import conjugate_solver, icnn
+from ott.solvers.nn import conjugate_solver, icnn, potential_base
 
 __all__ = ["W2NeuralDual"]
 
@@ -91,8 +90,8 @@ class W2NeuralDual:
   def __init__(
       self,
       input_dim: int,
-      neural_f: Optional[nn.Module] = None,
-      neural_g: Optional[nn.Module] = None,
+      neural_f: Optional[potential_base.PotentialBase] = None,
+      neural_g: Optional[potential_base.PotentialBase] = None,
       optimizer_f: Optional[optax.OptState] = None,
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 20000,
@@ -146,8 +145,9 @@ class W2NeuralDual:
     )
 
   def setup(
-      self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
-      input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState,
+      self, rng: jnp.ndarray, neural_f: potential_base.PotentialBase,
+      neural_g: potential_base.PotentialBase, input_dim: int,
+      optimizer_f: optax.OptState, optimizer_g: optax.OptState,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
