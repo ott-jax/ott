@@ -79,6 +79,6 @@ class MLP(potential_base.PotentialBase):
         apply_fn=self.apply,
         params=params,
         tx=optimizer,
-        potential_value_fn=self.potential_value,
-        potential_gradient_fn=self.potential_gradient,
+        potential_value_fn=self.potential_value_fn,
+        potential_gradient_fn=self.potential_gradient_fn,
     )

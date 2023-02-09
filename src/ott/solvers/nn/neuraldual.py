@@ -393,9 +393,9 @@ class W2NeuralDual:
       # get two distributions
       source, target = batch["source"], batch["target"]
 
-      init_source_hat = g_gradient(params_g, target)
+      init_source_hat = g_gradient(params_g)(target)
 
-      f_value_partial = lambda x: f_value(params_f, x)
+      f_value_partial = f_value(params_f)
       if self.conjugate_solver is not None:
         finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
             f_value_partial, y, x_init=x_init
@@ -513,8 +513,8 @@ class W2NeuralDual:
     Args:
       finetune_g: Run the conjugate solver to finetune the prediction.
     """
-    f = lambda x: self.state_f.potential_value_fn(self.state_f.params, x)
-    g = lambda x: self.state_g.potential_value_fn(self.state_g.params, x, f)
+    f = self.state_f.potential_value_fn(self.state_f.params)
+    g = self.state_g.potential_value_fn(self.state_g.params, f)
 
     if finetune_g:
       g_prediction = g

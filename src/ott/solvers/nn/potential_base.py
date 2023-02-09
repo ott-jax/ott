@@ -46,13 +46,12 @@ class PotentialBase(abc.ABC, nn.Module):
       if it defined the gradient.
     """
 
-  def potential_value(
+  def potential_value_fn(
       self,
       params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
-      x: jnp.ndarray,
       other_potential_value_fn: Optional[Callable[[jnp.ndarray],
                                                   jnp.ndarray]] = None,
-  ) -> jnp.ndarray:
+  ) -> Callable[[jnp.ndarray], jnp.ndarray]:
     r"""Return the value of the potential.
 
     Applies the module if ``is_potential`` is ``True``, otherwise
@@ -71,40 +70,37 @@ class PotentialBase(abc.ABC, nn.Module):
       other_potential_value_fn: function giving the value of the other potential
 
     Returns:
-      The value of the potential
+      A function that can be evaluated to obtain the potential's value
     """
     if self.is_potential:
-      return self.apply({"params": params}, x)
+      return lambda x: self.apply({"params": params}, x)
     else:
       assert other_potential_value_fn is not None
-      squeeze = x.ndim == 1
-      if squeeze:
-        x = jnp.expand_dims(x, 0)
-      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
-      value = -other_potential_value_fn(grad_g_x) + \
-          jax.vmap(jnp.dot)(grad_g_x, x)
-      return value.squeeze(0) if squeeze else value
 
-  def potential_gradient(
-      self, params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
-      x: jnp.ndarray
-  ) -> jnp.ndarray:
+      def value_fn(x):
+        squeeze = x.ndim == 1
+        if squeeze:
+          x = jnp.expand_dims(x, 0)
+        grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+        value = -other_potential_value_fn(grad_g_x) + \
+            jax.vmap(jnp.dot)(grad_g_x, x)
+        return value.squeeze(0) if squeeze else value
+
+      return value_fn
+
+  def potential_gradient_fn(
+      self,
+      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
+  ) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Return the gradient of the potential.
 
     Args:
       params: parameters of the module
-      x: point to evaluate the gradient at
 
     Returns:
-      The gradient of the potential
+      A function that can be evaluated to obtain the potential's gradient
     """
     if self.is_potential:
-      return jax.vmap(
-          lambda x: jax.grad(self.apply, argnums=1)({
-              "params": params
-          }, x)
-      )(
-          x
-      )
+      return jax.vmap(jax.grad(self.potential_fn(params)))
     else:
-      return self.apply({'params': params}, x)
+      return lambda x: self.apply({'params': params}, x)
