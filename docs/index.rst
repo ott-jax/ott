@@ -15,13 +15,13 @@ as differentiable approximations to ranking or even clustering.
 
 To achieve this, ``OTT`` rests on two families of tools:
 
-  - the first family consists in *discrete* solvers computing transport between
-    point clouds, using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn
-    :cite:`scetbon:21` algorithms, and moving up towards Gromov-Wasserstein
-    :cite:`memoli:11,peyre:16`;
-  - the second family consists in *continuous* solvers, using suitable neural
-    architectures :cite:`amos:17` coupled with SGD type estimators
-    :cite:`makkuva:20,korotin:21`.
+- the first family consists in *discrete* solvers computing transport between
+  point clouds, using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn
+  :cite:`scetbon:21` algorithms, and moving up towards Gromov-Wasserstein
+  :cite:`memoli:11,peyre:16`;
+- the second family consists in *continuous* solvers, using suitable neural
+  architectures :cite:`amos:17` coupled with SGD type estimators
+  :cite:`makkuva:20,korotin:21`.
 
 Installation
 ------------
