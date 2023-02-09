@@ -23,6 +23,18 @@ __all__ = ["MLP"]
 
 
 class MLP(nn.Module):
+  """A non-convex MLP.
+
+  Args:
+    dim_hidden: sequence specifying size of hidden dimensions. The
+      output dimension of the last layer is automatically set to
+      1 (if `returns_potential=True`) or the dimension
+      of the input (if `returns_potential=False`).
+    returns_potential: Model the potential if `True`, otherwise
+      model the gradient of the potential
+    act_fn: Activation function
+  """
+
   dim_hidden: Sequence[int]
   returns_potential: bool = True
   act_fn: Callable = nn.leaky_relu

@@ -17,20 +17,28 @@ from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Uni
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 from flax import core
 from flax.core.frozen_dict import FrozenDict
 from jax.lax import stop_gradient
 
+import matplotlib
+import matplotlib.pyplot as plt
+
 from ott.geometry import costs
 from ott.problems.linear import potentials
 from ott.solvers.nn import icnn
-from ott.solvers.nn.conjugate_solver import ConjugateSolver, FenchelConjugateLBFGS
+from ott.solvers.nn.conjugate_solver import (
+    FenchelConjugateLBFGS,
+    FenchelConjugateSolver,
+)
 
 __all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
+Conj_t = Optional[FenchelConjugateSolver]
 
 DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
     gtol=1e-5,
@@ -57,22 +65,19 @@ class W2NeuralDual:
 
   .. math::
 
-    \argsup_{\theta}\; -\E_{x\sim\alpha}[f_\theta(x)] -
-      \E_{y\sim\beta}[f^\star_\theta(y)]`,
+    \text{argsup}_{\theta}\; -\mathbb{E}_{x\sim\alpha}[f_\theta(x)] -
+      \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)]`,
 
   where
-  :math:`f^\star(y) := -\inf_{x\in\gX} f(x)-\langle x, y\rangle`
+  :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`
   is the convex conjugate.
   :math:`\nabla f^\star` transports from the target
-  to source cells.
-
-  TODO(bamos): Describe how :math:`g` approximates the convex conjugate :math:`f^\star(y):
-  and how :cite:`makkuva:20` and :cite:`amos:22a` learn it.
-
-  TODO(bamos): Describe the conjugate solver.
-
-  TODO(bamos): Decide on defaults here (conjugate solver, num_inner_iters,
-  amortization_loss, parallel_updates)
+  to source cells and provides the inverse optimal
+  transport map from :math:`\beta` to :math:`\alpha`.
+  This solver estimates the conjugate :math:`f^\star`
+  with a neural approximation :math:`g` that is fine-tuned
+  with a solver (:class:`~ott.solvers.nn.conjugate_solver.FenchelConjugateSolver`),
+  which is a combination further described in :cite:`amos:23`.
 
   Args:
     input_dim: input dimensionality of data required for network init
@@ -82,8 +87,8 @@ class W2NeuralDual:
     optimizer_g: optimizer function for the conjugate potential :math:`g`
     num_train_iters: number of total training iterations
     num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
-    back_and_forth: alternative between updating the forward and backward directions.
-      Inspired from from :cite:`jacobs2020fast`
+    back_and_forth: alternate between updating the forward and backward directions.
+      Inspired from from :cite:`jacobs:20`
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
@@ -92,8 +97,10 @@ class W2NeuralDual:
     beta: regularization parameter when not training with positive weights
     conjugate_solver: numerical solver for the Fenchel conjugate.
     amortization_loss: amortization loss for the conjugate :math:`g\approx f^\star`.
-      Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:22a`.
+      Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:23`.
     parallel_updates: Update :math:`f` and :math`g` at the same time
+    init_f_params: initial parameters for :math:`f`
+    init_g_params: initial parameters for :math:`g`
   """
 
   def __init__(
@@ -105,14 +112,14 @@ class W2NeuralDual:
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 20000,
       num_inner_iters: int = 1,
-      back_and_forth: bool = True,
+      back_and_forth: Optional[bool] = None,
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
       seed: int = 0,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Optional[ConjugateSolver] = DEFAULT_CONJUGATE_SOLVER,
+      conjugate_solver: Conj_t = DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal['objective', 'regression'] = 'regression',
       parallel_updates: bool = True,
       init_f_params: Optional[FrozenDict] = None,
@@ -186,6 +193,15 @@ class W2NeuralDual:
 
     # Assume g defines the potential unless this attribute is set.
     self.g_returns_potential = getattr(neural_g, 'returns_potential', True)
+
+    if not self.g_returns_potential and self.back_and_forth:
+      raise ValueError(
+          'back_and_forth not supported when g is the gradient of the potential'
+      )
+
+    # default to using back_and_forth unless g provides the gradient
+    if self.back_and_forth is None:
+      self.back_and_forth = self.g_returns_potential
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
@@ -584,3 +600,124 @@ class W2NeuralDual:
       if k.startswith("w_z"):
         penalty += jnp.linalg.norm(jax.nn.relu(-param["kernel"]))
     return penalty
+
+
+def plot_ot_map(
+    learned_potentials: potentials.DualPotentials,
+    source: jnp.ndarray,
+    target: jnp.ndarray,
+    inverse: bool = False
+) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  """Plot data and learned optimal transport map.
+
+  Args:
+    learned_potentials: the potentials object for the map
+    source: samples from the source measure
+    target: samples from the target measure
+    inverse: if the inverse map from the potentials
+    should be used
+
+  Returns: matplotlib figure and axis with the plots
+  """
+
+  def draw_arrows(a, b):
+    plt.arrow(
+        a[0], a[1], b[0] - a[0], b[1] - a[1], color=[0.5, 0.5, 1], alpha=0.3
+    )
+
+  grad_state_s = learned_potentials.transport(source, forward=not inverse)
+
+  fig = plt.figure(facecolor="white")
+  ax = fig.add_subplot(111)
+
+  if not inverse:
+    ax.scatter(
+        target[:, 0],
+        target[:, 1],
+        color="#A7BED3",
+        alpha=0.5,
+        label=r"$target$",
+    )
+    ax.scatter(
+        source[:, 0],
+        source[:, 1],
+        color="#1A254B",
+        alpha=0.5,
+        label=r"$source$",
+    )
+    ax.scatter(
+        grad_state_s[:, 0],
+        grad_state_s[:, 1],
+        color="#F2545B",
+        alpha=0.5,
+        label=r"$\nabla f(source)$",
+    )
+  else:
+    ax.scatter(
+        target[:, 0],
+        target[:, 1],
+        color="#A7BED3",
+        alpha=0.5,
+        label=r"$source$",
+    )
+    ax.scatter(
+        source[:, 0],
+        source[:, 1],
+        color="#1A254B",
+        alpha=0.5,
+        label=r"$target$",
+    )
+    ax.scatter(
+        grad_state_s[:, 0],
+        grad_state_s[:, 1],
+        color="#F2545B",
+        alpha=0.5,
+        label=r"$\nabla g(target)$",
+    )
+
+  fig.legend(ncol=3, loc="upper center")
+
+  for i in range(source.shape[0]):
+    draw_arrows(source[i, :], grad_state_s[i, :])
+  return fig, ax
+
+
+def plot_potential(
+    learned_potentials: potentials.DualPotentials,
+    inverse: bool = False,
+    alpha: float = 0.05
+) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  """Plot the potential.
+
+  Args:
+    learned_potentials: the potentials object for the map
+    inverse: if the inverse map from the potentials
+      should be used
+    alpha: Quantile to filter from the inverse potential
+
+  Returns: matplotlib figure and axis with the plots.
+  """
+  fig, ax = plt.subplots(figsize=(6, 6), facecolor="white")
+  x1 = np.linspace(-6, 6)
+  x2 = np.linspace(-6, 6)
+  X1, X2 = np.meshgrid(x1, x2)
+  X1flat = np.ravel(X1)
+  X2flat = np.ravel(X2)
+  X12flat = np.stack((X1flat, X2flat)).T
+  if not inverse:
+    Zflat = learned_potentials._f(X12flat)
+  else:
+    Zflat = np.array(jax.vmap(learned_potentials._g)(X12flat))
+
+    vmin, vmax = np.quantile(Zflat, alpha), np.quantile(Zflat, 1 - alpha)
+    Zflat = Zflat.clip(vmin, vmax)
+  Z = np.array(Zflat.reshape(X1.shape))
+
+  CS = ax.contourf(X1, X2, Z, cmap="Blues")
+  fig.colorbar(CS, ax=ax)
+  fig.tight_layout()
+  if not inverse:
+    ax.set_title(r"$f$")
+  else:
+    ax.set_title(r"$g$")
+  return fig, ax

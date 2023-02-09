@@ -23,31 +23,64 @@ from ott import utils
 
 
 class ConjugateResults(NamedTuple):
+  r"""Holds the results of numerically conjugating a function.
+
+  Args:
+    val: the conjugate value, i.e., :math:`f^\star(y)`
+    grad: the gradient, i.e., :math:`\nabla f^\star(y)`
+    num_iter: the number of iterations taken by the solver
+  """
+
   val: float
-  grad: jnp.array
+  grad: jnp.ndarray
   num_iter: int
 
 
-class ConjugateSolver(ABC):
+class FenchelConjugateSolver(ABC):
+  r"""Abstract conjugate solver class.
+
+  Given a function :math:`f`, numerically estimate the Fenchel conjugate
+  :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`.
+  """
 
   @abstractmethod
   def solve(
       self,
-      f: Callable,
+      f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
-      x_init: Optional[jnp.array] = None
+      x_init: Optional[jnp.ndarray] = None
   ) -> ConjugateResults:
-    pass
+    """Solve for the conjugate.
+
+    Args:
+      f: function to conjugate
+      y: point to conjugate
+      x_init: initial point to search over
+
+    Returns:
+      A :class:`ConjugateResults` object.
+    """
 
 
 @dataclass
 @utils.register_pytree_node
-class FenchelConjugateLBFGS(ConjugateSolver):
+class FenchelConjugateLBFGS(FenchelConjugateSolver):
+  """Solve for the conjugate using `jaxopt.LBFGS <https://jaxopt.github.io/stable/_autosummary/jaxopt.LBFGS.html#jaxopt.LBFGS>`_.
+
+  Args:
+    gtol: gradient tolerance
+    max_iter: maximum number of iterations
+    max_linesearch_iter: maximum number of linesearch iterations
+    linesearch_type: type of linesearch
+    decrease_factor: decrease factor for a backtracking line search
+    ls_method: the line search method
+  """
+
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10
   linesearch_type: Literal['zoom', 'backtracking'] = 'backtracking'
-  decrease_factor: float = 2. / 3.
+  decrease_factor: float = 0.66
   ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
   def solve(
