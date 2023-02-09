@@ -184,58 +184,60 @@ class DualPotentials:
 
     Returns: matplotlib figure and axis with the plots
     """
-    grad_state_s = self.transport(source, forward=not inverse)
-
     if ax is None:
       fig = plt.figure(facecolor="white")
       ax = fig.add_subplot(111)
     else:
       fig = ax.get_figure()
 
+    # plot the source and target samples
     if not inverse:
-      label_src, label_tgt = 'source', 'target'
       label_transport = r"$\nabla f(source)$"
+      source_color, target_color = "#1A254B", "#A7BED3"
     else:
-      label_src, label_tgt = 'target', 'source'
       label_transport = r"$\nabla g(target)$"
+      source_color, target_color = "#A7BED3", "#1A254B"
 
     ax.scatter(
         source[:, 0],
         source[:, 1],
-        color="#1A254B",
+        color=source_color,
         alpha=alpha,
-        label=label_src,
+        label='source',
         **kwargs,
     )
     ax.scatter(
         target[:, 0],
         target[:, 1],
-        color="#A7BED3",
+        color=target_color,
         alpha=alpha,
-        label=label_tgt,
+        label='target',
         **kwargs,
     )
+
+    # plot the transported samples
+    base_samples = source if not inverse else target
+    transported_samples = self.transport(base_samples, forward=not inverse)
     ax.scatter(
-        grad_state_s[:, 0],
-        grad_state_s[:, 1],
+        transported_samples[:, 0],
+        transported_samples[:, 1],
         color="#F2545B",
         alpha=alpha,
         label=label_transport,
         **kwargs,
     )
 
-    ax.legend()
-
-    for i in range(source.shape[0]):
+    for i in range(base_samples.shape[0]):
       ax.arrow(
-          source[i, 0],
-          source[i, 1],
-          grad_state_s[i, 0] - source[i, 0],
-          grad_state_s[i, 1] - source[i, 1],
+          base_samples[i, 0],
+          base_samples[i, 1],
+          transported_samples[i, 0] - base_samples[i, 0],
+          transported_samples[i, 1] - base_samples[i, 1],
           color=[0.5, 0.5, 1],
           alpha=0.3
       )
 
+    ax.legend()
     return fig, ax
 
   def plot_potential(
