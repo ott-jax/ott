@@ -16,28 +16,29 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax.core.frozen_dict import FrozenDict
-from flax.training import train_state
+from flax.core import frozen_dict
+
+from ott.solvers.nn import potential_base
 
 __all__ = ["MLP"]
 
 
-class MLP(nn.Module):
+class MLP(potential_base.PotentialBase):
   """A non-convex MLP.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The
       output dimension of the last layer is automatically set to
-      1 (if `returns_potential=True`) or the dimension
-      of the input (if `returns_potential=False`).
-    returns_potential: Model the potential if `True`, otherwise
+      1 (if `is_potential=True`) or the dimension
+      of the input (if `is_potential=False`).
+    is_potential: Model the potential if `True`, otherwise
       model the gradient of the potential
     act_fn: Activation function
   """
 
   dim_hidden: Sequence[int]
-  returns_potential: bool = True
-  act_fn: Callable = nn.leaky_relu
+  is_potential: bool = True
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
@@ -52,7 +53,7 @@ class MLP(nn.Module):
       Wx = nn.Dense(n_hidden, use_bias=True)
       z = self.act_fn(Wx(z))
 
-    if self.returns_potential:
+    if self.is_potential:
       Wx = nn.Dense(1, use_bias=True)
       z = Wx(z).squeeze(-1)
 
@@ -69,11 +70,15 @@ class MLP(nn.Module):
       rng: jnp.ndarray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
-      params: Optional[FrozenDict] = None,
-  ) -> train_state.TrainState:
+      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+  ) -> potential_base.PotentialTrainState:
     """Create initial `TrainState`."""
     if params is None:
       params = self.init(rng, jnp.ones(input))["params"]
-    return train_state.TrainState.create(
-        apply_fn=self.apply, params=params, tx=optimizer
+    return potential_base.PotentialTrainState.create(
+        apply_fn=self.apply,
+        params=params,
+        tx=optimizer,
+        potential_value_fn=self.potential_value,
+        potential_gradient_fn=self.potential_gradient,
     )

@@ -19,17 +19,17 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax.core.frozen_dict import FrozenDict
-from flax.training import train_state
+from flax.core import frozen_dict
 from jax.nn import initializers
 
 from ott.math import matrix_square_root
+from ott.solvers.nn import potential_base
 from ott.solvers.nn.layers import PosDefPotentials, PositiveDense
 
 __all__ = ["ICNN"]
 
 
-class ICNN(nn.Module):
+class ICNN(potential_base.PotentialBase):
   """Input convex neural network (ICNN) architecture with initialization.
 
   Implementation of input convex neural networks as introduced in
@@ -56,6 +56,10 @@ class ICNN(nn.Module):
   act_fn: Callable = nn.relu
   pos_weights: bool = True
   gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
+
+  @property
+  def is_potential(self) -> bool:
+    return True
 
   def setup(self) -> None:
     self.num_hidden = len(self.dim_hidden)
@@ -186,10 +190,14 @@ class ICNN(nn.Module):
       rng: jnp.ndarray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
-      params: Optional[FrozenDict] = None,
-  ) -> train_state.TrainState:
+      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+  ) -> potential_base.PotentialTrainState:
     """Create initial `TrainState`."""
     params = self.init(rng, jnp.ones(input))["params"]
-    return train_state.TrainState.create(
-        apply_fn=self.apply, params=params, tx=optimizer
+    return potential_base.PotentialTrainState.create(
+        apply_fn=self.apply,
+        params=params,
+        tx=optimizer,
+        potential_value_fn=self.potential_value,
+        potential_gradient_fn=self.potential_gradient,
     )

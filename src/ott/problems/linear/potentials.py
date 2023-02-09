@@ -13,13 +13,19 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
+import numpy as np
+
+import matplotlib
+import matplotlib.pyplot as plt
 
 from ott.problems.linear import linear_problem
 
 if TYPE_CHECKING:
   from ott.geometry import costs
 
-__all__ = ["DualPotentials", "EntropicPotentials"]
+__all__ = [
+    "DualPotentials", "EntropicPotentials", "plot_ot_map", "plot_potential"
+]
 Potential_t = Callable[[jnp.ndarray], float]
 
 
@@ -32,7 +38,7 @@ class DualPotentials:
 
   Args:
     f: The first dual potential function.
-    g: The second dual potential function.
+    The: g second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
     corr: Whether the duals solve the problem in distance form, or correlation
       form (as used for instance for ICNNs, see, e.g., top right of p.3 in
@@ -258,3 +264,125 @@ class EntropicPotentials(DualPotentials):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
     return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}
+
+
+def plot_ot_map(
+    learned_potentials: DualPotentials,
+    source: jnp.ndarray,
+    target: jnp.ndarray,
+    inverse: bool = False,
+    ax: Optional[matplotlib.axes.Axes] = None,
+    **kwargs: Any,
+) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  """Plot data and learned optimal transport map.
+
+  Args:
+    learned_potentials: the potentials object for the map
+    source: samples from the source measure
+    target: samples from the target measure
+    inverse: if the inverse map from the potentials
+      should be used
+    ax: axis to add the plot to
+
+  Returns: matplotlib figure and axis with the plots
+  """
+
+  def draw_arrows(a: np.ndarray, b: np.ndarray) -> None:
+    ax.arrow(
+        a[0], a[1], b[0] - a[0], b[1] - a[1], color=[0.5, 0.5, 1], alpha=0.3
+    )
+
+  grad_state_s = learned_potentials.transport(source, forward=not inverse)
+
+  if ax is None:
+    fig = plt.figure(facecolor="white")
+    ax = fig.add_subplot(111)
+  else:
+    fig = ax.get_figure()
+
+  if not inverse:
+    label_src, label_tgt = 'source', 'target'
+    label_transport = r"$\nabla f(source)$"
+  else:
+    label_src, label_tgt = 'target', 'source'
+    label_transport = r"$\nabla g(source)$"
+
+  ax.scatter(
+      source[:, 0],
+      source[:, 1],
+      color="#1A254B",
+      alpha=0.5,
+      label=label_src,
+      **kwargs,
+  )
+  ax.scatter(
+      target[:, 0],
+      target[:, 1],
+      color="#A7BED3",
+      alpha=0.5,
+      label=label_tgt,
+      **kwargs,
+  )
+  ax.scatter(
+      grad_state_s[:, 0],
+      grad_state_s[:, 1],
+      color="#F2545B",
+      alpha=0.5,
+      label=label_transport,
+      **kwargs,
+  )
+
+  fig.legend(ncol=3, loc="upper center")
+
+  for i in range(source.shape[0]):
+    draw_arrows(source[i, :], grad_state_s[i, :])
+
+  return fig, ax
+
+
+def plot_potential(
+    learned_potentials: DualPotentials,
+    inverse: bool = False,
+    alpha: float = 0.05,
+    ax: Optional[matplotlib.axes.Axes] = None,
+    **kwargs: Any
+) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  """Plot the potential.
+
+  Args:
+    learned_potentials: the potentials object for the map
+    inverse: if the inverse map from the potentials
+      should be used
+    alpha: Quantile to filter the potentials with
+    ax: axis to add the plot to
+
+  Returns: matplotlib figure and axis with the plots.
+  """
+  if ax is None:
+    fig, ax = plt.subplots(figsize=(6, 6), facecolor="white")
+  else:
+    fig = ax.get_figure()
+
+  x1 = np.linspace(-6, 6)
+  x2 = np.linspace(-6, 6)
+  X1, X2 = np.meshgrid(x1, x2)
+  X1flat = np.ravel(X1)
+  X2flat = np.ravel(X2)
+  X12flat = np.stack((X1flat, X2flat)).T
+  if not inverse:
+    Zflat = jax.vmap(learned_potentials.f)(X12flat)
+  else:
+    Zflat = jax.vmap(learned_potentials.g)(X12flat)
+  Zflat = np.asarray(Zflat)
+  vmin, vmax = np.quantile(Zflat, [alpha, 1. - alpha])
+  Zflat = Zflat.clip(vmin, vmax)
+  Z = Zflat.reshape(X1.shape)
+
+  CS = ax.contourf(X1, X2, Z, cmap="Blues", **kwargs)
+  fig.colorbar(CS, ax=ax)
+  fig.tight_layout()
+  if not inverse:
+    ax.set_title(r"$f$")
+  else:
+    ax.set_title(r"$g$")
+  return fig, ax

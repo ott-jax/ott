@@ -11,8 +11,7 @@
 # limitations under the License.
 """Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
 from jaxopt import LBFGS
@@ -20,6 +19,10 @@ from jaxopt import LBFGS
 import jax.numpy as jnp
 
 from ott import utils
+
+__all__ = [
+    "ConjugateResults", "FenchelConjugateSolver", "FenchelConjugateLBFGS"
+]
 
 
 class ConjugateResults(NamedTuple):
@@ -36,14 +39,14 @@ class ConjugateResults(NamedTuple):
   num_iter: int
 
 
-class FenchelConjugateSolver(ABC):
+class FenchelConjugateSolver(abc.ABC):
   r"""Abstract conjugate solver class.
 
   Given a function :math:`f`, numerically estimate the Fenchel conjugate
   :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`.
   """
 
-  @abstractmethod
+  @abc.abstractmethod
   def solve(
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
@@ -58,14 +61,13 @@ class FenchelConjugateSolver(ABC):
       x_init: initial point to search over
 
     Returns:
-      A :class:`ConjugateResults` object.
+      The solution to the conjugation.
     """
 
 
-@dataclass
 @utils.register_pytree_node
 class FenchelConjugateLBFGS(FenchelConjugateSolver):
-  """Solve for the conjugate using `jaxopt.LBFGS <https://jaxopt.github.io/stable/_autosummary/jaxopt.LBFGS.html#jaxopt.LBFGS>`_.
+  """Solve for the conjugate using :class:`jaxopt.LBFGS`.
 
   Args:
     gtol: gradient tolerance
@@ -91,12 +93,8 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   ) -> ConjugateResults:
     assert y.ndim == 1
 
-    if x_init is None:
-      x_init = y
-
-    conj_min_obj = lambda x: f(x) - x.dot(y)
     solver = LBFGS(
-        fun=conj_min_obj,
+        fun=lambda x: f(x) - x.dot(y),
         tol=self.gtol,
         maxiter=self.max_iter,
         decrease_factor=self.decrease_factor,
@@ -106,7 +104,15 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
         unroll=False
     )
 
-    out = solver.run(x_init)
+    out = solver.run(y if x_init is None else x_init)
     return ConjugateResults(
         val=-out.state.value, grad=out.params, num_iter=out.state.iter_num
     )
+
+
+DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
+    gtol=1e-5,
+    max_iter=20,
+    max_linesearch_iter=20,
+    linesearch_type='backtracking',
+)

@@ -17,35 +17,19 @@ from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Uni
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import numpy as np
 import optax
 from flax import core
-from flax.core.frozen_dict import FrozenDict
-from jax.lax import stop_gradient
-
-import matplotlib
-import matplotlib.pyplot as plt
+from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
-from ott.solvers.nn import icnn
-from ott.solvers.nn.conjugate_solver import (
-    FenchelConjugateLBFGS,
-    FenchelConjugateSolver,
-)
+from ott.solvers.nn import conjugate_solver, icnn
 
 __all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
-Conj_t = Optional[FenchelConjugateSolver]
-
-DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
-    gtol=1e-5,
-    max_iter=20,
-    max_linesearch_iter=20,
-    linesearch_type='backtracking',
-)
+Conj_t = Optional[conjugate_solver.FenchelConjugateSolver]
 
 
 class W2NeuralDual:
@@ -58,7 +42,8 @@ class W2NeuralDual:
   This is achieved by parameterizing a Kantorovich potential
   :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with
-  an input-convex neural network or MLP where
+  an :class:`~ott.solvers.nn.icnn.ICNN` or
+  :class:`~ott.solvers.nn.mlp.MLP` where
   :math:`\nabla f` transports source to target cells.
   This potential is learned by optimizing the dual
   form associated with the negative inner product cost
@@ -76,7 +61,7 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with a solver (:class:`~ott.solvers.nn.conjugate_solver.FenchelConjugateSolver`),
+  with :class:`~ott.solvers.nn.conjugate_solver.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
   Args:
@@ -88,7 +73,7 @@ class W2NeuralDual:
     num_train_iters: number of total training iterations
     num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
     back_and_forth: alternate between updating the forward and backward directions.
-      Inspired from from :cite:`jacobs:20`
+      Inspired from :cite:`jacobs:20`
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
@@ -98,7 +83,7 @@ class W2NeuralDual:
     conjugate_solver: numerical solver for the Fenchel conjugate.
     amortization_loss: amortization loss for the conjugate :math:`g\approx f^\star`.
       Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:23`.
-    parallel_updates: Update :math:`f` and :math`g` at the same time
+    parallel_updates: Update :math:`f` and :math:`g` at the same time
     init_f_params: initial parameters for :math:`f`
     init_g_params: initial parameters for :math:`g`
   """
@@ -119,11 +104,11 @@ class W2NeuralDual:
       seed: int = 0,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Conj_t = DEFAULT_CONJUGATE_SOLVER,
+      conjugate_solver: Conj_t = conjugate_solver.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal['objective', 'regression'] = 'regression',
       parallel_updates: bool = True,
-      init_f_params: Optional[FrozenDict] = None,
-      init_g_params: Optional[FrozenDict] = None,
+      init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+      init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -151,6 +136,8 @@ class W2NeuralDual:
       neural_f = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
     if neural_g is None:
       neural_g = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
+    self.neural_f = neural_f
+    self.neural_g = neural_g
 
     # set optimizer and networks
     self.setup(
@@ -161,7 +148,8 @@ class W2NeuralDual:
   def setup(
       self, rng: jnp.ndarray, neural_f: icnn.ICNN, neural_g: icnn.ICNN,
       input_dim: int, optimizer_f: optax.OptState, optimizer_g: optax.OptState,
-      init_f_params: Optional[FrozenDict], init_g_params: Optional[FrozenDict]
+      init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
+      init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
     """Setup all components required to train the network."""
     # split random key
@@ -191,17 +179,14 @@ class W2NeuralDual:
         rng_g, optimizer_g, input_dim, init_g_params
     )
 
-    # Assume g defines the potential unless this attribute is set.
-    self.g_returns_potential = getattr(neural_g, 'returns_potential', True)
-
-    if not self.g_returns_potential and self.back_and_forth:
+    if not neural_g.is_potential and self.back_and_forth:
       raise ValueError(
           'back_and_forth not supported when g is the gradient of the potential'
       )
 
     # default to using back_and_forth unless g provides the gradient
     if self.back_and_forth is None:
-      self.back_and_forth = self.g_returns_potential
+      self.back_and_forth = neural_g.is_potential
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
@@ -273,8 +258,8 @@ class W2NeuralDual:
     valid_logs = {"valid_loss_f": [], "valid_loss_g": [], "valid_w_dist": []}
 
     for step in tqdm(range(self.num_train_iters)):
-      if not self.back_and_forth or step % 2 == 0:
-        # Update the forward direction
+      update_forward = not self.back_and_forth or step % 2 == 0
+      if update_forward:
         train_batch["source"] = jnp.asarray(next(trainloader_source))
         train_batch["target"] = jnp.asarray(next(trainloader_target))
         self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
@@ -282,14 +267,7 @@ class W2NeuralDual:
             self.state_g,
             train_batch,
         )
-
-        if self.logging and step % self.log_freq == 0:
-          train_logs["train_loss_f"].append(float(loss_f))
-          train_logs["train_loss_g"].append(float(loss_g))
-          train_logs["train_w_dist"].append(float(w_dist))
-          train_logs["directions"].append('forward')
       else:
-        # Update the backward direction
         train_batch["target"] = jnp.asarray(next(trainloader_source))
         train_batch["source"] = jnp.asarray(next(trainloader_target))
         self.state_g, self.state_f, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
@@ -298,11 +276,11 @@ class W2NeuralDual:
             train_batch,
         )
 
-        if self.logging and step % self.log_freq == 0:
-          train_logs["train_loss_f"].append(float(loss_f))
-          train_logs["train_loss_g"].append(float(loss_g))
-          train_logs["train_w_dist"].append(float(w_dist))
-          train_logs["directions"].append('backward')
+      if self.logging and step % self.log_freq == 0:
+        self._update_logs(train_logs, loss_f, loss_g, w_dist)
+        train_logs["directions"].append(
+            'forward' if update_forward else 'backward'
+        )
 
       if callback is not None:
         _ = callback(step, self.to_dual_potentials())
@@ -383,9 +361,7 @@ class W2NeuralDual:
         callback(step, self.to_dual_potentials())
 
       if self.logging and step % self.log_freq == 0:
-        train_logs["train_loss_f"].append(float(loss_f))
-        train_logs["train_loss_g"].append(float(loss_g))
-        train_logs["train_w_dist"].append(float(w_dist))
+        self._update_logs(train_logs, loss_f, loss_g, w_dist)
 
       # report the loss on an validuation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
@@ -401,10 +377,9 @@ class W2NeuralDual:
         )
 
         if self.logging:
-          # log training progress
-          valid_logs["valid_loss_f"].append(float(valid_loss_f))
-          valid_logs["valid_loss_g"].append(float(valid_loss_g))
-          valid_logs["valid_w_dist"].append(float(valid_w_dist))
+          self._update_logs(
+              valid_logs, valid_loss_f, valid_loss_g, valid_w_dist
+          )
 
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
@@ -413,28 +388,20 @@ class W2NeuralDual:
   ):
     """Create a parallel training and evaluation function."""
 
-    def loss_fn(params_f, params_g, f, g, batch):
+    def loss_fn(params_f, params_g, f_value, g_gradient, batch):
       """Loss function for both potentials."""
       # get two distributions
       source, target = batch["source"], batch["target"]
 
-      if self.g_returns_potential:
-        g_grad = jax.vmap(
-            lambda y: jax.grad(g, argnums=1)({
-                "params": params_g
-            }, y)
-        )
-        init_source_hat = g_grad(target)
-      else:
-        init_source_hat = g({'params': params_g}, target)
+      init_source_hat = g_gradient(params_g, target)
 
-      f_apply = lambda x: f({'params': params_f}, x)
+      f_value_partial = lambda x: f_value(params_f, x)
       if self.conjugate_solver is not None:
         finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
-            f_apply, y, x_init=x_init
+            f_value_partial, y, x_init=x_init
         ).grad
         finetune_source_hat = jax.vmap(finetune_source_hat)
-        source_hat_detach = stop_gradient(
+        source_hat_detach = jax.lax.stop_gradient(
             finetune_source_hat(target, init_source_hat)
         )
       else:
@@ -442,9 +409,9 @@ class W2NeuralDual:
 
       batch_dot = jax.vmap(jnp.dot)
 
-      f_source = f_apply(source)
+      f_source = f_value_partial(source)
       f_star_target = batch_dot(source_hat_detach,
-                                target) - f_apply(source_hat_detach)
+                                target) - f_value_partial(source_hat_detach)
       dual_source = f_source.mean()
       dual_target = f_star_target.mean()
       dual_loss = dual_source + dual_target
@@ -452,11 +419,11 @@ class W2NeuralDual:
       if self.amortization_loss == 'regression':
         amor_loss = ((init_source_hat - source_hat_detach) ** 2).mean()
       elif self.amortization_loss == 'objective':
-        f_apply_parameters_detached = lambda x: f({
-            'params': stop_gradient(params_f)
-        }, x)
+        f_value_parameters_detached = lambda x: f_value(
+            jax.lax.stop_gradient(params_f), x
+        )
         amor_loss = (
-            f_apply_parameters_detached(init_source_hat) -
+            f_value_parameters_detached(init_source_hat) -
             batch_dot(init_source_hat, target)
         ).mean()
       else:
@@ -497,8 +464,8 @@ class W2NeuralDual:
         (loss, (loss_f, loss_g, W2_dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
-            state_f.apply_fn,
-            state_g.apply_fn,
+            state_f.potential_value_fn,
+            state_g.potential_gradient_fn,
             batch,
         )
 
@@ -521,8 +488,8 @@ class W2NeuralDual:
         (loss, (loss_f, loss_g, W2_dist)), (grads_f, grads_g) = grad_fn(
             state_f.params,
             state_g.params,
-            state_f.apply_fn,
-            state_g.apply_fn,
+            state_f.potential_value_fn,
+            state_g.potential_gradient_fn,
             batch,
         )
 
@@ -543,43 +510,25 @@ class W2NeuralDual:
   ) -> potentials.DualPotentials:
     r"""Return the Kantorovich dual potentials from the trained potentials.
 
-    If `g` returns the gradient of the g potential, \nabla_y g,
-    i.e. `g.returns_potential == False`,
-    construct the value of the potential with
-
-    .. math::
-      g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
-
-    where :math:`\nabla_y g(y)` is detached for the envelope theorem
-    to give the appropriate first derivatives of this construction.
-
     Args:
       finetune_g: Run the conjugate solver to finetune the prediction.
     """
-    f = lambda x: self.state_f.apply_fn({"params": self.state_f.params}, x)
+    f = lambda x: self.state_f.potential_value_fn(self.state_f.params, x)
+    g = lambda x: self.state_g.potential_value_fn(self.state_g.params, x, f)
 
-    def g_prediction(y):
-      if self.g_returns_potential:
-        return self.state_g.apply_fn({"params": self.state_g.params}, y)
-      else:
-        squeeze = y.ndim == 1
-        if squeeze:
-          y = jnp.expand_dims(y, 0)
-        grad_g_y = stop_gradient(
-            self.state_g.apply_fn({"params": self.state_g.params}, y)
+    if finetune_g:
+      g_prediction = g
+
+      def g_finetuned(y: jnp.ndarray) -> jnp.ndarray:
+        x_hat = jax.grad(g_prediction)(y)
+        grad_g_y = jax.lax.stop_gradient(
+            self.conjugate_solver.solve(f, y, x_init=x_hat).grad
         )
-        g_y = -f(grad_g_y) + jax.vmap(jnp.dot)(grad_g_y, y)
-        return g_y.squeeze(0) if squeeze else g_y
+        g_y = -f(grad_g_y) + jnp.dot(grad_g_y, y)
+        return g_y
 
-    def g_finetuned(y):
-      x_hat = jax.grad(g_prediction)(y)
-      grad_g_y = stop_gradient(
-          self.conjugate_solver.solve(f, y, x_init=x_hat).grad
-      )
-      g_y = -f(grad_g_y) + jnp.dot(grad_g_y, y)
-      return g_y
+      g = g_finetuned
 
-    g = g_prediction if not finetune_g else g_finetuned
     return potentials.DualPotentials(
         f, g, cost_fn=costs.SqEuclidean(), corr=True
     )
@@ -601,123 +550,13 @@ class W2NeuralDual:
         penalty += jnp.linalg.norm(jax.nn.relu(-param["kernel"]))
     return penalty
 
-
-def plot_ot_map(
-    learned_potentials: potentials.DualPotentials,
-    source: jnp.ndarray,
-    target: jnp.ndarray,
-    inverse: bool = False
-) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-  """Plot data and learned optimal transport map.
-
-  Args:
-    learned_potentials: the potentials object for the map
-    source: samples from the source measure
-    target: samples from the target measure
-    inverse: if the inverse map from the potentials
-    should be used
-
-  Returns: matplotlib figure and axis with the plots
-  """
-
-  def draw_arrows(a, b):
-    plt.arrow(
-        a[0], a[1], b[0] - a[0], b[1] - a[1], color=[0.5, 0.5, 1], alpha=0.3
-    )
-
-  grad_state_s = learned_potentials.transport(source, forward=not inverse)
-
-  fig = plt.figure(facecolor="white")
-  ax = fig.add_subplot(111)
-
-  if not inverse:
-    ax.scatter(
-        target[:, 0],
-        target[:, 1],
-        color="#A7BED3",
-        alpha=0.5,
-        label=r"$target$",
-    )
-    ax.scatter(
-        source[:, 0],
-        source[:, 1],
-        color="#1A254B",
-        alpha=0.5,
-        label=r"$source$",
-    )
-    ax.scatter(
-        grad_state_s[:, 0],
-        grad_state_s[:, 1],
-        color="#F2545B",
-        alpha=0.5,
-        label=r"$\nabla f(source)$",
-    )
-  else:
-    ax.scatter(
-        target[:, 0],
-        target[:, 1],
-        color="#A7BED3",
-        alpha=0.5,
-        label=r"$source$",
-    )
-    ax.scatter(
-        source[:, 0],
-        source[:, 1],
-        color="#1A254B",
-        alpha=0.5,
-        label=r"$target$",
-    )
-    ax.scatter(
-        grad_state_s[:, 0],
-        grad_state_s[:, 1],
-        color="#F2545B",
-        alpha=0.5,
-        label=r"$\nabla g(target)$",
-    )
-
-  fig.legend(ncol=3, loc="upper center")
-
-  for i in range(source.shape[0]):
-    draw_arrows(source[i, :], grad_state_s[i, :])
-  return fig, ax
-
-
-def plot_potential(
-    learned_potentials: potentials.DualPotentials,
-    inverse: bool = False,
-    alpha: float = 0.05
-) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-  """Plot the potential.
-
-  Args:
-    learned_potentials: the potentials object for the map
-    inverse: if the inverse map from the potentials
-      should be used
-    alpha: Quantile to filter from the inverse potential
-
-  Returns: matplotlib figure and axis with the plots.
-  """
-  fig, ax = plt.subplots(figsize=(6, 6), facecolor="white")
-  x1 = np.linspace(-6, 6)
-  x2 = np.linspace(-6, 6)
-  X1, X2 = np.meshgrid(x1, x2)
-  X1flat = np.ravel(X1)
-  X2flat = np.ravel(X2)
-  X12flat = np.stack((X1flat, X2flat)).T
-  if not inverse:
-    Zflat = learned_potentials._f(X12flat)
-  else:
-    Zflat = np.array(jax.vmap(learned_potentials._g)(X12flat))
-
-    vmin, vmax = np.quantile(Zflat, alpha), np.quantile(Zflat, 1 - alpha)
-    Zflat = Zflat.clip(vmin, vmax)
-  Z = np.array(Zflat.reshape(X1.shape))
-
-  CS = ax.contourf(X1, X2, Z, cmap="Blues")
-  fig.colorbar(CS, ax=ax)
-  fig.tight_layout()
-  if not inverse:
-    ax.set_title(r"$f$")
-  else:
-    ax.set_title(r"$g$")
-  return fig, ax
+  @staticmethod
+  def _update_logs(
+      logs: Dict[str, Union[float, str]],
+      loss_f: jnp.ndarray,
+      loss_g: jnp.ndarray,
+      w_dist: jnp.ndarray,
+  ) -> None:
+    logs["loss_f"].append(float(loss_f))
+    logs["loss_g"].append(float(loss_g))
+    logs["w_dist"].append(float(w_dist))

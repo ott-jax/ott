@@ -14,19 +14,14 @@ Neural Dual
     neuraldual.plot_ot_map
     neuraldual.plot_potential
 
-ICNN-based Potentials
----------------------
+Potentials
+----------
 .. autosummary::
     :toctree: _autosummary
 
-    icnn.ICNN
+    potential_base.PotentialBase
     layers.PositiveDense
-
-MLP-based Potentials
---------------------
-.. autosummary::
-    :toctree: _autosummary
-
+    icnn.ICNN
     mlp.MLP
 
 Conjugate Solvers
