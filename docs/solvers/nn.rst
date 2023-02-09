@@ -27,6 +27,6 @@ Conjugate Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    conjugate_solver.ConjugateResults
-    conjugate_solver.FenchelConjugateSolver
-    conjugate_solver.FenchelConjugateLBFGS
+    conjugate_solvers.ConjugateResults
+    conjugate_solvers.FenchelConjugateSolver
+    conjugate_solvers.FenchelConjugateLBFGS

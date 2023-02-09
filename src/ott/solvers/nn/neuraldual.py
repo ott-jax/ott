@@ -22,13 +22,13 @@ from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
-from ott.solvers.nn import conjugate_solver, models
+from ott.solvers.nn import conjugate_solvers, models
 
 __all__ = ["W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
-Conj_t = Optional[conjugate_solver.FenchelConjugateSolver]
+Conj_t = Optional[conjugate_solvers.FenchelConjugateSolver]
 
 
 class W2NeuralDual:
@@ -63,7 +63,7 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with :class:`~ott.solvers.nn.conjugate_solver.FenchelConjugateSolver`,
+  with :class:`~ott.solvers.nn.conjugate_solvers.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
   The :class:`~ott.solvers.nn.models.ModelBase` potentials for
@@ -117,7 +117,7 @@ class W2NeuralDual:
       seed: int = 0,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Conj_t = conjugate_solver.DEFAULT_CONJUGATE_SOLVER,
+      conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal['objective', 'regression'] = 'regression',
       parallel_updates: bool = True,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
