@@ -19,7 +19,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.solvers.nn import icnn
+from ott.solvers.nn import models
 
 
 @pytest.mark.fast
@@ -31,7 +31,7 @@ class TestICNN:
     dim_hidden = (64, 64)
 
     # define icnn model
-    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
+    model = models.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     key1, key2, key3 = jax.random.split(rng, 3)
@@ -57,7 +57,7 @@ class TestICNN:
     # define icnn model
     n_features = 2
     dim_hidden = (64, 64)
-    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
+    model = models.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     key1, key2 = jax.random.split(rng)

@@ -12,15 +12,15 @@ Neural Dual
 
     neuraldual.W2NeuralDual
 
-Potentials
-----------
+Models
+------
 .. autosummary::
     :toctree: _autosummary
 
-    potential_base.PotentialBase
-    layers.PositiveDense
-    icnn.ICNN
-    mlp.MLP
+    models.NeuralTrainState
+    models.ModelBase
+    models.ICNN
+    models.MLP
 
 Conjugate Solvers
 -----------------

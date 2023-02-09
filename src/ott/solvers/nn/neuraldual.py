@@ -9,7 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the ICNN based Kantorovich dual."""
+"""A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
 from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
@@ -22,7 +22,7 @@ from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
-from ott.solvers.nn import conjugate_solver, icnn, potential_base
+from ott.solvers.nn import conjugate_solver, models
 
 __all__ = ["W2NeuralDual"]
 
@@ -41,8 +41,11 @@ class W2NeuralDual:
   This is achieved by parameterizing a Kantorovich potential
   :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with
-  an :class:`~ott.solvers.nn.icnn.ICNN` or
-  :class:`~ott.solvers.nn.mlp.MLP` where
+  an :class:`~ott.solvers.nn.models.ICNN`,
+  :class:`~ott.solvers.nn.models.MLP`,
+  or other
+  :class:`~ott.solvers.nn.models.ModelBase`,
+  where
   :math:`\nabla f` transports source to target cells.
   This potential is learned by optimizing the dual
   form associated with the negative inner product cost
@@ -90,8 +93,8 @@ class W2NeuralDual:
   def __init__(
       self,
       input_dim: int,
-      neural_f: Optional[potential_base.PotentialBase] = None,
-      neural_g: Optional[potential_base.PotentialBase] = None,
+      neural_f: Optional[models.ModelBase] = None,
+      neural_g: Optional[models.ModelBase] = None,
       optimizer_f: Optional[optax.OptState] = None,
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 20000,
@@ -132,9 +135,9 @@ class W2NeuralDual:
 
     # set default neural architectures
     if neural_f is None:
-      neural_f = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
+      neural_f = models.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
     if neural_g is None:
-      neural_g = icnn.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
+      neural_g = models.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
     self.neural_f = neural_f
     self.neural_g = neural_g
 
@@ -145,9 +148,9 @@ class W2NeuralDual:
     )
 
   def setup(
-      self, rng: jnp.ndarray, neural_f: potential_base.PotentialBase,
-      neural_g: potential_base.PotentialBase, input_dim: int,
-      optimizer_f: optax.OptState, optimizer_g: optax.OptState,
+      self, rng: jnp.ndarray, neural_f: models.ModelBase,
+      neural_g: models.ModelBase, input_dim: int, optimizer_f: optax.OptState,
+      optimizer_g: optax.OptState,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
@@ -161,13 +164,13 @@ class W2NeuralDual:
         f"the `W2NeuralDual` setting, with positive weights " \
         f"being {self.pos_weights}."
     if isinstance(
-        neural_f, icnn.ICNN
+        neural_f, models.ICNN
     ) and neural_f.pos_weights is not self.pos_weights:
       warnings.warn(warn_str)
       neural_f.pos_weights = self.pos_weights
 
     if isinstance(
-        neural_g, icnn.ICNN
+        neural_g, models.ICNN
     ) and neural_g.pos_weights is not self.pos_weights:
       warnings.warn(warn_str)
       neural_g.pos_weights = self.pos_weights
