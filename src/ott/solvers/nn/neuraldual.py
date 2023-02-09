@@ -66,9 +66,20 @@ class W2NeuralDual:
   with :class:`~ott.solvers.nn.conjugate_solver.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
+  The :class:`~ott.solvers.nn.models.ModelBase` potentials for
+  ``neural_f`` and ``neural_g`` can 1) both provide the
+  values of the potentials :math:`f` and :math:`g`, or
+  2) one of them can provide the gradient mapping
+  e.g., :math:`\nabla f` or :math:`\nabla g` where the
+  potential's value can be obtained via the Fenchel conjugate
+  as discussed in :cite:`amos:23`.
+  The potential's value or gradient mapping is specified via
+  the :meth:`~ott.solvers.nn.models.ModelBase.is_potential`
+  property.
+
   Args:
     input_dim: input dimensionality of data required for network init
-    neural_f: network architecture for potential :math:`f`
+    neural_f: network architecture for potential :math:`f`.
     neural_g: network architecture for the conjugate potential :math:`g\approx f^\star`
     optimizer_f: optimizer function for potential :math:`f`
     optimizer_g: optimizer function for the conjugate potential :math:`g`
@@ -182,14 +193,9 @@ class W2NeuralDual:
         rng_g, optimizer_g, input_dim, init_g_params
     )
 
-    if not neural_g.is_potential and self.back_and_forth:
-      raise ValueError(
-          'back_and_forth not supported when g is the gradient of the potential'
-      )
-
-    # default to using back_and_forth unless g provides the gradient
+    # default to using back_and_forth with the non-convex models
     if self.back_and_forth is None:
-      self.back_and_forth = neural_g.is_potential
+      self.back_and_forth = isinstance(neural_f, models.MLP)
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
@@ -385,14 +391,18 @@ class W2NeuralDual:
   ):
     """Create a parallel training and evaluation function."""
 
-    def loss_fn(params_f, params_g, f_value, g_gradient, batch):
+    def loss_fn(params_f, params_g, f_value, g_value, g_gradient, batch):
       """Loss function for both potentials."""
       # get two distributions
       source, target = batch["source"], batch["target"]
 
       init_source_hat = g_gradient(params_g)(target)
 
-      f_value_partial = f_value(params_f)
+      def g_value_partial(y: jnp.ndarray) -> jnp.ndarray:
+        """Lazy way of evaluating g if f's computation needs it."""
+        return g_value(params_g)(y)
+
+      f_value_partial = f_value(params_f, g_value_partial)
       if self.conjugate_solver is not None:
         finetune_source_hat = lambda y, x_init: self.conjugate_solver.solve(
             f_value_partial, y, x_init=x_init
@@ -462,6 +472,7 @@ class W2NeuralDual:
             state_f.params,
             state_g.params,
             state_f.potential_value_fn,
+            state_g.potential_value_fn,
             state_g.potential_gradient_fn,
             batch,
         )
@@ -486,6 +497,7 @@ class W2NeuralDual:
             state_f.params,
             state_g.params,
             state_f.potential_value_fn,
+            state_g.potential_value_fn,
             state_g.potential_gradient_fn,
             batch,
         )
