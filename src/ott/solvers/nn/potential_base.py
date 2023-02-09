@@ -101,6 +101,6 @@ class PotentialBase(abc.ABC, nn.Module):
       A function that can be evaluated to obtain the potential's gradient
     """
     if self.is_potential:
-      return jax.vmap(jax.grad(self.potential_fn(params)))
+      return jax.vmap(jax.grad(self.potential_value_fn(params)))
     else:
       return lambda x: self.apply({'params': params}, x)

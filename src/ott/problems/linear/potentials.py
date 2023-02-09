@@ -197,7 +197,7 @@ class DualPotentials:
       label_transport = r"$\nabla f(source)$"
     else:
       label_src, label_tgt = 'target', 'source'
-      label_transport = r"$\nabla g(source)$"
+      label_transport = r"$\nabla g(target)$"
 
     ax.scatter(
         source[:, 0],
