@@ -23,14 +23,19 @@ from flax.training import train_state
 
 __all__ = ["PotentialBase", "PotentialTrainState"]
 
+PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+
 
 class PotentialTrainState(train_state.TrainState):
   """Adds information about the potential value and gradient to the state."""
-  potential_value_fn: Callable[[jnp.ndarray],
-                               jnp.ndarray] = struct.field(pytree_node=False)
-  potential_gradient_fn: Callable[[jnp.ndarray], jnp.ndarray] = struct.field(
-      pytree_node=False
-  )
+  potential_value_fn: Callable[
+      [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
+      PotentialValueFn_t] = struct.field(pytree_node=False)
+  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+                                  PotentialGradientFn_t] = struct.field(
+                                      pytree_node=False
+                                  )
 
 
 class PotentialBase(abc.ABC, nn.Module):
@@ -48,13 +53,12 @@ class PotentialBase(abc.ABC, nn.Module):
 
   def potential_value_fn(
       self,
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
-      other_potential_value_fn: Optional[Callable[[jnp.ndarray],
-                                                  jnp.ndarray]] = None,
-  ) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    r"""Return the value of the potential.
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      other_potential_value_fn: Optional[PotentialValueFn_t] = None,
+  ) -> PotentialValueFn_t:
+    r"""Return a function giving the value of the potential.
 
-    Applies the module if ``is_potential`` is ``True``, otherwise
+    Applies the module if ``self.is_potential`` is ``True``, otherwise
     constructs the value of the potential from the gradient with
 
     .. math::
@@ -67,7 +71,8 @@ class PotentialBase(abc.ABC, nn.Module):
     Args:
       params: parameters of the module
       x: point to evaluate the value at
-      other_potential_value_fn: function giving the value of the other potential
+      other_potential_value: function giving the value of the other potential.
+        Only needed when ``self.is_potential`` is ``False``.
 
     Returns:
       A function that can be evaluated to obtain the potential's value
@@ -90,9 +95,9 @@ class PotentialBase(abc.ABC, nn.Module):
 
   def potential_gradient_fn(
       self,
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
-  ) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    """Return the gradient of the potential.
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+  ) -> PotentialGradientFn_t:
+    """Return a function giving the gradient of the potential.
 
     Args:
       params: parameters of the module
