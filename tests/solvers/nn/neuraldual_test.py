@@ -104,8 +104,8 @@ class TestNeuralDual:
     )
 
     # check if training loss of f is increasing and g is decreasing
-    assert increasing(logs['train_logs']['train_loss_f'])
-    assert decreasing(logs['train_logs']['train_loss_g'])
+    assert increasing(logs['train_logs']['loss_f'])
+    assert decreasing(logs['train_logs']['loss_g'])
 
   def test_neural_dual_jit(self, toy_dataset: Tuple[ToyDataset, ToyDataset]):
     num_train_iters = 10

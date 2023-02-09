@@ -74,24 +74,21 @@ class PotentialBase(abc.ABC, nn.Module):
       The value of the potential
     """
     if self.is_potential:
-      return self.apply({'params': params}, x)
+      return self.apply({"params": params}, x)
     else:
-      if self.is_potential:
-        return self.apply({"params": params}, x)
-      else:
-        assert other_potential_value_fn is not None
-        squeeze = x.ndim == 1
-        if squeeze:
-          x = jnp.expand_dims(x, 0)
-        grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
-        value = -other_potential_value_fn(grad_g_x) + \
-            jax.vmap(jnp.dot)(grad_g_x, x)
-        return value.squeeze(0) if squeeze else value
+      assert other_potential_value_fn is not None
+      squeeze = x.ndim == 1
+      if squeeze:
+        x = jnp.expand_dims(x, 0)
+      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+      value = -other_potential_value_fn(grad_g_x) + \
+          jax.vmap(jnp.dot)(grad_g_x, x)
+      return value.squeeze(0) if squeeze else value
 
   def potential_gradient(
       self, params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
       x: jnp.ndarray
-  ):
+  ) -> jnp.ndarray:
     """Return the gradient of the potential.
 
     Args:

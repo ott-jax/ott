@@ -21,7 +21,10 @@ import jax.numpy as jnp
 from ott import utils
 
 __all__ = [
-    "ConjugateResults", "FenchelConjugateSolver", "FenchelConjugateLBFGS"
+    "ConjugateResults",
+    "FenchelConjugateSolver",
+    "FenchelConjugateLBFGS",
+    "DEFAULT_CONJUGATE_SOLVER",
 ]
 
 
@@ -87,7 +90,7 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
 
   def solve(
       self,
-      f: Callable,
+      f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
       x_init: Optional[jnp.array] = None
   ) -> ConjugateResults:
