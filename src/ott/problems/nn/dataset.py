@@ -28,10 +28,10 @@ class Dataloaders(NamedTuple):
   r"""Train and validation dataloaders for the source and target measures.
 
   Args:
-  trainloader_source: Training dataset, source measure
-  trainloader_target: Training dataset, target measure
-  validloader_source: Valid dataset, source measure
-  validloader_target: Valid dataset, target measure
+    trainloader_source: Training dataset, source measure
+    trainloader_target: Training dataset, target measure
+    validloader_source: Valid dataset, source measure
+    validloader_target: Valid dataset, target measure
   """
   trainloader_source: Iterable[jnp.ndarray]
   trainloader_target: Iterable[jnp.ndarray]
