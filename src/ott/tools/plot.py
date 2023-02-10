@@ -323,8 +323,8 @@ def plot_potential(
     forward: bool = True,
     alpha: float = 0.05,
     ax: Optional[matplotlib.axes.Axes] = None,
-    x_bounds: Tuple[float] = (-6, 6),
-    y_bounds: Tuple[float] = (-6, 6),
+    x_bounds: Tuple[float, float] = (-6, 6),
+    y_bounds: Tuple[float, float] = (-6, 6),
     num_grid: int = 50,
     contourf_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:

@@ -24,7 +24,7 @@ from flax.training import train_state
 from jax.nn import initializers
 
 from ott.math import matrix_square_root
-from ott.solvers.nn.layers import PosDefPotentials, PositiveDense
+from ott.solvers.nn import layers
 
 __all__ = ["NeuralTrainState", "ModelBase", "ICNN", "MLP"]
 
@@ -63,7 +63,7 @@ class ModelBase(abc.ABC, nn.Module):
   ) -> PotentialValueFn_t:
     r"""Return a function giving the value of the potential.
 
-    Applies the module if ``self.is_potential`` is ``True``, otherwise
+    Applies the module if :attr:`is_potential` is ``True``, otherwise
     constructs the value of the potential from the gradient with
 
     .. math::
@@ -77,7 +77,7 @@ class ModelBase(abc.ABC, nn.Module):
       params: parameters of the module
       x: point to evaluate the value at
       other_potential_value: function giving the value of the other potential.
-        Only needed when ``self.is_potential`` is ``False``.
+        Only needed when :attr:`is_potential` is ``False``.
 
     Returns:
       A function that can be evaluated to obtain the potential's value
@@ -85,9 +85,10 @@ class ModelBase(abc.ABC, nn.Module):
     if self.is_potential:
       return lambda x: self.apply({"params": params}, x)
     else:
-      assert other_potential_value_fn is not None
+      assert other_potential_value_fn is not None, \
+          "The value of the gradient-based potential depends on the value of the other potential"
 
-      def value_fn(x):
+      def value_fn(x: jnp.ndarray) -> jnp.ndarray:
         squeeze = x.ndim == 1
         if squeeze:
           x = jnp.expand_dims(x, 0)
@@ -152,7 +153,7 @@ class ICNN(ModelBase):
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
-      hid_dense = PositiveDense
+      hid_dense = layers.PositiveDense
       # this function needs to be the inverse map of function
       # used in PositiveDense layers
       rescale = hid_dense.inv_rectifier_fn
@@ -190,7 +191,7 @@ class ICNN(ModelBase):
     self.w_zs = w_zs
 
     # positive definite potential (the identity mapping or linear OT)
-    self.pos_def_potential = PosDefPotentials(
+    self.pos_def_potential = layers.PosDefPotentials(
         self.dim_data,
         num_potentials=1,
         kernel_init=lambda *_: factor,
