@@ -78,7 +78,7 @@ class W2NeuralDual:
   property.
 
   Args:
-    input_dim: input dimensionality of data required for network init
+    dim_data: input dimensionality of data required for network init
     neural_f: network architecture for potential :math:`f`.
     neural_g: network architecture for the conjugate potential :math:`g\approx f^\star`
     optimizer_f: optimizer function for potential :math:`f`
@@ -103,7 +103,7 @@ class W2NeuralDual:
 
   def __init__(
       self,
-      input_dim: int,
+      dim_data: int,
       neural_f: Optional[models.ModelBase] = None,
       neural_g: Optional[models.ModelBase] = None,
       optimizer_f: Optional[optax.OptState] = None,
@@ -146,21 +146,21 @@ class W2NeuralDual:
 
     # set default neural architectures
     if neural_f is None:
-      neural_f = models.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
+      neural_f = models.ICNN(dim_data=dim_data, dim_hidden=[64, 64, 64, 64])
     if neural_g is None:
-      neural_g = models.ICNN(dim_data=input_dim, dim_hidden=[64, 64, 64, 64])
+      neural_g = models.ICNN(dim_data=dim_data, dim_hidden=[64, 64, 64, 64])
     self.neural_f = neural_f
     self.neural_g = neural_g
 
     # set optimizer and networks
     self.setup(
-        rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g,
+        rng, neural_f, neural_g, dim_data, optimizer_f, optimizer_g,
         init_f_params, init_g_params
     )
 
   def setup(
       self, rng: jnp.ndarray, neural_f: models.ModelBase,
-      neural_g: models.ModelBase, input_dim: int, optimizer_f: optax.OptState,
+      neural_g: models.ModelBase, dim_data: int, optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
@@ -187,10 +187,10 @@ class W2NeuralDual:
       neural_g.pos_weights = self.pos_weights
 
     self.state_f = neural_f.create_train_state(
-        rng_f, optimizer_f, input_dim, init_f_params
+        rng_f, optimizer_f, dim_data, init_f_params
     )
     self.state_g = neural_g.create_train_state(
-        rng_g, optimizer_g, input_dim, init_g_params
+        rng_g, optimizer_g, dim_data, init_g_params
     )
 
     # default to using back_and_forth with the non-convex models

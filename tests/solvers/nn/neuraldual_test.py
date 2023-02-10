@@ -11,74 +11,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
-from typing import Iterator, Literal, Sequence, Tuple
+from typing import Sequence, Tuple
 
 import pytest
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
-from ott.solvers.nn import neuraldual
+from ott.problems.nn import dataset
+from ott.solvers.nn import models, neuraldual
+
+ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
 
 
-class ToyDataset:
-
-  def __init__(
-      self, name: Literal['simple', 'circle', 'square_four', 'square_five']
-  ):
-    self.name = name
-
-  def __iter__(self) -> Iterator[jnp.ndarray]:
-    yield from self.create_sample_generators()
-
-  def create_sample_generators(self, scale: float = 5.0, variance: float = 0.5):
-    # given name of dataset, select centers
-    if self.name == "simple":
-      centers = np.array([0, 0])
-    elif self.name == "circle":
-      centers = np.array([
-          (1, 0),
-          (-1, 0),
-          (0, 1),
-          (0, -1),
-          (1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
-          (1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
-          (-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
-          (-1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
-      ])
-    elif self.name == "square_five":
-      centers = np.array([[0, 0], [1, 1], [-1, 1], [-1, -1], [1, -1]])
-    elif self.name == "square_four":
-      centers = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
-    else:
-      raise NotImplementedError(self.name)
-
-    # create generator which randomly picks center and adds noise
-    centers = scale * centers
-    while True:
-      center = centers[np.random.choice(len(centers))]
-      point = center + variance ** 2 * np.random.randn(2)
-
-      yield np.expand_dims(point, 0)
-
-  @property
-  def ndim(self) -> int:
-    return 2
+@pytest.fixture(params=[("gaussian_simple", "gaussian_circle")])
+def dataloaders(request: Tuple[str, str]) -> dataset.Dataloaders:
+  return dataset.create(request.param[0], request.param[1])[0]
 
 
-@pytest.fixture(params=[("simple", "circle")])
-def toy_dataset(request) -> Tuple[Iterator[jnp.ndarray], Iterator[jnp.ndarray]]:
-  src = iter(ToyDataset(request.param[0]))
-  tgt = iter(ToyDataset(request.param[1]))
-  return src, tgt
+@pytest.fixture(params=["icnns", "mlps", "mlps-grad"])
+def neural_models(request: str) -> ModelPair_t:
+  if request.param == 'icnns':
+    return (
+        models.ICNN(dim_data=2, dim_hidden=[128]),
+        models.ICNN(dim_data=2, dim_hidden=[128])
+    )
+  elif request.param == 'mlps':
+    return (models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]))
+  elif request.param == 'mlps-grad':
+    return (
+        models.MLP(dim_hidden=[128]),
+        models.MLP(is_potential=False, dim_hidden=[128])
+    )
+  else:
+    raise ValueError(f'Invalid request: {request.param}')
 
 
 class TestNeuralDual:
 
-  @pytest.mark.fast
+  @pytest.mark.fast.with_args("back_and_forth", [True, False])
   def test_neural_dual_convergence(
-      self, toy_dataset: Tuple[ToyDataset, ToyDataset]
+      self, dataloaders: dataset.Dataloaders, neural_models: ModelPair_t,
+      back_and_forth: bool
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 
@@ -89,37 +63,33 @@ class TestNeuralDual:
       return all(x >= y for x, y in zip(losses, losses[1:]))
 
     num_train_iters, log_freq = 100, 100
-    dataloader_source, dataloader_target = toy_dataset
+    neural_f, neural_g = neural_models
 
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
-        input_dim=2,
+        dim_data=2,
+        neural_f=neural_f,
+        neural_g=neural_g,
         num_train_iters=num_train_iters,
         logging=True,
-        log_freq=log_freq
+        log_freq=log_freq,
+        back_and_forth=back_and_forth,
     )
-    neural_dual, logs = neural_dual_solver(
-        dataloader_source, dataloader_target, dataloader_source,
-        dataloader_target
-    )
+    neural_dual, logs = neural_dual_solver(*dataloaders)
 
     # check if training loss of f is increasing and g is decreasing
     assert increasing(logs['train_logs']['loss_f'])
     assert decreasing(logs['train_logs']['loss_g'])
 
-  def test_neural_dual_jit(self, toy_dataset: Tuple[ToyDataset, ToyDataset]):
+  def test_neural_dual_jit(self, dataloaders: dataset.Dataloaders):
     num_train_iters = 10
-    dataloader_source, dataloader_target = toy_dataset
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
-        input_dim=2, num_train_iters=num_train_iters
+        dim_data=2, num_train_iters=num_train_iters
     )
-    neural_dual = neural_dual_solver(
-        dataloader_source, dataloader_target, dataloader_source,
-        dataloader_target
-    )
+    neural_dual = neural_dual_solver(*dataloaders)
 
-    data_source = next(dataloader_source)
+    data_source = next(dataloaders.trainloader_source)
     pred_target = neural_dual.transport(data_source)
 
     compute_transport = jax.jit(

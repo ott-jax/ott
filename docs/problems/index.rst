@@ -11,3 +11,4 @@ ott.problems
 
     linear
     quadratic
+    nn
