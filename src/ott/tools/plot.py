@@ -13,20 +13,17 @@
 # limitations under the License.
 """Plotting utils."""
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
 
-import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
 from ott import utils
 from ott.geometry import pointcloud
-from ott.problems.linear import potentials
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
@@ -227,149 +224,3 @@ def barycentric_projections(
     geom = arg.geom
 
   return _barycenters(ax, geom.y, arg.a, arg.b, arg.matrix, **kwargs)
-
-
-def plot_ot_map(
-    learned_potentials: potentials.DualPotentials,
-    source: jnp.ndarray,
-    target: jnp.ndarray,
-    forward: bool = True,
-    alpha: float = 0.5,
-    ax: Optional[matplotlib.axes.Axes] = None,
-    legend_kwargs: Optional[Dict[str, Any]] = None,
-    scatter_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-  """Plot data and learned optimal transport map.
-
-  Args:
-    learned_potentials: potentials to plot
-    source: samples from the source measure
-    target: samples from the target measure
-    forward: use the forward map from the potentials
-      if ``True``, otherwise use the inverse map
-    ax: axis to add the plot to
-    alpha: transparency of the scatter plot points
-    scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
-    legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
-
-  Returns: matplotlib figure and axis with the plots
-  """
-  if scatter_kwargs is None:
-    scatter_kwargs = {}
-  if legend_kwargs is None:
-    legend_kwargs = {}
-
-  if ax is None:
-    fig = plt.figure(facecolor="white")
-    ax = fig.add_subplot(111)
-  else:
-    fig = ax.get_figure()
-
-  # plot the source and target samples
-  if forward:
-    label_transport = r"$\nabla f(source)$"
-    source_color, target_color = "#1A254B", "#A7BED3"
-  else:
-    label_transport = r"$\nabla g(target)$"
-    source_color, target_color = "#A7BED3", "#1A254B"
-
-  ax.scatter(
-      source[:, 0],
-      source[:, 1],
-      color=source_color,
-      alpha=alpha,
-      label='source',
-      **scatter_kwargs,
-  )
-  ax.scatter(
-      target[:, 0],
-      target[:, 1],
-      color=target_color,
-      alpha=alpha,
-      label='target',
-      **scatter_kwargs,
-  )
-
-  # plot the transported samples
-  base_samples = source if forward else target
-  transported_samples = learned_potentials.transport(
-      base_samples, forward=forward
-  )
-  ax.scatter(
-      transported_samples[:, 0],
-      transported_samples[:, 1],
-      color="#F2545B",
-      alpha=alpha,
-      label=label_transport,
-      **scatter_kwargs,
-  )
-
-  for i in range(base_samples.shape[0]):
-    ax.arrow(
-        base_samples[i, 0],
-        base_samples[i, 1],
-        transported_samples[i, 0] - base_samples[i, 0],
-        transported_samples[i, 1] - base_samples[i, 1],
-        color=[0.5, 0.5, 1],
-        alpha=0.3
-    )
-
-  ax.legend(**legend_kwargs)
-  return fig, ax
-
-
-def plot_potential(
-    learned_potentials: potentials.DualPotentials,
-    forward: bool = True,
-    alpha: float = 0.05,
-    ax: Optional[matplotlib.axes.Axes] = None,
-    x_bounds: Tuple[float, float] = (-6, 6),
-    y_bounds: Tuple[float, float] = (-6, 6),
-    num_grid: int = 50,
-    contourf_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-  """Plot the potential.
-
-  Args:
-    learned_potentials: potentials to plot
-    forward: use the forward map from the potentials
-      if ``True``, otherwise use the inverse map
-    alpha: quantile to filter the potentials with
-    ax: axis to add the plot to
-    x_bounds: x-axis bounds of the plot (xmin, xmax)
-    y_bounds: y-axis bounds of the plot (ymin, ymax)
-    num_grid: number of points to discretize the domain into a grid
-      along each dimension
-    contourf_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.contourf`
-
-  Returns: matplotlib figure and axis with the plots.
-  """
-  if contourf_kwargs is None:
-    contourf_kwargs = {}
-
-  ax_specified = ax is not None
-  if not ax_specified:
-    fig, ax = plt.subplots(figsize=(6, 6), facecolor="white")
-  else:
-    fig = ax.get_figure()
-
-  x1 = jnp.linspace(*x_bounds, num=num_grid)
-  x2 = jnp.linspace(*y_bounds, num=num_grid)
-  X1, X2 = jnp.meshgrid(x1, x2)
-  X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
-  Zflat = jax.vmap(learned_potentials.f if forward else learned_potentials.g)(
-      X12flat
-  )
-  Zflat = np.asarray(Zflat)
-  vmin, vmax = np.quantile(Zflat, [alpha, 1. - alpha])
-  Zflat = Zflat.clip(vmin, vmax)
-  Z = Zflat.reshape(X1.shape)
-
-  CS = ax.contourf(X1, X2, Z, cmap="Blues", **contourf_kwargs)
-  ax.set_xlim(*x_bounds)
-  ax.set_ylim(*y_bounds)
-  fig.colorbar(CS, ax=ax)
-  if not ax_specified:
-    fig.tight_layout()
-  ax.set_title(r"$f$" if forward else r"$g$")
-  return fig, ax
