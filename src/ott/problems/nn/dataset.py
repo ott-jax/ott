@@ -99,8 +99,8 @@ class GaussianMixture:
 def create_gaussian_mixture_samplers(
     name_source: Name_t,
     name_target: Name_t,
-    train_batch_size: int = 1024,
-    valid_batch_size: int = 1024,
+    train_batch_size: int = 2048,
+    valid_batch_size: int = 2048,
     key: jax.random.PRNGKey = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
   """Creates Gaussian samplers for :class:`~ott.solvers.nn.models.NeuralDual`.
