@@ -22,11 +22,15 @@ from ott.problems.nn import dataset
 from ott.solvers.nn import models, neuraldual
 
 ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
+DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]
 
 
-@pytest.fixture(params=[("gaussian_simple", "gaussian_circle")])
-def dataloaders(request: Tuple[str, str]) -> dataset.Dataloaders:
-  return dataset.create(request.param[0], request.param[1])[0]
+@pytest.fixture(params=[("simple", "circle")])
+def datasets(request: Tuple[str, str]) -> DatasetPair_t:
+  train_dataset, valid_dataset, _ = dataset.create_gaussian_mixture_samplers(
+      request.param[0], request.param[1]
+  )
+  return (train_dataset, valid_dataset)
 
 
 @pytest.fixture(params=["icnns", "mlps", "mlps-grad"])
@@ -51,7 +55,7 @@ class TestNeuralDual:
 
   @pytest.mark.fast.with_args("back_and_forth", [True, False])
   def test_neural_dual_convergence(
-      self, dataloaders: dataset.Dataloaders, neural_models: ModelPair_t,
+      self, datasets: DatasetPair_t, neural_models: ModelPair_t,
       back_and_forth: bool
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
@@ -75,21 +79,23 @@ class TestNeuralDual:
         log_freq=log_freq,
         back_and_forth=back_and_forth,
     )
-    neural_dual, logs = neural_dual_solver(*dataloaders)
+    train_dataset, valid_dataset = datasets
+    neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
 
     # check if training loss of f is increasing and g is decreasing
     assert increasing(logs['train_logs']['loss_f'])
     assert decreasing(logs['train_logs']['loss_g'])
 
-  def test_neural_dual_jit(self, dataloaders: dataset.Dataloaders):
+  def test_neural_dual_jit(self, datasets: DatasetPair_t):
     num_train_iters = 10
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
         dim_data=2, num_train_iters=num_train_iters
     )
-    neural_dual = neural_dual_solver(*dataloaders)
+    train_dataset, valid_dataset = datasets
+    neural_dual = neural_dual_solver(*train_dataset, *valid_dataset)
 
-    data_source = next(dataloaders.trainloader_source)
+    data_source = next(train_dataset.source_iter)
     pred_target = neural_dual.transport(data_source)
 
     compute_transport = jax.jit(

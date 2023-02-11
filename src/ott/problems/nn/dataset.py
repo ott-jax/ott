@@ -113,10 +113,10 @@ def create_gaussian_mixture_samplers(
     key: initial PRNG key
 
   Returns:
-    The dataloaders and dimension of the data.
+    The dataset and dimension of the data.
   """
   k1, k2, k3, k4 = jax.random.split(key, 4)
-  train_dataloaders = Dataset(
+  train_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
               name_source, batch_size=train_batch_size, init_key=k1
@@ -128,7 +128,7 @@ def create_gaussian_mixture_samplers(
           )
       )
   )
-  valid_dataloaders = Dataset(
+  valid_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
               name_source, batch_size=train_batch_size, init_key=k3
@@ -141,4 +141,4 @@ def create_gaussian_mixture_samplers(
       )
   )
   dim_data = 2
-  return train_dataloaders, valid_dataloaders, dim_data
+  return train_dataset, valid_dataset, dim_data
