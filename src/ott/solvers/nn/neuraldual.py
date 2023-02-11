@@ -42,10 +42,8 @@ class W2NeuralDual:
   :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with
   an :class:`~ott.solvers.nn.models.ICNN`,
-  :class:`~ott.solvers.nn.models.MLP`,
-  or other
-  :class:`~ott.solvers.nn.models.ModelBase`,
-  where
+  :class:`~ott.solvers.nn.models.MLP`, or other
+  :class:`~ott.solvers.nn.models.ModelBase`, where
   :math:`\nabla f` transports source to target cells.
   This potential is learned by optimizing the dual
   form associated with the negative inner product cost
@@ -53,7 +51,7 @@ class W2NeuralDual:
   .. math::
 
     \text{argsup}_{\theta}\; -\mathbb{E}_{x\sim\alpha}[f_\theta(x)] -
-      \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)]`,
+      \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)],
 
   where
   :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`
@@ -67,15 +65,15 @@ class W2NeuralDual:
   which is a combination further described in :cite:`amos:23`.
 
   The :class:`~ott.solvers.nn.models.ModelBase` potentials for
-  ``neural_f`` and ``neural_g`` can 1) both provide the
-  values of the potentials :math:`f` and :math:`g`, or
-  2) one of them can provide the gradient mapping
-  e.g., :math:`\nabla f` or :math:`\nabla g` where the
-  potential's value can be obtained via the Fenchel conjugate
-  as discussed in :cite:`amos:23`.
+  ``neural_f`` and ``neural_g`` can
+
+  1. both provide the values of the potentials :math:`f` and :math:`g`, or
+  2. one of them can provide the gradient mapping e.g., :math:`\nabla f`
+     or :math:`\nabla g` where the potential's value can be obtained
+     via the Fenchel conjugate as discussed in :cite:`amos:23`.
+
   The potential's value or gradient mapping is specified via
-  the :meth:`~ott.solvers.nn.models.ModelBase.is_potential`
-  property.
+  :attr:`~ott.solvers.nn.models.ModelBase.is_potential`.
 
   Args:
     dim_data: input dimensionality of data required for network init

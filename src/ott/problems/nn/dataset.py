@@ -9,55 +9,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Neural OT datasets."""
+"""Toy datasets for neural OT."""
 
 import dataclasses
-from typing import Any, Iterable, Iterator, Literal, NamedTuple, Tuple
+from typing import Iterable, Iterator, Literal, NamedTuple, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ['create', 'Dataloaders', 'GaussianMixture']
+__all__ = ['create_gaussian_mixture_samplers', 'Dataset', 'GaussianMixture']
 
-Name_t = Literal['gaussian_simple', 'gaussian_circle', 'gaussian_square_five',
-                 'gaussian_square_four']
+Name_t = Literal['simple', 'circle', 'square_five', 'square_four']
 
 
-class Dataloaders(NamedTuple):
-  r"""Train and validation dataloaders for the source and target measures.
+class Dataset(NamedTuple):
+  r"""Samplers from source and target measures.
 
   Args:
-    trainloader_source: Training dataset, source measure
-    trainloader_target: Training dataset, target measure
-    validloader_source: Valid dataset, source measure
-    validloader_target: Valid dataset, target measure
+    source_iter: loader for the source measure
+    target_iter: loader for the target measure
   """
-  trainloader_source: Iterable[jnp.ndarray]
-  trainloader_target: Iterable[jnp.ndarray]
-  validloader_source: Iterable[jnp.ndarray]
-  validloader_target: Iterable[jnp.ndarray]
-
-
-GAUSSIAN_CENTERS = {
-    'simple':
-        np.array([[0, 0]]),
-    'circle':
-        np.array([
-            (1, 0),
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-            (1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
-            (1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
-            (-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
-            (-1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
-        ]),
-    'square_five':
-        np.array([[0, 0], [1, 1], [-1, 1], [-1, -1], [1, -1]]),
-    'square_four':
-        np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]),
-}
+  source_iter: Iterable[jnp.ndarray]
+  target_iter: Iterable[jnp.ndarray]
 
 
 @dataclasses.dataclass
@@ -83,13 +57,32 @@ class GaussianMixture:
   variance: float = 0.5
 
   def __post_init__(self):
-    if self.name not in GAUSSIAN_CENTERS:
+    gaussian_centers = {
+        'simple':
+            np.array([[0, 0]]),
+        'circle':
+            np.array([
+                (1, 0),
+                (-1, 0),
+                (0, 1),
+                (0, -1),
+                (1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
+                (1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
+                (-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
+                (-1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
+            ]),
+        'square_five':
+            np.array([[0, 0], [1, 1], [-1, 1], [-1, -1], [1, -1]]),
+        'square_four':
+            np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]),
+    }
+    if self.name not in gaussian_centers:
       raise ValueError(
           f'{self.name} is not a valid dataset for GaussianMixture'
       )
-    self.centers = GAUSSIAN_CENTERS[self.name]
+    self.centers = gaussian_centers[self.name]
 
-  def __iter__(self):
+  def __iter__(self) -> Iterator[jnp.array]:
     return self.create_sample_generators()
 
   def create_sample_generators(self) -> Iterator[jnp.array]:
@@ -103,53 +96,49 @@ class GaussianMixture:
       yield samples
 
 
-def get_sampler(name: str, **kwargs: Any) -> Iterable[jnp.ndarray]:
-  """Returns a sampler.
-
-  Args:
-    name: the name of the dataset
-    kwargs: additional arguments passed into the sampler
-
-  Returns:
-    The sampler
-  """
-  if name.startswith('gaussian'):
-    name = name[9:]
-    return iter(GaussianMixture(name, **kwargs))
-  else:
-    raise ValueError('Only Gaussian datasets are supported')
-
-
-def create(
+def create_gaussian_mixture_samplers(
     name_source: Name_t,
     name_target: Name_t,
     train_batch_size: int = 1024,
-    valid_batch_size: int = 1000,
+    valid_batch_size: int = 1024,
     key: jax.random.PRNGKey = jax.random.PRNGKey(0),
-) -> Tuple[Dataloaders, int]:
-  """Provides the dataloaders.
+) -> Tuple[Dataset, Dataset, int]:
+  """Creates Gaussian samplers for :class:`~ott.solvers.nn.models.NeuralDual`.
 
   Args:
-    name_source: name of the source measure
-    name_target: name of the target measure
+    name_source: name of the source sampler
+    name_target: name of the target sampler
     train_batch_size: the training batch size
     valid_batch_size: the validation batch size
     key: initial PRNG key
+
+  Returns:
+    The dataloaders and dimension of the data.
   """
   k1, k2, k3, k4 = jax.random.split(key, 4)
-  dataloaders = Dataloaders(
-      trainloader_source=get_sampler(
-          name_source, batch_size=train_batch_size, init_key=k1
+  train_dataloaders = Dataset(
+      source_iter=iter(
+          GaussianMixture(
+              name_source, batch_size=train_batch_size, init_key=k1
+          )
       ),
-      trainloader_target=get_sampler(
-          name_target, batch_size=valid_batch_size, init_key=k2
+      target_iter=iter(
+          GaussianMixture(
+              name_target, batch_size=valid_batch_size, init_key=k2
+          )
+      )
+  )
+  valid_dataloaders = Dataset(
+      source_iter=iter(
+          GaussianMixture(
+              name_source, batch_size=train_batch_size, init_key=k3
+          )
       ),
-      validloader_source=get_sampler(
-          name_source, batch_size=train_batch_size, init_key=k3
-      ),
-      validloader_target=get_sampler(
-          name_target, batch_size=valid_batch_size, init_key=k4
-      ),
+      target_iter=iter(
+          GaussianMixture(
+              name_target, batch_size=valid_batch_size, init_key=k4
+          )
+      )
   )
   dim_data = 2
-  return dataloaders, dim_data
+  return train_dataloaders, valid_dataloaders, dim_data

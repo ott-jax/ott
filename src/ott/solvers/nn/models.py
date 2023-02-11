@@ -33,7 +33,16 @@ PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 
 
 class NeuralTrainState(train_state.TrainState):
-  """Adds information about the model's value and gradient to the state."""
+  """Adds information about the model's value and gradient to the state.
+
+  This extends :class:`flax.training.train_state.TrainState` to include
+  the potential methods from :class:`~ott.solvers.nn.models.ModelBase`
+  used during training.
+
+  Args:
+    potential_value_fn: the potential's value function
+    potential_gradient_fn: the potential's gradient function
+  """
   potential_value_fn: Callable[
       [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
       PotentialValueFn_t] = struct.field(pytree_node=False)
@@ -129,12 +138,12 @@ class ICNN(ModelBase):
       output dimension of the last layer is 1 by default.
     init_std: value of standard deviation of weight initialization method.
     init_fn: choice of initialization method for weight matrices (default:
-      `jax.nn.initializers.normal`).
+      :func:`jax.nn.initializers.normal`).
     act_fn: choice of activation function used in network architecture
-      (needs to be convex, default: `nn.relu`).
+      (needs to be convex, default: :obj:`jax.nn.relu`).
     gaussian_map: data inputs of source and target measures for
       initialization scheme based on Gaussian approximation of input and
-      target measure (if None, identity initialization is used).
+      target measure (if ``None``, identity initialization is used).
   """
 
   dim_data: int
@@ -295,11 +304,10 @@ class MLP(ModelBase):
   """A non-convex MLP.
 
   Args:
-    dim_hidden: sequence specifying size of hidden dimensions. The
-      output dimension of the last layer is automatically set to
-      1 (if `is_potential=True`) or the dimension
-      of the input (if `is_potential=False`).
-    is_potential: Model the potential if `True`, otherwise
+    dim_hidden: sequence specifying size of hidden dimensions. The output
+      dimension of the last layer is automatically set to 1 if
+      :attr:`is_potential` is ``True``, or the dimension of the input otherwise
+    is_potential: Model the potential if ``True``, otherwise
       model the gradient of the potential
     act_fn: Activation function
   """
