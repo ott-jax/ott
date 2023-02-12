@@ -141,6 +141,9 @@ class ICNN(ModelBase):
       :func:`jax.nn.initializers.normal`).
     act_fn: choice of activation function used in network architecture
       (needs to be convex, default: :obj:`jax.nn.relu`).
+    pos_weights: Enforce positive weights with a projection.
+      If ``False``, the positive weights should be enforced with clipping
+      or regularization in the loss.
     gaussian_map: data inputs of source and target measures for
       initialization scheme based on Gaussian approximation of input and
       target measure (if ``None``, identity initialization is used).

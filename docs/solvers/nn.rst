@@ -17,7 +17,6 @@ Models
 .. autosummary::
     :toctree: _autosummary
 
-    models.NeuralTrainState
     models.ModelBase
     models.ICNN
     models.MLP

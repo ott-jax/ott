@@ -166,7 +166,6 @@ class DualPotentials:
       source: jnp.ndarray,
       target: jnp.ndarray,
       forward: bool = True,
-      alpha: float = 0.5,
       ax: Optional[matplotlib.axes.Axes] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
@@ -179,16 +178,21 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       ax: axis to add the plot to
-      alpha: transparency of the scatter plot points
       scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
       legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
 
-    Returns: matplotlib figure and axis with the plots
+    Returns:
+      matplotlib figure and axis with the plots
     """
     if scatter_kwargs is None:
-      scatter_kwargs = {}
+      scatter_kwargs = {'alpha': 0.5}
     if legend_kwargs is None:
-      legend_kwargs = {}
+      legend_kwargs = {
+          'ncol': 3,
+          'loc': 'upper center',
+          'bbox_to_anchor': (0.5, -0.05),
+          'edgecolor': 'k'
+      }
 
     if ax is None:
       fig = plt.figure(facecolor="white")
@@ -208,7 +212,6 @@ class DualPotentials:
         source[:, 0],
         source[:, 1],
         color=source_color,
-        alpha=alpha,
         label='source',
         **scatter_kwargs,
     )
@@ -216,7 +219,6 @@ class DualPotentials:
         target[:, 0],
         target[:, 1],
         color=target_color,
-        alpha=alpha,
         label='target',
         **scatter_kwargs,
     )
@@ -228,7 +230,6 @@ class DualPotentials:
         transported_samples[:, 0],
         transported_samples[:, 1],
         color="#F2545B",
-        alpha=alpha,
         label=label_transport,
         **scatter_kwargs,
     )
@@ -249,7 +250,7 @@ class DualPotentials:
   def plot_potential(
       self,
       forward: bool = True,
-      alpha: float = 0.05,
+      quantile: float = 0.05,
       ax: Optional[matplotlib.axes.Axes] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
@@ -261,15 +262,17 @@ class DualPotentials:
     Args:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
-      alpha: quantile to filter the potentials with
+      quantile: quantile to filter the potentials with
       ax: axis to add the plot to
       x_bounds: x-axis bounds of the plot (xmin, xmax)
       y_bounds: y-axis bounds of the plot (ymin, ymax)
       num_grid: number of points to discretize the domain into a grid
         along each dimension
-      contourf_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.contourf`
+      contourf_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.contourf`
 
-    Returns: matplotlib figure and axis with the plots.
+    Returns:
+      matplotlib figure and axis with the plots.
     """
     if contourf_kwargs is None:
       contourf_kwargs = {}
@@ -286,7 +289,7 @@ class DualPotentials:
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
     Zflat = np.asarray(Zflat)
-    vmin, vmax = np.quantile(Zflat, [alpha, 1. - alpha])
+    vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
     Zflat = Zflat.clip(vmin, vmax)
     Z = Zflat.reshape(X1.shape)
 

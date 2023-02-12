@@ -39,18 +39,20 @@ class GaussianMixture:
   """A mixture of Gaussians.
 
   Args:
-    name: the name specifying the centers of the mixture components;
-      `simple` (data clustered in one center),
-      `circle` (two-dimensional Gaussians arranged on a circle),
-      `square_five` (two-dimensional Gaussians on a square with one Gaussian
-      in the center), and `square_four` (two-dimensional Gaussians in the
-      corners of a rectangle)
+    name: the name specifying the centers of the mixture components:
+
+        - ``simple`` (data clustered in one center),
+        - ``circle`` (two-dimensional Gaussians arranged on a circle),
+        - ``square_five`` (two-dimensional Gaussians on a square with
+          one Gaussian in the center), and
+        - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
+
     batch_size: batch size of the samples
     init_key: initial PRNG key
     scale: scale of the individual Gaussian samples
-    variance the variance of the individual Gaussian samples
+    variance: the variance of the individual Gaussian samples
   """
-  name: str
+  name: Name_t
   batch_size: int
   init_key: jax.random.PRNGKey
   scale: float = 5.0
@@ -103,7 +105,7 @@ def create_gaussian_mixture_samplers(
     valid_batch_size: int = 2048,
     key: jax.random.PRNGKey = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
-  """Creates Gaussian samplers for :class:`~ott.solvers.nn.models.NeuralDual`.
+  """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
   Args:
     name_source: name of the source sampler
@@ -124,14 +126,14 @@ def create_gaussian_mixture_samplers(
       ),
       target_iter=iter(
           GaussianMixture(
-              name_target, batch_size=valid_batch_size, init_key=k2
+              name_target, batch_size=train_batch_size, init_key=k2
           )
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
-              name_source, batch_size=train_batch_size, init_key=k3
+              name_source, batch_size=valid_batch_size, init_key=k3
           )
       ),
       target_iter=iter(
