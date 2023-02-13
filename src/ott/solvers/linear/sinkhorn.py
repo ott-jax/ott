@@ -944,6 +944,7 @@ class Sinkhorn:
       When differentiating the regularized OT cost, and assuming Sinkhorn has
       run to convergence, Danskin's (or the envelope)
       `theorem <https://en.wikipedia.org/wiki/Danskin%27s_theorem>`_
+      :cite:`danskin:67,bertsekas:71`
       states that the resulting OT cost as a function of the inputs
       (``geometry``, ``a``, ``b``) behaves locally as if the dual optimal
       potentials were frozen and did not vary with those inputs.

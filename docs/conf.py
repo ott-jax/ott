@@ -66,6 +66,8 @@ intersphinx_mapping = {
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "pot": ("https://pythonot.github.io/", None),
+    "jaxopt": ("https://jaxopt.github.io/stable", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
 master_doc = 'index'
