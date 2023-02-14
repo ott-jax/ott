@@ -23,9 +23,10 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-from datetime import datetime
-from sphinx.util import logging as sphinx_logging
 import logging
+from datetime import datetime
+
+from sphinx.util import logging as sphinx_logging
 
 import ott
 
@@ -83,6 +84,7 @@ autodoc_typehints = 'description'
 # myst-nb
 myst_heading_anchors = 2
 nb_execution_mode = "off"
+nb_mime_priority_overrides = [("spelling", "text/plain", 0)]
 myst_enable_extensions = [
     'amsmath',
     'colon_fence',
@@ -97,7 +99,7 @@ bibtex_default_style = "alpha"
 # spelling
 spelling_lang = "en_US"
 spelling_warning = True
-spelling_word_list_filename = "spelling_wordlist.txt"
+spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
 spelling_exclude_patterns = ["references.rst"]
 spelling_filters = [
