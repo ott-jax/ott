@@ -12,7 +12,8 @@
 """A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
-from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from types import MappingProxyType
+from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -21,7 +22,9 @@ from flax import core
 from flax.core import frozen_dict
 
 from ott.geometry import costs
-from ott.problems.linear import potentials
+from ott.geometry.pointcloud import PointCloud
+from ott.problems.linear import potentials, sinkhorn
+from ott.problems.linear.linear_problem import LinearProblem
 from ott.solvers.nn import conjugate_solvers, models
 
 __all__ = ["W2NeuralDual"]
@@ -120,6 +123,10 @@ class W2NeuralDual:
       parallel_updates: bool = True,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+      epsilon: Optional[float] = None,
+      sample_sinkhorn_kwargs: Dict[str, Any] = MappingProxyType({}),
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -132,6 +139,10 @@ class W2NeuralDual:
     self.parallel_updates = parallel_updates
     self.conjugate_solver = conjugate_solver
     self.amortization_loss = amortization_loss
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.epsilon = epsilon
+    self.sample_sinkhorn_kwargs = sample_sinkhorn_kwargs
 
     # set random key
     rng = jax.random.PRNGKey(seed)
@@ -262,16 +273,20 @@ class W2NeuralDual:
     for step in tqdm(range(self.num_train_iters)):
       update_forward = not self.back_and_forth or step % 2 == 0
       if update_forward:
-        train_batch["source"] = jnp.asarray(next(trainloader_source))
-        train_batch["target"] = jnp.asarray(next(trainloader_target))
+        train_batch["source"], train_batch["target"] = self.resample(
+            jnp.asarray(next(trainloader_source)),
+            jnp.asarray(next(trainloader_source))
+        )
         self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_f,
             self.state_g,
             train_batch,
         )
       else:
-        train_batch["target"] = jnp.asarray(next(trainloader_source))
-        train_batch["source"] = jnp.asarray(next(trainloader_target))
+        train_batch["source"], train_batch["target"] = self.resample(
+            jnp.asarray(next(trainloader_source)),
+            jnp.asarray(next(trainloader_source))
+        )
         self.state_g, self.state_f, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_g,
             self.state_f,
@@ -296,8 +311,10 @@ class W2NeuralDual:
       # report the loss on an validation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
         # get batch
-        valid_batch["source"] = jnp.asarray(next(validloader_source))
-        valid_batch["target"] = jnp.asarray(next(validloader_target))
+        valid_batch["source"], valid_batch["target"] = self.resample(
+            jnp.asarray(next(validloader_source)),
+            jnp.asarray(next(validloader_source))
+        )
 
         valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
             self.state_f,
@@ -542,6 +559,44 @@ class W2NeuralDual:
         cost_fn=costs.SqEuclidean(),
         corr=True
     )
+
+  def resample(
+      self, batch_source: jnp.ndarray, batch_target: jnp.ndarray,
+      rng: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    r"""Resample data based on posterior marginals of entropy-regularized optimal transport solution.
+
+    Args:
+      batch_source: Batch of the source distribution.
+      batch_target: Batch of the target distribution.
+      rng: :class:`jax.numpy.ndarray` used for setting the seed.
+
+    Returns:
+      Resampled `batch_source` and `batch_target`.
+    """
+    if self.tau_a == 1.0 and self.tau_b == 1.0:
+      return batch_source, batch_target
+    geom = PointCloud(
+        batch_source,
+        batch_target,
+        epsilon=self.epsilon,
+        scale_cost=self.sample_sinkhorn_kwargs.pop("scale_cost", "mean")
+    )
+    prob = LinearProblem(geom, tau_a=self.tau_a, tau_b=self.tau_b)
+    out = sinkhorn.Sinkhorn(**self.sample_sinkhorn_kwargs)(prob)
+
+    transition_matrix = geom.transport_from_potentials(out.f, out.g)
+    # jax categorical uses log probabilities
+    log_marginals_source = jnp.log(jnp.sum(transition_matrix, axis=1))
+    log_marginals_target = jnp.log(jnp.sum(transition_matrix, axis=0))
+    rng_a, rng_b = jax.random.split(rng, 3)
+    batch_source_adapted = jax.random.choice(
+        rng_a, batch_source, shape=[len(batch_source)], p=log_marginals_source
+    )
+    batch_target_adapted = jax.random.choice(
+        rng_b, batch_source, shape=[len(batch_target)], p=log_marginals_target
+    )
+    return batch_source_adapted, batch_target_adapted
 
   @staticmethod
   def _clip_weights_icnn(params):
