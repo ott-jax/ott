@@ -64,6 +64,7 @@ class Plot:
       show_lines: bool = True,
       cmap: str = 'cool',
       adjust_transparency: bool = False,
+      alpha: float = 0.7,
   ):
     if ax is None and fig is None:
       fig, ax = plt.subplots()
@@ -81,6 +82,7 @@ class Plot:
     self._scale = scale
     self._cmap = cmap
     self._adjust_transparency = adjust_transparency
+    self._alpha = alpha
 
   def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
@@ -121,19 +123,26 @@ class Plot:
     lines = self._mapping(x, y, ot.matrix)
     cmap = plt.get_cmap(self._cmap)
     self._lines = []
+
+    # Make the transparency of the lines depend on the strength of the coupling.
+    adjust_transparency = self._adjust_transparency
+    if adjust_transparency:
+      matrix = ot.matrix
+      min_matrix = float(jnp.min(matrix))
+      max_matrix = float(jnp.max(matrix))
+      scaling_factor = float(jnp.max(jnp.array(matrix.shape)))
+
+      if max_matrix == min_matrix:
+        adjust_transparency = False
+
     for start, end, strength in lines:
 
-      # Make the transparency of the lines depend on the strength of the coupling.
-      alpha = 0.7
-      if self._adjust_transparency and jnp.max(ot.matrix) != jnp.min(ot.matrix):
-        normalized_strength = (
-            strength / jnp.max(jnp.array(ot.matrix.shape)) - jnp.min(ot.matrix)
-        ) / (
-            jnp.max(ot.matrix) - jnp.min(ot.matrix)
-        )
-        alpha *= normalized_strength
-
-      alpha = float(alpha)
+      if adjust_transparency:
+        normalized_strength = float(strength) / scaling_factor - min_matrix
+        normalized_strength /= 1e-3 + max_matrix - min_matrix
+        alpha = self._alpha * normalized_strength
+      else:
+        alpha = self._alpha
 
       line, = self.ax.plot(
           start,
@@ -154,26 +163,54 @@ class Plot:
     if not self._show_lines:
       return []
 
-    new_lines = self._mapping(x, y, ot.matrix)
+    # Make the transparency of the lines depend on the strength of the coupling.
+    adjust_transparency = self._adjust_transparency
+    matrix = ot.matrix
+    if adjust_transparency:
+      min_matrix = float(jnp.min(matrix))
+      max_matrix = float(jnp.max(matrix))
+      scaling_factor = float(jnp.max(jnp.array(matrix.shape)))
+
+      if max_matrix == min_matrix:
+        adjust_transparency = False
+
+    new_lines = self._mapping(x, y, matrix)
     cmap = plt.get_cmap(self._cmap)
     for line, new_line in zip(self._lines, new_lines):
       start, end, strength = new_line
+
+      if adjust_transparency:
+        normalized_strength = float(strength) / scaling_factor - min_matrix
+        normalized_strength /= 1e-3 + max_matrix - min_matrix
+        alpha = self._alpha * normalized_strength
+      else:
+        alpha = self._alpha
+
       line.set_data(start, end)
       line.set_linewidth(0.5 + 4 * strength)
       line.set_color(cmap(strength))
+      line.set_alpha(alpha)
 
     # Maybe add new lines to the plot.
     num_lines = len(self._lines)
     num_to_plot = len(new_lines) if self._show_lines else 0
     for i in range(num_lines, num_to_plot):
       start, end, strength = new_lines[i]
+
+      if adjust_transparency:
+        normalized_strength = float(strength) / scaling_factor - min_matrix
+        normalized_strength /= 1e-3 + max_matrix - min_matrix
+        alpha = self._alpha * normalized_strength
+      else:
+        alpha = self._alpha
+
       line, = self.ax.plot(
           start,
           end,
           linewidth=0.5 + 4 * strength,
           color=cmap(strength),
           zorder=0,
-          alpha=0.7
+          alpha=alpha
       )
       self._lines.append(line)
 
