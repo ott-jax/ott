@@ -78,8 +78,8 @@ def compute_reg_ot_cost(
     r: second factor of solution
     g: weights of solution
     ot_prob: linear problem
-    use_danskin: if True, use Danskin's trick to avoid computing the gradient of
-      the cost function.
+    use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
+      to avoid computing the gradient of the cost function.
 
   Returns:
     regularized OT cost

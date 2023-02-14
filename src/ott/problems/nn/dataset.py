@@ -88,7 +88,7 @@ class GaussianMixture:
     return self.create_sample_generators()
 
   def create_sample_generators(self) -> Iterator[jnp.array]:
-    """Creates a generator of samples from the Gaussian mixture.
+    """Random sample generator from Gaussian mixture.
 
     Returns:
       A generator of samples from the Gaussian mixture.

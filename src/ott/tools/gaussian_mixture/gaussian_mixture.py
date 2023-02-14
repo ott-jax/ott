@@ -141,32 +141,32 @@ class GaussianMixture:
 
   @property
   def dtype(self):
-    """Get the dtype of the GMM parameters."""
+    """Dtype of the GMM parameters."""
     return self.loc.dtype
 
   @property
   def n_dimensions(self):
-    """Get the number of dimensions of the GMM parameters."""
+    """Number of dimensions of the GMM parameters."""
     return self._loc.shape[-1]
 
   @property
   def n_components(self):
-    """Get the number of components of the GMM parameters."""
+    """Number of components of the GMM parameters."""
     return self._loc.shape[-2]
 
   @property
   def loc(self) -> jnp.ndarray:
-    """Get the location parameters of the GMM."""
+    """Location parameters of the GMM."""
     return self._loc
 
   @property
   def scale_params(self) -> jnp.ndarray:
-    """Get the scale parameters of the GMM."""
+    """Scale parameters of the GMM."""
     return self._scale_params
 
   @property
   def cholesky(self) -> jnp.ndarray:
-    """Get the Cholesky decomposition of the GMM covariance matrices."""
+    """Cholesky decomposition of the GMM covariance matrices."""
     size = self.n_dimensions
 
     def _get_cholesky(scale_params):
@@ -176,7 +176,7 @@ class GaussianMixture:
 
   @property
   def covariance(self) -> jnp.ndarray:
-    """Get the covariance matrices of the GMM."""
+    """Covariance matrices of the GMM."""
     size = self.n_dimensions
 
     def _get_covariance(scale_params):
@@ -186,16 +186,16 @@ class GaussianMixture:
 
   @property
   def component_weight_ob(self) -> probabilities.Probabilities:
-    """Get the component weight object."""
+    """Component weight object."""
     return self._component_weight_ob
 
   @property
   def component_weights(self) -> jnp.ndarray:
-    """Get the component weights probabilities."""
+    """Component weights probabilities."""
     return self._component_weight_ob.probs()
 
   def log_component_weights(self) -> jnp.ndarray:
-    """Get the log component weights probabilities."""
+    """Log component weights probabilities."""
     return self._component_weight_ob.log_probs()
 
   def _get_normal(
@@ -207,13 +207,13 @@ class GaussianMixture:
     )
 
   def get_component(self, index: int) -> gaussian.Gaussian:
-    """Get the specified GMM component."""
+    """Specified GMM component."""
     return self._get_normal(
         loc=self.loc[index], scale_params=self.scale_params[index]
     )
 
   def components(self) -> List[gaussian.Gaussian]:
-    """Get a list of all GMM components."""
+    """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
