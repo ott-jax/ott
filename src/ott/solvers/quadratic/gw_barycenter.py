@@ -131,7 +131,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
-      seed: int = 0,
+      rng:  jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
 
@@ -150,7 +150,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
           the fused case.
 
       a: An array of shape ``[bar_size,]`` containing the barycenter weights.
-      seed: Random seed used when ``bar_init = None``.
+      rng: Random key for seeding used when ``bar_init = None``.
 
     Returns:
       The initial barycenter state.
@@ -162,7 +162,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     if bar_init is None:
       _, b = problem.segmented_y_b
-      rng = jax.random.PRNGKey(seed)
       keys = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
 

@@ -90,7 +90,7 @@ class W2NeuralDual:
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
-    seed: random seed for network initializations
+    rng: random key used for seeding for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
     conjugate_solver: numerical solver for the Fenchel conjugate.
@@ -114,7 +114,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      seed: int = 0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
@@ -135,8 +135,6 @@ class W2NeuralDual:
     self.conjugate_solver = conjugate_solver
     self.amortization_loss = amortization_loss
 
-    # set random key
-    rng = jax.random.PRNGKey(seed)
 
     # set default optimizers
     if optimizer_f is None:
