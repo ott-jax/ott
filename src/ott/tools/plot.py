@@ -62,7 +62,8 @@ class Plot:
       cost_threshold: float = -1.0,  # should be negative for animations.
       scale: int = 200,
       show_lines: bool = True,
-      cmap: str = 'cool'
+      cmap: str = 'cool',
+      adjust_transparency: bool = False,
   ):
     if ax is None and fig is None:
       fig, ax = plt.subplots()
@@ -79,6 +80,7 @@ class Plot:
     self._threshold = cost_threshold
     self._scale = scale
     self._cmap = cmap
+    self._adjust_transparency = adjust_transparency
 
   def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
@@ -120,13 +122,26 @@ class Plot:
     cmap = plt.get_cmap(self._cmap)
     self._lines = []
     for start, end, strength in lines:
+
+      # Make the transparency of the lines depend on the strength of the coupling.
+      alpha = 0.7
+      if self._adjust_transparency and jnp.max(ot.matrix) != jnp.min(ot.matrix):
+        normalized_strength = (
+            strength / jnp.max(jnp.array(ot.matrix.shape)) - jnp.min(ot.matrix)
+        ) / (
+            jnp.max(ot.matrix) - jnp.min(ot.matrix)
+        )
+        alpha *= normalized_strength
+
+      alpha = float(alpha)
+
       line, = self.ax.plot(
           start,
           end,
           linewidth=0.5 + 4 * strength,
           color=cmap(strength),
           zorder=0,
-          alpha=0.7
+          alpha=alpha
       )
       self._lines.append(line)
     return [self._points_x, self._points_y] + self._lines
