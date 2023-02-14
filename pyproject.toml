@@ -106,7 +106,6 @@ multi_line_output = 3
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "NUMERIC", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
 known_numeric = ["numpy", "scipy", "pandas", "sklearn", "jax", "flax", "optax", "torch"]
 known_plotting = ["matplotlib", "mpl_toolkits", "seaborn"]
-skip_glob = ["docs/*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

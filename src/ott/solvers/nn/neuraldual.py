@@ -206,7 +206,8 @@ class W2NeuralDual:
     else:
       if self.parallel_updates:
         warnings.warn(
-            'parallel_updates set to True but disabling it because num_inner_iters>1',
+            'parallel_updates set to True but disabling it '
+            'because num_inner_iters>1',
             stacklevel=2
         )
       if self.back_and_forth:
