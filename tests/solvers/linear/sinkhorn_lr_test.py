@@ -46,10 +46,12 @@ class TestLRSinkhorn:
       use_lrcgeom=[True, False],
       initializer=["rank2", "random", "k-means"],
       gamma_rescale=[False, True],
+      lse_mode=[True, False],
       only_fast=0,
   )
   def test_euclidean_point_cloud_lr(
-      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool
+      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool,
+      lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
     threshold = 1e-3
@@ -66,6 +68,7 @@ class TestLRSinkhorn:
         rank=6,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer
     )
     solved = solver(ot_prob)
@@ -88,6 +91,7 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)
@@ -116,6 +120,7 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=5e-1,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)

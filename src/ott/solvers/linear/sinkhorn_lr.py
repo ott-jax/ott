@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -79,7 +79,8 @@ def compute_reg_ot_cost(
 
 def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
-    norm_error: Tuple[int, ...]) -> jnp.ndarray:
+    norm_error: Tuple[int, ...]
+) -> jnp.ndarray:
   """Compute solution error.
 
   Since only balanced case is available for LR, this is marginal deviation.
@@ -503,7 +504,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
     return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
 
-
   def dykstra_update_kernel(
       self,
       k_q: jnp.ndarray,
@@ -552,18 +552,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       u1 = a / jnp.dot(k_q, v1_old)
       u2 = b / jnp.dot(k_r, v2_old)
       g = jnp.maximum(jnp.log(min_entry_value), g_old * q_gi)
-      q_gi = (g_old * q_gi) / g 
+      q_gi = (g_old * q_gi) / g
       g_old = g
 
       # Second Projection
       v1_trans = jnp.dot(k_q.T, u1)
       v2_trans = jnp.dot(k_r.T, u2)
-      g = (g_old * q_gp * v1_old * q_q * v1_trans * v2_old * q_r * v2_trans) ** (
-                1 / 3
-            )
-      v1 = g / v1_trans 
+      g = (g_old * q_gp * v1_old * q_q * v1_trans * v2_old * q_r *
+           v2_trans) ** (1 / 3)
+      v1 = g / v1_trans
       v2 = g / v2_trans
-      q_gp = (g_old * q_gp) / g 
+      q_gp = (g_old * q_gp) / g
       q_q = (q_q * v1_old) / v1
       q_r = (q_r * v2_old) / v2
       v1_old = v1
@@ -601,7 +600,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     u1, u2, v1_old, v2_old, g_old, _, _, _, _, _ = state_inner
     return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
 
-
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
       iteration: int
@@ -620,9 +618,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """LR Sinkhorn Kernel update."""
     k_q, k_r, k_g, gamma = self._lr_kernels(ot_prob, state)
     q, r, g = self.dykstra_update_kernel(
-      k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
+        k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
     )
-    
+
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
