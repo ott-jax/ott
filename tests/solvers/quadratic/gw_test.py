@@ -206,16 +206,16 @@ class TestGromovWasserstein:
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
     solver_ent = gromov_wasserstein.GromovWasserstein(
-      epsilon=1.0, max_iterations=10)
-    solver_lr = gromov_wasserstein.GromovWasserstein(
-      rank=3, max_iterations=10)
-    
+        epsilon=1.0, max_iterations=10
+    )
+    solver_lr = gromov_wasserstein.GromovWasserstein(rank=3, max_iterations=10)
+
     for solver in (solver_ent, solver_lr):
       out = solver(prob)
       u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
       v = geom_y.apply_square_cost(out.matrix.sum(axis=0)).squeeze()
       c = (geom_x.cost_matrix @ out.matrix) @ geom_y.cost_matrix
-      c = (u[:,None] + v[None,:] - 2 * c)
+      c = (u[:, None] + v[None, :] - 2 * c)
       if not unbalanced:
         assert np.isclose(out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3)
       assert not jnp.isnan(out.reg_gw_cost)

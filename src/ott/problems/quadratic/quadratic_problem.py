@@ -145,7 +145,7 @@ class QuadraticProblem:
     depends on these marginals can be written as:
 
     .. math::
-    
+
       \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T`
                       + \text{lin2}(\text{cost_yy}) q \mathbb{1}_{n}^T)^T`
 
