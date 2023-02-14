@@ -34,8 +34,8 @@ from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
 from ott.solvers import was_solver
-from ott.solvers.outputs import BaseTransportOutput
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.outputs import BaseTransportOutput
 
 __all__ = ["GWOutput", "GromovWasserstein", "solve"]
 

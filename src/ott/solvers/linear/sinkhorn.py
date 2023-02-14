@@ -25,8 +25,8 @@ from typing import (
 )
 
 import jax
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 from flax import struct
 
 from ott.geometry import geometry
@@ -36,8 +36,8 @@ from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
-from ott.solvers.outputs import BaseTransportOutput
 from ott.solvers.linear import implicit_differentiation as implicit_lib
+from ott.solvers.outputs import BaseTransportOutput
 
 if TYPE_CHECKING:
   from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
@@ -936,8 +936,11 @@ class Sinkhorn:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
     return SinkhornOutput(
-      shape=(f.shape[0], g.shape[0]),
-      f=f, g=g, errors=state.errors[:, 0], ot_prob=ot_prob
+        shape=(f.shape[0], g.shape[0]),
+        f=f,
+        g=g,
+        errors=state.errors[:, 0],
+        ot_prob=ot_prob
     )
 
   @property

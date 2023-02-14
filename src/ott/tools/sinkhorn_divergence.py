@@ -166,8 +166,10 @@ def _sinkhorn_divergence(
   out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
     out_yy = sinkhorn.SinkhornOutput(
-      shape=(b.shape[0], b.shape[0]), ot_prob=None,
-      errors=jnp.array([]), reg_ot_cost=0.0
+        shape=(b.shape[0], b.shape[0]),
+        ot_prob=None,
+        errors=jnp.array([]),
+        reg_ot_cost=0.0
     )
   else:
     out_yy = sinkhorn.solve(geometry_yy, b, b, **kwargs_symmetric)

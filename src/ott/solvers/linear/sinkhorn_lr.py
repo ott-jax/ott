@@ -23,9 +23,9 @@ from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
-from ott.solvers.outputs import BaseTransportOutput
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+from ott.solvers.outputs import BaseTransportOutput
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
@@ -143,7 +143,9 @@ class LRSinkhornOutput(BaseTransportOutput):
       use_danskin: bool = False
   ) -> 'LRSinkhornOutput':
     del lse_mode
-    return self.replace(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
+    return self.replace(
+       reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin)
+    )
 
   def compute_reg_ot_cost(  # noqa: D102
       self,

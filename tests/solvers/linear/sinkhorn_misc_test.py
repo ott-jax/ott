@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests Anderson acceleration for Sinkhorn."""
-from typing import Optional, Tuple
 from dataclasses import asdict
+from typing import Optional, Tuple
 
 import chex
 import pytest
@@ -351,12 +351,12 @@ class TestSinkhornJIT:
     ) -> None:
       """Assert SinkhornOutputs are close."""
       x = tuple(
-        a for a in asdict(x).values()
-        if (a is not None and isinstance(a, jnp.ndarray))
+          a for a in asdict(x).values()
+          if (a is not None and isinstance(a, jnp.ndarray))
       )
       y = tuple(
-        a for a in asdict(y).values()
-        if (a is not None and isinstance(a, jnp.ndarray))
+          a for a in asdict(y).values()
+          if (a is not None and isinstance(a, jnp.ndarray))
       )
       return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
 
