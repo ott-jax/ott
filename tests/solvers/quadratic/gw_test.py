@@ -208,16 +208,26 @@ class TestGromovWasserstein:
     solver_ent = gromov_wasserstein.GromovWasserstein(
         epsilon=1.0, max_iterations=10
     )
-    solver_lr = gromov_wasserstein.GromovWasserstein(rank=3, max_iterations=10)
+    solvers = [
+        solver_ent,
+    ]
+    if not unbalanced:
+      # LR Sinkhorn only implemented in balanced case.
+      solver_lr = gromov_wasserstein.GromovWasserstein(
+          rank=3, max_iterations=10
+      )
+      solvers.append(solver_lr)
 
-    for solver in (solver_ent, solver_lr):
+    for solver in solvers:
       out = solver(prob)
       u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
       v = geom_y.apply_square_cost(out.matrix.sum(axis=0)).squeeze()
       c = (geom_x.cost_matrix @ out.matrix) @ geom_y.cost_matrix
       c = (u[:, None] + v[None, :] - 2 * c)
       if not unbalanced:
+        # Formula above is only valid for balanced case.
         assert np.isclose(out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3)
+
       assert not jnp.isnan(out.reg_gw_cost)
 
   @pytest.mark.parametrize(
