@@ -144,13 +144,15 @@ class QuadraticProblem:
     cost matrix of `geom_xx` (resp. `geom_yy`). The cost term that
     depends on these marginals can be written as:
 
-    `marginal_dep_term` = `lin1`(`cost_xx`) :math:`p \mathbb{1}_{num_b}^T`
-                      + (`lin2`(`cost_yy`) :math:`q \mathbb{1}_{num_a}^T)^T`
+    .. math::
+    
+      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T`
+                      + \text{lin2}(\text{cost_yy}) q \mathbb{1}_{n}^T)^T`
 
     Args:
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
+      marginal_1: jnp.ndarray<float>[n,], marginal of the transport matrix
        for samples from geom_xx
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
+      marginal_2: jnp.ndarray<float>[m,], marginal of the transport matrix
        for samples from geom_yy
 
     Returns:

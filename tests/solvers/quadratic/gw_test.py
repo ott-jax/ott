@@ -199,22 +199,26 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize("unbalanced", [False, True])
   def test_gw_pointcloud(self, unbalanced: bool):
     """Test basic computations pointclouds."""
-
-    def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
-    ) -> float:
-      geom_x = pointcloud.PointCloud(x)
-      geom_y = pointcloud.PointCloud(y)
-      tau_a, tau_b = (self.tau_a, self.tau_b) if unbalanced else (1.0, 1.0)
-      prob = quadratic_problem.QuadraticProblem(
-          geom_x, geom_y, a=a, b=b, tau_a=tau_a, tau_b=tau_b
-      )
-      solver = gromov_wasserstein.GromovWasserstein(
-          epsilon=1.0, max_iterations=10
-      )
-      return solver(prob).reg_gw_cost
-
-    assert not jnp.isnan(reg_gw(self.x, self.y, self.a, self.b))
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+    tau_a, tau_b = (self.tau_a, self.tau_b) if unbalanced else (1.0, 1.0)
+    prob = quadratic_problem.QuadraticProblem(
+        geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+    )
+    solver_ent = gromov_wasserstein.GromovWasserstein(
+      epsilon=1.0, max_iterations=10)
+    solver_lr = gromov_wasserstein.GromovWasserstein(
+      rank=3, max_iterations=10)
+    
+    for solver in (solver_ent, solver_lr):
+      out = solver(prob)
+      u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
+      v = geom_y.apply_square_cost(out.matrix.sum(axis=0)).squeeze()
+      c = (geom_x.cost_matrix @ out.matrix) @ geom_y.cost_matrix
+      c = (u[:,None] + v[None,:] - 2 * c)
+      if not unbalanced:
+        assert np.isclose(out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3)
+      assert not jnp.isnan(out.reg_gw_cost)
 
   @pytest.mark.parametrize(
       "unbalanced,unbalanced_correction", [(False, False), (True, False),
