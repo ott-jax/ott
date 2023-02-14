@@ -362,9 +362,6 @@ class SinkhornOutput(BaseTransportOutput):
         self.f, self.g, inputs, axis=axis
     )
 
-  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
-    return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
-
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
