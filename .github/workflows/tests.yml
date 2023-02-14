@@ -23,6 +23,11 @@ jobs:
       with:
         python-version: '3.9'
 
+    - name: Install apt dependencies
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: |
+        sudo apt-get install libsuitesparse-dev
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
