@@ -79,8 +79,7 @@ def compute_reg_ot_cost(
 
 def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
-    norm_error: Tuple[int, ...], lse_mode: bool
-) -> jnp.ndarray:
+    norm_error: Tuple[int, ...]) -> jnp.ndarray:
   """Compute solution error.
 
   Since only balanced case is available for LR, this is marginal deviation.
@@ -90,12 +89,10 @@ def solution_error(
     r: second factor of solution
     ot_prob: linear problem
     norm_error: int, p-norm used to compute error.
-    lse_mode: True if log-sum-exp operations, False if kernel vector products.
 
   Returns:
     one or possibly many numbers quantifying deviation to true marginals.
   """
-  del lse_mode
   norm_error = jnp.array(norm_error)
   # Update the error
   err = jnp.sum(
@@ -274,7 +271,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any,
   ):
-    assert lse_mode, "Kernel mode not yet implemented."
+    # assert lse_mode, "Kernel mode not yet implemented."
     assert not implicit_diff, "Implicit diff. not yet implemented."
     super().__init__(
         lse_mode=lse_mode,
@@ -356,7 +353,40 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     h = -grad_g + (1. / gamma) * log_g
     return c_q, c_r, h, gamma
 
-  def dykstra_update(
+  def _lr_kernels(
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      state: LRSinkhornState,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
+    log_q, log_r, log_g = (
+        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
+    )
+
+    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
+    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
+    diag_qcr = jnp.sum(
+        state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
+    )
+    grad_g = -diag_qcr / (state.g ** 2)
+    if self.is_entropic:
+      grad_q += self.epsilon * log_q
+      grad_r += self.epsilon * log_r
+      grad_g += self.epsilon * log_g
+
+    if self.gamma_rescale:
+      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
+      gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
+    else:
+      gamma = self.gamma
+
+    k_q = jnp.exp(gamma * (grad_q - (1. / gamma) * log_q))
+    k_r = jnp.exp(gamma * (grad_r - (1. / gamma) * log_r))
+    k_g = jnp.exp(gamma * (-grad_g + (1. / gamma) * log_g))
+    return k_q, k_r, k_g, gamma
+
+  def dykstra_update_lse(
       self,
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
@@ -473,13 +503,119 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
     return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
 
+
+  def dykstra_update_kernel(
+      self,
+      k_q: jnp.ndarray,
+      k_r: jnp.ndarray,
+      k_g: jnp.ndarray,
+      gamma: float,
+      ot_prob: linear_problem.LinearProblem,
+      min_entry_value: float = 1e-6,
+      tolerance: float = 1e-3,
+      min_iter: int = 0,
+      inner_iter: int = 10,
+      max_iter: int = 10000
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    # shortcuts for problem's definition.
+    r = self.rank
+    n, m = ot_prob.geom.shape
+    a, b = ot_prob.a, ot_prob.b
+
+    g_old = k_g
+    v1_old, v2_old = jnp.ones(r), jnp.ones(r)
+    u1, u2 = jnp.ones(n), jnp.ones(m)
+
+    q_gi, q_gp = jnp.ones(r), jnp.ones(r)
+    q_q, q_r = jnp.ones(r), jnp.ones(r)
+    err = jnp.inf
+    state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
+    constants = k_q, k_r, a, b
+
+    def cond_fn(
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...]
+    ) -> bool:
+      del iteration, constants
+      *_, err = state_inner
+      return err > tolerance
+
+    def _softm(
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+    ) -> jnp.ndarray:
+      return jsp.exp(
+          gamma * (f[:, None] + g[None, :] - c), axis=axis
+      )
+
+    def body_fn(
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> Tuple[jnp.ndarray, ...]:
+      # TODO(michalk8): in the future, use `NamedTuple`
+      u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
+      k_q, k_r, a, b = constants
+
+      # First Projection
+      u1 = a / jnp.dot(k_q, v1_old)
+      u2 = b / jnp.dot(k_r, v2_old)
+      g = jnp.maximum(jnp.log(min_entry_value), g_old * q_gi)
+      q_gi = (g_old * q_gi) / g 
+      g_old = g
+
+      # Second Projection
+      v1_trans = jnp.dot(k_q.T, u1)
+      v2_trans = jnp.dot(k_r.T, u2)
+      g = (g_old * q_gp * v1_old * q_Q * v1_trans * v2_old * q_R * v2_trans) ** (
+                1 / 3
+            )
+      v1 = g / v1_trans 
+      v2 = g / v2_trans
+      q_gp = (g_old * q_gp) / g 
+      q_Q = (q_Q * v1_old) / v1
+      q_R = (q_R * v2_old) / v2
+      v1_old = v1
+      v2_old = v2
+      g_old = g
+
+      # Compute Couplings
+      q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g, gamma)
+
+      err = jax.lax.cond(
+          jnp.logical_and(compute_error, iteration >= min_iter),
+          lambda: solution_error(q, r, ot_prob, self.norm_error, self.lse_mode)[
+              0], lambda: err
+      )
+
+      return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
+
+    def recompute_couplings(
+        u1: jnp.ndarray,
+        v1: jnp.ndarray,
+        k_q: jnp.ndarray,
+        u2: jnp.ndarray,
+        v2: jnp.ndarray,
+        k_r: jnp.ndarray,
+        g: jnp.ndarray,
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
+      r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
+      return q, r, g
+
+    state_inner = fixed_point_loop.fixpoint_iter_backprop(
+        cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
+    )
+
+    f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
+    return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
+
+
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
     c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
-    q, r, g = self.dykstra_update(
+    q, r, g = self.dykstra_update_lse(
         c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
     )
     return state.set(q=q, g=g, r=r, gamma=gamma)
@@ -487,10 +623,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def kernel_step(
       self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
       iteration: int
-  ) -> NoReturn:
-    """Not implemented."""
-    # TODO(cuturi): kernel step not implemented.
-    raise NotImplementedError("Not implemented.")
+  ) -> LRSinkhornState:
+    """LR Sinkhorn Kernel update."""
+    k_q, k_r, k_g, gamma = self._lr_kernels(ot_prob, state)
+    q, r, g = self.dykstra_update_kernel(
+      k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
+    )
+    
+    return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
       self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
