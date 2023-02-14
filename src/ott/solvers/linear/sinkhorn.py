@@ -15,6 +15,7 @@
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Literal,
     Mapping,
     NamedTuple,
@@ -27,6 +28,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.experimental import host_callback
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
@@ -41,6 +43,21 @@ if TYPE_CHECKING:
   from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
 
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
+
+ProgressCallbackFn = Callable[
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]], None]
+"""
+Signature of any user-provided function which side effect is to report progress (print, etc).
+Such a function is called during solver iterations via
+``jax.host_callback.id_tap`` so the solver execution remains jittable.
+The arguments are each wrapped in a jax Array in order to avoid wasting
+conversion time on jax side:
+  - the current iteration: an integer wrapped in a jax Array
+  - the number of iterations after which the error is computed: a fixed
+    integer wrapped in a jax Array
+  - the maximum number of iterations: an integer wrapped in a jax Array
+  - the errors: a jax array of fixed size which is progressively filled.
+"""
 
 
 class SinkhornState(NamedTuple):
@@ -682,6 +699,9 @@ class Sinkhorn:
       when the algorithm has converged with a low tolerance.
     jit: Whether to jit the iteration loop.
     initializer: how to compute the initial potentials/scalings.
+    progress_fn: an optional callback function of type ``ProgressCallbackFn``
+      which gets called during Sinkhorn iterations so the user can display
+      the error at each iteration, e.g. using a progress bar.
     kwargs_init: keyword arguments when creating the initializer.
   """
 
@@ -703,6 +723,7 @@ class Sinkhorn:
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
       initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
                          init_lib.SinkhornInitializer] = "default",
+      progress_fn: Optional[ProgressCallbackFn] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
   ):
     self.lse_mode = lse_mode
@@ -733,6 +754,7 @@ class Sinkhorn:
     self.parallel_dual_updates = parallel_dual_updates
     self.recenter_potentials = recenter_potentials
     self.initializer = initializer
+    self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
     # Force implicit_differentiation to True when using Anderson acceleration,
@@ -1044,7 +1066,13 @@ def iterations(
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
-    return solver.one_iteration(ot_prob, state, iteration, compute_error)
+    state = solver.one_iteration(ot_prob, state, iteration, compute_error)
+    if solver.progress_fn is not None:
+      host_callback.id_tap(
+          solver.progress_fn,
+          (iteration, solver.inner_iterations, solver.max_iterations, state)
+      )
+    return state
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
