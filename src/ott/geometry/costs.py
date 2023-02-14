@@ -126,7 +126,6 @@ class TICost(CostFn):
   strictly convex, as well as provide the Legendre transform of :math:`h`,
   whose gradient is necessarily the inverse of the gradient of :math:`h`.
   """
-  p = 1.0
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
@@ -271,8 +270,6 @@ class RegTICost(TICost, abc.ABC):
 
   where :func:`reg` is the regularization function.
   """
-
-  gamma = 0
 
   @abc.abstractmethod
   def reg(self, z: jnp.ndarray) -> float:
