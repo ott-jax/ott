@@ -31,14 +31,19 @@ class SinkhornInitializer(abc.ABC):
   """Base class for Sinkhorn initializers."""
 
   @abc.abstractmethod
-  def init_dual_a(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
-  ) -> jnp.ndarray:
+  def init_dual_a(self, 
+                  ot_prob: 'linear_problem.LinearProblem', 
+                  lse_mode: bool, 
+                  rng: Any = None
+    ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling f_u."""
 
   @abc.abstractmethod
   def init_dual_b(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+      self, 
+      ot_prob: 'linear_problem.LinearProblem', 
+      lse_mode: bool,
+      rng: Any = None
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling g_v."""
 
@@ -96,13 +101,17 @@ class DefaultInitializer(SinkhornInitializer):
   """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+      self, 
+      ot_prob: 'linear_problem.LinearProblem', 
+      lse_mode: bool,
+      rng: Any = None
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
     Args:
       ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
+      rng: Random number generator for stochastic initializers.
 
     Returns:
       potential/scaling, array of size n.
@@ -112,13 +121,17 @@ class DefaultInitializer(SinkhornInitializer):
     return init_dual_a
 
   def init_dual_b(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+      self, 
+      ot_prob: 'linear_problem.LinearProblem', 
+      lse_mode: bool,
+      rng: Any = None
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
     Args:
       ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
+      rng: Random number generator for stochastic initializers.
 
     Returns:
       potential/scaling, array of size m.
@@ -142,12 +155,14 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
+      rng: Any = None
   ) -> jnp.ndarray:
     """Gaussian initialization function.
 
     Args:
       ot_prob: OT problem between discrete distributions of size n and m.
       lse_mode: Return potential if true, scaling if false.
+      rng: Random number generator, not needed for this initializer.
 
     Returns:
       potential/scaling, array of size n.
@@ -245,6 +260,7 @@ class SortingInitializer(DefaultInitializer):
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
+      rng: Any = None,
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
 
@@ -253,6 +269,7 @@ class SortingInitializer(DefaultInitializer):
       lse_mode: Return potential if true, scaling if false.
       init_f: potential f, array of size n. This is the starting potential,
         which is then updated to make the init potential, so an init of an init.
+      rng: random number generator for initializer. Not needed for this initializer.
 
     Returns:
       potential/scaling f_u, array of size n.
@@ -313,3 +330,102 @@ def _coordinate_update(
     return f.at[i].set(new_f)
 
   return jax.lax.fori_loop(0, len(f), body_fn, f)
+
+
+def subsample(rng, array, weight, subsample_n):
+  N = array.shape[0]
+  indices = jax.random.choice(
+      key=rng, a=N, shape=(subsample_n,), replace=True, p=weight, axis=0
+  )
+  return array[indices]
+
+
+def batch_subsample(rng, array, subsample_n):
+  B, N, d = array.shape
+  rng_sample = jax.random.split(rng, B)
+  resampler = jax.vmap(subsample, in_axes=(0, 0, None))
+  return resampler(rng_sample, array, subsample_n)
+
+
+@jax.tree_util.register_pytree_node_class
+class SubsampleInitializer(DefaultInitializer):
+  """Subsample initializer :cite:`thornton2022rethinking:22`.
+  Subsample each point cloud, then compute closed from
+  Sinkhorn potential between subsampled approximations. Use this potential
+  to initialize Sinkhorn potentials/scalings.
+
+  Args:
+    subsample_n: number of points to subsample from each point cloud.
+    sub_epsilon: epsilon for subsampled point cloud. If None, use epsilon from larger problem.
+    subsample_n_y: overwrites subsample_n for y. If None, use subsample_n for both.
+  """
+
+  def __init__(
+    self,
+    subsample_n : int,  
+    sub_epsilon : Optional[float] = None,
+    subsample_n_y: Optional[int] = None,
+  ):
+    super().__init__()
+    self.subsample_n = subsample_n
+    self.sub_epsilon = sub_epsilon
+
+    if subsample_n_y is None:
+      self.subsample_n_y = self.subsample_n
+    else:
+      self.subsample_n_y = subsample_n_y
+    
+    
+  def solve_sub_problem(self, sub_x, sub_y, epsilon):
+    # can extract cost matrix entries or recompute
+    sub_geom = pointcloud.PointCloud(x=sub_x, y=sub_y, epsilon=epsilon)
+    return sinkhorn.sinkhorn(sub_geom)
+
+  def init_dual_a(
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
+      lse_mode: bool,
+      rng: jax.random.PRNGKey
+  ) -> jnp.ndarray:
+    """Subsample initializer function.
+
+    Args:
+      ot_prob: OT problem between discrete distributions of size n and m.
+      lse_mode: Return potential if true, scaling if false.
+      rng: random number generator for subsampling.
+
+    Returns:
+      potential/scaling, array of size n.
+    """
+
+    assert isinstance(
+        ot_prob.geom, pointcloud.PointCloud
+    ), "Subsample initializer valid only for point clouds."
+
+    x, y = ot_prob.geom.x, ot_prob.geom.y
+    a, b = ot_prob.a, ot_prob.b
+    N = x.shape[0]
+    
+
+    # handle defaults / overwrites
+    if self.sub_epsilon is None:
+      sub_epsilon = ot_prob.geom.epsilon
+
+    assert self.subsample_n <= N, f"x subsample {self.subsample_n} must be less than point cloud size, {N}."
+    assert subsample_n_y <= y.shape[0], f"y subsample {subsample_n_y} must be less than point cloud size, {y.shape[0]}."
+
+    # subsample
+    rng_x, rng_y = jax.random.split(rng)
+    
+
+    sub_x = subsample(rng_x, x, a, self.subsample_n)
+    sub_y = subsample(rng_y, y, b, subsample_n_y)
+
+    # solve sub problem
+    subsample_sink_out = self.solve_sub_problem(sub_x, sub_y, sub_epsilon)
+
+    # interpolate potentials
+    dual_potentials = subsample_sink_out.to_dual_potentials()
+    f_init = jax.vmap(dual_potentials.f)(x)
+
+    return f_init

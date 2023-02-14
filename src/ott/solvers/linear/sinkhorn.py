@@ -755,6 +755,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
+      rng: Optional[jax.random.PRNGKey] = jax.random.PRNGKey(0)
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
@@ -762,13 +763,14 @@ class Sinkhorn:
       ot_prob: Linear OT problem.
       init: Initial dual potentials/scalings f_u and g_v, respectively.
         Any `None` values will be initialized using the initializer.
+      rng: Random number generator key for stochastic initialization.
 
     Returns:
       The Sinkhorn output.
     """
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
-        ot_prob, *init, lse_mode=self.lse_mode
+        ot_prob, *init, lse_mode=self.lse_mode, rng=rng
     )
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
