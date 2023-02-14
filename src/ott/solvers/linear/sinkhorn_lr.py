@@ -25,7 +25,7 @@ from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
-from ott.solvers.outputs import BaseTransportOutput
+from ott.solvers.outputs import _BaseTransportOutput
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
@@ -128,7 +128,7 @@ def solution_error(
 
 
 @struct.dataclass
-class LRSinkhornOutput(BaseTransportOutput):
+class LRSinkhornOutput(_BaseTransportOutput):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
 
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
@@ -159,12 +159,6 @@ class LRSinkhornOutput(BaseTransportOutput):
     return True
 
   @property
-  def converged(self) -> bool:  # noqa: D102
-    return jnp.logical_and(
-        jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
-    )
-
-  @property
   def matrix(self) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
     return (self.q * self._inv_g) @ self.r.T
@@ -174,10 +168,6 @@ class LRSinkhornOutput(BaseTransportOutput):
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
-
-  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
-    length = self.q.shape[0] if axis == 0 else self.r.shape[0]
-    return self.apply(jnp.ones(length,), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
@@ -593,6 +583,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       A LRSinkhornOutput.
     """
+    converged = jnp.logical_and(
+        jnp.any(state.costs == -1), jnp.all(jnp.isfinite(state.costs))
+    )
     return LRSinkhornOutput(
         shape=(state.q.shape[0], state.r.shape[0]),
         q=state.q,
@@ -600,6 +593,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         g=state.g,
         ot_prob=ot_prob,
         costs=state.costs,
+        converged=converged,
         errors=state.errors,
     )
 

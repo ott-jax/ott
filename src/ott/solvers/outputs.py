@@ -8,15 +8,27 @@ from ott.problems.linear import linear_problem
 
 
 @struct.dataclass
-class BaseTransportOutput:
-  """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
+class _BaseTransportOutput:
+  """Base class for Transport output.
+
+  Args:
+    ot_prob: OT problem.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
+    shape: Shape of the transport plan.
+    costs: Holds the sequence of regularized GW costs seen through the loop
+      of the solver.
+    converged: Boolean value wether or not the problem has converged.
+    reg_ot_cost: Value of the regularised OT loss.
+  """
 
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
   # in future, enforce via class hierarchy
-  errors: jnp.ndarray
   ot_prob: linear_problem.LinearProblem
+  errors: jnp.ndarray
   shape: Tuple[int, int] = struct.field(pytree_node=False)
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
+  converged: bool = False
   costs: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
 

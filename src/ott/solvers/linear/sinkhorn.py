@@ -37,7 +37,7 @@ from ott.math import utils as mu
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.outputs import BaseTransportOutput
+from ott.solvers.outputs import _BaseTransportOutput
 
 if TYPE_CHECKING:
   from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
@@ -281,7 +281,7 @@ def ent_reg_cost(
 
 
 @struct.dataclass
-class SinkhornOutput(BaseTransportOutput):
+class SinkhornOutput(_BaseTransportOutput):
   """Implements the problems.Transport interface, for a Sinkhorn solution."""
 
   f: Optional[jnp.ndarray] = None
@@ -326,14 +326,6 @@ class SinkhornOutput(BaseTransportOutput):
       geom = other_geom.to_LRCGeometry()
       return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
     return jnp.sum(self.matrix * other_geom.cost_matrix)
-
-  @property
-  def converged(self) -> bool:  # noqa: D102
-    if self.errors is None:
-      return False
-    return jnp.logical_and(
-        jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
-    )
 
   # TODO(michalk8): this should be always present
   @property
@@ -935,10 +927,15 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
+    converged = jnp.logical_and(
+        jnp.any(state.errors == -1), jnp.all(jnp.isfinite(state.errors))
+    )
+
     return SinkhornOutput(
         shape=(f.shape[0], g.shape[0]),
         f=f,
         g=g,
+        converged=converged,
         errors=state.errors[:, 0],
         ot_prob=ot_prob
     )
