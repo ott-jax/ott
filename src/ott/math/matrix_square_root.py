@@ -236,7 +236,7 @@ sqrtm.defvjp(sqrtm_fwd, sqrtm_bwd)
 
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
-def sqrtm_only(
+def sqrtm_only(  # noqa: D103
     x: jnp.ndarray,
     threshold: float = 1e-6,
     min_iterations: int = 0,
@@ -282,7 +282,7 @@ sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
 
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
-def inv_sqrtm_only(
+def inv_sqrtm_only(  # noqa: D103
     x: jnp.ndarray,
     threshold: float = 1e-6,
     min_iterations: int = 0,
