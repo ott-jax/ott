@@ -598,7 +598,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
-    f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
+    u1, u2, v1_old, v2_old, g_old, _, _, _, _, _ = state_inner
     return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
 
 
