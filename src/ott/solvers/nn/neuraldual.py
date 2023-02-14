@@ -175,13 +175,13 @@ class W2NeuralDual:
     if isinstance(
         neural_f, models.ICNN
     ) and neural_f.pos_weights is not self.pos_weights:
-      warnings.warn(warn_str)
+      warnings.warn(warn_str, stacklevel=2)
       neural_f.pos_weights = self.pos_weights
 
     if isinstance(
         neural_g, models.ICNN
     ) and neural_g.pos_weights is not self.pos_weights:
-      warnings.warn(warn_str)
+      warnings.warn(warn_str, stacklevel=2)
       neural_g.pos_weights = self.pos_weights
 
     self.state_f = neural_f.create_train_state(
@@ -206,7 +206,9 @@ class W2NeuralDual:
     else:
       if self.parallel_updates:
         warnings.warn(
-            'parallel_updates set to True but disabling it because num_inner_iters>1'
+            'parallel_updates set to True but disabling it '
+            'because num_inner_iters>1',
+            stacklevel=2
         )
       if self.back_and_forth:
         raise NotImplementedError(
