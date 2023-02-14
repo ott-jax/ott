@@ -279,7 +279,28 @@ def ent_reg_cost(
 
 
 class SinkhornOutput(NamedTuple):
-  """Implements the problems.Transport interface, for a Sinkhorn solution."""
+  r"""Implements the problems.Transport interface, for a Sinkhorn solution.
+
+  Attributes:
+    f: jnp.ndarray, potential
+    g: jnp.ndarray, potential
+    errors: jnp.ndarray, the list of errors of the Sinkhorn iterations
+    reg_ot_cost: float, the final cost value in the primal space
+    ot_prob: linear_problem.LinearProblem, the problem Sinkhorn was fit on
+    dual_cost: float, the final unregularized cost value in the dual space
+    primal_cost: float, the final unregularized cost value in the primal space
+    linear: bool, whether the problem is linear
+    geom: geometry.Geometry, the geometry used in the problem
+    a: jnp.ndarray, marginals of the problem
+    b: jnp.ndarray, marginals of the problem
+    linear_output: bool, True
+    converged: bool, whether the Sinkhorn solver has converged
+    n_iters: int, the number of iterations of the solver
+    scalings: tuple of jnp.ndarray, the scaling vectors
+    matrix: jnp.ndarray, the transport plan matrix
+    transport_mass: float, sum of transport matrix.
+    
+  """
 
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
