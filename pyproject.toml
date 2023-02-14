@@ -235,3 +235,68 @@ legacy_tox_ini = """
     commands_post =
         python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
 """
+
+[tool.ruff]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "docs/_build",
+    "dist"
+]
+ignore = [
+    # line too long -> we accept long comment lines; black gets rid of long code lines
+    "E501",
+    # Do not assign a lambda expression, use a def -> lambda expression assignments are convenient
+    "E731",
+    # allow I, O, l as variable names -> I is the identity matrix, i, j, k, l is reasonable indexing notation
+    "E741",
+    # Missing docstring in public package
+    "D104",
+    # ... imported but unused
+    "F401",
+    # Missing docstring in public module
+    "D100",
+    # Missing docstring in __init__
+    "D107",
+    # Do not perform function calls in argument defaults.
+    "B008",
+    # Missing docstring in magic method
+    "D105",
+    # Missing blank line before section
+    "D411",
+    ## Flake8 rules not supported by ruff:
+    # line break before a binary operator -> black does not adhere to PEP8
+    # "W503",
+    # line break occured after a binary operator -> black does not adhere to PEP8
+    # "W504",
+    # whitespace before : -> black does not adhere to PEP8
+    # "E203",
+    # whitespace before : -> black does not adhere to PEP8
+    # "E203",
+    # missing whitespace after ,', ';', or ':' -> black does not adhere to PEP8
+    # "E231",
+    # continuation line over-indented for hanging indent -> black does not adhere to PEP8
+    # "E126",
+    # too many leading '# ' for block comment -> Scanpy allows them for comments into sections
+    # "E262",
+    # inline comment should start with '#' -> Scanpy allows them for specific explanations
+    # "E266",
+    # format string does contain unindexed parameters
+    # "P101",
+    # indentation is not a multiple of 4
+    # "E111",
+    # "E114",
+]
+line-length = 80
+select = [
+    "E",
+    "F",
+    "W",
+]
+[tool.ruff.per-file-ignores]
+    "tests/*" = ["D","C408"]
+    "*/__init__.py" = ["F401"]
+    "examples/*" = ["D101", "D102", "D103"]
+    "docs/*" = ["D101", "D102"]
+    "src/ott/types.py" = ["D102"]
