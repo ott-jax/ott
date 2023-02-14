@@ -1,56 +1,106 @@
 name: tests
 
 on:
+  schedule:
+  - cron: 00 00 * * 1
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
+  fast-tests:
+    name: Fast tests Python 3.9 on ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+
+    - name: Setup environment
+      run: |
+        tox -e py39 --notest -v
+
+    - name: Run tests
+      run: |
+        tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
+
+  gpu-tests:
+    name: Fast GPU tests Python 3.8 on ubuntu-20.04
+    runs-on: [self-hosted, ott-gpu]
+    container:
+      image: docker://michalk8/cuda:11.3.0-ubuntu20.04
+      options: --gpus="device=12"
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      # `jax[cuda]<0.4` because of Docker issues: https://github.com/google/jax/issues/13758
+      # `flax<0.6.5` because it requires `jax>=0.4.2`
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install -e".[test]"
+        python3 -m pip install "flax<0.6.5"
+        python3 -m pip install "jax[cuda]<0.4" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+
+    - name: Nvidia SMI
+      run: |
+        nvidia-smi
+
+    - name: Run tests
+      run: |
+        python3 -m pytest -m "fast and not cpu" --memray --durations 10 -vv
+
+  tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.8']
+        python-version: ['3.8', '3.10', '3.11']
         os: [ubuntu-latest]
-        test_mark: [fast, all]
+        include:
+        - python-version: '3.9'
+          os: macos-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Build
+    - name: Install dependencies
       run: |
-        set -xe
-        python -VV
-        pip install --upgrade pip
-        pip install pytest-memray
-        pip install -e '.[test]'
+        python -m pip install --upgrade pip
+        python -m pip install tox
 
-    - name: Print versions
+    - name: Setup environment
       run: |
-        python -VV
-        python -c "import jax; print('jax', jax.__version__)"
-        python -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
+        tox -e py${{ matrix.python-version }} --notest -v
 
-    - name: Run fast tests
-      if: ${{ matrix.test_mark == 'fast' }}
+    - name: Run tests
       run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray -m fast -n auto
-
-    - name: Run all tests
-      if: ${{ matrix.test_mark == 'all' }}
-      run: |
-        python -m pytest --cov=ott --cov-append --cov-report=xml --cov-report=term-missing --cov-config=setup.cfg --memray
+        tox -e py${{ matrix.python-version }} --skip-pkg-install
+      env:
+        PYTEST_ADDOPTS: --memray -vv
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:
         files: ./coverage.xml
-        flags: unittests-${{ matrix.test_mark }}
+        flags: tests-${{ matrix.os }}-${{ matrix.python-version }}
+        name: unittests
         env_vars: OS,PYTHON
-        fail_ci_if_error: true
+        fail_ci_if_error: false
         verbose: true

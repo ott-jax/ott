@@ -1,84 +1,125 @@
-Optimal Transport Tools (OTT) documentation
-===========================================
-`Code <https://github.com/ott-jax/ott>`_ hosted on Github.
-To install, clone that repo or simply run ``pip install ott-jax``.
+|Downloads| |Tests| |Docs| |Coverage|
 
-Intro
------
-OTT is a `JAX <https://jax.readthedocs.io/en/latest/index.html>`_ package that bundles a few utilities to compute and
-differentiate the solution to optimal transport problems. OTT can help you compute Wasserstein distances between
-weighted clouds of points (or histograms), using a cost (e.g. a distance) between individual points.
+Optimal Transport Tools (OTT)
+=============================
 
-To that end OTT uses various implementation of the Sinkhorn algorithm :cite:`cuturi:13,peyre:19,scetbon:21`.
-These implementation take advantage of several JAX features, such as `Just-in-time (JIT) compilation`_,
-`auto-vectorization (VMAP)`_ and both `automatic`_ and/or `implicit`_ differentiation.
-A few tutorials are provided below, along with different use-cases,
-notably for single-cell genomics data :cite:`schiebinger:19`.
+Introduction
+------------
+``OTT`` is a `JAX <https://jax.readthedocs.io/en/latest/>`_ package that bundles
+a few utilities to compute, and differentiate as needed, the solution to optimal
+transport (OT) problems, taken in a fairly wide sense. For instance, ``OTT`` can
+of course compute Wasserstein (or Gromov-Wasserstein) distances between weighted
+clouds of points (or histograms) in a wide variety of scenarios, but also
+estimate Monge maps, Wasserstein barycenters, and help with simpler tasks such
+as differentiable approximations to ranking or even clustering.
+
+To achieve this, ``OTT`` rests on two families of tools:
+
+- the first family consists in *discrete* solvers computing transport between
+  point clouds, using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn
+  :cite:`scetbon:21` algorithms, and moving up towards Gromov-Wasserstein
+  :cite:`memoli:11,peyre:16`;
+- the second family consists in *continuous* solvers, using suitable neural
+  architectures such as an MLP or input-convex neural network
+  :cite:`amos:17` coupled with SGD-type estimators
+  :cite:`makkuva:20,korotin:21,amos:23`.
+
+Installation
+------------
+Install ``OTT`` from `PyPI <https://pypi.org/project/ott-jax/>`_ as:
+
+.. code-block:: bash
+
+    pip install ott-jax
+
+or with ``conda`` via `conda-forge`_ as:
+
+.. code-block:: bash
+
+    conda install -c conda-forge ott-jax
+
+Design Choices
+--------------
+``OTT`` is designed with the following choices:
+
+- Take advantage whenever possible of JAX features, such as
+  `Just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
+  `automatic`_ but most importantly `implicit`_ differentiation.
+- Split geometry from OT solvers in the discrete case: We argue that there
+  should be one, and one implementation only, of every major OT algorithm
+  (Sinkhorn, Gromov-Wasserstein, barycenters, etc...), regardless of the
+  geometric setup that is considered. To give a concrete example, any
+  speedups one may benefit from by using a specific cost (e.g. Sinkhorn being
+  faster when run on a separable cost on histograms supported on a separable
+  grid :cite:`solomon:15`) should not require a separate reimplementation
+  of a Sinkhorn routine.
+- As a consequence, and to minimize code copy/pasting, use as often as possible
+  object hierarchies, and interleave outer solvers (such as quadratic,
+  aka Gromov-Wasserstein solvers) with inner solvers (e.g. Low-Rank Sinkhorn).
+  This choice ensures that speedups achieved at lower computation levels
+  (e.g. low-rank factorization of squared Euclidean distances) propagate
+  seamlessly and automatically in higher level calls (e.g. updates in
+  Gromov-Wasserstein), without requiring any attention from the user.
+
+.. TODO(marcocuturi): add missing package descriptions below
 
 Packages
 --------
-There are currently three packages, ``geometry``, ``core`` and ``tools``, playing the following roles:
-
-- :ref:`geometry` defines classes that describe *two point clouds* paired with a *cost* function (simpler geometries
-  are also implemented, such as that defined by points supported on a multi-dimensional grids with a separable
-  cost :cite:`solomon:15`). The design choice in OTT is to state that cost functions and algorithms should operate
-  independently: if a particular cost function allows for faster computations
-  (e.g. squared-Euclidean distance when comparing grids), this should not be taken advantage of at the level of
-  optimizers, but at the level of the problems description. Geometry objects are therefore only considered as
-  arguments to describe OT problem handled in ``core``, using subroutines provided by geometries;
-- :ref:`core` help define first an OT problem (linear, quadratic, barycenters). These problems are then solved using
-  Sinkhorn algorithm and its variants, the main workhorse to solve OT in this package, as well as variants that
-  can comppute Gromov-Wasserstein distances or barycenters of several measures;
-- :ref:`tools` provides an interface to exploit OT solutions, as produced by ``core`` functions. Such tasks include
-  instantiating OT matrices, computing approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
-  or computing differentiable sort and quantile operations :cite:`cuturi:19`.
+- :doc:`geometry` contains classes to instantiate objects that describe
+  *two point clouds* paired with a *cost* function. Geometry objects are used to
+  describe OT problems, handled by solvers in the solvers.
+- :doc:`problems/index`
+- :doc:`solvers/index`
+- :doc:`initializers/index`
+- :doc:`tools` provides an interface to exploit OT solutions, as produced by
+  solvers in the solvers. Such tasks include computing approximations
+  to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
+  between GMMs, or computing differentiable sort and quantile operations
+  :cite:`cuturi:19`.
+- :doc:`math`
 
 .. toctree::
     :maxdepth: 1
-    :caption: Tutorials:
+    :caption: Examples
 
-    notebooks/point_clouds.ipynb
-    notebooks/introduction_grid.ipynb
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Benchmarks:
-
-    notebooks/OTT_&_POT.ipynb
-    notebooks/One_Sinkhorn.ipynb
-    notebooks/LRSinkhorn.ipynb
+    Getting Started <tutorials/notebooks/point_clouds>
+    tutorials/index
 
 .. toctree::
     :maxdepth: 1
-    :caption: Advanced Applications:
-
-    notebooks/Sinkhorn_Barycenters.ipynb
-    notebooks/gromov_wasserstein.ipynb
-    notebooks/GWLRSinkhorn.ipynb
-    notebooks/Hessians.ipynb
-    notebooks/soft_sort.ipynb
-    notebooks/application_biology.ipynb
-    notebooks/gromov_wasserstein_multiomics.ipynb
-    notebooks/fairness.ipynb
-    notebooks/neural_dual.ipynb
-    notebooks/icnn_inits.ipynb
-    notebooks/wasserstein_barycenters_gmms.ipynb
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Public API: ott packages
+    :caption: API
 
     geometry
-    core
+    problems/index
+    solvers/index
+    initializers/index
     tools
+    math
 
 .. toctree::
     :maxdepth: 1
-    :caption: References:
+    :caption: References
 
     references
+
+.. |Downloads| image:: https://static.pepy.tech/badge/ott-jax
+    :target: https://pypi.org/project/ott-jax/
+    :alt: Documentation
+
+.. |Tests| image:: https://img.shields.io/github/actions/workflow/status/ott-jax/ott/tests.yml?branch=main
+    :target: https://github.com/ott-jax/ott/actions/workflows/tests.yml
+    :alt: Documentation
+
+.. |Docs| image:: https://img.shields.io/readthedocs/ott-jax/latest
+    :target: https://ott-jax.readthedocs.io/en/latest/
+    :alt: Documentation
+
+.. |Coverage| image:: https://img.shields.io/codecov/c/github/ott-jax/ott/main
+    :target: https://app.codecov.io/gh/ott-jax/ott
+    :alt: Coverage
 
 .. _Just-in-time (JIT) compilation: https://jax.readthedocs.io/en/latest/jax.html#just-in-time-compilation-jit
 .. _auto-vectorization (VMAP): https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap
 .. _automatic: https://jax.readthedocs.io/en/latest/jax.html#automatic-differentiation
 .. _implicit: https://jax.readthedocs.io/en/latest/_autosummary/jax.custom_jvp.html#jax.custom_jvp
+.. _conda-forge: https://anaconda.org/conda-forge/ott-jax

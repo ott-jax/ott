@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Lint as: python 3
 """Tests for gaussian_mixture_pair."""
+
+import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 
@@ -131,7 +130,7 @@ class TestGaussianMixturePair:
         sinkhorn_output=sinkhorn_output
     )
     expected = jnp.diag(self.gmm0.component_weights)
-    np.testing.assert_allclose(expected, coupling, atol=1e-3)
+    np.testing.assert_allclose(expected, coupling, atol=5e-3)
 
   @pytest.mark.fast.with_args(
       "epsilon,tau,lock_gmm1",

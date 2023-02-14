@@ -24,12 +24,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 from datetime import datetime
-import os
-import sys
+from sphinx.util import logging as sphinx_logging
+import logging
 
-sys.path.insert(0, os.path.abspath('../'))
-
-import ott  # noqa: 402
+import ott
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
@@ -55,29 +53,57 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'sphinxcontrib.bibtex',
-    'nbsphinx',
+    'sphinx_copybutton',
+    'myst_nb',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_autodoc_typehints',
-    'recommonmark',
 ]
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
+    "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "pot": ("https://pythonot.github.io/", None),
+    "jaxopt": ("https://jaxopt.github.io/stable", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
 master_doc = 'index'
-source_suffix = ['.rst']
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.ipynb': 'myst-nb',
+}
+todo_include_todos = False
 
 autosummary_generate = True
-
 autodoc_typehints = 'description'
+
+# myst-nb
+myst_heading_anchors = 2
+nb_execution_mode = "off"
+myst_enable_extensions = [
+    'amsmath',
+    'colon_fence',
+    'dollarmath',
+]
 
 # bibliography
 bibtex_bibfiles = ["references.bib"]
 bibtex_reference_style = "author_year"
 bibtex_default_style = "alpha"
+
+# spelling
+spelling_lang = "en_US"
+spelling_warning = True
+spelling_word_list_filename = "spelling_wordlist.txt"
+spelling_add_pypi_package_names = True
+spelling_exclude_patterns = ["references.rst"]
+spelling_filters = [
+    "enchant.tokenize.URLFilter",
+    "enchant.tokenize.EmailFilter",
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -93,24 +119,48 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints']
 # a list of builtin themes.
 
 html_theme = 'sphinx_book_theme'
-html_logo = '_static/logoOTT.png'
-html_favicon = '_static/logoOTT.ico'
+html_logo = '_static/images/logoOTT.png'
+html_favicon = '_static/images/logoOTT.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+html_theme_options = {
+    'repository_url': 'https://github.com/ott-jax/ott',
+    'repository_branch': 'main',
+    'path_to_docs': 'docs/',
+    'use_repository_button': True,
+    'use_fullscreen_button': False,
+    'logo_only': True,
+    'launch_buttons': {
+        'colab_url': 'https://colab.research.google.com',
+        'binderhub_url': 'https://mybinder.org',
+        'notebook_interface': 'jupyterlab',
+    },
+}
 
-nbsphinx_codecell_lexer = "ipython3"
-nbsphinx_execute = 'never'
-nbsphinx_prolog = r"""
-{% set docname = 'docs/' + env.doc2path(env.docname, base=None) %}
-.. raw:: html
 
-    <div class="docutils container">
-        <a class="reference external"
-           href="https://colab.research.google.com/github/ott-jax/ott/blob/main/{{ docname|e }}">
-        <img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" width="125px">
-        </a>
-    </div>
-"""
+class AutodocExternalFilter(logging.Filter):
+
+  def filter(self, record: logging.LogRecord) -> bool:
+    msg = record.getMessage()
+    return not (
+        "name 'ArrayTree' is not defined" in msg or
+        "PositiveDense.kernel_init" in msg
+    )
+
+
+class SpellingFilter(logging.Filter):
+
+  def filter(self, record: logging.LogRecord) -> bool:
+    msg = record.getMessage()
+    return "_autosummary" not in msg
+
+
+sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
+    AutodocExternalFilter()
+)
+sphinx_logging.getLogger("sphinxcontrib.spelling.builder").logger.addFilter(
+    SpellingFilter()
+)

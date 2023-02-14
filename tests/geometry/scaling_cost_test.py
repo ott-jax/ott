@@ -14,13 +14,15 @@
 """Tests for the option to scale the cost matrix."""
 from typing import Optional, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
-from ott.core import linear_problems, sinkhorn, sinkhorn_lr
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 
 class TestScaleCost:
@@ -59,7 +61,9 @@ class TestScaleCost:
       geom = pointcloud.PointCloud(
           x, y, epsilon=self.eps, scale_cost=scale_cost
       )
-      out = sinkhorn.sinkhorn(geom, a, b)
+      prob = linear_problem.LinearProblem(geom, a, b)
+      solver = sinkhorn.Sinkhorn()
+      out = solver(prob)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
@@ -122,7 +126,9 @@ class TestScaleCost:
         scale_cost: Union[str, float]
     ):
       geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
-      out = sinkhorn.sinkhorn(geom, a, b)
+      prob = linear_problem.LinearProblem(geom, a, b)
+      solver = sinkhorn.Sinkhorn()
+      out = solver(prob)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
@@ -154,8 +160,8 @@ class TestScaleCost:
 
     def apply_sinkhorn(cost1, cost2, scale_cost):
       geom = low_rank.LRCGeometry(cost1, cost2, scale_cost=scale_cost)
-      ot_prob = linear_problems.LinearProblem(geom, self.a, self.b)
-      solver = sinkhorn_lr.LRSinkhorn(threshold=1e-3, rank=10)
+      ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+      solver = sinkhorn_lr.LRSinkhorn(rank=5, threshold=1e-3)
       out = solver(ot_prob)
       return geom, out
 

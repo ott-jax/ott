@@ -1,19 +1,238 @@
 [build-system]
-requires = [
-    "setuptools>=45",
-    "setuptools-scm[toml]>=6.2",
-]
+requires = ["setuptools>=61", "setuptools-scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "ott-jax"
+description = "Optimal Transport Tools in JAX."
+requires-python = ">=3.8"
+dynamic = ["version"]
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+authors = [
+    {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
+]
+dependencies = [
+    "jax>=0.1.67",
+    "jaxlib>=0.1.47",
+    "jaxopt>=0.5.5",
+    # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
+    "numpy>=1.18.4, !=1.23.0",
+    "matplotlib>=3.0.0",
+    "flax>=0.5.2",
+    "optax>=0.1.1",
+    "scipy>=1.7.0",
+]
+keywords = [
+    "optimal transport",
+    "gromov wasserstein",
+    "sinkhorn",
+    "low-rank sinkhorn",
+    "sinkhorn divergences",
+    "wasserstein",
+    "wasserstein barycenter",
+    "jax",
+    "autodiff",
+    "implicit differentiation",
+]
+classifiers = [
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Natural Language :: English",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/ott-jax/ott"
+Documentation = "https://ott-jax.readthedocs.io"
+"Issue Tracker" = "https://github.com/ott-jax/ott/issues"
+Changelog = "https://github.com/ott-jax/ott/releases"
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=2.16.0",
+    "tox>=4",
+]
+test = [
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-memray",
+    "coverage[toml]",
+    "chex",
+    "networkx>=2.5",
+    "scikit-learn>=1.0"
+]
+experimental = [
+    "scikit-sparse>=0.4.6",
+]
+docs = [
+    "sphinx>=4.0",
+    "ipython>=7.20.0",
+    "sphinx_autodoc_typehints>=1.12.0",
+    "sphinx-book-theme>=0.3.3",
+    "sphinx-copybutton>=0.5.1",
+    "sphinxcontrib-bibtex>=2.5.0",
+    "sphinxcontrib-spelling>=7.7.0",
+    "myst-nb>=0.17.1",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = {find = {where = ["src"], namespaces = false}}
+
 [tool.setuptools_scm]
+
+[tool.black]
+line-length = 80
+target-version = ["py38"]
+include = '\.ipynb$'
 
 [tool.isort]
 profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "NUMERIC", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
+known_numeric = ["numpy", "scipy", "pandas", "sklearn", "jax", "flax", "optax", "torch"]
+known_plotting = ["matplotlib", "mpl_toolkits", "seaborn"]
 skip_glob = ["docs/*"]
 
-[tool.black]
-line-length = 80
-target-version = ['py38']
-include = '\.ipynb$'
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = '-m "not notebook"'
+testpaths = [
+    "tests",
+]
+markers = [
+    "cpu: Mark tests as CPU only.",
+    "fast: Mark tests as fast.",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/"]
+omit = [
+    "*/__init__.py",
+    "*/_version.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    '\#.*pragma:\s*no.?cover',
+    "^if __name__ == .__main__.:$",
+    '^\s*raise AssertionError\b',
+    '^\s*raise NotImplementedError\b',
+    '^\s*return NotImplemented\b',
+]
+precision = 2
+show_missing = true
+skip_empty = true
+sort = "Miss"
+
+[tool.yapf]
+based_on_style = "yapf"
+column_limit = 80
+indent_width = 2
+split_before_named_assigns = true
+spaces_around_power_operator = true
+dedent_closing_brackets = true
+coalesce_brackets = true
+
+[tool.rstcheck]
+ignore_directives = [
+    "toctree",
+    "currentmodule",
+    "autosummary",
+    "automodule",
+    "autoclass",
+    "bibliography"
+]
+ignore_roles = [
+    "class",
+    "doc",
+    "cite",
+]
+
+[tool.doc8]
+max_line_length = 80
+ignore_path = ['docs/**/_autosummary']
+
+[tool.tox]
+legacy_tox_ini = """
+    [tox]
+    min_version = 4.0
+    env_list = lint-code,py{38,39,310,311}
+    skip_missing_interpreters = true
+
+    [testenv]
+    extras = test
+    pass_env = CUDA_*,PYTEST_*,CI
+    commands =
+        gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        python -m pytest {tty:--color=yes} {posargs: \
+            --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
+            --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
+
+    [testenv:lint-code]
+    description = Lint the code.
+    deps = pre-commit>=2.16.0
+    skip_install = true
+    commands =
+        pre-commit run --all-files --show-diff-on-failure
+
+    [testenv:lint-docs]
+    description = Lint the documentation.
+    extras = docs
+    allowlist_externals =
+        rm
+        sphinx-build
+    pass_env = PYENCHANT_LIBRARY_PATH
+    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
+    ignore_errors = true
+    commands_pre =
+        rm -rf {tox_root}/docs/_build/spellcheck
+        rm -rf {tox_root}/docs/_build/linkcheck
+    commands =
+        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
+        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+
+    [testenv:build-docs]
+    description = Build the documentation.
+    use_develop = true
+    extras = docs
+    allowlist_externals = sphinx-build
+    commands =
+        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+    commands_post =
+        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+
+    [testenv:clean-docs]
+    description = Remove the documentation.
+    skip_install = true
+    changedir = {tox_root}/docs
+    allowlist_externals = make
+    commands =
+        make clean
+
+    [testenv:build-package]
+    description = Build the package.
+    deps =
+        build
+        twine
+    commands =
+        python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
+        twine check {tox_root}{/}dist{/}*
+    commands_post =
+        python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+"""

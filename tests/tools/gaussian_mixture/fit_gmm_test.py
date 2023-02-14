@@ -13,10 +13,11 @@
 # limitations under the License.
 """Tests for fit_gmm_pair."""
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import jax.test_util
-import pytest
 
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
