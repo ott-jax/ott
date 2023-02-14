@@ -139,14 +139,6 @@ class TICost(CostFn):
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
-  def tree_flatten(self):
-    return (), (self.p,)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    del children
-    return cls(aux_data[0])
-
 
 @jax.tree_util.register_pytree_node_class
 class SqPNorm(TICost):
@@ -172,6 +164,14 @@ class SqPNorm(TICost):
     """
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
+  def tree_flatten(self):  # noqa: D102
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(aux_data[0])
+
 
 @jax.tree_util.register_pytree_node_class
 class PNormP(TICost):
@@ -194,6 +194,14 @@ class PNormP(TICost):
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
+
+  def tree_flatten(self):  # noqa: D102
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(aux_data[0])
 
 
 @jax.tree_util.register_pytree_node_class
@@ -286,14 +294,6 @@ class RegTICost(TICost, abc.ABC):
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
-  def tree_flatten(self):  #noqa: D102
-    return (), (self.gamma,)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  #noqa: D102
-    del children
-    return cls(*aux_data)
-
 
 @jax.tree_util.register_pytree_node_class
 class ElasticL1(RegTICost):
@@ -317,6 +317,14 @@ class ElasticL1(RegTICost):
 
   def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
+
+  def tree_flatten(self):  # noqa: D102
+    return (), (self.gamma,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -347,6 +355,14 @@ class ElasticSTVS(RegTICost):
 
   def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
+
+  def tree_flatten(self):  # noqa: D102
+    return (), (self.gamma,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -440,6 +456,11 @@ class ElasticSqKOverlap(RegTICost):
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.k, self.gamma)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
