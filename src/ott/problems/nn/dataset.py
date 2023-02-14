@@ -50,13 +50,13 @@ class GaussianMixture:
         - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
 
     batch_size: batch size of the samples
-    init_key: initial PRNG key
+    init_rng: initial PRNG key
     scale: scale of the individual Gaussian samples
     variance: the variance of the individual Gaussian samples
   """
   name: Name_t
   batch_size: int
-  init_key: jax.random.PRNGKey
+  init_rng: jax.random.PRNGKey
   scale: float = 5.0
   variance: float = 0.5
 
@@ -91,7 +91,7 @@ class GaussianMixture:
 
   def create_sample_generators(self) -> Iterator[jnp.array]:
     # create generator which randomly picks center and adds noise
-    key = self.init_key
+    key = self.init_rng
     while True:
       k1, k2, key = jax.random.split(key, 3)
       means = jax.random.choice(k1, self.centers, [self.batch_size])
@@ -105,7 +105,7 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    key: jax.random.PRNGKey = jax.random.PRNGKey(0),
+    rng: jax.random.PRNGKey = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
   """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
@@ -114,33 +114,33 @@ def create_gaussian_mixture_samplers(
     name_target: name of the target sampler
     train_batch_size: the training batch size
     valid_batch_size: the validation batch size
-    key: initial PRNG key
+    rng: initial PRNG key
 
   Returns:
     The dataset and dimension of the data.
   """
-  k1, k2, k3, k4 = jax.random.split(key, 4)
+  k1, k2, k3, k4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
-              name_source, batch_size=train_batch_size, init_key=k1
+              name_source, batch_size=train_batch_size, init_rng=k1
           )
       ),
       target_iter=iter(
           GaussianMixture(
-              name_target, batch_size=train_batch_size, init_key=k2
+              name_target, batch_size=train_batch_size, init_rng=k2
           )
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
-              name_source, batch_size=valid_batch_size, init_key=k3
+              name_source, batch_size=valid_batch_size, init_rng=k3
           )
       ),
       target_iter=iter(
           GaussianMixture(
-              name_target, batch_size=valid_batch_size, init_key=k4
+              name_target, batch_size=valid_batch_size, init_rng=k4
           )
       )
   )

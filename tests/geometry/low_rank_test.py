@@ -222,7 +222,7 @@ class TestCostMatrixFactorization:
     y = jax.random.normal(key2, shape=(460, 3))
     geom = geometry.Geometry(cost_matrix=x @ y.T)
 
-    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, seed=42)
+    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=jax.random.PRNGKey(0))
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
