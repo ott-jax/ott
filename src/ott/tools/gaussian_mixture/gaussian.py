@@ -101,23 +101,29 @@ class Gaussian:
 
   @property
   def loc(self) -> jnp.ndarray:
+    """Mean of the Gaussian."""
     return self._loc
 
   @property
   def scale(self) -> scale_tril.ScaleTriL:
+    """Scale of the Gaussian."""
     return self._scale
 
   @property
   def n_dimensions(self) -> int:
+    """Dimensionality of the Gaussian."""
     return self.loc.shape[-1]
 
   def covariance(self) -> jnp.ndarray:
+    """Covariance of the Gaussian."""
     return self.scale.covariance()
 
   def to_z(self, x: jnp.ndarray) -> jnp.ndarray:
+    """Transform x to z = (x - loc) / scale."""
     return self.scale.centered_to_z(x_centered=x - self.loc)
 
   def from_z(self, z: jnp.ndarray) -> jnp.ndarray:
+    """Transform z to x = loc + scale * z."""
     return self.scale.z_to_centered(z=z) + self.loc
 
   def log_prob(
@@ -197,13 +203,13 @@ class Gaussian:
         dest_scale=dest.scale, points=points - self.loc[None]
     ) + dest.loc[None]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.loc, self.scale)
     aux_data = {}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __hash__(self):

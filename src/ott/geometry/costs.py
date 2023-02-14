@@ -141,12 +141,10 @@ class TICost(CostFn):
     return self.h(x - y)
 
   def tree_flatten(self):
-    """Tree flatten."""
     return (), (self.p,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    """Tree unflatten."""
     del children
     return cls(aux_data[0])
 
@@ -291,13 +289,11 @@ class RegTICost(TICost, abc.ABC):
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
-  def tree_flatten(self):
-    """Flatten tree."""
+  def tree_flatten(self):  #noqa: D102
     return (), (self.gamma,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    """Unflatten tree."""
+  def tree_unflatten(cls, aux_data, children):  #noqa: D102
     del children
     return cls(*aux_data)
 

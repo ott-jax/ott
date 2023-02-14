@@ -55,6 +55,17 @@ class BarycenterState(NamedTuple):
       self, iteration: int, bar_prob: barycenter_problem.BarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
   ) -> 'BarycenterState':
+    """Update the state of the solver.
+
+    Args:
+      iteration: the current iteration of the outer loop.
+      bar_prob: the barycenter problem.
+      linear_ot_solver: the linear OT solver to use.
+      store_errors: whether to store the errors of the inner loop.
+
+    Returns:
+      The updated state.
+    """
     seg_y, seg_b = bar_prob.segmented_y_b
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
@@ -120,7 +131,7 @@ class BarycenterState(NamedTuple):
 class WassersteinBarycenter(was_solver.WassersteinSolver):
   """A Continuous Wasserstein barycenter solver, built on generic template."""
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       bar_prob: barycenter_problem.BarycenterProblem,
       bar_size: int = 100,
@@ -181,7 +192,9 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
         -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, x, a
     )
 
-  def output_from_state(self, state: BarycenterState) -> BarycenterState:
+  def output_from_state(  # noqa: D102
+      self, state: BarycenterState
+  ) -> BarycenterState:
     # TODO(michalk8): create an output variable to match rest of the framework
     return state
 

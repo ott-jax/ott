@@ -85,31 +85,31 @@ class GaussianMixturePair:
     self._lock_gmm1 = lock_gmm1
 
   @property
-  def dtype(self):
+  def dtype(self):  # noqa: D102
     return self.gmm0.dtype
 
   @property
-  def gmm0(self):
+  def gmm0(self):  # noqa: D102
     return self._gmm0
 
   @property
-  def gmm1(self):
+  def gmm1(self):  # noqa: D102
     return self._gmm1
 
   @property
-  def epsilon(self):
+  def epsilon(self):  # noqa: D102
     return self._epsilon
 
   @property
-  def tau(self):
+  def tau(self):  # noqa: D102
     return self._tau
 
   @property
-  def rho(self):
+  def rho(self):  # noqa: D102
     return self.epsilon * self.tau / (1. - self.tau)
 
   @property
-  def lock_gmm1(self):
+  def lock_gmm1(self):  # noqa: D102
     return self._lock_gmm1
 
   def get_bures_geometry(self) -> pointcloud.PointCloud:
