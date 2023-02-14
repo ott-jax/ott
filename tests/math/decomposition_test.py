@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 import jax
@@ -25,13 +27,14 @@ class TestDecomposition:
     solution = solver.solve(b)
     assert jnp.allclose(jnp.dot(L, solution), b)
 
-  def test_sparse_cholesky_solver(self, rng: jnp.ndarray):
+  @pytest.mark.parametrize("sparse_format", [sparse.BCOO.fromdense])
+  def test_sparse_cholesky_solver(self, rng: jnp.ndarray, sparse_format: Any):
     N = 10
     keys = jax.random.split(jax.random.PRNGKey(0), 5)
     A = jax.random.normal(keys[0], (N, N), dtype=jnp.float64)
     b = jax.random.normal(keys[1], (N,))
     B = jnp.dot(A, A.transpose())
-    B = sparse.BCOO.fromdense(B)
+    B = sparse_format(B)
     solver = SparseCholeskySolver(B)
     L = solver.L
     assert L is None
