@@ -222,7 +222,7 @@ class W2NeuralDual:
       self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
       self.train_fn = self.train_neuraldual_alternating
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       trainloader_source: Iterable[jnp.ndarray],
       trainloader_target: Iterable[jnp.ndarray],

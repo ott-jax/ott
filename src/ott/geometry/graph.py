@@ -97,6 +97,16 @@ class Graph(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
+    r"""Apply :attr:`kernel_matrix` on positive scaling vector.
+
+    Args:
+      scaling: Scaling to apply the kernel to.
+      eps: passed for consistency, not used yet.
+      axis: passed for consistency, not used yet.
+
+    Returns:
+      Kernel applied to ``scaling``.
+    """
 
     def conf_fn(
         iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
@@ -158,7 +168,7 @@ class Graph(geometry.Geometry):
         state=state,
     )[1]
 
-  def apply_transport_from_scalings(
+  def apply_transport_from_scalings(  # noqa: D102
       self,
       u: jnp.ndarray,
       v: jnp.ndarray,
@@ -184,7 +194,7 @@ class Graph(geometry.Geometry):
     return res
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:
+  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     # force symmetry because of numerical imprecisions
@@ -192,7 +202,7 @@ class Graph(geometry.Geometry):
     return (kernel + kernel.T) * .5
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:
+  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     return -self.t * mu.safe_log(self.kernel_matrix)
 
   @property
@@ -287,7 +297,7 @@ class Graph(geometry.Geometry):
     return self._solver
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     arr = self._graph if self._graph is not None else self._lap
     return arr.shape
 
@@ -308,12 +318,12 @@ class Graph(geometry.Geometry):
     return (self._graph + self._graph.T) if self.directed else self._graph
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     # there may be some numerical imprecisions, but it should be symmetric
     return True
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self._graph.dtype
 
   # TODO(michalk8): in future, use mixins for lse/kernel mode
@@ -343,7 +353,7 @@ class Graph(geometry.Geometry):
     """Not implemented."""
     raise ValueError("Not implemented.")
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self._graph, self._lap, self.solver], {
         "t": self._t,
         "n_steps": self.n_steps,
@@ -355,7 +365,7 @@ class Graph(geometry.Geometry):
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "Graph":
     graph, laplacian, solver = children
