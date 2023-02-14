@@ -23,7 +23,8 @@ from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.geometry.pointcloud import PointCloud
-from ott.problems.linear import potentials, sinkhorn
+from ott.problems.linear import potentials
+from ott.solvers.linear import sinkhorn
 from ott.problems.linear.linear_problem import LinearProblem
 from ott.solvers.nn import conjugate_solvers, models
 
@@ -100,6 +101,12 @@ class W2NeuralDual:
     parallel_updates: Update :math:`f` and :math:`g` at the same time
     init_f_params: initial parameters for :math:`f`
     init_g_params: initial parameters for :math:`g`
+    tau_a: If `< 1`, defines how much unbalanced the problem is
+      on the first marginal.
+    tau_b: If `< 1`, defines how much unbalanced the problem is
+      on the second marginal.
+    epsilon: regularisation parameter in the inner sinkhorn loop. Only relevant, if `tau_a!=1` or `tau_b!=1`.
+    sample_sinkhorn_kwargs: keyword arguments for :class:`ott.solvers.linear.sinkhorn.Sinkhorn`
   """
 
   def __init__(
@@ -142,7 +149,7 @@ class W2NeuralDual:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.epsilon = epsilon
-    self.sample_sinkhorn_kwargs = sample_sinkhorn_kwargs
+    self.sample_sinkhorn_kwargs = dict(sample_sinkhorn_kwargs)
 
     # set random key
     rng = jax.random.PRNGKey(seed)
@@ -256,6 +263,7 @@ class W2NeuralDual:
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
       callback: Optional[Callback_t] = None,
+      seed: int =0,
   ) -> Train_t:
     """Implementation of the training and validation with parallel updates."""  # noqa: D401
     try:
@@ -270,12 +278,15 @@ class W2NeuralDual:
     train_logs = {"loss_f": [], "loss_g": [], "w_dist": [], "directions": []}
     valid_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
 
+    rng = jax.random.PRNGKey(seed)
     for step in tqdm(range(self.num_train_iters)):
+      rng, rng_train, rng_valid = jax.random.split(rng, 3)
       update_forward = not self.back_and_forth or step % 2 == 0
       if update_forward:
         train_batch["source"], train_batch["target"] = self.resample(
             jnp.asarray(next(trainloader_source)),
-            jnp.asarray(next(trainloader_source))
+            jnp.asarray(next(trainloader_target)),
+            rng_train
         )
         self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_f,
@@ -285,7 +296,8 @@ class W2NeuralDual:
       else:
         train_batch["source"], train_batch["target"] = self.resample(
             jnp.asarray(next(trainloader_source)),
-            jnp.asarray(next(trainloader_source))
+            jnp.asarray(next(trainloader_target)),
+            rng_train
         )
         self.state_g, self.state_f, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_g,
@@ -313,7 +325,8 @@ class W2NeuralDual:
         # get batch
         valid_batch["source"], valid_batch["target"] = self.resample(
             jnp.asarray(next(validloader_source)),
-            jnp.asarray(next(validloader_source))
+            jnp.asarray(next(validloader_target)),
+            rng_valid
         )
 
         valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
@@ -585,18 +598,17 @@ class W2NeuralDual:
     prob = LinearProblem(geom, tau_a=self.tau_a, tau_b=self.tau_b)
     out = sinkhorn.Sinkhorn(**self.sample_sinkhorn_kwargs)(prob)
 
-    transition_matrix = geom.transport_from_potentials(out.f, out.g)
     # jax categorical uses log probabilities
-    log_marginals_source = jnp.log(jnp.sum(transition_matrix, axis=1))
-    log_marginals_target = jnp.log(jnp.sum(transition_matrix, axis=0))
-    rng_a, rng_b = jax.random.split(rng, 3)
-    batch_source_adapted = jax.random.choice(
-        rng_a, batch_source, shape=[len(batch_source)], p=log_marginals_source
+    log_marginals_source = jnp.log(jnp.sum(out.matrix, axis=1))
+    log_marginals_target = jnp.log(jnp.sum(out.matrix, axis=0))
+    rng_a, rng_b = jax.random.split(rng, 2)
+    sample_idx_source = jax.random.categorical(
+        rng_a, log_marginals_source, shape=[len(batch_source)]
     )
-    batch_target_adapted = jax.random.choice(
-        rng_b, batch_source, shape=[len(batch_target)], p=log_marginals_target
+    sample_idx_target = jax.random.categorical(
+        rng_b, log_marginals_target, shape=[len(batch_target)],
     )
-    return batch_source_adapted, batch_target_adapted
+    return batch_source[sample_idx_source], batch_target[sample_idx_target]
 
   @staticmethod
   def _clip_weights_icnn(params):
