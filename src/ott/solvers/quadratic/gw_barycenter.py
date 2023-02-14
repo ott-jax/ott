@@ -204,6 +204,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       problem: gw_barycenter.GWBarycenterProblem,
       store_errors: bool = True,
   ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
+    """Solve the (fused) Gromov-Wasserstein barycenter problem."""
 
     def solve_gw(
         state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
@@ -252,12 +253,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     # will be refactored in the future to create an output
     return state
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux = super().tree_flatten()
     return children + [self._quad_solver], aux
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GromovWassersteinBarycenter":
     epsilon, _, threshold, quad_solver = children

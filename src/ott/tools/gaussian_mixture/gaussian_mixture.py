@@ -141,26 +141,32 @@ class GaussianMixture:
 
   @property
   def dtype(self):
+    """Dtype of the GMM parameters."""
     return self.loc.dtype
 
   @property
   def n_dimensions(self):
+    """Number of dimensions of the GMM parameters."""
     return self._loc.shape[-1]
 
   @property
   def n_components(self):
+    """Number of components of the GMM parameters."""
     return self._loc.shape[-2]
 
   @property
   def loc(self) -> jnp.ndarray:
+    """Location parameters of the GMM."""
     return self._loc
 
   @property
   def scale_params(self) -> jnp.ndarray:
+    """Scale parameters of the GMM."""
     return self._scale_params
 
   @property
   def cholesky(self) -> jnp.ndarray:
+    """Cholesky decomposition of the GMM covariance matrices."""
     size = self.n_dimensions
 
     def _get_cholesky(scale_params):
@@ -170,6 +176,7 @@ class GaussianMixture:
 
   @property
   def covariance(self) -> jnp.ndarray:
+    """Covariance matrices of the GMM."""
     size = self.n_dimensions
 
     def _get_covariance(scale_params):
@@ -179,13 +186,16 @@ class GaussianMixture:
 
   @property
   def component_weight_ob(self) -> probabilities.Probabilities:
+    """Component weight object."""
     return self._component_weight_ob
 
   @property
   def component_weights(self) -> jnp.ndarray:
+    """Component weights probabilities."""
     return self._component_weight_ob.probs()
 
   def log_component_weights(self) -> jnp.ndarray:
+    """Log component weights probabilities."""
     return self._component_weight_ob.log_probs()
 
   def _get_normal(
@@ -197,13 +207,13 @@ class GaussianMixture:
     )
 
   def get_component(self, index: int) -> gaussian.Gaussian:
-    """Get the specified GMM component."""
+    """Specified GMM component."""
     return self._get_normal(
         loc=self.loc[index], scale_params=self.scale_params[index]
     )
 
   def components(self) -> List[gaussian.Gaussian]:
-    """Get a list of all GMM components."""
+    """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
@@ -288,19 +298,19 @@ class GaussianMixture:
         log_prob_unnorm, axis=-1, keepdims=True
     )
 
-  def has_nans(self) -> bool:
+  def has_nans(self) -> bool:  # noqa: D102
     for leaf in jax.tree_util.tree_leaves(self):
       if jnp.any(~jnp.isfinite(leaf)):
         return True
     return False
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.loc, self.scale_params, self.component_weight_ob)
     aux_data = {}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):

@@ -160,7 +160,7 @@ class DualPotentials:
     )
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {
         "f": self._f,
         "g": self._g,
@@ -169,7 +169,7 @@ class DualPotentials:
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "DualPotentials":
     return cls(*children, **aux_data)
@@ -347,11 +347,11 @@ class EntropicPotentials(DualPotentials):
     self._g_yy = g_yy
 
   @property
-  def f(self) -> Potential_t:
+  def f(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="f")
 
   @property
-  def g(self) -> Potential_t:
+  def g(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="g")
 
   def _potential_fn(self, *, kind: Literal["f", "g"]) -> Potential_t:
@@ -414,5 +414,5 @@ class EntropicPotentials(DualPotentials):
     """Entropy regularizer."""
     return self._prob.geom.epsilon
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}
