@@ -99,7 +99,7 @@ class PointCloud(geometry.Geometry):
     return 0.
 
   @property
-  def can_LRC(self):
+  def can_LRC(self):  # noqa: D102
     return self.is_squared_euclidean and self._check_LRC_dim
 
   @property
@@ -108,20 +108,20 @@ class PointCloud(geometry.Geometry):
     return n * m > (n + m) * d
 
   @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:
+  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
     if self.is_online:
       return None
     cost_matrix = self._compute_cost_matrix()
     return cost_matrix * self.inv_scale_cost
 
   @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:
+  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
     if self.is_online:
       return None
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     # in the process of flattening/unflattening in vmap, `__init__`
     # can be called with dummy objects
     # we optionally access `shape` in order to get the batch size
@@ -130,13 +130,13 @@ class PointCloud(geometry.Geometry):
     return self.x.shape[0], self.y.shape[0]
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     return self.y is None or (
         jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
     )
 
   @property
-  def is_squared_euclidean(self) -> bool:
+  def is_squared_euclidean(self) -> bool:  # noqa: D102
     return isinstance(self.cost_fn, costs.SqEuclidean)
 
   @property
@@ -147,11 +147,11 @@ class PointCloud(geometry.Geometry):
 
   # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
   @property
-  def cost_rank(self) -> int:
+  def cost_rank(self) -> int:  # noqa: D102
     return self.x.shape[1]
 
   @property
-  def inv_scale_cost(self) -> float:
+  def inv_scale_cost(self) -> float:  # noqa: D102
     if isinstance(self._scale_cost,
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
@@ -201,7 +201,7 @@ class PointCloud(geometry.Geometry):
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
     return cost_matrix
 
-  def apply_lse_kernel(
+  def apply_lse_kernel(  # noqa: D102
       self,
       f: jnp.ndarray,
       g: jnp.ndarray,
@@ -288,7 +288,7 @@ class PointCloud(geometry.Geometry):
 
     return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
 
-  def apply_kernel(
+  def apply_kernel(  # noqa: D102
       self,
       scaling: jnp.ndarray,
       eps: Optional[float] = None,
@@ -315,7 +315,7 @@ class PointCloud(geometry.Geometry):
           self.cost_fn, self.inv_scale_cost
       )
 
-  def transport_from_potentials(
+  def transport_from_potentials(  # noqa: D102
       self, f: jnp.ndarray, g: jnp.ndarray
   ) -> jnp.ndarray:
     if not self.is_online:
@@ -329,7 +329,7 @@ class PointCloud(geometry.Geometry):
         self.cost_fn, self.inv_scale_cost
     )
 
-  def transport_from_scalings(
+  def transport_from_scalings(  # noqa: D102
       self, u: jnp.ndarray, v: jnp.ndarray
   ) -> jnp.ndarray:
     if not self.is_online:
@@ -569,7 +569,7 @@ class PointCloud(geometry.Geometry):
         for ((x, y), (x_mask, y_mask)) in zip(couples, masks)
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return ([self.x, self.y, self._src_mask, self._tgt_mask, self.cost_fn], {
         'epsilon': self._epsilon_init,
         'relative_epsilon': self._relative_epsilon,
@@ -579,7 +579,7 @@ class PointCloud(geometry.Geometry):
     })
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     x, y, src_mask, tgt_mask, cost_fn = children
     return cls(
         x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
@@ -649,7 +649,7 @@ class PointCloud(geometry.Geometry):
         **self._kwargs
     )
 
-  def subset(
+  def subset(  # noqa: D102
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "PointCloud":
@@ -664,7 +664,7 @@ class PointCloud(geometry.Geometry):
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
     )
 
-  def mask(
+  def mask(  # noqa: D102
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
@@ -710,7 +710,7 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.x.dtype
 
   @property

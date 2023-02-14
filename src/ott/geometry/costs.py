@@ -154,7 +154,7 @@ class SqPNorm(TICost):
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
 
   def h_legendre(self, z: jnp.ndarray) -> float:
@@ -164,11 +164,11 @@ class SqPNorm(TICost):
     """
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0])
 
@@ -188,18 +188,18 @@ class PNormP(TICost):
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0])
 
@@ -231,10 +231,10 @@ class SqEuclidean(TICost):
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.25 * jnp.sum(z ** 2)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
@@ -312,17 +312,17 @@ class ElasticL1(RegTICost):
     assert gamma >= 0, "Gamma must be non-negative."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return self.gamma * jnp.linalg.norm(z, ord=1)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.gamma,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
@@ -348,19 +348,19 @@ class ElasticSTVS(RegTICost):
     assert gamma > 0, "Gamma must be positive."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     u = jnp.arcsinh(jnp.abs(z) / (2 * self.gamma))
     out = u - 0.5 * jnp.exp(-2.0 * u)
     return (self.gamma ** 2) * jnp.sum(out + 0.5)  # make positive
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.gamma,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
@@ -388,7 +388,7 @@ class ElasticSqKOverlap(RegTICost):
     self.k = k
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -409,7 +409,7 @@ class ElasticSqKOverlap(RegTICost):
 
     return 0.5 * self.gamma * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
     def find_indices(r: int, l: jnp.ndarray,
@@ -454,11 +454,11 @@ class ElasticSqKOverlap(RegTICost):
     # change sign and reorder
     return sgn * q[jnp.argsort(z_ixs.astype(float))]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.k, self.gamma)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
@@ -606,11 +606,11 @@ class Bures(CostFn):
     )
     return padding[jnp.newaxis, :]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sqrtm_kw)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0], **aux_data[1])
 
@@ -718,11 +718,11 @@ class UnbalancedBures(CostFn):
         (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     dim, sigma, gamma, kwargs = aux_data
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
