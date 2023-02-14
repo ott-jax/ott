@@ -187,7 +187,23 @@ class LRSinkhornOutput(NamedTuple):
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
-    return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
+    rank = jnp.reshape(self.q)[1]
+    dim = other_geom.cost_rank
+    if dim is None:
+      return jnp.sum(
+          self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g
+      )
+    else:
+      if dim < rank:
+        cost_1 = other_geom._cost_1
+        cost_2 = other_geom._cost_2
+        return jnp.sum(
+            jnp.dot(self.q, cost_1.T) * jnp.dot(cost_2, self.r) * self._inv_g
+        )
+      else:
+        return jnp.sum(
+            self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g
+        )
 
   def transport_cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return (by recomputing it) bare transport cost of current solution."""

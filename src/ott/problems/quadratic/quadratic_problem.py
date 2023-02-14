@@ -159,10 +159,15 @@ class QuadraticProblem:
     if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
+    elif self._loss_name == 'kl':
+      f1, f2 = self.linear_loss
+      tmp1 = apply_kernel(self.geom_xx, marginal_1, axis=1, fn=f1)
+      tmp2 = apply_kernel(self.geom_yy, marginal_2, axis=1, fn=f2)
     else:
       f1, f2 = self.linear_loss
       tmp1 = apply_cost(self.geom_xx, marginal_1, axis=1, fn=f1)
       tmp2 = apply_cost(self.geom_yy, marginal_2, axis=1, fn=f2)
+
     x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
     y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
     return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
@@ -248,8 +253,12 @@ class QuadraticProblem:
 
     # Handle LRC Geometry case.
     h1, h2 = self.quad_loss
-    tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
-    tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
+    if self._loss_name == 'kl':
+      tmp1 = apply_kernel(self.geom_xx, q, axis=1, fn=h1)
+      tmp2 = apply_kernel(self.geom_yy, r, axis=1, fn=h2)
+    else:
+      tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
+      tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
     if self.is_low_rank:
       geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2) + marginal_cost
       if self.is_fused:
@@ -309,8 +318,12 @@ class QuadraticProblem:
       )
 
     h1, h2 = self.quad_loss
-    tmp = apply_cost(self.geom_xx, transport_matrix, axis=1, fn=h1)
-    tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
+    if self._loss_name == 'kl':
+      tmp = apply_kernel(self.geom_xx, transport_matrix, axis=1, fn=h1)
+      tmp = apply_kernel(self.geom_yy, tmp.T, axis=1, fn=h2).T
+    else:
+      tmp = apply_cost(self.geom_xx, transport_matrix, axis=1, fn=h1)
+      tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
     cost_matrix += self.fused_penalty * self._fused_cost_matrix * rescale_factor
@@ -492,3 +505,10 @@ def apply_cost(
     fn: quadratic_costs.Loss
 ) -> jnp.ndarray:
   return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)
+
+
+def apply_kernel(
+    geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
+    fn: quadratic_costs.Loss
+) -> jnp.ndarray:
+  return geom.apply_kernel(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)
