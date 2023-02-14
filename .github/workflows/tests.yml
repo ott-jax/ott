@@ -54,6 +54,11 @@ jobs:
       options: --gpus="device=12"
     steps:
     - uses: actions/checkout@v3
+
+    - name: Install apt dependencies
+      run: |
+        sudo apt-get install libsuitesparse-dev
+
     - name: Install dependencies
       # `jax[cuda]<0.4` because of Docker issues: https://github.com/google/jax/issues/13758
       # `flax<0.6.5` because it requires `jax>=0.4.2`
