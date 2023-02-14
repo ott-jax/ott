@@ -32,7 +32,7 @@ conda install -c conda-forge ott-jax
 
 
 ## What is optimal transport?
-Optimal transport can be loosely described as the branch of mathematics and optimization that studies
+Optimal transport can be described as the branch of mathematics and optimization that studies
 *matching problems*: given two families of points, and a cost function on pairs of points, find a "good" (low cost) way
 to associate bijectively to every point in the first family another in the second.
 
