@@ -18,7 +18,7 @@ acceleration, initializations) and extensions (low-rank), that can be used direc
 [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html)
 work towards the goal of having end-to-end differentiable outputs. OTT-JAX is developed by a team of researchers
 from Apple, Google, Meta and many academic contributors, including TU München, Oxford, ENSAE/IP Paris and the
-Hebrew University.
+Hebrew University, ENS.
 
 ## Installation
 Install ``OTT-JAX`` from [PyPI](https://pypi.org/project/ott-jax/) as:
