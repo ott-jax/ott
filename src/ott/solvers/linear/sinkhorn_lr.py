@@ -54,10 +54,9 @@ class LRSinkhornState(NamedTuple):
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(
-      self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...],
-      lse_mode: bool
+      self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
   ) -> jnp.ndarray:
-    return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
+    return solution_error(self.q, self.r, ot_prob, norm_error)
 
   def set(self, **kwargs: Any) -> 'LRSinkhornState':
     """Return a copy of self, with potential overwrites."""
@@ -476,8 +475,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: solution_error(q, r, ot_prob, self.norm_error, self.lse_mode)[
-              0], lambda: err
+          lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
@@ -574,8 +572,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: solution_error(q, r, ot_prob, self.norm_error, self.lse_mode)[
-              0], lambda: err
+          lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 
       return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
