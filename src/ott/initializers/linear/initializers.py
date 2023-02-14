@@ -34,7 +34,7 @@ class SinkhornInitializer(abc.ABC):
   def init_dual_a(self, 
                   ot_prob: 'linear_problem.LinearProblem', 
                   lse_mode: bool, 
-                  rng: Any = None
+                  rng: Optional[jax.random.PRNGKey] = None
     ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling f_u."""
 
@@ -43,13 +43,14 @@ class SinkhornInitializer(abc.ABC):
       self, 
       ot_prob: 'linear_problem.LinearProblem', 
       lse_mode: bool,
-      rng: Any = None
+      rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling g_v."""
 
   def __call__(
       self,
       ot_prob: 'linear_problem.LinearProblem',
+      rng: Optional[jax.random.PRNGKey] = jax.random.PRNGKey(0),
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
@@ -68,10 +69,11 @@ class SinkhornInitializer(abc.ABC):
       The initial potentials/scalings.
     """
     n, m = ot_prob.geom.shape
+    rng_x, rng_y = jax.random.split(rng)
     if a is None:
-      a = self.init_dual_a(ot_prob, lse_mode=lse_mode)
+      a = self.init_dual_a(ot_prob, lse_mode=lse_mode, rng=rng_x)
     if b is None:
-      b = self.init_dual_b(ot_prob, lse_mode=lse_mode)
+      b = self.init_dual_b(ot_prob, lse_mode=lse_mode, rng=rng_y)
 
     assert a.shape == (
         n,
@@ -104,7 +106,7 @@ class DefaultInitializer(SinkhornInitializer):
       self, 
       ot_prob: 'linear_problem.LinearProblem', 
       lse_mode: bool,
-      rng: Any = None
+      rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
@@ -124,7 +126,7 @@ class DefaultInitializer(SinkhornInitializer):
       self, 
       ot_prob: 'linear_problem.LinearProblem', 
       lse_mode: bool,
-      rng: Any = None
+      rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
@@ -155,7 +157,7 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Any = None
+      rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
     """Gaussian initialization function.
 
@@ -260,7 +262,7 @@ class SortingInitializer(DefaultInitializer):
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
-      rng: Any = None,
+      rng: Optional[jax.random.PRNGKey] = None,
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
 
