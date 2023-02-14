@@ -1,5 +1,7 @@
 <img src="https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/logoOTT.png" width="10%" alt="logo">
 
+A dumb change
+
 # Optimal Transport Tools (OTT)
 [![Downloads](https://static.pepy.tech/badge/ott-jax)](https://pypi.org/project/ott-jax/)
 [![Tests](https://img.shields.io/github/actions/workflow/status/ott-jax/ott/tests.yml?branch=main)](https://github.com/ott-jax/ott/actions/workflows/tests.yml)
