@@ -540,13 +540,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       *_, err = state_inner
       return err > tolerance
 
-    def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
-    ) -> jnp.ndarray:
-      return jsp.exp(
-          gamma * (f[:, None] + g[None, :] - c), axis=axis
-      )
-
     def body_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
         state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
@@ -565,14 +558,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       # Second Projection
       v1_trans = jnp.dot(k_q.T, u1)
       v2_trans = jnp.dot(k_r.T, u2)
-      g = (g_old * q_gp * v1_old * q_Q * v1_trans * v2_old * q_R * v2_trans) ** (
+      g = (g_old * q_gp * v1_old * q_q * v1_trans * v2_old * q_r * v2_trans) ** (
                 1 / 3
             )
       v1 = g / v1_trans 
       v2 = g / v2_trans
       q_gp = (g_old * q_gp) / g 
-      q_Q = (q_Q * v1_old) / v1
-      q_R = (q_R * v2_old) / v2
+      q_q = (q_q * v1_old) / v1
+      q_r = (q_r * v2_old) / v2
       v1_old = v1
       v2_old = v2
       g_old = g
