@@ -351,7 +351,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    key: Optional[jnp.ndarray] = None,
+    rng:  jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 
@@ -378,7 +378,7 @@ def k_means(
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of iterations.
     store_inner_errors: Whether to store the errors (inertia) at each iteration.
-    key: Random key to seed the initializations.
+    rng: Random key for seeding the initializations.
 
   Returns:
     The k-means clustering.
@@ -401,9 +401,7 @@ def k_means(
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  if key is None:
-    key = jax.random.PRNGKey(0)
-  keys = jax.random.split(key, n_init)
+  keys = jax.random.split(rng, n_init)
   out = _k_means(
       keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
       max_iterations, store_inner_errors
