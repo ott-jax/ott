@@ -411,7 +411,7 @@ class KMeansInitializer(LRInitializer):
     arr = self._extract_array(geom, first=which == "q")
     marginals = ot_prob.a if which == "q" else ot_prob.b
 
-    centroids = fn(arr, self.rank, key=rng).centroids
+    centroids = fn(arr, self.rank, rng=rng).centroids
     geom = pointcloud.PointCloud(
         arr, centroids, epsilon=0.1, scale_cost="max_cost"
     )

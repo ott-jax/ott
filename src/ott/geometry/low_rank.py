@@ -233,9 +233,10 @@ class LRCGeometry(geometry.Geometry):
     return max_value + self._bias
 
   def to_LRCGeometry(
-      self, rank: int = 0, tol: float = 1e-2, seed: int = 0
+      self, rank: int = 0, tol: float = 1e-2, rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> 'LRCGeometry':
     """Return self."""
+    del rank, tol, rng
     return self
 
   @property

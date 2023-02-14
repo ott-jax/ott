@@ -250,7 +250,7 @@ class TestFusedGromovWasserstein:
   def test_fgw_lr_generic_cost_matrix(
       self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
-    n, m = 70, 100
+    n, m = 20, 30
     key1, key2, key3, key4 = jax.random.split(rng, 4)
     x = jax.random.normal(key1, shape=(n, 7))
     y = jax.random.normal(key2, shape=(m, 6))

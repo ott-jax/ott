@@ -383,7 +383,7 @@ class QuadraticProblem:
       return self
 
     (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
-    (k1, k2, k3) = jax.random.split(rng, 3)[:, 0]
+    (k1, k2, k3) = jax.random.split(rng, 3)
     (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)
 
     geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, rng=k1)

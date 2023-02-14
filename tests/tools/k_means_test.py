@@ -95,7 +95,7 @@ class TestKmeansPlusPlus:
 
     def callback(x: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x)
-      centers = k_means._k_means_plus_plus(geom, k=3, key=rng)
+      centers = k_means._k_means_plus_plus(geom, k=3, rng=rng)
       _, inertia = compute_assignment(x, centers)
       return inertia
 
@@ -119,7 +119,7 @@ class TestKmeans:
     gt_assignment = np.array(gt_assignment)
 
     res = k_means.k_means(
-        geom, k, max_iterations=max_iter, store_inner_errors=False, key=rng
+        geom, k, max_iterations=max_iter, store_inner_errors=False, rng=rng
     )
     pred_assignment = np.array(res.assignment)
 
@@ -170,8 +170,8 @@ class TestKmeans:
     key1, key2 = jax.random.split(rng, 2)
     geom, _, _ = make_blobs(n_samples=50, centers=k, random_state=10)
 
-    res_random = k_means.k_means(geom, k, init="random", key=key1)
-    res_kpp = k_means.k_means(geom, k, init="k-means++", key=key2)
+    res_random = k_means.k_means(geom, k, init="random", rng=key1)
+    res_kpp = k_means.k_means(geom, k, init="k-means++", rng=key2)
 
     assert res_random.converged
     assert res_kpp.converged
@@ -182,8 +182,8 @@ class TestKmeans:
     k = 10
     geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
 
-    res = k_means.k_means(geom, k, n_init=3, key=rng)
-    res_larger_n_init = k_means.k_means(geom, k, n_init=20, key=rng)
+    res = k_means.k_means(geom, k, n_init=3, rng=rng)
+    res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=rng)
 
     assert res_larger_n_init.error < res.error
 
@@ -195,7 +195,7 @@ class TestKmeans:
     )
 
     res = k_means.k_means(
-        geom, k, max_iterations=max_iter, store_inner_errors=True, key=rng
+        geom, k, max_iterations=max_iter, store_inner_errors=True, rng=rng
     )
 
     errors = res.inner_errors
@@ -208,8 +208,8 @@ class TestKmeans:
     k = 11
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
-    res = k_means.k_means(geom, k=k, tol=1., key=rng)
-    res_strict = k_means.k_means(geom, k=k, tol=0., key=rng)
+    res = k_means.k_means(geom, k=k, tol=1., rng=rng)
+    res_strict = k_means.k_means(geom, k=k, tol=0., rng=rng)
 
     assert res.converged
     assert res_strict.converged
@@ -229,7 +229,7 @@ class TestKmeans:
         min_iterations=n_iter,
         max_iterations=n_iter,
         store_inner_errors=True,
-        key=rng
+        rng=rng
     )
 
     assert res.converged
@@ -247,7 +247,7 @@ class TestKmeans:
         min_iterations=min_iter,
         max_iterations=20,
         tol=0.,
-        key=rng
+        rng=rng
     )
 
     assert res.converged
@@ -293,7 +293,7 @@ class TestKmeans:
     weights = jnp.ones((x.shape[0],)).at[:n].set(0.)
 
     expected_centroids = jnp.stack([w.mean(0), z.mean(0), y.mean(0)])
-    res = k_means.k_means(x, k=k, weights=weights, key=rng)
+    res = k_means.k_means(x, k=k, weights=weights, rng=rng)
 
     cost = pointcloud.PointCloud(res.centroids, expected_centroids).cost_matrix
     ixs = jnp.argmin(cost, axis=1)
@@ -326,7 +326,7 @@ class TestKmeans:
 
     def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
       return k_means.k_means(
-          x, k=k, init=init, store_inner_errors=True, key=rng
+          x, k=k, init=init, store_inner_errors=True, rng=rng
       )
 
     k = 7
@@ -364,7 +364,7 @@ class TestKmeans:
           weights=w,
           min_iterations=20 if force_scan else 1,
           max_iterations=20,
-          key=key1,
+          rng=key1,
       ).error
 
     k, eps, tol = 4, 1e-3, 1e-3
@@ -398,7 +398,7 @@ class TestKmeans:
     x, _, _ = make_blobs(n_samples=n, centers=k, random_state=41)
 
     res_kmeans = KMeans(n_clusters=k, n_init=20, tol=tol, random_state=0).fit(x)
-    res_ours = k_means.k_means(x, k, n_init=20, tol=tol, key=rng)
+    res_ours = k_means.k_means(x, k, n_init=20, tol=tol, rng=rng)
     gt_labels = res_kmeans.labels_
     pred_labels = np.array(res_ours.assignment)
 

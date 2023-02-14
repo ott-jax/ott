@@ -28,7 +28,7 @@ Init_t = Union[Literal["k-means++", "random"],
 
 
 class KPPState(NamedTuple):
-  key: jnp.ndarray
+  rng: jnp.ndarray
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
@@ -118,23 +118,23 @@ def _random_init(
 def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
-    key: jnp.ndarray,
+    rng: jnp.ndarray,
     n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
 
-  def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
-    key, next_key = jax.random.split(key, 2)
+  def init_fn(geom: pointcloud.PointCloud, rng: jnp.ndarray) -> KPPState:
+    key, next_key = jax.random.split(rng, 2)
     ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
     dists = geom.subset(ix, None).cost_matrix[0]
-    return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
+    return KPPState(rng=next_key, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
       iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
-    key, next_key = jax.random.split(state.key, 2)
+    key, next_key = jax.random.split(state.rng, 2)
     geom, ixs = const
 
     # no need to normalize when `replace=True`
@@ -151,14 +151,14 @@ def _k_means_plus_plus(
     centroid_dists = candidate_dists[best_ix]
 
     return KPPState(
-        key=next_key, centroids=centroids, centroid_dists=centroid_dists
+        rng=next_key, centroids=centroids, centroid_dists=centroid_dists
     )
 
   if n_local_trials is None:
     n_local_trials = 2 + int(math.log(k))
   assert n_local_trials > 0, n_local_trials
 
-  state = init_fn(geom, key)
+  state = init_fn(geom, rng)
   constants = (geom, jnp.arange(geom.shape[0]))
   state = fixed_point_loop.fixpoint_iter(
       lambda *_, **__: True,
@@ -223,7 +223,7 @@ def _update_centroids(
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _k_means(
-    key: jnp.ndarray,
+    rng: jnp.ndarray,
     geom: pointcloud.PointCloud,
     k: int,
     weights: Optional[jnp.ndarray] = None,
@@ -248,7 +248,7 @@ def _k_means(
           f"or a callable, found `{init_fn!r}`."
       )
 
-    centroids = init(geom, k, key)
+    centroids = init(geom, k, rng)
     if centroids.shape != (k, geom.cost_rank):
       raise ValueError(
           f"Expected initial centroids to have shape "
