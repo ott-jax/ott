@@ -1,3 +1,5 @@
+# Copyright OTT-JAX
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -88,7 +90,7 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   decrease_factor: float = 0.66
   ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
-  def solve(
+  def solve(  # noqa: D102
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,

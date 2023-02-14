@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -287,7 +287,7 @@ class SinkhornOutput(BaseTransportOutput):
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
 
-  def set_cost(
+  def set_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
       use_danskin: bool
   ) -> 'SinkhornOutput':
@@ -328,7 +328,7 @@ class SinkhornOutput(BaseTransportOutput):
     return jnp.sum(self.matrix * other_geom.cost_matrix)
 
   @property
-  def converged(self) -> bool:
+  def converged(self) -> bool:  # noqa: D102
     if self.errors is None:
       return False
     return jnp.logical_and(
@@ -337,13 +337,13 @@ class SinkhornOutput(BaseTransportOutput):
 
   # TODO(michalk8): this should be always present
   @property
-  def n_iters(self) -> int:
+  def n_iters(self) -> int:  # noqa: D102
     if self.errors is None:
       return -1
     return jnp.sum(self.errors > -1)
 
   @property
-  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
     u = self.ot_prob.geom.scaling_from_potential(self.f)
     v = self.ot_prob.geom.scaling_from_potential(self.g)
     return u, v
@@ -362,7 +362,7 @@ class SinkhornOutput(BaseTransportOutput):
         self.f, self.g, inputs, axis=axis
     )
 
-  def marginal(self, axis: int) -> jnp.ndarray:
+  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
@@ -540,8 +540,8 @@ class Sinkhorn:
     The optimal solutions ``f`` and ``g`` and the optimal objective
     (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated
     w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit
-    differentiation of the optimality conditions (``implicit_differentiation``
-    set to ``True``). This choice has two consequences.
+    differentiation of the optimality conditions (``implicit_diff``
+    not equal to ``None``). This choice has two consequences.
 
     - The termination criterion used to stop Sinkhorn (cancellation of
       gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate
@@ -954,7 +954,7 @@ class Sinkhorn:
     return self._norm_error,
 
   # TODO(michalk8): in the future, enforce this (+ in GW) via abstract method
-  def create_initializer(self) -> init_lib.SinkhornInitializer:
+  def create_initializer(self) -> init_lib.SinkhornInitializer:  # noqa: D102
     if isinstance(self.initializer, init_lib.SinkhornInitializer):
       return self.initializer
     if self.initializer == "default":
@@ -967,14 +967,14 @@ class Sinkhorn:
         f"Initializer `{self.initializer}` is not yet implemented."
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
     aux['norm_error'] = aux.pop('_norm_error')
     aux.pop('threshold')
     return [self.threshold], aux
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(**aux_data, threshold=children[0])
 
 

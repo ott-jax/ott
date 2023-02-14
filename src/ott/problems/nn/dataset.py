@@ -1,3 +1,5 @@
+# Copyright OTT-JAX
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -88,7 +90,11 @@ class GaussianMixture:
     return self.create_sample_generators()
 
   def create_sample_generators(self) -> Iterator[jnp.array]:
-    # create generator which randomly picks center and adds noise
+    """Random sample generator from Gaussian mixture.
+
+    Returns:
+      A generator of samples from the Gaussian mixture.
+    """
     key = self.init_key
     while True:
       k1, k2, key = jax.random.split(key, 3)

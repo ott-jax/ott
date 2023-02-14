@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
@@ -122,7 +135,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.update_impl(state, a, b)
 
-  def init_dual_a(
+  def init_dual_a(  # noqa: D102
       self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     # Detect if the problem is batched.
@@ -186,7 +199,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.meta_model.apply({'params': params}, a, b)
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
         'rng': self.rng,
         'state': self.state

@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -147,7 +160,7 @@ class DualPotentials:
     )
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {
         "f": self._f,
         "g": self._g,
@@ -156,7 +169,7 @@ class DualPotentials:
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "DualPotentials":
     return cls(*children, **aux_data)
@@ -334,11 +347,11 @@ class EntropicPotentials(DualPotentials):
     self._g_yy = g_yy
 
   @property
-  def f(self) -> Potential_t:
+  def f(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="f")
 
   @property
-  def g(self) -> Potential_t:
+  def g(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="g")
 
   def _potential_fn(self, *, kind: Literal["f", "g"]) -> Potential_t:
@@ -401,5 +414,5 @@ class EntropicPotentials(DualPotentials):
     """Entropy regularizer."""
     return self._prob.geom.epsilon
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}
