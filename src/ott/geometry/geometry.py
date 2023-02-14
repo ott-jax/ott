@@ -629,7 +629,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      seed: int = 0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       scale: float = 1.
   ) -> 'low_rank.LRCGeometry':
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -648,7 +648,7 @@ class Geometry:
       rank: Target rank of the :attr:`cost_matrix`.
       tol: Tolerance of the error. The total number of sampled points is
         :math:`min(n, m,\frac{rank}{tol})`.
-      seed: Random seed.
+      rng: The PRNG key to use for initializing the model.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
 
@@ -670,7 +670,6 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
-      rng = jax.random.PRNGKey(seed)
       key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 
