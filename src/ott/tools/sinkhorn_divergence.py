@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 
-class SinkhornDivergenceOutput(NamedTuple):
+class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
   divergence: float
   potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]

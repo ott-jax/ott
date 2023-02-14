@@ -26,7 +26,7 @@ from ott.solvers.linear import sinkhorn
 __all__ = ["SinkhornBarycenterOutput", "discrete_barycenter"]
 
 
-class SinkhornBarycenterOutput(NamedTuple):
+class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
   f: jnp.ndarray
   g: jnp.ndarray
   histogram: jnp.ndarray
