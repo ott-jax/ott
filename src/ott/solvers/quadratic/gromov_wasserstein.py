@@ -34,6 +34,7 @@ from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
 from ott.solvers import was_solver
+from ott.solvers.outputs import BaseTransportOutput
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["GWOutput", "GromovWasserstein", "solve"]
@@ -62,7 +63,7 @@ class GWOutput(NamedTuple):
   linear_convergence: Optional[jnp.ndarray] = None
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[LinearOutput] = None
+  linear_state: Optional[BaseTransportOutput] = None
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
   old_transport_mass: float = 1.0

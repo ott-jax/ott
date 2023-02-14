@@ -17,11 +17,13 @@ from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple,
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+from flax import struct
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
+from ott.solvers.outputs import BaseTransportOutput
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
@@ -112,23 +114,14 @@ def solution_error(
   return err
 
 
-class LRSinkhornOutput(NamedTuple):
+@struct.dataclass
+class LRSinkhornOutput(BaseTransportOutput):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
 
-  q: jnp.ndarray
-  r: jnp.ndarray
-  g: jnp.ndarray
-  costs: jnp.ndarray
-  # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
-  # in future, enforce via class hierarchy
-  errors: jnp.ndarray
-  ot_prob: linear_problem.LinearProblem
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
-  reg_ot_cost: Optional[float] = None
-
-  def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
+  q: Optional[jnp.ndarray] = None
+  r: Optional[jnp.ndarray] = None
+  g: Optional[jnp.ndarray] = None
 
   def set_cost(
       self,
@@ -137,7 +130,7 @@ class LRSinkhornOutput(NamedTuple):
       use_danskin: bool = False
   ) -> 'LRSinkhornOutput':
     del lse_mode
-    return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
+    return self.replace(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
   def compute_reg_ot_cost(
       self,
@@ -145,22 +138,6 @@ class LRSinkhornOutput(NamedTuple):
       use_danskin: bool = False,
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
-
-  @property
-  def linear(self) -> bool:
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
-
-  @property
-  def geom(self) -> geometry.Geometry:
-    return self.ot_prob.geom
-
-  @property
-  def a(self) -> jnp.ndarray:
-    return self.ot_prob.a
-
-  @property
-  def b(self) -> jnp.ndarray:
-    return self.ot_prob.b
 
   @property
   def linear_output(self) -> bool:
@@ -183,10 +160,6 @@ class LRSinkhornOutput(NamedTuple):
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
 
-  def marginal(self, axis: int) -> jnp.ndarray:
-    length = self.q.shape[0] if axis == 0 else self.r.shape[0]
-    return self.apply(jnp.ones(length,), axis=axis)
-
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
     return jnp.sum(self.q * other_geom.apply_cost(self.r, axis=1) * self._inv_g)
@@ -194,11 +167,6 @@ class LRSinkhornOutput(NamedTuple):
   def transport_cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return (by recomputing it) bare transport cost of current solution."""
     return self.cost_at_geom(other_geom)
-
-  @property
-  def primal_cost(self) -> jnp.ndarray:
-    """Return (by recomputing it) transport cost of current solution."""
-    return self.transport_cost_at_geom(other_geom=self.geom)
 
   @property
   def transport_mass(self) -> float:
@@ -606,6 +574,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       A LRSinkhornOutput.
     """
     return LRSinkhornOutput(
+        shape=(state.q.shape[0], state.r.shape[0]),
         q=state.q,
         r=state.r,
         g=state.g,
@@ -660,4 +629,4 @@ def run(
   out = out.set_cost(
       ot_prob, lse_mode=solver.lse_mode, use_danskin=solver.use_danskin
   )
-  return out.set(ot_prob=ot_prob)
+  return out

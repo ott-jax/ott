@@ -25,8 +25,9 @@ from typing import (
 )
 
 import jax
-import jax.numpy as jnp
 import numpy as np
+import jax.numpy as jnp
+from flax import struct
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
@@ -35,6 +36,7 @@ from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
+from ott.solvers.outputs import BaseTransportOutput
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
 if TYPE_CHECKING:
@@ -278,18 +280,12 @@ def ent_reg_cost(
   )
 
 
-class SinkhornOutput(NamedTuple):
+@struct.dataclass
+class SinkhornOutput(BaseTransportOutput):
   """Implements the problems.Transport interface, for a Sinkhorn solution."""
 
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
-  errors: Optional[jnp.ndarray] = None
-  reg_ot_cost: Optional[float] = None
-  ot_prob: Optional[linear_problem.LinearProblem] = None
-
-  def set(self, **kwargs: Any) -> 'SinkhornOutput':
-    """Return a copy of self, with potential overwrites."""
-    return self._replace(**kwargs)
 
   def set_cost(
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
@@ -297,7 +293,7 @@ class SinkhornOutput(NamedTuple):
   ) -> 'SinkhornOutput':
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
-    return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
+    return self.replace(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
   def dual_cost(self) -> jnp.ndarray:
@@ -306,11 +302,6 @@ class SinkhornOutput(NamedTuple):
     dual_cost = jnp.sum(jnp.where(a > 0.0, a * self.f, 0))
     dual_cost += jnp.sum(jnp.where(b > 0.0, b * self.g, 0))
     return dual_cost
-
-  @property
-  def primal_cost(self) -> jnp.ndarray:
-    """Return transport cost of current solution at geometry."""
-    return self.transport_cost_at_geom(other_geom=self.geom)
 
   def transport_cost_at_geom(
       self, other_geom: geometry.Geometry
@@ -335,26 +326,6 @@ class SinkhornOutput(NamedTuple):
       geom = other_geom.to_LRCGeometry()
       return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
     return jnp.sum(self.matrix * other_geom.cost_matrix)
-
-  @property
-  def linear(self) -> bool:
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
-
-  @property
-  def geom(self) -> geometry.Geometry:
-    return self.ot_prob.geom
-
-  @property
-  def a(self) -> jnp.ndarray:
-    return self.ot_prob.a
-
-  @property
-  def b(self) -> jnp.ndarray:
-    return self.ot_prob.b
-
-  @property
-  def linear_output(self) -> bool:
-    return True
 
   @property
   def converged(self) -> bool:
@@ -384,11 +355,6 @@ class SinkhornOutput(NamedTuple):
       return self.ot_prob.geom.transport_from_potentials(self.f, self.g)
     except ValueError:
       return self.ot_prob.geom.transport_from_scalings(*self.scalings)
-
-  @property
-  def transport_mass(self) -> float:
-    """Sum of transport matrix."""
-    return self.marginal(0).sum()
 
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a ndarray; axis=1 for its transpose."""
@@ -972,7 +938,10 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
+    return SinkhornOutput(
+      shape=(f.shape[0], g.shape[0]),
+      f=f, g=g, errors=state.errors[:, 0], ot_prob=ot_prob
+    )
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
@@ -1019,7 +988,7 @@ def run(
   # Be careful here, the geom and the cost are injected at the end, where it
   # does not interfere with the implicit differentiation.
   out = out.set_cost(ot_prob, solver.lse_mode, solver.use_danskin)
-  return out.set(ot_prob=ot_prob)
+  return out
 
 
 def iterations(
@@ -1084,7 +1053,7 @@ def _iterations_implicit_bwd(res, gr):
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   f, g, ot_prob, solver = res
-  gr = gr[:2]
+  gr = gr.f, gr.g
   return (
       *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr), None,
       None
