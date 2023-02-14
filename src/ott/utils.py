@@ -15,10 +15,14 @@
 import dataclasses
 import functools
 import warnings
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+
+from ott.solvers.linear.sinkhorn import SinkhornState
+from ott.solvers.linear.sinkhorn_lr import LRSinkhornState
 
 __all__ = ["register_pytree_node", "deprecate", "is_jax_array"]
 
@@ -60,3 +64,57 @@ def is_jax_array(obj: Any) -> bool:
     # https://jax.readthedocs.io/en/latest/jax_array_migration.html
     return isinstance(obj, (jax.Array, jnp.DeviceArray))
   return isinstance(obj, jnp.DeviceArray)
+
+
+def default_progress_fn(
+    status: Tuple[np.ndarray, np.ndarray, np.ndarray,
+                  Union[SinkhornState, LRSinkhornState]], *args
+) -> None:
+  """This default callback function reports progress by printing to the console.
+
+  Args:
+      status: tuple describing the current iteration number,
+        the number of inner iterations after which the error is computed,
+        the total number of iterations, each wrapped in a ``jax.Array``, and
+        the current Sinkhorn state.
+      args: unused, see <https://jax.readthedocs.io/en/latest/jax.experimental.host_callback.html>
+
+  This function updates the progress bar only when the error is computed
+  (every `solver.inner_iterations`, typically `10`).
+
+  Note: the user can provide a slightly modified version of this callback in
+  order to use a progress bar. To do so, replace the print statement with the
+  following:
+
+    ```
+    pbar.set_description_str(f"error: {error:.6f}")
+    pbar.total = total_iter
+    pbar.update()
+    ```
+
+  assuming `pbar` is defined at the callsite with the following code:
+
+    ```
+    with tqdm() as pbar:
+      out_sink = jax.jit(sinkhorn.Sinkhorn(progress_fn=progress_fn))(lin_problem)
+    ```
+
+  """
+  # Convert arguments.
+  iteration, inner_iterations, total_iter, state = status
+  iteration = int(iteration)
+  inner_iterations = int(inner_iterations)
+  total_iter = int(total_iter)
+  errors = np.array(state.errors).ravel()
+
+  # Avoid reporting error on each iteration,
+  # because errors are only computed every `inner_iterations`.
+  if (iteration + 1) % inner_iterations == 0:
+    error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+    error = errors[error_idx]
+
+    # pbar.set_description_str(f"error: {error:.6f}")
+    # pbar.total = total_iter
+    # pbar.update()
+
+    print(f"{iteration} / {total_iter} -- {error}")
