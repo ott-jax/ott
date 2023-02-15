@@ -238,6 +238,7 @@ class LRCGeometry(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0
   ) -> jnp.ndarray:
+    """Compute the application kernel."""
     cost_matrix = self.cost_matrix
     kernel_matrix = jnp.exp(-(cost_matrix * self.inv_scale_cost / self.epsilon))
     return jnp.dot(kernel_matrix, scaling)

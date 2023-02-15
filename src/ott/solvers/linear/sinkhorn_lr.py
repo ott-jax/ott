@@ -124,7 +124,6 @@ def solution_error(
 
 class LRSinkhornOutput(NamedTuple):
   """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
-
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -199,7 +198,7 @@ class LRSinkhornOutput(NamedTuple):
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
-    rank = jnp.reshape(self.q)[1]
+    rank = jnp.shape(self.q)[1]
     dim = other_geom.cost_rank
     if dim is None:
       return jnp.sum(
