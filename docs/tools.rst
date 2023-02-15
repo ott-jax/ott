@@ -15,13 +15,6 @@ Segmented Sinkhorn
 
     segment_sinkhorn.segment_sinkhorn
 
-Plotting
---------
-.. autosummary::
-    :toctree: _autosummary
-
-    plot.Plot
-
 Sinkhorn Divergence
 -------------------
 .. autosummary::

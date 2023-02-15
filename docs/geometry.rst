@@ -52,7 +52,6 @@ Cost Functions
 .. autosummary::
     :toctree: _autosummary
 
-    costs.CostFn
     costs.SqPNorm
     costs.PNormP
     costs.SqEuclidean

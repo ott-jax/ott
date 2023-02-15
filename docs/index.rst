@@ -82,7 +82,7 @@ Packages
     :maxdepth: 1
     :caption: Examples
 
-    Getting Started <tutorials/notebooks/basic_ot_between_datasets>
+    Getting Started <tutorials/notebooks/point_clouds>
     tutorials/index
 
 .. toctree::
