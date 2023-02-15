@@ -900,7 +900,7 @@ class Geometry:
     assert mask.shape == (size,)
     return mask
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
         self._relative_epsilon, self._scale_epsilon, self._src_mask,
@@ -910,7 +910,7 @@ class Geometry:
     }
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     *args, kwargs = children
     return cls(*args, **kwargs, **aux_data)
 

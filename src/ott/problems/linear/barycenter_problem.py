@@ -165,7 +165,7 @@ class BarycenterProblem:
   def _is_segmented(self) -> bool:
     return self._y.ndim == 3
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self._y, self._b, self._weights], {
         'cost_fn': self.cost_fn,
         'epsilon': self.epsilon,
@@ -174,7 +174,7 @@ class BarycenterProblem:
     })
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "BarycenterProblem":
     y, b, weights = children

@@ -132,15 +132,15 @@ class Grid(geometry.Geometry):
     raise NotImplementedError('Median cost not implemented for grids.')
 
   @property
-  def can_LRC(self) -> bool:
+  def can_LRC(self) -> bool:  # noqa: D102
     return True
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     return self.num_a, self.num_a
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     return True
 
   # Reimplemented functions to be used in regularized OT
@@ -341,14 +341,14 @@ class Grid(geometry.Geometry):
     return tuple(sep_grid for _ in range(size))
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.x[0].dtype
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (self.x, self.cost_fns, self._epsilon), self.kwargs
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(
         x=children[0], cost_fns=children[1], epsilon=children[2], **aux_data
     )

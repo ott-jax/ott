@@ -160,10 +160,10 @@ class ICNN(ModelBase):
   gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
 
   @property
-  def is_potential(self) -> bool:
+  def is_potential(self) -> bool:  # noqa: D102
     return True
 
-  def setup(self) -> None:
+  def setup(self) -> None:  # noqa: D102
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
@@ -279,7 +279,7 @@ class ICNN(ModelBase):
     return A, b
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     z = self.act_fn(self.w_xs[0](x))
     for i in range(self.num_hidden):
       z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
@@ -322,7 +322,7 @@ class MLP(ModelBase):
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)

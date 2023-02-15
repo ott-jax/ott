@@ -202,6 +202,6 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     """Rank of the transport matrix factorization."""
     return self._linear_lr_initializer.rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     return children + [self._linear_lr_initializer], aux_data
