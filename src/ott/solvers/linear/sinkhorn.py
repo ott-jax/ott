@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -574,8 +574,8 @@ class Sinkhorn:
     The optimal solutions ``f`` and ``g`` and the optimal objective
     (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated
     w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit
-    differentiation of the optimality conditions (``implicit_differentiation``
-    set to ``True``). This choice has two consequences.
+    differentiation of the optimality conditions (``implicit_diff``
+    not equal to ``None``). This choice has two consequences.
 
     - The termination criterion used to stop Sinkhorn (cancellation of
       gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate

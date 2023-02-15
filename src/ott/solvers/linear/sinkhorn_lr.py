@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import (
+    Any,
+    Literal,
+    Mapping,
+    NamedTuple,
+    NoReturn,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -78,8 +87,8 @@ def compute_reg_ot_cost(
     r: second factor of solution
     g: weights of solution
     ot_prob: linear problem
-    use_danskin: if True, use Danskin's trick to avoid computing the gradient of
-      the cost function.
+    use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
+      to avoid computing the gradient of the cost function.
 
   Returns:
     regularized OT cost

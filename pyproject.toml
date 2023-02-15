@@ -74,9 +74,6 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0"
 ]
-experimental = [
-    "scikit-sparse>=0.4.6",
-]
 docs = [
     "sphinx>=4.0",
     "ipython>=7.20.0",
@@ -177,6 +174,7 @@ legacy_tox_ini = """
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
+    deps = py{38,39,310}: scikit-sparse>=0.4.6
     commands =
         gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         python -m pytest {tty:--color=yes} {posargs: \
