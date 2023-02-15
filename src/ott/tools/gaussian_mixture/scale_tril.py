@@ -196,13 +196,13 @@ class ScaleTriL:
     m = self.gaussian_map(dest_scale)
     return (m @ points.T).T
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.params,)
     aux_data = {'size': self.size}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):

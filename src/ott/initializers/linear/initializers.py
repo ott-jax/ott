@@ -198,7 +198,7 @@ class SortingInitializer(DefaultInitializer):
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
         'tolerance': self.tolerance,
         'max_iter': self.max_iter,

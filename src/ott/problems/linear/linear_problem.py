@@ -107,14 +107,14 @@ class LinearProblem:
       )
     return marginal_a, marginal_b, app_transport
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self.geom, self._a, self._b], {
         'tau_a': self.tau_a,
         'tau_b': self.tau_b
     })
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "LinearProblem":
     return cls(*children, **aux_data)

@@ -87,5 +87,5 @@ def diag_jacobian_of_marginal_fit(
   )
 
 
-def rho(epsilon: float, tau: float) -> float:
+def rho(epsilon: float, tau: float) -> float:  # noqa: D103
   return (epsilon * tau) / (1. - tau)

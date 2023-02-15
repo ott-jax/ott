@@ -116,6 +116,7 @@ class AndersonAcceleration:
   def update_history(
       self, state: 'sinkhorn.SinkhornState', pb, lse_mode: bool
   ) -> 'sinkhorn.SinkhornState':
+    """Update history of mapped dual variables."""
     f = state.fu if lse_mode else pb.geom.potential_from_scaling(state.fu)
     mapped = jnp.concatenate((state.old_mapped_fus[:, 1:], f[:, None]), axis=1)
     return state.set(old_mapped_fus=mapped)
@@ -154,7 +155,7 @@ class Momentum:
     power = 1.0 / self.inner_iterations
     return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio ** power))
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       weight: float,
       value: jnp.ndarray,
