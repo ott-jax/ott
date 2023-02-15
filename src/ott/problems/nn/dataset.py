@@ -95,11 +95,11 @@ class GaussianMixture:
     Returns:
       A generator of samples from the Gaussian mixture.
     """
-    key = self.init_rng
+    rng = self.init_rng
     while True:
-      k1, k2, key = jax.random.split(key, 3)
-      means = jax.random.choice(k1, self.centers, [self.batch_size])
-      normal_samples = jax.random.normal(k2, [self.batch_size, 2])
+      rng1, rng2, rng = jax.random.split(rng, 3)
+      means = jax.random.choice(rng1, self.centers, [self.batch_size])
+      normal_samples = jax.random.normal(rng2, [self.batch_size, 2])
       samples = self.scale * means + self.variance ** 2 * normal_samples
       yield samples
 
@@ -123,28 +123,28 @@ def create_gaussian_mixture_samplers(
   Returns:
     The dataset and dimension of the data.
   """
-  k1, k2, k3, k4 = jax.random.split(rng, 4)
+  rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
-              name_source, batch_size=train_batch_size, init_rng=k1
+              name_source, batch_size=train_batch_size, init_rng=rng1
           )
       ),
       target_iter=iter(
           GaussianMixture(
-              name_target, batch_size=train_batch_size, init_rng=k2
+              name_target, batch_size=train_batch_size, init_rng=rng2
           )
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
           GaussianMixture(
-              name_source, batch_size=valid_batch_size, init_rng=k3
+              name_source, batch_size=valid_batch_size, init_rng=rng3
           )
       ),
       target_iter=iter(
           GaussianMixture(
-              name_target, batch_size=valid_batch_size, init_rng=k4
+              name_target, batch_size=valid_batch_size, init_rng=rng4
           )
       )
   )

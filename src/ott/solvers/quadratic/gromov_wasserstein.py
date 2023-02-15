@@ -102,7 +102,7 @@ class GWState(NamedTuple):
       linearization of GW.
     linear_pb: Local linearization of the quadratic GW problem.
     old_transport_mass: Intermediary value of the mass of the transport matrix.
-    keys: Random keys passed to low-rank initializers at every GW iteration
+    rngs: Random keys passed to low-rank initializers at every GW iteration
       when not using warm start.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
@@ -113,7 +113,7 @@ class GWState(NamedTuple):
   linear_state: LinearOutput
   linear_pb: linear_problem.LinearProblem
   old_transport_mass: float
-  keys: Optional[jnp.ndarray] = None
+  rngs: Optional[jax.random.PRNGKeyArray] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> 'GWState':
@@ -211,17 +211,17 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
-    key1, key2 = jax.random.split(rng, 2)
+    rng1, rng2 = jax.random.split(rng, 2)
 
     if prob._is_low_rank_convertible:
       prob = prob.to_low_rank()
 
     if init is None:
       initializer = self.create_initializer(prob)
-      init = initializer(prob, epsilon=self.epsilon, key=key1, **kwargs)
+      init = initializer(prob, epsilon=self.epsilon, rng=rng1, **kwargs)
 
     run_fn = jax.jit(iterations) if self.jit else iterations
-    out = run_fn(self, prob, init, key2)
+    out = run_fn(self, prob, init, rng2)
     # TODO(lpapaxanthos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
@@ -243,14 +243,14 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: linear_problem.LinearProblem,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations.
 
     Args:
       prob: Quadratic OT problem.
       init: Initial linearization of the quadratic problem.
-      key: Random key for low-rank initializers. Only used when
+      rng: Random key for low-rank initializers. Only used when
         :attr:`warm_start` is `False`.
 
     Returns:
@@ -270,7 +270,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linear_state=linear_state,
         linear_pb=init,
         old_transport_mass=transport_mass,
-        keys=jax.random.split(key, num_iter),
+        rngs=jax.random.split(rng, num_iter),
         errors=errors,
     )
 
@@ -348,7 +348,7 @@ def iterations(
     solver: GromovWasserstein,
     prob: quadratic_problem.QuadraticProblem,
     init: linear_problem.LinearProblem,
-    key: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 
@@ -365,11 +365,11 @@ def iterations(
 
     lin_state = state.linear_state
     if solver.is_low_rank:
-      key = state.keys[iteration]
+      rng = state.rngs[iteration]
       init = (lin_state.q, lin_state.r,
               lin_state.g) if solver.warm_start else (None, None, None)
       linear_pb = prob.update_lr_linearization(state.linear_state)
-      out = solver.linear_ot_solver(linear_pb, init=init, key=key)
+      out = solver.linear_ot_solver(linear_pb, init=init, rng=rng)
     else:
       init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
       linear_pb = prob.update_linearization(
@@ -391,7 +391,7 @@ def iterations(
       max_iterations=solver.max_iterations,
       inner_iterations=1,
       constants=solver,
-      state=solver.init_state(prob, init, key=key)
+      state=solver.init_state(prob, init, rng=rng)
   )
 
   return solver.output_from_state(state)
