@@ -472,7 +472,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g1_old = g1
       g2_old = g2
       h_old = h
-      h = 2 * h
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
