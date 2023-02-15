@@ -308,7 +308,7 @@ class SinkhornOutput(NamedTuple):
     return dual_cost
 
   @property
-  def primal_cost(self) -> jnp.ndarray:
+  def primal_cost(self) -> float:
     """Return transport cost of current solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 

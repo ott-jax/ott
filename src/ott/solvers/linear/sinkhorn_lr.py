@@ -209,7 +209,7 @@ class LRSinkhornOutput(NamedTuple):
     return self.cost_at_geom(other_geom)
 
   @property
-  def primal_cost(self) -> jnp.ndarray:
+  def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
