@@ -139,7 +139,7 @@ class QuadraticProblem:
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
     Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
-    from :attr:`geom_xx``geom_xx` and :math:`q` the `[m,]` marginal of the
+    from :attr:`geom_xx` and :math:`q` the `[m,]` marginal of the
     transport matrix for samples from :attr:`geom_yy`.
 
     When ``cost_xx`` (resp. ``cost_yy``) is the cost matrix of :attr:`geom_xx`
