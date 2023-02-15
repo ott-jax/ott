@@ -568,7 +568,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g_old = g
 
       # Compute Couplings
-      q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g, gamma)
+      q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g)
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
