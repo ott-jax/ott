@@ -15,14 +15,11 @@
 import dataclasses
 import functools
 import warnings
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from ott.solvers.linear.sinkhorn import SinkhornState
-from ott.solvers.linear.sinkhorn_lr import LRSinkhornState
 
 __all__ = ["register_pytree_node", "deprecate", "is_jax_array"]
 
@@ -67,8 +64,7 @@ def is_jax_array(obj: Any) -> bool:
 
 
 def default_progress_fn(
-    status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                  Union[SinkhornState, LRSinkhornState]], *args
+    status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args
 ) -> None:
   """This default callback function reports progress by printing to the console.
 

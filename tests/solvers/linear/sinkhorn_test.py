@@ -540,7 +540,7 @@ class TestSinkhorn:
 
   @pytest.mark.fast()
   def test_callback_fn(self,):
-    """Two point clouds, tested with various parameters."""
+    """Check that the callback function is actually called."""
 
     traced_values = {"iters": [], "error": [], "total": []}
 
@@ -567,6 +567,13 @@ class TestSinkhorn:
 
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
     lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
-    _ = sinkhorn.Sinkhorn(progress_fn=progress_fn, max_iterations=4)(lin_prob)
+    _ = sinkhorn.Sinkhorn(
+        progress_fn=progress_fn, max_iterations=10 * 2
+    )(
+        lin_prob
+    )
 
-    assert traced_values["iters"] == [0, 1, 2, 3]
+    assert traced_values["iters"] == [9, 19]
+    assert pytest.approx(traced_values["error"][0], 1e-5) == 0.003072811
+    assert pytest.approx(traced_values["error"][1], 1e-5) == 5.9314094e-05
+    assert traced_values["total"] == [20, 20]
