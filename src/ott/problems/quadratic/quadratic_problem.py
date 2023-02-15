@@ -138,22 +138,25 @@ class QuadraticProblem:
 
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
-    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
-    from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
-    matrix for samples from `geom_yy`. `cost_xx` (resp. `cost_yy`) is the
-    cost matrix of `geom_xx` (resp. `geom_yy`). The cost term that
-    depends on these marginals can be written as:
+    Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
+    from `geom_xx` and :math:`q` the `[m,]` marginal of the transport
+    matrix for samples from `geom_yy`.
+
+    When `cost_xx` (resp. `cost_yy`) is the cost matrix of `geom_xx`
+    (resp. `geom_yy`). The cost term that depends on these marginals can be
+    written as:
 
     .. math::
 
-      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T`
-                      + \text{lin2}(\text{cost_yy}) q \mathbb{1}_{n}^T)^T`
+      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T
+                      + \text{lin2}(\text{cost_yy}) q \mathbb{1}_{n}^T)^T
+
+    This helper function instantiates these two low-rank matrices and groups
+    them into a single low-rank cost geometry object.
 
     Args:
-      marginal_1: jnp.ndarray<float>[n,], marginal of the transport matrix
-       for samples from geom_xx
-      marginal_2: jnp.ndarray<float>[m,], marginal of the transport matrix
-       for samples from geom_yy
+      marginal_1: [n,], marginal of transport matrix for samples in `geom_xx`.
+      marginal_2: [m,], marginal of transport matrix for samples in `geom_yy`.
 
     Returns:
       Low-rank geometry.

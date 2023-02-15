@@ -196,39 +196,39 @@ class TestGromovWasserstein:
     )
 
   @pytest.mark.fast
-  @pytest.mark.parametrize("unbalanced", [False, True])
-  def test_gw_pointcloud(self, unbalanced: bool):
+  @pytest.mark.parametrize(
+      "balanced,rank", [(True, -1), (False, -1), (True, 3)]
+  )
+  def test_gw_pointcloud(self, balanced: bool, rank: int):
     """Test basic computations pointclouds."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
-    tau_a, tau_b = (self.tau_a, self.tau_b) if unbalanced else (1.0, 1.0)
+    tau_a, tau_b = (1.0, 1.0) if balanced else (self.tau_a, self.tau_b)
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
-    solver_ent = gromov_wasserstein.GromovWasserstein(
-        epsilon=1.0, max_iterations=10
-    )
-    solvers = [
-        solver_ent,
-    ]
-    if not unbalanced:
-      # LR Sinkhorn only implemented in balanced case.
-      solver_lr = gromov_wasserstein.GromovWasserstein(
-          rank=3, max_iterations=10
+    if rank > 0:
+      solver = gromov_wasserstein.GromovWasserstein(
+          rank=rank, max_iterations=10
       )
-      solvers.append(solver_lr)
+    else:
+      solver = gromov_wasserstein.GromovWasserstein(
+          epsilon=1.0, max_iterations=10
+      )
 
-    for solver in solvers:
-      out = solver(prob)
+    out = solver(prob)
+    # TODO(cuturi): test primal cost for un-balanced case as well.
+    if balanced:
       u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
       v = geom_y.apply_square_cost(out.matrix.sum(axis=0)).squeeze()
       c = (geom_x.cost_matrix @ out.matrix) @ geom_y.cost_matrix
       c = (u[:, None] + v[None, :] - 2 * c)
-      if not unbalanced:
-        # Formula above is only valid for balanced case.
-        assert np.isclose(out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3)
 
-      assert not jnp.isnan(out.reg_gw_cost)
+      np.testing.assert_allclose(
+          out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3
+      )
+
+    assert not jnp.isnan(out.reg_gw_cost)
 
   @pytest.mark.parametrize(
       "unbalanced,unbalanced_correction", [(False, False), (True, False),
