@@ -83,7 +83,7 @@ class WassersteinSolver:
     """Whether the solver is low-rank."""
     return self.rank > 0
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self.epsilon, self.linear_ot_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
@@ -94,7 +94,7 @@ class WassersteinSolver:
     })
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "WassersteinSolver":
     epsilon, linear_ot_solver, threshold = children

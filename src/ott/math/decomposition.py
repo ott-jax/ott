@@ -140,7 +140,7 @@ class DenseCholeskySolver(CholeskySolver[jnp.ndarray]):
   def _solve(self, L: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
     return jsp.linalg.solve_triangular(L, b, lower=self._lower)
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["lower"] = self._lower
     return children, aux_data
@@ -218,7 +218,7 @@ class SparseCholeskySolver(
   def __hash__(self) -> int:
     return object.__hash__(self) if self._key is None else self._key
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     return children, {
         **aux_data, "beta": self._beta,
