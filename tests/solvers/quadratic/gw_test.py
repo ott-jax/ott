@@ -207,14 +207,9 @@ class TestGromovWasserstein:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
-    if rank > 0:
-      solver = gromov_wasserstein.GromovWasserstein(
-          rank=rank, max_iterations=10
-      )
-    else:
-      solver = gromov_wasserstein.GromovWasserstein(
-          epsilon=1.0, max_iterations=10
-      )
+    solver = gromov_wasserstein.GromovWasserstein(
+        rank=rank, epsilon=0.0 if rank > 0 else 1.0, max_iterations=10
+    )
 
     out = solver(prob)
     # TODO(cuturi): test primal cost for un-balanced case as well.

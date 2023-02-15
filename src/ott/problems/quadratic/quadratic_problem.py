@@ -139,27 +139,27 @@ class QuadraticProblem:
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
     Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
-    from `geom_xx` and :math:`q` the `[m,]` marginal of the transport
-    matrix for samples from `geom_yy`.
+    from :attr:`geom_xx``geom_xx` and :math:`q` the `[m,]` marginal of the
+    transport matrix for samples from :attr:`geom_yy`.
 
-    When `cost_xx` (resp. `cost_yy`) is the cost matrix of `geom_xx`
-    (resp. `geom_yy`). The cost term that depends on these marginals can be
-    written as:
+    When ``cost_xx`` (resp. ``cost_yy``) is the cost matrix of :attr:`geom_xx`
+    (resp. :attr:`geom_yy`), the cost term that depends on these marginals can
+    be written as:
 
     .. math::
 
       \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T
-                      + \text{lin2}(\text{cost_yy}) q \mathbb{1}_{n}^T)^T
+                      +  \mathbb{1}_{n}(\text{lin2}(\text{cost_yy}) q)^T
 
     This helper function instantiates these two low-rank matrices and groups
     them into a single low-rank cost geometry object.
 
     Args:
-      marginal_1: [n,], marginal of transport matrix for samples in `geom_xx`.
-      marginal_2: [m,], marginal of transport matrix for samples in `geom_yy`.
+      marginal_1: [n,], first marginal of transport matrix.
+      marginal_2: [m,], second marginal of transport matrix.
 
     Returns:
-      Low-rank geometry.
+      Low-rank geometry of rank 2, storing normalization constants.
     """
     if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
