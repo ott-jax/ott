@@ -399,6 +399,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iter: int = 10,
       max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
@@ -515,6 +516,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iter: int = 10,
       max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
