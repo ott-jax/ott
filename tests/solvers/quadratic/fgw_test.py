@@ -268,7 +268,7 @@ class TestFusedGromovWasserstein:
     lr_prob = prob.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gw_solver.GromovWasserstein(rank=5, epsilon=1.0)
+    solver = gw_solver.GromovWasserstein(rank=5, epsilon=10.0)
     out = solver(prob)
 
     assert solver.rank == 5
