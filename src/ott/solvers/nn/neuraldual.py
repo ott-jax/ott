@@ -22,10 +22,10 @@ from flax import core
 from flax.core import frozen_dict
 
 from ott.geometry import costs
-from ott.geometry.pointcloud import PointCloud
+from ott.geometry import pointcloud
 from ott.problems.linear import potentials
 from ott.solvers.linear import sinkhorn
-from ott.problems.linear.linear_problem import LinearProblem
+from ott.problems.linear import linear_problem
 from ott.solvers.nn import conjugate_solvers, models
 
 __all__ = ["W2NeuralDual"]
@@ -133,7 +133,7 @@ class W2NeuralDual:
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       epsilon: Optional[float] = None,
-      sample_sinkhorn_kwargs: Dict[str, Any] = MappingProxyType({}),
+      sample_sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -149,7 +149,7 @@ class W2NeuralDual:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.epsilon = epsilon
-    self.sample_sinkhorn_kwargs = dict(sample_sinkhorn_kwargs)
+    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None else sample_sinkhorn_kwargs 
 
     # set random key
     rng = jax.random.PRNGKey(seed)
@@ -587,15 +587,15 @@ class W2NeuralDual:
     Returns:
       Resampled `batch_source` and `batch_target`.
     """
-    if self.tau_a == 1.0 and self.tau_b == 1.0:
+    if self.is_balanced:
       return batch_source, batch_target
-    geom = PointCloud(
+    geom = pointcloud.PointCloud(
         batch_source,
         batch_target,
         epsilon=self.epsilon,
         scale_cost=self.sample_sinkhorn_kwargs.pop("scale_cost", "mean")
     )
-    prob = LinearProblem(geom, tau_a=self.tau_a, tau_b=self.tau_b)
+    prob = linear_problem.LinearProblem(geom, tau_a=self.tau_a, tau_b=self.tau_b)
     out = sinkhorn.Sinkhorn(**self.sample_sinkhorn_kwargs)(prob)
 
     # jax categorical uses log probabilities
@@ -609,6 +609,10 @@ class W2NeuralDual:
         rng_b, log_marginals_target, shape=[len(batch_target)],
     )
     return batch_source[sample_idx_source], batch_target[sample_idx_target]
+
+  @property
+  def is_balanced(self) -> bool:
+    return self.tau_a == 1.0 and self.tau_b == 1.0
 
   @staticmethod
   def _clip_weights_icnn(params):
