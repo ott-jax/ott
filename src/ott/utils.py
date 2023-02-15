@@ -63,10 +63,10 @@ def is_jax_array(obj: Any) -> bool:
   return isinstance(obj, jnp.DeviceArray)
 
 
-def default_progress_fn(
+def example_progress_callback_fn(
     status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args
 ) -> None:
-  """This default callback function reports progress by printing to the console.
+  """This callback function reports progress by printing to the console.
 
   Args:
       status: tuple describing the current iteration number,
@@ -78,9 +78,10 @@ def default_progress_fn(
   This function updates the progress bar only when the error is computed
   (every `solver.inner_iterations`, typically `10`).
 
-  Note: the user can provide a slightly modified version of this callback in
-  order to use a progress bar. To do so, replace the print statement with the
-  following:
+  Note:
+      The user can provide a slightly modified version of this callback in
+      order to use a progress bar. To do so, replace the print statement with the
+      following:
 
     ```
     pbar.set_description_str(f"error: {error:.6f}")

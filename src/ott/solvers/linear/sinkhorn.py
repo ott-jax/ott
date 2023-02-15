@@ -701,7 +701,8 @@ class Sinkhorn:
     initializer: how to compute the initial potentials/scalings.
     progress_fn: an optional callback function of type ``ProgressCallbackFn``
       which gets called during Sinkhorn iterations so the user can display
-      the error at each iteration, e.g. using a progress bar.
+      the error at each iteration, e.g. using a progress bar. See
+      ``ott.utils.example_progress_callback_fn`` for basic implementation.
     kwargs_init: keyword arguments when creating the initializer.
   """
 
