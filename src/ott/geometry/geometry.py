@@ -670,11 +670,11 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
-      key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+      rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 
-      i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
-      j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+      i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
+      j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
       # force `batch_size=None` since `cost_matrix` would be `None`
       ci_star = self.subset(
@@ -686,7 +686,7 @@ class Geometry:
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
-      row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+      row_ixs = jax.random.choice(rng3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
       s = self.subset(row_ixs, None, batch_size=None).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
@@ -694,7 +694,7 @@ class Geometry:
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
       p_col /= jnp.sum(p_col)
       # (n_subset,)
-      col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+      col_ixs = jax.random.choice(rng4, m, shape=(n_subset,), p=p_col)
       # (n_subset, n_subset)
       w = s[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
 
@@ -706,7 +706,7 @@ class Geometry:
       v = v.T / jnp.sqrt(d)[None, :]
 
       inv_scale = (1. / jnp.sqrt(n_subset))
-      col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+      col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
       A_trans = self.subset(

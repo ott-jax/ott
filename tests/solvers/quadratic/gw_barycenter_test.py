@@ -37,9 +37,9 @@ class TestGWBarycenter:
       m: Optional[int] = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, (n, d))
-    y = x if m is None else jax.random.normal(key2, (m, d))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d))
+    y = x if m is None else jax.random.normal(rng2, (m, d))
     return pointcloud.PointCloud(x, y, **kwargs)
 
   @staticmethod
@@ -157,12 +157,12 @@ class TestGWBarycenter:
     bar_size, epsilon, = 10, 1e-1
     num_per_segment = (7, 12)
 
-    key1, *rngs = jax.random.split(rng, len(num_per_segment) + 1)
+    rng1, *rngs = jax.random.split(rng, len(num_per_segment) + 1)
     y = jnp.concatenate([
         self.random_pc(n, d=self.ndim, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)
     ])
-    rngs = jax.random.split(key1, len(num_per_segment))
+    rngs = jax.random.split(rng1, len(num_per_segment))
     y_fused = jnp.concatenate([
         self.random_pc(n, d=self.ndim_f, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)

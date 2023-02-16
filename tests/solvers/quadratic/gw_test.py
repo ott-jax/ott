@@ -33,14 +33,15 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("as_pc", [False, True])
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
-      self, rng: jax.random.PRNGKeyArray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+      self, rng: jax.random.PRNGKeyArray, as_pc: bool,
+      rank: Union[int, Tuple[int, ...]]
   ):
     n, m, d1, d2, d = 200, 300, 20, 25, 30
-    k1, k2, k3, k4 = jax.random.split(rng, 4)
-    x = jax.random.normal(k1, (n, d1))
-    y = jax.random.normal(k2, (m, d2))
-    xx = jax.random.normal(k3, (n, d))
-    yy = jax.random.normal(k4, (m, d))
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    x = jax.random.normal(rng1, (n, d1))
+    y = jax.random.normal(rng2, (m, d2))
+    xx = jax.random.normal(rng3, (n, d))
+    yy = jax.random.normal(rng4, (m, d))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
@@ -89,11 +90,13 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
-  def test_gw_implicit_conversion_mixed_input(self, rng: jax.random.PRNGKeyArray):
+  def test_gw_implicit_conversion_mixed_input(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     n, m, d1, d2 = 200, 300, 20, 25
-    k1, k2 = jax.random.split(rng, 2)
-    x = jax.random.normal(k1, (n, d1))
-    y = jax.random.normal(k2, (m, d2))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d1))
+    y = jax.random.normal(rng2, (m, d2))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y).to_LRCGeometry()
@@ -113,15 +116,15 @@ class TestGromovWasserstein:
     d_x = 2
     d_y = 3
     self.n, self.m = 6, 7
-    keys = jax.random.split(rng, 6)
-    self.x = jax.random.uniform(keys[0], (self.n, d_x))
-    self.y = jax.random.uniform(keys[1], (self.m, d_y))
-    a = jax.random.uniform(keys[2], (self.n,)) + 1e-1
-    b = jax.random.uniform(keys[3], (self.m,)) + 1e-1
+    rngs = jax.random.split(rng, 6)
+    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
+    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
+    a = jax.random.uniform(rngs[2], (self.n,)) + 1e-1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 1e-1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
-    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
+    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
     self.tau_a = 0.8
     self.tau_b = 0.9
 
@@ -366,9 +369,9 @@ class TestGromovWasserstein:
 
   def test_gw_lr_warm_start_helps(self, rng: jax.random.PRNGKeyArray):
     rank = 3
-    key1, key2 = jax.random.split(rng, 2)
-    geom_x = pointcloud.PointCloud(jax.random.normal(key1, (100, 5)))
-    geom_y = pointcloud.PointCloud(jax.random.normal(key2, (110, 6)))
+    rng1, rng2 = jax.random.split(rng, 2)
+    geom_x = pointcloud.PointCloud(jax.random.normal(rng1, (100, 5)))
+    geom_y = pointcloud.PointCloud(jax.random.normal(rng2, (110, 6)))
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
     solver_cold = gromov_wasserstein.GromovWasserstein(

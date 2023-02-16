@@ -53,12 +53,12 @@ class TestKmeansPlusPlus:
   @pytest.mark.fast.with_args("n_local_trials", [None, 1, 5], only_fast=-1)
   def test_n_local_trials(self, rng: jax.random.PRNGKeyArray, n_local_trials):
     n, k = 150, 4
-    key1, key2 = jax.random.split(rng)
+    rng1, rng2 = jax.random.split(rng)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn='sqeucl', random_state=0
     )
-    centers1 = k_means._k_means_plus_plus(geom, k, key1, n_local_trials)
-    centers2 = k_means._k_means_plus_plus(geom, k, key2, 20)
+    centers1 = k_means._k_means_plus_plus(geom, k, rng1, n_local_trials)
+    centers2 = k_means._k_means_plus_plus(geom, k, rng2, 20)
 
     shift1 = jnp.linalg.norm(centers1 - c, ord="fro") ** 2
     shift2 = jnp.linalg.norm(centers2 - c, ord="fro") ** 2
@@ -165,13 +165,15 @@ class TestKmeans:
     else:
       _ = k_means.k_means(geom, k, init=init_fn)
 
-  def test_k_means_plus_plus_better_than_random(self, rng: jax.random.PRNGKeyArray):
+  def test_k_means_plus_plus_better_than_random(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     k = 5
-    key1, key2 = jax.random.split(rng, 2)
+    rng1, rng2 = jax.random.split(rng, 2)
     geom, _, _ = make_blobs(n_samples=50, centers=k, random_state=10)
 
-    res_random = k_means.k_means(geom, k, init="random", rng=key1)
-    res_kpp = k_means.k_means(geom, k, init="k-means++", rng=key2)
+    res_random = k_means.k_means(geom, k, init="random", rng=rng1)
+    res_kpp = k_means.k_means(geom, k, init="k-means++", rng=rng2)
 
     assert res_random.converged
     assert res_kpp.converged
@@ -188,7 +190,9 @@ class TestKmeans:
     assert res_larger_n_init.error < res.error
 
   @pytest.mark.parametrize("max_iter", [8, 16])
-  def test_store_inner_errors(self, rng: jax.random.PRNGKeyArray, max_iter: int):
+  def test_store_inner_errors(
+      self, rng: jax.random.PRNGKeyArray, max_iter: int
+  ):
     ndim, k = 10, 4
     geom, _, _ = make_blobs(
         n_samples=40, n_features=ndim, centers=k, random_state=43
@@ -218,7 +222,9 @@ class TestKmeans:
   @pytest.mark.parametrize(
       "tol", [1e-3, 0.], ids=["weak-convergence", "strict-convergence"]
   )
-  def test_convergence_force_scan(self, rng: jax.random.PRNGKeyArray, tol: float):
+  def test_convergence_force_scan(
+      self, rng: jax.random.PRNGKeyArray, tol: float
+  ):
     k, n_iter = 9, 20
     geom, _, _ = make_blobs(n_samples=100, centers=k, random_state=37)
 
@@ -253,11 +259,13 @@ class TestKmeans:
     assert res.converged
     assert jnp.sum(res.inner_errors != -1) >= min_iter
 
-  def test_weight_scaling_effects_only_inertia(self, rng: jax.random.PRNGKeyArray):
+  def test_weight_scaling_effects_only_inertia(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     k = 10
-    key1, key2 = jax.random.split(rng)
+    rng1, rng2 = jax.random.split(rng)
     geom, _, _ = make_blobs(n_samples=130, centers=k, random_state=3)
-    weights = jnp.abs(jax.random.normal(key1, shape=(geom.shape[0],)))
+    weights = jnp.abs(jax.random.normal(rng1, shape=(geom.shape[0],)))
     weights_scaled = weights / jnp.sum(weights)
 
     res = k_means.k_means(geom, k=k - 1, weights=weights)
@@ -364,17 +372,17 @@ class TestKmeans:
           weights=w,
           min_iterations=20 if force_scan else 1,
           max_iterations=20,
-          rng=key1,
+          rng=rng1,
       ).error
 
     k, eps, tol = 4, 1e-3, 1e-3
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
-    key1, key2, key3, key4 = jax.random.split(rng, 4)
-    w = jnp.abs(jax.random.normal(key2, (x.shape[0],)))
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    w = jnp.abs(jax.random.normal(rng2, (x.shape[0],)))
 
-    v_x = jax.random.normal(key3, shape=x.shape)
+    v_x = jax.random.normal(rng3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
-    v_w = jax.random.normal(key4, shape=w.shape) * eps
+    v_w = jax.random.normal(rng4, shape=w.shape) * eps
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_fn = jax.grad(inertia, (0, 1))

@@ -28,7 +28,9 @@ from ott.solvers.linear import sinkhorn_lr
 class TestLRInitializers:
 
   @pytest.mark.fast.with_args("kind", ["pc", "lrc", "geom"], only_fast=0)
-  def test_create_default_initializer(self, rng: jax.random.PRNGKeyArray, kind: str):
+  def test_create_default_initializer(
+      self, rng: jax.random.PRNGKeyArray, kind: str
+  ):
     n, d, rank = 110, 2, 3
     x = jax.random.normal(rng, (n, d))
     geom = pointcloud.PointCloud(x)
@@ -74,13 +76,13 @@ class TestLRInitializers:
       self, rng: jax.random.PRNGKeyArray, initializer: str, partial_init: str
   ):
     n, d, rank = 100, 10, 6
-    key1, key2, key3, key4 = jax.random.split(rng, 4)
-    x = jax.random.normal(key1, (n, d))
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    x = jax.random.normal(rng1, (n, d))
     pc = pointcloud.PointCloud(x, epsilon=5e-1)
     prob = linear_problem.LinearProblem(pc)
-    q_init = jax.random.normal(key2, (n, rank))
-    r_init = jax.random.normal(key2, (n, rank))
-    g_init = jax.random.normal(key2, (rank,))
+    q_init = jax.random.normal(rng2, (n, rank))
+    r_init = jax.random.normal(rng2, (n, rank))
+    g_init = jax.random.normal(rng2, (rank,))
 
     solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
     initializer = solver.create_initializer(prob)
@@ -116,12 +118,14 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
 
-  def test_generalized_k_means_matches_k_means(self, rng: jax.random.PRNGKeyArray):
+  def test_generalized_k_means_matches_k_means(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     n, d, rank = 120, 15, 5
     eps = 1e-1
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, (n, d))
-    y = jax.random.normal(key1, (n, d))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d))
+    y = jax.random.normal(rng1, (n, d))
 
     pc = pointcloud.PointCloud(x, y, epsilon=eps)
     geom = geometry.Geometry(cost_matrix=pc.cost_matrix, epsilon=eps)
@@ -146,11 +150,13 @@ class TestLRInitializers:
     )
 
   @pytest.mark.parametrize("epsilon", [0., 1e-1])
-  def test_better_initialization_helps(self, rng: jax.random.PRNGKeyArray, epsilon: float):
+  def test_better_initialization_helps(
+      self, rng: jax.random.PRNGKeyArray, epsilon: float
+  ):
     n, d, rank = 81, 13, 3
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, (n, d))
-    y = jax.random.normal(key2, (n, d))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d))
+    y = jax.random.normal(rng2, (n, d))
     pc = pointcloud.PointCloud(x, y, epsilon=5e-1)
     prob = linear_problem.LinearProblem(pc)
 

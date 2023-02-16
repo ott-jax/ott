@@ -360,7 +360,9 @@ class QuadraticProblem:
         (geom_xy is None or convertible(geom_xy))
     )
 
-  def to_low_rank(self, rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)) -> "QuadraticProblem":
+  def to_low_rank(
+      self, rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+  ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 
     Args:
@@ -383,11 +385,11 @@ class QuadraticProblem:
       return self
 
     (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
-    (k1, k2, k3) = jax.random.split(rng, 3)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
     (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)
 
-    geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, rng=k1)
-    geom_yy = geom_yy.to_LRCGeometry(rank=r2, tol=t2, rng=k2)
+    geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, rng=rng1)
+    geom_yy = geom_yy.to_LRCGeometry(rank=r2, tol=t2, rng=rng2)
     if self.is_fused:
       if isinstance(
           geom_xy, pointcloud.PointCloud
@@ -395,7 +397,7 @@ class QuadraticProblem:
         geom_xy = geom_xy.to_LRCGeometry(scale=self.fused_penalty)
       else:
         geom_xy = geom_xy.to_LRCGeometry(
-            rank=r3, tol=t3, rng=k3, scale=self.fused_penalty
+            rank=r3, tol=t3, rng=rng3, scale=self.fused_penalty
         )
 
     return type(self).tree_unflatten(

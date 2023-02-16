@@ -283,11 +283,11 @@ class TestSinkhorn:
   def test_apply_transport_geometry_from_potentials(self):
     """Applying transport matrix P on vector without instantiating P."""
     n, m, d = 160, 230, 6
-    keys = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(keys[0], (n, d))
-    y = jax.random.uniform(keys[1], (m, d))
-    a = jax.random.uniform(keys[2], (n,))
-    b = jax.random.uniform(keys[3], (m,))
+    rngs = jax.random.split(self.rng, 6)
+    x = jax.random.uniform(rngs[0], (n, d))
+    y = jax.random.uniform(rngs[1], (m, d))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     transport_t_vec_a = [None, None, None, None]
@@ -295,8 +295,8 @@ class TestSinkhorn:
 
     batch_b = 8
 
-    vec_a = jax.random.normal(keys[4], (n,))
-    vec_b = jax.random.normal(keys[5], (batch_b, m))
+    vec_a = jax.random.normal(rngs[4], (n,))
+    vec_b = jax.random.normal(rngs[5], (batch_b, m))
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
@@ -337,11 +337,11 @@ class TestSinkhorn:
   def test_apply_transport_geometry_from_scalings(self):
     """Applying transport matrix P on vector without instantiating P."""
     n, m, d = 160, 230, 6
-    keys = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(keys[0], (n, d))
-    y = jax.random.uniform(keys[1], (m, d))
-    a = jax.random.uniform(keys[2], (n,))
-    b = jax.random.uniform(keys[3], (m,))
+    rngs = jax.random.split(self.rng, 6)
+    x = jax.random.uniform(rngs[0], (n, d))
+    y = jax.random.uniform(rngs[1], (m, d))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     transport_t_vec_a = [None, None, None, None]
@@ -349,8 +349,8 @@ class TestSinkhorn:
 
     batch_b = 8
 
-    vec_a = jax.random.normal(keys[4], (n,))
-    vec_b = jax.random.normal(keys[5], (batch_b, m))
+    vec_a = jax.random.normal(rngs[4], (n,))
+    vec_b = jax.random.normal(rngs[5], (batch_b, m))
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):

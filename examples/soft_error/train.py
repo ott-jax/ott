@@ -31,7 +31,7 @@ from ott.examples.soft_error import data, losses
 from ott.examples.soft_error import model as model_lib
 
 
-def initialized(key, height, width, model):
+def initialized(rng, height, width, model):
   """Initialize the model parameters."""
   input_shape = (1, height, width, 3)
 
@@ -39,7 +39,7 @@ def initialized(key, height, width, model):
   def init(*args):
     return model.init(*args)
 
-  variables = init({'params': key}, jnp.ones(input_shape, jnp.float32))
+  variables = init({'params': rng}, jnp.ones(input_shape, jnp.float32))
   model_state, params = variables.pop('params')
   return params, model_state
 
@@ -128,11 +128,11 @@ def save_checkpoint(state, workdir):
 
 
 def train_and_evaluate(
-    workdir: str, config: ml_collections.ConfigDict, seed: int = 0
+    workdir: str,
+    config: ml_collections.ConfigDict,
+    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
 ):
   """Execute model training and evaluation loop."""
-  rng = jax.random.PRNGKey(seed)
-
   if config.batch_size % jax.device_count() > 0:
     raise ValueError('Batch size must be divisible by the number of devices')
 

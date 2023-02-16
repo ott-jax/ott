@@ -135,7 +135,6 @@ class W2NeuralDual:
     self.conjugate_solver = conjugate_solver
     self.amortization_loss = amortization_loss
 
-
     # set default optimizers
     if optimizer_f is None:
       optimizer_f = optax.adam(learning_rate=0.0001, b1=0.5, b2=0.9, eps=1e-8)
@@ -164,7 +163,7 @@ class W2NeuralDual:
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
     """Setup all components required to train the network."""
-    # split random key
+    # split random number generator
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
     # check setting of network architectures

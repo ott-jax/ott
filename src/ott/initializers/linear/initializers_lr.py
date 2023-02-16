@@ -196,14 +196,14 @@ class LRInitializer(abc.ABC):
     Returns:
       The factors :math:`Q`, :math:`R` and :math:`g`, respectively.
     """
-    key1, key2, key3 = jax.random.split(rng, 3)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
 
     if g is None:
-      g = self.init_g(ot_prob, key1, **kwargs)
+      g = self.init_g(ot_prob, rng1, **kwargs)
     if q is None:
-      q = self.init_q(ot_prob, key2, init_g=g, **kwargs)
+      q = self.init_q(ot_prob, rng2, init_g=g, **kwargs)
     if r is None:
-      r = self.init_r(ot_prob, key3, init_g=g, **kwargs)
+      r = self.init_r(ot_prob, rng3, init_g=g, **kwargs)
 
     assert g.shape == (self.rank,)
     assert q.shape == (ot_prob.a.shape[0], self.rank)

@@ -36,14 +36,14 @@ class TrainState:
   model_state: Any
 
 
-def initialized(key, model, size):
+def initialized(rng, model, size):
   """Initialize the model."""
 
   @jax.jit
   def init(*args):
     return model.init(*args)
 
-  variables = init({'params': key}, jnp.ones((1, size)))
+  variables = init({'params': rng}, jnp.ones((1, size)))
   model_state, params = variables.pop('params')
   return params, model_state
 
@@ -127,11 +127,11 @@ def save_checkpoint(state, workdir):
 
 
 def train_and_evaluate(
-    workdir: str, config: ml_collections.ConfigDict, seed: int = 0
+    workdir: str,
+    config: ml_collections.ConfigDict,
+    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
 ):
   """Execute model training and evaluation loop."""
-  rng = jax.random.PRNGKey(seed)
-
   if config.batch_size % jax.device_count() > 0:
     raise ValueError('Batch size must be divisible by the number of devices')
 
