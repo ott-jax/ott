@@ -21,7 +21,7 @@ from flax import core
 from flax.core import frozen_dict
 
 from ott.geometry import costs, pointcloud
-from ott.problems.linear import linear_problem, potentials
+from ott.problems.linear import potentials
 from ott.solvers.linear import sinkhorn
 from ott.solvers.nn import conjugate_solvers, models
 
@@ -110,7 +110,7 @@ class W2NeuralDual:
       on the second marginal.
     epsilon: regularisation parameter in the inner sinkhorn loop. Only relevant, if `tau_a!=1` or `tau_b!=1`.
     sample_sinkhorn_kwargs: keyword arguments for :meth:`ott.solvers.linear.sinkhorn.solve`
-    geom_kwargs: keyword arguments for :class:`~ott.geometry.pointcloud.PointCloud`, constructed for inner 
+    geom_kwargs: keyword arguments for :class:`~ott.geometry.pointcloud.PointCloud`, constructed for inner
       discrete sinkhorn loop
   """
 
@@ -599,7 +599,9 @@ class W2NeuralDual:
         scale_cost=self.geom_kwargs.pop("scale_cost", "mean"),
         **self.geom_kwargs
     )
-    out = sinkhorn.solve(geom, tau_a=self.tau_a, tau_b=self.tau_b, **self.sample_sinkhorn_kwargs)
+    out = sinkhorn.solve(
+        geom, tau_a=self.tau_a, tau_b=self.tau_b, **self.sample_sinkhorn_kwargs
+    )
 
     # jax categorical uses log probabilities
     log_marginals_source = jnp.log(jnp.sum(out.marginal(1)))

@@ -151,7 +151,7 @@ class UniformMixture:
 
         - ``top`` (uniform distributions on top),
         - ``bottom`` (uniform distributions at the bottom),
-        
+
     batch_size: batch size of the samples
     rng: initial PRNG key
     mixture_weights: mixture weights between two uniform distributions
