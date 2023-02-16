@@ -79,6 +79,12 @@ class W2NeuralDual:
   The potential's value or gradient mapping is specified via
   :attr:`~ott.solvers.nn.models.ModelBase.is_potential`.
 
+  Analogous to the discrete setting, if `tau_a` or `tau_b` is not equal to 
+  1.0, the problem is unbalanced. Following :cite:`eyring:22` and 
+  :cite:`luebeck:22`, an unbalanced problem is solved for each batch with
+  parameters `tau_a`, `tau_b` and `epsilon`. The samples are re-sampled
+  according to the posterior marginals.
+
   Args:
     dim_data: input dimensionality of data required for network init
     neural_f: network architecture for potential :math:`f`.
@@ -263,7 +269,7 @@ class W2NeuralDual:
       validloader_source: Iterable[jnp.ndarray],
       validloader_target: Iterable[jnp.ndarray],
       callback: Optional[Callback_t] = None,
-      seed: int =0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> Train_t:
     """Implementation of the training and validation with parallel updates."""  # noqa: D401
     try:
@@ -575,14 +581,14 @@ class W2NeuralDual:
 
   def resample(
       self, batch_source: jnp.ndarray, batch_target: jnp.ndarray,
-      rng: jnp.ndarray
+      rng: jax.random.PRNGKeyArray
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     r"""Resample data based on posterior marginals of entropy-regularized optimal transport solution.
 
     Args:
       batch_source: Batch of the source distribution.
       batch_target: Batch of the target distribution.
-      rng: :class:`jax.numpy.ndarray` used for setting the seed.
+      rng: initial PRNG key.
 
     Returns:
       Resampled `batch_source` and `batch_target`.

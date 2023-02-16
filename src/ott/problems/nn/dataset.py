@@ -104,7 +104,7 @@ def gaussian_mixture_samplers(
     name_target: Arrangement_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    key: jax.random.PRNGKey = jax.random.PRNGKey(0),
+    key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
   """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
@@ -193,7 +193,7 @@ def uniform_mixture_samplers(
   mixture_weights_target: Tuple[float, float],
   train_batch_size: int = 2048,
   valid_batch_size: int = 2048,
-  key: jax.random.PRNGKey = jax.random.PRNGKey(0),
+  key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
   """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
