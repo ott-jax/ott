@@ -8,6 +8,8 @@ from jax.experimental import sparse
 
 from ott.math.decomposition import DenseCholeskySolver, SparseCholeskySolver
 
+sksparse = pytest.importorskip("sksparse")
+
 
 @pytest.mark.fast
 class TestDecomposition:
