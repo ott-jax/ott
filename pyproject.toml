@@ -72,7 +72,8 @@ test = [
     "coverage[toml]",
     "chex",
     "networkx>=2.5",
-    "scikit-learn>=1.0"
+    "scikit-learn>=1.0",
+    "scikit-sparse>=0.4.6"
 ]
 docs = [
     "sphinx>=4.0",
