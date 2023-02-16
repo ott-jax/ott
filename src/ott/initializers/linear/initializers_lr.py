@@ -237,7 +237,7 @@ class RandomInitializer(LRInitializer):
     kwargs: Additional keyword arguments.
   """
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -250,7 +250,7 @@ class RandomInitializer(LRInitializer):
     init_q = jnp.abs(jax.random.normal(key, (a.shape[0], self.rank)))
     return a[:, None] * (init_q / jnp.sum(init_q, axis=1, keepdims=True))
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -263,7 +263,7 @@ class RandomInitializer(LRInitializer):
     init_r = jnp.abs(jax.random.normal(key, (b.shape[0], self.rank)))
     return b[:, None] * (init_r / jnp.sum(init_r, axis=1, keepdims=True))
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -311,7 +311,7 @@ class Rank2Initializer(LRInitializer):
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
             ((1 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -322,7 +322,7 @@ class Rank2Initializer(LRInitializer):
     del key, kwargs
     return self._compute_factor(ot_prob, init_g, which="q")
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -333,7 +333,7 @@ class Rank2Initializer(LRInitializer):
     del key, kwargs
     return self._compute_factor(ot_prob, init_g, which="r")
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -422,7 +422,7 @@ class KMeansInitializer(LRInitializer):
     solver = sinkhorn.Sinkhorn(**self._sinkhorn_kwargs)
     return solver(prob).matrix
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -434,7 +434,7 @@ class KMeansInitializer(LRInitializer):
         ot_prob, key, init_g=init_g, which="q", **kwargs
     )
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -446,7 +446,7 @@ class KMeansInitializer(LRInitializer):
         ot_prob, key, init_g=init_g, which="r", **kwargs
     )
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
       key: jnp.ndarray,
@@ -455,7 +455,7 @@ class KMeansInitializer(LRInitializer):
     del key, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
     aux_data["min_iterations"] = self._min_iter

@@ -16,9 +16,8 @@
 import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
-from jaxopt import LBFGS
-
 import jax.numpy as jnp
+from jaxopt import LBFGS
 
 from ott import utils
 
@@ -90,7 +89,7 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   decrease_factor: float = 0.66
   ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
-  def solve(
+  def solve(  # noqa: D102
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
