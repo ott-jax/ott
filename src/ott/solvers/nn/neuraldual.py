@@ -12,7 +12,6 @@
 """A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
-from types import MappingProxyType
 from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 import jax
@@ -21,11 +20,9 @@ import optax
 from flax import core
 from flax.core import frozen_dict
 
-from ott.geometry import costs
-from ott.geometry import pointcloud
-from ott.problems.linear import potentials
+from ott.geometry import costs, pointcloud
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
-from ott.problems.linear import linear_problem
 from ott.solvers.nn import conjugate_solvers, models
 
 __all__ = ["W2NeuralDual"]
@@ -79,8 +76,8 @@ class W2NeuralDual:
   The potential's value or gradient mapping is specified via
   :attr:`~ott.solvers.nn.models.ModelBase.is_potential`.
 
-  Analogous to the discrete setting, if `tau_a` or `tau_b` is not equal to 
-  1.0, the problem is unbalanced. Following :cite:`eyring:22` and 
+  Analogous to the discrete setting, if `tau_a` or `tau_b` is not equal to
+  1.0, the problem is unbalanced. Following :cite:`eyring:22` and
   :cite:`luebeck:22`, an unbalanced problem is solved for each batch with
   parameters `tau_a`, `tau_b` and `epsilon`. The samples are re-sampled
   according to the posterior marginals.
@@ -112,7 +109,9 @@ class W2NeuralDual:
     tau_b: If `< 1`, defines how much unbalanced the problem is
       on the second marginal.
     epsilon: regularisation parameter in the inner sinkhorn loop. Only relevant, if `tau_a!=1` or `tau_b!=1`.
-    sample_sinkhorn_kwargs: keyword arguments for :class:`ott.solvers.linear.sinkhorn.Sinkhorn`
+    sample_sinkhorn_kwargs: keyword arguments for :meth:`ott.solvers.linear.sinkhorn.solve`
+    geom_kwargs: keyword arguments for :class:`~ott.geometry.pointcloud.PointCloud`, constructed for inner 
+      discrete sinkhorn loop
   """
 
   def __init__(
@@ -140,6 +139,7 @@ class W2NeuralDual:
       tau_b: float = 1.0,
       epsilon: Optional[float] = None,
       sample_sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+      geom_kwargs: Optional[Dict[str, Any]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -155,7 +155,8 @@ class W2NeuralDual:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.epsilon = epsilon
-    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None else sample_sinkhorn_kwargs 
+    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None else sample_sinkhorn_kwargs
+    self.geom_kwargs = {} if geom_kwargs is None else geom_kwargs
 
     # set random key
     rng = jax.random.PRNGKey(seed)
@@ -284,15 +285,13 @@ class W2NeuralDual:
     train_logs = {"loss_f": [], "loss_g": [], "w_dist": [], "directions": []}
     valid_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
 
-    rng = jax.random.PRNGKey(seed)
     for step in tqdm(range(self.num_train_iters)):
       rng, rng_train, rng_valid = jax.random.split(rng, 3)
       update_forward = not self.back_and_forth or step % 2 == 0
       if update_forward:
         train_batch["source"], train_batch["target"] = self.resample(
             jnp.asarray(next(trainloader_source)),
-            jnp.asarray(next(trainloader_target)),
-            rng_train
+            jnp.asarray(next(trainloader_target)), rng_train
         )
         self.state_f, self.state_g, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_f,
@@ -302,8 +301,7 @@ class W2NeuralDual:
       else:
         train_batch["source"], train_batch["target"] = self.resample(
             jnp.asarray(next(trainloader_source)),
-            jnp.asarray(next(trainloader_target)),
-            rng_train
+            jnp.asarray(next(trainloader_target)), rng_train
         )
         self.state_g, self.state_f, loss, loss_f, loss_g, w_dist = self.train_step_parallel(
             self.state_g,
@@ -331,8 +329,7 @@ class W2NeuralDual:
         # get batch
         valid_batch["source"], valid_batch["target"] = self.resample(
             jnp.asarray(next(validloader_source)),
-            jnp.asarray(next(validloader_target)),
-            rng_valid
+            jnp.asarray(next(validloader_target)), rng_valid
         )
 
         valid_loss_f, valid_loss_g, valid_w_dist = self.valid_step_parallel(
@@ -599,20 +596,22 @@ class W2NeuralDual:
         batch_source,
         batch_target,
         epsilon=self.epsilon,
-        scale_cost=self.sample_sinkhorn_kwargs.pop("scale_cost", "mean")
+        scale_cost=self.geom_kwargs.pop("scale_cost", "mean"),
+        **self.geom_kwargs
     )
-    prob = linear_problem.LinearProblem(geom, tau_a=self.tau_a, tau_b=self.tau_b)
-    out = sinkhorn.Sinkhorn(**self.sample_sinkhorn_kwargs)(prob)
+    out = sinkhorn.solve(geom, tau_a=self.tau_a, tau_b=self.tau_b, **self.sample_sinkhorn_kwargs)
 
     # jax categorical uses log probabilities
-    log_marginals_source = jnp.log(jnp.sum(out.matrix, axis=1))
-    log_marginals_target = jnp.log(jnp.sum(out.matrix, axis=0))
+    log_marginals_source = jnp.log(jnp.sum(out.marginal(1)))
+    log_marginals_target = jnp.log(jnp.sum(out.marginal(0)))
     rng_a, rng_b = jax.random.split(rng, 2)
     sample_idx_source = jax.random.categorical(
         rng_a, log_marginals_source, shape=[len(batch_source)]
     )
     sample_idx_target = jax.random.categorical(
-        rng_b, log_marginals_target, shape=[len(batch_target)],
+        rng_b,
+        log_marginals_target,
+        shape=[len(batch_target)],
     )
     return batch_source[sample_idx_source], batch_target[sample_idx_target]
 

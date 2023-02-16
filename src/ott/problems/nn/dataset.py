@@ -18,7 +18,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ['gaussian_mixture_samplers', 'uniform_mixture_samplers', 'Dataset', 'GaussianMixture']
+__all__ = [
+    'gaussian_mixture_samplers', 'uniform_mixture_samplers', 'Dataset',
+    'GaussianMixture'
+]
 
 Arrangement_t = Literal['simple', 'circle', 'square_five', 'square_four']
 Position_t = Literal['top', 'bottom']
@@ -121,26 +124,18 @@ def gaussian_mixture_samplers(
   k1, k2, k3, k4 = jax.random.split(key, 4)
   train_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=train_batch_size, rng=k1
-          )
+          GaussianMixture(name_source, batch_size=train_batch_size, rng=k1)
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=train_batch_size, rng=k2
-          )
+          GaussianMixture(name_target, batch_size=train_batch_size, rng=k2)
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=valid_batch_size, rng=k3
-          )
+          GaussianMixture(name_source, batch_size=valid_batch_size, rng=k3)
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=valid_batch_size, rng=k4
-          )
+          GaussianMixture(name_target, batch_size=valid_batch_size, rng=k4)
       )
   )
   dim_data = 2
@@ -151,27 +146,30 @@ def gaussian_mixture_samplers(
 class UniformMixture:
   """A mixture of uniform distributions.
 
-    n_data_points: batch size of the samples
+  Args:
+    name: the name specifying position of mixture of Gaussian:
+
+        - ``top`` (uniform distributions on top),
+        - ``bottom`` (uniform distributions at the bottom),
+        
+    batch_size: batch size of the samples
+    rng: initial PRNG key
+    mixture_weights: mixture weights between two uniform distributions
   """
   name: Position_t
   batch_size: int
   rng: jax.random.PRNGKeyArray
   mixture_weights: Tuple[float, float]
-  width: float = 1.0
 
   def __post_init__(self):
     uniform_anchors = {
-        'bottom':
-            [[0.0, 0.0], [5.0, 0.0]],
-        'top':
-            [[0.0, 2.0], [5.0, 2.0]],
+        'bottom': [[0.0, 0.0], [5.0, 0.0]],
+        'top': [[0.0, 2.0], [5.0, 2.0]],
     }
     if self.name not in uniform_anchors:
-      raise ValueError(
-          f'{self.name} is not a valid dataset for UniformMixture'
-      )
+      raise ValueError(f'{self.name} is not a valid dataset for UniformMixture')
     self.anchors = uniform_anchors[self.name]
-    
+
   def __iter__(self) -> Iterator[jnp.ndarray]:
     return self.create_sample_generators()
 
@@ -180,20 +178,33 @@ class UniformMixture:
     key = self.rng
     while True:
       k1, k2, k3, key = jax.random.split(key, 4)
-      components = jax.random.choice(k1, 2, shape=[self.batch_size], p=jnp.array(self.mixture_weights))
-      samples_1 = jax.random.uniform(k2, shape=(len(components) - jnp.sum(components), 2), minval=jnp.array(self.anchors[0]), maxval=jnp.array(self.anchors[0])+1)
-      samples_2 = jax.random.uniform(k3, shape = (jnp.sum(components), 2), minval=jnp.array(self.anchors[1]), maxval=jnp.array(self.anchors[1])+1)
+      components = jax.random.choice(
+          k1, 2, shape=[self.batch_size], p=jnp.array(self.mixture_weights)
+      )
+      samples_1 = jax.random.uniform(
+          k2,
+          shape=(len(components) - jnp.sum(components), 2),
+          minval=jnp.array(self.anchors[0]),
+          maxval=jnp.array(self.anchors[0]) + 1
+      )
+      samples_2 = jax.random.uniform(
+          k3,
+          shape=(jnp.sum(components), 2),
+          minval=jnp.array(self.anchors[1]),
+          maxval=jnp.array(self.anchors[1]) + 1
+      )
       samples = jnp.vstack((samples_1, samples_2))
       yield samples
 
+
 def uniform_mixture_samplers(
-  name_source: Position_t,
-  name_target: Position_t,
-  mixture_weights_source: Tuple[float, float],
-  mixture_weights_target: Tuple[float, float],
-  train_batch_size: int = 2048,
-  valid_batch_size: int = 2048,
-  key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+    name_source: Position_t,
+    name_target: Position_t,
+    mixture_weights_source: Tuple[float, float],
+    mixture_weights_target: Tuple[float, float],
+    train_batch_size: int = 2048,
+    valid_batch_size: int = 2048,
+    key: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
   """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
@@ -211,28 +222,38 @@ def uniform_mixture_samplers(
   train_dataset = Dataset(
       source_iter=iter(
           UniformMixture(
-              name_source, batch_size=train_batch_size, rng=k1, mixture_weights=mixture_weights_source
+              name_source,
+              batch_size=train_batch_size,
+              rng=k1,
+              mixture_weights=mixture_weights_source
           )
       ),
       target_iter=iter(
           UniformMixture(
-              name_target, batch_size=train_batch_size, rng=k2, mixture_weights=mixture_weights_target
+              name_target,
+              batch_size=train_batch_size,
+              rng=k2,
+              mixture_weights=mixture_weights_target
           )
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
           UniformMixture(
-              name_source, batch_size=valid_batch_size, rng=k3, mixture_weights=mixture_weights_source
+              name_source,
+              batch_size=valid_batch_size,
+              rng=k3,
+              mixture_weights=mixture_weights_source
           )
       ),
       target_iter=iter(
           UniformMixture(
-              name_target, batch_size=valid_batch_size, rng=k4, mixture_weights=mixture_weights_target
+              name_target,
+              batch_size=valid_batch_size,
+              rng=k4,
+              mixture_weights=mixture_weights_target
           )
       )
   )
   dim_data = 2
   return train_dataset, valid_dataset, dim_data
-  
-  
