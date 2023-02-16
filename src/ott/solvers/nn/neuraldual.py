@@ -14,7 +14,16 @@
 """A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
-from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -222,7 +231,7 @@ class W2NeuralDual:
       self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
       self.train_fn = self.train_neuraldual_alternating
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       trainloader_source: Iterable[jnp.ndarray],
       trainloader_target: Iterable[jnp.ndarray],

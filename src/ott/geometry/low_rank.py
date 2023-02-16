@@ -91,7 +91,7 @@ class LRCGeometry(geometry.Geometry):
     return self._bias * self.inv_scale_cost
 
   @property
-  def cost_rank(self) -> int:
+  def cost_rank(self) -> int:  # noqa: D102
     return self._cost_1.shape[1]
 
   @property
@@ -100,18 +100,18 @@ class LRCGeometry(geometry.Geometry):
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     return self._cost_1.shape[0], self._cost_2.shape[0]
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     return (
         self._cost_1.shape[0] == self._cost_2.shape[0] and
         jnp.all(self._cost_1 == self._cost_2)
     )
 
   @property
-  def inv_scale_cost(self) -> float:
+  def inv_scale_cost(self) -> float:  # noqa: D102
     if isinstance(self._scale_cost,
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
@@ -239,10 +239,10 @@ class LRCGeometry(geometry.Geometry):
     return self
 
   @property
-  def can_LRC(self):
+  def can_LRC(self):  # noqa: D102
     return True
 
-  def subset(
+  def subset(  # noqa: D102
       self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "LRCGeometry":
@@ -257,7 +257,7 @@ class LRCGeometry(geometry.Geometry):
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
     )
 
-  def mask(
+  def mask(  # noqa: D102
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
@@ -311,10 +311,10 @@ class LRCGeometry(geometry.Geometry):
     )
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self._cost_1.dtype
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (
         self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
     ), {
@@ -325,7 +325,7 @@ class LRCGeometry(geometry.Geometry):
     }
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     c1, c2, src_mask, tgt_mask, kwargs = children
     return cls(
         c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data

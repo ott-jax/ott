@@ -269,7 +269,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     return y_fused
 
   @property
-  def ndim(self) -> Optional[int]:
+  def ndim(self) -> Optional[int]:  # noqa: D102
     return None if self._y_as_costs else self._y.shape[-1]
 
   @property
@@ -292,7 +292,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
         f"Loss `{self._loss_name}` is not yet implemented."
     )
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     (y, b, weights), aux = super().tree_flatten()
     if self._y_as_costs:
       children = [None, b, weights, y]
@@ -304,7 +304,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     return children + [self._y_fused], aux
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "GWBarycenterProblem":
     y, b, weights, costs, y_fused = children

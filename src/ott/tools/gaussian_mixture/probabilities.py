@@ -57,36 +57,40 @@ class Probabilities:
     return cls(params=log_probs_normalized)
 
   @property
-  def params(self):
+  def params(self):  # noqa: D102
     return self._params
 
   @property
-  def dtype(self):
+  def dtype(self):  # noqa: D102
     return self._params.dtype
 
   def unnormalized_log_probs(self) -> jnp.ndarray:
+    """Get the unnormalized log probabilities."""
     return jnp.concatenate([self._params,
                             jnp.zeros((1,), dtype=self.dtype)],
                            axis=-1)
 
   def log_probs(self) -> jnp.ndarray:
+    """Get the log probabilities."""
     return jax.nn.log_softmax(self.unnormalized_log_probs())
 
   def probs(self) -> jnp.ndarray:
+    """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
   def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+    """Sample from the distribution."""
     return jax.random.categorical(
         key=key, logits=self.unnormalized_log_probs(), shape=(size,)
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.params,)
     aux_data = {}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):

@@ -135,7 +135,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.update_impl(state, a, b)
 
-  def init_dual_a(
+  def init_dual_a(  # noqa: D102
       self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
   ) -> jnp.ndarray:
     # Detect if the problem is batched.
@@ -199,7 +199,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.meta_model.apply({'params': params}, a, b)
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
         'rng': self.rng,
         'state': self.state
