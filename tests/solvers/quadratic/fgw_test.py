@@ -32,7 +32,7 @@ class TestFusedGromovWasserstein:
 
   # TODO(michalk8): refactor me in the future
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     d_x = 2
     d_y = 3
     d_xy = 4
@@ -220,7 +220,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.limit_memory("400 MB")
   @pytest.mark.parametrize("jit", [False, True])
-  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
+  def test_fgw_lr_memory(self, rng: jax.random.PRNGKeyArray, jit: bool):
     # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
@@ -248,7 +248,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_fgw_lr_generic_cost_matrix(
-      self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
+      self, rng: jax.random.PRNGKeyArray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
     n, m = 20, 30
     key1, key2, key3, key4 = jax.random.split(rng, 4)

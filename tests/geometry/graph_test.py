@@ -159,7 +159,7 @@ class TestGraph:
 
   @pytest.mark.fast.with_args("fmt", [None, "coo"], only_fast=0)
   def test_kernel_is_symmetric_positive_definite(
-      self, rng: jnp.ndarray, fmt: Optional[str]
+      self, rng: jax.random.PRNGKeyArray, fmt: Optional[str]
   ):
     n = 65
     x = jax.random.normal(rng, (n,))
@@ -208,7 +208,7 @@ class TestGraph:
       only_fast=0,
   )
   def test_approximates_ground_truth(
-      self, rng: jnp.ndarray, numerical_scheme: str, fmt: Optional[str]
+      self, rng: jax.random.PRNGKeyArray, numerical_scheme: str, fmt: Optional[str]
   ):
     eps, n_steps = 1e-5, 20
     G = random_graph(37, p=0.5, fmt=fmt)
@@ -318,7 +318,7 @@ class TestGraph:
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast
-  def test_factor_cache_works(self, rng: jnp.ndarray):
+  def test_factor_cache_works(self, rng: jax.random.PRNGKeyArray):
 
     def timeit(fn: Callable[[Any], Any]) -> Callable[[Any], float]:
 
@@ -373,7 +373,7 @@ class TestGraph:
   # Total memory allocated: 99.1MiB
   @pytest.mark.fast
   @pytest.mark.limit_memory("200 MB")
-  def test_sparse_graph_memory(self, rng: jnp.ndarray):
+  def test_sparse_graph_memory(self, rng: jax.random.PRNGKeyArray):
     # use a graph with some structure for Cholesky to be faster
     G = nx.grid_graph((200, 200))  # 40 000 nodes
     L = nx.linalg.laplacian_matrix(G).tocsc()
@@ -392,7 +392,7 @@ class TestGraph:
       only_fast=0,
   )
   def test_graph_sinkhorn(
-      self, rng: jnp.ndarray, fmt: Optional[str], jit: bool
+      self, rng: jax.random.PRNGKeyArray, fmt: Optional[str], jit: bool
   ):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
@@ -435,7 +435,7 @@ class TestGraph:
       ids=["not-implicit", "implicit"],
   )
   def test_dense_graph_differentiability(
-      self, rng: jnp.ndarray, implicit_diff: bool
+      self, rng: jax.random.PRNGKeyArray, implicit_diff: bool
   ):
 
     def callback(
@@ -467,7 +467,7 @@ class TestGraph:
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
-  def test_tolerance_hilbert_metric(self, rng: jnp.ndarray):
+  def test_tolerance_hilbert_metric(self, rng: jax.random.PRNGKeyArray):
     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
     G = random_graph(n, p=0.15)
     x = jnp.abs(jax.random.normal(rng, (n,)))

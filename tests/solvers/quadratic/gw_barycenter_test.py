@@ -33,7 +33,7 @@ class TestGWBarycenter:
   def random_pc(
       n: int,
       d: int,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       m: Optional[int] = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
@@ -67,7 +67,7 @@ class TestGWBarycenter:
       [("sqeucl", 17, None)]  # , ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(
-      self, rng: jnp.ndarray, gw_loss: str, bar_size: int,
+      self, rng: jax.random.PRNGKeyArray, gw_loss: str, bar_size: int,
       epsilon: Optional[float]
   ):
     tol = 1e-3 if gw_loss == "sqeucl" else 1e-1
@@ -121,7 +121,7 @@ class TestGWBarycenter:
   )
   def test_fgw_barycenter(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       jit: bool,
       fused_penalty: float,
       scale_cost: str,

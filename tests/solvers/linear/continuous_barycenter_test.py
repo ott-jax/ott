@@ -52,7 +52,7 @@ class TestBarycenter:
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jnp.ndarray, rank: int, epsilon: float, init_random: bool,
+      self, rng: jax.random.PRNGKeyArray, rank: int, epsilon: float, init_random: bool,
       jit: bool
   ):
     rngs = jax.random.split(rng, 20)
@@ -117,7 +117,7 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() > .7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
-  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
+  def test_barycenter_jit(self, rng: jax.random.PRNGKeyArray, segment_before: bool):
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
@@ -181,7 +181,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       lse_mode: bool,
       epsilon: float,
       jit: bool,
@@ -278,7 +278,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter_different_number_of_components(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       alpha: float,
       epsilon: float,
       dim: int,

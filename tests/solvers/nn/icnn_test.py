@@ -25,7 +25,7 @@ from ott.solvers.nn import models
 @pytest.mark.fast
 class TestICNN:
 
-  def test_icnn_convexity(self, rng: jnp.ndarray):
+  def test_icnn_convexity(self, rng: jax.random.PRNGKeyArray):
     """Tests convexity of ICNN."""
     n_samples, n_features = 10, 2
     dim_hidden = (64, 64)
@@ -51,7 +51,7 @@ class TestICNN:
 
     np.testing.assert_array_equal(jnp.asarray(out) >= 0, True)
 
-  def test_icnn_hessian(self, rng: jnp.ndarray):
+  def test_icnn_hessian(self, rng: jax.random.PRNGKeyArray):
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model

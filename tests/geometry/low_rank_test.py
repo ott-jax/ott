@@ -26,7 +26,7 @@ from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 @pytest.mark.fast
 class TestLRGeometry:
 
-  def test_apply(self, rng: jnp.ndarray):
+  def test_apply(self, rng: jax.random.PRNGKeyArray):
     """Test application of cost to vec or matrix."""
     n, m, r = 17, 11, 7
     keys = jax.random.split(rng, 5)
@@ -47,7 +47,7 @@ class TestLRGeometry:
 
   @pytest.mark.parametrize("scale_cost", ['mean', 'max_cost', 'max_bound', 42.])
   def test_conversion_pointcloud(
-      self, rng: jnp.ndarray, scale_cost: Union[str, float]
+      self, rng: jax.random.PRNGKeyArray, scale_cost: Union[str, float]
   ):
     """Test conversion from PointCloud to LRCGeometry."""
     n, m, d = 17, 11, 3
@@ -71,7 +71,7 @@ class TestLRGeometry:
             rtol=1e-4
         )
 
-  def test_apply_squared(self, rng: jnp.ndarray):
+  def test_apply_squared(self, rng: jax.random.PRNGKeyArray):
     """Test application of squared cost to vec or matrix."""
     n, m = 27, 25
     keys = jax.random.split(rng, 5)
@@ -93,7 +93,7 @@ class TestLRGeometry:
               geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
           )
 
-  def test_add_lr_geoms(self, rng: jnp.ndarray):
+  def test_add_lr_geoms(self, rng: jax.random.PRNGKeyArray):
     """Test application of cost to vec or matrix."""
     n, m, r, q = 17, 11, 7, 2
     keys = jax.random.split(rng, 5)
@@ -128,7 +128,7 @@ class TestLRGeometry:
       "scale,scale_cost,epsilon", [(0.1, "mean", None), (0.9, "max_cost", 1e-2)]
   )
   def test_add_lr_geoms_scale_factor(
-      self, rng: jnp.ndarray, scale: float, scale_cost: str,
+      self, rng: jax.random.PRNGKeyArray, scale: float, scale_cost: str,
       epsilon: Optional[float]
   ):
     n, d = 71, 2
@@ -155,7 +155,7 @@ class TestLRGeometry:
   @pytest.mark.parametrize("axis", [0, 1])
   @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])
   def test_apply_affine_function_efficient(
-      self, rng: jnp.ndarray, fn: Callable[[jnp.ndarray], jnp.ndarray],
+      self, rng: jax.random.PRNGKeyArray, fn: Callable[[jnp.ndarray], jnp.ndarray],
       axis: int
   ):
     n, m, d = 21, 13, 3
@@ -176,7 +176,7 @@ class TestLRGeometry:
         np.testing.assert_allclose(res_ineff, res_eff, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("rank", [5, 1000])
-  def test_point_cloud_to_lr(self, rng: jnp.ndarray, rank: int):
+  def test_point_cloud_to_lr(self, rng: jax.random.PRNGKeyArray, rank: int):
     n, m = 1500, 1000
     scale = 2.0
     keys = jax.random.split(rng, 2)
@@ -216,7 +216,7 @@ class TestCostMatrixFactorization:
     assert lhs <= rhs
 
   @pytest.mark.fast.with_args(rank=[2, 3], tol=[5e-1, 1e-2], only_fast=0)
-  def test_geometry_to_lr(self, rng: jnp.ndarray, rank: int, tol: float):
+  def test_geometry_to_lr(self, rng: jax.random.PRNGKeyArray, rank: int, tol: float):
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(370, 3))
     y = jax.random.normal(key2, shape=(460, 3))
@@ -237,7 +237,7 @@ class TestCostMatrixFactorization:
       only_fast=1
   )
   def test_point_cloud_to_lr(
-      self, rng: jnp.ndarray, batch_size: Optional[int],
+      self, rng: jax.random.PRNGKeyArray, batch_size: Optional[int],
       scale_cost: Optional[str]
   ):
     rank, tol = 7, 1e-1
@@ -262,7 +262,7 @@ class TestCostMatrixFactorization:
     assert geom_lr.cost_rank == rank
     self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
-  def test_to_lrc_geometry_noop(self, rng: jnp.ndarray):
+  def test_to_lrc_geometry_noop(self, rng: jax.random.PRNGKeyArray):
     key1, key2 = jax.random.split(rng, 2)
     cost1 = jax.random.normal(key1, shape=(32, 2))
     cost2 = jax.random.normal(key2, shape=(23, 2))
@@ -284,7 +284,7 @@ class TestCostMatrixFactorization:
     np.testing.assert_allclose(res, 1.1253539e-07, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.limit_memory("190 MB")
-  def test_large_scale_factorization(self, rng: jnp.ndarray):
+  def test_large_scale_factorization(self, rng: jax.random.PRNGKeyArray):
     rank, tol = 4, 1e-2
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(10_000, 7))
@@ -315,7 +315,7 @@ class TestCostMatrixFactorization:
         cost_matrix, cost_matrix_lrc, rtol=1e-5, atol=1e-5
     )
 
-  def test_full_to_lrc_geometry(self, rng: jnp.ndarray):
+  def test_full_to_lrc_geometry(self, rng: jax.random.PRNGKeyArray):
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(13, 7))
     y = jax.random.normal(key2, shape=(29, 7))

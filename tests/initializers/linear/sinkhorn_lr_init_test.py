@@ -28,7 +28,7 @@ from ott.solvers.linear import sinkhorn_lr
 class TestLRInitializers:
 
   @pytest.mark.fast.with_args("kind", ["pc", "lrc", "geom"], only_fast=0)
-  def test_create_default_initializer(self, rng: jnp.ndarray, kind: str):
+  def test_create_default_initializer(self, rng: jax.random.PRNGKeyArray, kind: str):
     n, d, rank = 110, 2, 3
     x = jax.random.normal(rng, (n, d))
     geom = pointcloud.PointCloud(x)
@@ -71,7 +71,7 @@ class TestLRInitializers:
   )
   @pytest.mark.parametrize("partial_init", ["q", "r", "g"])
   def test_partial_initialization(
-      self, rng: jnp.ndarray, initializer: str, partial_init: str
+      self, rng: jax.random.PRNGKeyArray, initializer: str, partial_init: str
   ):
     n, d, rank = 100, 10, 6
     key1, key2, key3, key4 = jax.random.split(rng, 4)
@@ -99,7 +99,7 @@ class TestLRInitializers:
 
   @pytest.mark.fast.with_args("rank", [2, 4, 10, 13], only_fast=True)
   def test_generalized_k_means_has_correct_rank(
-      self, rng: jnp.ndarray, rank: int
+      self, rng: jax.random.PRNGKeyArray, rank: int
   ):
     n, d = 100, 10
     x = jax.random.normal(rng, (n, d))
@@ -116,7 +116,7 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
 
-  def test_generalized_k_means_matches_k_means(self, rng: jnp.ndarray):
+  def test_generalized_k_means_matches_k_means(self, rng: jax.random.PRNGKeyArray):
     n, d, rank = 120, 15, 5
     eps = 1e-1
     key1, key2 = jax.random.split(rng, 2)
@@ -146,7 +146,7 @@ class TestLRInitializers:
     )
 
   @pytest.mark.parametrize("epsilon", [0., 1e-1])
-  def test_better_initialization_helps(self, rng: jnp.ndarray, epsilon: float):
+  def test_better_initialization_helps(self, rng: jax.random.PRNGKeyArray, epsilon: float):
     n, d, rank = 81, 13, 3
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, (n, d))

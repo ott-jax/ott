@@ -75,7 +75,7 @@ class GaussianMixture:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_components: int,
       n_dimensions: int,
       stdev_mean: float = 0.1,
@@ -88,9 +88,9 @@ class GaussianMixture:
     loc = []
     scale_params = []
     for _ in range(n_components):
-      key, subkey = jax.random.split(key)
+      rng, subrng = jax.random.split(rng)
       component = gaussian.Gaussian.from_random(
-          key=subkey,
+          rng=subrng,
           n_dimensions=n_dimensions,
           stdev_mean=stdev_mean,
           stdev_cov=stdev_cov,
@@ -102,7 +102,7 @@ class GaussianMixture:
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        key=subkey, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
+        rng=subrng, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
     )
     return cls(
         loc=loc, scale_params=scale_params, component_weight_ob=weight_ob
@@ -216,12 +216,12 @@ class GaussianMixture:
     """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
-  def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
-    subkey0, subkey1 = jax.random.split(key)
-    component = self.component_weight_ob.sample(key=subkey0, size=size)
+    subrng0, subrng1 = jax.random.split(rng)
+    component = self.component_weight_ob.sample(rng=subrng0, size=size)
     std_samples = jax.random.normal(
-        key=subkey1, shape=(size, self.n_dimensions)
+        key=subrng1, shape=(size, self.n_dimensions)
     )
 
     def _transform_single_component(k, scale, loc):

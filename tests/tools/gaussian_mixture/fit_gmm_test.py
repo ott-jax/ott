@@ -26,7 +26,7 @@ from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 class TestFitGmm:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     mean_generator = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                [[0.5, 0.4], [0.4, 0.5]]])
@@ -40,15 +40,15 @@ class TestFitGmm:
         )
     )
 
-    self.key, subkey = jax.random.split(rng)
-    self.samples = gmm_generator.sample(key=subkey, size=2000)
+    self.rng, subrng = jax.random.split(rng)
+    self.samples = gmm_generator.sample(rng=subrng, size=2000)
 
   def test_integration(self):
     # dumb integration test that makes sure nothing crashes
 
     # Fit a GMM to the samples
     gmm_init = fit_gmm.initialize(
-        key=self.key,
+        rng=self.rng,
         points=self.samples,
         point_weights=None,
         n_components=3,

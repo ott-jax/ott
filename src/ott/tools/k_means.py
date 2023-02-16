@@ -28,7 +28,7 @@ Init_t = Union[Literal["k-means++", "random"],
 
 
 class KPPState(NamedTuple):
-  rng: jnp.ndarray
+  rng: jax.random.PRNGKeyArray
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
@@ -108,39 +108,39 @@ class KMeansOutput(NamedTuple):
 
 
 def _random_init(
-    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+    geom: pointcloud.PointCloud, k: int, rng: jax.random.PRNGKeyArray
 ) -> jnp.ndarray:
   ixs = jnp.arange(geom.shape[0])
-  ixs = jax.random.choice(key, ixs, shape=(k,), replace=False)
+  ixs = jax.random.choice(rng, ixs, shape=(k,), replace=False)
   return geom.subset(ixs, None).x
 
 
 def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
 
-  def init_fn(geom: pointcloud.PointCloud, rng: jnp.ndarray) -> KPPState:
-    key, next_key = jax.random.split(rng, 2)
-    ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
+  def init_fn(geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray) -> KPPState:
+    rng, next_rng = jax.random.split(rng, 2)
+    ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
     dists = geom.subset(ix, None).cost_matrix[0]
-    return KPPState(rng=next_key, centroids=centroids, centroid_dists=dists)
+    return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
       iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
-    key, next_key = jax.random.split(state.rng, 2)
+    rng, next_rng = jax.random.split(state.rng, 2)
     geom, ixs = const
 
     # no need to normalize when `replace=True`
     probs = state.centroid_dists
     ixs = jax.random.choice(
-        key, ixs, shape=(n_local_trials,), p=probs, replace=True
+        rng, ixs, shape=(n_local_trials,), p=probs, replace=True
     )
     geom = geom.subset(ixs, None)
 
@@ -151,7 +151,7 @@ def _k_means_plus_plus(
     centroid_dists = candidate_dists[best_ix]
 
     return KPPState(
-        rng=next_key, centroids=centroids, centroid_dists=centroid_dists
+        rng=next_rng, centroids=centroids, centroid_dists=centroid_dists
     )
 
   if n_local_trials is None:
@@ -223,7 +223,7 @@ def _update_centroids(
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _k_means(
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     geom: pointcloud.PointCloud,
     k: int,
     weights: Optional[jnp.ndarray] = None,
@@ -401,9 +401,9 @@ def k_means(
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  keys = jax.random.split(rng, n_init)
+  rngs = jax.random.split(rng, n_init)
   out = _k_means(
-      keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
+      rngs, geom, k, weights, init, n_local_trials, tol, min_iterations,
       max_iterations, store_inner_errors
   )
   best_ix = jnp.argmin(out.error)

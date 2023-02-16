@@ -13,7 +13,7 @@ Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
 
 @pytest.fixture()
 def pc_masked(
-    rng: jnp.ndarray
+    rng: jax.random.PRNGKeyArray
 ) -> Tuple[pointcloud.PointCloud, pointcloud.PointCloud]:
   n, m = 20, 30
   key1, key2 = jax.random.split(rng, 2)
@@ -54,7 +54,7 @@ class TestMaskPointCloud:
       "clazz", [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
   )
   def test_mask(
-      self, rng: jnp.ndarray, clazz: Type[geometry.Geometry],
+      self, rng: jax.random.PRNGKeyArray, clazz: Type[geometry.Geometry],
       src_ixs: Optional[Union[int, Sequence[int]]],
       tgt_ixs: Optional[Union[int, Sequence[int]]]
   ):
@@ -125,7 +125,7 @@ class TestMaskPointCloud:
       )
 
   def test_mask_permutation(
-      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jax.random.PRNGKeyArray
   ):
     key1, key2 = jax.random.split(rng)
     geom, _ = geom_masked
@@ -147,7 +147,7 @@ class TestMaskPointCloud:
     )
 
   def test_boolean_mask(
-      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jax.random.PRNGKeyArray
   ):
     key1, key2 = jax.random.split(rng)
     p = jnp.array([0.5, 0.5])

@@ -27,7 +27,7 @@ from ott.solvers.linear import sinkhorn
 @pytest.mark.fast
 class TestCostFn:
 
-  def test_cosine(self, rng: jnp.ndarray):
+  def test_cosine(self, rng: jax.random.PRNGKeyArray):
     """Test the cosine cost function."""
     x = jnp.array([0, 0])
     y = jnp.array([0, 0])
@@ -76,7 +76,7 @@ class TestCostFn:
 @pytest.mark.fast
 class TestBuresBarycenter:
 
-  def test_bures(self, rng: jnp.ndarray):
+  def test_bures(self, rng: jax.random.PRNGKeyArray):
     d = 5
     r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
     Sigma1 = r * jnp.eye(d)
@@ -130,7 +130,7 @@ class TestRegTICost:
 
   @pytest.mark.parametrize("k", [1, 2, 7, 10])
   @pytest.mark.parametrize("d", [10, 50, 100])
-  def test_elastic_sq_k_overlap(self, rng: jax.random.PRNGKey, k: int, d: int):
+  def test_elastic_sq_k_overlap(self, rng: jax.random.PRNGKeyArray, k: int, d: int):
     expected = jax.random.normal(rng, (d,))
 
     cost_fn = costs.ElasticSqKOverlap(k=k, gamma=1e-2)

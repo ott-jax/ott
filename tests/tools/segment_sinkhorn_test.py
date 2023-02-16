@@ -29,7 +29,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 class TestSegmentSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def setUp(self, rng: jnp.ndarray):
+  def setUp(self, rng: jax.random.PRNGKeyArray):
     self._dim = 4
     self._num_points = 13, 17
     self._max_measure_size = 20

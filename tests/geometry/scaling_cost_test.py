@@ -28,7 +28,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 class TestScaleCost:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 7
     self.m = 9

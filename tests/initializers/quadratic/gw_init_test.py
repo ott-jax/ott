@@ -30,7 +30,7 @@ from ott.solvers.quadratic import gromov_wasserstein
 class TestQuadraticInitializers:
 
   @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
-  def test_create_default_lr_initializer(self, rng: jnp.ndarray, kind: str):
+  def test_create_default_lr_initializer(self, rng: jax.random.PRNGKeyArray, kind: str):
     n, d1, d2, rank = 150, 2, 3, 5
     eps = 1e-1
     key1, key2 = jax.random.split(rng, 2)
@@ -93,7 +93,7 @@ class TestQuadraticInitializers:
       assert solver.quad_initializer.rank == rank
 
   @pytest.mark.parametrize("eps", [0., 1e-2])
-  def test_gw_better_initialization_helps(self, rng: jnp.ndarray, eps: float):
+  def test_gw_better_initialization_helps(self, rng: jax.random.PRNGKeyArray, eps: float):
     n, m, d1, d2, rank = 123, 124, 12, 10, 5
     key1, key2, key3, key4 = jax.random.split(rng, 4)
 

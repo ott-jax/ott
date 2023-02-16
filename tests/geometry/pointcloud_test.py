@@ -26,7 +26,7 @@ from ott.geometry import costs, geometry, pointcloud
 @pytest.mark.fast
 class TestPointCloudApply:
 
-  def test_apply_cost_and_kernel(self, rng: jnp.ndarray):
+  def test_apply_cost_and_kernel(self, rng: jax.random.PRNGKeyArray):
     """Test consistency of cost/kernel apply to vec."""
     n, m, p, b = 5, 8, 10, 7
     keys = jax.random.split(rng, 5)
@@ -70,7 +70,7 @@ class TestPointCloudApply:
     np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
     np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 
-  def test_general_cost_fn(self, rng: jnp.ndarray):
+  def test_general_cost_fn(self, rng: jax.random.PRNGKeyArray):
     """Test non-vec cost apply to vec."""
     n, m, p, b = 5, 8, 10, 7
     keys = jax.random.split(rng, 5)
@@ -99,7 +99,7 @@ class TestPointCloudApply:
     np.testing.assert_array_equal(pc.shape, (n, m))
 
   @pytest.mark.parametrize("axis", [0, 1])
-  def test_apply_cost_without_norm(self, rng: jnp.ndarray, axis: 1):
+  def test_apply_cost_without_norm(self, rng: jax.random.PRNGKeyArray, axis: 1):
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(17, 3))
     y = jax.random.normal(key2, shape=(12, 3))
@@ -124,7 +124,7 @@ class TestPointCloudCosineConversion:
       "scale_cost", ["mean", "median", "max_cost", "max_norm", 41]
   )
   def test_cosine_to_sqeucl_conversion(
-      self, rng: jnp.ndarray, scale_cost: Union[str, float]
+      self, rng: jax.random.PRNGKeyArray, scale_cost: Union[str, float]
   ):
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(101, 4))
@@ -157,7 +157,7 @@ class TestPointCloudCosineConversion:
   )
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_cosine_to_sqeucl(
-      self, rng: jnp.ndarray, axis: int, scale_cost: Union[str, float]
+      self, rng: jax.random.PRNGKeyArray, axis: int, scale_cost: Union[str, float]
   ):
     key1, key2 = jax.random.split(rng, 2)
     x = jax.random.normal(key1, shape=(17, 5))

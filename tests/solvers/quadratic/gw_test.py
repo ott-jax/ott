@@ -33,7 +33,7 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("as_pc", [False, True])
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
-      self, rng: jnp.ndarray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+      self, rng: jax.random.PRNGKeyArray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
   ):
     n, m, d1, d2, d = 200, 300, 20, 25, 30
     k1, k2, k3, k4 = jax.random.split(rng, 4)
@@ -89,7 +89,7 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
-  def test_gw_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
+  def test_gw_implicit_conversion_mixed_input(self, rng: jax.random.PRNGKeyArray):
     n, m, d1, d2 = 200, 300, 20, 25
     k1, k2 = jax.random.split(rng, 2)
     x = jax.random.normal(k1, (n, d1))
@@ -109,7 +109,7 @@ class TestQuadraticProblem:
 class TestGromovWasserstein:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     d_x = 2
     d_y = 3
     self.n, self.m = 6, 7
@@ -297,7 +297,7 @@ class TestGromovWasserstein:
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
   @pytest.mark.fast
-  def test_gw_lr(self, rng: jnp.ndarray):
+  def test_gw_lr(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same problem."""
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -317,7 +317,7 @@ class TestGromovWasserstein:
     ot_gw = solver(prob)
     np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
 
-  def test_gw_lr_matches_fused(self, rng: jnp.ndarray):
+  def test_gw_lr_matches_fused(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same fused problem."""
     rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -364,7 +364,7 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
-  def test_gw_lr_warm_start_helps(self, rng: jnp.ndarray):
+  def test_gw_lr_warm_start_helps(self, rng: jax.random.PRNGKeyArray):
     rank = 3
     key1, key2 = jax.random.split(rng, 2)
     geom_x = pointcloud.PointCloud(jax.random.normal(key1, (100, 5)))

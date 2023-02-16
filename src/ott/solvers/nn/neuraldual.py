@@ -157,7 +157,7 @@ class W2NeuralDual:
     )
 
   def setup(
-      self, rng: jnp.ndarray, neural_f: models.ModelBase,
+      self, rng: jax.random.PRNGKeyArray, neural_f: models.ModelBase,
       neural_g: models.ModelBase, dim_data: int, optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
