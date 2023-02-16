@@ -26,10 +26,9 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
-import numpy as np
-
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 
 from ott.problems.linear import linear_problem
 

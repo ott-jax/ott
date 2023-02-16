@@ -16,9 +16,8 @@
 import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
-from jaxopt import LBFGS
-
 import jax.numpy as jnp
+from jaxopt import LBFGS
 
 from ott import utils
 
