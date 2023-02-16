@@ -126,7 +126,6 @@ class TICost(CostFn):
   strictly convex, as well as provide the Legendre transform of :math:`h`,
   whose gradient is necessarily the inverse of the gradient of :math:`h`.
   """
-  p = 1.0
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
@@ -139,14 +138,6 @@ class TICost(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
-
-  def tree_flatten(self):
-    return (), (self.p,)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    del children
-    return cls(aux_data[0])
 
 
 @jax.tree_util.register_pytree_node_class
@@ -288,8 +279,6 @@ class RegTICost(TICost, abc.ABC):
   where :func:`reg` is the regularization function.
   """
 
-  gamma = 0
-
   @abc.abstractmethod
   def reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
@@ -304,14 +293,6 @@ class RegTICost(TICost, abc.ABC):
   def h_legendre(self, z: jnp.ndarray) -> float:
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
-
-  def tree_flatten(self):  #noqa: D102
-    return (), (self.gamma,)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  #noqa: D102
-    del children
-    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
