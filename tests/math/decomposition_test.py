@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 from jax.experimental import sparse
 
-from ott.math.decomposition import DenseCholeskySolver, SparseCholeskySolver
+from ott.math import decomposition
 
 sksparse = pytest.importorskip("sksparse")
 
@@ -20,7 +20,7 @@ class TestDecomposition:
     A = jax.random.normal(keys[0], (N, N))
     b = jax.random.normal(keys[1], (N,))
     B = jnp.dot(A, A.transpose())
-    solver = DenseCholeskySolver(B)
+    solver = decomposition.DenseCholeskySolver(B)
     L = solver.L
     assert L is not None
     assert jnp.allclose(L, jnp.tril(L))
@@ -37,7 +37,7 @@ class TestDecomposition:
     b = jax.random.normal(keys[1], (N,))
     B = jnp.dot(A, A.transpose())
     B = sparse_format(B)
-    solver = SparseCholeskySolver(B)
+    solver = decomposition.SparseCholeskySolver(B)
     L = solver.L
     assert L is None
     out = list(solver._FACTOR_CACHE.values())[0]  # get cholmod.Factor

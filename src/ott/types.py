@@ -26,13 +26,11 @@ class Transport(Protocol):
   """
 
   @property
-  def matrix(self) -> jnp.ndarray:  # pragma: no cover
+  def matrix(self) -> jnp.ndarray:
     ...
 
-  def apply(
-      self, inputs: jnp.ndarray, axis: int
-  ) -> jnp.ndarray:  # pragma: no cover
+  def apply(self, inputs: jnp.ndarray, axis: int) -> jnp.ndarray:
     ...
 
-  def marginal(self, axis: int = 0) -> jnp.ndarray:  # pragma: no cover
+  def marginal(self, axis: int = 0) -> jnp.ndarray:
     ...
