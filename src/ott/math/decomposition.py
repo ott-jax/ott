@@ -196,7 +196,6 @@ class SparseCholeskySolver(
 
   def _host_solve(self, b: jnp.ndarray) -> jnp.ndarray:
     factor = self._FACTOR_CACHE[hash(self)]
-    # return factor.solve_A(np.asarray(b, dtype=float))
     return factor.solve_A(jnp.asarray(b, dtype=float))
 
   def _solve(self, _: Optional[T], b: jnp.ndarray) -> jnp.ndarray:
