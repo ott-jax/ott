@@ -15,12 +15,10 @@
 
 from typing import Sequence
 
+import jax
 from absl import app, flags, logging
 from clu import platform
 from ml_collections import config_flags
-
-import jax
-
 from ott.examples.soft_error import train
 
 FLAGS = flags.FLAGS

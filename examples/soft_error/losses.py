@@ -18,7 +18,6 @@ import functools
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-
 from ott.tools import soft_sort
 
 

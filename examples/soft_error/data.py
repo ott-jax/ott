@@ -13,10 +13,9 @@
 # limitations under the License.
 """Data loading and data augmentation."""
 
+import jax
 import tensorflow as tf
 import tensorflow_datasets as tfds
-
-import jax
 from flax import jax_utils
 
 

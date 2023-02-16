@@ -16,10 +16,9 @@
 from typing import List, Optional, Sequence, Tuple, Union
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy
-
-import matplotlib.pyplot as plt
 from matplotlib import animation
 
 from ott import utils
