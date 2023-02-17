@@ -26,14 +26,18 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
 from ott.problems.linear import linear_problem
 
 if TYPE_CHECKING:
   from ott.geometry import costs
+
+try:
+  import matplotlib as mpl
+  import matplotlib.pyplot as plt
+except ImportError:
+  mpl = plt = None
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -178,10 +182,10 @@ class DualPotentials:
       source: jnp.ndarray,
       target: jnp.ndarray,
       forward: bool = True,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
@@ -190,12 +194,17 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       ax: axis to add the plot to
-      scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
-      legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
+      scatter_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
       matplotlib figure and axis with the plots
     """
+    if mpl is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+
     if scatter_kwargs is None:
       scatter_kwargs = {'alpha': 0.5}
     if legend_kwargs is None:
@@ -263,12 +272,12 @@ class DualPotentials:
       self,
       forward: bool = True,
       quantile: float = 0.05,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["mpl.axes.Axes"] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
       num_grid: int = 50,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
     """Plot the potential.
 
     Args:
