@@ -334,19 +334,25 @@ def _coordinate_update(
   return jax.lax.fori_loop(0, len(f), body_fn, f)
 
 
-def subsample(rng, array, weight, subsample_n):
+def subsample(rng: jax.random.PRNGKey, 
+              array: jnp.ndarray, 
+              weight: jnp.ndarray, 
+              subsample_n: int):
+  """Subsample point cloud to uniform weighted points.
+  Args:
+    rng: random number generator.
+    array: point cloud, array of size N x d.
+    weight: array of size N.
+    subsample_n: number of points to subsample.
+
+  Returns:
+    subsampled point cloud, array of size subsample_n x d.
+  """
   N = array.shape[0]
   indices = jax.random.choice(
       key=rng, a=N, shape=(subsample_n,), replace=True, p=weight, axis=0
   )
   return array[indices]
-
-
-def batch_subsample(rng, array, subsample_n):
-  B, N, d = array.shape
-  rng_sample = jax.random.split(rng, B)
-  resampler = jax.vmap(subsample, in_axes=(0, 0, None))
-  return resampler(rng_sample, array, subsample_n)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -379,6 +385,15 @@ class SubsampleInitializer(DefaultInitializer):
     
     
   def solve_sub_problem(self, sub_x, sub_y, epsilon):
+    """Solve subproblem with  Sinkhorn.
+    Args:
+      sub_x: subsampled x, array of size subsample_n x d.
+      sub_y: subsampled y, array of size subsample_n_y x d.
+      epsilon: regularization parameter for subsampled point cloud.
+
+    Returns:
+      Sinkhorn output object.
+    """
     import ott.solvers.linear.sinkhorn as sinkhorn
     # can extract cost matrix entries or recompute
     sub_geom = pointcloud.PointCloud(x=sub_x, y=sub_y, epsilon=epsilon)
