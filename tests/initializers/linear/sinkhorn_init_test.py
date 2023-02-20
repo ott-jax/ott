@@ -252,8 +252,7 @@ class TestSinkhornInitializers:
 
     if jit:
       run_fn = jax.jit(
-          run_sinkhorn,
-          static_argnames=["initializer", "lse_mode"]
+          run_sinkhorn, static_argnames=["initializer", "lse_mode"]
       )
       sub_run_fn = jax.jit(
           run_sinkhorn,
