@@ -88,10 +88,10 @@ class Geometry:
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
 
-    # needed for `copy_epsilon`, because of the `isinstance check
-    if isinstance(epsilon, (float, type(None))) or utils.is_jax_array(epsilon):
-      epsilon = epsilon_scheduler.Epsilon(epsilon)
-    self._epsilon_init = epsilon
+    # needed for `copy_epsilon`, because of the `isinstance` check
+    self._epsilon_init = epsilon if isinstance(
+        epsilon, epsilon_scheduler.Epsilon
+    ) else epsilon_scheduler.Epsilon(epsilon)
     self._relative_epsilon = relative_epsilon
 
     self._scale_cost = "mean" if scale_cost is True else scale_cost
@@ -138,17 +138,12 @@ class Geometry:
 
   @property
   def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
-    else:
-      target, scale_eps = self._epsilon_init, None
+    (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
+    rel = self._relative_epsilon
 
-    if scale_eps is None:
-      rel = self._relative_epsilon
-      trigger = rel is True or (rel is None and target is None)
-      scale_eps = jnp.where(
-          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
-      )
+    use_mean_scale = rel is True or (rel is None and target is None)
+    if scale_eps is None and use_mean_scale:
+      scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
 
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return self._epsilon_init.set(scale_epsilon=scale_eps)
@@ -230,7 +225,6 @@ class Geometry:
 
     new_children = []
     for child in children:
-      # TODO(mcihalk8): not always true
       if isinstance(child, epsilon_scheduler.Epsilon):
         child = child.set(
             target=other_epsilon._target_init,
