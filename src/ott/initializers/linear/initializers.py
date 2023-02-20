@@ -13,15 +13,13 @@
 # limitations under the License.
 """Sinkhorn initializers."""
 import abc
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
-
-
 
 __all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
 
@@ -31,17 +29,18 @@ class SinkhornInitializer(abc.ABC):
   """Base class for Sinkhorn initializers."""
 
   @abc.abstractmethod
-  def init_dual_a(self, 
-                  ot_prob: 'linear_problem.LinearProblem', 
-                  lse_mode: bool, 
-                  rng: Optional[jax.random.PRNGKey] = None
-    ) -> jnp.ndarray:
+  def init_dual_a(
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
+      lse_mode: bool,
+      rng: Optional[jax.random.PRNGKey] = None
+  ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling f_u."""
 
   @abc.abstractmethod
   def init_dual_b(
-      self, 
-      ot_prob: 'linear_problem.LinearProblem', 
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
@@ -103,8 +102,8 @@ class DefaultInitializer(SinkhornInitializer):
   """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
   def init_dual_a(
-      self, 
-      ot_prob: 'linear_problem.LinearProblem', 
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
@@ -123,8 +122,8 @@ class DefaultInitializer(SinkhornInitializer):
     return init_dual_a
 
   def init_dual_b(
-      self, 
-      ot_prob: 'linear_problem.LinearProblem', 
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
@@ -334,11 +333,12 @@ def _coordinate_update(
   return jax.lax.fori_loop(0, len(f), body_fn, f)
 
 
-def subsample(rng: jax.random.PRNGKey, 
-              array: jnp.ndarray, 
-              weight: jnp.ndarray, 
-              subsample_n: int):
+def subsample(
+    rng: jax.random.PRNGKey, array: jnp.ndarray, weight: jnp.ndarray,
+    subsample_n: int
+):
   """Subsample point cloud to uniform weighted points.
+
   Args:
     rng: random number generator.
     array: point cloud, array of size N x d.
@@ -358,34 +358,32 @@ def subsample(rng: jax.random.PRNGKey,
 @jax.tree_util.register_pytree_node_class
 class SubsampleInitializer(DefaultInitializer):
   """Subsample initializer :cite:`thornton2022rethinking:22`.
+
   Subsample each point cloud, then compute closed from
   Sinkhorn potential between subsampled approximations. Use this potential
   to initialize Sinkhorn potentials/scalings.
 
   Args:
     subsample_n: number of points to subsample from each point cloud.
-    sub_epsilon: epsilon for subsampled point cloud. If None, use epsilon from larger problem.
     subsample_n_y: overwrites subsample_n for y. If None, use subsample_n for both.
   """
 
   def __init__(
-    self,
-    subsample_n : int,  
-    sub_epsilon : Optional[float] = None,
-    subsample_n_y: Optional[int] = None,
+      self,
+      subsample_n: int,
+      subsample_n_y: Optional[int] = None,
   ):
     super().__init__()
-    self.subsample_n = subsample_n
-    self.sub_epsilon = sub_epsilon
 
+    self.subsample_n = subsample_n
     if subsample_n_y is None:
       self.subsample_n_y = self.subsample_n
     else:
       self.subsample_n_y = subsample_n_y
-    
-    
+
   def solve_sub_problem(self, sub_x, sub_y, epsilon):
     """Solve subproblem with  Sinkhorn.
+
     Args:
       sub_x: subsampled x, array of size subsample_n x d.
       sub_y: subsampled y, array of size subsample_n_y x d.
@@ -394,7 +392,8 @@ class SubsampleInitializer(DefaultInitializer):
     Returns:
       Sinkhorn output object.
     """
-    import ott.solvers.linear.sinkhorn as sinkhorn
+    from ott.solvers.linear import sinkhorn
+
     # can extract cost matrix entries or recompute
     sub_geom = pointcloud.PointCloud(x=sub_x, y=sub_y, epsilon=epsilon)
     ot_prob = linear_problem.LinearProblem(sub_geom)
@@ -403,9 +402,7 @@ class SubsampleInitializer(DefaultInitializer):
     return solver(ot_prob)
 
   def init_dual_a(
-      self,
-      ot_prob: 'linear_problem.LinearProblem',
-      lse_mode: bool,
+      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool,
       rng: jax.random.PRNGKey
   ) -> jnp.ndarray:
     """Subsample initializer function.
@@ -418,37 +415,29 @@ class SubsampleInitializer(DefaultInitializer):
     Returns:
       potential/scaling, array of size n.
     """
-
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
     ), "Subsample initializer valid only for point clouds."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
-    N = x.shape[0]
-    
-
-    # handle defaults / overwrites
-    if self.sub_epsilon is None:
-      sub_epsilon = ot_prob.geom.epsilon
-    else:
-      sub_epsilon = self.sub_epsilon
-
-    assert self.subsample_n <= N, f"x subsample {self.subsample_n} must be less than point cloud size, {N}."
-    assert self.subsample_n_y <= y.shape[0], f"y subsample {self.subsample_n_y} must be less than point cloud size, {y.shape[0]}."
 
     # subsample
     rng_x, rng_y = jax.random.split(rng)
-    
 
     sub_x = subsample(rng_x, x, a, self.subsample_n)
     sub_y = subsample(rng_y, y, b, self.subsample_n_y)
 
     # solve sub problem
-    subsample_sink_out = self.solve_sub_problem(sub_x, sub_y, sub_epsilon)
+    subsample_sink_out = self.solve_sub_problem(
+        sub_x, sub_y, ot_prob.geom.epsilon
+    )
 
     # interpolate potentials
     dual_potentials = subsample_sink_out.to_dual_potentials()
-    f_init = jax.vmap(dual_potentials.f)(x)
+    f_potential = jax.vmap(dual_potentials.f)(x)
 
-    return f_init
+    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
+        f_potential
+    )
+    return f_u

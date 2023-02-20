@@ -84,7 +84,7 @@ def run_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
     *,
-    initializer: Literal["default", "sorting", "gaussian"],
+    initializer: Literal["default", "sorting", "gaussian", "subsample"],
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
@@ -97,6 +97,8 @@ def run_sinkhorn(
     init = linear_init.SortingInitializer(**kwargs)
   elif initializer == "gaussian":
     init = linear_init.GaussianInitializer(**kwargs)
+  elif initializer == "subsample":
+    init = linear_init.SubsampleInitializer(**kwargs)
   else:
     raise NotImplementedError(initializer)
 
@@ -227,25 +229,27 @@ class TestSinkhornInitializers:
 
   @pytest.mark.parametrize('lse_mode', [True, False])
   @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.parametrize("initializer", ["sorting", "gaussian"])
+  @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
       self, rng: jnp.ndarray, lse_mode: bool, jit: bool,
-      initializer: Literal["sorting", "gaussian"]
+      initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""
     n, m, d = 200, 200, 2
+    subsample_n = 100
     epsilon = 1e-2
 
-    if initializer == "gaussian":
+    if initializer == "sorting":
+      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
+    else:
       ot_problem = create_ot_problem(
           rng, n, m, d, epsilon=epsilon, batch_size=3
       )
-    else:
-      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
 
     if jit:
       run_fn = jax.jit(
-          run_sinkhorn, static_argnames=["initializer", "lse_mode"]
+          run_sinkhorn,
+          static_argnames=["initializer", "lse_mode", "subsample_n"]
       )
     else:
       run_fn = run_sinkhorn
@@ -261,15 +265,27 @@ class TestSinkhornInitializers:
         lse_mode=lse_mode,
     )
 
-    init_out = run_fn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=initializer,
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode
-    )
+    if initializer == "subsample":
+      init_out = run_fn(
+          x=ot_problem.geom.x,
+          y=ot_problem.geom.y,
+          initializer=initializer,
+          a=ot_problem.a,
+          b=ot_problem.b,
+          epsilon=epsilon,
+          lse_mode=lse_mode,
+          subsample_n=subsample_n
+      )
+    else:
+      init_out = run_fn(
+          x=ot_problem.geom.x,
+          y=ot_problem.geom.y,
+          initializer=initializer,
+          a=ot_problem.a,
+          b=ot_problem.b,
+          epsilon=epsilon,
+          lse_mode=lse_mode,
+      )
 
     if lse_mode:
       assert default_out.converged

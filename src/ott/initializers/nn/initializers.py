@@ -123,7 +123,10 @@ class MetaInitializer(initializers.DefaultInitializer):
     return self.update_impl(state, a, b)
 
   def init_dual_a(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
+      lse_mode: bool,
+      rng: Optional[jax.random.PRNGKey] = None
   ) -> jnp.ndarray:
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
