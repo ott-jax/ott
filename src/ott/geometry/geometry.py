@@ -88,9 +88,10 @@ class Geometry:
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
 
+    # needed for `copy_epsilon`, because of the `isinstance check
     if isinstance(epsilon, (float, type(None))) or utils.is_jax_array(epsilon):
       epsilon = epsilon_scheduler.Epsilon(epsilon)
-    self._unscaled_epsilon = epsilon
+    self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
 
     self._scale_cost = "mean" if scale_cost is True else scale_cost
@@ -137,10 +138,10 @@ class Geometry:
 
   @property
   def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    if isinstance(self._unscaled_epsilon, epsilon_scheduler.Epsilon):
-      (target, scale_eps, _, _), _ = self._unscaled_epsilon.tree_flatten()
+    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
+      (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
     else:
-      target, scale_eps = self._unscaled_epsilon, None
+      target, scale_eps = self._epsilon_init, None
 
     if scale_eps is None:
       rel = self._relative_epsilon
@@ -149,8 +150,8 @@ class Geometry:
           trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
       )
 
-    if isinstance(self._unscaled_epsilon, epsilon_scheduler.Epsilon):
-      return self._unscaled_epsilon.set(scale_epsilon=scale_eps)
+    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
+      return self._epsilon_init.set(scale_epsilon=scale_eps)
 
     return epsilon_scheduler.Epsilon(
         target=5e-2 if target is None else target, scale_epsilon=scale_eps
@@ -724,7 +725,7 @@ class Geometry:
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
-        epsilon=self._unscaled_epsilon,
+        epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
         scale_factor=scale,
@@ -901,7 +902,7 @@ class Geometry:
 
   def tree_flatten(self):  # noqa: D102
     return (
-        self._cost_matrix, self._kernel_matrix, self._unscaled_epsilon,
+        self._cost_matrix, self._kernel_matrix, self._epsilon_init,
         self._src_mask, self._tgt_mask
     ), {
         "scale_cost": self._scale_cost,
