@@ -112,8 +112,8 @@ class TestSinkhorn:
     )
 
     np.testing.assert_allclose(
-        geom_1._scaled_epsilon.at(2) * scale ** 2,
-        geom_2._scaled_epsilon.at(2),
+        geom_1._epsilon.at(2) * scale ** 2,
+        geom_2._epsilon.at(2),
         rtol=1e-3,
         atol=1e-3
     )

@@ -49,7 +49,7 @@ class Geometry:
       costs.
     kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
       x m kernel values.
-    epsilon: a regularization parameter. TODO
+    epsilon: a regularization parameter. TODO(michalk8): update the docstring
       If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
       other parameters below are ignored in practice. If the
       parameter is a float, then this is understood to be the regularization
@@ -85,19 +85,12 @@ class Geometry:
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
-    """
-    if eps=None and rel_eps=(None,True) -> target=0.05 scale_cost=mean
-    if eps=None and rel_eps=False -> target=0.05, scale_cost=1.0
-    if eps=not None, rel_eps=(None,False) -> target=eps, scale_cost=1.0
-    if eps=not None, rel_eps=True-> target=eps, scale_eps=mean
-    """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
 
-    if epsilon is None or isinstance(epsilon,
-                                     float) or utils.is_jax_array(epsilon):
+    if isinstance(epsilon, (float, type(None))) or utils.is_jax_array(epsilon):
       epsilon = epsilon_scheduler.Epsilon(epsilon)
-    self._epsilon = epsilon
+    self._unscaled_epsilon = epsilon
     self._relative_epsilon = relative_epsilon
 
     self._scale_cost = "mean" if scale_cost is True else scale_cost
@@ -143,12 +136,11 @@ class Geometry:
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
-  def _scaled_epsilon(self) -> epsilon_scheduler.Epsilon:
-    if isinstance(self._epsilon, epsilon_scheduler.Epsilon):
-      # return self._epsilon
-      (target, scale_eps, _, _), _ = self._epsilon.tree_flatten()
+  def _epsilon(self) -> epsilon_scheduler.Epsilon:
+    if isinstance(self._unscaled_epsilon, epsilon_scheduler.Epsilon):
+      (target, scale_eps, _, _), _ = self._unscaled_epsilon.tree_flatten()
     else:
-      target, scale_eps = self._epsilon, None
+      target, scale_eps = self._unscaled_epsilon, None
 
     rel = self._relative_epsilon
     if scale_eps is None:
@@ -157,8 +149,8 @@ class Geometry:
           trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
       )
 
-    if isinstance(self._epsilon, epsilon_scheduler.Epsilon):
-      return self._epsilon.set(scale_epsilon=scale_eps)
+    if isinstance(self._unscaled_epsilon, epsilon_scheduler.Epsilon):
+      return self._unscaled_epsilon.set(scale_epsilon=scale_eps)
 
     return epsilon_scheduler.Epsilon(
         target=5e-2 if target is None else target, scale_epsilon=scale_eps
@@ -167,7 +159,7 @@ class Geometry:
   @property
   def epsilon(self) -> float:
     """Epsilon regularization value."""
-    return self._scaled_epsilon.target
+    return self._epsilon.target
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -232,7 +224,7 @@ class Geometry:
 
   def copy_epsilon(self, other: 'Geometry') -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
-    other_epsilon = other._scaled_epsilon
+    other_epsilon = other._epsilon
     children, aux_data = self.tree_flatten()
 
     new_children = []
@@ -393,7 +385,7 @@ class Geometry:
     Returns:
       new potential value, g if axis=0, f if axis is 1.
     """
-    eps = self._scaled_epsilon.at(iteration)
+    eps = self._epsilon.at(iteration)
     app_lse = self.apply_lse_kernel(f, g, eps, axis=axis)[0]
     return eps * log_marginal - jnp.where(jnp.isfinite(app_lse), app_lse, 0)
 
@@ -415,7 +407,7 @@ class Geometry:
     Returns:
       new scaling vector, of size num_b if axis=0, num_a if axis is 1.
     """
-    eps = self._scaled_epsilon.at(iteration)
+    eps = self._epsilon.at(iteration)
     app_kernel = self.apply_kernel(scaling, eps, axis=axis)
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
@@ -732,7 +724,7 @@ class Geometry:
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
-        epsilon=self._epsilon,
+        epsilon=self._unscaled_epsilon,
         relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
         scale_factor=scale,
@@ -909,8 +901,8 @@ class Geometry:
 
   def tree_flatten(self):  # noqa: D102
     return (
-        self._cost_matrix, self._kernel_matrix, self._epsilon, self._src_mask,
-        self._tgt_mask
+        self._cost_matrix, self._kernel_matrix, self._unscaled_epsilon,
+        self._src_mask, self._tgt_mask
     ), {
         "scale_cost": self._scale_cost,
         "relative_epsilon": self._relative_epsilon

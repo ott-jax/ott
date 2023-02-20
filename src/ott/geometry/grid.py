@@ -123,7 +123,7 @@ class Grid(geometry.Geometry):
       geom = pointcloud.PointCloud(
           x_values,
           cost_fn=cost_fn,
-          epsilon=self._epsilon,
+          epsilon=self._unscaled_epsilon,
       )
       geometries.append(geom)
     return geometries
@@ -347,7 +347,7 @@ class Grid(geometry.Geometry):
     return self.x[0].dtype
 
   def tree_flatten(self):  # noqa: D102
-    return (self.x, self.cost_fns, self._epsilon), self.kwargs
+    return (self.x, self.cost_fns, self._unscaled_epsilon), self.kwargs
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
@@ -408,7 +408,7 @@ class Grid(geometry.Geometry):
         cost_1=cost_1,
         cost_2=cost_2,
         scale_factor=scale,
-        epsilon=self._epsilon,
+        epsilon=self._unscaled_epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,
         tgt_mask=self.tgt_mask,

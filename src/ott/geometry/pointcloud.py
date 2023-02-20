@@ -568,7 +568,7 @@ class PointCloud(geometry.Geometry):
         self.y,
         self._src_mask,
         self._tgt_mask,
-        self._epsilon,
+        self._unscaled_epsilon,
         self.cost_fn,
     ], {
         'batch_size': self._batch_size,
@@ -643,7 +643,7 @@ class PointCloud(geometry.Geometry):
         cost_1=cost_1,
         cost_2=cost_2,
         scale_factor=scale,
-        epsilon=self._epsilon,
+        epsilon=self._unscaled_epsilon,
         relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,

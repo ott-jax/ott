@@ -161,7 +161,7 @@ def _discrete_barycenter(
     geom, a, weights = const
     errors, d, f_u, g_v = state
 
-    eps = geom._scaled_epsilon.at(iteration)  # pylint: disable=protected-access
+    eps = geom._epsilon.at(iteration)  # pylint: disable=protected-access
     f_u = parallel_update(f_u, g_v, a, iteration)
     # kernel_f_u stands for K times potential u if running in scaling mode,
     # eps log K exp f / eps in lse mode.
