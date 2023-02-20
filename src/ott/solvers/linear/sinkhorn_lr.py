@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import (
+    Any,
+    Literal,
+    Mapping,
+    NamedTuple,
+    NoReturn,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -71,6 +80,19 @@ def compute_reg_ot_cost(
     ot_prob: linear_problem.LinearProblem,
     use_danskin: bool = False
 ) -> float:
+  """Compute the regularized OT cost.
+
+  Args:
+    q: first factor of solution
+    r: second factor of solution
+    g: weights of solution
+    ot_prob: linear problem
+    use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
+      to avoid computing the gradient of the cost function.
+
+  Returns:
+    regularized OT cost
+  """
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
@@ -86,9 +108,9 @@ def solution_error(
   Since only balanced case is available for LR, this is marginal deviation.
 
   Args:
-    q: first factor of solution
-    r: second factor of solution
-    ot_prob: linear problem
+    q: first factor of solution.
+    r: second factor of solution.
+    ot_prob: linear problem.
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector products.
 
@@ -130,7 +152,7 @@ class LRSinkhornOutput(NamedTuple):
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def set_cost(
+  def set_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -139,7 +161,7 @@ class LRSinkhornOutput(NamedTuple):
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
-  def compute_reg_ot_cost(
+  def compute_reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False,
@@ -147,27 +169,27 @@ class LRSinkhornOutput(NamedTuple):
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   @property
-  def linear(self) -> bool:
+  def linear(self) -> bool:  # noqa: D102
     return isinstance(self.ot_prob, linear_problem.LinearProblem)
 
   @property
-  def geom(self) -> geometry.Geometry:
+  def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:
+  def linear_output(self) -> bool:  # noqa: D102
     return True
 
   @property
-  def converged(self) -> bool:
+  def converged(self) -> bool:  # noqa: D102
     return jnp.logical_and(
         jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
     )
@@ -183,7 +205,7 @@ class LRSinkhornOutput(NamedTuple):
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
 
-  def marginal(self, axis: int) -> jnp.ndarray:
+  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
 
@@ -196,7 +218,7 @@ class LRSinkhornOutput(NamedTuple):
     return self.cost_at_geom(other_geom)
 
   @property
-  def primal_cost(self) -> jnp.ndarray:
+  def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
@@ -369,6 +391,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iter: int = 10,
       max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
@@ -539,7 +562,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   @property
-  def norm_error(self) -> Tuple[int]:
+  def norm_error(self) -> Tuple[int]:  # noqa: D102
     return self._norm_error,
 
   @property

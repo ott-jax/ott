@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +32,7 @@ def register_pytree_node(cls: type) -> type:
   return cls
 
 
-def deprecate(
+def deprecate(  # noqa: D103
     *,
     version: Optional[str] = None,
     alt: Optional[str] = None,
@@ -55,6 +55,7 @@ def deprecate(
 
 
 def is_jax_array(obj: Any) -> bool:
+  """Check if an object is a Jax array."""
   if hasattr(jax, "Array"):
     # https://jax.readthedocs.io/en/latest/jax_array_migration.html
     return isinstance(obj, (jax.Array, jnp.DeviceArray))

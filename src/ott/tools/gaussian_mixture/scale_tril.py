@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -196,13 +196,13 @@ class ScaleTriL:
     m = self.gaussian_map(dest_scale)
     return (m @ points.T).T
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.params,)
     aux_data = {'size': self.size}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):

@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -85,31 +85,31 @@ class GaussianMixturePair:
     self._lock_gmm1 = lock_gmm1
 
   @property
-  def dtype(self):
+  def dtype(self):  # noqa: D102
     return self.gmm0.dtype
 
   @property
-  def gmm0(self):
+  def gmm0(self):  # noqa: D102
     return self._gmm0
 
   @property
-  def gmm1(self):
+  def gmm1(self):  # noqa: D102
     return self._gmm1
 
   @property
-  def epsilon(self):
+  def epsilon(self):  # noqa: D102
     return self._epsilon
 
   @property
-  def tau(self):
+  def tau(self):  # noqa: D102
     return self._tau
 
   @property
-  def rho(self):
+  def rho(self):  # noqa: D102
     return self.epsilon * self.tau / (1. - self.tau)
 
   @property
-  def lock_gmm1(self):
+  def lock_gmm1(self):  # noqa: D102
     return self._lock_gmm1
 
   def get_bures_geometry(self) -> pointcloud.PointCloud:

@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -138,23 +138,28 @@ class QuadraticProblem:
 
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
-    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
-    from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
-    matrix for samples from `geom_yy`. `cost_xx` (resp. `cost_yy`) is the
-    cost matrix of `geom_xx` (resp. `geom_yy`). The cost term that
-    depends on these marginals can be written as:
+    Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
+    from :attr:`geom_xx` and :math:`q` the `[m,]` marginal of the
+    transport matrix for samples from :attr:`geom_yy`.
 
-    `marginal_dep_term` = `lin1`(`cost_xx`) :math:`p \mathbb{1}_{num_b}^T`
-                      + (`lin2`(`cost_yy`) :math:`q \mathbb{1}_{num_a}^T)^T`
+    When ``cost_xx`` (resp. ``cost_yy``) is the cost matrix of :attr:`geom_xx`
+    (resp. :attr:`geom_yy`), the cost term that depends on these marginals can
+    be written as:
+
+    .. math::
+
+      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T
+                      +  \mathbb{1}_{n}(\text{lin2}(\text{cost_yy}) q)^T
+
+    This helper function instantiates these two low-rank matrices and groups
+    them into a single low-rank cost geometry object.
 
     Args:
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
-       for samples from geom_xx
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
-       for samples from geom_yy
+      marginal_1: [n,], first marginal of transport matrix.
+      marginal_2: [m,], second marginal of transport matrix.
 
     Returns:
-      Low-rank geometry.
+      Low-rank geometry of rank 2, storing normalization constants.
     """
     if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
@@ -459,7 +464,7 @@ class QuadraticProblem:
     return ((not self.gw_unbalanced_correction) or
             (self.tau_a == 1.0 and self.tau_b == 1.0))
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
         'tau_a': self.tau_a,
         'tau_b': self.tau_b,
@@ -472,7 +477,7 @@ class QuadraticProblem:
     })
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     geoms, (a, b) = children[:3], children[3:]
     return cls(*geoms, a=a, b=b, **aux_data)
 

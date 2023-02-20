@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -88,6 +88,11 @@ class GWOutput(NamedTuple):
   @property
   def _rescale_factor(self) -> float:
     return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
+
+  @property
+  def primal_cost(self) -> float:
+    """Return transport cost of current linear OT solution at geometry."""
+    return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
 
 
 class GWState(NamedTuple):
@@ -338,7 +343,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     """Whether to initialize (low-rank) Sinkhorn using previous solutions."""
     return self.is_low_rank if self._warm_start is None else self._warm_start
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
     aux_data["quad_initializer"] = self.quad_initializer

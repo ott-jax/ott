@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -17,7 +30,11 @@ __all__ = [
 Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
-def safe_log(x: jnp.ndarray, *, eps: Optional[float] = None) -> jnp.ndarray:
+def safe_log(  # noqa: D103
+    x: jnp.ndarray,
+    *,
+    eps: Optional[float] = None
+) -> jnp.ndarray:
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
@@ -43,7 +60,9 @@ def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))
-def logsumexp(mat, axis=None, keepdims=False, b=None, return_sign=False):
+def logsumexp(  # noqa: D103
+    mat, axis=None, keepdims=False, b=None, return_sign=False
+):
   return jax.scipy.special.logsumexp(
       mat, axis=axis, keepdims=keepdims, b=b, return_sign=return_sign
   )
@@ -98,4 +117,14 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 def barycentric_projection(
     matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
 ) -> jnp.ndarray:
+  """Compute the barycentric projection of a matrix.
+
+  Args:
+    matrix: a matrix of shape (n, m)
+    y: a vector of shape (m,)
+    cost_fn: a CostFn instance.
+
+  Returns:
+    a vector of shape (n,) containing the barycentric projection of matrix.
+  """
   return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)

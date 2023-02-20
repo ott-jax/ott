@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,16 +17,14 @@ import collections
 import functools
 from typing import Any
 
-import ml_collections
-import tensorflow_datasets as tfds
-
 import flax
 import jax
 import jax.numpy as jnp
+import ml_collections
+import tensorflow_datasets as tfds
 from flax import jax_utils
 from flax.metrics import tensorboard
 from flax.training import checkpoints, common_utils
-
 from ott.examples.soft_error import data, losses
 from ott.examples.soft_error import model as model_lib
 

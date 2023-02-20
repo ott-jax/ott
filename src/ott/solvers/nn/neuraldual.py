@@ -1,3 +1,5 @@
+# Copyright OTT-JAX
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,7 +14,16 @@
 """A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
-from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -206,7 +217,8 @@ class W2NeuralDual:
     else:
       if self.parallel_updates:
         warnings.warn(
-            'parallel_updates set to True but disabling it because num_inner_iters>1',
+            'parallel_updates set to True but disabling it '
+            'because num_inner_iters>1',
             stacklevel=2
         )
       if self.back_and_forth:
@@ -219,7 +231,7 @@ class W2NeuralDual:
       self.valid_step_g = self.get_step_fn(train=False, to_optimize="g")
       self.train_fn = self.train_neuraldual_alternating
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       trainloader_source: Iterable[jnp.ndarray],
       trainloader_target: Iterable[jnp.ndarray],

@@ -1,10 +1,10 @@
-# Copyright 2022 The OTT Authors
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -214,7 +214,7 @@ class SortingInitializer(DefaultInitializer):
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
         'tolerance': self.tolerance,
         'max_iter': self.max_iter,
