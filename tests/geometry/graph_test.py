@@ -406,6 +406,7 @@ class TestGraph:
 
     gt_geom = gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph(G, t=eps)
+
     fn = jax.jit(callback) if jit else callback
 
     gt_out = fn(gt_geom)

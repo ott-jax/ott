@@ -121,7 +121,9 @@ class Grid(geometry.Geometry):
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
       geom = pointcloud.PointCloud(
-          x_values, cost_fn=cost_fn, epsilon=self._epsilon_init
+          x_values,
+          cost_fn=cost_fn,
+          epsilon=self._epsilon,
       )
       geometries.append(geom)
     return geometries
@@ -376,8 +378,7 @@ class Grid(geometry.Geometry):
     Returns:
       :class:`~ott.geometry.low_rank.LRCGeometry` object.
     """
-    cost_1 = []
-    cost_2 = []
+    cost_1, cost_2 = [], []
     for dimension, geom in enumerate(self.geometries):
       # An overall low-rank conversion of the cost matrix on a grid, to an
       # object of :class:`~ott.geometry.low_rank.LRCGeometry`, necesitates an
@@ -407,11 +408,8 @@ class Grid(geometry.Geometry):
         cost_1=cost_1,
         cost_2=cost_2,
         scale_factor=scale,
-        epsilon=self._epsilon_init,
-        relative_epsilon=self._relative_epsilon,
-        scale=self._scale_epsilon,
+        epsilon=self._epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,
         tgt_mask=self.tgt_mask,
-        **self._kwargs
     )

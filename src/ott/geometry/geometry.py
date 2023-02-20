@@ -49,16 +49,15 @@ class Geometry:
       costs.
     kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
       x m kernel values.
-    epsilon: a regularization parameter.
+    epsilon: a regularization parameter. TODO
       If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
       other parameters below are ignored in practice. If the
       parameter is a float, then this is understood to be the regularization
       that is needed, unless ``relative_epsilon`` below is ``True``, in which
       case ``epsilon`` is understood as a normalized quantity, to be scaled by
-      the mean value of the :attr:`cost_matrix`.
+      the :attr:`mean_cost_matrix`.
     relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood as mean value of :attr:`cost_matrix`.
-    scale_epsilon: the scale multiplier for epsilon.
+      here understood the value of :attr:`mean_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -67,7 +66,6 @@ class Geometry:
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
-    kwargs: additional kwargs for epsilon scheduler.
 
   Note:
     When defining a ``Geometry`` through a ``cost_matrix``, it is important to
@@ -80,57 +78,37 @@ class Geometry:
       self,
       cost_matrix: Optional[jnp.ndarray] = None,
       kernel_matrix: Optional[jnp.ndarray] = None,
-      epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
+      epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
-      scale_epsilon: Optional[float] = None,
-      src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None,
       scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
                                                   'median']] = 1.0,
-      **kwargs: Any,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
   ):
+    """
+    if eps=None and rel_eps=(None,True) -> target=0.05 scale_cost=mean
+    if eps=None and rel_eps=False -> target=0.05, scale_cost=1.0
+    if eps=not None, rel_eps=(None,False) -> target=eps, scale_cost=1.0
+    if eps=not None, rel_eps=True-> target=eps, scale_eps=mean
+    """
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-    self._epsilon_init = epsilon
+
+    if epsilon is None or isinstance(epsilon,
+                                     float) or utils.is_jax_array(epsilon):
+      epsilon = epsilon_scheduler.Epsilon(epsilon)
+    self._epsilon = epsilon
     self._relative_epsilon = relative_epsilon
-    self._scale_epsilon = scale_epsilon
+
     self._scale_cost = "mean" if scale_cost is True else scale_cost
+
     self._src_mask = src_mask
     self._tgt_mask = tgt_mask
-    # Define default dictionary and update it with user's values.
-    self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
   @property
   def cost_rank(self) -> Optional[int]:
     """Output rank of cost matrix, if any was provided."""
     return None
-
-  @property
-  def scale_epsilon(self) -> float:
-    """Compute the scale of the epsilon, potentially based on data."""
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return 1.0
-
-    rel = self._relative_epsilon
-    trigger = ((self._scale_epsilon is None) and
-               ((rel is None and self._epsilon_init is None) or rel))
-
-    if (self._scale_epsilon is None) and (trigger is not None):  # for dry run
-      return jnp.where(
-          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
-      )
-    else:
-      return self._scale_epsilon
-
-  @property
-  def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    """Return epsilon scheduler, either passed directly or by building it."""
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return self._epsilon_init
-    eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
-    return epsilon_scheduler.Epsilon.make(
-        eps, scale_epsilon=self.scale_epsilon, **self._kwargs
-    )
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
@@ -165,9 +143,31 @@ class Geometry:
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
+  def _scaled_epsilon(self) -> epsilon_scheduler.Epsilon:
+    if isinstance(self._epsilon, epsilon_scheduler.Epsilon):
+      # return self._epsilon
+      (target, scale_eps, _, _), _ = self._epsilon.tree_flatten()
+    else:
+      target, scale_eps = self._epsilon, None
+
+    rel = self._relative_epsilon
+    if scale_eps is None:
+      trigger = rel is True or (rel is None and target is None)
+      scale_eps = jnp.where(
+          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
+      )
+
+    if isinstance(self._epsilon, epsilon_scheduler.Epsilon):
+      return self._epsilon.set(scale_epsilon=scale_eps)
+
+    return epsilon_scheduler.Epsilon(
+        target=5e-2 if target is None else target, scale_epsilon=scale_eps
+    )
+
+  @property
   def epsilon(self) -> float:
     """Epsilon regularization value."""
-    return self._epsilon.target
+    return self._scaled_epsilon.target
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -232,11 +232,21 @@ class Geometry:
 
   def copy_epsilon(self, other: 'Geometry') -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
-    scheduler = other._epsilon
-    self._epsilon_init = scheduler._target_init
-    self._relative_epsilon = False
-    self._scale_epsilon = other.scale_epsilon
-    return self
+    other_epsilon = other._scaled_epsilon
+    children, aux_data = self.tree_flatten()
+
+    new_children = []
+    for child in children:
+      # TODO(mcihalk8): not always true
+      if isinstance(child, epsilon_scheduler.Epsilon):
+        child = child.set(
+            target=other_epsilon._target_init,
+            scale_epsilon=other_epsilon._scale_epsilon
+        )
+      new_children.append(child)
+
+    aux_data["relative_epsilon"] = False
+    return type(self).tree_unflatten(aux_data, new_children)
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
@@ -383,7 +393,7 @@ class Geometry:
     Returns:
       new potential value, g if axis=0, f if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self._scaled_epsilon.at(iteration)
     app_lse = self.apply_lse_kernel(f, g, eps, axis=axis)[0]
     return eps * log_marginal - jnp.where(jnp.isfinite(app_lse), app_lse, 0)
 
@@ -405,7 +415,7 @@ class Geometry:
     Returns:
       new scaling vector, of size num_b if axis=0, num_a if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self._scaled_epsilon.at(iteration)
     app_kernel = self.apply_kernel(scaling, eps, axis=axis)
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
@@ -722,12 +732,10 @@ class Geometry:
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
-        epsilon=self._epsilon_init,
+        epsilon=self._epsilon,
         relative_epsilon=self._relative_epsilon,
-        scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
         scale_factor=scale,
-        **self._kwargs
     )
 
   def subset(
@@ -759,7 +767,7 @@ class Geometry:
       return arr
 
     return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True
     )
 
   def mask(
@@ -819,8 +827,7 @@ class Geometry:
       propagate_mask: bool,
       **kwargs: Any,
   ) -> "Geometry":
-    (cost, kernel, *children, src_mask, tgt_mask,
-     kws), aux_data = self.tree_flatten()
+    (cost, kernel, eps, src_mask, tgt_mask), aux_data = self.tree_flatten()
     cost = fn(cost, src_ixs, tgt_ixs)
     kernel = fn(kernel, src_ixs, tgt_ixs)
     if propagate_mask:
@@ -831,7 +838,7 @@ class Geometry:
 
     aux_data = {**aux_data, **kwargs}
     return type(self).tree_unflatten(
-        aux_data, [cost, kernel] + children + [src_mask, tgt_mask, kws]
+        aux_data, [cost, kernel, eps, src_mask, tgt_mask]
     )
 
   @property
@@ -902,17 +909,19 @@ class Geometry:
 
   def tree_flatten(self):  # noqa: D102
     return (
-        self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._scale_epsilon, self._src_mask,
-        self._tgt_mask, self._kwargs
+        self._cost_matrix, self._kernel_matrix, self._epsilon, self._src_mask,
+        self._tgt_mask
     ), {
-        'scale_cost': self._scale_cost
+        "scale_cost": self._scale_cost,
+        "relative_epsilon": self._relative_epsilon
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    *args, kwargs = children
-    return cls(*args, **kwargs, **aux_data)
+    cost, kernel, eps, src_mask, tgt_mask = children
+    return cls(
+        cost, kernel, eps, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
+    )
 
 
 def is_affine(fn) -> bool:
