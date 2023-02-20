@@ -142,8 +142,8 @@ class Geometry:
     else:
       target, scale_eps = self._unscaled_epsilon, None
 
-    rel = self._relative_epsilon
     if scale_eps is None:
+      rel = self._relative_epsilon
       trigger = rel is True or (rel is None and target is None)
       scale_eps = jnp.where(
           trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
