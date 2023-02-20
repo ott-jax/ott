@@ -17,7 +17,7 @@ Linear Optimal Transport
     notebooks/OTT_&_POT
     notebooks/Hessians
     notebooks/LRSinkhorn
-    notebooks/sinkhorn_divergence
+    notebooks/sinkhorn_divergence_gradient_flow
 
 Barycenters
 ^^^^^^^^^^^
