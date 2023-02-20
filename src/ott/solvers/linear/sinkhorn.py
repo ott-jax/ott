@@ -701,7 +701,7 @@ class Sinkhorn:
       jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      initializer: Union[Literal["default", "gaussian", "sorting"],
+      initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
                          init_lib.SinkhornInitializer] = "default",
       kwargs_init: Optional[Mapping[str, Any]] = None,
   ):
@@ -996,6 +996,8 @@ class Sinkhorn:
       return init_lib.GaussianInitializer()
     if self.initializer == "sorting":
       return init_lib.SortingInitializer(**self.kwargs_init)
+    if self.initializer == "subsample":
+      return init_lib.SubsampleInitializer(**self.kwargs_init)
     raise NotImplementedError(
         f"Initializer `{self.initializer}` is not yet implemented."
     )

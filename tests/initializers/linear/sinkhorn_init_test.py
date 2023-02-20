@@ -106,7 +106,9 @@ def run_sinkhorn(
 
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   prob = linear_problem.LinearProblem(geom, a, b)
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init)
+  # can jit initializer + solver or just solver, but not both
+  # setting solver to not jit, and testing just jitting everyting
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init, jit=False)
   return solver(prob)
 
 
@@ -251,10 +253,15 @@ class TestSinkhornInitializers:
     if jit:
       run_fn = jax.jit(
           run_sinkhorn,
+          static_argnames=["initializer", "lse_mode"]
+      )
+      sub_run_fn = jax.jit(
+          run_sinkhorn,
           static_argnames=["initializer", "lse_mode", "subsample_n"]
       )
     else:
       run_fn = run_sinkhorn
+      sub_run_fn = run_sinkhorn
 
     # run sinkhorn
     default_out = run_fn(
@@ -268,7 +275,7 @@ class TestSinkhornInitializers:
     )
 
     if initializer == "subsample":
-      init_out = run_fn(
+      init_out = sub_run_fn(
           x=ot_problem.geom.x,
           y=ot_problem.geom.y,
           initializer=initializer,

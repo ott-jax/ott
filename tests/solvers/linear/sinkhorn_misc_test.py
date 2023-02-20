@@ -223,7 +223,7 @@ class TestSinkhornOnline:
           self.x, self.y, epsilon=epsilon, batch_size=batch_size
       )
       prob = linear_problem.LinearProblem(geom, self.a, self.b)
-      solver = sinkhorn.Sinkhorn(threshold=threshold)
+      solver = sinkhorn.Sinkhorn(threshold=threshold, jit=not jit)
       return solver(prob)
 
     threshold = 1e-1

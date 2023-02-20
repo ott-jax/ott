@@ -13,6 +13,7 @@
 # limitations under the License.
 """Sinkhorn initializers."""
 import abc
+import functools
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
@@ -333,6 +334,7 @@ def _coordinate_update(
   return jax.lax.fori_loop(0, len(f), body_fn, f)
 
 
+@functools.partial(jax.jit, static_argnums=(3,))
 def subsample(
     rng: jax.random.PRNGKey, array: jnp.ndarray, weight: jnp.ndarray,
     subsample_n: int
@@ -365,28 +367,22 @@ class SubsampleInitializer(DefaultInitializer):
 
   Args:
     subsample_n: number of points to subsample from each point cloud.
-    subsample_n_y: overwrites subsample_n for y. If None, use subsample_n for both.
   """
 
   def __init__(
       self,
       subsample_n: int,
-      subsample_n_y: Optional[int] = None,
   ):
     super().__init__()
 
     self.subsample_n = subsample_n
-    if subsample_n_y is None:
-      self.subsample_n_y = self.subsample_n
-    else:
-      self.subsample_n_y = subsample_n_y
 
   def solve_sub_problem(self, sub_x, sub_y, epsilon):
     """Solve subproblem with  Sinkhorn.
 
     Args:
       sub_x: subsampled x, array of size subsample_n x d.
-      sub_y: subsampled y, array of size subsample_n_y x d.
+      sub_y: subsampled y, array of size subsample_n x d.
       epsilon: regularization parameter for subsampled point cloud.
 
     Returns:
@@ -397,8 +393,8 @@ class SubsampleInitializer(DefaultInitializer):
     # can extract cost matrix entries or recompute
     sub_geom = pointcloud.PointCloud(x=sub_x, y=sub_y, epsilon=epsilon)
     ot_prob = linear_problem.LinearProblem(sub_geom)
-    # Create a Sinkhorn solver
-    solver = sinkhorn.Sinkhorn()
+    # Create a Sinkhorn solver, jit whole initializer not Sinkhorn solver
+    solver = sinkhorn.Sinkhorn(jit=False)
     return solver(ot_prob)
 
   def init_dual_a(
@@ -426,7 +422,7 @@ class SubsampleInitializer(DefaultInitializer):
     rng_x, rng_y = jax.random.split(rng)
 
     sub_x = subsample(rng_x, x, a, self.subsample_n)
-    sub_y = subsample(rng_y, y, b, self.subsample_n_y)
+    sub_y = subsample(rng_y, y, b, self.subsample_n)
 
     # solve sub problem
     subsample_sink_out = self.solve_sub_problem(
