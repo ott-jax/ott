@@ -35,7 +35,9 @@ class Epsilon:
 
   Args:
     target: the epsilon regularizer that is targeted.
+      If ``None``, use :math:`0.05`.
     scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
+      If ``None``, use :math:`1`.
     init: initial value when using epsilon scheduling, understood as multiple
       of target value. if passed, ``int * decay ** iteration`` will be used
       to rescale target.
@@ -58,9 +60,8 @@ class Epsilon:
   def target(self) -> float:
     """Return the final regularizer value of scheduler."""
     target = 5e-2 if self._target_init is None else self._target_init
-    if self._scale_epsilon is None:
-      return target
-    return target * self._scale_epsilon
+    scale = 1.0 if self._scale_epsilon is None else self._scale_epsilon
+    return scale * target
 
   def at(self, iteration: Optional[int] = 1) -> float:
     """Return (intermediate) regularizer value at a given iteration."""

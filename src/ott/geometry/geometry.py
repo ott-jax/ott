@@ -45,19 +45,15 @@ class Geometry:
   basic operations to be run with the Sinkhorn algorithm.
 
   Args:
-    cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
-      costs.
-    kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
-      x m kernel values.
-    epsilon: a regularization parameter. TODO(michalk8): update the docstring
-      If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
-      other parameters below are ignored in practice. If the
-      parameter is a float, then this is understood to be the regularization
-      that is needed, unless ``relative_epsilon`` below is ``True``, in which
-      case ``epsilon`` is understood as a normalized quantity, to be scaled by
-      the :attr:`mean_cost_matrix`.
+    cost_matrix: Cost matrix storing ``[n, m]`` costs.
+    kernel_matrix: Kernel matrix storing ``[n, m]`` kernel values.
+    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+      ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood the value of :attr:`mean_cost_matrix`.
+      here understood the value of the :attr:`mean_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -68,10 +64,11 @@ class Geometry:
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
 
   Note:
-    When defining a ``Geometry`` through a ``cost_matrix``, it is important to
-    select an ``epsilon`` regularization parameter that is meaningful. That
-    parameter can be provided by the user, or assigned a default value through
-    a simple rule, using the :attr:`mean_cost_matrix`.
+    When defining a :class:`~ott.geometry.geometry.Geometry`` through a
+    ``cost_matrix``, it is important to select an ``epsilon`` regularization
+    parameter that is meaningful. That parameter can be provided by the user,
+    or assigned a default value through a simple rule,
+    using the :attr:`mean_cost_matrix`.
   """
 
   def __init__(
