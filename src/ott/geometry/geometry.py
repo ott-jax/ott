@@ -671,19 +671,14 @@ class Geometry:
       i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-      # force `batch_size=None` since `cost_matrix` would be `None`
-      ci_star = self.subset(
-          i_star, None, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(
-          None, j_star, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
       row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
-      s = self.subset(row_ixs, None, batch_size=None).cost_matrix
+      s = self.subset(row_ixs, None).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
@@ -704,9 +699,7 @@ class Geometry:
       col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
-      A_trans = self.subset(
-          None, col_ixs, batch_size=None
-      ).cost_matrix * inv_scale
+      A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
       B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
       M = jnp.linalg.inv(B.T @ B)  # (k, k)
       V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
@@ -750,12 +743,12 @@ class Geometry:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
-    # TODO(michalk8): pass kwargs?
     return self._mask_subset_helper(
         src_ixs,
         tgt_ixs,
         fn=subset_fn,
         propagate_mask=True,
+        **kwargs,
     )
 
   def mask(
