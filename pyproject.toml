@@ -177,7 +177,8 @@ legacy_tox_ini = """
     pass_env = CUDA_*,PYTEST_*,CI
     deps = py{38,39,310}: scikit-sparse>=0.4.6
     commands =
-        gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
             --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
@@ -215,7 +216,7 @@ legacy_tox_ini = """
     commands =
         sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
     commands_post =
-        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print(pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
