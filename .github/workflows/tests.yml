@@ -32,6 +32,7 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       run: |
         sudo apt-get install libsuitesparse-dev
+
     - name: Install brew dependencies
       if: ${{ runner.os == 'macOS' }}
       run: |

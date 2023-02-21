@@ -169,16 +169,17 @@ ignore_path = ['docs/**/_autosummary']
 legacy_tox_ini = """
     [tox]
     min_version = 4.0
-    env_list = lint-code,py{38,39,310,311}
+    env_list = lint-code,py{3.8,3.9,3.10,3.11}
     skip_missing_interpreters = true
 
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
-    deps = py{38,39,310}: scikit-sparse>=0.4.6
-    commands =
+    deps = py{3.8,3.9,3.10}: scikit-sparse>=0.4.6
+    commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
+    commands =
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
             --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
