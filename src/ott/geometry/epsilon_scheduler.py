@@ -42,30 +42,32 @@ class Epsilon:
     decay: geometric decay factor, smaller than 1.
   """
 
-  # TODO(michalk8): directly use the defaults instead of `None`
   def __init__(
       self,
       target: Optional[float] = None,
       scale_epsilon: Optional[float] = None,
-      init: Optional[float] = None,
-      decay: Optional[float] = None
+      init: float = 1.0,
+      decay: float = 1.0
   ):
-    self._target_init = .01 if target is None else target
-    self._scale_epsilon = 1.0 if scale_epsilon is None else scale_epsilon
-    self._init = 1.0 if init is None else init
-    self._decay = 1.0 if decay is None else decay
+    self._target_init = target
+    self._scale_epsilon = scale_epsilon
+    self._init = init
+    self._decay = decay
 
   @property
   def target(self) -> float:
     """Return the final regularizer value of scheduler."""
-    return self._target_init * self._scale_epsilon
+    target = 5e-2 if self._target_init is None else self._target_init
+    if self._scale_epsilon is None:
+      return target
+    return target * self._scale_epsilon
 
   def at(self, iteration: Optional[int] = 1) -> float:
     """Return (intermediate) regularizer value at a given iteration."""
     if iteration is None:
       return self.target
     # check the decay is smaller than 1.0.
-    decay = jnp.where(self._decay < 1.0, self._decay, 1.0)
+    decay = jnp.minimum(self._decay, 1.0)
     # the multiple is either 1.0 or a larger init value that is decayed.
     multiple = jnp.maximum(self._init * (decay ** iteration), 1.0)
     return multiple * self.target
@@ -78,6 +80,17 @@ class Epsilon:
     """Return whether the scheduler is done at a given iteration."""
     return self.done(self.at(iteration))
 
+  def set(self, **kwargs: Any) -> "Epsilon":
+    """TODO."""
+    kwargs = {
+        "target": self._target_init,
+        "scale_epsilon": self._scale_epsilon,
+        "init": self._init,
+        "decay": self._decay,
+        **kwargs
+    }
+    return Epsilon(**kwargs)
+
   def tree_flatten(self):  # noqa: D102
     return (
         self._target_init, self._scale_epsilon, self._init, self._decay
@@ -87,11 +100,3 @@ class Epsilon:
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del aux_data
     return cls(*children)
-
-  @classmethod
-  def make(cls, *args: Any, **kwargs: Any) -> "Epsilon":
-    """Create or return an Epsilon instance."""
-    if isinstance(args[0], cls):
-      return args[0]
-    else:
-      return cls(*args, **kwargs)
