@@ -45,8 +45,8 @@ class Geometry:
   basic operations to be run with the Sinkhorn algorithm.
 
   Args:
-    cost_matrix: Cost matrix storing ``[n, m]`` costs.
-    kernel_matrix: Kernel matrix storing ``[n, m]`` kernel values.
+    cost_matrix: Cost matrix of shape ``[n, m]``.
+    kernel_matrix: Kernel matrix of shape ``[n, m]``.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
       ``relative_epsilon = True`` or ``relative_epsilon = None`` and
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
@@ -64,7 +64,7 @@ class Geometry:
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
 
   Note:
-    When defining a :class:`~ott.geometry.geometry.Geometry`` through a
+    When defining a :class:`~ott.geometry.geometry.Geometry` through a
     ``cost_matrix``, it is important to select an ``epsilon`` regularization
     parameter that is meaningful. That parameter can be provided by the user,
     or assigned a default value through a simple rule,
