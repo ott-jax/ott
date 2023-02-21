@@ -563,17 +563,17 @@ class PointCloud(geometry.Geometry):
     )
 
   def tree_flatten(self):  # noqa: D102
-    return ([
+    return (
         self.x,
         self.y,
         self._src_mask,
         self._tgt_mask,
         self._epsilon_init,
         self.cost_fn,
-    ], {
+    ), {
         'batch_size': self._batch_size,
         'scale_cost': self._scale_cost
-    })
+    }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
