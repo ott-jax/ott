@@ -301,10 +301,15 @@ class LRCGeometry(geometry.Geometry):
     )
 
   def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
-    assert isinstance(other, LRCGeometry), type(other)
-    return type(self)(
+    if not isinstance(other, LRCGeometry):
+      return NotImplemented
+    return LRCGeometry(
         cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
         cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
+        bias=self._bias + other._bias,
+        # already included in `cost_{1,2}`
+        scale_factor=1.0,
+        scale_cost=1.0,
     )
 
   @property
@@ -317,9 +322,9 @@ class LRCGeometry(geometry.Geometry):
         self._cost_2,
         self._src_mask,
         self._tgt_mask,
+        self._epsilon_init,
         self._bias,
         self._scale_factor,
-        # TODO(michalk8): eps
     ), {
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
@@ -327,12 +332,13 @@ class LRCGeometry(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    c1, c2, src_mask, tgt_mask, bias, scale_factor = children
+    c1, c2, src_mask, tgt_mask, epsilon, bias, scale_factor = children
     return cls(
         c1,
         c2,
         bias=bias,
         scale_factor=scale_factor,
+        epsilon=epsilon,
         src_mask=src_mask,
         tgt_mask=tgt_mask,
         **aux_data

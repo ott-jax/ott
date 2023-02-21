@@ -45,19 +45,15 @@ class Geometry:
   basic operations to be run with the Sinkhorn algorithm.
 
   Args:
-    cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
-      costs.
-    kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
-      x m kernel values.
-    epsilon: a regularization parameter. TODO(michalk8): update the docstring
-      If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
-      other parameters below are ignored in practice. If the
-      parameter is a float, then this is understood to be the regularization
-      that is needed, unless ``relative_epsilon`` below is ``True``, in which
-      case ``epsilon`` is understood as a normalized quantity, to be scaled by
-      the :attr:`mean_cost_matrix`.
+    cost_matrix: Cost matrix of shape ``[n, m]``.
+    kernel_matrix: Kernel matrix of shape ``[n, m]``.
+    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+      ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood the value of :attr:`mean_cost_matrix`.
+      here understood the value of the :attr:`mean_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -68,10 +64,11 @@ class Geometry:
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
 
   Note:
-    When defining a ``Geometry`` through a ``cost_matrix``, it is important to
-    select an ``epsilon`` regularization parameter that is meaningful. That
-    parameter can be provided by the user, or assigned a default value through
-    a simple rule, using the :attr:`mean_cost_matrix`.
+    When defining a :class:`~ott.geometry.geometry.Geometry` through a
+    ``cost_matrix``, it is important to select an ``epsilon`` regularization
+    parameter that is meaningful. That parameter can be provided by the user,
+    or assigned a default value through a simple rule,
+    using the :attr:`mean_cost_matrix`.
   """
 
   def __init__(
@@ -674,19 +671,14 @@ class Geometry:
       i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
 
-      # force `batch_size=None` since `cost_matrix` would be `None`
-      ci_star = self.subset(
-          i_star, None, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(
-          None, j_star, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
       row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
-      s = self.subset(row_ixs, None, batch_size=None).cost_matrix
+      s = self.subset(row_ixs, None).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
@@ -707,9 +699,7 @@ class Geometry:
       col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
-      A_trans = self.subset(
-          None, col_ixs, batch_size=None
-      ).cost_matrix * inv_scale
+      A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
       B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
       M = jnp.linalg.inv(B.T @ B)  # (k, k)
       V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
@@ -754,7 +744,11 @@ class Geometry:
       return arr
 
     return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True
+        src_ixs,
+        tgt_ixs,
+        fn=subset_fn,
+        propagate_mask=True,
+        **kwargs,
     )
 
   def mask(
