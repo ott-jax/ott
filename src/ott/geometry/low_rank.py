@@ -315,11 +315,11 @@ class LRCGeometry(geometry.Geometry):
     return (
         self._cost_1,
         self._cost_2,
+        self._epsilon,
         self._src_mask,
         self._tgt_mask,
         self._bias,
         self._scale_factor,
-        # TODO(michalk8): eps
     ), {
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
@@ -327,10 +327,11 @@ class LRCGeometry(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    c1, c2, src_mask, tgt_mask, bias, scale_factor = children
+    c1, c2, epsilon, src_mask, tgt_mask, bias, scale_factor = children
     return cls(
         c1,
         c2,
+        epsilon=epsilon,
         bias=bias,
         scale_factor=scale_factor,
         src_mask=src_mask,

@@ -81,7 +81,7 @@ class Epsilon:
     return self.done(self.at(iteration))
 
   def set(self, **kwargs: Any) -> "Epsilon":
-    """TODO."""
+    """Return a copy of self, with potential overwrites."""
     kwargs = {
         "target": self._target_init,
         "scale_epsilon": self._scale_epsilon,
