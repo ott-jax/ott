@@ -409,6 +409,7 @@ class Grid(geometry.Geometry):
         cost_2=cost_2,
         scale_factor=scale,
         epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,
         tgt_mask=self.tgt_mask,

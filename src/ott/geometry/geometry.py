@@ -750,8 +750,12 @@ class Geometry:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
       return arr
 
+    # TODO(michalk8): pass kwargs?
     return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True
+        src_ixs,
+        tgt_ixs,
+        fn=subset_fn,
+        propagate_mask=True,
     )
 
   def mask(

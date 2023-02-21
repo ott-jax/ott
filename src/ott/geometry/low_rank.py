@@ -301,7 +301,9 @@ class LRCGeometry(geometry.Geometry):
     )
 
   def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
-    assert isinstance(other, LRCGeometry), type(other)
+    if not isinstance(other, LRCGeometry):
+      return NotImplemented
+    # TODO(michalk8): bias + scale
     return type(self)(
         cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
         cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
@@ -315,7 +317,7 @@ class LRCGeometry(geometry.Geometry):
     return (
         self._cost_1,
         self._cost_2,
-        self._epsilon,
+        self._epsilon_init,
         self._src_mask,
         self._tgt_mask,
         self._bias,
