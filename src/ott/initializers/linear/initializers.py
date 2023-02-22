@@ -19,10 +19,13 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import pointcloud
+from ott.geometry import geometry, pointcloud
 from ott.problems.linear import linear_problem
 
-__all__ = ["DefaultInitializer", "GaussianInitializer", "SortingInitializer"]
+__all__ = [
+    "DefaultInitializer", "GaussianInitializer", "SortingInitializer",
+    "SubsampleInitializer"
+]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -34,7 +37,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling f_u."""
 
@@ -43,7 +46,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling g_v."""
 
@@ -53,7 +56,7 @@ class SinkhornInitializer(abc.ABC):
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0),
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
@@ -106,7 +109,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
@@ -118,6 +121,7 @@ class DefaultInitializer(SinkhornInitializer):
     Returns:
       potential/scaling, array of size n.
     """
+    del rng
     a = ot_prob.a
     init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
     return init_dual_a
@@ -126,7 +130,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
@@ -157,7 +161,7 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Gaussian initialization function.
 
@@ -169,6 +173,7 @@ class GaussianInitializer(DefaultInitializer):
     Returns:
       potential/scaling, array of size n.
     """
+    del rng
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
@@ -262,7 +267,7 @@ class SortingInitializer(DefaultInitializer):
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.random.PRNGKey] = None,
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0),
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
 
@@ -276,6 +281,7 @@ class SortingInitializer(DefaultInitializer):
     Returns:
       potential/scaling f_u, array of size n.
     """
+    del rng
     assert not ot_prob.geom.is_online, \
         "Sorting initializer does not work for online geometry."
     # check for sorted x, y requires point cloud and could slow initializer
@@ -334,29 +340,6 @@ def _coordinate_update(
   return jax.lax.fori_loop(0, len(f), body_fn, f)
 
 
-@functools.partial(jax.jit, static_argnums=(3,))
-def subsample(
-    rng: jax.random.PRNGKey, array: jnp.ndarray, weight: jnp.ndarray,
-    subsample_n: int
-):
-  """Subsample point cloud to uniform weighted points.
-
-  Args:
-    rng: random number generator.
-    array: point cloud, array of size N x d.
-    weight: array of size N.
-    subsample_n: number of points to subsample.
-
-  Returns:
-    subsampled point cloud, array of size subsample_n x d.
-  """
-  N = array.shape[0]
-  indices = jax.random.choice(
-      key=rng, a=N, shape=(subsample_n,), replace=True, p=weight, axis=0
-  )
-  return array[indices]
-
-
 @jax.tree_util.register_pytree_node_class
 class SubsampleInitializer(DefaultInitializer):
   """Subsample initializer :cite:`thornton2022rethinking:22`.
@@ -372,30 +355,14 @@ class SubsampleInitializer(DefaultInitializer):
   def __init__(
       self,
       subsample_n: int,
+      subsample_n_y: Optional[int] = None,
   ):
     super().__init__()
-
     self.subsample_n = subsample_n
-
-  def solve_sub_problem(self, sub_x, sub_y, epsilon):
-    """Solve subproblem with  Sinkhorn.
-
-    Args:
-      sub_x: subsampled x, array of size subsample_n x d.
-      sub_y: subsampled y, array of size subsample_n x d.
-      epsilon: regularization parameter for subsampled point cloud.
-
-    Returns:
-      Sinkhorn output object.
-    """
-    from ott.solvers.linear import sinkhorn
-
-    # can extract cost matrix entries or recompute
-    sub_geom = pointcloud.PointCloud(x=sub_x, y=sub_y, epsilon=epsilon)
-    ot_prob = linear_problem.LinearProblem(sub_geom)
-    # Create a Sinkhorn solver, jit whole initializer not Sinkhorn solver
-    solver = sinkhorn.Sinkhorn(jit=False)
-    return solver(ot_prob)
+    if subsample_n_y is None:
+      self.subsample_n_y = subsample_n
+    else:
+      self.subsample_n_y = subsample_n_y
 
   def init_dual_a(
       self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool,
@@ -411,6 +378,8 @@ class SubsampleInitializer(DefaultInitializer):
     Returns:
       potential/scaling, array of size n.
     """
+    from ott.solvers.linear import sinkhorn
+
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
     ), "Subsample initializer valid only for point clouds."
@@ -421,13 +390,19 @@ class SubsampleInitializer(DefaultInitializer):
     # subsample
     rng_x, rng_y = jax.random.split(rng)
 
-    sub_x = subsample(rng_x, x, a, self.subsample_n)
-    sub_y = subsample(rng_y, y, b, self.subsample_n)
-
-    # solve sub problem
-    subsample_sink_out = self.solve_sub_problem(
-        sub_x, sub_y, ot_prob.geom.epsilon
+    # get subsample indices of x, y
+    sub_x = jax.random.choice(
+        key=rng_x, a=x, shape=(self.subsample_n,), replace=True, p=a, axis=0
     )
+    sub_y = jax.random.choice(
+        key=rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
+    )
+
+    # create subsampled point cloud geometry
+    sub_geom = pointcloud.PointCloud(sub_x, sub_y, cost_fn=ot_prob.geom.cost_fn)
+
+    # run sinkhorn
+    subsample_sink_out = sinkhorn.solve(sub_geom)
 
     # interpolate potentials
     dual_potentials = subsample_sink_out.to_dual_potentials()
@@ -437,3 +412,9 @@ class SubsampleInitializer(DefaultInitializer):
         f_potential
     )
     return f_u
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+    return ([], {
+        'subsample_n': self.subsample_n,
+        'subsample_n_y': self.subsample_n_y,
+    })

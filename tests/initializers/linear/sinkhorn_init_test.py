@@ -108,7 +108,7 @@ def run_sinkhorn(
   prob = linear_problem.LinearProblem(geom, a, b)
   # can jit initializer + solver or just solver, but not both
   # setting solver to not jit, and testing just jitting everyting
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init, jit=False)
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init)
   return solver(prob)
 
 
