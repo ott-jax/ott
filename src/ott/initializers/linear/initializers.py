@@ -344,7 +344,7 @@ def _coordinate_update(
 class SubsampleInitializer(DefaultInitializer):
   """Subsample initializer :cite:`thornton2022rethinking:22`.
 
-  Subsample each point cloud, then compute closed from
+  Subsample each :class:~ott.geometry.point_cloud.PointCloud, then compute closed from
   Sinkhorn potential between subsampled approximations. Use this potential
   to initialize Sinkhorn potentials/scalings.
 
