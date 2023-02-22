@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, grid, pointcloud
+from ott.geometry import costs, geometry, grid, pointcloud, epsilon_scheduler
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import acceleration, sinkhorn
 
@@ -133,7 +133,8 @@ class TestSinkhorn:
       tau_b: float
   ):
     """Check that variations in init/decay work, and result in same solution."""
-    geom1 = pointcloud.PointCloud(self.x, self.y, init=init, decay=decay)
+    epsilon = epsilon_scheduler.Epsilon(init=init, decay=decay)
+    geom1 = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon)
     geom2 = pointcloud.PointCloud(self.x, self.y)
     run_fn = jax.jit(
         sinkhorn.solve,
@@ -164,6 +165,9 @@ class TestSinkhorn:
     )
     # recenter the problem, since in that case solution is only
     # valid up to additive constant in the balanced case
+
+    assert out_1.converged
+    assert out_2.converged
     f_1, f_2 = out_1.f, out_2.f
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 

@@ -485,11 +485,9 @@ class QuadraticProblem:
 def update_epsilon_unbalanced(
     epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
 ) -> epsilon_scheduler.Epsilon:
-  updated_epsilon = epsilon_scheduler.Epsilon.make(epsilon)
-  updated_epsilon._scale_epsilon = (
-      updated_epsilon._scale_epsilon * transport_mass
-  )
-  return updated_epsilon
+  if not isinstance(epsilon, epsilon_scheduler.Epsilon):
+    epsilon = epsilon_scheduler.Epsilon(epsilon, scale_epsilon=1.0)
+  return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
 def apply_cost(

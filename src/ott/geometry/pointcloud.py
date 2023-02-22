@@ -68,13 +68,6 @@ class PointCloud(geometry.Geometry):
                                 'median']] = 1.0,
       **kwargs: Any
   ):
-    # For reverse compatibility of deprecated parameter `power`.
-    power = kwargs.pop("power", None)
-    assert power is None or power == 1.0, (
-        "`power` option in `PointCloud` geometries is deprecated."
-        " Specify directly a `CostFn` with that power."
-    )
-
     super().__init__(**kwargs)
     self.x = x
     self.y = self.x if y is None else y
@@ -570,19 +563,29 @@ class PointCloud(geometry.Geometry):
     )
 
   def tree_flatten(self):  # noqa: D102
-    return ([self.x, self.y, self._src_mask, self._tgt_mask, self.cost_fn], {
-        'epsilon': self._epsilon_init,
-        'relative_epsilon': self._relative_epsilon,
-        'scale_epsilon': self._scale_epsilon,
+    return (
+        self.x,
+        self.y,
+        self._src_mask,
+        self._tgt_mask,
+        self._epsilon_init,
+        self.cost_fn,
+    ), {
         'batch_size': self._batch_size,
         'scale_cost': self._scale_cost
-    })
+    }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    x, y, src_mask, tgt_mask, cost_fn = children
+    x, y, src_mask, tgt_mask, epsilon, cost_fn = children
     return cls(
-        x, y, cost_fn=cost_fn, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
+        x,
+        y,
+        cost_fn=cost_fn,
+        src_mask=src_mask,
+        tgt_mask=tgt_mask,
+        epsilon=epsilon,
+        **aux_data
     )
 
   def _cosine_to_sqeucl(self) -> 'PointCloud':
@@ -642,11 +645,9 @@ class PointCloud(geometry.Geometry):
         scale_factor=scale,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,
         tgt_mask=self.tgt_mask,
-        **self._kwargs
     )
 
   def subset(  # noqa: D102

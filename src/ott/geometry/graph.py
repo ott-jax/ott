@@ -72,13 +72,12 @@ class Graph(geometry.Geometry):
                                 "crank_nicolson"] = "backward_euler",
       directed: bool = False,
       normalize: bool = False,
-      tol: float = -1.,
+      tol: float = -1.0,
       **kwargs: Any
   ):
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide a graph or a symmetric graph Laplacian."
-    # arbitrary epsilon; can't use `None` as `mean_cost_matrix` would be used
     super().__init__(epsilon=1., **kwargs)
     self._graph = graph
     self._lap = laplacian
@@ -354,21 +353,19 @@ class Graph(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [self._graph, self._lap, self.solver], {
-        "t": self._t,
+    return [self._graph, self._lap, self.solver, self._t], {
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
         "normalize": self.normalize,
         "tol": self._tol,
-        **self._kwargs,
     }
 
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "Graph":
-    graph, laplacian, solver = children
-    obj = cls(graph=graph, laplacian=laplacian, **aux_data)
+    graph, laplacian, solver, t = children
+    obj = cls(graph=graph, laplacian=laplacian, t=t, **aux_data)
     obj._solver = solver
     return obj

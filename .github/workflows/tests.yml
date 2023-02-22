@@ -14,14 +14,22 @@ concurrency:
 
 jobs:
   fast-tests:
-    name: Fast tests Python 3.9 on ubuntu-latest
+    name: Fast tests Python ${{ matrix.python-version }} ${{ matrix.jax-version }}
     runs-on: ubuntu-latest
+    # allow tests using latest Jax to fail
+    continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9']
+        jax-version: [jax-default, jax-latest]
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: ${{ matrix.python-version }}
 
     - name: Install apt dependencies
       if: ${{ runner.os == 'Linux' }}
@@ -40,11 +48,11 @@ jobs:
 
     - name: Setup environment
       run: |
-        tox -e py39 --notest -v
+        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --notest -v
 
     - name: Run tests
       run: |
-        tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
+        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
 
   gpu-tests:
     name: Fast GPU tests Python 3.8 on ubuntu-20.04
