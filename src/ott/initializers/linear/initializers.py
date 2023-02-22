@@ -356,13 +356,12 @@ class SubsampleInitializer(DefaultInitializer):
       self,
       subsample_n: int,
       subsample_n_y: Optional[int] = None,
+      sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
   ):
     super().__init__()
     self.subsample_n = subsample_n
-    if subsample_n_y is None:
-      self.subsample_n_y = subsample_n
-    else:
-      self.subsample_n_y = subsample_n_y
+    self.subsample_n_y = subsample_n_y or subsample_n
+    self.sinkhorn_kwargs = sinkhorn_kwargs or {}
 
   def init_dual_a(
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
@@ -400,7 +399,7 @@ class SubsampleInitializer(DefaultInitializer):
     sub_geom = pointcloud.PointCloud(sub_x, sub_y, cost_fn=ot_prob.geom.cost_fn)
 
     # run sinkhorn
-    subsample_sink_out = sinkhorn.solve(sub_geom)
+    subsample_sink_out = sinkhorn.solve(sub_geom, **self.sinkhorn_kwargs)
 
     # interpolate potentials
     dual_potentials = subsample_sink_out.to_dual_potentials()
