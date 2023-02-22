@@ -19,7 +19,6 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 import numpy as np
 
 from ott.math import fixed_point_loop, matrix_square_root
@@ -742,11 +741,24 @@ class UnbalancedBures(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class SoftDTW(CostFn):
-  """TODO."""
+  """Soft dynamic time warping (DTW).
 
-  def __init__(self, gamma: float, ground_cost: CostFn = SqEuclidean()):
+  Args:
+    gamma: Smoothing parameter.
+    ground_cost: Ground cost function. If ``None``,
+      use :class:`~ott.geometry.costs.SqEuclidean`.
+    debiased: TODO.
+  """
+
+  def __init__(
+      self,
+      gamma: float,
+      ground_cost: Optional[CostFn] = None,
+      debiased: bool = False
+  ):
     self.gamma = gamma
-    self.ground_cost = ground_cost
+    self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
+    self.debiased = debiased
 
   def _model_matrix(self, t1: jnp.ndarray, t2: jnp.ndarray) -> jnp.ndarray:
     t1 = t1[:, None] if t1.ndim == 1 else t1
@@ -764,7 +776,13 @@ class SoftDTW(CostFn):
 
     return model_matrix.T.at[mask.T].set(dist.ravel()).T
 
-  def pairwise(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    c_xy = self._compute(x, y)
+    if self.debiased:
+      return c_xy - 0.5 * (self._compute(x, x) + self._compute(y, y))
+    return c_xy
+
+  def _compute(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
 
     def body(
         carry: Tuple[jnp.ndarray, jnp.ndarray],
@@ -793,12 +811,11 @@ class SoftDTW(CostFn):
     return carry[1][-1]
 
   def tree_flatten(self):
-    return (self.gamma, self.ground_cost), None
+    return (self.gamma, self.ground_cost), {"debiased": self.debiased}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    del aux_data
-    return cls(*children)
+    return cls(*children, **aux_data)
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
