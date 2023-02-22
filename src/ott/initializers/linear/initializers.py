@@ -35,7 +35,7 @@ class SinkhornInitializer(abc.ABC):
   @abc.abstractmethod
   def init_dual_a(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -44,7 +44,7 @@ class SinkhornInitializer(abc.ABC):
   @abc.abstractmethod
   def init_dual_b(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -52,7 +52,7 @@ class SinkhornInitializer(abc.ABC):
 
   def __call__(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
@@ -107,7 +107,7 @@ class DefaultInitializer(SinkhornInitializer):
 
   def init_dual_a(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -128,7 +128,7 @@ class DefaultInitializer(SinkhornInitializer):
 
   def init_dual_b(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -159,7 +159,7 @@ class GaussianInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -264,7 +264,7 @@ class SortingInitializer(DefaultInitializer):
 
   def init_dual_a(
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       init_f: Optional[jnp.ndarray] = None,
       rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0),
@@ -365,7 +365,7 @@ class SubsampleInitializer(DefaultInitializer):
       self.subsample_n_y = subsample_n_y
 
   def init_dual_a(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool,
+      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
       rng: jax.random.PRNGKey
   ) -> jnp.ndarray:
     """Subsample initializer function.
