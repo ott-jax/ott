@@ -19,12 +19,23 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
+import numpy as np
 
 from ott.math import fixed_point_loop, matrix_square_root
 
 __all__ = [
-    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticL1",
-    "ElasticSTVS", "ElasticSqKOverlap", "Bures", "UnbalancedBures"
+    "PNormP",
+    "SqPNorm",
+    "Euclidean",
+    "SqEuclidean",
+    "Cosine",
+    "ElasticL1",
+    "ElasticSTVS",
+    "ElasticSqKOverlap",
+    "Bures",
+    "UnbalancedBures",
+    "SoftDTW",
 ]
 
 
@@ -726,6 +737,63 @@ class UnbalancedBures(CostFn):
     del children
     dim, sigma, gamma, kwargs = aux_data
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
+
+
+class SoftDTW(CostFn):
+
+  def __init__(self, gamma: float, ground_cost: CostFn = SqEuclidean()):
+    assert gamma > 0
+    self.gamma = gamma
+    self.ground_cost = ground_cost
+
+  def _model_matrix(self, t1: jnp.ndarray, t2: jnp.ndarray) -> jnp.ndarray:
+    t1 = t1[:, None] if t1.ndim == 1 else t1
+    t2 = t2[:, None] if t2.ndim == 1 else t2
+    dist = self.ground_cost.all_pairs(t1, t2)
+
+    n, m = dist.shape
+    if n < m:
+      dist = dist.T
+      n, m = m, n
+
+    model_matrix = jnp.full((n + m - 1, n), fill_value=jnp.inf)
+    mask = np.tri(n + m - 1, n, k=0, dtype=bool)
+    mask = mask & mask[::-1, ::-1]
+
+    return model_matrix.T.at[mask.T].set(dist.ravel()).T
+
+  def _softmin(self, x: jnp.ndarray) -> jnp.ndarray:
+    return -self.gamma * jsp.speciallogsumexp(x / -self.gamma, axis=-1)
+
+  def pairwise(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+
+    def body(
+        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        current_antidiagonal: jnp.ndarray
+    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+      two_ago, one_ago = carry
+
+      diagonal = two_ago[:-1]
+      right = one_ago[:-1]
+      down = one_ago[1:]
+      best = self._softmin(jnp.stack([diagonal, right, down], axis=-1))
+
+      next_row = best + current_antidiagonal
+      next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
+
+      return (one_ago, next_row), next_row
+
+    model_matrix = self._model_matrix(t1, t2)
+    init = (
+        jnp.pad(model_matrix[0], (1, 0), constant_values=jnp.inf),
+        jnp.pad(
+            model_matrix[1] + model_matrix[0, 0], (1, 0),
+            constant_values=jnp.inf
+        )
+    )
+
+    carry, _ = jax.lax.scan(body, init, model_matrix[2:])
+    return carry[1][-1]
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
