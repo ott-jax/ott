@@ -17,12 +17,13 @@ from typing import TYPE_CHECKING, Optional, Union
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.scipy as jsp
 
 if TYPE_CHECKING:
   from ott.geometry import costs
 
 __all__ = [
-    "safe_log", "kl", "js", "sparse_scale", "logsumexp",
+    "safe_log", "kl", "js", "sparse_scale", "logsumexp", "softmin",
     "barycentric_projection"
 ]
 
@@ -113,6 +114,12 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
     return lse, res
 
 
+@jax.custom_vjp
+def softmin(x: jnp.ndarray, gamma: float) -> jnp.ndarray:
+  """TODO."""
+  return -gamma * jsp.special.logsumexp(x / -gamma, axis=-1)
+
+
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(
     matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
@@ -128,3 +135,11 @@ def barycentric_projection(
     a vector of shape (n,) containing the barycentric projection of matrix.
   """
   return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
+
+
+softmin.defvjp(
+    lambda x, gamma: (softmin(x, gamma), (x / -gamma,)), lambda res, g: (
+        jnp.where(jnp.isinf(res[0]), 0.0,
+                  jax.nn.softmax(res[0]) * g[:, None]), None
+    )
+)
