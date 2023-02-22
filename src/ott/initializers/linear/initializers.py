@@ -389,8 +389,6 @@ class SubsampleInitializer(DefaultInitializer):
 
     # subsample
     rng_x, rng_y = jax.random.split(rng)
-
-    # get subsample indices of x, y
     sub_x = jax.random.choice(
         key=rng_x, a=x, shape=(self.subsample_n,), replace=True, p=a, axis=0
     )
