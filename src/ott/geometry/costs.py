@@ -764,7 +764,7 @@ class SoftDTW(CostFn):
     return model_matrix.T.at[mask.T].set(dist.ravel()).T
 
   def _softmin(self, x: jnp.ndarray) -> jnp.ndarray:
-    return -self.gamma * jsp.speciallogsumexp(x / -self.gamma, axis=-1)
+    return -self.gamma * jsp.special.logsumexp(x / -self.gamma, axis=-1)
 
   def pairwise(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
 
