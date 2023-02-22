@@ -15,7 +15,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -739,6 +739,7 @@ class UnbalancedBures(CostFn):
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
 
 
+@jax.tree_util.register_pytree_node_class
 class SoftDTW(CostFn):
 
   def __init__(self, gamma: float, ground_cost: CostFn = SqEuclidean()):
@@ -794,6 +795,14 @@ class SoftDTW(CostFn):
 
     carry, _ = jax.lax.scan(body, init, model_matrix[2:])
     return carry[1][-1]
+
+  def tree_flatten(self):
+    return (self.gamma, self.ground_cost), None
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del aux_data
+    return cls(*children)
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
