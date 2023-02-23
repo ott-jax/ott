@@ -701,7 +701,7 @@ class Sinkhorn:
       jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: B008
-      initializer: Union[Literal["default", "gaussian", "sorting"],
+      initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
                          init_lib.SinkhornInitializer] = "default",
       kwargs_init: Optional[Mapping[str, Any]] = None,
   ):
@@ -755,6 +755,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
@@ -762,13 +763,14 @@ class Sinkhorn:
       ot_prob: Linear OT problem.
       init: Initial dual potentials/scalings f_u and g_v, respectively.
         Any `None` values will be initialized using the initializer.
+      rng: Random number generator key for stochastic initialization.
 
     Returns:
       The Sinkhorn output.
     """
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
-        ot_prob, *init, lse_mode=self.lse_mode
+        ot_prob, *init, lse_mode=self.lse_mode, rng=rng
     )
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
@@ -994,6 +996,8 @@ class Sinkhorn:
       return init_lib.GaussianInitializer()
     if self.initializer == "sorting":
       return init_lib.SortingInitializer(**self.kwargs_init)
+    if self.initializer == "subsample":
+      return init_lib.SubsampleInitializer(**self.kwargs_init)
     raise NotImplementedError(
         f"Initializer `{self.initializer}` is not yet implemented."
     )

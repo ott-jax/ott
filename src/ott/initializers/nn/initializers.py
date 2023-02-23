@@ -74,13 +74,14 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       geom: geometry.Geometry,
       meta_model: Optional[nn.Module] = None,
-      opt: Optional[optax.GradientTransformation] = None,
+      opt: Optional[optax.GradientTransformation
+                   ] = optax.adam(learning_rate=1e-3),  # noqa: B008
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
-    self.opt = optax.adam(learning_rate=1e-3) if opt is None else opt
+    self.opt = opt
     self.rng = rng
 
     na, nb = geom.shape
@@ -137,8 +138,12 @@ class MetaInitializer(initializers.DefaultInitializer):
     return self.update_impl(state, a, b)
 
   def init_dual_a(  # noqa: D102
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
+      lse_mode: bool,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
+    del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
     vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
