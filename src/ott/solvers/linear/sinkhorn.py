@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
 ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]], None]
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
 
 
 class SinkhornState(NamedTuple):
@@ -650,17 +650,6 @@ class Sinkhorn:
       reflects that these gradients are undefined, since these points were not
       considered in the optimization and have therefore no impact on the output.
 
-  Note:
-    * The optional user-provided callback function ``progress_fn`` is called
-      during solver iterations via :func:`~jax.experimental.host_callback.id_tap`
-      so the solver execution remains jittable. The first 3 arguments are each
-      automatically wrapped by Jax in a ``numpy.ndarray``:
-        - the current iteration
-        - the number of iterations after which the error is computed: is equal
-          to ``inner_iterations``
-        - the maximum number of iterations
-        - the current ``SinkhornState``.
-
   Args:
     lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
       multiplication.
@@ -698,10 +687,10 @@ class Sinkhorn:
       when the algorithm has converged with a low tolerance.
     jit: Whether to jit the iteration loop.
     initializer: how to compute the initial potentials/scalings.
-    progress_fn: an optional callback function of type ``ProgressCallbackFn_t``
-      which gets called during Sinkhorn iterations, so the user can display
-      the error at each iteration, e.g. using a progress bar. See
-      :func:``ott.utils.example_progress_callback_fn`` for a basic implementation.
+    progress_fn: callback function which gets called during the Sinkhorn
+      iterations, so the user can display the error at each iteration,
+      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
+      for a basic implementation.
     kwargs_init: keyword arguments when creating the initializer.
   """
 

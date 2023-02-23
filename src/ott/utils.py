@@ -22,8 +22,7 @@ import jax.numpy as jnp
 import numpy as np
 
 __all__ = [
-    "register_pytree_node", "deprecate", "is_jax_array",
-    "example_progress_callback_fn"
+    "register_pytree_node", "deprecate", "is_jax_array", "default_progress_fn"
 ]
 
 
@@ -66,17 +65,43 @@ def is_jax_array(obj: Any) -> bool:
   return isinstance(obj, jnp.DeviceArray)
 
 
-def example_progress_callback_fn(
+def default_progress_fn(
     status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args: Any
 ) -> None:
-  """This callback function reports progress by printing to the console.
+  """Callback function that reports progress of
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` by printing to the console.
 
   It updates the progress bar only when the error is computed, that is every
-  ``solver.inner_iterations``, typically ``10``.
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
 
   Note:
-    If instead of printing you want to report progress using a progress bar such as tqdm,
-    then simply provide a slightly modified version of this callback, for instance::
+    This function is called during solver iterations via
+    :func:`~jax.experimental.host_callback.id_tap` so the solver execution
+    remains jittable.
+
+  Args:
+    status: status consisting of:
+
+      - the current iteration number
+      - the number of inner iterations after which the error is computed
+      - the total number of iterations
+      - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`
+
+    args: unused, see :doc:`jax.experimental.host_callback`
+
+  Returns:
+    Nothing, just prints.
+
+  Examples:
+    If instead of printing you want to report progress using a progress bar such
+    as `tqdm <https://tqdm.github.io>`_, then simply provide a slightly modified version of this
+    callback, for instance:
+
+    .. code-block:: python
+
+      import jax
+      from ott.solvers.linear import sinkhorn
+      from tqdm import tqdm
 
       def progress_fn(status, *args):
         iteration, inner_iterations, total_iter, state = status
@@ -95,18 +120,11 @@ def example_progress_callback_fn(
           pbar.total = total_iter
           pbar.update()
 
+      lin_problem = ...
+      solver = sinkhorn.Sinkhorn(progress_fn=progress_fn)
+
       with tqdm() as pbar:
-        out_sink = jax.jit(sinkhorn.Sinkhorn(progress_fn=progress_fn))(lin_problem)
-
-  Args:
-    status: a tuple consisting of
-      - the current iteration number (wrapped in a ``numpy.ndarray``)
-      - the number of inner iterations after which the error is computed
-        (wrapped in a ``numpy.ndarray``),
-      - the total number of iterations (wrapped in a ``numpy.ndarray``)
-      - the current Sinkhorn state of type ``ott.solvers.linear.sinkhorn.SinkhornState``.
-    args: unused, see :doc:`jax.experimental.host_callback`
-
+        out_sink = jax.jit(solver)(lin_problem)
   """
   # Convert arguments.
   iteration, inner_iterations, total_iter, state = status
