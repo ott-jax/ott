@@ -482,7 +482,7 @@ class QuadraticProblem:
     return cls(*geoms, a=a, b=b, **aux_data)
 
 
-def update_epsilon_unbalanced(
+def update_epsilon_unbalanced(  # noqa: D103
     epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
 ) -> epsilon_scheduler.Epsilon:
   if not isinstance(epsilon, epsilon_scheduler.Epsilon):
@@ -490,7 +490,7 @@ def update_epsilon_unbalanced(
   return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
-def apply_cost(
+def apply_cost(  # noqa: D103
     geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
     fn: quadratic_costs.Loss
 ) -> jnp.ndarray:

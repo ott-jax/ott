@@ -71,18 +71,18 @@ class BaseQuadraticInitializer(abc.ABC):
     """Compute initial geometry for linearization.
 
     Args:
-      quad_problem: Quadratic problem.
+      quad_prob: Quadratic problem.
       kwargs: Additional keyword arguments.
 
     Returns:
       Geometry used to initialize the linearized problem.
     """
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], self._kwargs
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "BaseQuadraticInitializer":
     return cls(*children, **aux_data)

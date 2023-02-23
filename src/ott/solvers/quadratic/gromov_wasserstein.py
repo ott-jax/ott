@@ -125,7 +125,7 @@ class GWState(NamedTuple):
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
-  def update(
+  def update(  # noqa: D102
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problem.LinearProblem, store_errors: bool,
       old_transport_mass: float
@@ -211,6 +211,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       prob: Quadratic OT problem.
       init: Initial linearization of the quadratic problem. If `None`, it will
         be computed using the initializer.
+      key: Random number key.
       kwargs: Keyword arguments used when calling the initializer.
 
     Returns:

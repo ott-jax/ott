@@ -6,12 +6,12 @@ import jax.numpy as jnp
 __all__ = ["make_square_loss", "make_kl_loss"]
 
 
-class Loss(NamedTuple):
+class Loss(NamedTuple):  # noqa: D101
   func: Callable[[jnp.ndarray], jnp.ndarray]
   is_linear: bool
 
 
-class GWLoss(NamedTuple):
+class GWLoss(NamedTuple):  # noqa: D101
   f1: Loss
   f2: Loss
   h1: Loss

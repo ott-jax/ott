@@ -218,11 +218,11 @@ class LRInitializer(abc.ABC):
     """Rank of the transport matrix factorization."""
     return self._rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {**self._kwargs, "rank": self.rank}
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "LRInitializer":
     return cls(*children, **aux_data)

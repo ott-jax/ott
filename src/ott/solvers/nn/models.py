@@ -86,9 +86,8 @@ class ModelBase(abc.ABC, nn.Module):
 
     Args:
       params: parameters of the module
-      x: point to evaluate the value at
-      other_potential_value: function giving the value of the other potential.
-        Only needed when :attr:`is_potential` is ``False``.
+      other_potential_value_fn: function giving the value of the other
+        potential. Only needed when :attr:`is_potential` is ``False``.
 
     Returns:
       A function that can be evaluated to obtain the potential's value

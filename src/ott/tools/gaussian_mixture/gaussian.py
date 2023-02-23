@@ -69,7 +69,7 @@ class Gaussian:
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
-      ridge: Union[float, jnp.array] = 0,
+      ridge: Union[float, jnp.ndarray] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> 'Gaussian':
     """Construct a random Gaussian.
@@ -77,8 +77,10 @@ class Gaussian:
     Args:
       key: jax.random seed
       n_dimensions: desired covariance dimensions
-      stdev: standard deviation of loc and log eigenvalues
+      stdev_mean: standard deviation of loc and log eigenvalues
         (means for both are 0)
+      stdev_cov: standard deviated of the covariance
+      ridge: Offset for means.
       dtype: data type
 
     Returns:

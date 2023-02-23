@@ -48,8 +48,7 @@ def bidimensional(x: jnp.ndarray,
 
 
 class Plot:
-  """Plot an optimal transport map between two \
-    :class:`PointClouds <ott.geometry.pointcloud.PointCloud>`.
+  """Plot an optimal transport map between two :class:`PointClouds <ott.geometry.pointcloud.PointCloud>`.
 
   It enables to either plot or update a plot in a single object, offering the
   possibilities to create animations as a

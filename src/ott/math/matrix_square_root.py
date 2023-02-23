@@ -250,7 +250,7 @@ def sqrtm_only(  # noqa: D103
   )[0]
 
 
-def sqrtm_only_fwd(
+def sqrtm_only_fwd(  # noqa: D103
     x: jnp.ndarray, threshold: float, min_iterations: int,
     inner_iterations: int, max_iterations: int, regularization: float
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -261,7 +261,7 @@ def sqrtm_only_fwd(
   return sqrt_x, sqrt_x
 
 
-def sqrtm_only_bwd(
+def sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
     max_iterations: int, regularization: float, sqrt_x: jnp.ndarray,
     cotangent: jnp.ndarray
@@ -296,7 +296,7 @@ def inv_sqrtm_only(  # noqa: D103
   )[1]
 
 
-def inv_sqrtm_only_fwd(
+def inv_sqrtm_only_fwd(  # noqa: D103
     x: jnp.ndarray,
     threshold: float,
     min_iterations: int,
@@ -311,7 +311,7 @@ def inv_sqrtm_only_fwd(
   return inv_sqrt_x, inv_sqrt_x
 
 
-def inv_sqrtm_only_bwd(
+def inv_sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
     max_iterations: int, regularization: float, residual: jnp.ndarray,
     cotangent: jnp.ndarray

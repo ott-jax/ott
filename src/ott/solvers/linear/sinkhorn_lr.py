@@ -48,21 +48,23 @@ class LRSinkhornState(NamedTuple):
   errors: jnp.ndarray
   crossed_threshold: bool
 
-  def compute_error(self, previous_state: "LRSinkhornState") -> float:
+  def compute_error(  # noqa: D102
+      self, previous_state: "LRSinkhornState"
+  ) -> float:
     err_1 = mu.js(self.q, previous_state.q, c=1.)
     err_2 = mu.js(self.r, previous_state.r, c=1.)
     err_3 = mu.js(self.g, previous_state.g, c=1.)
 
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
-  def reg_ot_cost(
+  def reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
-  def solution_error(
+  def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...],
       lse_mode: bool
   ) -> jnp.ndarray:

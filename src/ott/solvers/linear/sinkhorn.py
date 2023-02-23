@@ -79,7 +79,7 @@ class SinkhornState(NamedTuple):
         parallel_dual_updates=parallel_dual_updates
     )
 
-  def ent_reg_cost(
+  def ent_reg_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)

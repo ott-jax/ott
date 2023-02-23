@@ -205,7 +205,7 @@ def print_losses(
 # The E-step for a single GMM
 
 
-def do_e_step(
+def do_e_step(  # noqa: D103
     e_step_fn: Callable[[gaussian_mixture.GaussianMixture, jnp.ndarray],
                         jnp.ndarray],
     gmm: gaussian_mixture.GaussianMixture,
