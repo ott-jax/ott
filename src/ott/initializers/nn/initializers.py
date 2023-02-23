@@ -135,9 +135,13 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.update_impl(state, a, b)
 
-  def init_dual_a(  # noqa: D102
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+  def init_dual_a(
+      self,
+      ot_prob: 'linear_problem.LinearProblem',
+      lse_mode: bool,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
+    del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
     vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
