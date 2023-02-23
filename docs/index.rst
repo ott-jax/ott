@@ -65,12 +65,12 @@ Design Choices
 
 Packages
 --------
-- :doc:`geometry` contains classes that instantiate the ground *cost matrix* 
+- :doc:`geometry` contains classes that instantiate the ground *cost matrix*
   used to specify OT problems. Here cost matrix can be understood in
   a litteral (by actually passing a matrix) or abstract sense (by passing
   information that is sufficient to recreate that matrix, apply all or parts
   of it, or apply its kernel). A typical example in the latter case arises
-  when comparing *two point clouds*, paired with a *cost function*. Geometry 
+  when comparing *two point clouds*, paired with a *cost function*. Geometry
   objects are used to describe OT *problems*, solved next by *solvers*.
 - :doc:`problems/index` are used to describe linear or quadratic (GW) OT
   problems.
