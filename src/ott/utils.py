@@ -100,15 +100,18 @@ def default_progress_fn(
     .. code-block:: python
 
       import jax
-      from ott.solvers.linear import sinkhorn
+      import numpy as np
       from tqdm import tqdm
+
+      from ott.problems.linear import linear_problem
+      from ott.solvers.linear import sinkhorn
 
       def progress_fn(status, *args):
         iteration, inner_iterations, total_iter, state = status
         iteration = int(iteration)
         inner_iterations = int(inner_iterations)
         total_iter = int(total_iter)
-        errors = np.array(state.errors).ravel()
+        errors = np.asarray(state.errors).ravel()
 
         # Avoid reporting error on each iteration,
         # because errors are only computed every `inner_iterations`.
@@ -116,15 +119,15 @@ def default_progress_fn(
           error_idx = max((iteration + 1) // inner_iterations - 1, 0)
           error = errors[error_idx]
 
-          pbar.set_description_str(f"error: {error:.6f}")
+          pbar.set_postfix_str(f"error: {error:0.6e}")
           pbar.total = total_iter
           pbar.update()
 
-      lin_problem = ...
+      prob = linear_problem.LinearProblem(...)
       solver = sinkhorn.Sinkhorn(progress_fn=progress_fn)
 
       with tqdm() as pbar:
-        out_sink = jax.jit(solver)(lin_problem)
+        out_sink = jax.jit(solver)(prob)
   """
   # Convert arguments.
   iteration, inner_iterations, total_iter, state = status
