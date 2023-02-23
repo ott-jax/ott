@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import costs, segment
+from ott.geometry import costs, geometry, segment
 
 __all__ = ["FreeBarycenterProblem"]
 
@@ -183,20 +183,20 @@ class FreeBarycenterProblem:
 
 @jax.tree_util.register_pytree_node_class
 class FixedBarycenterProblem:
-  """Fixed-support Wasserstein barycenter :cite:`janati:20a`.
+  """Fixed-support Wasserstein barycenter problem.
 
   Args:
-    geom: geometry object.
-    a:  batch of histograms of shape ``[batch, num_a]``.
-    weights: positive weights in the probability simplex.
+    geom: :class:`~ott.geometry.geometry.Geometry` object.
+    a: batch of histograms of shape ``[batch, num_a]`` where `num_a` matches
+      the first value of `geom.shape`.
+    weights: ``[batch,]`` positive weights summing to 1. Uniform by default.
   """
 
   def __init__(
       self,
-      geom: jnp.ndarray,
-      a: Optional[jnp.ndarray] = None,
+      geom: geometry.Geometry,
+      a: jnp.ndarray,
       weights: Optional[jnp.ndarray] = None,
-      **kwargs: Any,
   ):
     self.geom = geom
     self.a = a
@@ -226,5 +226,6 @@ class FixedBarycenterProblem:
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "FreeBarycenterProblem":
+    del aux_data
     geom, a, weights = children
-    return cls(geom=geom, a=a, weights=weights, **aux_data)
+    return cls(geom=geom, a=a, weights=weights)

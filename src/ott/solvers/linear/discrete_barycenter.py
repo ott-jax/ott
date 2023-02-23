@@ -36,6 +36,28 @@ class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
 
 @jax.tree_util.register_pytree_node_class
 class FixedBarycenter:
+  """A Wasserstein barycenter solver for histograms on a common geometry.
+
+  This solver uses a variant of the Sinkhorn algorithm proposed in
+  :cite:`janati:20a` to compute the barycenter of various measures supported on
+  the same (common to all) geometry. The geometry is assumed to be either
+  symmetric, or describes costs between a set of points and another. In that
+  case all reference measures have support on the first measure, whereas the
+  barycenter is supported on the second.
+
+  Args:
+    threshold: convergence threshold. The algorithm stops when the marginal
+      violations of all transport plans computed for that barycenter go below
+      that threshold.
+    norm_error: norm used to compute marginal deviation.
+    inner_iterations: number of iterations run before recomputing errors.
+    min_iterations: number of iterations run without checking whether
+      termination criterion is true.
+    max_iterations: maximal number of iterations.
+    lse_mode: sets computations in kernel (``False``) or log-sum-exp mode.
+    debiased: uses debiasing correction to avoid blur due to entropic
+      regularization.
+  """
 
   def __init__(
       self,
@@ -47,7 +69,6 @@ class FixedBarycenter:
       lse_mode: bool = True,
       debiased: bool = False
   ):
-
     self.threshold = threshold
     self.norm_error = norm_error
     self.inner_iterations = inner_iterations
@@ -61,6 +82,7 @@ class FixedBarycenter:
       fixed_bp: barycenter_problem.FixedBarycenterProblem,
       dual_initialization: Optional[jnp.ndarray] = None,
   ) -> SinkhornBarycenterOutput:
+    """Solve barycenter problem, possibly using clever initialization."""
     geom = fixed_bp.geom
     a = fixed_bp.a
     num_a, num_b = geom.shape
@@ -68,7 +90,7 @@ class FixedBarycenter:
     weights = fixed_bp.weights
 
     if dual_initialization is None:
-      # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
+      # initialization strategy from :cite:`cuturi:15`, (3.6).
       dual_initialization = geom.apply_cost(a.T, axis=0).T
       dual_initialization -= jnp.average(
           dual_initialization, weights=weights, axis=0
