@@ -14,7 +14,7 @@
 """Sinkhorn initializers."""
 import abc
 import functools
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -179,7 +179,7 @@ class GaussianInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Gaussian initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud` geoms."
+    ), "Gaussian initializer valid only for pointcloud geoms."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
@@ -350,18 +350,20 @@ class SubsampleInitializer(DefaultInitializer):
   for the original problem.
 
   Args:
-    subsample_n: number of points to subsample from each :class:`~ott.geometry.pointcloud.PointCloud`.
+    subsample_n_x: number of points to subsample from each x :class:`~ott.geometry.pointcloud.PointCloud`.
+    subsample_n_y: number of points to subsample from each y :class:`~ott.geometry.pointcloud.PointCloud`.
+    sinkhorn_kwargs: Sinkhorn solver args.
   """
 
   def __init__(
       self,
-      subsample_n: int,
+      subsample_n_x: int,
       subsample_n_y: Optional[int] = None,
-      sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+      sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
   ):
     super().__init__()
-    self.subsample_n = subsample_n
-    self.subsample_n_y = subsample_n_y or subsample_n
+    self.subsample_n_x = subsample_n_x
+    self.subsample_n_y = subsample_n_y or subsample_n_x
     self.sinkhorn_kwargs = sinkhorn_kwargs or {}
 
   def init_dual_a(
@@ -384,7 +386,7 @@ class SubsampleInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Subsample initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud` geom."
+    ), "Subsample initializer valid only for pointcloud geom."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
@@ -392,7 +394,7 @@ class SubsampleInitializer(DefaultInitializer):
     # subsample
     rng_x, rng_y = jax.random.split(rng)
     sub_x = jax.random.choice(
-        key=rng_x, a=x, shape=(self.subsample_n,), replace=True, p=a, axis=0
+        key=rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
     )
     sub_y = jax.random.choice(
         key=rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
@@ -421,7 +423,7 @@ class SubsampleInitializer(DefaultInitializer):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
-        'subsample_n': self.subsample_n,
+        'subsample_n_x': self.subsample_n_x,
         'subsample_n_y': self.subsample_n_y,
         'sinkhorn_kwargs': self.sinkhorn_kwargs
     })

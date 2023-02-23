@@ -113,7 +113,7 @@ class TestSinkhornInitializers:
   )
   def test_create_initializer(self, init: str):
     if init == "subsample":
-      kwargs_init = dict(subsample_n=10)
+      kwargs_init = dict(subsample_n_x=10)
     else:
       kwargs_init = dict()
 
@@ -245,7 +245,7 @@ class TestSinkhornInitializers:
     elif initializer == "gaussian":
       initializer = linear_init.GaussianInitializer()
     elif initializer == "subsample":
-      initializer = linear_init.SubsampleInitializer(subsample_n=subsample_n)
+      initializer = linear_init.SubsampleInitializer(subsample_n_x=subsample_n)
 
     # ot problem
     if initializer == "sorting":
