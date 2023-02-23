@@ -151,7 +151,7 @@ class DefaultInitializer(SinkhornInitializer):
 class GaussianInitializer(DefaultInitializer):
   """Gaussian initializer :cite:`thornton2022rethinking:22`.
 
-  Compute Gaussian approximations of each :class:`~ott.geometry.pointcloud.PointCloud'`,
+  Compute Gaussian approximations of each :class:`~ott.geometry.pointcloud.PointCloud`,
   then compute closed from Kantorovich potential between Gaussian approximations using
   Brenier's theorem (adapt convex/Brenier potential to Kantorovich).
   Use this Gaussian potential to initialize Sinkhorn potentials/scalings.
@@ -179,7 +179,7 @@ class GaussianInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Gaussian initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud' geoms."
+    ), "Gaussian initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud` geoms."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
@@ -344,13 +344,13 @@ def _coordinate_update(
 class SubsampleInitializer(DefaultInitializer):
   """Subsample initializer :cite:`thornton2022rethinking:22`.
 
-  Subsample each :class:`~ott.geometry.pointcloud.PointCloud'`, then compute
+  Subsample each :class:`~ott.geometry.pointcloud.PointCloud`, then compute
   :class:`Sinkhorn potential <ott.problems.linear.potentials.DualPotentials>` from the
   subsampled approximations and use this potential to initialize Sinkhorn potentials/scalings
   for the original problem.
 
   Args:
-    subsample_n: number of points to subsample from each :class:`~ott.geometry.pointcloud.PointCloud'`.
+    subsample_n: number of points to subsample from each :class:`~ott.geometry.pointcloud.PointCloud`.
   """
 
   def __init__(
@@ -384,7 +384,7 @@ class SubsampleInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Subsample initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud'` geom."
+    ), "Subsample initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud` geom."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
