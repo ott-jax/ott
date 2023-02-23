@@ -129,7 +129,7 @@ class BarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class WassersteinBarycenter(was_solver.WassersteinSolver):
-  """A Continuous Wasserstein barycenter solver, built on generic template."""
+  """A Continuous Wassertsein barycenter solver, built on WassersteinSolver."""
 
   def __call__(  # noqa: D102
       self,
