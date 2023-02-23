@@ -423,5 +423,5 @@ class SubsampleInitializer(DefaultInitializer):
     return ([], {
         'subsample_n': self.subsample_n,
         'subsample_n_y': self.subsample_n_y,
-        'sinkhorn_kwargs' : self.sinkhorn_kwargs
+        'sinkhorn_kwargs': self.sinkhorn_kwargs
     })
