@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for Sinkhorn initializers."""
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 import jax
 import jax.numpy as jnp
@@ -89,7 +89,6 @@ def run_sinkhorn(
     b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
-    **kwargs: Any
 ) -> sinkhorn.SinkhornOutput:
   """Runs Sinkhorn algorithm with given initializer."""
 
