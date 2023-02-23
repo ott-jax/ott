@@ -139,8 +139,10 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKey] = None
+      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
+
+    del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
     vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
