@@ -15,12 +15,15 @@
 import dataclasses
 import functools
 import warnings
-from typing import Any, Callable, Optional
+from typing import Any, Callable, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-__all__ = ["register_pytree_node", "deprecate", "is_jax_array"]
+__all__ = [
+    "register_pytree_node", "deprecate", "is_jax_array", "default_progress_fn"
+]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -60,3 +63,83 @@ def is_jax_array(obj: Any) -> bool:
     # https://jax.readthedocs.io/en/latest/jax_array_migration.html
     return isinstance(obj, (jax.Array, jnp.DeviceArray))
   return isinstance(obj, jnp.DeviceArray)
+
+
+def default_progress_fn(
+    status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args: Any
+) -> None:
+  """Callback function that reports progress of
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` by printing to the console.
+
+  It updates the progress bar only when the error is computed, that is every
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+
+  Note:
+    This function is called during solver iterations via
+    :func:`~jax.experimental.host_callback.id_tap` so the solver execution
+    remains jittable.
+
+  Args:
+    status: status consisting of:
+
+      - the current iteration number
+      - the number of inner iterations after which the error is computed
+      - the total number of iterations
+      - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`
+
+    args: unused, see :doc:`jax.experimental.host_callback`
+
+  Returns:
+    Nothing, just prints.
+
+  Examples:
+    If instead of printing you want to report progress using a progress bar such
+    as `tqdm <https://tqdm.github.io>`_, then simply provide a slightly modified version of this
+    callback, for instance:
+
+    .. code-block:: python
+
+      import jax
+      import numpy as np
+      from tqdm import tqdm
+
+      from ott.problems.linear import linear_problem
+      from ott.solvers.linear import sinkhorn
+
+      def progress_fn(status, *args):
+        iteration, inner_iterations, total_iter, state = status
+        iteration = int(iteration)
+        inner_iterations = int(inner_iterations)
+        total_iter = int(total_iter)
+        errors = np.asarray(state.errors).ravel()
+
+        # Avoid reporting error on each iteration,
+        # because errors are only computed every `inner_iterations`.
+        if (iteration + 1) % inner_iterations == 0:
+          error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+          error = errors[error_idx]
+
+          pbar.set_postfix_str(f"error: {error:0.6e}")
+          pbar.total = total_iter
+          pbar.update()
+
+      prob = linear_problem.LinearProblem(...)
+      solver = sinkhorn.Sinkhorn(progress_fn=progress_fn)
+
+      with tqdm() as pbar:
+        out_sink = jax.jit(solver)(prob)
+  """
+  # Convert arguments.
+  iteration, inner_iterations, total_iter, state = status
+  iteration = int(iteration)
+  inner_iterations = int(inner_iterations)
+  total_iter = int(total_iter)
+  errors = np.array(state.errors).ravel()
+
+  # Avoid reporting error on each iteration,
+  # because errors are only computed every `inner_iterations`.
+  if (iteration + 1) % inner_iterations == 0:
+    error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+    error = errors[error_idx]
+
+    print(f"{iteration} / {total_iter} -- {error}")
