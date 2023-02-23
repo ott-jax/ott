@@ -49,7 +49,8 @@ class MetaInitializer(initializers.DefaultInitializer):
   Args:
     geom: The fixed geometry of the problem instances.
     meta_model: The model to predict the potential :math:`f` from the measures.
-    opt: The optimizer to update the parameters.
+    opt: The optimizer to update the parameters. If ``None``, use
+      :func:`optax.adam` with :math:`0.001` learning rate.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.
 
@@ -73,13 +74,13 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       geom: geometry.Geometry,
       meta_model: Optional[nn.Module] = None,
-      opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
+      opt: Optional[optax.GradientTransformation] = None,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
-    self.opt = opt
+    self.opt = optax.adam(learning_rate=1e-3) if opt is None else opt
     self.rng = rng
 
     na, nb = geom.shape

@@ -700,7 +700,7 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
-                             ] = implicit_lib.ImplicitDiff(),  # noqa: E124
+                             ] = implicit_lib.ImplicitDiff(),  # noqa: B008
       initializer: Union[Literal["default", "gaussian", "sorting"],
                          init_lib.SinkhornInitializer] = "default",
       kwargs_init: Optional[Mapping[str, Any]] = None,

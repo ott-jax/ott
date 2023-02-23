@@ -261,8 +261,6 @@ ignore = [
     "D100",
     # Missing docstring in __init__
     "D107",
-    # Do not perform function calls in argument defaults.
-    "B008",
     # Missing docstring in magic method
     "D105",
     ## Flake8 rules not supported by ruff:
@@ -314,3 +312,5 @@ keep-runtime-typing = true
 [tool.ruff.flake8-tidy-imports]
 # Disallow all relative imports.
 ban-relative-imports = "parents"
+[tool.ruff.flake8-bugbear]
+extend-immutable-calls = ["jax.random.PRNGKey"]

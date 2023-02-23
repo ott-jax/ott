@@ -68,6 +68,7 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "pot": ("https://pythonot.github.io/", None),
     "jaxopt": ("https://jaxopt.github.io/stable", None),
+    "optax": ("https://optax.readthedocs.io/en/latest/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
