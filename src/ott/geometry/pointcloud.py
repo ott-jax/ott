@@ -134,8 +134,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` \
-      is computed on-the-fly."""
+    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` is computed on-the-fly."""
     return self.batch_size is not None
 
   # TODO(michalk8): when refactoring, consider PC as a subclass of LR?

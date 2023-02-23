@@ -14,13 +14,11 @@
 """Tests for Sinkhorn."""
 from typing import Optional
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from ott.geometry import costs, geometry, grid, pointcloud, epsilon_scheduler
+import pytest
+from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import acceleration, sinkhorn
 

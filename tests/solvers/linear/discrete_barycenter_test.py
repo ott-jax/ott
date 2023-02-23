@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
 import jax.numpy as jnp
-
+import pytest
 from ott.geometry import grid, pointcloud
 from ott.solvers.linear import discrete_barycenter as db
 

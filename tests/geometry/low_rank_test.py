@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Test Low-Rank Geometry."""
-from typing import Callable, Optional, Union, Tuple
-
-import pytest
+from typing import Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 
 

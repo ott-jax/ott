@@ -375,6 +375,7 @@ class Grid(geometry.Geometry):
       kwargs: Keyword arguments, such as ``rank``, to
         :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
         geometries on each slice are not low-rank.
+
     Returns:
       :class:`~ott.geometry.low_rank.LRCGeometry` object.
     """

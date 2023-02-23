@@ -263,6 +263,7 @@ def segment_sinkhorn_divergence(
       :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
       instance entropy regularization float, scheduler or normalization.
+
   Returns:
     An array of sinkhorn divergence values for each segment.
   """

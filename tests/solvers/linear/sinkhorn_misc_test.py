@@ -15,17 +15,14 @@
 from typing import Optional, Tuple
 
 import chex
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import acceleration
+from ott.solvers.linear import acceleration, sinkhorn
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhornAnderson:

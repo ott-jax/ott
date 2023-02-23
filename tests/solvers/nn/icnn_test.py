@@ -13,12 +13,10 @@
 # limitations under the License.
 """Tests for ICNN network architecture."""
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.solvers.nn import models
 
 
@@ -44,7 +42,7 @@ class TestICNN:
     out_x = model.apply({'params': params}, x)
     out_y = model.apply({'params': params}, y)
 
-    out = list()
+    out = []
     for t in jnp.linspace(0, 1):
       out_xy = model.apply({'params': params}, t * x + (1 - t) * y)
       out.append((t * out_x + (1 - t) * out_y) - out_xy)

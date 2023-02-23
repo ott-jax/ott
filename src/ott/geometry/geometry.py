@@ -127,8 +127,7 @@ class Geometry:
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    """Kernel matrix, either provided by user or recomputed from \
-     :attr:`cost_matrix`."""
+    """Kernel matrix, either provided by user or recomputed from :attr:`cost_matrix`."""
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
@@ -862,16 +861,14 @@ class Geometry:
 
   @property
   def _n_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_a,]`` \
-    taking into account :attr:`src_mask`."""
+    """Normalized array of shape ``[num_a,]``."""
     mask = self.src_mask
     arr = jnp.ones(self.shape[0]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @property
   def _m_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_b,]`` \
-    taking into account :attr:`tgt_mask`."""
+    """Normalized array of shape ``[num_b,]``."""
     mask = self.tgt_mask
     arr = jnp.ones(self.shape[1]) if mask is None else mask
     return arr / jnp.sum(arr)

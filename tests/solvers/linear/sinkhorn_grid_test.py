@@ -13,12 +13,10 @@
 # limitations under the License.
 """Tests for Sinkhorn when applied on a grid."""
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn

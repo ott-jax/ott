@@ -1,9 +1,7 @@
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn

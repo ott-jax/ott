@@ -244,6 +244,7 @@ def quantile(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -300,6 +301,7 @@ def quantile_normalization(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.

@@ -13,12 +13,10 @@
 # limitations under the License.
 """Tests for Gromov-Wasserstein initializers."""
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as lin_init
 from ott.initializers.linear import initializers_lr

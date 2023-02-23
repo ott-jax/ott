@@ -14,12 +14,10 @@
 """Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.solvers.linear import acceleration, sinkhorn
 from ott.tools import sinkhorn_divergence
@@ -218,8 +216,8 @@ class TestSinkhornDivergence:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geom_kwargs = dict(epsilon=0.01)
-    sinkhorn_kwargs = dict(threshold=1e-2)
+    geom_kwargs = {"epsilon": 0.01}
+    sinkhorn_kwargs = {"threshold": 1e-2}
     true_divergence = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
@@ -427,7 +425,7 @@ class TestSinkhornDivergenceGrad:
           epsilon=1.0,
           a=self._a,
           b=self._b,
-          sinkhorn_kwargs=dict(threshold=0.05)
+          sinkhorn_kwargs={"threshold": 0.05},
       )
       return div.divergence
 

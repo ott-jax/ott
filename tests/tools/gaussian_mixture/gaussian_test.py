@@ -13,12 +13,10 @@
 # limitations under the License.
 """Tests for gaussian."""
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.tools.gaussian_mixture import gaussian, scale_tril
 
 

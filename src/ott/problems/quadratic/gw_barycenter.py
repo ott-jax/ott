@@ -257,8 +257,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
-    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` \
-    used in the fused case."""
+    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
     y_fused, _ = segment.segment_point_cloud(

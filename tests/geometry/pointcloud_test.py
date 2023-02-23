@@ -14,12 +14,10 @@
 """Tests for apply_cost and apply_kernel."""
 from typing import Union
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 
 

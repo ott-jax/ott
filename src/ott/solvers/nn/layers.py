@@ -58,6 +58,7 @@ class PositiveDense(nn.Module):
 
     Args:
       inputs: Array to be transformed.
+
     Returns:
       The transformed input.
     """

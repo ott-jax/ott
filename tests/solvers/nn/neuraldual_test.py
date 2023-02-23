@@ -15,11 +15,9 @@
 """Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
 from typing import Sequence, Tuple
 
-import pytest
-
 import jax
 import numpy as np
-
+import pytest
 from ott.problems.nn import dataset
 from ott.solvers.nn import models, neuraldual
 
