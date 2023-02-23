@@ -52,7 +52,7 @@ class BarycenterState(NamedTuple):
     return self._replace(**kwargs)
 
   def update(
-      self, iteration: int, bar_prob: barycenter_problem.BarycenterProblem,
+      self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
   ) -> 'BarycenterState':
     """Update the state of the solver.
@@ -133,7 +133,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
 
   def __call__(  # noqa: D102
       self,
-      bar_prob: barycenter_problem.BarycenterProblem,
+      bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
       rng: int = 0
@@ -144,7 +144,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
 
   def init_state(
       self,
-      bar_prob: barycenter_problem.BarycenterProblem,
+      bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
       # TODO(michalk8): change the API to pass the PRNG key directly
@@ -201,14 +201,15 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
 
 def iterations(
     solver: WassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.BarycenterProblem, x_init: jnp.ndarray,
+    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
     rng: int
 ) -> BarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 
   def cond_fn(
-      iteration: int, constants: Tuple[WassersteinBarycenter,
-                                       barycenter_problem.BarycenterProblem],
+      iteration: int,
+      constants: Tuple[WassersteinBarycenter,
+                       barycenter_problem.FreeBarycenterProblem],
       state: BarycenterState
   ) -> bool:
     solver, _ = constants
@@ -216,7 +217,7 @@ def iterations(
 
   def body_fn(
       iteration, constants: Tuple[WassersteinBarycenter,
-                                  barycenter_problem.BarycenterProblem],
+                                  barycenter_problem.FreeBarycenterProblem],
       state: BarycenterState, compute_error: bool
   ) -> BarycenterState:
     del compute_error  # Always assumed True

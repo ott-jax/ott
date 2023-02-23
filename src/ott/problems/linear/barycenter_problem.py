@@ -19,12 +19,12 @@ import jax.numpy as jnp
 
 from ott.geometry import costs, segment
 
-__all__ = ["BarycenterProblem"]
+__all__ = ["FreeBarycenterProblem"]
 
 
 @jax.tree_util.register_pytree_node_class
-class BarycenterProblem:
-  """Wasserstein barycenter problem :cite:`cuturi:14`.
+class FreeBarycenterProblem:
+  """Free Wasserstein barycenter problem :cite:`cuturi:14`.
 
   Args:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
@@ -176,6 +176,55 @@ class BarycenterProblem:
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "BarycenterProblem":
+  ) -> "FreeBarycenterProblem":
     y, b, weights = children
     return cls(y=y, b=b, weights=weights, **aux_data)
+
+
+@jax.tree_util.register_pytree_node_class
+class FixedBarycenterProblem:
+  """Fixed-support Wasserstein barycenter :cite:`janati:20a`.
+
+  Args:
+    geom: geometry object.
+    a:  batch of histograms of shape ``[batch, num_a]``.
+    weights: positive weights in the probability simplex.
+  """
+
+  def __init__(
+      self,
+      geom: jnp.ndarray,
+      a: Optional[jnp.ndarray] = None,
+      weights: Optional[jnp.ndarray] = None,
+      **kwargs: Any,
+  ):
+    self.geom = geom
+    self.a = a
+    self._weights = weights
+
+  @property
+  def num_measures(self) -> int:
+    """Number of measures."""
+    return self.a.shape[0]
+
+  @property
+  def weights(self) -> jnp.ndarray:
+    """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
+    if self._weights is None:
+      weights = jnp.ones((self.num_measures,)) / self.num_measures
+    else:
+      # Check that the number of measures coincides with the weights' size.
+      assert self._weights.shape[0] == self.num_measures
+      # By default, we assume that weights sum to 1, and enforce this if needed.
+      weights = self._weights / jnp.sum(self._weights)
+    return weights
+
+  def tree_flatten(self):  # noqa: D102
+    return [self.geom, self.a, self._weights], None
+
+  @classmethod
+  def tree_unflatten(  # noqa: D102
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "FreeBarycenterProblem":
+    geom, a, weights = children
+    return cls(geom=geom, a=a, weights=weights, **aux_data)
