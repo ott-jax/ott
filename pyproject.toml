@@ -257,8 +257,6 @@ ignore = [
     "E741",
     # Missing docstring in public package
     "D104",
-    # ... imported but unused
-    "F401",
     # Missing docstring in public module
     "D100",
     # Missing docstring in __init__
