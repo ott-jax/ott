@@ -139,7 +139,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: 'linear_problem.LinearProblem',
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
 
     del rng
