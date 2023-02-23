@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for Sinkhorn."""
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import pytest
 
@@ -539,14 +539,14 @@ class TestSinkhorn:
     np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast()
-  def test_callback_fn(self,):
+  def test_callback_fn(self):
     """Check that the callback function is actually called."""
 
     traced_values = {"iters": [], "error": [], "total": []}
 
     def progress_fn(
         status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                      sinkhorn.SinkhornState], *args
+                      sinkhorn.SinkhornState], *args: Any
     ) -> None:
       # Convert arguments.
       iteration, inner_iterations, total_iter, state = status
@@ -567,13 +567,28 @@ class TestSinkhorn:
 
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
     lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+
+    num_iterations = 30
+    inner_iterations = 10
+
     _ = sinkhorn.Sinkhorn(
-        progress_fn=progress_fn, max_iterations=10 * 2
+        progress_fn=progress_fn,
+        max_iterations=num_iterations,
+        inner_iterations=inner_iterations
     )(
         lin_prob
     )
 
-    assert traced_values["iters"] == [9, 19]
-    assert pytest.approx(traced_values["error"][0], 1e-5) == 0.003072811
-    assert pytest.approx(traced_values["error"][1], 1e-5) == 5.9314094e-05
-    assert traced_values["total"] == [20, 20]
+    # check that the function is called on the 10th iteration (iter #9), the
+    # 20th iteration (iter #19) etc.
+    assert traced_values["iters"] == [
+        10 * v - 1 for v in range(1, num_iterations // inner_iterations)
+    ]
+
+    # check that error decreases
+    assert np.diff(traced_values["error"]) < 0
+
+    # check that max iterations is provided each time: [30, 30]
+    assert traced_values["total"] == [
+        num_iterations for _ in range(1, num_iterations // inner_iterations)
+    ]

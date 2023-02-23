@@ -21,7 +21,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ["register_pytree_node", "deprecate", "is_jax_array"]
+__all__ = [
+    "register_pytree_node", "deprecate", "is_jax_array",
+    "example_progress_callback_fn"
+]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -64,37 +67,45 @@ def is_jax_array(obj: Any) -> bool:
 
 
 def example_progress_callback_fn(
-    status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args
+    status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args: Any
 ) -> None:
   """This callback function reports progress by printing to the console.
 
-  Args:
-      status: tuple describing the current iteration number,
-        the number of inner iterations after which the error is computed,
-        the total number of iterations, each wrapped in a ``jax.Array``, and
-        the current Sinkhorn state.
-      args: unused, see <https://jax.readthedocs.io/en/latest/jax.experimental.host_callback.html>
-
-  This function updates the progress bar only when the error is computed
-  (every `solver.inner_iterations`, typically `10`).
+  It updates the progress bar only when the error is computed, that is every
+  ``solver.inner_iterations``, typically ``10``.
 
   Note:
-      The user can provide a slightly modified version of this callback in
-      order to use a progress bar. To do so, replace the print statement with the
-      following:
+    If instead of printing you want to report progress using a progress bar such as tqdm,
+    then simply provide a slightly modified version of this callback, for instance::
 
-    ```
-    pbar.set_description_str(f"error: {error:.6f}")
-    pbar.total = total_iter
-    pbar.update()
-    ```
+      def progress_fn(status, *args):
+        iteration, inner_iterations, total_iter, state = status
+        iteration = int(iteration)
+        inner_iterations = int(inner_iterations)
+        total_iter = int(total_iter)
+        errors = np.array(state.errors).ravel()
 
-  assuming `pbar` is defined at the callsite with the following code:
+        # Avoid reporting error on each iteration,
+        # because errors are only computed every `inner_iterations`.
+        if (iteration + 1) % inner_iterations == 0:
+          error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+          error = errors[error_idx]
 
-    ```
-    with tqdm() as pbar:
-      out_sink = jax.jit(sinkhorn.Sinkhorn(progress_fn=progress_fn))(lin_problem)
-    ```
+          pbar.set_description_str(f"error: {error:.6f}")
+          pbar.total = total_iter
+          pbar.update()
+
+      with tqdm() as pbar:
+        out_sink = jax.jit(sinkhorn.Sinkhorn(progress_fn=progress_fn))(lin_problem)
+
+  Args:
+    status: a tuple consisting of
+      - the current iteration number (wrapped in a ``numpy.ndarray``)
+      - the number of inner iterations after which the error is computed
+        (wrapped in a ``numpy.ndarray``),
+      - the total number of iterations (wrapped in a ``numpy.ndarray``)
+      - the current Sinkhorn state of type ``ott.solvers.linear.sinkhorn.SinkhornState``.
+    args: unused, see :doc:`jax.experimental.host_callback`
 
   """
   # Convert arguments.
@@ -109,9 +120,5 @@ def example_progress_callback_fn(
   if (iteration + 1) % inner_iterations == 0:
     error_idx = max((iteration + 1) // inner_iterations - 1, 0)
     error = errors[error_idx]
-
-    # pbar.set_description_str(f"error: {error:.6f}")
-    # pbar.total = total_iter
-    # pbar.update()
 
     print(f"{iteration} / {total_iter} -- {error}")
