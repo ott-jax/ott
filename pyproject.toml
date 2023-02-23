@@ -267,8 +267,6 @@ ignore = [
     "B008",
     # Missing docstring in magic method
     "D105",
-    # Missing blank line before section
-    "D411",
     ## Flake8 rules not supported by ruff:
     # line break before a binary operator -> black does not adhere to PEP8
     # "W503",
