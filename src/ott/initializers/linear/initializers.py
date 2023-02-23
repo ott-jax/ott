@@ -46,7 +46,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0)
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     """Initialization for Sinkhorn potential/scaling g_v."""
 
@@ -56,7 +56,7 @@ class SinkhornInitializer(abc.ABC):
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = jax.random.PRNGKey(0),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
@@ -151,10 +151,10 @@ class DefaultInitializer(SinkhornInitializer):
 class GaussianInitializer(DefaultInitializer):
   """Gaussian initializer :cite:`thornton2022rethinking:22`.
 
-  Compute Gaussian approximations of each point cloud, then compute closed from
-  Kantorovich potential between Gaussian approximations using Brenier's theorem
-  (adapt convex/Brenier potential to Kantorovich). Use this Gaussian potential
-  to initialize Sinkhorn potentials/scalings.
+  Compute Gaussian approximations of each :class:`~ott.geometry.pointcloud.PointCloud'`,
+  then compute closed from Kantorovich potential between Gaussian approximations using
+  Brenier's theorem (adapt convex/Brenier potential to Kantorovich).
+  Use this Gaussian potential to initialize Sinkhorn potentials/scalings.
   """
 
   def init_dual_a(
@@ -179,7 +179,7 @@ class GaussianInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Gaussian initializer valid only for point clouds."
+    ), "Gaussian initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud' geoms."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
@@ -344,12 +344,13 @@ def _coordinate_update(
 class SubsampleInitializer(DefaultInitializer):
   """Subsample initializer :cite:`thornton2022rethinking:22`.
 
-  Subsample each :class:~ott.geometry.point_cloud.PointCloud, then compute closed from
-  Sinkhorn potential between subsampled approximations. Use this potential
-  to initialize Sinkhorn potentials/scalings.
+  Subsample each :class:`~ott.geometry.pointcloud.PointCloud'`, then compute
+  :class:`Sinkhorn potential <ott.problems.linear.potentials.DualPotentials>` from the
+  subsampled approximations and use this potential to initialize Sinkhorn potentials/scalings
+  for the original problem.
 
   Args:
-    subsample_n: number of points to subsample from each point cloud.
+    subsample_n: number of points to subsample from each :class:`~ott.geometry.pointcloud.PointCloud'`.
   """
 
   def __init__(
@@ -364,8 +365,10 @@ class SubsampleInitializer(DefaultInitializer):
     self.sinkhorn_kwargs = sinkhorn_kwargs or {}
 
   def init_dual_a(
-      self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
-      rng: jax.random.PRNGKey
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      lse_mode: bool,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> jnp.ndarray:
     """Subsample initializer function.
 
@@ -381,7 +384,7 @@ class SubsampleInitializer(DefaultInitializer):
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
-    ), "Subsample initializer valid only for point clouds."
+    ), "Subsample initializer valid only for :class:`~ott.geometry.pointcloud.PointCloud'` geom."
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
@@ -396,7 +399,13 @@ class SubsampleInitializer(DefaultInitializer):
     )
 
     # create subsampled point cloud geometry
-    sub_geom = pointcloud.PointCloud(sub_x, sub_y, cost_fn=ot_prob.geom.cost_fn)
+    sub_geom = pointcloud.PointCloud(
+        sub_x,
+        sub_y,
+        epsilon=ot_prob.geom.epsilon,
+        scale_cost=ot_prob.geom._scale_cost,
+        cost_fn=ot_prob.geom.cost_fn
+    )
 
     # run sinkhorn
     subsample_sink_out = sinkhorn.solve(sub_geom, **self.sinkhorn_kwargs)

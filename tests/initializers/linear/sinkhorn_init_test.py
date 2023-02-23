@@ -86,29 +86,19 @@ def run_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
     *,
-    initializer: Literal["default", "sorting", "gaussian", "subsample"],
+    initializer: linear_init.SinkhornInitializer = linear_init
+    .DefaultInitializer(),
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
     **kwargs: Any
 ) -> sinkhorn.SinkhornOutput:
-  if initializer == "default":
-    init = linear_init.DefaultInitializer()
-  elif initializer == "sorting":
-    init = linear_init.SortingInitializer(**kwargs)
-  elif initializer == "gaussian":
-    init = linear_init.GaussianInitializer(**kwargs)
-  elif initializer == "subsample":
-    init = linear_init.SubsampleInitializer(**kwargs)
-  else:
-    raise NotImplementedError(initializer)
+  """Runs Sinkhorn algorithm with given initializer."""
 
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   prob = linear_problem.LinearProblem(geom, a, b)
-  # can jit initializer + solver or just solver, but not both
-  # setting solver to not jit, and testing just jitting everyting
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init)
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
   return solver(prob)
 
 
@@ -117,16 +107,22 @@ class TestSinkhornInitializers:
 
   @pytest.mark.parametrize(
       "init", [
-          "default", "gaussian", "sorting",
+          "default", "gaussian", "sorting", "subsample",
           linear_init.DefaultInitializer(), "non-existent"
       ]
   )
   def test_create_initializer(self, init: str):
-    solver = sinkhorn.Sinkhorn(initializer=init)
+    if init == "subsample":
+      kwargs_init = dict(subsample_n=10)
+    else:
+      kwargs_init = dict()
+
+    solver = sinkhorn.Sinkhorn(initializer=init, kwargs_init=kwargs_init)
     expected_types = {
         "default": linear_init.DefaultInitializer,
         "gaussian": linear_init.GaussianInitializer,
         "sorting": linear_init.SortingInitializer,
+        "subsample": linear_init.SubsampleInitializer,
     }
 
     if isinstance(init, linear_init.SinkhornInitializer):
@@ -153,7 +149,6 @@ class TestSinkhornInitializers:
     sink_out_base = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon
@@ -162,11 +157,12 @@ class TestSinkhornInitializers:
     sink_out_init = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="sorting",
+        initializer=linear_init.SortingInitializer(
+            vectorized_update=vector_min
+        ),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
-        vectorized_update=vector_min,
         lse_mode=lse_mode
     )
 
@@ -228,7 +224,7 @@ class TestSinkhornInitializers:
         geom=new_geom, a=ot_problem.a, b=ot_problem.b
     )
 
-    with pytest.raises(AssertionError, match=r"point cloud"):
+    with pytest.raises(AssertionError, match=r"pointcloud"):
       gaus_init.init_dual_a(ot_problem, lse_mode=True)
 
   @pytest.mark.parametrize('lse_mode', [True, False])
@@ -243,6 +239,15 @@ class TestSinkhornInitializers:
     subsample_n = 100
     epsilon = 1e-2
 
+    # initializer
+    if initializer == "sorting":
+      initializer = linear_init.SortingInitializer(vectorized_update=True)
+    elif initializer == "gaussian":
+      initializer = linear_init.GaussianInitializer()
+    elif initializer == "subsample":
+      initializer = linear_init.SubsampleInitializer(subsample_n=subsample_n)
+
+    # ot problem
     if initializer == "sorting":
       ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
@@ -251,49 +256,29 @@ class TestSinkhornInitializers:
       )
 
     if jit:
-      run_fn = jax.jit(
-          run_sinkhorn, static_argnames=["initializer", "lse_mode"]
-      )
-      sub_run_fn = jax.jit(
-          run_sinkhorn,
-          static_argnames=["initializer", "lse_mode", "subsample_n"]
-      )
+      run_fn = jax.jit(run_sinkhorn, static_argnames=["lse_mode"])
     else:
       run_fn = run_sinkhorn
-      sub_run_fn = run_sinkhorn
 
     # run sinkhorn
     default_out = run_fn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
         lse_mode=lse_mode,
     )
 
-    if initializer == "subsample":
-      init_out = sub_run_fn(
-          x=ot_problem.geom.x,
-          y=ot_problem.geom.y,
-          initializer=initializer,
-          a=ot_problem.a,
-          b=ot_problem.b,
-          epsilon=epsilon,
-          lse_mode=lse_mode,
-          subsample_n=subsample_n
-      )
-    else:
-      init_out = run_fn(
-          x=ot_problem.geom.x,
-          y=ot_problem.geom.y,
-          initializer=initializer,
-          a=ot_problem.a,
-          b=ot_problem.b,
-          epsilon=epsilon,
-          lse_mode=lse_mode,
-      )
+    init_out = run_fn(
+        x=ot_problem.geom.x,
+        y=ot_problem.geom.y,
+        initializer=initializer,
+        a=ot_problem.a,
+        b=ot_problem.b,
+        epsilon=epsilon,
+        lse_mode=lse_mode,
+    )
 
     if lse_mode:
       assert default_out.converged
