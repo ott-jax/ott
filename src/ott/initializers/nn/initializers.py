@@ -141,7 +141,6 @@ class MetaInitializer(initializers.DefaultInitializer):
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
-
     del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
