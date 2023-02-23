@@ -23,7 +23,7 @@ Barycenter Solvers
 
     continuous_barycenter.WassersteinBarycenter
     continuous_barycenter.BarycenterState
-    discrete_barycenter.discrete_barycenter
+    discrete_barycenter.FixedBarycenter
     discrete_barycenter.SinkhornBarycenterOutput
 
 Sinkhorn Acceleration
