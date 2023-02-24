@@ -24,10 +24,10 @@ from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers import was_solver
 
-__all__ = ["BarycenterState", "WassersteinBarycenter"]
+__all__ = ["FreeBarycenterState", "FreeWassersteinBarycenter"]
 
 
-class BarycenterState(NamedTuple):
+class FreeBarycenterState(NamedTuple):
   """Holds the state of the Wasserstein barycenter solver.
 
   Args:
@@ -47,14 +47,14 @@ class BarycenterState(NamedTuple):
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'BarycenterState':
+  def set(self, **kwargs: Any) -> 'FreeBarycenterState':
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
-      self, iteration: int, bar_prob: barycenter_problem.BarycenterProblem,
+      self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
-  ) -> 'BarycenterState':
+  ) -> 'FreeBarycenterState':
     """Update the state of the solver.
 
     Args:
@@ -128,28 +128,27 @@ class BarycenterState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class WassersteinBarycenter(was_solver.WassersteinSolver):
-  """A Continuous Wasserstein barycenter solver, built on generic template."""
+class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
+  """Continuous Wassertsein barycenter solver."""
 
   def __call__(  # noqa: D102
       self,
-      bar_prob: barycenter_problem.BarycenterProblem,
+      bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
-      rng: int = 0
-  ) -> BarycenterState:
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+  ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
     run_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
     return run_fn(self, bar_size, bar_prob, x_init, rng)
 
   def init_state(
       self,
-      bar_prob: barycenter_problem.BarycenterProblem,
+      bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
-      # TODO(michalk8): change the API to pass the PRNG key directly
-      rng: int = 0,
-  ) -> BarycenterState:
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+  ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
     Args:
@@ -158,8 +157,8 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       x_init: Initial barycenter estimate of shape ``[bar_size, ndim]``.
         If `None`, ``bar_size`` points will be sampled from the input
         measures according to their weights
-        :attr:`~ott.problems.linear.barycenter_problem.BarycenterProblem.flattened_y`.
-      rng: Seed for :func:`jax.random.PRNGKey`.
+        :attr:`~ott.problems.linear.barycenter_problem.FreeBarycenterProblem.flattened_y`.
+      rng: Random key for seeding.
 
     Returns:
       The initial barycenter state.
@@ -170,7 +169,7 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
     else:
       # sample randomly points in the support of the y measures
       indices_subset = jax.random.choice(
-          jax.random.PRNGKey(rng),
+          rng,
           a=bar_prob.flattened_y.shape[0],
           shape=(bar_size,),
           replace=False,
@@ -188,37 +187,38 @@ class WassersteinBarycenter(was_solver.WassersteinSolver):
       ))
     else:
       errors = None
-    return BarycenterState(
+    return FreeBarycenterState(
         -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, x, a
     )
 
   def output_from_state(  # noqa: D102
-      self, state: BarycenterState
-  ) -> BarycenterState:
+      self, state: FreeBarycenterState
+  ) -> FreeBarycenterState:
     # TODO(michalk8): create an output variable to match rest of the framework
     return state
 
 
 def iterations(
-    solver: WassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.BarycenterProblem, x_init: jnp.ndarray,
-    rng: int
-) -> BarycenterState:
+    solver: FreeWassersteinBarycenter, bar_size: int,
+    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray
+) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 
   def cond_fn(
-      iteration: int, constants: Tuple[WassersteinBarycenter,
-                                       barycenter_problem.BarycenterProblem],
-      state: BarycenterState
+      iteration: int,
+      constants: Tuple[FreeWassersteinBarycenter,
+                       barycenter_problem.FreeBarycenterProblem],
+      state: FreeBarycenterState
   ) -> bool:
     solver, _ = constants
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration, constants: Tuple[WassersteinBarycenter,
-                                  barycenter_problem.BarycenterProblem],
-      state: BarycenterState, compute_error: bool
-  ) -> BarycenterState:
+      iteration, constants: Tuple[FreeWassersteinBarycenter,
+                                  barycenter_problem.FreeBarycenterProblem],
+      state: FreeBarycenterState, compute_error: bool
+  ) -> FreeBarycenterState:
     del compute_error  # Always assumed True
     solver, bar_prob = constants
     return state.update(

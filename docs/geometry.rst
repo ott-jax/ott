@@ -30,9 +30,10 @@ standard cost functions that are meaningful in an OT context, notably the
 That cost can be used for instance to compute a distance between Gaussian
 mixtures, as proposed in :cite:`chen:19a` and revisited in :cite:`delon:20`.
 
-To be useful with Sinkhorn solvers, ``Geometries`` typically need to provide an
-``epsilon`` regularization parameter. We propose either to set that value once
-for all, or implement an annealing
+To be useful with :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solvers,
+:class:`Geometries <ott.geometry.geometry.Geometry>` typically need to provide
+an ``epsilon`` regularization parameter. We propose either to set that value
+once for all, or implement an annealing
 :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler.
 
 Geometries

@@ -46,7 +46,7 @@ class ScaleTriL:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: jnp.dtype = jnp.float32,
@@ -54,7 +54,7 @@ class ScaleTriL:
     """Construct a random ScaleTriL.
 
     Args:
-      key: pseudo-random number generator key
+      rng: pseudo-random number generator key
       n_dimensions: number of dimensions
       stdev: desired standard deviation (around 0) for the log eigenvalues
       dtype: data type for the covariance matrix
@@ -63,12 +63,12 @@ class ScaleTriL:
       A ScaleTriL.
     """
     # generate a random orthogonal matrix
-    key, subkey = jax.random.split(key)
-    q = linalg.get_random_orthogonal(key=subkey, dim=n_dimensions, dtype=dtype)
+    rng, subrng = jax.random.split(rng)
+    q = linalg.get_random_orthogonal(rng=subrng, dim=n_dimensions, dtype=dtype)
 
     # generate random eigenvalues
     eigs = stdev * jnp.exp(
-        jax.random.normal(key=key, shape=(n_dimensions,), dtype=dtype)
+        jax.random.normal(key=rng, shape=(n_dimensions,), dtype=dtype)
     )
 
     # random positive definite matrix

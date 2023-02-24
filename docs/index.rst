@@ -65,18 +65,26 @@ Design Choices
 
 Packages
 --------
-- :doc:`geometry` contains classes to instantiate objects that describe
-  *two point clouds* paired with a *cost* function. Geometry objects are used to
-  describe OT problems, handled by solvers in the solvers.
-- :doc:`problems/index`
-- :doc:`solvers/index`
-- :doc:`initializers/index`
+- :doc:`geometry` contains classes that instantiate the ground *cost matrix*
+  used to specify OT problems. Here cost matrix can be understood in
+  a litteral (by actually passing a matrix) or abstract sense (by passing
+  information that is sufficient to recreate that matrix, apply all or parts
+  of it, or apply its kernel). A typical example in the latter case arises
+  when comparing *two point clouds*, paired with a *cost function*. Geometry
+  objects are used to describe OT *problems*, solved next by *solvers*.
+- :doc:`problems/index` are used to describe linear or quadratic (GW) OT
+  problems.
+- :doc:`solvers/index` solve linear or quadratic problems with various
+  techniques, including some neural approaches.
+- :doc:`initializers/index` are used to speed up the resolution of OT
+  solvers.
 - :doc:`tools` provides an interface to exploit OT solutions, as produced by
   solvers in the solvers. Such tasks include computing approximations
   to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
-- :doc:`math`
+- :doc:`math` holds low-level mathematical primitives.
+- :doc:`utils` provides misc helper functions
 
 .. toctree::
     :maxdepth: 1
@@ -95,6 +103,7 @@ Packages
     initializers/index
     tools
     math
+    utils
 
 .. toctree::
     :maxdepth: 1

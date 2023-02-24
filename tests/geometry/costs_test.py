@@ -27,7 +27,7 @@ from ott.solvers.linear import sinkhorn
 @pytest.mark.fast
 class TestCostFn:
 
-  def test_cosine(self, rng: jnp.ndarray):
+  def test_cosine(self, rng: jax.random.PRNGKeyArray):
     """Test the cosine cost function."""
     x = jnp.array([0, 0])
     y = jnp.array([0, 0])
@@ -45,9 +45,9 @@ class TestCostFn:
     np.testing.assert_allclose(dist_x_y, 1.0 - -1.0, rtol=1e-5, atol=1e-5)
 
     n, m, d = 10, 12, 7
-    keys = jax.random.split(rng, 2)
-    x = jax.random.normal(keys[0], (n, d))
-    y = jax.random.normal(keys[1], (m, d))
+    rngs = jax.random.split(rng, 2)
+    x = jax.random.normal(rngs[0], (n, d))
+    y = jax.random.normal(rngs[1], (m, d))
 
     cosine_fn = costs.Cosine()
     normalize = lambda v: v / jnp.sqrt(jnp.sum(v ** 2))
@@ -76,7 +76,7 @@ class TestCostFn:
 @pytest.mark.fast
 class TestBuresBarycenter:
 
-  def test_bures(self, rng: jnp.ndarray):
+  def test_bures(self, rng: jax.random.PRNGKeyArray):
     d = 5
     r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
     Sigma1 = r * jnp.eye(d)
@@ -130,7 +130,9 @@ class TestRegTICost:
 
   @pytest.mark.parametrize("k", [1, 2, 7, 10])
   @pytest.mark.parametrize("d", [10, 50, 100])
-  def test_elastic_sq_k_overlap(self, rng: jax.random.PRNGKey, k: int, d: int):
+  def test_elastic_sq_k_overlap(
+      self, rng: jax.random.PRNGKeyArray, k: int, d: int
+  ):
     expected = jax.random.normal(rng, (d,))
 
     cost_fn = costs.ElasticSqKOverlap(k=k, gamma=1e-2)
@@ -149,9 +151,9 @@ class TestRegTICost:
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
   ):
     frac_sparse = 0.8
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, (50, 30))
-    y = jax.random.normal(key2, (71, 30))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (50, 30))
+    y = jax.random.normal(rng2, (71, 30))
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
     dp = sinkhorn.solve(geom).to_dual_potentials()
@@ -164,11 +166,12 @@ class TestRegTICost:
   def test_stronger_regularization_increases_sparsity(
       self, rng: jax.random.PRNGKeyArray, cost_clazz: Type[costs.RegTICost]
   ):
-    d, keys = 30, jax.random.split(rng, 4)
-    x = jax.random.normal(keys[0], (50, d))
-    y = jax.random.normal(keys[1], (71, d))
-    xx = jax.random.normal(keys[2], (25, d))
-    yy = jax.random.normal(keys[3], (35, d))
+    d, rngs = 30, jax.random.split(rng, 4)
+    x = jax.random.normal(rngs[0], (50, d))
+    y = jax.random.normal(rngs[1], (71, d))
+    xx = jax.random.normal(rngs[2], (25, d))
+    xx = jax.random.normal(rngs[2], (25, d))
+    yy = jax.random.normal(rngs[3], (35, d))
 
     sparsity = {False: [], True: []}
     for gamma in [9, 10, 100]:
