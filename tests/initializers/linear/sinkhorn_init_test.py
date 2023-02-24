@@ -28,7 +28,7 @@ from ott.solvers.linear import sinkhorn
 
 
 def create_sorting_problem(
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n: int,
     epsilon: float = 1e-2,
     batch_size: Optional[int] = None
@@ -58,7 +58,7 @@ def create_sorting_problem(
 
 
 def create_ot_problem(
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n: int,
     m: int,
     d: int,
@@ -172,7 +172,7 @@ class TestSinkhornInitializers:
       assert sink_out_init.converged
       assert sink_out_base.n_iters > sink_out_init.n_iters
 
-  def test_sorting_init_online(self, rng: jnp.ndarray):
+  def test_sorting_init_online(self, rng: jax.random.PRNGKeyArray):
     n = 100
     epsilon = 1e-2
 
@@ -183,7 +183,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_sorting_init_square_cost(self, rng: jnp.ndarray):
+  def test_sorting_init_square_cost(self, rng: jax.random.PRNGKeyArray):
     n, m, d = 100, 150, 1
     epsilon = 1e-2
 
@@ -192,7 +192,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_default_initializer(self, rng: jnp.ndarray):
+  def test_default_initializer(self, rng: jax.random.PRNGKeyArray):
     """Tests default initializer"""
     n, m, d = 200, 200, 2
     epsilon = 1e-2
@@ -210,7 +210,7 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(0., default_potential_a)
     np.testing.assert_array_equal(0., default_potential_b)
 
-  def test_gauss_pointcloud_geom(self, rng: jnp.ndarray):
+  def test_gauss_pointcloud_geom(self, rng: jax.random.PRNGKeyArray):
     n, m, d = 200, 200, 2
     epsilon = 1e-2
 
@@ -231,7 +231,7 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
-      self, rng: jnp.ndarray, lse_mode: bool, jit: bool,
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, jit: bool,
       initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""
@@ -288,7 +288,7 @@ class TestSinkhornInitializers:
       assert default_out.n_iters >= init_out.n_iters
 
   @pytest.mark.parametrize('lse_mode', [True, False])
-  def test_meta_initializer(self, rng: jnp.ndarray, lse_mode: bool):
+  def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 200, 200, 2
     epsilon = 1e-2

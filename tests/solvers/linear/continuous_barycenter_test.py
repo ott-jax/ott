@@ -52,8 +52,8 @@ class TestBarycenter:
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jnp.ndarray, rank: int, epsilon: float, init_random: bool,
-      jit: bool
+      self, rng: jax.random.PRNGKeyArray, rank: int, epsilon: float,
+      init_random: bool, jit: bool
   ):
     rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
@@ -117,7 +117,9 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() > .7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
-  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
+  def test_barycenter_jit(
+      self, rng: jax.random.PRNGKeyArray, segment_before: bool
+  ):
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
@@ -181,7 +183,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       lse_mode: bool,
       epsilon: float,
       jit: bool,
@@ -278,7 +280,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter_different_number_of_components(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       alpha: float,
       epsilon: float,
       dim: int,
@@ -293,21 +295,21 @@ class TestBarycenter:
     b_cost = costs.Bures(dimension=dim)
 
     # keys for random number generation
-    keys = jax.random.split(rng, num=4)
+    rngs = jax.random.split(rng, num=4)
 
     # test for non-uniform barycentric weights
     barycentric_weights = jax.random.dirichlet(
-        keys[0], alpha=jnp.ones(num_measures) * alpha
+        rngs[0], alpha=jnp.ones(num_measures) * alpha
     )
 
     ridges = jnp.array([jnp.ones(dim), 5 * jnp.ones(dim)])
     stdev_means = 0.1 * jnp.mean(ridges, axis=1)
     stdev_covs = jax.random.uniform(
-        keys[1], shape=(num_measures,), minval=0., maxval=10.
+        rngs[1], shape=(num_measures,), minval=0., maxval=10.
     )
 
     seeds = jax.random.randint(
-        keys[2], shape=(num_measures,), minval=0, maxval=100
+        rngs[2], shape=(num_measures,), minval=0, maxval=100
     )
 
     gmm_generators = [
@@ -339,7 +341,7 @@ class TestBarycenter:
 
     # random initialization of the barycenter
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
-        keys[3], n_components=bar_size, n_dimensions=dim
+        rngs[3], n_components=bar_size, n_dimensions=dim
     )
     x_init_means = gmm_generator.loc
     x_init_covs = gmm_generator.covariance

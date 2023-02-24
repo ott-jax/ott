@@ -65,7 +65,7 @@ class Gaussian:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
@@ -75,7 +75,7 @@ class Gaussian:
     """Construct a random Gaussian.
 
     Args:
-      key: jax.random seed
+      rng: jax.random key
       n_dimensions: desired covariance dimensions
       stdev: standard deviation of loc and log eigenvalues
         (means for both are 0)
@@ -84,12 +84,12 @@ class Gaussian:
     Returns:
       A random Gaussian.
     """
-    key, subkey0, subkey1 = jax.random.split(key, num=3)
+    rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     loc = jax.random.normal(
-        key=subkey0, shape=(n_dimensions,), dtype=dtype
+        key=subrng0, shape=(n_dimensions,), dtype=dtype
     ) * stdev_mean + ridge
     scale = scale_tril.ScaleTriL.from_random(
-        key=subkey1, n_dimensions=n_dimensions, stdev=stdev_cov, dtype=dtype
+        rng=subrng1, n_dimensions=n_dimensions, stdev=stdev_cov, dtype=dtype
     )
     return cls(loc=loc, scale=scale)
 
@@ -138,9 +138,9 @@ class Gaussian:
         -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2., axis=-1))
     )  # (?, k)
 
-  def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
-    std_samples_t = jax.random.normal(key=key, shape=(self.n_dimensions, size))
+    std_samples_t = jax.random.normal(key=rng, shape=(self.n_dimensions, size))
     return self.loc[None] + (
         jnp.swapaxes(
             jnp.matmul(self.scale.cholesky(), std_samples_t),

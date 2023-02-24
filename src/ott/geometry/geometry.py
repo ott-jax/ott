@@ -623,7 +623,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      seed: int = 0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       scale: float = 1.
   ) -> 'low_rank.LRCGeometry':
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -642,7 +642,7 @@ class Geometry:
       rank: Target rank of the :attr:`cost_matrix`.
       tol: Tolerance of the error. The total number of sampled points is
         :math:`min(n, m,\frac{rank}{tol})`.
-      seed: Random seed.
+      rng: The PRNG key to use for initializing the model.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
 
@@ -664,19 +664,18 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
-      rng = jax.random.PRNGKey(seed)
-      key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+      rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 
-      i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
-      j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+      i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
+      j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
       ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
       cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
-      row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+      row_ixs = jax.random.choice(rng3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
       s = self.subset(row_ixs, None).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
@@ -684,7 +683,7 @@ class Geometry:
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
       p_col /= jnp.sum(p_col)
       # (n_subset,)
-      col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+      col_ixs = jax.random.choice(rng4, m, shape=(n_subset,), p=p_col)
       # (n_subset, n_subset)
       w = s[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
 
@@ -696,7 +695,7 @@ class Geometry:
       v = v.T / jnp.sqrt(d)[None, :]
 
       inv_scale = (1. / jnp.sqrt(n_subset))
-      col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+      col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
       A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale

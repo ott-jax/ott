@@ -289,7 +289,7 @@ class ICNN(ModelBase):
 
   def create_train_state(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
       params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
@@ -348,7 +348,7 @@ class MLP(ModelBase):
 
   def create_train_state(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
       params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,

@@ -129,14 +129,14 @@ class FreeBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
-  """A Continuous Wassertsein barycenter solver, built on WassersteinSolver."""
+  """Continuous Wassertsein barycenter solver."""
 
   def __call__(  # noqa: D102
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
-      rng: int = 0
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
     run_fn = jax.jit(iterations, static_argnums=1) if self.jit else iterations
@@ -147,8 +147,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
-      # TODO(michalk8): change the API to pass the PRNG key directly
-      rng: int = 0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
@@ -158,8 +157,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       x_init: Initial barycenter estimate of shape ``[bar_size, ndim]``.
         If `None`, ``bar_size`` points will be sampled from the input
         measures according to their weights
-        :attr:`~ott.problems.linear.barycenter_problem.BarycenterProblem.flattened_y`.
-      rng: Seed for :func:`jax.random.PRNGKey`.
+        :attr:`~ott.problems.linear.barycenter_problem.FreeBarycenterProblem.flattened_y`.
+      rng: Random key for seeding.
 
     Returns:
       The initial barycenter state.
@@ -170,7 +169,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
     else:
       # sample randomly points in the support of the y measures
       indices_subset = jax.random.choice(
-          jax.random.PRNGKey(rng),
+          rng,
           a=bar_prob.flattened_y.shape[0],
           shape=(bar_size,),
           replace=False,
@@ -202,7 +201,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
     bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
-    rng: int
+    rng: jax.random.PRNGKeyArray
 ) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 
