@@ -202,6 +202,7 @@ def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
     bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
     rng: jax.random.PRNGKeyArray
+) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 
   def cond_fn(
