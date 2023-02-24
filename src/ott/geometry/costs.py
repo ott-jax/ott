@@ -807,8 +807,8 @@ class SoftDTW(CostFn):
         )
     )
 
-    carry, _ = jax.lax.scan(body, init, model_matrix[2:])
-    return carry[1][-1]
+    (_, carry), _ = jax.lax.scan(body, init, model_matrix[2:])
+    return carry[-1]
 
   def tree_flatten(self):
     return (self.gamma, self.ground_cost), {"debiased": self.debiased}
