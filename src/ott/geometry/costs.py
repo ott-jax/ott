@@ -760,7 +760,29 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def _model_matrix(self, t1: jnp.ndarray, t2: jnp.ndarray) -> jnp.ndarray:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    c_xy = self._soft_dtw(x, y)
+    if self.debiased:
+      return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
+    return c_xy
+
+  def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+
+    def body(
+        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        current_antidiagonal: jnp.ndarray
+    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+      # modified from: https://github.com/khdlr/softdtw_jax
+      two_ago, one_ago = carry
+
+      diagonal, right, down = two_ago[:-1], one_ago[:-1], one_ago[1:]
+      best = mu.softmin(jnp.stack([diagonal, right, down], axis=-1), self.gamma)
+
+      next_row = best + current_antidiagonal
+      next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
+
+      return (one_ago, next_row), next_row
+
     t1 = t1[:, None] if t1.ndim == 1 else t1
     t2 = t2[:, None] if t2.ndim == 1 else t2
     dist = self.ground_cost.all_pairs(t1, t2)
@@ -773,32 +795,8 @@ class SoftDTW(CostFn):
     model_matrix = jnp.full((n + m - 1, n), fill_value=jnp.inf)
     mask = np.tri(n + m - 1, n, k=0, dtype=bool)
     mask = mask & mask[::-1, ::-1]
+    model_matrix = model_matrix.T.at[mask.T].set(dist.ravel()).T
 
-    return model_matrix.T.at[mask.T].set(dist.ravel()).T
-
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    c_xy = self._compute(x, y)
-    if self.debiased:
-      return c_xy - 0.5 * (self._compute(x, x) + self._compute(y, y))
-    return c_xy
-
-  def _compute(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
-
-    def body(
-        carry: Tuple[jnp.ndarray, jnp.ndarray],
-        current_antidiagonal: jnp.ndarray
-    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
-      two_ago, one_ago = carry
-
-      diagonal, right, down = two_ago[:-1], one_ago[:-1], one_ago[1:]
-      best = mu.softmin(jnp.stack([diagonal, right, down], axis=-1), self.gamma)
-
-      next_row = best + current_antidiagonal
-      next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
-
-      return (one_ago, next_row), next_row
-
-    model_matrix = self._model_matrix(t1, t2)
     init = (
         jnp.pad(model_matrix[0], (1, 0), constant_values=jnp.inf),
         jnp.pad(

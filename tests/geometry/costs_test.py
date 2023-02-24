@@ -19,6 +19,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from tslearn import metrics
 
 from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
@@ -170,7 +171,6 @@ class TestRegTICost:
     x = jax.random.normal(rngs[0], (50, d))
     y = jax.random.normal(rngs[1], (71, d))
     xx = jax.random.normal(rngs[2], (25, d))
-    xx = jax.random.normal(rngs[2], (25, d))
     yy = jax.random.normal(rngs[3], (35, d))
 
     sparsity = {False: [], True: []}
@@ -185,3 +185,77 @@ class TestRegTICost:
 
     for fwd in [False, True]:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
+
+
+@pytest.mark.fast
+class TestSoftDTW:
+
+  @pytest.mark.parametrize("n", [11, 16])
+  @pytest.mark.parametrize("m", [13, 16])
+  @pytest.mark.parametrize("gamma", [1e-3, 1.0, 5])
+  def test_soft_dtw(
+      self, rng: jax.random.PRNGKeyArray, n: int, m: int, gamma: float
+  ):
+    rng1, rng2 = jax.random.split(rng, 2)
+    t1 = jax.random.normal(rng1, (n,))
+    t2 = jax.random.normal(rng2, (m,))
+
+    expected = metrics.soft_dtw(t1, t2, gamma=gamma)
+    actual = costs.SoftDTW(gamma=gamma)(t1, t2)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize("debiased,jit", [(False, True), (True, False)])
+  def test_soft_dtw_debiased(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      debiased: bool,
+      jit: bool,
+  ):
+    gamma = 1e-1
+    rng1, rng2 = jax.random.split(rng, 2)
+    t1 = jax.random.normal(rng1, (16,))
+    t2 = jax.random.normal(rng2, (32,))
+
+    expected = metrics.soft_dtw(t1, t2, gamma=gamma)
+    if debiased:
+      expected -= 0.5 * (
+          metrics.soft_dtw(t1, t1, gamma=gamma) +
+          metrics.soft_dtw(t2, t2, gamma=gamma)
+      )
+    cost_fn = costs.SoftDTW(gamma=gamma, debiased=debiased)
+    actual = jax.jit(cost_fn)(t1, t2) if jit else cost_fn(t1, t2)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+    if debiased:
+      assert expected >= 0
+      np.testing.assert_allclose(cost_fn(t1, t1), 0.0, rtol=1e-6, atol=1e-6)
+      np.testing.assert_allclose(cost_fn(t2, t2), 0.0, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize("debiased,jit", [(False, False), (True, True)])
+  @pytest.mark.parametrize("gamma", [1e-2, 1])
+  def test_soft_dtw_grad(
+      self, rng: jax.random.PRNGKeyArray, debiased: bool, jit: bool,
+      gamma: float
+  ):
+    rngs = jax.random.split(rng, 4)
+    eps, tol = 1e-3, 1e-5
+    t1 = jax.random.normal(rngs[0], (9,))
+    t2 = jax.random.normal(rngs[1], (16,))
+
+    v_t1 = jax.random.normal(rngs[2], shape=t1.shape)
+    v_t1 = (v_t1 / jnp.linalg.norm(v_t1, axis=-1, keepdims=True)) * eps
+    v_t2 = jax.random.normal(rngs[3], shape=t2.shape) * eps
+    v_t2 = (v_t2 / jnp.linalg.norm(v_t2, axis=-1, keepdims=True)) * eps
+
+    cost_fn = costs.SoftDTW(gamma=gamma, debiased=debiased)
+    grad_cost = jax.grad(cost_fn, argnums=[0, 1])
+    grad_t1, grad_t2 = jax.jit(grad_cost)(t1, t2) if jit else grad_cost(t1, t2)
+
+    expected = cost_fn(t1 + v_t1, t2) - cost_fn(t1 - v_t1, t2)
+    actual = 2 * jnp.vdot(v_t1, grad_t1)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+    expected = cost_fn(t1, t2 + v_t2) - cost_fn(t1, t2 - v_t2)
+    actual = 2 * jnp.vdot(v_t2, grad_t2)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
