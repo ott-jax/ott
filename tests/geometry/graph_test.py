@@ -208,7 +208,8 @@ class TestGraph:
       only_fast=0,
   )
   def test_approximates_ground_truth(
-      self, rng: jax.random.PRNGKeyArray, numerical_scheme: str, fmt: Optional[str]
+      self, rng: jax.random.PRNGKeyArray, numerical_scheme: str,
+      fmt: Optional[str]
   ):
     eps, n_steps = 1e-5, 20
     G = random_graph(37, p=0.5, fmt=fmt)

@@ -36,7 +36,9 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1E-5, rtol=1E-5)
     np.testing.assert_allclose(expected_var, actual_var, atol=1E-5, rtol=1E-5)
 
-  def test_get_mean_and_var_nonuniform_weights(self, rng: jax.random.PRNGKeyArray):
+  def test_get_mean_and_var_nonuniform_weights(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)
@@ -58,7 +60,9 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1e-5, rtol=1e-5)
     np.testing.assert_allclose(expected_cov, actual_cov, atol=1e-5, rtol=1e-5)
 
-  def test_get_mean_and_cov_nonuniform_weights(self, rng: jax.random.PRNGKeyArray):
+  def test_get_mean_and_cov_nonuniform_weights(
+      self, rng: jax.random.PRNGKeyArray
+  ):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)

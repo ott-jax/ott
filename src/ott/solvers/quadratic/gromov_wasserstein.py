@@ -197,7 +197,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: Optional[linear_problem.LinearProblem] = None,
-      rng:  jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any,
   ) -> GWOutput:
     """Run the Gromov-Wasserstein solver.

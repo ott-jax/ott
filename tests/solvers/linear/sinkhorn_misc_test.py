@@ -40,8 +40,8 @@ class TestSinkhornAnderson:
       only_fast=0,
   )
   def test_anderson(
-      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], refresh_anderson_frequency: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], refresh_anderson_frequency: int
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -134,7 +134,8 @@ class TestSinkhornBures:
   @pytest.mark.parametrize("lse_mode", [False, True])
   @pytest.mark.parametrize("unbalanced,thresh", [(False, 1e-3), (True, 1e-4)])
   def test_bures_point_cloud(
-      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, unbalanced: bool, thresh: float
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, unbalanced: bool,
+      thresh: float
   ):
     """Two point clouds of Gaussians, tested with various parameters."""
     if unbalanced:

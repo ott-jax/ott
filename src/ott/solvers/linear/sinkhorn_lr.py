@@ -310,7 +310,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                   Optional[jnp.ndarray]] = (None, None, None),
-      rng : jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any,
   ) -> LRSinkhornOutput:
     """Run low-rank Sinkhorn.

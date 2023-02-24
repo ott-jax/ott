@@ -39,8 +39,8 @@ def _get_random_spd_matrix(dim: int, rng: jax.random.PRNGKeyArray):
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, rng: jax.random.PRNGKeyArray,
-    **kwargs: Any
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int,
+    rng: jax.random.PRNGKeyArray, **kwargs: Any
 ) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite

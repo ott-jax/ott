@@ -122,7 +122,9 @@ def _k_means_plus_plus(
     n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
 
-  def init_fn(geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray) -> KPPState:
+  def init_fn(
+      geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray
+  ) -> KPPState:
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
@@ -351,7 +353,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    rng:  jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 

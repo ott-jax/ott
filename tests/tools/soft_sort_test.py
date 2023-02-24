@@ -29,7 +29,9 @@ from ott.tools import soft_sort
 class TestSoftSort:
 
   @pytest.mark.parametrize("shape", [(20,), (20, 1)])
-  def test_sort_one_array(self, rng: jax.random.PRNGKeyArray, shape: Tuple[int, ...]):
+  def test_sort_one_array(
+      self, rng: jax.random.PRNGKeyArray, shape: Tuple[int, ...]
+  ):
     x = jax.random.uniform(rng, shape)
     xs = soft_sort.sort(x, axis=0)
 
@@ -158,7 +160,9 @@ class TestSoftSort:
     np.testing.assert_allclose(min_distances, min_distances, atol=0.05)
 
   @pytest.mark.parametrize("implicit", [False, True])
-  def test_soft_sort_jacobian(self, rng: jax.random.PRNGKeyArray, implicit: bool):
+  def test_soft_sort_jacobian(
+      self, rng: jax.random.PRNGKeyArray, implicit: bool
+  ):
     b, n = 10, 40
     idx_column = 5
     rngs = jax.random.split(rng, 3)
