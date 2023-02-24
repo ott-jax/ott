@@ -186,10 +186,12 @@ class FixedBarycenterProblem:
   """Fixed-support Wasserstein barycenter problem.
 
   Args:
-    geom: :class:`~ott.geometry.geometry.Geometry` object.
-    a: batch of histograms of shape ``[batch, num_a]`` where `num_a` matches
-      the first value of `geom.shape`.
-    weights: ``[batch,]`` positive weights summing to 1. Uniform by default.
+    geom: Geometry object.
+    a: batch of histograms of shape ``[batch, num_a]`` where ``num_a`` matches
+      the first value of the :attr:`~ott.geometry.Geometry.shape` attribute of
+      ``geom``.
+    weights: ``[batch,]`` positive weights summing to :math`1`. Uniform by
+      default.
   """
 
   def __init__(
@@ -209,7 +211,7 @@ class FixedBarycenterProblem:
 
   @property
   def weights(self) -> jnp.ndarray:
-    """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
+    """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
     if self._weights is None:
       weights = jnp.ones((self.num_measures,)) / self.num_measures
     else:
