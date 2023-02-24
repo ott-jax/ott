@@ -41,11 +41,13 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
+# TODO(michalk8): add axis argument
 def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   """Kullback-Leilbler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
 
 
+# TODO(michalk8): add axis argument
 def js(p: jnp.ndarray, q: jnp.ndarray, *, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
   return c * (kl(p, q) + kl(q, p))
@@ -114,10 +116,21 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
     return lse, res
 
 
-@jax.custom_vjp
-def softmin(x: jnp.ndarray, gamma: float) -> jnp.ndarray:
-  """TODO."""
-  return -gamma * jsp.special.logsumexp(x / -gamma, axis=-1)
+@functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
+def softmin(
+    x: jnp.ndarray, gamma: float, axis: Optional[int] = None
+) -> jnp.ndarray:
+  r"""Soft-min operator.
+
+  Args:
+    x: Input data.
+    gamma: Smoothing parameter.
+    axis: Axis or axes over which to operate. If ``None``, use flattened input.
+
+  Returns:
+    The soft minimum.
+  """
+  return -gamma * jsp.special.logsumexp(x / -gamma, axis=axis)
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
@@ -138,8 +151,12 @@ def barycentric_projection(
 
 
 softmin.defvjp(
-    lambda x, gamma: (softmin(x, gamma), (x / -gamma,)), lambda res, g: (
-        jnp.where(jnp.isinf(res[0]), 0.0,
-                  jax.nn.softmax(res[0]) * g[:, None]), None
+    lambda x, gamma, axis: (softmin(x, gamma, axis), (x / -gamma, axis)),
+    lambda axis, res, g: (
+        jnp.where(
+            jnp.isinf(res[0]), 0.0,
+            jax.nn.softmax(res[0], axis=axis) *
+            (g if axis is None else jnp.expand_dims(g, axis=axis))
+        ), None
     )
 )

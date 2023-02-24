@@ -776,7 +776,9 @@ class SoftDTW(CostFn):
       two_ago, one_ago = carry
 
       diagonal, right, down = two_ago[:-1], one_ago[:-1], one_ago[1:]
-      best = mu.softmin(jnp.stack([diagonal, right, down], axis=-1), self.gamma)
+      best = mu.softmin(
+          jnp.stack([diagonal, right, down], axis=-1), self.gamma, axis=-1
+      )
 
       next_row = best + current_antidiagonal
       next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
