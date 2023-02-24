@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 __all__ = ["WassersteinSolver"]
 
 State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
-              "continuous_barycenter.BarycenterState"]
+              "continuous_barycenter.FreeBarycenterState"]
 
 
 # TODO(michalk8): refactor to have generic nested solver API

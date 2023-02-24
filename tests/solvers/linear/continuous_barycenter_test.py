@@ -72,7 +72,7 @@ class TestBarycenter:
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
-    bar_prob = barycenter_problem.BarycenterProblem(
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
         y,
         b,
         epsilon=epsilon,
@@ -86,7 +86,7 @@ class TestBarycenter:
 
     # Define solver
     threshold = 1e-3
-    solver = cb.WassersteinBarycenter(rank=rank, threshold=threshold)
+    solver = cb.FreeWassersteinBarycenter(rank=rank, threshold=threshold)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -127,17 +127,17 @@ class TestBarycenter:
         b: jnp.ndarray,
         segment_before: bool,
         num_per_segment: Tuple[int, ...],
-    ) -> cb.BarycenterState:
+    ) -> cb.FreeBarycenterState:
       if segment_before:
         y, b = segment.segment_point_cloud(
             x=y, a=b, num_per_segment=num_per_segment
         )
-        bar_prob = barycenter_problem.BarycenterProblem(y, b, epsilon=1e-1)
+        bar_prob = barycenter_problem.FreeBarycenterProblem(y, b, epsilon=1e-1)
       else:
-        bar_prob = barycenter_problem.BarycenterProblem(
+        bar_prob = barycenter_problem.FreeBarycenterProblem(
             y, b, epsilon=1e-1, num_per_segment=num_per_segment
         )
-      solver = cb.WassersteinBarycenter(threshold=threshold)
+      solver = cb.FreeWassersteinBarycenter(threshold=threshold)
       return solver(bar_prob)
 
     rngs = jax.random.split(rng, 20)
@@ -230,7 +230,7 @@ class TestBarycenter:
         num_per_segment=(num_components, num_components),
         padding_vector=bures_cost._padder(y.shape[1]),
     )
-    bar_p = barycenter_problem.BarycenterProblem(
+    bar_p = barycenter_problem.FreeBarycenterProblem(
         seg_y,
         seg_b,
         weights=barycentric_weights,
@@ -241,7 +241,7 @@ class TestBarycenter:
     assert bar_p.max_measure_size == seg_y.shape[1]
     assert bar_p.ndim == seg_y.shape[2]
 
-    solver = cb.WassersteinBarycenter(lse_mode=lse_mode)
+    solver = cb.FreeWassersteinBarycenter(lse_mode=lse_mode)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -349,7 +349,7 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    bar_p = barycenter_problem.BarycenterProblem(
+    bar_p = barycenter_problem.FreeBarycenterProblem(
         y=ys,
         b=bs,
         weights=barycentric_weights,
@@ -363,7 +363,7 @@ class TestBarycenter:
     assert bar_p.num_measures == num_measures
     assert bar_p.ndim == ys.shape[-1]
 
-    solver = cb.WassersteinBarycenter(lse_mode=True)
+    solver = cb.FreeWassersteinBarycenter(lse_mode=True)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
