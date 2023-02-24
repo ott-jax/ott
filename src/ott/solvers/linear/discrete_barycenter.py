@@ -82,7 +82,17 @@ class FixedBarycenter:
       fixed_bp: barycenter_problem.FixedBarycenterProblem,
       dual_initialization: Optional[jnp.ndarray] = None,
   ) -> SinkhornBarycenterOutput:
-    """Solve barycenter problem, possibly using clever initialization."""
+    """Solve barycenter problem, possibly using clever initialization.
+
+    Args:
+      fixed_bp: Fixed barycenter problem.
+      dual_initialization: Initial value for the g_v potential/scalings,
+        one for each of the histograms described in ``fixed_bp``. If ``None``,
+        use initialization from :cite:`cuturi:15`, eq. 3.6.
+
+    Returns:
+      The barycenter.
+    """
     geom = fixed_bp.geom
     a = fixed_bp.a
     num_a, num_b = geom.shape
