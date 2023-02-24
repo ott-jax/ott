@@ -43,7 +43,8 @@
 
 @InProceedings{feydy:19,
   title = 	 {Interpolating between Optimal Transport and MMD using Sinkhorn Divergences},
-  author =       {Feydy, Jean and S\'{e}journ\'{e}, Thibault and Vialard, Fran\c{c}ois-Xavier and Amari, Shun-ichi and Trouve, Alain and Peyr\'{e}, Gabriel},
+  author = {Feydy, Jean and S\'{e}journ\'{e}, Thibault and Vialard, Fran\c{c}ois-Xavier and Amari, Shun-ichi and
+            Trouve, Alain and Peyr\'{e}, Gabriel},
   booktitle = 	 {Proceedings of the Twenty-Second International Conference on Artificial Intelligence and Statistics},
   pages = 	 {2681--2690},
   year = 	 {2019},
@@ -54,7 +55,6 @@
   publisher =    {PMLR},
   pdf = 	 {http://proceedings.mlr.press/v89/feydy19a/feydy19a.pdf},
   url = 	 {https://proceedings.mlr.press/v89/feydy19a.html},
-  abstract = 	 {Comparing probability distributions is a fundamental problem in data sciences. Simple norms and divergences such as the total variation and the relative entropy only compare densities in a point-wise manner and fail to capture the geometric nature of the problem. In sharp contrast, Maximum Mean Discrepancies (MMD) and Optimal Transport distances (OT) are two classes of distances between measures that take into account the geometry of the underlying space and metrize the convergence in law.  This paper studies the Sinkhorn divergences, a family of geometric divergences that interpolates between MMD and OT. Relying on a new notion of geometric entropy, we provide theoretical guarantees for these divergences: positivity, convexity and metrization of the convergence in law. On the practical side, we detail a numerical scheme that enables the large scale application of these divergences for machine learning: on the GPU, gradients of the Sinkhorn loss can be computed for batches of a million samples.}
 }
 
 
@@ -145,7 +145,8 @@
  booktitle = {Proceedings of the 39th International Conference on Machine Learning},
  pages = {19347--19365},
  year = {2022},
- editor = {Chaudhuri, Kamalika and Jegelka, Stefanie and Song, Le and Szepesvari, Csaba and Niu, Gang and Sabato, Sivan},
+ editor = {Chaudhuri, Kamalika and Jegelka, Stefanie and Song, Le and Szepesvari, Csaba and Niu, Gang and
+           Sabato, Sivan},
  volume = {162},
  series = {Proceedings of Machine Learning Research},
  month = {17--23 Jul},
@@ -783,4 +784,36 @@
   author={Danskin, John M},
   publisher={Springer},
   year={1967}
+}
+
+
+@InProceedings{cuturi:17,
+  title = 	 {Soft-{DTW}: a Differentiable Loss Function for Time-Series},
+  author =       {Marco Cuturi and Mathieu Blondel},
+  booktitle = 	 {Proceedings of the 34th International Conference on Machine Learning},
+  pages = 	 {894--903},
+  year = 	 {2017},
+  editor = 	 {Precup, Doina and Teh, Yee Whye},
+  volume = 	 {70},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {06--11 Aug},
+  publisher =    {PMLR},
+  pdf = 	 {http://proceedings.mlr.press/v70/cuturi17a/cuturi17a.pdf},
+  url = 	 {https://proceedings.mlr.press/v70/cuturi17a.html},
+}
+
+
+@InProceedings{blondel:21,
+  title = 	 { Differentiable Divergences Between Time Series },
+  author =       {Blondel, Mathieu and Mensch, Arthur and Vert, Jean-Philippe},
+  booktitle = 	 {Proceedings of The 24th International Conference on Artificial Intelligence and Statistics},
+  pages = 	 {3853--3861},
+  year = 	 {2021},
+  editor = 	 {Banerjee, Arindam and Fukumizu, Kenji},
+  volume = 	 {130},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {13--15 Apr},
+  publisher =    {PMLR},
+  pdf = 	 {http://proceedings.mlr.press/v130/blondel21a/blondel21a.pdf},
+  url = 	 {https://proceedings.mlr.press/v130/blondel21a.html},
 }

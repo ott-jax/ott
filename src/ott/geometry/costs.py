@@ -741,13 +741,13 @@ class UnbalancedBures(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class SoftDTW(CostFn):
-  """Soft dynamic time warping (DTW).
+  """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
 
   Args:
-    gamma: Smoothing parameter.
+    gamma: Smoothing parameter for the soft-min operator.
     ground_cost: Ground cost function. If ``None``,
       use :class:`~ott.geometry.costs.SqEuclidean`.
-    debiased: TODO.
+    debiased: Whether to compute the debiased softDTW :cite:`blondel:21`.
   """
 
   def __init__(
