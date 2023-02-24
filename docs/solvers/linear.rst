@@ -22,8 +22,8 @@ Barycenter Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    continuous_barycenter.WassersteinBarycenter
-    continuous_barycenter.BarycenterState
+    continuous_barycenter.FreeWassersteinBarycenter
+    continuous_barycenter.FreeBarycenterState
     discrete_barycenter.FixedBarycenter
     discrete_barycenter.SinkhornBarycenterOutput
 

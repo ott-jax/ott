@@ -45,10 +45,8 @@ class FreeBarycenterProblem:
       Whether the problem is debiased, in the sense that
       the regularized transportation cost of barycenter to itself will
       be considered when computing gradient. Note that if the debiased option
-      is used, the barycenter size in
-      :meth:`~ott.solvers.linear.continuous_barycenter.WassersteinBarycenter.init_state`
-      needs to be smaller than the maximum measure size for parallelization to
-      operate efficiently.
+      is used, the barycenter size needs to be smaller than the maximum measure
+      size for parallelization to operate efficiently.
     kwargs: Keyword arguments :func:`~ott.geometry.segment.segment_point_cloud`.
       Only used when ``y`` is not already segmented. When passing
       ``segment_ids``, 2 arguments must be specified for jitting to work:
@@ -227,7 +225,7 @@ class FixedBarycenterProblem:
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "FreeBarycenterProblem":
+  ) -> "FixedBarycenterProblem":
     del aux_data
     geom, a, weights = children
     return cls(geom=geom, a=a, weights=weights)

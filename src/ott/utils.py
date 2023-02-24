@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""pytree_nodes Dataclasses."""
 import dataclasses
 import functools
 import warnings
@@ -77,7 +76,7 @@ def default_progress_fn(
   Note:
     This function is called during solver iterations via
     :func:`~jax.experimental.host_callback.id_tap` so the solver execution
-    remains jittable.
+    remains :func:`jittable <jax.jit>`.
 
   Args:
     status: status consisting of:
@@ -87,15 +86,15 @@ def default_progress_fn(
       - the total number of iterations
       - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`
 
-    args: unused, see :doc:`jax.experimental.host_callback`
+    args: unused, see :mod:`jax.experimental.host_callback`.
 
   Returns:
     Nothing, just prints.
 
   Examples:
     If instead of printing you want to report progress using a progress bar such
-    as `tqdm <https://tqdm.github.io>`_, then simply provide a slightly modified version of this
-    callback, for instance:
+    as `tqdm <https://tqdm.github.io>`_, then simply provide a slightly modified
+    version of this callback, for instance:
 
     .. code-block:: python
 

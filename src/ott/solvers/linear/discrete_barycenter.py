@@ -38,10 +38,11 @@ class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
 class FixedBarycenter:
   """A Wasserstein barycenter solver for histograms on a common geometry.
 
-  This solver uses a variant of the Sinkhorn algorithm proposed in
+  This solver uses a variant of the
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm proposed in
   :cite:`janati:20a` to compute the barycenter of various measures supported on
   the same (common to all) geometry. The geometry is assumed to be either
-  symmetric, or describes costs between a set of points and another. In that
+  symmetric, or to describe costs between a set of points and another. In that
   case all reference measures have support on the first measure, whereas the
   barycenter is supported on the second.
 
