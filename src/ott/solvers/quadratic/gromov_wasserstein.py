@@ -89,6 +89,11 @@ class GWOutput(NamedTuple):
   def _rescale_factor(self) -> float:
     return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
 
+  @property
+  def primal_cost(self) -> float:
+    """Return transport cost of current linear OT solution at geometry."""
+    return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
+
 
 class GWState(NamedTuple):
   """Holds the state of the Gromov-Wasserstein solver.

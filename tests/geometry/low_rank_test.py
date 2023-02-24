@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Test Low-Rank Geometry."""
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Tuple
 
 import pytest
 
@@ -93,7 +93,12 @@ class TestLRGeometry:
               geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
           )
 
-  def test_add_lr_geoms(self, rng: jax.random.PRNGKeyArray):
+  @pytest.mark.parametrize("bias", [(0, 0), (4, 5)])
+  @pytest.mark.parametrize("scale_factor", [(1, 1), (2, 3)])
+  def test_add_lr_geoms(
+      self, rng: jax.random.PRNGKeyArray, bias: Tuple[float, float],
+      scale_factor: Tuple[float, float]
+  ):
     """Test application of cost to vec or matrix."""
     n, m, r, q = 17, 11, 7, 2
     rngs = jax.random.split(rng, 5)
@@ -102,12 +107,15 @@ class TestLRGeometry:
     d1 = jax.random.normal(rngs[0], (n, q))
     d2 = jax.random.normal(rngs[1], (m, q))
 
-    c = jnp.matmul(c1, c2.T)
-    d = jnp.matmul(d1, d2.T)
-    geom = geometry.Geometry(c + d)
+    s1, s2 = scale_factor
+    b1, b2 = bias
 
-    geom_lr_c = low_rank.LRCGeometry(c1, c2)
-    geom_lr_d = low_rank.LRCGeometry(d1, d2)
+    c = jnp.matmul(c1, c2.T) * s1
+    d = jnp.matmul(d1, d2.T) * s2
+    geom = geometry.Geometry(c + d + b1 + b2)
+
+    geom_lr_c = low_rank.LRCGeometry(c1, c2, scale_factor=s1, bias=b1)
+    geom_lr_d = low_rank.LRCGeometry(d1, d2, scale_factor=s2, bias=b2)
     geom_lr = geom_lr_c + geom_lr_d
 
     for dim, axis in ((m, 1), (n, 0)):

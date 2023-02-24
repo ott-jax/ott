@@ -138,23 +138,28 @@ class QuadraticProblem:
 
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
-    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
-    from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
-    matrix for samples from `geom_yy`. `cost_xx` (resp. `cost_yy`) is the
-    cost matrix of `geom_xx` (resp. `geom_yy`). The cost term that
-    depends on these marginals can be written as:
+    Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
+    from :attr:`geom_xx` and :math:`q` the `[m,]` marginal of the
+    transport matrix for samples from :attr:`geom_yy`.
 
-    `marginal_dep_term` = `lin1`(`cost_xx`) :math:`p \mathbb{1}_{num_b}^T`
-                      + (`lin2`(`cost_yy`) :math:`q \mathbb{1}_{num_a}^T)^T`
+    When ``cost_xx`` (resp. ``cost_yy``) is the cost matrix of :attr:`geom_xx`
+    (resp. :attr:`geom_yy`), the cost term that depends on these marginals can
+    be written as:
+
+    .. math::
+
+      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T
+                      +  \mathbb{1}_{n}(\text{lin2}(\text{cost_yy}) q)^T
+
+    This helper function instantiates these two low-rank matrices and groups
+    them into a single low-rank cost geometry object.
 
     Args:
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
-       for samples from geom_xx
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
-       for samples from geom_yy
+      marginal_1: [n,], first marginal of transport matrix.
+      marginal_2: [m,], second marginal of transport matrix.
 
     Returns:
-      Low-rank geometry.
+      Low-rank geometry of rank 2, storing normalization constants.
     """
     if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
@@ -482,11 +487,9 @@ class QuadraticProblem:
 def update_epsilon_unbalanced(
     epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
 ) -> epsilon_scheduler.Epsilon:
-  updated_epsilon = epsilon_scheduler.Epsilon.make(epsilon)
-  updated_epsilon._scale_epsilon = (
-      updated_epsilon._scale_epsilon * transport_mass
-  )
-  return updated_epsilon
+  if not isinstance(epsilon, epsilon_scheduler.Epsilon):
+    epsilon = epsilon_scheduler.Epsilon(epsilon, scale_epsilon=1.0)
+  return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
 def apply_cost(

@@ -56,20 +56,18 @@ class LRCGeometry(geometry.Geometry):
       self,
       cost_1: jnp.ndarray,
       cost_2: jnp.ndarray,
-      bias: float = 0.,
-      scale_factor: float = 1.,
+      bias: float = 0.0,
+      scale_factor: float = 1.0,
       scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
                                                   'max_cost']] = 1.0,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
+    super().__init__(**kwargs)
     self._cost_1 = cost_1
     self._cost_2 = cost_2
     self._bias = bias
     self._scale_factor = scale_factor
-    self._kwargs = kwargs
-
-    super().__init__(**kwargs)
     self._scale_cost = 'mean' if scale_cost is True else scale_cost
     self.batch_size = batch_size
 
@@ -307,11 +305,15 @@ class LRCGeometry(geometry.Geometry):
     )
 
   def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
-    assert isinstance(other, LRCGeometry), type(other)
-    return type(self)(
+    if not isinstance(other, LRCGeometry):
+      return NotImplemented
+    return LRCGeometry(
         cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
         cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
-        **self._kwargs
+        bias=self._bias + other._bias,
+        # already included in `cost_{1,2}`
+        scale_factor=1.0,
+        scale_cost=1.0,
     )
 
   @property
@@ -320,17 +322,28 @@ class LRCGeometry(geometry.Geometry):
 
   def tree_flatten(self):  # noqa: D102
     return (
-        self._cost_1, self._cost_2, self._src_mask, self._tgt_mask, self._kwargs
+        self._cost_1,
+        self._cost_2,
+        self._src_mask,
+        self._tgt_mask,
+        self._epsilon_init,
+        self._bias,
+        self._scale_factor,
     ), {
-        'bias': self._bias,
-        'scale_factor': self._scale_factor,
         'scale_cost': self._scale_cost,
         'batch_size': self.batch_size
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    c1, c2, src_mask, tgt_mask, kwargs = children
+    c1, c2, src_mask, tgt_mask, epsilon, bias, scale_factor = children
     return cls(
-        c1, c2, src_mask=src_mask, tgt_mask=tgt_mask, **kwargs, **aux_data
+        c1,
+        c2,
+        bias=bias,
+        scale_factor=scale_factor,
+        epsilon=epsilon,
+        src_mask=src_mask,
+        tgt_mask=tgt_mask,
+        **aux_data
     )

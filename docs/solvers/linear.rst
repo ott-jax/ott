@@ -12,6 +12,7 @@ Sinkhorn Solvers
 
     sinkhorn.solve
     sinkhorn.Sinkhorn
+    sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
     sinkhorn_lr.LRSinkhorn
     sinkhorn_lr.LRSinkhornOutput

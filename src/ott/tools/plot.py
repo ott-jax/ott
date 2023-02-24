@@ -19,13 +19,16 @@ import jax.numpy as jnp
 import numpy as np
 import scipy
 
-import matplotlib.pyplot as plt
-from matplotlib import animation
-
 from ott import utils
 from ott.geometry import pointcloud
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
+
+try:
+  import matplotlib.pyplot as plt
+  from matplotlib import animation
+except ImportError:
+  plt = animation = None
 
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
 Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
@@ -34,7 +37,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
 
 def bidimensional(x: jnp.ndarray,
                   y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """Apply PCA to reduce to bimensional data."""
+  """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y
 
@@ -45,25 +48,31 @@ def bidimensional(x: jnp.ndarray,
 
 
 class Plot:
-  """Plot an optimal transport map between two point clouds.
+  """Plot an optimal transport map between two \
+    :class:`PointClouds <ott.geometry.pointcloud.PointCloud>`.
 
   It enables to either plot or update a plot in a single object, offering the
-  possibilities to create animations as matplotlib.animation.FuncAnimation,
-  which can in turned be saved to disk at will. There are two design principles
-  here: 1) we do not rely on saving to/loading from disk to create animations
-  2) we try as much as possible to disentangle the transport problem(s) from
-  its visualization(s).
+  possibilities to create animations as a
+  :class:`~matplotlib.animation.FuncAnimation`, which can in turned be saved to
+  disk at will. There are two design principles here:
+
+  #. we do not rely on saving to/loading from disk to create animations
+  #. we try as much as possible to disentangle the transport problem from
+     its visualization.
   """
 
   def __init__(
       self,
-      fig: Optional[plt.Figure] = None,
-      ax: Optional[plt.Axes] = None,
+      fig: Optional["plt.Figure"] = None,
+      ax: Optional["plt.Axes"] = None,
       cost_threshold: float = -1.0,  # should be negative for animations.
       scale: int = 200,
       show_lines: bool = True,
       cmap: str = 'cool'
   ):
+    if plt is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+
     if ax is None and fig is None:
       fig, ax = plt.subplots()
     elif fig is None:
@@ -103,7 +112,7 @@ class Plot:
       result.append((xy[i, [0, 2]], xy[i, [1, 3]], strength))
     return result
 
-  def __call__(self, ot: Transport) -> List[plt.Artist]:
+  def __call__(self, ot: Transport) -> List["plt.Artist"]:
     """Plot 2-D couplings. Projects via PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
@@ -131,7 +140,7 @@ class Plot:
       self._lines.append(line)
     return [self._points_x, self._points_y] + self._lines
 
-  def update(self, ot: Transport) -> List[plt.Artist]:
+  def update(self, ot: Transport) -> List["plt.Artist"]:
     """Update a plot with a transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
@@ -169,7 +178,7 @@ class Plot:
       self,
       transports: Sequence[Transport],
       frame_rate: float = 10.0
-  ) -> animation.FuncAnimation:
+  ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
     _ = self(transports[0])
     return animation.FuncAnimation(
@@ -183,13 +192,13 @@ class Plot:
 
 
 def _barycenters(
-    ax: plt.Axes,
+    ax: "plt.Axes",
     y: jnp.ndarray,
     a: jnp.ndarray,
     b: jnp.ndarray,
     matrix: jnp.ndarray,
     scale: int = 200
-):
+) -> None:
   """Plot 2-D sinkhorn barycenters."""
   sa, sb = jnp.min(a) / scale, jnp.min(b) / scale
   ax.scatter(*y.T, s=b / sb, edgecolors='k', marker='X', label='y')
@@ -203,7 +212,7 @@ def barycentric_projections(
     a: jnp.ndarray = None,
     b: jnp.ndarray = None,
     matrix: jnp.ndarray = None,
-    ax: Optional[plt.Axes] = None,
+    ax: Optional["plt.Axes"] = None,
     **kwargs
 ):
   """Plot the barycenters, from the Transport object or from arguments."""

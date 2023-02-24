@@ -74,7 +74,10 @@ class TestMaskPointCloud:
         tgt_ixs, int
     ) else len(tgt_ixs)
 
-    geom_sub = geom.subset(src_ixs, tgt_ixs, batch_size=new_batch_size)
+    if clazz is geometry.Geometry:
+      geom_sub = geom.subset(src_ixs, tgt_ixs)
+    else:
+      geom_sub = geom.subset(src_ixs, tgt_ixs, batch_size=new_batch_size)
 
     assert type(geom_sub) == type(geom)
     np.testing.assert_array_equal(geom_sub.shape, (n, m))

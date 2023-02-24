@@ -14,7 +14,16 @@
 """A Jax implementation of the neural-based Kantorovich dual."""
 
 import warnings
-from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
