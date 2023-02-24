@@ -747,7 +747,7 @@ class SoftDTW(CostFn):
     gamma: Smoothing parameter for the soft-min operator.
     ground_cost: Ground cost function. If ``None``,
       use :class:`~ott.geometry.costs.SqEuclidean`.
-    debiased: Whether to compute the debiased softDTW :cite:`blondel:21`.
+    debiased: Whether to compute the debiased soft-DTW :cite:`blondel:21`.
   """
 
   def __init__(
