@@ -282,7 +282,7 @@ class TestKmeans:
   @pytest.mark.fast()
   def test_empty_weights(self, rng: jax.random.PRNGKeyArray):
     n, ndim, k, d = 20, 2, 3, 5.
-    gen = np.random.RandomState(0.)
+    gen = np.random.RandomState(0)
     x = gen.normal(size=(n, ndim))
     x[:, 0] += d
     x[:, 1] += d
