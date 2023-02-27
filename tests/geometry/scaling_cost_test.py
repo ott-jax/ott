@@ -108,9 +108,9 @@ class TestScaleCost:
     np.testing.assert_allclose(
         geom2.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
     )
-    if scale == 'mean':
+    if scale == "mean":
       np.testing.assert_allclose(1.0, geom1.cost_matrix.mean(), rtol=1e-4)
-    elif scale == 'max_cost':
+    elif scale == "max_cost":
       np.testing.assert_allclose(1.0, geom1.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.fast.with_args(
@@ -182,9 +182,9 @@ class TestScaleCost:
         rtol=1e-4
     )
 
-    if scale == 'mean':
+    if scale == "mean":
       np.testing.assert_allclose(1.0, geom.cost_matrix.mean(), rtol=1e-4)
-    if scale == 'max_cost':
+    if scale == "max_cost":
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.parametrize("batch_size", [5, 12])
@@ -192,7 +192,7 @@ class TestScaleCost:
     """Test max_cost options for low rank with batch_size fixed."""
 
     geom0 = low_rank.LRCGeometry(
-        self.cost1, self.cost2, scale_cost='max_cost', batch_size=batch_size
+        self.cost1, self.cost2, scale_cost="max_cost", batch_size=batch_size
     )
 
     np.testing.assert_allclose(
@@ -207,7 +207,7 @@ class TestScaleCost:
     cost2 = jax.random.uniform(rngs[1], (11000, 2))
     max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
 
-    geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost='max_cost')
+    geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost="max_cost")
 
     np.testing.assert_allclose(
         geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4

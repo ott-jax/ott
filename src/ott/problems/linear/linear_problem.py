@@ -109,8 +109,8 @@ class LinearProblem:
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self.geom, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b
+        "tau_a": self.tau_a,
+        "tau_b": self.tau_b
     })
 
   @classmethod

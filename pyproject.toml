@@ -289,16 +289,17 @@ select = [
     "E", # pycodestyle
     "F", # pyflakes
     "W", # pycodestyle
-    "PT",  # flake8-pytest-style
-    "NPY",  # NumPy-specific rules
-    "RET",
+    "Q", # flake8-quotes
     "SIM", # flake8-simplify
+    "NPY",  # NumPy-specific rules
+    "PT",  # flake8-pytest-style
     # below are not autofixed
     "B", # flake8-bugbear
     "UP", # pyupgrade
     "C4", # flake8-comprehensions
     "BLE", # flake8-blind-except
     "T20",  # flake8-print
+    "RET", # flake8-raise
 ]
 unfixable = ["B", "UP", "C4", "BLE", "T20", "RET"]
 target-version = "py38"

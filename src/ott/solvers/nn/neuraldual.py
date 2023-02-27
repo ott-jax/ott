@@ -123,7 +123,7 @@ class W2NeuralDual:
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
-      amortization_loss: Literal['objective', 'regression'] = 'regression',
+      amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
@@ -210,8 +210,8 @@ class W2NeuralDual:
     else:
       if self.parallel_updates:
         warnings.warn(
-            'parallel_updates set to True but disabling it '
-            'because num_inner_iters>1',
+            "parallel_updates set to True but disabling it "
+            "because num_inner_iters>1",
             stacklevel=2
         )
       if self.back_and_forth:
@@ -288,7 +288,7 @@ class W2NeuralDual:
       if self.logging and step % self.log_freq == 0:
         self._update_logs(train_logs, loss_f, loss_g, w_dist)
         train_logs["directions"].append(
-            'forward' if update_forward else 'backward'
+            "forward" if update_forward else "backward"
         )
 
       if callback is not None:
@@ -426,9 +426,9 @@ class W2NeuralDual:
       dual_target = f_star_target.mean()
       dual_loss = dual_source + dual_target
 
-      if self.amortization_loss == 'regression':
+      if self.amortization_loss == "regression":
         amor_loss = ((init_source_hat - source_hat_detach) ** 2).mean()
-      elif self.amortization_loss == 'objective':
+      elif self.amortization_loss == "objective":
         f_value_parameters_detached = lambda x: f_value(
             jax.lax.stop_gradient(params_f), x
         )

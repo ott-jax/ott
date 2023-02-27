@@ -125,12 +125,12 @@ class LRInitializer(abc.ABC):
   @classmethod
   def from_solver(
       cls,
-      solver: Union['sinkhorn_lr.LRSinkhorn',
-                    'gromov_wasserstein.GromovWasserstein'],
+      solver: Union["sinkhorn_lr.LRSinkhorn",
+                    "gromov_wasserstein.GromovWasserstein"],
       *,
       kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
       **kwargs: Any,
-  ) -> 'LRInitializer':
+  ) -> "LRInitializer":
     """Create a low-rank initializer from a linear or quadratic solver.
 
     Args:

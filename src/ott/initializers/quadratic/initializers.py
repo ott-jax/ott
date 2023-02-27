@@ -39,8 +39,8 @@ class BaseQuadraticInitializer(abc.ABC):
     self._kwargs = kwargs
 
   def __call__(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
-  ) -> 'linear_problem.LinearProblem':
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
+  ) -> "linear_problem.LinearProblem":
     """Compute the initial linearization of a quadratic problem.
 
     Args:
@@ -66,7 +66,7 @@ class BaseQuadraticInitializer(abc.ABC):
 
   @abc.abstractmethod
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
@@ -121,7 +121,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   """
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', *, epsilon: float,
+      self, quad_prob: "quadratic_problem.QuadraticProblem", *, epsilon: float,
       **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
@@ -171,12 +171,12 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     lr_linear_initializer: Low-rank linear initializer.
   """
 
-  def __init__(self, lr_linear_initializer: 'initializers_lr.LRInitializer'):
+  def __init__(self, lr_linear_initializer: "initializers_lr.LRInitializer"):
     super().__init__()
     self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 

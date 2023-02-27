@@ -37,7 +37,7 @@ class Gaussian:
       cls,
       points: jnp.ndarray,
       weights: Optional[jnp.ndarray] = None
-  ) -> 'Gaussian':
+  ) -> "Gaussian":
     """Construct a Gaussian from weighted samples.
 
     Unbiased, weighted covariance formula from `GSL
@@ -69,7 +69,7 @@ class Gaussian:
       stdev_cov: float = 0.1,
       ridge: Union[float, jnp.ndarray] = 0,
       dtype: Optional[jnp.dtype] = None
-  ) -> 'Gaussian':
+  ) -> "Gaussian":
     """Construct a random Gaussian.
 
     Args:
@@ -94,7 +94,7 @@ class Gaussian:
     return cls(loc=loc, scale=scale)
 
   @classmethod
-  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray) -> 'Gaussian':
+  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray) -> "Gaussian":
     """Construct a Gaussian from a mean and covariance."""
     scale = scale_tril.ScaleTriL.from_covariance(cov)
     return cls(loc=mean, scale=scale)
@@ -149,7 +149,7 @@ class Gaussian:
         )
     )
 
-  def w2_dist(self, other: 'Gaussian') -> jnp.ndarray:
+  def w2_dist(self, other: "Gaussian") -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian.
 
     W_2^2 = ||\mu_0-\mu_1||^2 +
@@ -165,7 +165,7 @@ class Gaussian:
     delta_sigma = self.scale.w2_dist(other.scale)
     return delta_mean + delta_sigma
 
-  def f_potential(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+  def f_potential(self, dest: "Gaussian", points: jnp.ndarray) -> jnp.ndarray:
     """Optimal potential for W2 distance between Gaussians. Evaluated on points.
 
     Args:
@@ -189,7 +189,7 @@ class Gaussian:
         points.dot(dest.loc)
     )
 
-  def transport(self, dest: 'Gaussian', points: jnp.ndarray) -> jnp.ndarray:
+  def transport(self, dest: "Gaussian", points: jnp.ndarray) -> jnp.ndarray:
     """Transport points according to map between two Gaussian measures.
 
     Args:

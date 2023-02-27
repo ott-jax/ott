@@ -76,8 +76,8 @@ class Geometry:
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
-      scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
-                                                  'median']] = 1.0,
+      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
+                                                  "median"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
@@ -198,13 +198,13 @@ class Geometry:
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
-    if self._scale_cost == 'max_cost':
+    if self._scale_cost == "max_cost":
       return 1.0 / jnp.nanmax(self._cost_matrix)
-    if self._scale_cost == 'mean':
+    if self._scale_cost == "mean":
       return 1.0 / jnp.nanmean(self._cost_matrix)
-    if self._scale_cost == 'median':
+    if self._scale_cost == "median":
       return 1.0 / jnp.nanmedian(self._cost_matrix)
-    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
@@ -215,7 +215,7 @@ class Geometry:
     aux_data["scale_cost"] = scale_cost
     return type(self).tree_unflatten(aux_data, children)
 
-  def copy_epsilon(self, other: 'Geometry') -> "Geometry":
+  def copy_epsilon(self, other: "Geometry") -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
     other_epsilon = other._epsilon
     children, aux_data = self.tree_flatten()
@@ -611,8 +611,8 @@ class Geometry:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
-    cost_matrices = kwargs.pop('cost_matrix', args)
-    kernel_matrices = kwargs.pop('kernel_matrix', nones)
+    cost_matrices = kwargs.pop("cost_matrix", args)
+    kernel_matrices = kwargs.pop("kernel_matrix", nones)
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
@@ -625,7 +625,7 @@ class Geometry:
       tol: float = 1e-2,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       scale: float = 1.
-  ) -> 'low_rank.LRCGeometry':
+  ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
     When `rank=min(n,m)` or `0` (by default), use :func:`jax.numpy.linalg.svd`.

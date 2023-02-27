@@ -15,16 +15,16 @@ from sklearn.cluster._k_means_common import _is_same_clustering
 
 def make_blobs(
     *args: Any,
-    cost_fn: Optional[Literal['sqeucl', 'cosine']] = None,
+    cost_fn: Optional[Literal["sqeucl", "cosine"]] = None,
     **kwargs: Any
 ) -> Tuple[Union[jnp.ndarray, pointcloud.PointCloud], jnp.ndarray, jnp.ndarray]:
   X, y, c = datasets.make_blobs(*args, return_centers=True, **kwargs)
   X, y, c = jnp.asarray(X), jnp.asarray(y), jnp.asarray(c)
   if cost_fn is None:
     pass
-  elif cost_fn == 'sqeucl':
+  elif cost_fn == "sqeucl":
     X = pointcloud.PointCloud(X, cost_fn=costs.SqEuclidean())
-  elif cost_fn == 'cosine':
+  elif cost_fn == "cosine":
     X = pointcloud.PointCloud(X, cost_fn=costs.Cosine())
   else:
     raise NotImplementedError(cost_fn)
@@ -53,7 +53,7 @@ class TestKmeansPlusPlus:
     n, k = 150, 4
     rng1, rng2 = jax.random.split(rng)
     geom, _, c = make_blobs(
-        n_samples=n, centers=k, cost_fn='sqeucl', random_state=0
+        n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
     centers1 = k_means._k_means_plus_plus(geom, k, rng1, n_local_trials)
     centers2 = k_means._k_means_plus_plus(geom, k, rng2, 20)
@@ -70,7 +70,7 @@ class TestKmeansPlusPlus:
         n_samples=200,
         centers=k,
         n_features=ndim,
-        cost_fn='sqeucl',
+        cost_fn="sqeucl",
         random_state=0
     )
     gt_centers, _ = kmeans_plusplus(np.asarray(geom.x), k, random_state=1)
@@ -353,10 +353,10 @@ class TestKmeans:
     assert res.converged == res_jit.converged
 
   @pytest.mark.skipif(
-      sys.platform == 'darwin' and os.environ.get("CI", "false") == "true",
-      reason='Fails on macOS CI.'
+      sys.platform == "darwin" and os.environ.get("CI", "false") == "true",
+      reason="Fails on macOS CI."
   )
-  @pytest.mark.parametrize(('jit', 'force_scan'), [(True, False),
+  @pytest.mark.parametrize(("jit", "force_scan"), [(True, False),
                                                    (False, True)],
                            ids=["jit-while-loop", "nojit-for-loop"])
   def test_k_means_differentiability(
@@ -397,7 +397,7 @@ class TestKmeans:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.])
-  @pytest.mark.parametrize(('n', 'k'), [(37, 4), (128, 6)])
+  @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 6)])
   def test_clustering_matches_sklearn(
       self, rng: jax.random.PRNGKeyArray, n: int, k: int, tol: float
   ):

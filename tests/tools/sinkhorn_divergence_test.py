@@ -80,7 +80,7 @@ class TestSinkhornDivergence:
         x,
         cost_fn=cost_fn,
         epsilon=1e-1,
-        sinkhorn_kwargs={'inner_iterations': 1},
+        sinkhorn_kwargs={"inner_iterations": 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
     iters_xx = jnp.sum(div.errors[0] > 0)
@@ -279,7 +279,7 @@ class TestSinkhornDivergence:
 
     sink_div = jax.jit(
         sinkhorn_divergence.segment_sinkhorn_divergence,
-        static_argnames=['num_per_segment_x', 'num_per_segment_y'],
+        static_argnames=["num_per_segment_x", "num_per_segment_y"],
     )
 
     segmented_divergences = sink_div(
@@ -334,7 +334,7 @@ class TestSinkhornDivergence:
             x,
             y,
             sinkhorn_kwargs={
-                'lse_mode': True
+                "lse_mode": True
             },
             epsilon=0.1,
             cost_fn=b_cost
@@ -351,7 +351,7 @@ class TestSinkhornDivergence:
         max_measure_size=5,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={'lse_mode': True},
+        sinkhorn_kwargs={"lse_mode": True},
         epsilon=0.1,
         cost_fn=b_cost
     )

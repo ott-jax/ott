@@ -57,8 +57,8 @@ class AndersonAcceleration:
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
   def update(
-      self, state: 'sinkhorn.SinkhornState', iteration: int, pb, lse_mode: bool
-  ) -> 'sinkhorn.SinkhornState':
+      self, state: "sinkhorn.SinkhornState", iteration: int, pb, lse_mode: bool
+  ) -> "sinkhorn.SinkhornState":
     """Anderson acceleration update.
 
     When using Anderson acceleration, first update the dual variable f_u with
@@ -107,15 +107,15 @@ class AndersonAcceleration:
     return state.set(fu=fu, old_fus=old_fus)
 
   def init_maps(
-      self, pb, state: 'sinkhorn.SinkhornState'
-  ) -> 'sinkhorn.SinkhornState':
+      self, pb, state: "sinkhorn.SinkhornState"
+  ) -> "sinkhorn.SinkhornState":
     """Initialize log matrix used in Anderson acceleration with nan values."""
     fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
     return state.set(old_fus=fus, old_mapped_fus=fus)
 
   def update_history(
-      self, state: 'sinkhorn.SinkhornState', pb, lse_mode: bool
-  ) -> 'sinkhorn.SinkhornState':
+      self, state: "sinkhorn.SinkhornState", pb, lse_mode: bool
+  ) -> "sinkhorn.SinkhornState":
     """Update history of mapped dual variables."""
     f = state.fu if lse_mode else pb.geom.potential_from_scaling(state.fu)
     mapped = jnp.concatenate((state.old_mapped_fus[:, 1:], f[:, None]), axis=1)
@@ -134,7 +134,7 @@ class Momentum:
   value: float = 1.0
   inner_iterations: int = 1
 
-  def weight(self, state: 'sinkhorn.SinkhornState', iteration: int) -> float:
+  def weight(self, state: "sinkhorn.SinkhornState", iteration: int) -> float:
     """Compute momentum term if needed, using previously seen errors."""
     if self.start == 0:
       return self.value
@@ -147,7 +147,7 @@ class Momentum:
         ), lambda state: self.lehmann(state), lambda state: self.value, state
     )
 
-  def lehmann(self, state: 'sinkhorn.SinkhornState') -> float:
+  def lehmann(self, state: "sinkhorn.SinkhornState") -> float:
     """Momentum formula :cite:`lehmann:21`, eq. 5."""
     idx = self.start // self.inner_iterations
     error_ratio = jnp.minimum(

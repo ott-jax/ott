@@ -223,7 +223,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"pointcloud"):
       gaus_init.init_dual_a(ot_problem, lse_mode=True)
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
+  @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
@@ -283,7 +283,7 @@ class TestSinkhornInitializers:
     else:
       assert default_out.n_iters >= init_out.n_iters
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
+  @pytest.mark.parametrize("lse_mode", [True, False])
   def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 200, 200, 2

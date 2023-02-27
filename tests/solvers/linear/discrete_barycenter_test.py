@@ -23,7 +23,7 @@ class TestDiscreteBarycenter:
 
   @pytest.mark.parametrize(("lse_mode", "debiased", "epsilon"),
                            [(True, True, 1e-2), (False, False, 2e-2)],
-                           ids=["lse-deb", 'scal-no-deb'])
+                           ids=["lse-deb", "scal-no-deb"])
   def test_discrete_barycenter_grid(
       self, lse_mode: bool, debiased: bool, epsilon: float
   ):

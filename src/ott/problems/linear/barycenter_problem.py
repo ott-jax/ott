@@ -165,9 +165,9 @@ class FreeBarycenterProblem:
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self._y, self._b, self._weights], {
-        'cost_fn': self.cost_fn,
-        'epsilon': self.epsilon,
-        'debiased': self.debiased,
+        "cost_fn": self.cost_fn,
+        "epsilon": self.epsilon,
+        "debiased": self.debiased,
         **self._kwargs,
     })
 

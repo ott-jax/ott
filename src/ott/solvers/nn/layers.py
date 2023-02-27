@@ -62,7 +62,7 @@ class PositiveDense(nn.Module):
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
     y = jax.lax.dot_general(
@@ -71,7 +71,7 @@ class PositiveDense(nn.Module):
         precision=self.precision
     )
     if self.use_bias:
-      bias = self.param('bias', self.bias_init, (self.dim_hidden,))
+      bias = self.param("bias", self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
       return y + bias
     return y

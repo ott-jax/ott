@@ -65,7 +65,7 @@ class Plot:
       cost_threshold: float = -1.0,  # should be negative for animations.
       scale: int = 200,
       show_lines: bool = True,
-      cmap: str = 'cool'
+      cmap: str = "cool"
   ):
     if plt is None:
       raise RuntimeError("Please install `matplotlib` first.")
@@ -89,7 +89,7 @@ class Plot:
   def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
     if not isinstance(ot.geom, pointcloud.PointCloud):
-      raise ValueError('So far we only plot PointCloud geometry.')
+      raise ValueError("So far we only plot PointCloud geometry.")
 
     x, y = ot.geom.x, ot.geom.y
     a, b = ot.a, ot.b
@@ -113,10 +113,10 @@ class Plot:
     """Plot 2-D couplings. Projects via PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
-        *x.T, s=sx, edgecolors='k', marker='o', label='x'
+        *x.T, s=sx, edgecolors="k", marker="o", label="x"
     )
     self._points_y = self.ax.scatter(
-        *y.T, s=sy, edgecolors='k', marker='X', label='y'
+        *y.T, s=sy, edgecolors="k", marker="X", label="y"
     )
     self.ax.legend(fontsize=15)
     if not self._show_lines:
@@ -198,9 +198,9 @@ def _barycenters(
 ) -> None:
   """Plot 2-D sinkhorn barycenters."""
   sa, sb = jnp.min(a) / scale, jnp.min(b) / scale
-  ax.scatter(*y.T, s=b / sb, edgecolors='k', marker='X', label='y')
+  ax.scatter(*y.T, s=b / sb, edgecolors="k", marker="X", label="y")
   tx = 1 / a[:, None] * jnp.matmul(matrix, y)
-  ax.scatter(*tx.T, s=a / sa, edgecolors='k', marker='X', label='T(x)')
+  ax.scatter(*tx.T, s=a / sa, edgecolors="k", marker="X", label="T(x)")
   ax.legend(fontsize=15)
 
 
@@ -218,7 +218,7 @@ def barycentric_projections(
 
   if utils.is_jax_array(arg):
     if matrix is None:
-      raise ValueError('The `matrix` argument cannot be None.')
+      raise ValueError("The `matrix` argument cannot be None.")
 
     a = jnp.ones(matrix.shape[0]) / matrix.shape[0] if a is None else a
     b = jnp.ones(matrix.shape[1]) / matrix.shape[1] if b is None else b

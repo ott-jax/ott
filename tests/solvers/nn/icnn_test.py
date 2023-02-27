@@ -33,18 +33,18 @@ class TestICNN:
 
     # initialize model
     rng1, rng2, rng3 = jax.random.split(rng, 3)
-    params = model.init(rng1, jnp.ones(n_features))['params']
+    params = model.init(rng1, jnp.ones(n_features))["params"]
 
     # check convexity
     x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
     y = jax.random.normal(rng2, (n_samples, n_features))
 
-    out_x = model.apply({'params': params}, x)
-    out_y = model.apply({'params': params}, y)
+    out_x = model.apply({"params": params}, x)
+    out_y = model.apply({"params": params}, y)
 
     out = []
     for t in jnp.linspace(0, 1):
-      out_xy = model.apply({'params': params}, t * x + (1 - t) * y)
+      out_xy = model.apply({"params": params}, t * x + (1 - t) * y)
       out.append((t * out_x + (1 - t) * out_y) - out_xy)
 
     np.testing.assert_array_equal(jnp.asarray(out) >= 0, True)
@@ -59,13 +59,13 @@ class TestICNN:
 
     # initialize model
     rng1, rng2 = jax.random.split(rng)
-    params = model.init(rng1, jnp.ones(n_features))['params']
+    params = model.init(rng1, jnp.ones(n_features))["params"]
 
     # check if Hessian is positive-semidefinite via eigenvalues
     data = jax.random.normal(rng2, (n_features,))
 
     # compute Hessian
-    hessian = jax.hessian(model.apply, argnums=1)({'params': params}, data)
+    hessian = jax.hessian(model.apply, argnums=1)({"params": params}, data)
 
     # compute eigenvalues
     w = jnp.linalg.eigvalsh((hessian + hessian.T) / 2.0)

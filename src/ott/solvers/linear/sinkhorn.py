@@ -57,7 +57,7 @@ class SinkhornState(NamedTuple):
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornState':
+  def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -291,14 +291,14 @@ class SinkhornOutput(NamedTuple):
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornOutput':
+  def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
       use_danskin: bool
-  ) -> 'SinkhornOutput':
+  ) -> "SinkhornOutput":
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
@@ -1014,8 +1014,8 @@ class Sinkhorn:
 
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
-    aux['norm_error'] = aux.pop('_norm_error')
-    aux.pop('threshold')
+    aux["norm_error"] = aux.pop("_norm_error")
+    aux.pop("threshold")
     return [self.threshold], aux
 
   @classmethod
@@ -1125,7 +1125,7 @@ def solve(
     tau_b: float = 1.0,
     rank: int = -1,
     **kwargs: Any
-) -> Union[SinkhornOutput, 'LRSinkhornOutput']:
+) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:

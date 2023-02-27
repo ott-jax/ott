@@ -195,9 +195,9 @@ def print_losses(
   objective = q0 + q1 - weight_transport * transport_penalty
 
   print(  # noqa: T201
-      f'{iteration:3d} {q0:.3f} {q1:.3f} '
-      f'transport:{transport_penalty:.3f} '
-      f'objective:{objective:.3f}'
+      f"{iteration:3d} {q0:.3f} {q1:.3f} "
+      f"transport:{transport_penalty:.3f} "
+      f"objective:{objective:.3f}"
   )
 
 
@@ -261,7 +261,7 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
       (pair,) = optax.apply_updates((pair,), updates)
       for j, gmm in enumerate((pair.gmm0, pair.gmm1)):
         if gmm.has_nans():
-          raise ValueError(f'NaN in gmm{j}')
+          raise ValueError(f"NaN in gmm{j}")
     return pair
 
   grad_objective_fn = jax.grad(objective_fn, argnums=(0,))

@@ -94,7 +94,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       # Initialize the model's training state.
       a_placeholder = jnp.zeros(na, dtype=self.dtype)
       b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(rng, a_placeholder, b_placeholder)['params']
+      params = self.meta_model.init(rng, a_placeholder, b_placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
@@ -141,7 +141,7 @@ class MetaInitializer(initializers.DefaultInitializer):
 
   def init_dual_a(  # noqa: D102
       self,
-      ot_prob: 'linear_problem.LinearProblem',
+      ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
@@ -208,12 +208,12 @@ class MetaInitializer(initializers.DefaultInitializer):
     Returns:
       The :math:`f` potential.
     """
-    return self.meta_model.apply({'params': params}, a, b)
+    return self.meta_model.apply({"params": params}, a, b)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
-        'rng': self.rng,
-        'state': self.state
+        "rng": self.rng,
+        "state": self.state
     }
 
 

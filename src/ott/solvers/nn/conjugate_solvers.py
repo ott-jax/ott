@@ -82,9 +82,9 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10
-  linesearch_type: Literal['zoom', 'backtracking'] = 'backtracking'
+  linesearch_type: Literal["zoom", "backtracking"] = "backtracking"
   decrease_factor: float = 0.66
-  ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
+  ls_method: Literal["wolf", "strong-wolfe"] = "strong-wolfe"
 
   def solve(  # noqa: D102
       self,
@@ -115,5 +115,5 @@ DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
     gtol=1e-5,
     max_iter=20,
     max_linesearch_iter=20,
-    linesearch_type='backtracking',
+    linesearch_type="backtracking",
 )

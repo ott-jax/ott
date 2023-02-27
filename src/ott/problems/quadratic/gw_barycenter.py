@@ -66,7 +66,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       costs: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
-      gw_loss: Literal['sqeucl', 'kl'] = 'sqeucl',
+      gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
       scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
   ):
@@ -132,7 +132,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       )
       return transport @ tmp
 
-    fn = None if self._loss_name == 'sqeucl' else self.gw_loss.h2
+    fn = None if self._loss_name == "sqeucl" else self.gw_loss.h2
     y, b = self.segmented_y_b
     weights = self.weights[:, None, None]
 
@@ -142,7 +142,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
     # TODO(michalk8): in future, use `isinstanceof(self.gw_loss, ...)`
     # once refactoring has been done
-    if self._loss_name == 'kl':
+    if self._loss_name == "kl":
       return jnp.exp(barycenter)
     return barycenter
 
@@ -234,7 +234,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_problem(
       self,
-      state: 'GWBarycenterState',  # noqa: F821
+      state: "GWBarycenterState",  # noqa: F821
       y: jnp.ndarray,
       b: jnp.ndarray,
       f: Optional[jnp.ndarray] = None
@@ -296,9 +296,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     # `https://jax.readthedocs.io/en/latest/notebooks/ some fns;
     # Writing_custom_interpreters_in_Jax.html#your-first-interpreter-invert`
     # might be useful
-    if self._loss_name == 'sqeucl':
+    if self._loss_name == "sqeucl":
       return quadratic_costs.make_square_loss()
-    if self._loss_name == 'kl':
+    if self._loss_name == "kl":
       return quadratic_costs.make_kl_loss()
     raise NotImplementedError(
         f"Loss `{self._loss_name}` is not yet implemented."
@@ -310,9 +310,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       children = [None, b, weights, y]
     else:
       children = [y, b, weights, None]
-    aux['fused_penalty'] = self.fused_penalty
-    aux['gw_loss'] = self._loss_name
-    aux['scale_cost'] = self.scale_cost
+    aux["fused_penalty"] = self.fused_penalty
+    aux["gw_loss"] = self._loss_name
+    aux["scale_cost"] = self.scale_cost
     return children + [self._y_fused], aux
 
   @classmethod

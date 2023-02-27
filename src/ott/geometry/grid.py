@@ -98,15 +98,15 @@ class Grid(geometry.Geometry):
       self.num_a = np.prod(np.array(grid_size))
       self.grid_dimension = len(self.grid_size)
     else:
-      raise ValueError('Input either grid_size t-uple or grid locations x.')
+      raise ValueError("Input either grid_size t-uple or grid locations x.")
 
     if cost_fns is None:
       cost_fns = [costs.SqEuclidean()]
     self.cost_fns = cost_fns
     self.kwargs = {
-        'num_a': self.num_a,
-        'grid_size': self.grid_size,
-        'grid_dimension': self.grid_dimension
+        "num_a": self.num_a,
+        "grid_size": self.grid_size,
+        "grid_dimension": self.grid_dimension
     }
 
     super().__init__(**kwargs)
@@ -130,7 +130,7 @@ class Grid(geometry.Geometry):
   @property
   def median_cost_matrix(self) -> NoReturn:
     """Not implemented."""
-    raise NotImplementedError('Median cost not implemented for grids.')
+    raise NotImplementedError("Median cost not implemented for grids.")
 
   @property
   def can_LRC(self) -> bool:  # noqa: D102
@@ -294,10 +294,10 @@ class Grid(geometry.Geometry):
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use',
-        ' apply_transport_from_potentials(...) if you wish to ',
-        ' apply the transport matrix to a vector, or use a point '
-        ' cloud geometry instead'
+        "Grid geometry cannot instantiate a transport matrix, use",
+        " apply_transport_from_potentials(...) if you wish to ",
+        " apply the transport matrix to a vector, or use a point "
+        " cloud geometry instead"
     )
 
   def transport_from_scalings(
@@ -305,10 +305,10 @@ class Grid(geometry.Geometry):
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use ',
-        'apply_transport_from_scalings(...) if you wish to ',
-        'apply the transport matrix to a vector, or use a point '
-        'cloud geometry instead.'
+        "Grid geometry cannot instantiate a transport matrix, use ",
+        "apply_transport_from_scalings(...) if you wish to ",
+        "apply the transport matrix to a vector, or use a point "
+        "cloud geometry instead."
     )
 
   def subset(
@@ -334,8 +334,8 @@ class Grid(geometry.Geometry):
       **kwargs: Any
   ) -> Tuple["Grid", ...]:
     """Instantiate the geometries used for a divergence computation."""
-    grid_size = kwargs.pop('grid_size', None)
-    x = kwargs.pop('x', args)
+    grid_size = kwargs.pop("grid_size", None)
+    x = kwargs.pop("x", args)
 
     sep_grid = cls(x=x, grid_size=grid_size, **kwargs)
     size = 2 if static_b else 3

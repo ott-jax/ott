@@ -18,9 +18,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ['create_gaussian_mixture_samplers', 'Dataset', 'GaussianMixture']
+__all__ = ["create_gaussian_mixture_samplers", "Dataset", "GaussianMixture"]
 
-Name_t = Literal['simple', 'circle', 'square_five', 'square_four']
+Name_t = Literal["simple", "circle", "square_five", "square_four"]
 
 
 class Dataset(NamedTuple):
@@ -60,9 +60,9 @@ class GaussianMixture:
 
   def __post_init__(self):
     gaussian_centers = {
-        'simple':
+        "simple":
             np.array([[0, 0]]),
-        'circle':
+        "circle":
             np.array([
                 (1, 0),
                 (-1, 0),
@@ -73,14 +73,14 @@ class GaussianMixture:
                 (-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
                 (-1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
             ]),
-        'square_five':
+        "square_five":
             np.array([[0, 0], [1, 1], [-1, 1], [-1, -1], [1, -1]]),
-        'square_four':
+        "square_four":
             np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]),
     }
     if self.name not in gaussian_centers:
       raise ValueError(
-          f'{self.name} is not a valid dataset for GaussianMixture'
+          f"{self.name} is not a valid dataset for GaussianMixture"
       )
     self.centers = gaussian_centers[self.name]
 

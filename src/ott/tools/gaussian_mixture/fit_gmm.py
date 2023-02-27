@@ -166,7 +166,7 @@ def fit_model_em(
     assignment_probs = e_step_fn(gmm, points)
     gmm_new = m_step_fn(points, point_weights, assignment_probs)
     if gmm_new.has_nans():
-      raise ValueError('NaNs in fit.')
+      raise ValueError("NaNs in fit.")
     if verbose:
       loss = loss_fn(gmm_new, points, point_weights)
       q = get_q_fn(
@@ -175,7 +175,7 @@ def fit_model_em(
           points=points,
           point_weights=point_weights
       )
-      print(f'{i}  q={q}  -log prob={loss}')  # noqa: T201
+      print(f"{i}  q={q}  -log prob={loss}")  # noqa: T201
     gmm = gmm_new
   return gmm
 
@@ -299,5 +299,5 @@ def initialize(
       )
     except ValueError:
       if verbose:
-        print(f'Failed to initialize, attempt {attempt}.')  # noqa: T201
-  raise ValueError('Failed to initialize.')
+        print(f"Failed to initialize, attempt {attempt}.")  # noqa: T201
+  raise ValueError("Failed to initialize.")

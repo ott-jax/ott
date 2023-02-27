@@ -66,7 +66,7 @@ class GWOutput(NamedTuple):
   # Intermediate values.
   old_transport_mass: float = 1.0
 
-  def set(self, **kwargs: Any) -> 'GWOutput':
+  def set(self, **kwargs: Any) -> "GWOutput":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -120,7 +120,7 @@ class GWState(NamedTuple):
   rngs: Optional[jax.random.PRNGKeyArray] = None
   errors: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'GWState':
+  def set(self, **kwargs: Any) -> "GWState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -128,7 +128,7 @@ class GWState(NamedTuple):
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problem.LinearProblem, store_errors: bool,
       old_transport_mass: float
-  ) -> 'GWState':
+  ) -> "GWState":
     costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
     errors = None
     if store_errors and self.errors is not None:
@@ -400,7 +400,7 @@ def solve(
     scale_cost: Optional[Union[bool, float, str]] = False,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    loss: Union[Literal['sqeucl', 'kl'], quadratic_costs.GWLoss] = 'sqeucl',
+    loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
     tau_a: Optional[float] = 1.0,
     tau_b: Optional[float] = 1.0,
     gw_unbalanced_correction: bool = True,

@@ -108,7 +108,7 @@ class FixedBarycenter:
       )[jnp.newaxis, :]
 
     if self.debiased and not geom.is_symmetric:
-      raise ValueError('Geometry must be symmetric to use debiased option.')
+      raise ValueError("Geometry must be symmetric to use debiased option.")
     norm_error = (self.norm_error,)
     return _discrete_barycenter(
         geom, a, weights, dual_initialization, self.threshold, norm_error,
@@ -118,7 +118,7 @@ class FixedBarycenter:
 
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
-    aux.pop('threshold')
+    aux.pop("threshold")
     return [
         self.threshold,
     ], aux

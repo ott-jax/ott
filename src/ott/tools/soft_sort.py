@@ -56,7 +56,7 @@ def transport_for_sort(
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
     raise ValueError(
-        f'Shape ({shape}) not supported. The input should be one-dimensional.'
+        f"Shape ({shape}) not supported. The input should be one-dimensional."
     )
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
@@ -311,8 +311,8 @@ def quantile_normalization(
   """
   if weights is not None and weights.shape != targets.shape:
     raise ValueError(
-        'The target weights and targets values should have the '
-        f'same shape: {targets.shape} != {weights.shape}'
+        "The target weights and targets values should have the "
+        f"same shape: {targets.shape} != {weights.shape}"
     )
   if weights is None:
     num_targets = targets.shape[0]

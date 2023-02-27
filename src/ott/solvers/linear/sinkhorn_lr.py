@@ -70,7 +70,7 @@ class LRSinkhornState(NamedTuple):
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornState':
+  def set(self, **kwargs: Any) -> "LRSinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -150,7 +150,7 @@ class LRSinkhornOutput(NamedTuple):
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
+  def set(self, **kwargs: Any) -> "LRSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -159,7 +159,7 @@ class LRSinkhornOutput(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       use_danskin: bool = False
-  ) -> 'LRSinkhornOutput':
+  ) -> "LRSinkhornOutput":
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 

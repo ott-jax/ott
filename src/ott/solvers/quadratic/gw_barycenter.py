@@ -49,7 +49,7 @@ class GWBarycenterState(NamedTuple):
   costs: Optional[jnp.ndarray] = None
   gw_convergence: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'GWBarycenterState':
+  def set(self, **kwargs: Any) -> "GWBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 

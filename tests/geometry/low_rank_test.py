@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Test Low-Rank Geometry."""
 from typing import Callable, Optional, Tuple, Union
 
 import jax
@@ -43,7 +42,7 @@ class TestLRGeometry:
             rtol=1e-4
         )
 
-  @pytest.mark.parametrize("scale_cost", ['mean', 'max_cost', 'max_bound', 42.])
+  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost", "max_bound", 42.])
   def test_conversion_pointcloud(
       self, rng: jax.random.PRNGKeyArray, scale_cost: Union[str, float]
   ):

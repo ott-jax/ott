@@ -123,7 +123,7 @@ class ModelBase(abc.ABC, nn.Module):
     """
     if self.is_potential:
       return jax.vmap(jax.grad(self.potential_value_fn(params)))
-    return lambda x: self.apply({'params': params}, x)
+    return lambda x: self.apply({"params": params}, x)
 
 
 class ICNN(ModelBase):

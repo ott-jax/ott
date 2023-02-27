@@ -46,14 +46,14 @@ class FreeBarycenterState(NamedTuple):
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'FreeBarycenterState':
+  def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
       self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
-  ) -> 'FreeBarycenterState':
+  ) -> "FreeBarycenterState":
     """Update the state of the solver.
 
     Args:

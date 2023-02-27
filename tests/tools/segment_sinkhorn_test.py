@@ -100,7 +100,7 @@ class TestSegmentSinkhorn:
 
     sink = jax.jit(
         segment_sinkhorn.segment_sinkhorn,
-        static_argnames=['num_segments', 'max_measure_size'],
+        static_argnames=["num_segments", "max_measure_size"],
     )
     segmented_regotcost = sink(
         jnp.concatenate((x1, x2)),
@@ -165,7 +165,7 @@ class TestSegmentSinkhorn:
         cost_fn=b_cost,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={'lse_mode': True},
+        sinkhorn_kwargs={"lse_mode": True},
         epsilon=0.1,
     )
     np.testing.assert_allclose(segmented_reg_ot_cost, true_reg_ot_cost)

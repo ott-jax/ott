@@ -282,9 +282,9 @@ class SortingInitializer(DefaultInitializer):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
-        'tolerance': self.tolerance,
-        'max_iter': self.max_iter,
-        'vectorized_update': self.vectorized_update
+        "tolerance": self.tolerance,
+        "max_iter": self.max_iter,
+        "vectorized_update": self.vectorized_update
     })
 
 
@@ -364,8 +364,8 @@ class SubsampleInitializer(DefaultInitializer):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
-        'subsample_n_x': self.subsample_n_x,
-        'subsample_n_y': self.subsample_n_y,
+        "subsample_n_x": self.subsample_n_x,
+        "subsample_n_y": self.subsample_n_y,
         **self.sinkhorn_kwargs
     })
 
