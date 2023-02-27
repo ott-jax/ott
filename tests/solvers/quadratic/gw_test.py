@@ -349,8 +349,8 @@ class TestGromovWasserstein:
     ot_gw = solver(prob)
 
     # Test solutions look alike
-    assert 0.11 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
-    assert 0.15 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix) < 0.11
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) < 0.15
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 

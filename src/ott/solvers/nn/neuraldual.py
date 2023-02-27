@@ -554,7 +554,7 @@ class W2NeuralDual:
   @staticmethod
   def _clip_weights_icnn(params):
     params = params.unfreeze()
-    for k in params.keys():
+    for k in params:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 

@@ -291,6 +291,7 @@ select = [
     "W", # pycodestyle
     "PT",  # flake8-pytest-style
     "NPY",  # NumPy-specific rules
+    "SIM", # flake8-simplify
     # below are not autofixed
     "B", # flake8-bugbear
     "UP", # pyupgrade

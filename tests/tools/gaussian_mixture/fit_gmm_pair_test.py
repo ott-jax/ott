@@ -70,10 +70,7 @@ class TestFitGmmPair:
   )
   def test_fit_gmm(self, balanced, weighted):
     # dumb integration test that makes sure nothing crashes
-    if balanced:
-      tau = 1.
-    else:
-      tau = self.tau
+    tau = 1.0 if balanced else self.tau
 
     if weighted:
       weights0 = jnp.ones(self.samples_gmm0.shape[0])

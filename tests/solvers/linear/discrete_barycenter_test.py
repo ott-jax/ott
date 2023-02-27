@@ -57,7 +57,7 @@ class TestDiscreteBarycenter:
     bar, errors = out.histogram, out.errors
 
     assert bar[(jnp.prod(size) - 1) // 2] > 0.7
-    assert 1 > bar[(jnp.prod(size) - 1) // 2]
+    assert bar[(jnp.prod(size) - 1) // 2] < 1
     err = errors[jnp.isfinite(errors)][-1]
     assert threshold > err
 

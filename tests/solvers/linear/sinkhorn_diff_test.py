@@ -799,7 +799,7 @@ class TestSinkhornHessian:
     if test_back:
       dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
       rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert 0.1 > rel_dif_norm
+      assert rel_dif_norm < 0.1
 
     eps = 1e-3
     for impl in [True, False] if test_back else [True]:
