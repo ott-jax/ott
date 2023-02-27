@@ -127,7 +127,7 @@ def default_progress_fn(
 
       with tqdm() as pbar:
         out_sink = jax.jit(solver)(prob)
-  """
+  """  # noqa: D205
   # Convert arguments.
   iteration, inner_iterations, total_iter, state = status
   iteration = int(iteration)
