@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implements a geometry class for points supported on a cartesian product."""
 import itertools
 from typing import Any, List, NoReturn, Optional, Sequence, Tuple
 

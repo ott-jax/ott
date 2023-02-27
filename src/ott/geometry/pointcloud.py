@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A geometry defined using 2 point clouds and a cost function between them."""
 import math
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
@@ -134,7 +133,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` is computed on-the-fly."""
+    """Whether the cost/kernel if computed on-the-fly."""
     return self.batch_size is not None
 
   # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
