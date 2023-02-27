@@ -318,3 +318,5 @@ keep-runtime-typing = true
 ban-relative-imports = "parents"
 [tool.ruff.flake8-bugbear]
 extend-immutable-calls = ["jax.random.PRNGKey"]
+[tool.ruff.flake8-quotes]
+inline-quotes = "double"
