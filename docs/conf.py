@@ -26,9 +26,8 @@
 import logging
 from datetime import datetime
 
-from sphinx.util import logging as sphinx_logging
-
 import ott
+from sphinx.util import logging as sphinx_logging
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
