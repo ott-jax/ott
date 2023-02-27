@@ -265,8 +265,8 @@ def sqrtm_only_bwd(  # noqa: D103
     max_iterations: int, regularization: float, sqrt_x: jnp.ndarray,
     cotangent: jnp.ndarray
 ) -> Tuple[jnp.ndarray]:
-  del threshold, min_iterations, inner_iterations
-  del max_iterations, regularization
+  del threshold, min_iterations, inner_iterations, \
+    max_iterations, regularization
   vjp = jnp.swapaxes(
       solve_sylvester_bartels_stewart(
           a=sqrt_x, b=-sqrt_x, c=jnp.swapaxes(cotangent, axis1=-2, axis2=-1)
@@ -315,6 +315,9 @@ def inv_sqrtm_only_bwd(  # noqa: D103
     max_iterations: int, regularization: float, residual: jnp.ndarray,
     cotangent: jnp.ndarray
 ) -> Tuple[jnp.ndarray]:
+  del threshold, min_iterations, inner_iterations, \
+    max_iterations, regularization
+
   inv_sqrt_x = residual
   inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
   vjp = jnp.swapaxes(

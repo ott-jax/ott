@@ -35,7 +35,6 @@ class ConjugateResults(NamedTuple):
     grad: the gradient, i.e., :math:`\nabla f^\star(y)`
     num_iter: the number of iterations taken by the solver
   """
-
   val: float
   grad: jnp.ndarray
   num_iter: int
@@ -87,22 +86,12 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   decrease_factor: float = 0.66
   ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
-  def solve(
+  def solve(  # noqa: D102
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
       x_init: Optional[jnp.array] = None
   ) -> ConjugateResults:
-    """TODO.
-
-    Args:
-      f: TODO
-      y: TODO
-      x_init: Initial value.
-
-    Returns:
-      The conjugate.
-    """
     assert y.ndim == 1, y.ndim
 
     solver = LBFGS(
