@@ -114,7 +114,7 @@ class TestMatrixSquareRoot:
           atol=1e-2
       )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_sqrtm_batch(self):
     """Check sqrtm on larger of matrices."""
     batch_dim0 = 2
@@ -150,7 +150,7 @@ class TestMatrixSquareRoot:
         )
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   def test_solve_bartels_stewart(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[0], b=self.b[0], c=self.c[0]
@@ -158,7 +158,7 @@ class TestMatrixSquareRoot:
     np.testing.assert_allclose(self.x[0], x, atol=1.e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   def test_solve_bartels_stewart_batch(self):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a, b=self.b, c=self.c
@@ -174,7 +174,7 @@ class TestMatrixSquareRoot:
     np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       "fn,n_tests,dim,epsilon,atol,rtol",
       [(lambda x: matrix_square_root.sqrtm(x)[0], 3, 3, 1e-6, 1e-6, 1e-6),
@@ -188,9 +188,10 @@ class TestMatrixSquareRoot:
       ],
       only_fast=-1,
   )
+  @pytest.mark.usefixtures("enable_x64")
   def test_grad(
-      self, enable_x64, fn: Callable, n_tests: int, dim: int, epsilon: float,
-      atol: float, rtol: float
+      self, fn: Callable, n_tests: int, dim: int, epsilon: float, atol: float,
+      rtol: float
   ):
     rng = self.rng
     for _ in range(n_tests):

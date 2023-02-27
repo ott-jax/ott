@@ -146,7 +146,8 @@ class MetaInitializer(initializers.DefaultInitializer):
   ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.
-    assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
+    assert ot_prob.a.ndim in (1, 2)
+    assert ot_prob.b.ndim in (1, 2)
     vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
     vmap_b_val = 0 if ot_prob.b.ndim == 2 else None
 

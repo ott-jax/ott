@@ -175,7 +175,7 @@ def fit_model_em(
           points=points,
           point_weights=point_weights
       )
-      print(f'{i}  q={q}  -log prob={loss}', flush=True)
+      print(f'{i}  q={q}  -log prob={loss}')  # noqa: T201
     gmm = gmm_new
   return gmm
 
@@ -299,5 +299,5 @@ def initialize(
       )
     except ValueError:
       if verbose:
-        print(f'Failed to initialize, attempt {attempt}.', flush=True)
+        print(f'Failed to initialize, attempt {attempt}.')  # noqa: T201
   raise ValueError('Failed to initialize.')

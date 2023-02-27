@@ -98,7 +98,7 @@ def run_sinkhorn(
   return solver(prob)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornInitializers:
 
   @pytest.mark.parametrize(
@@ -130,9 +130,9 @@ class TestSinkhornInitializers:
       expected_type = expected_types[init]
       assert isinstance(actual, expected_type)
 
-  @pytest.mark.parametrize(
-      "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
-  )
+  @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
+                                                        (True, False),
+                                                        (False, True)])
   def test_sorting_init(self, vector_min: bool, lse_mode: bool):
     """Tests sorting dual initializer."""
     rng = jax.random.PRNGKey(42)

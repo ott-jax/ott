@@ -27,7 +27,7 @@ def chol() -> scale_tril.ScaleTriL:
   return scale_tril.ScaleTriL(params=params, size=2)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestScaleTriL:
 
   def test_cholesky(self, chol: scale_tril.ScaleTriL):

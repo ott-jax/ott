@@ -22,7 +22,7 @@ from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestCostFn:
 
   def test_cosine(self, rng: jax.random.PRNGKeyArray):
@@ -71,7 +71,7 @@ class TestCostFn:
         )
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestBuresBarycenter:
 
   def test_bures(self, rng: jax.random.PRNGKeyArray):
@@ -97,7 +97,7 @@ class TestBuresBarycenter:
     )
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestRegTICost:
 
   @pytest.mark.parametrize(

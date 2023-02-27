@@ -61,7 +61,7 @@ class TestGWBarycenter:
 
   # TODO(cuturi) add back KL test when KL cost GW is fixed.
   @pytest.mark.parametrize(
-      "gw_loss,bar_size,epsilon",
+      ("gw_loss", "bar_size", "epsilon"),
       [("sqeucl", 17, None)]  # , ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(

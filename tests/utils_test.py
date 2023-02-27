@@ -4,9 +4,8 @@ import pytest
 from ott import utils
 
 
-@pytest.mark.parametrize(
-    "version,msg", [(None, "foo, bar, baz"), ("quux", None)]
-)
+@pytest.mark.parametrize(("version", "msg"), [(None, "foo, bar, baz"),
+                                              ("quux", None)])
 def test_deprecation_warning(version: Optional[str], msg: Optional[str]):
 
   @utils.deprecate(version=version, alt=msg)

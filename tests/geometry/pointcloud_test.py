@@ -21,7 +21,7 @@ import pytest
 from ott.geometry import costs, geometry, pointcloud
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestPointCloudApply:
 
   def test_apply_cost_and_kernel(self, rng: jax.random.PRNGKeyArray):

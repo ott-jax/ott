@@ -87,7 +87,7 @@ class TestSinkhornDivergence:
     iters_xx_sym = jnp.sum(div.errors[1] > 0)
     assert iters_xx >= iters_xx_sym
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_autoepsilon(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
@@ -138,7 +138,7 @@ class TestSinkhornDivergence:
     assert len(div.potentials) == 3
     assert len(div.geoms) == 3
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_unbalanced_wrapper(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))

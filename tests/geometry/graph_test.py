@@ -76,12 +76,13 @@ class TestGraph:
 
   @pytest.mark.parametrize("empty", [False, True])
   def test_invalid_initialization(self, empty):
-    with pytest.raises(AssertionError, match="Please provide"):
-      if empty:
+    if empty:
+      with pytest.raises(AssertionError, match="Please provide"):
         _ = graph.Graph(graph=None, laplacian=None)
-      else:
-        G = random_graph(100)
-        L = random_graph(100, return_laplacian=True)
+    else:
+      G = random_graph(100)
+      L = random_graph(100, return_laplacian=True)
+      with pytest.raises(AssertionError, match="Please provide"):
         _ = graph.Graph(graph=G, laplacian=L)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
@@ -108,7 +109,7 @@ class TestGraph:
     assert geom.laplacian is L
     assert geom.graph is None
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("as_laplacian", [False, True])
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_pytree(self, fmt: Optional[str], as_laplacian: bool):
@@ -272,7 +273,7 @@ class TestGraph:
         atol=eps * 1e2,
     )
 
-  @pytest.mark.parametrize("jit,normalize", [(False, True), (True, False)])
+  @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
     def callback(geom: graph.Graph,
@@ -316,7 +317,7 @@ class TestGraph:
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_factor_cache_works(self, rng: jax.random.PRNGKeyArray):
 
     def timeit(fn: Callable[[Any], Any]) -> Callable[[Any], float]:
@@ -370,7 +371,7 @@ class TestGraph:
     assert key2 in decomposition.SparseCholeskySolver._FACTOR_CACHE
 
   # Total memory allocated: 99.1MiB
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.limit_memory("200 MB")
   def test_sparse_graph_memory(self, rng: jax.random.PRNGKeyArray):
     # use a graph with some structure for Cholesky to be faster

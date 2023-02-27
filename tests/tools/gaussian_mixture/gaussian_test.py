@@ -20,7 +20,7 @@ import pytest
 from ott.tools.gaussian_mixture import gaussian, scale_tril
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestGaussian:
 
   def test_from_random(self, rng: jax.random.PRNGKeyArray):

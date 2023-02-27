@@ -107,7 +107,7 @@ class TestKmeansPlusPlus:
 
 class TestKmeans:
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [1, 6])
   def test_k_means_output(self, rng: jax.random.PRNGKeyArray, k: int):
     max_iter, ndim = 10, 4
@@ -127,7 +127,7 @@ class TestKmeans:
     assert res.inner_errors is None
     assert _is_same_clustering(pred_assignment, gt_assignment, k)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_k_means_simple_example(self):
     expected_labels = np.asarray([1, 1, 0, 0], dtype=np.int32)
     expected_centers = np.asarray([[0.75, 1], [0.25, 0]])
@@ -279,19 +279,20 @@ class TestKmeans:
         res.error, res_scaled.error * jnp.sum(weights), rtol=1e-3, atol=1e-3
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_empty_weights(self, rng: jax.random.PRNGKeyArray):
     n, ndim, k, d = 20, 2, 3, 5.
-    x = np.random.normal(size=(n, ndim))
+    gen = np.random.RandomState(0.)
+    x = gen.normal(size=(n, ndim))
     x[:, 0] += d
     x[:, 1] += d
-    y = np.random.normal(size=(n, ndim))
+    y = gen.normal(size=(n, ndim))
     y[:, 0] -= d
     y[:, 1] -= d
-    z = np.random.normal(size=(n, ndim))
+    z = gen.normal(size=(n, ndim))
     z[:, 0] += d
     z[:, 1] -= d
-    w = np.random.normal(size=(n, ndim))
+    w = gen.normal(size=(n, ndim))
     w[:, 0] -= d
     w[:, 1] += d
     x = jnp.concatenate((x, y, z, w))
@@ -355,10 +356,9 @@ class TestKmeans:
       sys.platform == 'darwin' and os.environ.get("CI", "false") == "true",
       reason='Fails on macOS CI.'
   )
-  @pytest.mark.parametrize(
-      "jit,force_scan", [(True, False), (False, True)],
-      ids=["jit-while-loop", "nojit-for-loop"]
-  )
+  @pytest.mark.parametrize(('jit', 'force_scan'), [(True, False),
+                                                   (False, True)],
+                           ids=["jit-while-loop", "nojit-for-loop"])
   def test_k_means_differentiability(
       self, rng: jax.random.PRNGKeyArray, jit: bool, force_scan: bool
   ):
@@ -397,7 +397,7 @@ class TestKmeans:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.])
-  @pytest.mark.parametrize("n,k", [(37, 4), (128, 6)])
+  @pytest.mark.parametrize(('n', 'k'), [(37, 4), (128, 6)])
   def test_clustering_matches_sklearn(
       self, rng: jax.random.PRNGKeyArray, n: int, k: int, tol: float
   ):

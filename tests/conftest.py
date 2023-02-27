@@ -5,7 +5,6 @@ from typing import Any, Mapping, Optional, Sequence
 import jax
 import jax.numpy as jnp
 import pytest
-from _pytest.config.argparsing import Parser
 from _pytest.python import Metafunc
 
 
@@ -55,30 +54,16 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
-def pytest_addoption(parser: Parser) -> None:
-  parser.addoption(
-      "--kernel-name",
-      default="python3",
-      help="Jupyter kernel name when executing notebook tests."
-  )
-  parser.addoption(
-      "--notebook-cell-timeout",
-      type=int,
-      default=60,
-      help="Execution timeout in seconds for notebook cells."
-  )
-
-
 @pytest.fixture(scope="session")
 def rng() -> jnp.ndarray:
   return jax.random.PRNGKey(0)
 
 
 @pytest.fixture()
-def enable_x64():
+def enable_x64() -> bool:
   previous_value = jax.config.jax_enable_x64
   jax.config.update("jax_enable_x64", True)
   try:
-    yield
+    yield True
   finally:
     jax.config.update("jax_enable_x64", previous_value)

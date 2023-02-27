@@ -21,10 +21,9 @@ from ott.solvers.linear import discrete_barycenter as db
 
 class TestDiscreteBarycenter:
 
-  @pytest.mark.parametrize(
-      "lse_mode,debiased,epsilon", [(True, True, 1e-2), (False, False, 2e-2)],
-      ids=["lse-deb", 'scal-no-deb']
-  )
+  @pytest.mark.parametrize(("lse_mode", "debiased", "epsilon"),
+                           [(True, True, 1e-2), (False, False, 2e-2)],
+                           ids=["lse-deb", 'scal-no-deb'])
   def test_discrete_barycenter_grid(
       self, lse_mode: bool, debiased: bool, epsilon: float
   ):
@@ -62,9 +61,9 @@ class TestDiscreteBarycenter:
     err = errors[jnp.isfinite(errors)][-1]
     assert threshold > err
 
-  @pytest.mark.parametrize(
-      "lse_mode,epsilon", [(True, 1e-3), (False, 1e-2)], ids=["lse", "scale"]
-  )
+  @pytest.mark.parametrize(("lse_mode", "epsilon"), [(True, 1e-3),
+                                                     (False, 1e-2)],
+                           ids=["lse", "scale"])
   def test_discrete_barycenter_pointcloud(self, lse_mode: bool, epsilon: float):
     """Tests the discrete barycenters on pointclouds.
 

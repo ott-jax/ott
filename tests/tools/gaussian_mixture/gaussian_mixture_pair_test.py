@@ -69,7 +69,7 @@ class TestGaussianMixturePair:
 
     np.testing.assert_almost_equal(cost, 0.00, decimal=2)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_get_sinkhorn_to_shifted_is_almost_shift(self):
     loc_shift = jnp.stack([
         2. * jnp.ones(self.n_components),
@@ -90,7 +90,7 @@ class TestGaussianMixturePair:
 
     np.testing.assert_approx_equal(cost, 4.0, significant=2)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_get_coupling_between_same_gmm(self):
     gmm = self.gmm0
     pair = gaussian_mixture_pair.GaussianMixturePair(

@@ -21,7 +21,7 @@ import pytest
 from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestLRGeometry:
 
   def test_apply(self, rng: jax.random.PRNGKeyArray):
@@ -130,9 +130,8 @@ class TestLRGeometry:
           rtol=1e-4
       )
 
-  @pytest.mark.parametrize(
-      "scale,scale_cost,epsilon", [(0.1, "mean", None), (0.9, "max_cost", 1e-2)]
-  )
+  @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
+                           [(0.1, "mean", None), (0.9, "max_cost", 1e-2)])
   def test_add_lr_geoms_scale_factor(
       self, rng: jax.random.PRNGKeyArray, scale: float, scale_cost: str,
       epsilon: Optional[float]

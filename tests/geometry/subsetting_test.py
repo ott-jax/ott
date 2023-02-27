@@ -43,7 +43,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
   return geom, masked
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestMaskPointCloud:
 
   @pytest.mark.parametrize("tgt_ixs", [7, jnp.arange(5)])

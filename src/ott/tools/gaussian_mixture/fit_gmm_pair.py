@@ -194,12 +194,11 @@ def print_losses(
   transport_penalty = sinkhorn_output.reg_ot_cost
   objective = q0 + q1 - weight_transport * transport_penalty
 
-  print((
+  print(  # noqa: T201
       f'{iteration:3d} {q0:.3f} {q1:.3f} '
       f'transport:{transport_penalty:.3f} '
       f'objective:{objective:.3f}'
-  ),
-        flush=True)
+  )
 
 
 # The E-step for a single GMM

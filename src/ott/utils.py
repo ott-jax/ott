@@ -141,4 +141,4 @@ def default_progress_fn(
     error_idx = max((iteration + 1) // inner_iterations - 1, 0)
     error = errors[error_idx]
 
-    print(f"{iteration} / {total_iter} -- {error}")
+    print(f"{iteration} / {total_iter} -- {error}")  # noqa: T201

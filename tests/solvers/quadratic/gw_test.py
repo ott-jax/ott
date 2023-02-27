@@ -25,7 +25,7 @@ from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestQuadraticProblem:
 
   @pytest.mark.parametrize("as_pc", [False, True])
@@ -196,10 +196,9 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
-  @pytest.mark.fast
-  @pytest.mark.parametrize(
-      "balanced,rank", [(True, -1), (False, -1), (True, 3)]
-  )
+  @pytest.mark.fast()
+  @pytest.mark.parametrize(("balanced", "rank"), [(True, -1), (False, -1),
+                                                  (True, 3)])
   def test_gw_pointcloud(self, balanced: bool, rank: int):
     """Test basic computations pointclouds."""
     geom_x = pointcloud.PointCloud(self.x)
@@ -226,15 +225,12 @@ class TestGromovWasserstein:
 
     assert not jnp.isnan(out.reg_gw_cost)
 
-  @pytest.mark.parametrize(
-      "unbalanced,unbalanced_correction", [(False, False), (True, False),
-                                           (True, True)],
-      ids=["bal", "unbal-nocorr", "unbal-corr"]
-  )
-  @pytest.mark.parametrize(
-      "lse_mode,is_cost", [(True, False), (False, True)],
-      ids=["lse-pc", "kernel-cost-mat"]
-  )
+  @pytest.mark.parametrize(("unbalanced", "unbalanced_correction"),
+                           [(False, False), (True, False), (True, True)],
+                           ids=["bal", "unbal-nocorr", "unbal-corr"])
+  @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
+                                                     (False, True)],
+                           ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_gw_geometry(
       self, lse_mode: bool, is_cost: bool, unbalanced: bool,
       unbalanced_correction: bool
@@ -306,7 +302,7 @@ class TestGromovWasserstein:
     assert loss_thre(1e-1) >= loss_thre(1e-4)
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same problem."""
     rngs = jax.random.split(rng, 4)

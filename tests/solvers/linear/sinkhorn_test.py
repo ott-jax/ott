@@ -169,7 +169,7 @@ class TestSinkhorn:
     f_1, f_2 = out_1.f, out_2.f
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
@@ -453,7 +453,7 @@ class TestSinkhorn:
     # check only one iteration suffices when restarting with same data.
     assert num_iter_restarted == 1
 
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.limit_memory("110 MB")
   @pytest.mark.fast.with_args("batch_size", [500, 1000], only_fast=0)
   def test_sinkhorn_online_memory_jit(self, batch_size: int):

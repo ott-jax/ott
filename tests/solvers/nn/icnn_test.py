@@ -20,7 +20,7 @@ import pytest
 from ott.solvers.nn import models
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestICNN:
 
   def test_icnn_convexity(self, rng: jax.random.PRNGKeyArray):

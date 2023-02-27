@@ -95,10 +95,9 @@ class TestFusedGromovWasserstein:
     np.testing.assert_allclose(g_a, gi_a, rtol=1e-02, atol=1e-02)
     np.testing.assert_allclose(g_b, gi_b, rtol=1e-02, atol=1e-02)
 
-  @pytest.mark.parametrize(
-      "lse_mode,is_cost", [(True, False), (False, True)],
-      ids=["lse-pc", "kernel-cost-mat"]
-  )
+  @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
+                                                     (False, True)],
+                           ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_fgw_solver_geometry(self, lse_mode: bool, is_cost: bool):
     """Test gradient w.r.t. the geometries."""
 
