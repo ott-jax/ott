@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import (
     Any,
     Dict,
@@ -96,7 +95,7 @@ class GWOutput(NamedTuple):
 
 
 class GWState(NamedTuple):
-  """Holds the state of the Gromov-Wasserstein solver.
+  """State of the Gromov-Wasserstein solver.
 
   Attributes:
     costs: Holds the sequence of regularized GW costs seen through the outer
@@ -150,7 +149,7 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein solver.
+  """Gromov-Wasserstein solver :cite:`peyre:16`.
 
   Args:
     args: Positional arguments for
@@ -161,23 +160,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
-      Sinkhorn initializers:
-
-        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
-
-      If `None`, the low-rank initializer will be selected in a problem-specific
-      manner:
-
-        - if both :attr:`~ott.problems.quadratic.quadratic_problem.QuadraticProblem.geom_xx`
-          and :attr:`~ott.problems.quadratic.quadratic_problem.QuadraticProblem.geom_yy`
-          are :class:`~ott.geometry.pointcloud.PointCloud` or :class:`~ott.geometry.low_rank.LRCGeometry`,
-          :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
-          is used.
-        - otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-
+      Sinkhorn initializers. If `None`, the low-rank initializer will be
+      selected in a problem-specific manner. If both ``geom_xx`` and ``geom_yy``
+      are  :class:`~ott.geometry.pointcloud.PointCloud` or
+      :class:`~ott.geometry.low_rank.LRCGeometry`, use
+      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
+      Otherwise, use
+      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
@@ -211,7 +200,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       prob: Quadratic OT problem.
       init: Initial linearization of the quadratic problem. If `None`, it will
         be computed using the initializer.
-      key: Random number key.
+      rng: Random number key.
       kwargs: Keyword arguments used when calling the initializer.
 
     Returns:
@@ -465,8 +454,8 @@ def solve(
     tau_b: if `< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
-      the inner Sinkhorn loop.
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only
+      affect the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
