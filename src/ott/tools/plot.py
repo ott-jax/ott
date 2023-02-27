@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Plotting utils."""
-
 from typing import List, Optional, Sequence, Tuple, Union
 
 import jax.numpy as jnp
@@ -48,7 +46,7 @@ def bidimensional(x: jnp.ndarray,
 
 
 class Plot:
-  """Plot an optimal transport map between two :class:`PointClouds <ott.geometry.pointcloud.PointCloud>`.
+  """Plot an optimal transport map between two point clouds.
 
   It enables to either plot or update a plot in a single object, offering the
   possibilities to create animations as a
