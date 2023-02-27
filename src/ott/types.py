@@ -15,6 +15,8 @@ from typing import Protocol
 
 import jax.numpy as jnp
 
+__all__ = ["Transport"]
+
 # TODO(michalk8): introduce additional types here
 
 
