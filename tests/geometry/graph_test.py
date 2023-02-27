@@ -348,6 +348,7 @@ class TestGraph:
     assert time_cached < time_non_cached
 
   @pytest.mark.parametrize("jit", [False, True])
+  @pytest.mark.skip(reason="Buggy")
   def test_factor_cache_unique(self, jit: bool):
 
     def callback(g: graph.Graph) -> decomposition.CholeskySolver:

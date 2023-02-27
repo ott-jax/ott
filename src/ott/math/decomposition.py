@@ -163,7 +163,7 @@ class SparseCholeskySolver(
     kwargs: Keyword arguments for :func:`sksparse.cholmod.cholesky`.
   """
 
-  # TODO(michalk8): in the future, define a jax primitive + use CHOLMOD directly
+  # TODO(michalk8): deprecate or fix
   _FACTOR_CACHE = {}
 
   def __init__(
