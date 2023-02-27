@@ -222,10 +222,9 @@ def marginal_error(
   else:
     marginal = geom.marginal_from_scalings(f_u, g_v, axis=axis)
   norm_error = jnp.asarray(norm_error)
-  error = jnp.sum(
+  return jnp.sum(
       jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis], axis=1
   ) ** (1.0 / norm_error)
-  return error
 
 
 def ent_reg_cost(

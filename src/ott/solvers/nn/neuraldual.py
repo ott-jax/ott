@@ -15,7 +15,7 @@ import warnings
 from typing import (
     Callable,
     Dict,
-    Iterable,
+    Iterator,
     List,
     Literal,
     Optional,
@@ -226,10 +226,10 @@ class W2NeuralDual:
 
   def __call__(  # noqa: D102
       self,
-      trainloader_source: Iterable[jnp.ndarray],
-      trainloader_target: Iterable[jnp.ndarray],
-      validloader_source: Iterable[jnp.ndarray],
-      validloader_target: Iterable[jnp.ndarray],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
                                               Train_t]]:
@@ -246,10 +246,10 @@ class W2NeuralDual:
 
   def train_neuraldual_parallel(
       self,
-      trainloader_source: Iterable[jnp.ndarray],
-      trainloader_target: Iterable[jnp.ndarray],
-      validloader_source: Iterable[jnp.ndarray],
-      validloader_target: Iterable[jnp.ndarray],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with parallel updates."""
@@ -322,10 +322,10 @@ class W2NeuralDual:
 
   def train_neuraldual_alternating(
       self,
-      trainloader_source: Iterable[jnp.ndarray],
-      trainloader_target: Iterable[jnp.ndarray],
-      validloader_source: Iterable[jnp.ndarray],
-      validloader_target: Iterable[jnp.ndarray],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with alternating updates."""  # noqa: D401
@@ -334,9 +334,7 @@ class W2NeuralDual:
     except ImportError:
       tqdm = lambda _: _
     # define dict to contain source and target batch
-    batch_g = {}
-    batch_f = {}
-    valid_batch = {}
+    batch_g, batch_f, valid_batch = {}, {}, {}
 
     # set logging dictionaries
     train_logs = {"loss_f": [], "loss_g": [], "w_dist": []}
@@ -372,7 +370,7 @@ class W2NeuralDual:
       if self.logging and step % self.log_freq == 0:
         self._update_logs(train_logs, loss_f, loss_g, w_dist)
 
-      # report the loss on an validuation dataset periodically
+      # report the loss on validation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
         # get batch
         valid_batch["source"] = jnp.asarray(next(validloader_source))
@@ -393,7 +391,7 @@ class W2NeuralDual:
     return {"train_logs": train_logs, "valid_logs": valid_logs}
 
   def get_step_fn(
-      self, train: bool, to_optimize: Literal["f", "g", "parallel"]
+      self, train: bool, to_optimize: Literal["f", "g", "parallel", "both"]
   ):
     """Create a parallel training and evaluation function."""
 
@@ -482,41 +480,37 @@ class W2NeuralDual:
             state_g.potential_gradient_fn,
             batch,
         )
-
         # update state
         if to_optimize == "both":
-          return state_f.apply_gradients(grads=grads_f), \
-              state_g.apply_gradients(grads=grads_g), \
-              loss, loss_f, loss_g, W2_dist
-        elif to_optimize == "f":
-          return state_f.apply_gradients(grads=grads_f), \
-              loss_f, W2_dist
-        elif to_optimize == "g":
-          return state_g.apply_gradients(grads=grads_g), \
-              loss_g, W2_dist
-        else:
-          raise ValueError("Optimization target has been misspecified.")
+          return (
+              state_f.apply_gradients(grads=grads_f),
+              state_g.apply_gradients(grads=grads_g), loss, loss_f, loss_g,
+              W2_dist
+          )
+        if to_optimize == "f":
+          return state_f.apply_gradients(grads=grads_f), loss_f, W2_dist
+        if to_optimize == "g":
+          return state_g.apply_gradients(grads=grads_g), loss_g, W2_dist
+        raise ValueError("Optimization target has been misspecified.")
 
-      else:
-        # compute loss and gradients
-        (loss, (loss_f, loss_g, W2_dist)), (grads_f, grads_g) = grad_fn(
-            state_f.params,
-            state_g.params,
-            state_f.potential_value_fn,
-            state_g.potential_value_fn,
-            state_g.potential_gradient_fn,
-            batch,
-        )
+      # compute loss and gradients
+      (loss, (loss_f, loss_g, W2_dist)), _ = grad_fn(
+          state_f.params,
+          state_g.params,
+          state_f.potential_value_fn,
+          state_g.potential_value_fn,
+          state_g.potential_gradient_fn,
+          batch,
+      )
 
-        # do not update state
-        if to_optimize == "both":
-          return loss_f, loss_g, W2_dist
-        elif to_optimize == "f":
-          return loss_f, W2_dist
-        elif to_optimize == "g":
-          return loss_g, W2_dist
-        else:
-          raise ValueError("Optimization target has been misspecified.")
+      # do not update state
+      if to_optimize == "both":
+        return loss_f, loss_g, W2_dist
+      if to_optimize == "f":
+        return loss_f, W2_dist
+      if to_optimize == "g":
+        return loss_g, W2_dist
+      raise ValueError("Optimization target has been misspecified.")
 
     return step_fn
 
@@ -541,8 +535,7 @@ class W2NeuralDual:
       grad_g_y = jax.lax.stop_gradient(
           self.conjugate_solver.solve(f_value, y, x_init=x_hat).grad
       )
-      g_y = -f_value(grad_g_y) + jnp.dot(grad_g_y, y)
-      return g_y
+      return -f_value(grad_g_y) + jnp.dot(grad_g_y, y)
 
     return potentials.DualPotentials(
         f=f_value,
@@ -570,7 +563,7 @@ class W2NeuralDual:
 
   @staticmethod
   def _update_logs(
-      logs: Dict[str, Union[float, str]],
+      logs: Dict[str, Union[List[float, str]]],
       loss_f: jnp.ndarray,
       loss_g: jnp.ndarray,
       w_dist: jnp.ndarray,

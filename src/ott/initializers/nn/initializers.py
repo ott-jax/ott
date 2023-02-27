@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import linen as nn
+from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott.geometry import geometry
@@ -159,8 +160,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       compute_f_maybe_batch = self._compute_f
 
     init_f = compute_f_maybe_batch(ot_prob.a, ot_prob.b, self.state.params)
-    f_u = init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
-    return f_u
+    return init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
 
   def _get_update_fn(self):
     """Return the implementation (and jitted) update function."""
@@ -194,12 +194,15 @@ class MetaInitializer(initializers.DefaultInitializer):
 
     return update
 
-  def _compute_f(self, a, b, params):
+  def _compute_f(
+      self, a: jnp.ndarray, b: jnp.ndarray,
+      params: frozen_dict.FrozenDict[str, jnp.ndarray]
+  ) -> jnp.ndarray:
     r"""Predict the optimal :math:`f` potential.
 
     Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms.
-      b: Probabilites of the :math:`\beta` measure's atoms.
+      a: Probabilities of the :math:`\alpha` measure's atoms.
+      b: Probabilities of the :math:`\beta` measure's atoms.
       params: The parameters of the Meta model.
 
     Returns:
@@ -245,5 +248,4 @@ class MetaMLP(nn.Module):
     z = jnp.concatenate((a, b))
     for _ in range(self.num_hidden_layers):
       z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
-    f = nn.Dense(self.potential_size, dtype=dtype)(z)
-    return f
+    return nn.Dense(self.potential_size, dtype=dtype)(z)

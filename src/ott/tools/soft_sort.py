@@ -110,8 +110,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
   rank = len(result.shape) - 1
   axis = min(axis)
   permutation = permutation[:axis] + (rank,) + permutation[axis:-1]
-  result = jnp.transpose(result, permutation)
-  return result
+  return jnp.transpose(result, permutation)
 
 
 def _sort(

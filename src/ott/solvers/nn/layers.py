@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Layers used in input convex neural networks :cite:`amos:17,bunne:22`."""
-
 from typing import Any, Callable, Tuple
 
 import flax.linen as nn
@@ -75,7 +73,7 @@ class PositiveDense(nn.Module):
     if self.use_bias:
       bias = self.param('bias', self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
-      y = y + bias
+      return y + bias
     return y
 
 
@@ -134,5 +132,4 @@ class PosDefPotentials(nn.Module):
       )
 
     y = 0.5 * y * y
-    out = jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)
-    return out
+    return jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)

@@ -129,9 +129,7 @@ class DefaultInitializer(SinkhornInitializer):
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     del rng
-    a = ot_prob.a
-    init_dual_a = jnp.zeros_like(a) if lse_mode else jnp.ones_like(a)
-    return init_dual_a
+    return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
 
   def init_dual_b(  # noqa: D102
       self,
@@ -140,9 +138,7 @@ class DefaultInitializer(SinkhornInitializer):
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
     del rng
-    b = ot_prob.b
-    init_dual_b = jnp.zeros_like(b) if lse_mode else jnp.ones_like(b)
-    return init_dual_b
+    return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -178,10 +174,9 @@ class GaussianInitializer(DefaultInitializer):
     # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
     f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
     f_potential = f_potential - jnp.mean(f_potential)
-    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
+    return f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
     )
-    return f_u
 
 
 @jax.tree_util.register_pytree_node_class
@@ -281,11 +276,9 @@ class SortingInitializer(DefaultInitializer):
     f_potential = self._init_sorting_dual(modified_cost, init_f)
     f_potential = f_potential - jnp.mean(f_potential)
 
-    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
+    return f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
     )
-
-    return f_u
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {
@@ -365,10 +358,9 @@ class SubsampleInitializer(DefaultInitializer):
     dual_potentials = subsample_sink_out.to_dual_potentials()
     f_potential = jax.vmap(dual_potentials.f)(x)
 
-    f_u = f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
+    return f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
     )
-    return f_u
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([], {

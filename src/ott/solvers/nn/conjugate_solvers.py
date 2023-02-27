@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
-
 import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
@@ -89,13 +87,23 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   decrease_factor: float = 0.66
   ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
 
-  def solve(  # noqa: D102
+  def solve(
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
       x_init: Optional[jnp.array] = None
   ) -> ConjugateResults:
-    assert y.ndim == 1
+    """TODO.
+
+    Args:
+      f: TODO
+      y: TODO
+      x_init: Initial value.
+
+    Returns:
+      The conjugate.
+    """
+    assert y.ndim == 1, y.ndim
 
     solver = LBFGS(
         fun=lambda x: f(x) - x.dot(y),

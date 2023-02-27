@@ -135,13 +135,13 @@ class LRCGeometry(geometry.Geometry):
     # and apply it. First is O(nm), the other is O((n+m)r^2).
     if n * m < (n + m) * r ** 2:  # better use regular apply
       return super().apply_square_cost(arr, axis)
-    else:
-      new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
-      new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
-      return LRCGeometry(
-          cost_1=new_cost_1.reshape((n, r ** 2)),
-          cost_2=new_cost_2.reshape((m, r ** 2))
-      ).apply_cost(arr, axis)
+
+    new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
+    new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
+    return LRCGeometry(
+        cost_1=new_cost_1.reshape((n, r ** 2)),
+        cost_2=new_cost_2.reshape((m, r ** 2))
+    ).apply_cost(arr, axis)
 
   def _apply_cost_to_vec(
       self,
@@ -221,8 +221,7 @@ class LRCGeometry(geometry.Geometry):
 
     def finalize(carry):
       cost1, cost2 = carry
-      out_slice = jnp.dot(cost2[n_batch * batch_size:], cost1.T)
-      return out_slice
+      return jnp.dot(cost2[n_batch * batch_size:], cost1.T)
 
     _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
     last_slice = finalize(carry)

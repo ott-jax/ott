@@ -315,7 +315,7 @@ def iterations(  # noqa: D103
     solver, problem = constants
     return solver.update_state(state, iteration, problem)
 
-  state = fixed_point_loop.fixpoint_iter(
+  return fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,
@@ -324,4 +324,3 @@ def iterations(  # noqa: D103
       constants=(solver, problem),
       state=init_state,
   )
-  return state

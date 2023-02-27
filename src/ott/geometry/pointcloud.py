@@ -300,11 +300,10 @@ class PointCloud(geometry.Geometry):
           self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
           self.cost_fn, self.inv_scale_cost
       )
-    if axis == 1:
-      return app(
-          self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
-          self.cost_fn, self.inv_scale_cost
-      )
+    return app(
+        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, self.cost_fn,
+        self.inv_scale_cost
+    )
 
   def transport_from_potentials(  # noqa: D102
       self, f: jnp.ndarray, g: jnp.ndarray
@@ -383,25 +382,25 @@ class PointCloud(geometry.Geometry):
       self, arr: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
     """See :meth:`apply_cost`."""
-    if self.is_online:
-      app = jax.vmap(
-          _apply_cost_xy,
-          in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-      )
-      if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
-      if axis == 0:
-        return app(
-            self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
-            self.inv_scale_cost, fn
-        )
-      if axis == 1:
-        return app(
-            self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
-            self.inv_scale_cost, fn
-        )
-    else:
+    if not self.is_online:
       return super().apply_cost(arr, axis, fn)
+
+    app = jax.vmap(
+        _apply_cost_xy,
+        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
+    )
+    if arr.ndim == 1:
+      arr = arr.reshape(-1, 1)
+
+    if axis == 0:
+      return app(
+          self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
+          self.inv_scale_cost, fn
+      )
+    return app(
+        self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
+        self.inv_scale_cost, fn
+    )
 
   def vec_apply_cost(
       self,

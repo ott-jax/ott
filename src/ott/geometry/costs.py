@@ -611,8 +611,7 @@ class Bures(CostFn):
     cov_bary = self.covariance_fixpoint_iter(
         covs=covs, weights=weights, **kwargs
     )
-    barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
-    return barycenter
+    return mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
@@ -768,5 +767,6 @@ def mean_and_cov_to_x(
     mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
 ) -> jnp.ndarray:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
-  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
-  return x
+  return jnp.concatenate(
+      (mean, jnp.reshape(covariance, (dimension * dimension)))
+  )

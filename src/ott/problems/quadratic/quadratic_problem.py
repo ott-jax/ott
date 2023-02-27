@@ -261,7 +261,7 @@ class QuadraticProblem:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * self._fused_cost_matrix
       geom = geometry.Geometry(cost_matrix=cost_matrix)
-    return geom
+    return geom  # noqa: RET504
 
   def update_linearization(
       self,

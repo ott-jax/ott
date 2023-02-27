@@ -140,13 +140,12 @@ class Momentum:
       return self.value
     idx = self.start // self.inner_iterations
 
-    weight = jax.lax.cond(
+    return jax.lax.cond(
         jnp.logical_and(
             iteration >= self.start,
             state.errors[idx - 1, -1] < self.error_threshold
         ), lambda state: self.lehmann(state), lambda state: self.value, state
     )
-    return weight
 
   def lehmann(self, state: 'sinkhorn.SinkhornState') -> float:
     """Momentum formula :cite:`lehmann:21`, eq. 5."""
@@ -167,6 +166,5 @@ class Momentum:
     if lse_mode:
       value = jnp.where(jnp.isfinite(value), value, 0.0)
       return (1.0 - weight) * value + weight * new_value
-    else:
-      value = jnp.where(value > 0.0, value, 1.0)
-      return value ** (1.0 - weight) * new_value ** weight
+    value = jnp.where(value > 0.0, value, 1.0)
+    return value ** (1.0 - weight) * new_value ** weight

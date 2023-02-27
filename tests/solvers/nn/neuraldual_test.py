@@ -40,15 +40,14 @@ def neural_models(request: str) -> ModelPair_t:
         models.ICNN(dim_data=2, dim_hidden=[128]),
         models.ICNN(dim_data=2, dim_hidden=[128])
     )
-  elif request.param == 'mlps':
-    return (models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]))
-  elif request.param == 'mlps-grad':
+  if request.param == 'mlps':
+    return models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]),
+  if request.param == 'mlps-grad':
     return (
         models.MLP(dim_hidden=[128]),
         models.MLP(is_potential=False, dim_hidden=[128])
     )
-  else:
-    raise ValueError(f'Invalid request: {request.param}')
+  raise ValueError(f'Invalid request: {request.param}')
 
 
 class TestNeuralDual:

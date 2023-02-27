@@ -176,8 +176,7 @@ class ScaleTriL:
     m = matrix_square_root.sqrtm_only(
         jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
     )
-    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
-    return m
+    return jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
 
   def transport(
       self, dest_scale: 'ScaleTriL', points: jnp.ndarray

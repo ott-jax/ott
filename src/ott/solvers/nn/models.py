@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Neural potential models."""
-
 import abc
 from typing import Callable, Optional, Sequence, Tuple, Union
 
@@ -78,6 +76,7 @@ class ModelBase(abc.ABC, nn.Module):
     constructs the value of the potential from the gradient with
 
     .. math::
+
       g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
 
     where :math:`\nabla_y g(y)` is detached for the envelope theorem
@@ -94,21 +93,21 @@ class ModelBase(abc.ABC, nn.Module):
     """
     if self.is_potential:
       return lambda x: self.apply({"params": params}, x)
-    else:
-      assert other_potential_value_fn is not None, \
-          "The value of the gradient-based potential depends " \
-          "on the value of the other potential."
 
-      def value_fn(x: jnp.ndarray) -> jnp.ndarray:
-        squeeze = x.ndim == 1
-        if squeeze:
-          x = jnp.expand_dims(x, 0)
-        grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
-        value = -other_potential_value_fn(grad_g_x) + \
-            jax.vmap(jnp.dot)(grad_g_x, x)
-        return value.squeeze(0) if squeeze else value
+    assert other_potential_value_fn is not None, \
+        "The value of the gradient-based potential depends " \
+        "on the value of the other potential."
 
-      return value_fn
+    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+      squeeze = x.ndim == 1
+      if squeeze:
+        x = jnp.expand_dims(x, 0)
+      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+      value = -other_potential_value_fn(grad_g_x) + \
+          jax.vmap(jnp.dot)(grad_g_x, x)
+      return value.squeeze(0) if squeeze else value
+
+    return value_fn
 
   def potential_gradient_fn(
       self,
@@ -124,8 +123,7 @@ class ModelBase(abc.ABC, nn.Module):
     """
     if self.is_potential:
       return jax.vmap(jax.grad(self.potential_value_fn(params)))
-    else:
-      return lambda x: self.apply({'params': params}, x)
+    return lambda x: self.apply({'params': params}, x)
 
 
 class ICNN(ModelBase):
@@ -213,7 +211,7 @@ class ICNN(ModelBase):
         use_bias=True,
     )
 
-    # subsequent layers reinjected into convex functions
+    # subsequent layers re-injected into convex functions
     w_xs = []
     for i in range(self.num_hidden):
       w_xs.append(
@@ -255,8 +253,7 @@ class ICNN(ModelBase):
       if sqrt_inv:
         sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
         return sigma, sigma_sqrt, sigma_inv_sqrt, mu
-      else:
-        return sigma, mu
+      return sigma, mu
 
     source, target = inputs
     _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)

@@ -98,7 +98,6 @@ class Geometry:
   @property
   def cost_rank(self) -> Optional[int]:
     """Output rank of cost matrix, if any was provided."""
-    return None
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
@@ -420,11 +419,11 @@ class Geometry:
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
-    else:
-      lse_output = mu.logsumexp(
-          self._center(f, g) / eps, axis=axis, return_sign=False
-      )
-      return eps * lse_output, jnp.array([1.0])
+
+    lse_output = mu.logsumexp(
+        self._center(f, g) / eps, axis=axis, return_sign=False
+    )
+    return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(
@@ -741,7 +740,7 @@ class Geometry:
         arr = arr[jnp.atleast_1d(src_ixs)]
       if tgt_ixs is not None:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
-      return arr
+      return arr  # noqa: RET504
 
     return self._mask_subset_helper(
         src_ixs,
@@ -789,7 +788,7 @@ class Geometry:
         arr = jnp.where(src_mask[:, None], arr, mask_value)
       if tgt_mask is not None:
         arr = jnp.where(tgt_mask[None, :], arr, mask_value)
-      return arr
+      return arr  # noqa: RET504
 
     src_mask = self._normalize_mask(src_mask, self.shape[0])
     tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])

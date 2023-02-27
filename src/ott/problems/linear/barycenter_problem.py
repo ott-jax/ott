@@ -156,7 +156,7 @@ class FreeBarycenterProblem:
       # By default, we assume that weights sum to 1, and enforce this if needed.
       weights = self._weights / jnp.sum(self._weights)
     if self.debiased:
-      weights = jnp.concatenate((weights, jnp.array([-0.5])))
+      return jnp.concatenate((weights, jnp.array([-0.5])))
     return weights
 
   @property
@@ -211,13 +211,12 @@ class FixedBarycenterProblem:
   def weights(self) -> jnp.ndarray:
     """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
     if self._weights is None:
-      weights = jnp.ones((self.num_measures,)) / self.num_measures
-    else:
-      # Check that the number of measures coincides with the weights' size.
-      assert self._weights.shape[0] == self.num_measures
-      # By default, we assume that weights sum to 1, and enforce this if needed.
-      weights = self._weights / jnp.sum(self._weights)
-    return weights
+      return jnp.ones((self.num_measures,)) / self.num_measures
+
+    # check that the number of measures coincides with the weights' size
+    assert self._weights.shape[0] == self.num_measures
+    # by default, we assume that weights sum to 1, and enforce this if needed
+    return self._weights / jnp.sum(self._weights)
 
   def tree_flatten(self):  # noqa: D102
     return [self.geom, self.a, self._weights], None

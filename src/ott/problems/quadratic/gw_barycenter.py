@@ -143,7 +143,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     # TODO(michalk8): in future, use `isinstanceof(self.gw_loss, ...)`
     # once refactoring has been done
     if self._loss_name == 'kl':
-      barycenter = jnp.exp(barycenter)
+      return jnp.exp(barycenter)
     return barycenter
 
   def update_features(self, transports: jnp.ndarray,

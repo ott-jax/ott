@@ -109,8 +109,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
     res += jnp.sum(tan_b * centered_exp, axis=axis, keepdims=keepdims)
   if return_sign:
     return (lse, sign), (sign * res, jnp.zeros_like(sign))
-  else:
-    return lse, res
+  return lse, res
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
