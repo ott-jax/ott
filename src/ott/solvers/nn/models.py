@@ -96,7 +96,8 @@ class ModelBase(abc.ABC, nn.Module):
       return lambda x: self.apply({"params": params}, x)
     else:
       assert other_potential_value_fn is not None, \
-          "The value of the gradient-based potential depends on the value of the other potential"
+          "The value of the gradient-based potential depends " \
+          "on the value of the other potential."
 
       def value_fn(x: jnp.ndarray) -> jnp.ndarray:
         squeeze = x.ndim == 1
