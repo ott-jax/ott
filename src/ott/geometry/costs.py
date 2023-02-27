@@ -86,36 +86,40 @@ class CostFn(abc.ABC):
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
-      x: Array.
-      y: Array.
+      x: Array of shape ``[d,]``.
+      y: Array of shape ``[d,]``.
 
     Returns:
-      The cost, optionally including the :attr:`norm` of :math:`x`/:math:`y`.
+      The cost, optionally including the :attr:`norms <norm>` of
+      :math:`x`/:math:`y`.
     """
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
     return cost + self.norm(x) + self.norm(y)
 
+  # TODO(michalk8): unused
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all costs (including norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
   def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all pairwise-costs (no norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of pairwise cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 

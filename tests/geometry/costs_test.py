@@ -60,7 +60,7 @@ class TestCostFn:
             atol=1e-5
         )
 
-    all_pairs = cosine_fn.all_pairs(x, y)
+    all_pairs = cosine_fn.all_pairs_pairwise(x, y)
     for i in range(n):
       for j in range(m):
         np.testing.assert_allclose(
