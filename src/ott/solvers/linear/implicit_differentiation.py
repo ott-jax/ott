@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Functions entering the implicit differentiation of Sinkhorn."""
-
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+import dataclasses
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -286,3 +286,6 @@ class ImplicitDiff:
     # Carries pullback onto original inputs, here geom, a and b.
     _, pull_prob = jax.vjp(foc_prob, prob)
     return pull_prob(vjp_gr)
+
+  def replace(self, **kwargs: Any) -> "ImplicitDiff":  # noqa: D102
+    return dataclasses.replace(self, **kwargs)
