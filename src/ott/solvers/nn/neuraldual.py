@@ -562,7 +562,7 @@ class W2NeuralDual:
 
   @staticmethod
   def _update_logs(
-      logs: Dict[str, Union[List[float, str]]],
+      logs: Dict[str, List[Union[float, str]]],
       loss_f: jnp.ndarray,
       loss_g: jnp.ndarray,
       w_dist: jnp.ndarray,
