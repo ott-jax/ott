@@ -64,6 +64,7 @@ Cost Functions
     costs.ElasticL1
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
+    costs.SoftDTW
 
 Utilities
 ---------
