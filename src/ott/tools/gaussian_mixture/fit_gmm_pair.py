@@ -236,17 +236,6 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
   Returns:
     A function that performs the M-step of EM.
   """
-  grad_objective_fn = jax.grad(objective_fn, argnums=(0,))
-  gmm_m_step_fn = gaussian_mixture.GaussianMixture.from_points_and_assignment_probs
-  if jit:
-    grad_objective_fn = jax.jit(grad_objective_fn)
-    gmm_m_step_fn = jax.jit(gmm_m_step_fn)
-
-  opt_init, opt_update = optax.chain(
-      # Set the parameters of Adam. Note the learning_rate is not here.
-      optax.scale_by_adam(b1=0.9, b2=0.999, eps=1e-8),
-      optax.scale(learning_rate)
-  )
 
   def _m_step_fn(
       pair: gaussian_mixture_pair.GaussianMixturePair,
@@ -275,6 +264,16 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
         if gmm.has_nans():
           raise ValueError(f'NaN in gmm{j}')
     return pair
+
+  grad_objective_fn = jax.grad(objective_fn, argnums=(0,))
+  if jit:
+    grad_objective_fn = jax.jit(grad_objective_fn)
+
+  opt_init, opt_update = optax.chain(
+      # Set the parameters of Adam. Note the learning_rate is not here.
+      optax.scale_by_adam(b1=0.9, b2=0.999, eps=1e-8),
+      optax.scale(learning_rate)
+  )
 
   return _m_step_fn
 
