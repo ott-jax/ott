@@ -162,7 +162,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       is always used. Otherwise, the quadratic initializer wraps the low-rank
       Sinkhorn initializers. If `None`, the low-rank initializer will be
       selected in a problem-specific manner. If both ``geom_xx`` and ``geom_yy``
-      are  :class:`~ott.geometry.pointcloud.PointCloud` or
+      are :class:`~ott.geometry.pointcloud.PointCloud` or
       :class:`~ott.geometry.low_rank.LRCGeometry`, use
       :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
       Otherwise, use

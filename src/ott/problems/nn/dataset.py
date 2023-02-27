@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Iterable, Iterator, Literal, NamedTuple, Tuple
+from typing import Iterator, Literal, NamedTuple, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -30,8 +30,8 @@ class Dataset(NamedTuple):
     source_iter: loader for the source measure
     target_iter: loader for the target measure
   """
-  source_iter: Iterable[jnp.ndarray]
-  target_iter: Iterable[jnp.ndarray]
+  source_iter: Iterator[jnp.ndarray]
+  target_iter: Iterator[jnp.ndarray]
 
 
 @dataclasses.dataclass
@@ -41,11 +41,12 @@ class GaussianMixture:
   Args:
     name: the name specifying the centers of the mixture components:
 
-    - ``simple`` (data clustered in one center),
-    - ``circle`` (two-dimensional Gaussians arranged on a circle),
-    - ``square_five`` (two-dimensional Gaussians on a square with
-      one Gaussian in the center), and
-    - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
+      - ``simple`` - data clustered in one center,
+      - ``circle`` - two-dimensional Gaussians arranged on a circle,
+      - ``square_five`` - two-dimensional Gaussians on a square with
+        one Gaussian in the center, and
+      - ``square_four`` - two-dimensional Gaussians in the corners of a
+        rectangle
 
     batch_size: batch size of the samples
     init_rng: initial PRNG key
