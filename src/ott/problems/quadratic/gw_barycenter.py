@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
@@ -257,7 +270,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
-    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` used in the fused case."""
+    """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
     y_fused, _ = segment.segment_point_cloud(

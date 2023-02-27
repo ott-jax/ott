@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Toy datasets for neural OT."""
-
 import dataclasses
 from typing import Iterable, Iterator, Literal, NamedTuple, Tuple
 
@@ -43,11 +41,11 @@ class GaussianMixture:
   Args:
     name: the name specifying the centers of the mixture components:
 
-        - ``simple`` (data clustered in one center),
-        - ``circle`` (two-dimensional Gaussians arranged on a circle),
-        - ``square_five`` (two-dimensional Gaussians on a square with
-          one Gaussian in the center), and
-        - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
+    - ``simple`` (data clustered in one center),
+    - ``circle`` (two-dimensional Gaussians arranged on a circle),
+    - ``square_five`` (two-dimensional Gaussians on a square with
+      one Gaussian in the center), and
+    - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
 
     batch_size: batch size of the samples
     init_rng: initial PRNG key
@@ -111,7 +109,7 @@ def create_gaussian_mixture_samplers(
     valid_batch_size: int = 2048,
     rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
-  """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
   Args:
     name_source: name of the source sampler

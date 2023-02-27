@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Classes defining OT problem(s) (objective function + utilities)."""
-
 from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
@@ -78,8 +76,8 @@ class QuadraticProblem:
     tau_b: if `< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
-      the inner Sinkhorn loop.
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
+      only affect the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
