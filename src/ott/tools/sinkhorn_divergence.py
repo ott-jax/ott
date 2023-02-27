@@ -159,8 +159,10 @@ def _sinkhorn_divergence(
         parallel_dual_updates=True,
         momentum=acceleration.Momentum(start=0, value=0.5),
         anderson=None,
-        # TODO(michalk8): implicit_diff
     )
+    implicit_diff = kwargs.get("implicit_diff", None)
+    if implicit_diff is not None:
+      kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 
   out_xy = sinkhorn.solve(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
