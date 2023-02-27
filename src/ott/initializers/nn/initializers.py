@@ -117,20 +117,21 @@ class MetaInitializer(initializers.DefaultInitializer):
       \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\;
         J(\hat f_\theta(a, b); \alpha, \beta),
 
-    where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`,
-    :math:`\mathcal{D}` is a meta distribution of optimal transport problems,
+    where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`
+    ,:math:`\mathcal{D}` is a meta distribution of optimal transport problems,
 
     .. math::
       -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle -
-        \varepsilon\left\langle \exp\{f/\varepsilon\}, K\exp\{g/\varepsilon\}\right\rangle
+      \varepsilon\left\langle \exp\{f/\varepsilon\}, K\exp\{g/\varepsilon\}
+      \right\rangle
 
     is the entropic dual objective,
     and :math:`K_{i,j} := -C_{i,j}/\varepsilon` is the *Gibbs kernel*.
 
     Args:
       state: Optimizer state of the meta model.
-      a: Probabilites of the :math:`\alpha` measure's atoms.
-      b: Probabilites of the :math:`\beta` measure's atoms.
+      a: Probabilities of the :math:`\alpha` measure's atoms.
+      b: Probabilities of the :math:`\beta` measure's atoms.
 
     Returns:
       The training loss, :math:`f`, and updated state.
