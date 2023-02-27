@@ -763,7 +763,7 @@ class SoftDTW(CostFn):
   """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
 
   Args:
-    gamma: Smoothing parameter for the soft-min operator.
+    gamma: Smoothing parameter :math:`> 0` for the soft-min operator.
     ground_cost: Ground cost function. If ``None``,
       use :class:`~ott.geometry.costs.SqEuclidean`.
     debiased: Whether to compute the debiased soft-DTW :cite:`blondel:21`.
@@ -779,7 +779,7 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
@@ -829,11 +829,11 @@ class SoftDTW(CostFn):
     (_, carry), _ = jax.lax.scan(body, init, model_matrix[2:])
     return carry[-1]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (self.gamma, self.ground_cost), {"debiased": self.debiased}
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
 

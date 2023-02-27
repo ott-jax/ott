@@ -190,7 +190,7 @@ class TestRegTICost:
 
 
 @pytest.mark.skipif(ts_metrics is None, reason="Not supported for Python 3.11")
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSoftDTW:
 
   @pytest.mark.parametrize("n", [11, 16])
@@ -208,7 +208,7 @@ class TestSoftDTW:
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
-  @pytest.mark.parametrize("debiased,jit", [(False, True), (True, False)])
+  @pytest.mark.parametrize(("debiased", "jit"), [(False, True), (True, False)])
   def test_soft_dtw_debiased(
       self,
       rng: jax.random.PRNGKeyArray,
@@ -235,7 +235,7 @@ class TestSoftDTW:
       np.testing.assert_allclose(cost_fn(t1, t1), 0.0, rtol=1e-6, atol=1e-6)
       np.testing.assert_allclose(cost_fn(t2, t2), 0.0, rtol=1e-6, atol=1e-6)
 
-  @pytest.mark.parametrize("debiased,jit", [(False, False), (True, True)])
+  @pytest.mark.parametrize(("debiased", "jit"), [(False, False), (True, True)])
   @pytest.mark.parametrize("gamma", [1e-2, 1])
   def test_soft_dtw_grad(
       self, rng: jax.random.PRNGKeyArray, debiased: bool, jit: bool,

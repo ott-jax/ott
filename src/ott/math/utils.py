@@ -123,7 +123,7 @@ def softmin(
 
   Args:
     x: Input data.
-    gamma: Smoothing parameter.
+    gamma: Smoothing parameter :math:`> 0`.
     axis: Axis or axes over which to operate. If ``None``, use flattened input.
 
   Returns:
