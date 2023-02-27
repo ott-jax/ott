@@ -85,14 +85,14 @@ class GaussianMixture:
     self.centers = gaussian_centers[self.name]
 
   def __iter__(self) -> Iterator[jnp.array]:
-    return self.create_sample_generators()
-
-  def create_sample_generators(self) -> Iterator[jnp.array]:
     """Random sample generator from Gaussian mixture.
 
     Returns:
       A generator of samples from the Gaussian mixture.
     """
+    return self._create_sample_generators()
+
+  def _create_sample_generators(self) -> Iterator[jnp.array]:
     rng = self.init_rng
     while True:
       rng1, rng2, rng = jax.random.split(rng, 3)
