@@ -74,8 +74,8 @@ class TestScaleTriL:
     np.testing.assert_allclose(expected, w2, atol=1e-4, rtol=1e-4)
 
     # When covariances commute (e.g. if covariance is diagonal), have
-    # distance between covariances = Frobenius norm^2 of (delta sqrt(cov))
-    # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # pylint: disable=line-too-long
+    # distance between covariances = Frobenius norm^2 of (delta sqrt(cov)), see
+    # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     diag0 = jnp.exp(jax.random.normal(key=subrng0, shape=(size,)))

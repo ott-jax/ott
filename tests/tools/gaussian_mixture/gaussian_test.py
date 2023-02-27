@@ -98,8 +98,8 @@ class TestGaussian:
     np.testing.assert_almost_equal(w2, 0., decimal=5)
 
     # When covariances commute (e.g. if covariance is diagonal), have
-    # distance between covariances = frobenius norm^2 of (delta cholesky)
-    # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # pylint: disable=line-too-long
+    # distance between covariances = frobenius norm^2 of (delta cholesky), see
+    # https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     loc0 = jax.random.normal(key=subrng0, shape=(size,))
