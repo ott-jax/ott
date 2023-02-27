@@ -253,18 +253,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are:
-
-        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
-
-      If `None`, :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
+      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
+      `'generalized-k-means`. If `None`,
+      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
       is used when the linear problem's geometry is
       :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`.
-      Otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+      :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
+      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
 
     lse_mode: Whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
