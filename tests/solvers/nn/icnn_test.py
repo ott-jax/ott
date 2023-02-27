@@ -23,7 +23,7 @@ from ott.solvers.nn import models
 @pytest.mark.fast
 class TestICNN:
 
-  def test_icnn_convexity(self, rng: jnp.ndarray):
+  def test_icnn_convexity(self, rng: jax.random.PRNGKeyArray):
     """Tests convexity of ICNN."""
     n_samples, n_features = 10, 2
     dim_hidden = (64, 64)
@@ -32,12 +32,12 @@ class TestICNN:
     model = models.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
-    key1, key2, key3 = jax.random.split(rng, 3)
-    params = model.init(key1, jnp.ones(n_features))['params']
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    params = model.init(rng1, jnp.ones(n_features))['params']
 
     # check convexity
-    x = jax.random.normal(key1, (n_samples, n_features)) * 0.1
-    y = jax.random.normal(key2, (n_samples, n_features))
+    x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
+    y = jax.random.normal(rng2, (n_samples, n_features))
 
     out_x = model.apply({'params': params}, x)
     out_y = model.apply({'params': params}, y)
@@ -49,7 +49,7 @@ class TestICNN:
 
     np.testing.assert_array_equal(jnp.asarray(out) >= 0, True)
 
-  def test_icnn_hessian(self, rng: jnp.ndarray):
+  def test_icnn_hessian(self, rng: jax.random.PRNGKeyArray):
     """Tests if Hessian of ICNN is positive-semidefinite."""
 
     # define icnn model
@@ -58,11 +58,11 @@ class TestICNN:
     model = models.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
-    key1, key2 = jax.random.split(rng)
-    params = model.init(key1, jnp.ones(n_features))['params']
+    rng1, rng2 = jax.random.split(rng)
+    params = model.init(rng1, jnp.ones(n_features))['params']
 
     # check if Hessian is positive-semidefinite via eigenvalues
-    data = jax.random.normal(key2, (n_features,))
+    data = jax.random.normal(rng2, (n_features,))
 
     # compute Hessian
     hessian = jax.hessian(model.apply, argnums=1)({'params': params}, data)

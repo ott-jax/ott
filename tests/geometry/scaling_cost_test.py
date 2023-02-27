@@ -26,7 +26,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 class TestScaleCost:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 7
     self.m = 9
@@ -202,9 +202,9 @@ class TestScaleCost:
   def test_max_scale_cost_low_rank_large_array(self):
     """Test max_cost options for large matrices."""
 
-    _, *keys = jax.random.split(self.rng, 3)
-    cost1 = jax.random.uniform(keys[0], (10000, 2))
-    cost2 = jax.random.uniform(keys[1], (11000, 2))
+    _, *rngs = jax.random.split(self.rng, 3)
+    cost1 = jax.random.uniform(rngs[0], (10000, 2))
+    cost2 = jax.random.uniform(rngs[1], (11000, 2))
     max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
 
     geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost='max_cost')

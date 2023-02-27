@@ -321,7 +321,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                   Optional[jnp.ndarray]] = (None, None, None),
-      key: Optional[jnp.ndarray] = None,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any,
   ) -> LRSinkhornOutput:
     """Run low-rank Sinkhorn.
@@ -335,7 +335,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.g`.
 
         Any `None` values will be initialized using the initializer.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       kwargs: Additional arguments when calling the initializer.
 
     Returns:
@@ -343,7 +343,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, key=key, **kwargs)
+    init = initializer(ot_prob, *init, rng=rng, **kwargs)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, init)
 

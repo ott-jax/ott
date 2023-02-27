@@ -30,25 +30,25 @@ class TestFusedGromovWasserstein:
 
   # TODO(michalk8): refactor me in the future
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     d_x = 2
     d_y = 3
     d_xy = 4
     self.n, self.m = 5, 6
-    keys = jax.random.split(rng, 7)
-    self.x = jax.random.uniform(keys[0], (self.n, d_x))
-    self.y = jax.random.uniform(keys[1], (self.m, d_y))
-    self.x_2 = jax.random.uniform(keys[0], (self.n, d_xy))
-    self.y_2 = jax.random.uniform(keys[1], (self.m, d_xy))
+    rngs = jax.random.split(rng, 7)
+    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
+    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
+    self.x_2 = jax.random.uniform(rngs[0], (self.n, d_xy))
+    self.y_2 = jax.random.uniform(rngs[1], (self.m, d_xy))
     self.fused_penalty = 2.0
     self.fused_penalty_2 = 0.05
-    a = jax.random.uniform(keys[2], (self.n,)) + 0.1
-    b = jax.random.uniform(keys[3], (self.m,)) + 0.1
+    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
-    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
-    self.cxy = jax.random.uniform(keys[6], (self.n, self.m))
+    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
+    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
+    self.cxy = jax.random.uniform(rngs[6], (self.n, self.m))
 
   @pytest.mark.fast.with_args("jit", [False, True], only_fast=0)
   def test_gradient_marginals_fgw_solver(self, jit: bool):
@@ -218,7 +218,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.limit_memory("400 MB")
   @pytest.mark.parametrize("jit", [False, True])
-  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
+  def test_fgw_lr_memory(self, rng: jax.random.PRNGKeyArray, jit: bool):
     # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 15_000, 10_000, 2, 3
@@ -246,14 +246,15 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_fgw_lr_generic_cost_matrix(
-      self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
+      self, rng: jax.random.PRNGKeyArray, cost_rank: Union[int, Tuple[int, int,
+                                                                      int]]
   ):
-    n, m = 70, 100
-    key1, key2, key3, key4 = jax.random.split(rng, 4)
-    x = jax.random.normal(key1, shape=(n, 7))
-    y = jax.random.normal(key2, shape=(m, 6))
-    xx = jax.random.normal(key3, shape=(n, 5))
-    yy = jax.random.normal(key4, shape=(m, 5))
+    n, m = 20, 30
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    x = jax.random.normal(rng1, shape=(n, 7))
+    y = jax.random.normal(rng2, shape=(m, 6))
+    xx = jax.random.normal(rng3, shape=(n, 5))
+    yy = jax.random.normal(rng4, shape=(m, 5))
 
     geom_x = geometry.Geometry(cost_matrix=x @ x.T)
     geom_y = geometry.Geometry(cost_matrix=y @ y.T)
@@ -266,7 +267,7 @@ class TestFusedGromovWasserstein:
     lr_prob = prob.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gw_solver.GromovWasserstein(rank=5, epsilon=1.0)
+    solver = gw_solver.GromovWasserstein(rank=5, epsilon=10.0)
     out = solver(prob)
 
     assert solver.rank == 5

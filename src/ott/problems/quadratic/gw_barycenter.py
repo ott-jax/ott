@@ -14,7 +14,7 @@ __all__ = ["GWBarycenterProblem"]
 
 # TODO(michalk8): better abstraction (common superclass for Wasserstein bary)
 @jax.tree_util.register_pytree_node_class
-class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
+class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
 
   Args:

@@ -21,24 +21,24 @@ import pytest
 from ott.math import matrix_square_root
 
 
-def _get_random_spd_matrix(dim: int, key: jnp.ndarray):
+def _get_random_spd_matrix(dim: int, rng: jax.random.PRNGKeyArray):
   # Get a random symmetric, positive definite matrix of a specified size.
 
-  key, subkey0, subkey1 = jax.random.split(key, num=3)
+  rng, subrng0, subrng1 = jax.random.split(rng, num=3)
   # Step 1: generate a random orthogonal matrix
-  m = jax.random.normal(key=subkey0, shape=[dim, dim])
+  m = jax.random.normal(key=subrng0, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
   # number is reasonable.
-  eigs = 2. ** (2. * jax.random.uniform(key=subkey1, shape=(dim,)) - 1.)
+  eigs = 2. ** (2. * jax.random.uniform(key=subrng1, shape=(dim,)) - 1.)
 
   return jnp.matmul(eigs[None, :] * q, jnp.transpose(q))
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, key: jnp.ndarray,
-    **kwargs: Any
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int,
+    rng: jax.random.PRNGKeyArray, **kwargs: Any
 ) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
@@ -47,11 +47,11 @@ def _get_test_fn(
   # (2) maps the real to a positive definite matrix,
   # (3) applies fn, then
   # (4) maps the matrix-valued output of fn to a scalar.
-  key, subkey0, subkey1, subkey2, subkey3 = jax.random.split(key, num=5)
-  m0 = _get_random_spd_matrix(dim=dim, key=subkey0)
-  m1 = _get_random_spd_matrix(dim=dim, key=subkey1)
-  dx = _get_random_spd_matrix(dim=dim, key=subkey2)
-  unit = jax.random.normal(key=subkey3, shape=(dim, dim))
+  rng, subrng0, subrng1, subrng2, subrng3 = jax.random.split(rng, num=5)
+  m0 = _get_random_spd_matrix(dim=dim, rng=subrng0)
+  m1 = _get_random_spd_matrix(dim=dim, rng=subrng1)
+  dx = _get_random_spd_matrix(dim=dim, rng=subrng2)
+  unit = jax.random.normal(key=subrng3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
 
   def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
@@ -71,7 +71,7 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
 class TestMatrixSquareRoot:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 13
     self.batch = 3
     # Values for testing the Sylvester solver
@@ -79,14 +79,14 @@ class TestMatrixSquareRoot:
     # Shapes: A = (m, m), B = (n, n), C = (m, n), X = (m, n)
     m = 3
     n = 2
-    key, subkey0, subkey1, subkey2 = jax.random.split(rng, 4)
-    self.a = jax.random.normal(key=subkey0, shape=(2, m, m))
-    self.b = jax.random.normal(key=subkey1, shape=(2, n, n))
-    self.x = jax.random.normal(key=subkey2, shape=(2, m, n))
+    rng, subrng0, subrng1, subrng2 = jax.random.split(rng, 4)
+    self.a = jax.random.normal(key=subrng0, shape=(2, m, m))
+    self.b = jax.random.normal(key=subrng1, shape=(2, n, n))
+    self.x = jax.random.normal(key=subrng2, shape=(2, m, n))
     # make sure the system has a solution
     self.c = jnp.matmul(self.a, self.x) - jnp.matmul(self.x, self.b)
 
-    self.rng = key
+    self.rng = rng
 
   def test_sqrtm(self):
     """Sample a random p.s.d. (Wishart) matrix, check its sqrt matches."""
@@ -192,10 +192,10 @@ class TestMatrixSquareRoot:
       self, enable_x64, fn: Callable, n_tests: int, dim: int, epsilon: float,
       atol: float, rtol: float
   ):
-    key = self.rng
+    rng = self.rng
     for _ in range(n_tests):
-      key, subkey = jax.random.split(key)
-      test_fn = _get_test_fn(fn, dim=dim, key=subkey, threshold=1e-5)
+      rng, subrng = jax.random.split(rng)
+      test_fn = _get_test_fn(fn, dim=dim, rng=subrng, threshold=1e-5)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
       actual = jax.grad(test_fn)(0.)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)

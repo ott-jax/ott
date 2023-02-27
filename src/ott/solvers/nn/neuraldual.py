@@ -99,7 +99,7 @@ class W2NeuralDual:
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
-    seed: random seed for network initializations
+    rng: random key used for seeding for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
     conjugate_solver: numerical solver for the Fenchel conjugate.
@@ -123,7 +123,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      seed: int = 0,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
@@ -143,9 +143,6 @@ class W2NeuralDual:
     self.parallel_updates = parallel_updates
     self.conjugate_solver = conjugate_solver
     self.amortization_loss = amortization_loss
-
-    # set random key
-    rng = jax.random.PRNGKey(seed)
 
     # set default optimizers
     if optimizer_f is None:
@@ -168,14 +165,14 @@ class W2NeuralDual:
     )
 
   def setup(
-      self, rng: jnp.ndarray, neural_f: models.ModelBase,
+      self, rng: jax.random.PRNGKeyArray, neural_f: models.ModelBase,
       neural_g: models.ModelBase, dim_data: int, optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
     """Setup all components required to train the network."""
-    # split random key
+    # split random number generator
     rng, rng_f, rng_g = jax.random.split(rng, 3)
 
     # check setting of network architectures

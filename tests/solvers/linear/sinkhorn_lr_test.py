@@ -24,7 +24,7 @@ from ott.solvers.linear import sinkhorn_lr
 class TestLRSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 33
     self.m = 37

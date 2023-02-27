@@ -37,8 +37,8 @@ class TestSinkhornAnderson:
       only_fast=0,
   )
   def test_anderson(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], refresh_anderson_frequency: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], refresh_anderson_frequency: int
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -131,7 +131,8 @@ class TestSinkhornBures:
   @pytest.mark.parametrize("lse_mode", [False, True])
   @pytest.mark.parametrize("unbalanced,thresh", [(False, 1e-3), (True, 1e-4)])
   def test_bures_point_cloud(
-      self, rng: jnp.ndarray, lse_mode: bool, unbalanced: bool, thresh: float
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, unbalanced: bool,
+      thresh: float
   ):
     """Two point clouds of Gaussians, tested with various parameters."""
     if unbalanced:
@@ -170,7 +171,7 @@ class TestSinkhornBures:
 class TestSinkhornOnline:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
     self.n = 1000
     self.m = 402
@@ -235,7 +236,7 @@ class TestSinkhornOnline:
 class TestSinkhornUnbalanced:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 17
     self.m = 23
@@ -316,7 +317,7 @@ class TestSinkhornJIT:
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
     self.n = 10
     self.m = 11

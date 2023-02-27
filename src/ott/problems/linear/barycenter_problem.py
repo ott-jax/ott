@@ -17,14 +17,14 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import costs, segment
+from ott.geometry import costs, geometry, segment
 
-__all__ = ["BarycenterProblem"]
+__all__ = ["FreeBarycenterProblem"]
 
 
 @jax.tree_util.register_pytree_node_class
-class BarycenterProblem:
-  """Wasserstein barycenter problem :cite:`cuturi:14`.
+class FreeBarycenterProblem:
+  """Free Wasserstein barycenter problem :cite:`cuturi:14`.
 
   Args:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
@@ -45,10 +45,8 @@ class BarycenterProblem:
       Whether the problem is debiased, in the sense that
       the regularized transportation cost of barycenter to itself will
       be considered when computing gradient. Note that if the debiased option
-      is used, the barycenter size in
-      :meth:`~ott.solvers.linear.continuous_barycenter.WassersteinBarycenter.init_state`
-      needs to be smaller than the maximum measure size for parallelization to
-      operate efficiently.
+      is used, the barycenter size needs to be smaller than the maximum measure
+      size for parallelization to operate efficiently.
     kwargs: Keyword arguments :func:`~ott.geometry.segment.segment_point_cloud`.
       Only used when ``y`` is not already segmented. When passing
       ``segment_ids``, 2 arguments must be specified for jitting to work:
@@ -176,6 +174,58 @@ class BarycenterProblem:
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "BarycenterProblem":
+  ) -> "FreeBarycenterProblem":
     y, b, weights = children
     return cls(y=y, b=b, weights=weights, **aux_data)
+
+
+@jax.tree_util.register_pytree_node_class
+class FixedBarycenterProblem:
+  """Fixed-support Wasserstein barycenter problem.
+
+  Args:
+    geom: Geometry object.
+    a: batch of histograms of shape ``[batch, num_a]`` where ``num_a`` matches
+      the first value of the :attr:`~ott.geometry.Geometry.shape` attribute of
+      ``geom``.
+    weights: ``[batch,]`` positive weights summing to :math`1`. Uniform by
+      default.
+  """
+
+  def __init__(
+      self,
+      geom: geometry.Geometry,
+      a: jnp.ndarray,
+      weights: Optional[jnp.ndarray] = None,
+  ):
+    self.geom = geom
+    self.a = a
+    self._weights = weights
+
+  @property
+  def num_measures(self) -> int:
+    """Number of measures."""
+    return self.a.shape[0]
+
+  @property
+  def weights(self) -> jnp.ndarray:
+    """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
+    if self._weights is None:
+      weights = jnp.ones((self.num_measures,)) / self.num_measures
+    else:
+      # Check that the number of measures coincides with the weights' size.
+      assert self._weights.shape[0] == self.num_measures
+      # By default, we assume that weights sum to 1, and enforce this if needed.
+      weights = self._weights / jnp.sum(self._weights)
+    return weights
+
+  def tree_flatten(self):  # noqa: D102
+    return [self.geom, self.a, self._weights], None
+
+  @classmethod
+  def tree_unflatten(  # noqa: D102
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "FixedBarycenterProblem":
+    del aux_data
+    geom, a, weights = children
+    return cls(geom=geom, a=a, weights=weights)

@@ -23,20 +23,20 @@ from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 class TestGaussianMixturePair:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.n_components = 3
     self.n_dimensions = 2
     self.epsilon = 1.e-3
     self.rho = 0.1
     self.tau = self.rho / (self.rho + self.epsilon)
-    self.key, subkey0, subkey1 = jax.random.split(rng, num=3)
+    self.rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     self.gmm0 = gaussian_mixture.GaussianMixture.from_random(
-        key=subkey0,
+        rng=subrng0,
         n_components=self.n_components,
         n_dimensions=self.n_dimensions
     )
     self.gmm1 = gaussian_mixture.GaussianMixture.from_random(
-        key=subkey1,
+        rng=subrng1,
         n_components=self.n_components,
         n_dimensions=self.n_dimensions
     )

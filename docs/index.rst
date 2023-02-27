@@ -84,6 +84,7 @@ Packages
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
 - :doc:`math` holds low-level mathematical primitives.
+- :doc:`utils` provides misc helper functions
 
 .. toctree::
     :maxdepth: 1
@@ -102,6 +103,7 @@ Packages
     initializers/index
     tools
     math
+    utils
 
 .. toctree::
     :maxdepth: 1

@@ -15,6 +15,7 @@
 import jax.numpy as jnp
 import pytest
 from ott.geometry import grid, pointcloud
+from ott.problems.linear import barycenter_problem as bp
 from ott.solvers.linear import discrete_barycenter as db
 
 
@@ -41,20 +42,21 @@ class TestDiscreteBarycenter:
     """
     size = jnp.array([5, 5, 5])
     grid_3d = grid.Grid(grid_size=size, epsilon=epsilon)
-    a = jnp.ones(size).ravel()
-    b = jnp.ones(size).ravel()
-    a = a.at[0].set(10000)
-    b = b.at[-1].set(10000)
-    a /= jnp.sum(a)
-    b /= jnp.sum(b)
+    a1 = jnp.ones(size).ravel()
+    a2 = jnp.ones(size).ravel()
+    a1 = a1.at[0].set(10000)
+    a2 = a2.at[-1].set(10000)
+    a1 /= jnp.sum(a1)
+    a2 /= jnp.sum(a2)
     threshold = 1e-2
-    _, _, bar, errors = db.discrete_barycenter(
-        grid_3d,
-        a=jnp.stack((a, b)),
-        threshold=threshold,
-        lse_mode=lse_mode,
-        debiased=debiased
+
+    fixed_bp = bp.FixedBarycenterProblem(geom=grid_3d, a=jnp.stack((a1, a2)))
+    solver = db.FixedBarycenter(
+        threshold=threshold, lse_mode=lse_mode, debiased=debiased
     )
+    out = solver(fixed_bp)
+    bar, errors = out.histogram, out.errors
+
     assert bar[(jnp.prod(size) - 1) // 2] > 0.7
     assert 1 > bar[(jnp.prod(size) - 1) // 2]
     err = errors[jnp.isfinite(errors)][-1]
@@ -91,8 +93,9 @@ class TestDiscreteBarycenter:
                                     (n / 2 - 1) - .5) * .9 + .5).T
 
     geom = pointcloud.PointCloud(x, x_support_bar, epsilon=epsilon)
-    bar = db.discrete_barycenter(
-        geom, a=jnp.stack((a, b)), lse_mode=lse_mode
-    ).histogram
+    fixed_bp = bp.FixedBarycenterProblem(geom, a=jnp.stack((a, b)))
+
+    out = db.FixedBarycenter(lse_mode=lse_mode)(fixed_bp)
+    bar = out.histogram
     # check the barycenter has bump in the middle.
     assert bar[n // 4] > 0.1

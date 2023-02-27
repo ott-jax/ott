@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for Sinkhorn."""
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -26,7 +26,7 @@ from ott.solvers.linear import acceleration, sinkhorn
 class TestSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.rng = rng
     self.dim = 4
     self.n = 17
@@ -285,11 +285,11 @@ class TestSinkhorn:
   def test_apply_transport_geometry_from_potentials(self):
     """Applying transport matrix P on vector without instantiating P."""
     n, m, d = 160, 230, 6
-    keys = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(keys[0], (n, d))
-    y = jax.random.uniform(keys[1], (m, d))
-    a = jax.random.uniform(keys[2], (n,))
-    b = jax.random.uniform(keys[3], (m,))
+    rngs = jax.random.split(self.rng, 6)
+    x = jax.random.uniform(rngs[0], (n, d))
+    y = jax.random.uniform(rngs[1], (m, d))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     transport_t_vec_a = [None, None, None, None]
@@ -297,8 +297,8 @@ class TestSinkhorn:
 
     batch_b = 8
 
-    vec_a = jax.random.normal(keys[4], (n,))
-    vec_b = jax.random.normal(keys[5], (batch_b, m))
+    vec_a = jax.random.normal(rngs[4], (n,))
+    vec_b = jax.random.normal(rngs[5], (batch_b, m))
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
@@ -339,11 +339,11 @@ class TestSinkhorn:
   def test_apply_transport_geometry_from_scalings(self):
     """Applying transport matrix P on vector without instantiating P."""
     n, m, d = 160, 230, 6
-    keys = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(keys[0], (n, d))
-    y = jax.random.uniform(keys[1], (m, d))
-    a = jax.random.uniform(keys[2], (n,))
-    b = jax.random.uniform(keys[3], (m,))
+    rngs = jax.random.split(self.rng, 6)
+    x = jax.random.uniform(rngs[0], (n, d))
+    y = jax.random.uniform(rngs[1], (m, d))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     transport_t_vec_a = [None, None, None, None]
@@ -351,8 +351,8 @@ class TestSinkhorn:
 
     batch_b = 8
 
-    vec_a = jax.random.normal(keys[4], (n,))
-    vec_b = jax.random.normal(keys[5], (batch_b, m))
+    vec_a = jax.random.normal(rngs[4], (n,))
+    vec_b = jax.random.normal(rngs[5], (batch_b, m))
 
     # test with lse_mode and online = True / False
     for j, lse_mode in enumerate([True, False]):
@@ -535,3 +535,58 @@ class TestSinkhorn:
     f_mean = jnp.mean(jnp.where(jnp.isfinite(f), f, 0.))
 
     np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.fast.with_args("num_iterations", [30, 60])
+  def test_callback_fn(self, num_iterations: int):
+    """Check that the callback function is actually called."""
+
+    def progress_fn(
+        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
+                      sinkhorn.SinkhornState], *args: Any
+    ) -> None:
+      # Convert arguments.
+      iteration, inner_iterations, total_iter, state = status
+      iteration = int(iteration)
+      inner_iterations = int(inner_iterations)
+      total_iter = int(total_iter)
+      errors = np.array(state.errors).ravel()
+
+      # Avoid reporting error on each iteration,
+      # because errors are only computed every `inner_iterations`.
+      if (iteration + 1) % inner_iterations == 0:
+        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+        error = errors[error_idx]
+
+        traced_values["iters"].append(iteration)
+        traced_values["error"].append(error)
+        traced_values["total"].append(total_iter)
+
+    traced_values = {"iters": [], "error": [], "total": []}
+
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-3)
+    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+
+    inner_iterations = 10
+
+    _ = sinkhorn.Sinkhorn(
+        progress_fn=progress_fn,
+        max_iterations=num_iterations,
+        inner_iterations=inner_iterations
+    )(
+        lin_prob
+    )
+
+    # check that the function is called on the 10th iteration (iter #9), the
+    # 20th iteration (iter #19) etc.
+    assert traced_values["iters"] == [
+        10 * v - 1 for v in range(1, num_iterations // inner_iterations + 1)
+    ]
+
+    # check that error decreases
+    np.testing.assert_array_equal(np.diff(traced_values["error"]) < 0, True)
+
+    # check that max iterations is provided each time: [30, 30]
+    assert traced_values["total"] == [
+        num_iterations
+        for _ in range(1, num_iterations // inner_iterations + 1)
+    ]
