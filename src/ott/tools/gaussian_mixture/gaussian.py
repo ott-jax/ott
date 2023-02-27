@@ -42,8 +42,8 @@ class Gaussian:
   ) -> 'Gaussian':
     """Construct a Gaussian from weighted samples.
 
-    Unbiased, weighted covariance formula from https://en.wikipedia.org/wiki/Sample_mean_and_covariance#Weighted_samples
-    and https://www.gnu.org/software/gsl/doc/html/statistics.html?highlight=weighted#weighted-samples
+    Unbiased, weighted covariance formula from `GSL
+    <https://www.gnu.org/software/gsl/doc/html/statistics.html#weighted-samples>`_.
 
     Args:
       points: [n x d] array of samples
