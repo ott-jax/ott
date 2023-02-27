@@ -148,14 +148,13 @@ class ICNN(ModelBase):
       initialization scheme based on Gaussian approximation of input and
       target measure (if ``None``, identity initialization is used).
   """
-
   dim_data: int
   dim_hidden: Sequence[int]
   init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable = nn.relu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
+  gaussian_map: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -265,14 +264,12 @@ class ICNN(ModelBase):
     A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
     b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
     A = matrix_square_root.sqrtm_only(A)
-
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
   def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
-
     return A, b
 
   @nn.compact
@@ -289,6 +286,7 @@ class ICNN(ModelBase):
       rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
+      # TODO(michalk8): do not ignore or delete in code?
       params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
   ) -> NeuralTrainState:
     """Create initial `TrainState`."""

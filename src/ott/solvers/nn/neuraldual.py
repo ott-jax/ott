@@ -258,8 +258,7 @@ class W2NeuralDual:
     except ImportError:
       tqdm = lambda _: _
     # define dict to contain source and target batch
-    train_batch = {}
-    valid_batch = {}
+    train_batch, valid_batch = {}, {}
 
     # set logging dictionaries
     train_logs = {"loss_f": [], "loss_g": [], "w_dist": [], "directions": []}
@@ -328,7 +327,7 @@ class W2NeuralDual:
       validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
-    """Training and validation with alternating updates."""  # noqa: D401
+    """Training and validation with alternating updates."""
     try:
       from tqdm.auto import tqdm
     except ImportError:
@@ -539,7 +538,7 @@ class W2NeuralDual:
 
     return potentials.DualPotentials(
         f=f_value,
-        g=g_value_prediction if not finetune_g else g_value_finetuned,
+        g=g_value_finetuned if finetune_g else g_value_prediction,
         cost_fn=costs.SqEuclidean(),
         corr=True
     )
