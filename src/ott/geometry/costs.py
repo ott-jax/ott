@@ -51,8 +51,8 @@ class CostFn(abc.ABC):
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
-      x: Array of shape ``[d,]``.
-      y: Array of shape ``[d,]``.
+      x: Array.
+      y: Array.
 
     Returns:
       The cost.
@@ -86,8 +86,8 @@ class CostFn(abc.ABC):
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
-      x: Array of shape ``[d,]``.
-      y: Array of shape ``[d,]``.
+      x: Array.
+      y: Array.
 
     Returns:
       The cost, optionally including the :attr:`norms <norm>` of
