@@ -57,7 +57,7 @@ class SinkhornState(NamedTuple):
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornState':
+  def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -84,7 +84,7 @@ class SinkhornState(NamedTuple):
         parallel_dual_updates=parallel_dual_updates
     )
 
-  def ent_reg_cost(
+  def ent_reg_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
@@ -222,10 +222,9 @@ def marginal_error(
   else:
     marginal = geom.marginal_from_scalings(f_u, g_v, axis=axis)
   norm_error = jnp.asarray(norm_error)
-  error = jnp.sum(
+  return jnp.sum(
       jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis], axis=1
   ) ** (1.0 / norm_error)
-  return error
 
 
 def ent_reg_cost(
@@ -292,14 +291,14 @@ class SinkhornOutput(NamedTuple):
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornOutput':
+  def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
       use_danskin: bool
-  ) -> 'SinkhornOutput':
+  ) -> "SinkhornOutput":
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
@@ -709,7 +708,7 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
-                             ] = implicit_lib.ImplicitDiff(),  # noqa: E124
+                             ] = implicit_lib.ImplicitDiff(),  # noqa: B008
       initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
                          init_lib.SinkhornInitializer] = "default",
       progress_fn: Optional[ProgressCallbackFn_t] = None,
@@ -1015,8 +1014,8 @@ class Sinkhorn:
 
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
-    aux['norm_error'] = aux.pop('_norm_error')
-    aux.pop('threshold')
+    aux["norm_error"] = aux.pop("_norm_error")
+    aux.pop("threshold")
     return [self.threshold], aux
 
   @classmethod
@@ -1126,7 +1125,7 @@ def solve(
     tau_b: float = 1.0,
     rank: int = -1,
     **kwargs: Any
-) -> Union[SinkhornOutput, 'LRSinkhornOutput']:
+) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:

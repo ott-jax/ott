@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Soft sort operators."""
-
 import functools
 from typing import Any, Callable, Optional
 
@@ -56,7 +54,7 @@ def transport_for_sort(
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
     raise ValueError(
-        f'Shape ({shape}) not supported. The input should be one-dimensional.'
+        f"Shape ({shape}) not supported. The input should be one-dimensional."
     )
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
@@ -110,8 +108,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
   rank = len(result.shape) - 1
   axis = min(axis)
   permutation = permutation[:axis] + (rank,) + permutation[axis:-1]
-  result = jnp.transpose(result, permutation)
-  return result
+  return jnp.transpose(result, permutation)
 
 
 def _sort(
@@ -244,6 +241,7 @@ def quantile(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -300,6 +298,7 @@ def quantile_normalization(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -310,8 +309,8 @@ def quantile_normalization(
   """
   if weights is not None and weights.shape != targets.shape:
     raise ValueError(
-        'The target weights and targets values should have the '
-        f'same shape: {targets.shape} != {weights.shape}'
+        "The target weights and targets values should have the "
+        f"same shape: {targets.shape} != {weights.shape}"
     )
   if weights is None:
     num_targets = targets.shape[0]

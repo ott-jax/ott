@@ -28,11 +28,10 @@ __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
 
 class GWBarycenterState(NamedTuple):
-  """Holds the state of the \
-  :class:`~ott.problems.quadratic.gw_barycenter.GWBarycenterProblem`.
+  """State of the GW barycenter problem.
 
   Args:
-    c: Barycenter cost matrix of shape ``[bar_size, bar_size]``.
+    cost: Barycenter cost matrix of shape ``[bar_size, bar_size]``.
     x: Barycenter features of shape ``[bar_size, ndim_fused]``.
       Only used in the fused case.
     a: Weights of the barycenter of shape ``[bar_size,]``.
@@ -50,15 +49,14 @@ class GWBarycenterState(NamedTuple):
   costs: Optional[jnp.ndarray] = None
   gw_convergence: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'GWBarycenterState':
+  def set(self, **kwargs: Any) -> "GWBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
 
 @jax.tree_util.register_pytree_node_class
 class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein barycenter solver of the \
-  :class:`~ott.problems.quadratic.gw_barycenter.GWBarycenterProblem`.
+  """Gromov-Wasserstein barycenter solver.
 
   Args:
     epsilon: Entropy regulariser.
@@ -296,7 +294,7 @@ def init_transports(
   return solver(problem).matrix
 
 
-def iterations(
+def iterations(  # noqa: D103
     solver: GromovWassersteinBarycenter,
     problem: gw_barycenter.GWBarycenterProblem, init_state: GWBarycenterState
 ) -> GWBarycenterState:
@@ -317,7 +315,7 @@ def iterations(
     solver, problem = constants
     return solver.update_state(state, iteration, problem)
 
-  state = fixed_point_loop.fixpoint_iter(
+  return fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,
@@ -326,4 +324,3 @@ def iterations(
       constants=(solver, problem),
       state=init_state,
   )
-  return state

@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Sinkhorn when applied on a grid."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
@@ -123,7 +119,7 @@ class TestSinkhornGrid:
     )
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_apply_cost(self, rng: jax.random.PRNGKeyArray):
     grid_size = (5, 6, 7)
 

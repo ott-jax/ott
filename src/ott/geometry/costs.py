@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Several cost/norm functions for relevant vector types."""
 import abc
 import functools
 import math
@@ -47,10 +46,12 @@ class CostFn(abc.ABC):
   that function is split into two norms -- evaluated on each input separately --
   followed by a pairwise cost that involves both inputs, as in:
 
-  ``c(x,y) = norm(x) + norm(y) + pairwise(x,y)``
+  .. math::
 
-  If the :attr:`norm` function is not implemented, that value is handled as a 0,
-  and only :func:`pairwise` is used.
+    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
+
+  If the :attr:`norm` function is not implemented, that value is handled as
+  :math:`0`, and only :func:`pairwise` is used.
   """
 
   # no norm function created by default.
@@ -58,7 +59,15 @@ class CostFn(abc.ABC):
 
   @abc.abstractmethod
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    pass
+    """Compute cost between :math:`x` and :math:`y`.
+
+    Args:
+      x: Array.
+      y: Array.
+
+    Returns:
+      The cost.
+    """
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Barycentric operator.
@@ -85,38 +94,51 @@ class CostFn(abc.ABC):
     return jnp.zeros((1, dim))
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Compute cost between :math:`x` and :math:`y`.
+
+    Args:
+      x: Array.
+      y: Array.
+
+    Returns:
+      The cost, optionally including the :attr:`norms <norm>` of
+      :math:`x`/:math:`y`.
+    """
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
     return cost + self.norm(x) + self.norm(y)
 
+  # TODO(michalk8): unused
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all costs (including norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
   def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all pairwise-costs (no norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of pairwise cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), None
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del aux_data
     return cls(*children)
 
@@ -298,10 +320,10 @@ class RegTICost(TICost, abc.ABC):
     """Proximal operator of :func:`reg`."""
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
@@ -604,13 +626,10 @@ class Bures(CostFn):
     cov_bary = self.covariance_fixpoint_iter(
         covs=covs, weights=weights, **kwargs
     )
-    barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
-    return barycenter
+    return mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
-    """Pad with concatenated zero means and \
-      raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
@@ -744,7 +763,7 @@ class SoftDTW(CostFn):
   """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
 
   Args:
-    gamma: Smoothing parameter for the soft-min operator.
+    gamma: Smoothing parameter :math:`> 0` for the soft-min operator.
     ground_cost: Ground cost function. If ``None``,
       use :class:`~ott.geometry.costs.SqEuclidean`.
     debiased: Whether to compute the debiased soft-DTW :cite:`blondel:21`.
@@ -760,7 +779,7 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
@@ -810,11 +829,11 @@ class SoftDTW(CostFn):
     (_, carry), _ = jax.lax.scan(body, init, model_matrix[2:])
     return carry[-1]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (self.gamma, self.ground_cost), {"debiased": self.debiased}
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
 
@@ -825,10 +844,10 @@ def x_to_means_and_covs(x: jnp.ndarray,
   Args:
     x: [num_gaussians, dimension, (1 + dimension)] array of concatenated means
       and covariances (raveled) dimension: the dimension of the Gaussians.
+    dimension: Dimensionality of the Gaussians.
 
   Returns:
-    means: [num_gaussians, dimension] array that holds the means.
-    covariances: [num_gaussians, dimension] array that holds the covariances.
+    Means and covariances of shape ``[num_gaussian, dimension]``.
   """
   x = jnp.atleast_2d(x)
   means = x[:, :dimension]
@@ -842,5 +861,6 @@ def mean_and_cov_to_x(
     mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
 ) -> jnp.ndarray:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
-  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
-  return x
+  return jnp.concatenate(
+      (mean, jnp.reshape(covariance, (dimension * dimension)))
+  )

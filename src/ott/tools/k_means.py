@@ -27,13 +27,13 @@ Init_t = Union[Literal["k-means++", "random"],
                Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
 
 
-class KPPState(NamedTuple):
+class KPPState(NamedTuple):  # noqa: D101
   rng: jax.random.PRNGKeyArray
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
 
-class KMeansState(NamedTuple):
+class KMeansState(NamedTuple):  # noqa: D101
   centroids: jnp.ndarray
   prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
@@ -41,7 +41,7 @@ class KMeansState(NamedTuple):
   center_shift: float
 
 
-class KMeansConst(NamedTuple):
+class KMeansConst(NamedTuple):  # noqa: D101
   geom: pointcloud.PointCloud
   x_weights: jnp.ndarray
 

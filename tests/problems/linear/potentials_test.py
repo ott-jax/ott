@@ -1,9 +1,20 @@
-import pytest
-
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
@@ -134,7 +145,8 @@ class TestEntropicPotentials:
 
     div_0 = sdiv(x, y).divergence
     mult = .1 if p > 1.0 else .25
-    assert div < mult * div_0  # check we have moved points much closer to target.
+    # check we have moved points much closer to target
+    assert div < mult * div_0
 
   @pytest.mark.fast.with_args(
       p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0
@@ -176,7 +188,8 @@ class TestEntropicPotentials:
         div = sdiv(x, z).divergence
 
       div_0 = sdiv(x, y).divergence
-      assert div < .1 * div_0  # check we have moved points much closer to target.
+      # check we have moved points much closer to target
+      assert div < .1 * div_0
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(

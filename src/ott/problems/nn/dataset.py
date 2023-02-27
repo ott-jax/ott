@@ -11,18 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Toy datasets for neural OT."""
-
 import dataclasses
-from typing import Iterable, Iterator, Literal, NamedTuple, Tuple
+from typing import Iterator, Literal, NamedTuple, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ['create_gaussian_mixture_samplers', 'Dataset', 'GaussianMixture']
+__all__ = ["create_gaussian_mixture_samplers", "Dataset", "GaussianMixture"]
 
-Name_t = Literal['simple', 'circle', 'square_five', 'square_four']
+Name_t = Literal["simple", "circle", "square_five", "square_four"]
 
 
 class Dataset(NamedTuple):
@@ -32,8 +30,8 @@ class Dataset(NamedTuple):
     source_iter: loader for the source measure
     target_iter: loader for the target measure
   """
-  source_iter: Iterable[jnp.ndarray]
-  target_iter: Iterable[jnp.ndarray]
+  source_iter: Iterator[jnp.ndarray]
+  target_iter: Iterator[jnp.ndarray]
 
 
 @dataclasses.dataclass
@@ -43,11 +41,12 @@ class GaussianMixture:
   Args:
     name: the name specifying the centers of the mixture components:
 
-        - ``simple`` (data clustered in one center),
-        - ``circle`` (two-dimensional Gaussians arranged on a circle),
-        - ``square_five`` (two-dimensional Gaussians on a square with
-          one Gaussian in the center), and
-        - ``square_four`` (two-dimensional Gaussians in the corners of a rectangle)
+      - ``simple`` - data clustered in one center,
+      - ``circle`` - two-dimensional Gaussians arranged on a circle,
+      - ``square_five`` - two-dimensional Gaussians on a square with
+        one Gaussian in the center, and
+      - ``square_four`` - two-dimensional Gaussians in the corners of a
+        rectangle
 
     batch_size: batch size of the samples
     init_rng: initial PRNG key
@@ -62,9 +61,9 @@ class GaussianMixture:
 
   def __post_init__(self):
     gaussian_centers = {
-        'simple':
+        "simple":
             np.array([[0, 0]]),
-        'circle':
+        "circle":
             np.array([
                 (1, 0),
                 (-1, 0),
@@ -75,26 +74,26 @@ class GaussianMixture:
                 (-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
                 (-1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
             ]),
-        'square_five':
+        "square_five":
             np.array([[0, 0], [1, 1], [-1, 1], [-1, -1], [1, -1]]),
-        'square_four':
+        "square_four":
             np.array([[1, 0], [0, 1], [-1, 0], [0, -1]]),
     }
     if self.name not in gaussian_centers:
       raise ValueError(
-          f'{self.name} is not a valid dataset for GaussianMixture'
+          f"{self.name} is not a valid dataset for GaussianMixture"
       )
     self.centers = gaussian_centers[self.name]
 
   def __iter__(self) -> Iterator[jnp.array]:
-    return self.create_sample_generators()
-
-  def create_sample_generators(self) -> Iterator[jnp.array]:
     """Random sample generator from Gaussian mixture.
 
     Returns:
       A generator of samples from the Gaussian mixture.
     """
+    return self._create_sample_generators()
+
+  def _create_sample_generators(self) -> Iterator[jnp.array]:
     rng = self.init_rng
     while True:
       rng1, rng2, rng = jax.random.split(rng, 3)
@@ -111,7 +110,7 @@ def create_gaussian_mixture_samplers(
     valid_batch_size: int = 2048,
     rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
-  """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
   Args:
     name_source: name of the source sampler

@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Gromov Wasserstein."""
 from typing import Tuple, Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -27,7 +24,7 @@ from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestQuadraticProblem:
 
   @pytest.mark.parametrize("as_pc", [False, True])
@@ -198,10 +195,9 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
-  @pytest.mark.fast
-  @pytest.mark.parametrize(
-      "balanced,rank", [(True, -1), (False, -1), (True, 3)]
-  )
+  @pytest.mark.fast()
+  @pytest.mark.parametrize(("balanced", "rank"), [(True, -1), (False, -1),
+                                                  (True, 3)])
   def test_gw_pointcloud(self, balanced: bool, rank: int):
     """Test basic computations pointclouds."""
     geom_x = pointcloud.PointCloud(self.x)
@@ -228,15 +224,12 @@ class TestGromovWasserstein:
 
     assert not jnp.isnan(out.reg_gw_cost)
 
-  @pytest.mark.parametrize(
-      "unbalanced,unbalanced_correction", [(False, False), (True, False),
-                                           (True, True)],
-      ids=["bal", "unbal-nocorr", "unbal-corr"]
-  )
-  @pytest.mark.parametrize(
-      "lse_mode,is_cost", [(True, False), (False, True)],
-      ids=["lse-pc", "kernel-cost-mat"]
-  )
+  @pytest.mark.parametrize(("unbalanced", "unbalanced_correction"),
+                           [(False, False), (True, False), (True, True)],
+                           ids=["bal", "unbal-nocorr", "unbal-corr"])
+  @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
+                                                     (False, True)],
+                           ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_gw_geometry(
       self, lse_mode: bool, is_cost: bool, unbalanced: bool,
       unbalanced_correction: bool
@@ -308,7 +301,7 @@ class TestGromovWasserstein:
     assert loss_thre(1e-1) >= loss_thre(1e-4)
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same problem."""
     rngs = jax.random.split(rng, 4)
@@ -355,8 +348,8 @@ class TestGromovWasserstein:
     ot_gw = solver(prob)
 
     # Test solutions look alike
-    assert 0.11 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
-    assert 0.15 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix) < 0.11
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) < 0.15
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 

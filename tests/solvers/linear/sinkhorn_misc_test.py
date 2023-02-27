@@ -11,21 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests Anderson acceleration for Sinkhorn."""
 from typing import Optional, Tuple
 
 import chex
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import acceleration
+from ott.solvers.linear import acceleration, sinkhorn
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhornAnderson:
@@ -100,7 +96,7 @@ class TestSinkhornAnderson:
       assert iterations_anderson[0] > iterations_anderson[i]
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornBures:
 
   @pytest.fixture(autouse=True)
@@ -132,7 +128,8 @@ class TestSinkhornBures:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  @pytest.mark.parametrize("unbalanced,thresh", [(False, 1e-3), (True, 1e-4)])
+  @pytest.mark.parametrize(("unbalanced", "thresh"), [(False, 1e-3),
+                                                      (True, 1e-4)])
   def test_bures_point_cloud(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, unbalanced: bool,
       thresh: float
@@ -235,7 +232,7 @@ class TestSinkhornOnline:
     assert threshold > err
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornUnbalanced:
 
   @pytest.fixture(autouse=True)
@@ -343,7 +340,7 @@ class TestSinkhornJIT:
         epsilon=self.epsilon
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_jit_vs_non_jit_fwd(self):
 
     def assert_output_close(

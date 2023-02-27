@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree for a Gaussian mixture model."""
-
 from typing import List, Optional, Tuple, Union
 
 import jax
@@ -88,7 +86,7 @@ class GaussianMixture:
       stdev_weights: float = 0.1,
       ridge: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
-  ) -> 'GaussianMixture':
+  ) -> "GaussianMixture":
     """Construct a random GMM."""
     loc = []
     scale_params = []
@@ -133,7 +131,7 @@ class GaussianMixture:
       points: jnp.ndarray,
       point_weights: jnp.ndarray,
       assignment_probs: jnp.ndarray,
-  ) -> 'GaussianMixture':
+  ) -> "GaussianMixture":
     """Estimate a GMM from points and a set of component probabilities."""
     mean, cov, wts = get_summary_stats_from_points_and_assignment_probs(
         points=points,
@@ -321,9 +319,9 @@ class GaussianMixture:
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):

@@ -11,19 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for apply_cost and apply_kernel."""
 from typing import Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestPointCloudApply:
 
   def test_apply_cost_and_kernel(self, rng: jax.random.PRNGKeyArray):

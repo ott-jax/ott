@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax backprop friendly version of Matrix square root."""
-
 import functools
 from typing import Tuple
 
@@ -56,7 +54,7 @@ def sqrtm(
     norm_x = norm_x[..., jnp.newaxis, jnp.newaxis]
 
   def cond_fn(iteration, const, state):
-    """Stopping criterion. Checking decrease of objective is needed here."""  # noqa: D401
+    """Stopping criterion. Checking decrease of objective is needed here."""
     _, threshold = const
     errors, _, _ = state
     err = errors[iteration // inner_iterations - 1]
@@ -184,7 +182,8 @@ def sqrtm_bwd(
     cotangent: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
 ) -> Tuple[jnp.ndarray]:
   """Compute the derivative by solving a Sylvester equation."""
-  del threshold, min_iterations, inner_iterations, max_iterations, regularization
+  del threshold, min_iterations, inner_iterations, \
+      max_iterations, regularization
   sqrt_x, inv_sqrt_x = residual
   # ignores cotangent associated with errors
   cot_sqrt, cot_inv_sqrt, _ = cotangent
@@ -250,7 +249,7 @@ def sqrtm_only(  # noqa: D103
   )[0]
 
 
-def sqrtm_only_fwd(
+def sqrtm_only_fwd(  # noqa: D103
     x: jnp.ndarray, threshold: float, min_iterations: int,
     inner_iterations: int, max_iterations: int, regularization: float
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -261,13 +260,13 @@ def sqrtm_only_fwd(
   return sqrt_x, sqrt_x
 
 
-def sqrtm_only_bwd(
+def sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
     max_iterations: int, regularization: float, sqrt_x: jnp.ndarray,
     cotangent: jnp.ndarray
 ) -> Tuple[jnp.ndarray]:
-  del threshold, min_iterations, inner_iterations
-  del max_iterations, regularization
+  del threshold, min_iterations, inner_iterations, \
+    max_iterations, regularization
   vjp = jnp.swapaxes(
       solve_sylvester_bartels_stewart(
           a=sqrt_x, b=-sqrt_x, c=jnp.swapaxes(cotangent, axis1=-2, axis2=-1)
@@ -296,7 +295,7 @@ def inv_sqrtm_only(  # noqa: D103
   )[1]
 
 
-def inv_sqrtm_only_fwd(
+def inv_sqrtm_only_fwd(  # noqa: D103
     x: jnp.ndarray,
     threshold: float,
     min_iterations: int,
@@ -311,11 +310,14 @@ def inv_sqrtm_only_fwd(
   return inv_sqrt_x, inv_sqrt_x
 
 
-def inv_sqrtm_only_bwd(
+def inv_sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
     max_iterations: int, regularization: float, residual: jnp.ndarray,
     cotangent: jnp.ndarray
 ) -> Tuple[jnp.ndarray]:
+  del threshold, min_iterations, inner_iterations, \
+    max_iterations, regularization
+
   inv_sqrt_x = residual
   inv_x = jnp.matmul(inv_sqrt_x, inv_sqrt_x)
   vjp = jnp.swapaxes(

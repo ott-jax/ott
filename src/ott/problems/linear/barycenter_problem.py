@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Classes defining OT problem(s) (objective function + utilities)."""
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
@@ -156,7 +155,7 @@ class FreeBarycenterProblem:
       # By default, we assume that weights sum to 1, and enforce this if needed.
       weights = self._weights / jnp.sum(self._weights)
     if self.debiased:
-      weights = jnp.concatenate((weights, jnp.array([-0.5])))
+      return jnp.concatenate((weights, jnp.array([-0.5])))
     return weights
 
   @property
@@ -165,9 +164,9 @@ class FreeBarycenterProblem:
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self._y, self._b, self._weights], {
-        'cost_fn': self.cost_fn,
-        'epsilon': self.epsilon,
-        'debiased': self.debiased,
+        "cost_fn": self.cost_fn,
+        "epsilon": self.epsilon,
+        "debiased": self.debiased,
         **self._kwargs,
     })
 
@@ -211,13 +210,12 @@ class FixedBarycenterProblem:
   def weights(self) -> jnp.ndarray:
     """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
     if self._weights is None:
-      weights = jnp.ones((self.num_measures,)) / self.num_measures
-    else:
-      # Check that the number of measures coincides with the weights' size.
-      assert self._weights.shape[0] == self.num_measures
-      # By default, we assume that weights sum to 1, and enforce this if needed.
-      weights = self._weights / jnp.sum(self._weights)
-    return weights
+      return jnp.ones((self.num_measures,)) / self.num_measures
+
+    # check that the number of measures coincides with the weights' size
+    assert self._weights.shape[0] == self.num_measures
+    # by default, we assume that weights sum to 1, and enforce this if needed
+    return self._weights / jnp.sum(self._weights)
 
   def tree_flatten(self):  # noqa: D102
     return [self.geom, self.a, self._weights], None

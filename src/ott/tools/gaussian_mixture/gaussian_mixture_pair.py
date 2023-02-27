@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree containing parameters for a pair of coupled Gaussian mixture models.
-"""  # noqa: D200
 from typing import Any
 
 import jax
@@ -178,12 +176,12 @@ class GaussianMixturePair:
     """  # noqa: D401
     children = [self.gmm0]
     aux_data = {
-        'epsilon': self.epsilon,
-        'tau': self.tau,
-        'lock_gmm1': self.lock_gmm1
+        "epsilon": self.epsilon,
+        "tau": self.tau,
+        "lock_gmm1": self.lock_gmm1
     }
     if self.lock_gmm1:
-      aux_data['gmm1'] = self.gmm1
+      aux_data["gmm1"] = self.gmm1
     else:
       children.append(self.gmm1)
     return tuple(children), aux_data
@@ -203,17 +201,17 @@ class GaussianMixturePair:
       A GaussianMixturePair.
     """  # noqa: D401
     children = list(children)
-    if 'gmm1' in aux_data:
-      gmm1 = aux_data.pop('gmm1')
+    if "gmm1" in aux_data:
+      gmm1 = aux_data.pop("gmm1")
       children.insert(1, gmm1)
     return cls(*children, **aux_data)
 
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):

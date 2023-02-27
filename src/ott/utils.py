@@ -127,7 +127,7 @@ def default_progress_fn(
 
       with tqdm() as pbar:
         out_sink = jax.jit(solver)(prob)
-  """
+  """  # noqa: D205
   # Convert arguments.
   iteration, inner_iterations, total_iter, state = status
   iteration = int(iteration)
@@ -141,4 +141,4 @@ def default_progress_fn(
     error_idx = max((iteration + 1) // inner_iterations - 1, 0)
     error = errors[error_idx]
 
-    print(f"{iteration} / {total_iter} -- {error}")
+    print(f"{iteration} / {total_iter} -- {error}")  # noqa: T201

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A class describing operations used to instantiate and use a geometry."""
 import functools
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Tuple, Union
 
@@ -77,8 +76,8 @@ class Geometry:
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
-      scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
-                                                  'median']] = 1.0,
+      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
+                                                  "median"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
@@ -99,7 +98,6 @@ class Geometry:
   @property
   def cost_rank(self) -> Optional[int]:
     """Output rank of cost matrix, if any was provided."""
-    return None
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
@@ -127,8 +125,10 @@ class Geometry:
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    """Kernel matrix, either provided by user or recomputed from \
-     :attr:`cost_matrix`."""
+    """Kernel matrix.
+
+    Either provided by user or recomputed from :attr:`cost_matrix`.
+    """
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
@@ -198,13 +198,13 @@ class Geometry:
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
-    if self._scale_cost == 'max_cost':
+    if self._scale_cost == "max_cost":
       return 1.0 / jnp.nanmax(self._cost_matrix)
-    if self._scale_cost == 'mean':
+    if self._scale_cost == "mean":
       return 1.0 / jnp.nanmean(self._cost_matrix)
-    if self._scale_cost == 'median':
+    if self._scale_cost == "median":
       return 1.0 / jnp.nanmedian(self._cost_matrix)
-    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
@@ -215,7 +215,7 @@ class Geometry:
     aux_data["scale_cost"] = scale_cost
     return type(self).tree_unflatten(aux_data, children)
 
-  def copy_epsilon(self, other: 'Geometry') -> "Geometry":
+  def copy_epsilon(self, other: "Geometry") -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
     other_epsilon = other._epsilon
     children, aux_data = self.tree_flatten()
@@ -244,7 +244,7 @@ class Geometry:
       vec: jnp.ndarray = None,
       axis: int = 0
   ) -> jnp.ndarray:
-    r"""Apply :attr:`kernel_matrix` in log domain on a pair of dual potential variables.
+    r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
     a stabilized formulation. At a high level, this iteration performs either:
@@ -265,8 +265,8 @@ class Geometry:
       eps: float, regularization strength
       vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g / eps) by a vector. This is carried out by adding
-        weights to the log-sum-exp function, and needs to handle signs
+        multiplication of exp(g / eps) by a vector. This is carried out by
+        adding weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
 
@@ -419,11 +419,11 @@ class Geometry:
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
-    else:
-      lse_output = mu.logsumexp(
-          self._center(f, g) / eps, axis=axis, return_sign=False
-      )
-      return eps * lse_output, jnp.array([1.0])
+
+    lse_output = mu.logsumexp(
+        self._center(f, g) / eps, axis=axis, return_sign=False
+    )
+    return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(
@@ -611,8 +611,8 @@ class Geometry:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
-    cost_matrices = kwargs.pop('cost_matrix', args)
-    kernel_matrices = kwargs.pop('kernel_matrix', nones)
+    cost_matrices = kwargs.pop("cost_matrix", args)
+    kernel_matrices = kwargs.pop("kernel_matrix", nones)
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
@@ -625,7 +625,7 @@ class Geometry:
       tol: float = 1e-2,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       scale: float = 1.
-  ) -> 'low_rank.LRCGeometry':
+  ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
     When `rank=min(n,m)` or `0` (by default), use :func:`jax.numpy.linalg.svd`.
@@ -740,7 +740,7 @@ class Geometry:
         arr = arr[jnp.atleast_1d(src_ixs)]
       if tgt_ixs is not None:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
-      return arr
+      return arr  # noqa: RET504
 
     return self._mask_subset_helper(
         src_ixs,
@@ -788,7 +788,7 @@ class Geometry:
         arr = jnp.where(src_mask[:, None], arr, mask_value)
       if tgt_mask is not None:
         arr = jnp.where(tgt_mask[None, :], arr, mask_value)
-      return arr
+      return arr  # noqa: RET504
 
     src_mask = self._normalize_mask(src_mask, self.shape[0])
     tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
@@ -861,16 +861,14 @@ class Geometry:
 
   @property
   def _n_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_a,]`` \
-    taking into account :attr:`src_mask`."""
+    """Normalized array of shape ``[num_a,]``."""
     mask = self.src_mask
     arr = jnp.ones(self.shape[0]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @property
   def _m_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_b,]`` \
-    taking into account :attr:`tgt_mask`."""
+    """Normalized array of shape ``[num_b,]``."""
     mask = self.tgt_mask
     arr = jnp.ones(self.shape[1]) if mask is None else mask
     return arr / jnp.sum(arr)

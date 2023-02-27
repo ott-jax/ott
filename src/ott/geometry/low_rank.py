@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A class describing low-rank geometries."""
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
@@ -58,8 +57,8 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray,
       bias: float = 0.0,
       scale_factor: float = 1.0,
-      scale_cost: Union[bool, int, float, Literal['mean', 'max_bound',
-                                                  'max_cost']] = 1.0,
+      scale_cost: Union[bool, int, float, Literal["mean", "max_bound",
+                                                  "max_cost"]] = 1.0,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
@@ -68,7 +67,7 @@ class LRCGeometry(geometry.Geometry):
     self._cost_2 = cost_2
     self._bias = bias
     self._scale_factor = scale_factor
-    self._scale_cost = 'mean' if scale_cost is True else scale_cost
+    self._scale_cost = "mean" if scale_cost is True else scale_cost
     self.batch_size = batch_size
 
   @property
@@ -114,19 +113,19 @@ class LRCGeometry(geometry.Geometry):
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
-    if self._scale_cost == 'max_bound':
+    if self._scale_cost == "max_bound":
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
-    if self._scale_cost == 'mean':
+    if self._scale_cost == "mean":
       factor1 = jnp.dot(self._n_normed_ones, self._cost_1)
       factor2 = jnp.dot(self._cost_2.T, self._m_normed_ones)
       mean = jnp.dot(factor1, factor2) + self._bias
       return 1.0 / mean
-    if self._scale_cost == 'max_cost':
+    if self._scale_cost == "max_cost":
       return 1.0 / self.compute_max_cost()
-    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
@@ -136,13 +135,13 @@ class LRCGeometry(geometry.Geometry):
     # and apply it. First is O(nm), the other is O((n+m)r^2).
     if n * m < (n + m) * r ** 2:  # better use regular apply
       return super().apply_square_cost(arr, axis)
-    else:
-      new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
-      new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
-      return LRCGeometry(
-          cost_1=new_cost_1.reshape((n, r ** 2)),
-          cost_2=new_cost_2.reshape((m, r ** 2))
-      ).apply_cost(arr, axis)
+
+    new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
+    new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
+    return LRCGeometry(
+        cost_1=new_cost_1.reshape((n, r ** 2)),
+        cost_2=new_cost_2.reshape((m, r ** 2))
+    ).apply_cost(arr, axis)
 
   def _apply_cost_to_vec(
       self,
@@ -222,8 +221,7 @@ class LRCGeometry(geometry.Geometry):
 
     def finalize(carry):
       cost1, cost2 = carry
-      out_slice = jnp.dot(cost2[n_batch * batch_size:], cost1.T)
-      return out_slice
+      return jnp.dot(cost2[n_batch * batch_size:], cost1.T)
 
     _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
     last_slice = finalize(carry)
@@ -235,7 +233,7 @@ class LRCGeometry(geometry.Geometry):
       rank: int = 0,
       tol: float = 1e-2,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
-  ) -> 'LRCGeometry':
+  ) -> "LRCGeometry":
     """Return self."""
     del rank, tol, rng
     return self
@@ -304,7 +302,7 @@ class LRCGeometry(geometry.Geometry):
         aux_data, [c1, c2, src_mask, tgt_mask] + children
     )
 
-  def __add__(self, other: 'LRCGeometry') -> 'LRCGeometry':
+  def __add__(self, other: "LRCGeometry") -> "LRCGeometry":
     if not isinstance(other, LRCGeometry):
       return NotImplemented
     return LRCGeometry(
@@ -330,8 +328,8 @@ class LRCGeometry(geometry.Geometry):
         self._bias,
         self._scale_factor,
     ), {
-        'scale_cost': self._scale_cost,
-        'batch_size': self.batch_size
+        "scale_cost": self._scale_cost,
+        "batch_size": self.batch_size
     }
 
   @classmethod

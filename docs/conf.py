@@ -26,9 +26,8 @@
 import logging
 from datetime import datetime
 
-from sphinx.util import logging as sphinx_logging
-
 import ott
+from sphinx.util import logging as sphinx_logging
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
@@ -47,17 +46,17 @@ version = ott.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinxcontrib.bibtex',
-    'sphinx_copybutton',
-    'myst_nb',
-    'IPython.sphinxext.ipython_console_highlighting',
-    'sphinx_autodoc_typehints',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinxcontrib.bibtex",
+    "sphinx_copybutton",
+    "myst_nb",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "sphinx_autodoc_typehints",
 ]
 
 intersphinx_mapping = {
@@ -68,27 +67,28 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "pot": ("https://pythonot.github.io/", None),
     "jaxopt": ("https://jaxopt.github.io/stable", None),
+    "optax": ("https://optax.readthedocs.io/en/latest/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
-master_doc = 'index'
+master_doc = "index"
 source_suffix = {
-    '.rst': 'restructuredtext',
-    '.ipynb': 'myst-nb',
+    ".rst": "restructuredtext",
+    ".ipynb": "myst-nb",
 }
 todo_include_todos = False
 
 autosummary_generate = True
-autodoc_typehints = 'description'
+autodoc_typehints = "description"
 
 # myst-nb
 myst_heading_anchors = 2
 nb_execution_mode = "off"
 nb_mime_priority_overrides = [("spelling", "text/plain", 0)]
 myst_enable_extensions = [
-    'amsmath',
-    'colon_fence',
-    'dollarmath',
+    "amsmath",
+    "colon_fence",
+    "dollarmath",
 ]
 
 # bibliography
@@ -108,37 +108,37 @@ spelling_filters = [
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', '**.ipynb_checkpoints']
+exclude_patterns = ["_build", "**.ipynb_checkpoints"]
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 
-html_theme = 'sphinx_book_theme'
-html_logo = '_static/images/logoOTT.png'
-html_favicon = '_static/images/logoOTT.ico'
+html_theme = "sphinx_book_theme"
+html_logo = "_static/images/logoOTT.png"
+html_favicon = "_static/images/logoOTT.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 html_theme_options = {
-    'repository_url': 'https://github.com/ott-jax/ott',
-    'repository_branch': 'main',
-    'path_to_docs': 'docs/',
-    'use_repository_button': True,
-    'use_fullscreen_button': False,
-    'logo_only': True,
-    'launch_buttons': {
-        'colab_url': 'https://colab.research.google.com',
-        'binderhub_url': 'https://mybinder.org',
-        'notebook_interface': 'jupyterlab',
+    "repository_url": "https://github.com/ott-jax/ott",
+    "repository_branch": "main",
+    "path_to_docs": "docs/",
+    "use_repository_button": True,
+    "use_fullscreen_button": False,
+    "logo_only": True,
+    "launch_buttons": {
+        "colab_url": "https://colab.research.google.com",
+        "binderhub_url": "https://mybinder.org",
+        "notebook_interface": "jupyterlab",
     },
 }
 

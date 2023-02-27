@@ -11,18 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for gaussian_mixture."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestGaussianMixture:
 
   def test_get_summary_stats_from_points_and_assignment_probs(

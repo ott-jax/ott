@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Classes defining OT problem(s) (objective function + utilities)."""
-
 from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
@@ -78,8 +76,8 @@ class QuadraticProblem:
     tau_b: if `< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
-      the inner Sinkhorn loop.
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
+      only affect the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
@@ -101,7 +99,7 @@ class QuadraticProblem:
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
-      loss: Union[Literal['sqeucl', 'kl'], quadratic_costs.GWLoss] = 'sqeucl',
+      loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: bool = True,
@@ -124,9 +122,9 @@ class QuadraticProblem:
     self.tolerances = tolerances
 
     self._loss_name = loss
-    if self._loss_name == 'sqeucl':
+    if self._loss_name == "sqeucl":
       self.loss = quadratic_costs.make_square_loss()
-    elif loss == 'kl':
+    elif loss == "kl":
       self.loss = quadratic_costs.make_kl_loss()
     else:
       self.loss = loss
@@ -161,7 +159,7 @@ class QuadraticProblem:
     Returns:
       Low-rank geometry of rank 2, storing normalization constants.
     """
-    if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
+    if self._loss_name == "sqeucl":  # quadratic apply, efficient for LR
       tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
     else:
@@ -239,7 +237,7 @@ class QuadraticProblem:
     return a.sum() * b.sum()
 
   def update_lr_geom(
-      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
+      self, lr_sink: "sinkhorn_lr.LRSinkhornOutput"
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
@@ -263,7 +261,7 @@ class QuadraticProblem:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * self._fused_cost_matrix
       geom = geometry.Geometry(cost_matrix=cost_matrix)
-    return geom
+    return geom  # noqa: RET504
 
   def update_linearization(
       self,
@@ -326,7 +324,7 @@ class QuadraticProblem:
     )
 
   def update_lr_linearization(
-      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
+      self, lr_sink: "sinkhorn_lr.LRSinkhornOutput"
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(
@@ -468,14 +466,14 @@ class QuadraticProblem:
 
   def tree_flatten(self):  # noqa: D102
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b,
-        'loss': self._loss_name,
-        'fused_penalty': self.fused_penalty,
-        'scale_cost': self.scale_cost,
-        'gw_unbalanced_correction': self.gw_unbalanced_correction,
-        'ranks': self.ranks,
-        'tolerances': self.tolerances
+        "tau_a": self.tau_a,
+        "tau_b": self.tau_b,
+        "loss": self._loss_name,
+        "fused_penalty": self.fused_penalty,
+        "scale_cost": self.scale_cost,
+        "gw_unbalanced_correction": self.gw_unbalanced_correction,
+        "ranks": self.ranks,
+        "tolerances": self.tolerances
     })
 
   @classmethod
@@ -484,7 +482,7 @@ class QuadraticProblem:
     return cls(*geoms, a=a, b=b, **aux_data)
 
 
-def update_epsilon_unbalanced(
+def update_epsilon_unbalanced(  # noqa: D103
     epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
 ) -> epsilon_scheduler.Epsilon:
   if not isinstance(epsilon, epsilon_scheduler.Epsilon):
@@ -492,7 +490,7 @@ def update_epsilon_unbalanced(
   return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
-def apply_cost(
+def apply_cost(  # noqa: D103
     geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
     fn: quadratic_costs.Loss
 ) -> jnp.ndarray:

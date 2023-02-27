@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Neural potential models."""
-
 import abc
 from typing import Callable, Optional, Sequence, Tuple, Union
 
@@ -78,6 +76,7 @@ class ModelBase(abc.ABC, nn.Module):
     constructs the value of the potential from the gradient with
 
     .. math::
+
       g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
 
     where :math:`\nabla_y g(y)` is detached for the envelope theorem
@@ -86,29 +85,29 @@ class ModelBase(abc.ABC, nn.Module):
 
     Args:
       params: parameters of the module
-      x: point to evaluate the value at
-      other_potential_value: function giving the value of the other potential.
-        Only needed when :attr:`is_potential` is ``False``.
+      other_potential_value_fn: function giving the value of the other
+        potential. Only needed when :attr:`is_potential` is ``False``.
 
     Returns:
       A function that can be evaluated to obtain the potential's value
     """
     if self.is_potential:
       return lambda x: self.apply({"params": params}, x)
-    else:
-      assert other_potential_value_fn is not None, \
-          "The value of the gradient-based potential depends on the value of the other potential"
 
-      def value_fn(x: jnp.ndarray) -> jnp.ndarray:
-        squeeze = x.ndim == 1
-        if squeeze:
-          x = jnp.expand_dims(x, 0)
-        grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
-        value = -other_potential_value_fn(grad_g_x) + \
-            jax.vmap(jnp.dot)(grad_g_x, x)
-        return value.squeeze(0) if squeeze else value
+    assert other_potential_value_fn is not None, \
+        "The value of the gradient-based potential depends " \
+        "on the value of the other potential."
 
-      return value_fn
+    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+      squeeze = x.ndim == 1
+      if squeeze:
+        x = jnp.expand_dims(x, 0)
+      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+      value = -other_potential_value_fn(grad_g_x) + \
+          jax.vmap(jnp.dot)(grad_g_x, x)
+      return value.squeeze(0) if squeeze else value
+
+    return value_fn
 
   def potential_gradient_fn(
       self,
@@ -124,8 +123,7 @@ class ModelBase(abc.ABC, nn.Module):
     """
     if self.is_potential:
       return jax.vmap(jax.grad(self.potential_value_fn(params)))
-    else:
-      return lambda x: self.apply({'params': params}, x)
+    return lambda x: self.apply({"params": params}, x)
 
 
 class ICNN(ModelBase):
@@ -150,14 +148,13 @@ class ICNN(ModelBase):
       initialization scheme based on Gaussian approximation of input and
       target measure (if ``None``, identity initialization is used).
   """
-
   dim_data: int
   dim_hidden: Sequence[int]
   init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable = nn.relu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
+  gaussian_map: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -213,7 +210,7 @@ class ICNN(ModelBase):
         use_bias=True,
     )
 
-    # subsequent layers reinjected into convex functions
+    # subsequent layers re-injected into convex functions
     w_xs = []
     for i in range(self.num_hidden):
       w_xs.append(
@@ -255,8 +252,7 @@ class ICNN(ModelBase):
       if sqrt_inv:
         sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
         return sigma, sigma_sqrt, sigma_inv_sqrt, mu
-      else:
-        return sigma, mu
+      return sigma, mu
 
     source, target = inputs
     _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
@@ -268,14 +264,12 @@ class ICNN(ModelBase):
     A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
     b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
     A = matrix_square_root.sqrtm_only(A)
-
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
   def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
-
     return A, b
 
   @nn.compact
@@ -292,6 +286,7 @@ class ICNN(ModelBase):
       rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
+      # TODO(michalk8): do not ignore or delete in code?
       params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
   ) -> NeuralTrainState:
     """Create initial `TrainState`."""

@@ -11,13 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests Sinkhorn Low-Rank solver with various initializations."""
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr

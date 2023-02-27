@@ -1,32 +1,43 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 import sys
 from typing import Any, Literal, Optional, Tuple, Union
 
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+from ott.geometry import costs, pointcloud
+from ott.tools import k_means
 from sklearn import datasets
 from sklearn.cluster import KMeans, kmeans_plusplus
 from sklearn.cluster._k_means_common import _is_same_clustering
 
-from ott.geometry import costs, pointcloud
-from ott.tools import k_means
-
 
 def make_blobs(
     *args: Any,
-    cost_fn: Optional[Literal['sqeucl', 'cosine']] = None,
+    cost_fn: Optional[Literal["sqeucl", "cosine"]] = None,
     **kwargs: Any
 ) -> Tuple[Union[jnp.ndarray, pointcloud.PointCloud], jnp.ndarray, jnp.ndarray]:
   X, y, c = datasets.make_blobs(*args, return_centers=True, **kwargs)
   X, y, c = jnp.asarray(X), jnp.asarray(y), jnp.asarray(c)
   if cost_fn is None:
     pass
-  elif cost_fn == 'sqeucl':
+  elif cost_fn == "sqeucl":
     X = pointcloud.PointCloud(X, cost_fn=costs.SqEuclidean())
-  elif cost_fn == 'cosine':
+  elif cost_fn == "cosine":
     X = pointcloud.PointCloud(X, cost_fn=costs.Cosine())
   else:
     raise NotImplementedError(cost_fn)
@@ -55,7 +66,7 @@ class TestKmeansPlusPlus:
     n, k = 150, 4
     rng1, rng2 = jax.random.split(rng)
     geom, _, c = make_blobs(
-        n_samples=n, centers=k, cost_fn='sqeucl', random_state=0
+        n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
     centers1 = k_means._k_means_plus_plus(geom, k, rng1, n_local_trials)
     centers2 = k_means._k_means_plus_plus(geom, k, rng2, 20)
@@ -72,7 +83,7 @@ class TestKmeansPlusPlus:
         n_samples=200,
         centers=k,
         n_features=ndim,
-        cost_fn='sqeucl',
+        cost_fn="sqeucl",
         random_state=0
     )
     gt_centers, _ = kmeans_plusplus(np.asarray(geom.x), k, random_state=1)
@@ -109,7 +120,7 @@ class TestKmeansPlusPlus:
 
 class TestKmeans:
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [1, 6])
   def test_k_means_output(self, rng: jax.random.PRNGKeyArray, k: int):
     max_iter, ndim = 10, 4
@@ -129,7 +140,7 @@ class TestKmeans:
     assert res.inner_errors is None
     assert _is_same_clustering(pred_assignment, gt_assignment, k)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_k_means_simple_example(self):
     expected_labels = np.asarray([1, 1, 0, 0], dtype=np.int32)
     expected_centers = np.asarray([[0.75, 1], [0.25, 0]])
@@ -281,19 +292,20 @@ class TestKmeans:
         res.error, res_scaled.error * jnp.sum(weights), rtol=1e-3, atol=1e-3
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_empty_weights(self, rng: jax.random.PRNGKeyArray):
     n, ndim, k, d = 20, 2, 3, 5.
-    x = np.random.normal(size=(n, ndim))
+    gen = np.random.RandomState(0)
+    x = gen.normal(size=(n, ndim))
     x[:, 0] += d
     x[:, 1] += d
-    y = np.random.normal(size=(n, ndim))
+    y = gen.normal(size=(n, ndim))
     y[:, 0] -= d
     y[:, 1] -= d
-    z = np.random.normal(size=(n, ndim))
+    z = gen.normal(size=(n, ndim))
     z[:, 0] += d
     z[:, 1] -= d
-    w = np.random.normal(size=(n, ndim))
+    w = gen.normal(size=(n, ndim))
     w[:, 0] -= d
     w[:, 1] += d
     x = jnp.concatenate((x, y, z, w))
@@ -354,13 +366,12 @@ class TestKmeans:
     assert res.converged == res_jit.converged
 
   @pytest.mark.skipif(
-      sys.platform == 'darwin' and os.environ.get("CI", "false") == "true",
-      reason='Fails on macOS CI.'
+      sys.platform == "darwin" and os.environ.get("CI", "false") == "true",
+      reason="Fails on macOS CI."
   )
-  @pytest.mark.parametrize(
-      "jit,force_scan", [(True, False), (False, True)],
-      ids=["jit-while-loop", "nojit-for-loop"]
-  )
+  @pytest.mark.parametrize(("jit", "force_scan"), [(True, False),
+                                                   (False, True)],
+                           ids=["jit-while-loop", "nojit-for-loop"])
   def test_k_means_differentiability(
       self, rng: jax.random.PRNGKeyArray, jit: bool, force_scan: bool
   ):
@@ -399,7 +410,7 @@ class TestKmeans:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.])
-  @pytest.mark.parametrize("n,k", [(37, 4), (128, 6)])
+  @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 6)])
   def test_clustering_matches_sklearn(
       self, rng: jax.random.PRNGKeyArray, n: int, k: int, tol: float
   ):

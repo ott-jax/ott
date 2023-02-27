@@ -11,18 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for gaussian."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.tools.gaussian_mixture import gaussian, scale_tril
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestGaussian:
 
   def test_from_random(self, rng: jax.random.PRNGKeyArray):
@@ -100,8 +96,8 @@ class TestGaussian:
     np.testing.assert_almost_equal(w2, 0., decimal=5)
 
     # When covariances commute (e.g. if covariance is diagonal), have
-    # distance between covariances = frobenius norm^2 of (delta cholesky)
-    # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # pylint: disable=line-too-long
+    # distance between covariances = frobenius norm^2 of (delta cholesky), see
+    # https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     loc0 = jax.random.normal(key=subrng0, shape=(size,))

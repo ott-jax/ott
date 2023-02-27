@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Gromov-Wasserstein barycenter."""
 from typing import Any, Optional, Sequence, Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import pointcloud
 from ott.problems.quadratic import gw_barycenter as gwb
 from ott.solvers.quadratic import gw_barycenter as gwb_solver
@@ -63,7 +60,7 @@ class TestGWBarycenter:
 
   # TODO(cuturi) add back KL test when KL cost GW is fixed.
   @pytest.mark.parametrize(
-      "gw_loss,bar_size,epsilon",
+      ("gw_loss", "bar_size", "epsilon"),
       [("sqeucl", 17, None)]  # , ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(

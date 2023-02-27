@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the soft sort tools."""
 import functools
 from typing import Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.tools import soft_sort
@@ -63,7 +60,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(jnp.diff(xs_lin, axis=0) >= -1e-8, True)
     np.testing.assert_array_equal(jnp.diff(xs_sig, axis=0) >= -1e-8, True)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [-1, 4, 100])
   def test_topk_one_array(self, rng: jax.random.PRNGKeyArray, k: int):
     n = 20
@@ -98,7 +95,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("level", [0.2, 0.9])
   def test_quantile(self, level: float):
     x = jnp.linspace(0.0, 1.0, 100)
@@ -149,7 +146,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(output.shape, [k, d])
     np.testing.assert_allclose(output, inputs[-k:], atol=0.05)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_quantize(self):
     n = 100
     inputs = jnp.linspace(0.0, 1.0, n)[..., None]

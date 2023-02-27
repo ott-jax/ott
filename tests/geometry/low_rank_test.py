@@ -11,19 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Test Low-Rank Geometry."""
-from typing import Callable, Optional, Union, Tuple
-
-import pytest
+from typing import Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestLRGeometry:
 
   def test_apply(self, rng: jax.random.PRNGKeyArray):
@@ -45,7 +42,7 @@ class TestLRGeometry:
             rtol=1e-4
         )
 
-  @pytest.mark.parametrize("scale_cost", ['mean', 'max_cost', 'max_bound', 42.])
+  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost", "max_bound", 42.])
   def test_conversion_pointcloud(
       self, rng: jax.random.PRNGKeyArray, scale_cost: Union[str, float]
   ):
@@ -132,9 +129,8 @@ class TestLRGeometry:
           rtol=1e-4
       )
 
-  @pytest.mark.parametrize(
-      "scale,scale_cost,epsilon", [(0.1, "mean", None), (0.9, "max_cost", 1e-2)]
-  )
+  @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
+                           [(0.1, "mean", None), (0.9, "max_cost", 1e-2)])
   def test_add_lr_geoms_scale_factor(
       self, rng: jax.random.PRNGKeyArray, scale: float, scale_cost: str,
       epsilon: Optional[float]

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax version of the W barycenter algorithm (Cuturi Doucet 2014)."""
 import functools
 from typing import Any, NamedTuple, Optional, Tuple
 
@@ -47,14 +46,14 @@ class FreeBarycenterState(NamedTuple):
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'FreeBarycenterState':
+  def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
   def update(
       self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
       linear_ot_solver: Any, store_errors: bool
-  ) -> 'FreeBarycenterState':
+  ) -> "FreeBarycenterState":
     """Update the state of the solver.
 
     Args:
@@ -129,7 +128,7 @@ class FreeBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Continuous Wassertsein barycenter solver."""
+  """Continuous Wassertstein barycenter solver :cite:`cuturi:14`."""
 
   def __call__(  # noqa: D102
       self,

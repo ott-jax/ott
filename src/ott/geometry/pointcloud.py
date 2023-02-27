@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A geometry defined using 2 point clouds and a cost function between them."""
 import math
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
@@ -64,8 +63,8 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
       scale_cost: Union[bool, int, float,
-                        Literal['mean', 'max_norm', 'max_bound', 'max_cost',
-                                'median']] = 1.0,
+                        Literal["mean", "max_norm", "max_bound", "max_cost",
+                                "median"]] = 1.0,
       **kwargs: Any
   ):
     super().__init__(**kwargs)
@@ -134,8 +133,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_online(self) -> bool:
-    """Whether :attr:`cost_matrix` or :attr:`kernel_matrix` \
-      is computed on-the-fly."""
+    """Whether the cost/kernel is computed on-the-fly."""
     return self.batch_size is not None
 
   # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
@@ -149,18 +147,18 @@ class PointCloud(geometry.Geometry):
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
-    if self._scale_cost == 'max_cost':
+    if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
       return 1.0 / jnp.max(self._compute_cost_matrix())
-    if self._scale_cost == 'mean':
+    if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
       if self.shape[0] > 0:
         geom = self._masked_geom(mask_value=jnp.nan)._compute_cost_matrix()
         return 1.0 / jnp.nanmean(geom)
       return 1.0
-    if self._scale_cost == 'median':
+    if self._scale_cost == "median":
       if not self.is_online:
         geom = self._masked_geom(mask_value=jnp.nan)
         return 1.0 / jnp.nanmedian(geom._compute_cost_matrix())
@@ -168,11 +166,11 @@ class PointCloud(geometry.Geometry):
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
       )
-    if self._scale_cost == 'max_norm':
+    if self._scale_cost == "max_norm":
       if self.cost_fn.norm is not None:
         return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
       return 1.0
-    if self._scale_cost == 'max_bound':
+    if self._scale_cost == "max_bound":
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(self._norm_x)
         y_argmax = jnp.argmax(self._norm_y)
@@ -186,7 +184,7 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean "
           "is not implemented."
       )
-    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def _compute_cost_matrix(self) -> jnp.ndarray:
     cost_matrix = self.cost_fn.all_pairs_pairwise(self.x, self.y)
@@ -302,11 +300,10 @@ class PointCloud(geometry.Geometry):
           self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
           self.cost_fn, self.inv_scale_cost
       )
-    if axis == 1:
-      return app(
-          self.y, self.x, self._norm_y, self._norm_x, scaling, eps,
-          self.cost_fn, self.inv_scale_cost
-      )
+    return app(
+        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, self.cost_fn,
+        self.inv_scale_cost
+    )
 
   def transport_from_potentials(  # noqa: D102
       self, f: jnp.ndarray, g: jnp.ndarray
@@ -385,25 +382,25 @@ class PointCloud(geometry.Geometry):
       self, arr: jnp.ndarray, axis: int = 0, fn=None
   ) -> jnp.ndarray:
     """See :meth:`apply_cost`."""
-    if self.is_online:
-      app = jax.vmap(
-          _apply_cost_xy,
-          in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-      )
-      if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
-      if axis == 0:
-        return app(
-            self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
-            self.inv_scale_cost, fn
-        )
-      if axis == 1:
-        return app(
-            self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
-            self.inv_scale_cost, fn
-        )
-    else:
+    if not self.is_online:
       return super().apply_cost(arr, axis, fn)
+
+    app = jax.vmap(
+        _apply_cost_xy,
+        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
+    )
+    if arr.ndim == 1:
+      arr = arr.reshape(-1, 1)
+
+    if axis == 0:
+      return app(
+          self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
+          self.inv_scale_cost, fn
+      )
+    return app(
+        self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
+        self.inv_scale_cost, fn
+    )
 
   def vec_apply_cost(
       self,
@@ -451,7 +448,7 @@ class PointCloud(geometry.Geometry):
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
   def _compute_summary_online(
-      self, summary: Literal['mean', 'max_cost']
+      self, summary: Literal["mean", "max_cost"]
   ) -> float:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
@@ -500,13 +497,13 @@ class PointCloud(geometry.Geometry):
           scale_cost
       )
 
-    if summary == 'mean':
+    if summary == "mean":
       fn = _apply_cost_xy
-    elif summary == 'max_cost':
+    elif summary == "max_cost":
       fn = _apply_max_xy
     else:
       raise ValueError(
-          f'Scaling method {summary} does not exist for online mode.'
+          f"Scaling method {summary} does not exist for online mode."
       )
     app = jax.vmap(
         fn, in_axes=[None, 0, None, self._axis_norm, None, None, None]
@@ -527,13 +524,13 @@ class PointCloud(geometry.Geometry):
     val_rest = finalize(n * self.batch_size)
     val_res = jnp.concatenate([val, val_rest])
 
-    if summary == 'mean':
+    if summary == "mean":
       return jnp.sum(val_res * other)
-    if summary == 'max_cost':
+    if summary == "max_cost":
       # TODO(michalk8): explain why scaling is not needed
       return jnp.max(val_res)
     raise ValueError(
-        f'Scaling method {summary} does not exist for online mode.'
+        f"Scaling method {summary} does not exist for online mode."
     )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
@@ -571,8 +568,8 @@ class PointCloud(geometry.Geometry):
         self._epsilon_init,
         self.cost_fn,
     ), {
-        'batch_size': self._batch_size,
-        'scale_cost': self._scale_cost
+        "batch_size": self._batch_size,
+        "scale_cost": self._scale_cost
     }
 
   @classmethod
@@ -588,7 +585,7 @@ class PointCloud(geometry.Geometry):
         **aux_data
     )
 
-  def _cosine_to_sqeucl(self) -> 'PointCloud':
+  def _cosine_to_sqeucl(self) -> "PointCloud":
     assert isinstance(self.cost_fn, costs.Cosine), type(self.cost_fn)
     (x, y, *args, _), aux_data = self.tree_flatten()
     x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
@@ -602,7 +599,7 @@ class PointCloud(geometry.Geometry):
       self,
       scale: float = 1.0,
       **kwargs: Any,
-  ) -> Union[low_rank.LRCGeometry, 'PointCloud']:
+  ) -> Union[low_rank.LRCGeometry, "PointCloud"]:
     r"""Convert point cloud to low-rank geometry.
 
     Args:

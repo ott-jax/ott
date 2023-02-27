@@ -59,10 +59,10 @@ class CholeskySolver(abc.ABC, Generic[T]):
     """Solve the linear system :math:`A * x = b`.
 
     Args:
-        b: Vector of shape ``[n,]``.
+      b: Vector of shape ``[n,]``.
 
     Returns:
-        The solution of shape ``[n,]``.
+      The solution of shape ``[n,]``.
     """
     return self._solve(self.L, b)
 
@@ -106,11 +106,11 @@ class CholeskySolver(abc.ABC, Generic[T]):
       self._L = self._decompose(self.A)
     return self._L
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return (self.A, self.L), {}
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Mapping[str, Any], children: Sequence[Any]
   ) -> "CholeskySolver":
     A, L = children
@@ -163,7 +163,7 @@ class SparseCholeskySolver(
     kwargs: Keyword arguments for :func:`sksparse.cholmod.cholesky`.
   """
 
-  # TODO(michalk8): in the future, define a jax primitive + use CHOLMOD directly
+  # TODO(michalk8): deprecate or fix
   _FACTOR_CACHE = {}
 
   def __init__(

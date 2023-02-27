@@ -112,8 +112,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
     res += jnp.sum(tan_b * centered_exp, axis=axis, keepdims=keepdims)
   if return_sign:
     return (lse, sign), (sign * res, jnp.zeros_like(sign))
-  else:
-    return lse, res
+  return lse, res
 
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
@@ -124,7 +123,7 @@ def softmin(
 
   Args:
     x: Input data.
-    gamma: Smoothing parameter.
+    gamma: Smoothing parameter :math:`> 0`.
     axis: Axis or axes over which to operate. If ``None``, use flattened input.
 
   Returns:

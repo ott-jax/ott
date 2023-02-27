@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 import functools
 from typing import Callable, List, Optional, Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -44,9 +41,8 @@ class TestSinkhornImplicit:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @pytest.mark.parametrize(
-      "lse_mode,threshold,pcg", [(False, 1e-6, False), (True, 1e-4, True)]
-  )
+  @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
+                           [(False, 1e-6, False), (True, 1e-4, True)])
   def test_implicit_differentiation_versus_autodiff(
       self, lse_mode: bool, threshold: float, pcg: bool
   ):
@@ -182,9 +178,8 @@ class TestSinkhornJacobian:
         atol=1e-02
     )
 
-  @pytest.mark.parametrize(
-      "lse_mode,shape_data", [(True, (7, 9)), (False, (11, 5))]
-  )
+  @pytest.mark.parametrize(("lse_mode", "shape_data"), [(True, (7, 9)),
+                                                        (False, (11, 5))])
   def test_gradient_sinkhorn_geometry(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, shape_data: Tuple[int,
                                                                             int]
@@ -337,7 +332,7 @@ class TestSinkhornJacobian:
     gradient = jax.grad(reg_ot_cost)(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_differentiability_with_jit(self, rng: jax.random.PRNGKeyArray):
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
@@ -541,7 +536,7 @@ class TestSinkhornJacobian:
     np.testing.assert_allclose(g_imp, g_back, atol=5e-2, rtol=1e-2)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornGradGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -803,7 +798,7 @@ class TestSinkhornHessian:
     if test_back:
       dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
       rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert 0.1 > rel_dif_norm
+      assert rel_dif_norm < 0.1
 
     eps = 1e-3
     for impl in [True, False] if test_back else [True]:

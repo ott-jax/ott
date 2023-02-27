@@ -48,27 +48,29 @@ class LRSinkhornState(NamedTuple):
   errors: jnp.ndarray
   crossed_threshold: bool
 
-  def compute_error(self, previous_state: "LRSinkhornState") -> float:
+  def compute_error(  # noqa: D102
+      self, previous_state: "LRSinkhornState"
+  ) -> float:
     err_1 = mu.js(self.q, previous_state.q, c=1.)
     err_2 = mu.js(self.r, previous_state.r, c=1.)
     err_3 = mu.js(self.g, previous_state.g, c=1.)
 
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
-  def reg_ot_cost(
+  def reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
-  def solution_error(
+  def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...],
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornState':
+  def set(self, **kwargs: Any) -> "LRSinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -148,7 +150,7 @@ class LRSinkhornOutput(NamedTuple):
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
+  def set(self, **kwargs: Any) -> "LRSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -157,7 +159,7 @@ class LRSinkhornOutput(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       use_danskin: bool = False
-  ) -> 'LRSinkhornOutput':
+  ) -> "LRSinkhornOutput":
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
@@ -251,18 +253,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are:
-
-        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
-
-      If `None`, :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
+      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
+      `'generalized-k-means`. If `None`,
+      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
       is used when the linear problem's geometry is
       :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`.
-      Otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+      :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
+      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
 
     lse_mode: Whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.

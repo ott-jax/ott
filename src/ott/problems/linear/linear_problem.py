@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Classes defining OT problem(s) (objective function + utilities)."""
-
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
@@ -109,8 +107,8 @@ class LinearProblem:
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self.geom, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b
+        "tau_a": self.tau_a,
+        "tau_b": self.tau_b
     })
 
   @classmethod

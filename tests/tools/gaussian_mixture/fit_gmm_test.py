@@ -11,18 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for fit_gmm_pair."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import jax.test_util
-
+import pytest
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestFitGmm:
 
   @pytest.fixture(autouse=True)

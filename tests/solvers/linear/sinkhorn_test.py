@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Sinkhorn."""
 from typing import Any, Optional, Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from ott.geometry import costs, geometry, grid, pointcloud, epsilon_scheduler
+import pytest
+from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import acceleration, sinkhorn
 
@@ -171,7 +168,7 @@ class TestSinkhorn:
     f_1, f_2 = out_1.f, out_2.f
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
@@ -455,7 +452,7 @@ class TestSinkhorn:
     # check only one iteration suffices when restarting with same data.
     assert num_iter_restarted == 1
 
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.limit_memory("110 MB")
   @pytest.mark.fast.with_args("batch_size", [500, 1000], only_fast=0)
   def test_sinkhorn_online_memory_jit(self, batch_size: int):

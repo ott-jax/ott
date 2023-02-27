@@ -11,13 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for fit_gmm_pair."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
-
+import pytest
 from ott.tools.gaussian_mixture import (
     fit_gmm,
     fit_gmm_pair,
@@ -66,16 +62,13 @@ class TestFitGmmPair:
     self.samples_gmm1 = gmm_generator1.sample(rng=subrng1, size=2000)
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       balanced=[False, True], weighted=[False, True], only_fast=0
   )
   def test_fit_gmm(self, balanced, weighted):
     # dumb integration test that makes sure nothing crashes
-    if balanced:
-      tau = 1.
-    else:
-      tau = self.tau
+    tau = 1.0 if balanced else self.tau
 
     if weighted:
       weights0 = jnp.ones(self.samples_gmm0.shape[0])

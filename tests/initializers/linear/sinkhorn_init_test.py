@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Sinkhorn initializers."""
-from typing import Any, Literal, Optional
-
-import pytest
+from typing import Literal, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.initializers.nn import initializers as nn_init
@@ -86,13 +83,11 @@ def run_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
     *,
-    initializer: linear_init.SinkhornInitializer = linear_init
-    .DefaultInitializer(),
+    initializer: linear_init.SinkhornInitializer,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
-    **kwargs: Any
 ) -> sinkhorn.SinkhornOutput:
   """Runs Sinkhorn algorithm with given initializer."""
 
@@ -102,7 +97,7 @@ def run_sinkhorn(
   return solver(prob)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornInitializers:
 
   @pytest.mark.parametrize(
@@ -112,10 +107,9 @@ class TestSinkhornInitializers:
       ]
   )
   def test_create_initializer(self, init: str):
+    kwargs_init = {}
     if init == "subsample":
-      kwargs_init = dict(subsample_n_x=10)
-    else:
-      kwargs_init = dict()
+      kwargs_init["subsample_n_x"] = 10
 
     solver = sinkhorn.Sinkhorn(initializer=init, kwargs_init=kwargs_init)
     expected_types = {
@@ -135,9 +129,9 @@ class TestSinkhornInitializers:
       expected_type = expected_types[init]
       assert isinstance(actual, expected_type)
 
-  @pytest.mark.parametrize(
-      "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
-  )
+  @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
+                                                        (True, False),
+                                                        (False, True)])
   def test_sorting_init(self, vector_min: bool, lse_mode: bool):
     """Tests sorting dual initializer."""
     rng = jax.random.PRNGKey(42)
@@ -149,6 +143,7 @@ class TestSinkhornInitializers:
     sink_out_base = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon
@@ -227,7 +222,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"pointcloud"):
       gaus_init.init_dual_a(ot_problem, lse_mode=True)
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
+  @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
@@ -255,15 +250,15 @@ class TestSinkhornInitializers:
           rng, n, m, d, epsilon=epsilon, batch_size=3
       )
 
+    run_fn = run_sinkhorn
     if jit:
-      run_fn = jax.jit(run_sinkhorn, static_argnames=["lse_mode"])
-    else:
-      run_fn = run_sinkhorn
+      run_fn = jax.jit(run_fn, static_argnames=["lse_mode"])
 
     # run sinkhorn
     default_out = run_fn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
@@ -287,7 +282,7 @@ class TestSinkhornInitializers:
     else:
       assert default_out.n_iters >= init_out.n_iters
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
+  @pytest.mark.parametrize("lse_mode", [True, False])
   def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 200, 200, 2
@@ -302,7 +297,7 @@ class TestSinkhornInitializers:
     sink_out = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,

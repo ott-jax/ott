@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implementation of :cite:`amos:17` input convex neural networks (ICNN)."""
-
 import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
@@ -37,7 +35,6 @@ class ConjugateResults(NamedTuple):
     grad: the gradient, i.e., :math:`\nabla f^\star(y)`
     num_iter: the number of iterations taken by the solver
   """
-
   val: float
   grad: jnp.ndarray
   num_iter: int
@@ -85,9 +82,9 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10
-  linesearch_type: Literal['zoom', 'backtracking'] = 'backtracking'
+  linesearch_type: Literal["zoom", "backtracking"] = "backtracking"
   decrease_factor: float = 0.66
-  ls_method: Literal['wolf', 'strong-wolfe'] = 'strong-wolfe'
+  ls_method: Literal["wolf", "strong-wolfe"] = "strong-wolfe"
 
   def solve(  # noqa: D102
       self,
@@ -95,7 +92,7 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
       y: jnp.ndarray,
       x_init: Optional[jnp.array] = None
   ) -> ConjugateResults:
-    assert y.ndim == 1
+    assert y.ndim == 1, y.ndim
 
     solver = LBFGS(
         fun=lambda x: f(x) - x.dot(y),
@@ -118,5 +115,5 @@ DEFAULT_CONJUGATE_SOLVER = FenchelConjugateLBFGS(
     gtol=1e-5,
     max_iter=20,
     max_linesearch_iter=20,
-    linesearch_type='backtracking',
+    linesearch_type="backtracking",
 )

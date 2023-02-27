@@ -64,7 +64,7 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: 'costs.CostFn',
+      cost_fn: "costs.CostFn",
       corr: bool = False
   ):
     self._f = f
@@ -102,8 +102,7 @@ class DualPotentials:
       return self._grad_f(vec) if forward else self._grad_g(vec)
     if forward:
       return vec - self._grad_h_inv(self._grad_f(vec))
-    else:
-      return vec - self._grad_h_inv(self._grad_g(vec))
+    return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
@@ -206,13 +205,13 @@ class DualPotentials:
       raise RuntimeError("Please install `matplotlib` first.")
 
     if scatter_kwargs is None:
-      scatter_kwargs = {'alpha': 0.5}
+      scatter_kwargs = {"alpha": 0.5}
     if legend_kwargs is None:
       legend_kwargs = {
-          'ncol': 3,
-          'loc': 'upper center',
-          'bbox_to_anchor': (0.5, -0.05),
-          'edgecolor': 'k'
+          "ncol": 3,
+          "loc": "upper center",
+          "bbox_to_anchor": (0.5, -0.05),
+          "edgecolor": "k"
       }
 
     if ax is None:
@@ -233,14 +232,14 @@ class DualPotentials:
         source[:, 0],
         source[:, 1],
         color=source_color,
-        label='source',
+        label="source",
         **scatter_kwargs,
     )
     ax.scatter(
         target[:, 0],
         target[:, 1],
         color=target_color,
-        label='target',
+        label="target",
         **scatter_kwargs,
     )
 

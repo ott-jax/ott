@@ -11,18 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the jvp of a custom implementation of lse."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.math import utils as mu
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestGeometryLse:
 
   def test_lse(self, rng: jax.random.PRNGKeyArray):

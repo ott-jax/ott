@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for gaussian_mixture_pair."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 
 
@@ -71,7 +67,7 @@ class TestGaussianMixturePair:
 
     np.testing.assert_almost_equal(cost, 0.00, decimal=2)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_get_sinkhorn_to_shifted_is_almost_shift(self):
     loc_shift = jnp.stack([
         2. * jnp.ones(self.n_components),
@@ -92,7 +88,7 @@ class TestGaussianMixturePair:
 
     np.testing.assert_approx_equal(cost, 4.0, significant=2)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_get_coupling_between_same_gmm(self):
     gmm = self.gmm0
     pair = gaussian_mixture_pair.GaussianMixturePair(
