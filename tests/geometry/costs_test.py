@@ -19,10 +19,14 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from tslearn import metrics
 
 from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
+
+try:
+  from tslearn import metrics as ts_metrics
+except ImportError:
+  ts_metrics = None
 
 
 @pytest.mark.fast
@@ -187,6 +191,7 @@ class TestRegTICost:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
 
 
+@pytest.mark.skipif(ts_metrics is None, reason="Not supported for Python 3.11")
 @pytest.mark.fast
 class TestSoftDTW:
 
@@ -200,7 +205,7 @@ class TestSoftDTW:
     t1 = jax.random.normal(rng1, (n,))
     t2 = jax.random.normal(rng2, (m,))
 
-    expected = metrics.soft_dtw(t1, t2, gamma=gamma)
+    expected = ts_metrics.soft_dtw(t1, t2, gamma=gamma)
     actual = costs.SoftDTW(gamma=gamma)(t1, t2)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
@@ -217,11 +222,11 @@ class TestSoftDTW:
     t1 = jax.random.normal(rng1, (16,))
     t2 = jax.random.normal(rng2, (32,))
 
-    expected = metrics.soft_dtw(t1, t2, gamma=gamma)
+    expected = ts_metrics.soft_dtw(t1, t2, gamma=gamma)
     if debiased:
       expected -= 0.5 * (
-          metrics.soft_dtw(t1, t1, gamma=gamma) +
-          metrics.soft_dtw(t2, t2, gamma=gamma)
+          ts_metrics.soft_dtw(t1, t1, gamma=gamma) +
+          ts_metrics.soft_dtw(t2, t2, gamma=gamma)
       )
     cost_fn = costs.SoftDTW(gamma=gamma, debiased=debiased)
     actual = jax.jit(cost_fn)(t1, t2) if jit else cost_fn(t1, t2)
