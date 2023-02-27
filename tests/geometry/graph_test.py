@@ -16,7 +16,7 @@ from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 
 # we mix both dense/sparse tests
-sksparse = pytest.importorskip("sksparse")
+_ = pytest.importorskip("sksparse", reason="Not supported for Python 3.11")
 
 
 def random_graph(

@@ -18,12 +18,23 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ott.math import fixed_point_loop, matrix_square_root
+from ott.math import utils as mu
 
 __all__ = [
-    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticL1",
-    "ElasticSTVS", "ElasticSqKOverlap", "Bures", "UnbalancedBures"
+    "PNormP",
+    "SqPNorm",
+    "Euclidean",
+    "SqEuclidean",
+    "Cosine",
+    "ElasticL1",
+    "ElasticSTVS",
+    "ElasticSqKOverlap",
+    "Bures",
+    "UnbalancedBures",
+    "SoftDTW",
 ]
 
 
@@ -745,6 +756,85 @@ class UnbalancedBures(CostFn):
     del children
     dim, sigma, gamma, kwargs = aux_data
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
+
+
+@jax.tree_util.register_pytree_node_class
+class SoftDTW(CostFn):
+  """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
+
+  Args:
+    gamma: Smoothing parameter for the soft-min operator.
+    ground_cost: Ground cost function. If ``None``,
+      use :class:`~ott.geometry.costs.SqEuclidean`.
+    debiased: Whether to compute the debiased soft-DTW :cite:`blondel:21`.
+  """
+
+  def __init__(
+      self,
+      gamma: float,
+      ground_cost: Optional[CostFn] = None,
+      debiased: bool = False
+  ):
+    self.gamma = gamma
+    self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
+    self.debiased = debiased
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    c_xy = self._soft_dtw(x, y)
+    if self.debiased:
+      return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
+    return c_xy
+
+  def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+
+    def body(
+        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        current_antidiagonal: jnp.ndarray
+    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+      # modified from: https://github.com/khdlr/softdtw_jax
+      two_ago, one_ago = carry
+
+      diagonal, right, down = two_ago[:-1], one_ago[:-1], one_ago[1:]
+      best = mu.softmin(
+          jnp.stack([diagonal, right, down], axis=-1), self.gamma, axis=-1
+      )
+
+      next_row = best + current_antidiagonal
+      next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
+
+      return (one_ago, next_row), next_row
+
+    t1 = t1[:, None] if t1.ndim == 1 else t1
+    t2 = t2[:, None] if t2.ndim == 1 else t2
+    dist = self.ground_cost.all_pairs(t1, t2)
+
+    n, m = dist.shape
+    if n < m:
+      dist = dist.T
+      n, m = m, n
+
+    model_matrix = jnp.full((n + m - 1, n), fill_value=jnp.inf)
+    mask = np.tri(n + m - 1, n, k=0, dtype=bool)
+    mask = mask & mask[::-1, ::-1]
+    model_matrix = model_matrix.T.at[mask.T].set(dist.ravel()).T
+
+    init = (
+        jnp.pad(model_matrix[0], (1, 0), constant_values=jnp.inf),
+        jnp.pad(
+            model_matrix[1] + model_matrix[0, 0], (1, 0),
+            constant_values=jnp.inf
+        )
+    )
+
+    (_, carry), _ = jax.lax.scan(body, init, model_matrix[2:])
+    return carry[-1]
+
+  def tree_flatten(self):
+    return (self.gamma, self.ground_cost), {"debiased": self.debiased}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    return cls(*children, **aux_data)
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
