@@ -127,7 +127,10 @@ class Geometry:
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    """Kernel matrix, either provided by user or recomputed from :attr:`cost_matrix`."""
+    """Kernel matrix.
+
+    Either provided by user or recomputed from :attr:`cost_matrix`.
+    """
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
@@ -243,7 +246,7 @@ class Geometry:
       vec: jnp.ndarray = None,
       axis: int = 0
   ) -> jnp.ndarray:
-    r"""Apply :attr:`kernel_matrix` in log domain on a pair of dual potential variables.
+    r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
     a stabilized formulation. At a high level, this iteration performs either:
@@ -264,8 +267,8 @@ class Geometry:
       eps: float, regularization strength
       vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g / eps) by a vector. This is carried out by adding
-        weights to the log-sum-exp function, and needs to handle signs
+        multiplication of exp(g / eps) by a vector. This is carried out by
+        adding weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
 

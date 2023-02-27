@@ -617,7 +617,6 @@ class Bures(CostFn):
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
-    """Pad with concatenated zero means and raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
