@@ -56,7 +56,7 @@ def sqrtm(
     norm_x = norm_x[..., jnp.newaxis, jnp.newaxis]
 
   def cond_fn(iteration, const, state):
-    """Stopping criterion. Checking decrease of objective is needed here."""  # noqa: D401
+    """Stopping criterion. Checking decrease of objective is needed here."""
     _, threshold = const
     errors, _, _ = state
     err = errors[iteration // inner_iterations - 1]
@@ -184,7 +184,8 @@ def sqrtm_bwd(
     cotangent: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
 ) -> Tuple[jnp.ndarray]:
   """Compute the derivative by solving a Sylvester equation."""
-  del threshold, min_iterations, inner_iterations, max_iterations, regularization
+  del threshold, min_iterations, inner_iterations, \
+      max_iterations, regularization
   sqrt_x, inv_sqrt_x = residual
   # ignores cotangent associated with errors
   cot_sqrt, cot_inv_sqrt, _ = cotangent
