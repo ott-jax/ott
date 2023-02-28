@@ -218,7 +218,7 @@ legacy_tox_ini = """
     commands =
         sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
     commands_post =
-        python -c 'import pathlib; print(pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print("Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
