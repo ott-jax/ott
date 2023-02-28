@@ -80,6 +80,10 @@ todo_include_todos = False
 
 autosummary_generate = True
 autodoc_typehints = "description"
+autodoc_default_options = {
+    "member-order": "alphabetical",
+    "exclude-members": "tree_flatten, tree_unflatten",
+}
 
 # myst-nb
 myst_heading_anchors = 2
