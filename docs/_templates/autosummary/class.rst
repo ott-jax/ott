@@ -10,7 +10,7 @@
     .. autosummary::
         :toctree: .
     {% for item in methods %}
-    {%- if item not in inherited_members and item not in annotations and not item in ['__init__'] %}
+    {%- if item not in inherited_members and item not in ['__init__', 'tree_flatten', 'tree_unflatten'] %}
         ~{{ name }}.{{ item }}
     {%- endif %}
     {%- endfor %}
