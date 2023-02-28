@@ -26,7 +26,7 @@ LOG2PI = math.log(2. * math.pi)
 
 @jax.tree_util.register_pytree_node_class
 class Gaussian:
-  """PyTree for a normal distribution."""
+  """Normal distribution."""
 
   def __init__(self, loc: jnp.ndarray, scale: scale_tril.ScaleTriL):
     self._loc = loc

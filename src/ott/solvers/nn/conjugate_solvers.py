@@ -73,8 +73,8 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
   Args:
     gtol: gradient tolerance
     max_iter: maximum number of iterations
-    max_linesearch_iter: maximum number of linesearch iterations
-    linesearch_type: type of linesearch
+    max_linesearch_iter: maximum number of line search iterations
+    linesearch_type: type of line search
     decrease_factor: decrease factor for a backtracking line search
     ls_method: the line search method
   """

@@ -1,6 +1,9 @@
+arg
+args
 cond
 dtype
 eps
+eq
 fn
 init
 iter
@@ -10,6 +13,7 @@ logsumexp
 lse
 ndarray
 num
+params
 pre
 rng
 rngs

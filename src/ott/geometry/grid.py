@@ -29,7 +29,7 @@ class Grid(geometry.Geometry):
   r"""Class describing the geometry of points taken in a Cartesian product.
 
   This class implements a geometry in which probability measures are supported
-  on a :math:`d`-dimensional cartesian grid, a cartesian product of :math:`d`
+  on a :math:`d`-dimensional Cartesian grid, a Cartesian product of :math:`d`
   lists of values, each list being itself of size :math:`n_i`.
 
   The transportation cost between points in the grid is assumed to be separable,

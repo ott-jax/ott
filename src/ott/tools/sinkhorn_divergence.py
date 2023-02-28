@@ -69,7 +69,7 @@ def sinkhorn_divergence(
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
     sinkhorn_kwargs: keywords arguments for
-      :func:`~ott.solvers.linear.sinkhorn.sinkhorn` that is called twice
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` that is called twice
       if ``static_b = True`` else 3 times.
     static_b: if True, divergence of measure `b` against itself is **not**
       computed.

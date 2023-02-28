@@ -52,7 +52,7 @@ def segment_sinkhorn(
 
   For both interfaces, both `x` and `y` should contain the same total number of
   segments. Each segment will be padded as necessary, all segments rearranged as
-  a tensor, and :func:`jax.vmap` used to evaluate sinkhorn divergences in
+  a tensor, and :func:`jax.vmap` used to evaluate Sinkhorn divergences in
   parallel.
 
   Args:
@@ -83,10 +83,10 @@ def segment_sinkhorn(
     weights_y: Weights of each input points, arranged in the same segmented
       order as `y`.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the `sinkhorn` function, called three times to evaluate for each
-      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
-      `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
-      evaluated).
+      calls for the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver,
+      called three times to evaluate for each segment the Sinkhorn regularized
+      OT cost between `x`/`y`, `x`/`x`, and `y`/`y` (except when `static_b` is
+      `True`, in which case `y`/`y` is not evaluated).
     kwargs: keywords arguments passed to form
       :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, possibly a

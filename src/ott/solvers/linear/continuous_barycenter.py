@@ -128,7 +128,7 @@ class FreeBarycenterState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
-  """Continuous Wassertstein barycenter solver :cite:`cuturi:14`."""
+  """Continuous Wasserstein barycenter solver :cite:`cuturi:14`."""
 
   def __call__(  # noqa: D102
       self,
