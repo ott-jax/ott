@@ -18,7 +18,6 @@ dependencies = [
     "jaxopt>=0.5.5",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
     "numpy>=1.18.4, !=1.23.0",
-    "matplotlib>=3.0.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
     "scipy>=1.7.0",
@@ -72,10 +71,8 @@ test = [
     "coverage[toml]",
     "chex",
     "networkx>=2.5",
-    "scikit-learn>=1.0"
-]
-experimental = [
-    "scikit-sparse>=0.4.6",
+    "scikit-learn>=1.0",
+    "tslearn>=0.5; python_version < '3.11'",
 ]
 docs = [
     "sphinx>=4.0",
@@ -86,6 +83,7 @@ docs = [
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinxcontrib-spelling>=7.7.0",
     "myst-nb>=0.17.1",
+    "matplotlib>=3.0.0",
 ]
 
 [tool.setuptools]
@@ -104,8 +102,9 @@ profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "NUMERIC", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
-known_numeric = ["numpy", "scipy", "pandas", "sklearn", "jax", "flax", "optax", "torch"]
-known_plotting = ["matplotlib", "mpl_toolkits", "seaborn"]
+# also contains what we import in notebooks
+known_numeric = ["numpy", "scipy", "jax", "flax", "optax", "jaxopt", "torch", "ot", "torchvision", "pandas", "sklearn"]
+known_plotting = ["IPython", "matplotlib", "mpl_toolkits", "seaborn"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -171,14 +170,17 @@ ignore_path = ['docs/**/_autosummary']
 legacy_tox_ini = """
     [tox]
     min_version = 4.0
-    env_list = lint-code,py{38,39,310,311}
+    env_list = lint-code,py{3.8,3.9,3.10,3.11}
     skip_missing_interpreters = true
 
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
+    deps = py{3.8,3.9,3.10}: scikit-sparse>=0.4.6
+    commands_pre =
+        gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
     commands =
-        gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
             --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
@@ -192,6 +194,7 @@ legacy_tox_ini = """
 
     [testenv:lint-docs]
     description = Lint the documentation.
+    deps =
     extras = docs
     allowlist_externals =
         rm
@@ -209,15 +212,17 @@ legacy_tox_ini = """
     [testenv:build-docs]
     description = Build the documentation.
     use_develop = true
+    deps =
     extras = docs
     allowlist_externals = sphinx-build
     commands =
         sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
     commands_post =
-        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print(pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
+    deps =
     skip_install = true
     changedir = {tox_root}/docs
     allowlist_externals = make
@@ -235,3 +240,63 @@ legacy_tox_ini = """
     commands_post =
         python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
 """
+
+[tool.ruff]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "docs/_build",
+    "dist"
+]
+ignore = [
+    # Do not assign a lambda expression, use a def -> lambda expression assignments are convenient
+    "E731",
+    # allow I, O, l as variable names -> I is the identity matrix, i, j, k, l is reasonable indexing notation
+    "E741",
+    # Missing docstring in public package
+    "D104",
+    # Missing docstring in public module
+    "D100",
+    # Missing docstring in __init__
+    "D107",
+    # Missing docstring in magic method
+    "D105",
+]
+line-length = 80
+select = [
+    "D", # flake8-docstrings
+    "I", # isort
+    "E", # pycodestyle
+    "F", # pyflakes
+    "W", # pycodestyle
+    "Q", # flake8-quotes
+    "SIM", # flake8-simplify
+    "NPY",  # NumPy-specific rules
+    "PT",  # flake8-pytest-style
+    "B", # flake8-bugbear
+    "UP", # pyupgrade
+    "C4", # flake8-comprehensions
+    "BLE", # flake8-blind-except
+    "T20",  # flake8-print
+    "RET", # flake8-raise
+]
+unfixable = ["B", "UP", "C4", "BLE", "T20", "RET"]
+target-version = "py38"
+[tool.ruff.per-file-ignores]
+    "tests/*" = ["D", "PT004"]  # TODO(michalk8): remove `self.initialize` in `tests/`
+    "*/__init__.py" = ["F401"]
+    "docs/*" = ["D"]
+    "src/ott/types.py" = ["D102"]
+[tool.ruff.pydocstyle]
+convention = "google"
+[tool.ruff.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
+[tool.ruff.flake8-tidy-imports]
+# Disallow all relative imports.
+ban-relative-imports = "parents"
+[tool.ruff.flake8-bugbear]
+extend-immutable-calls = ["jax.random.PRNGKey"]
+[tool.ruff.flake8-quotes]
+inline-quotes = "double"

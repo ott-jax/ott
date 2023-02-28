@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the Low-Rank Sinkhorn algorithm."""
-from typing import Any, Literal, Mapping, NamedTuple, NoReturn, Optional, Tuple, Union
+from typing import (
+    Any,
+    Literal,
+    Mapping,
+    NamedTuple,
+    NoReturn,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -39,27 +48,29 @@ class LRSinkhornState(NamedTuple):
   errors: jnp.ndarray
   crossed_threshold: bool
 
-  def compute_error(self, previous_state: "LRSinkhornState") -> float:
+  def compute_error(  # noqa: D102
+      self, previous_state: "LRSinkhornState"
+  ) -> float:
     err_1 = mu.js(self.q, previous_state.q, c=1.)
     err_2 = mu.js(self.r, previous_state.r, c=1.)
     err_3 = mu.js(self.g, previous_state.g, c=1.)
 
     return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
 
-  def reg_ot_cost(
+  def reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
-  def solution_error(
+  def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...],
       lse_mode: bool
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error, lse_mode)
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornState':
+  def set(self, **kwargs: Any) -> "LRSinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -71,6 +82,19 @@ def compute_reg_ot_cost(
     ot_prob: linear_problem.LinearProblem,
     use_danskin: bool = False
 ) -> float:
+  """Compute the regularized OT cost.
+
+  Args:
+    q: first factor of solution
+    r: second factor of solution
+    g: weights of solution
+    ot_prob: linear problem
+    use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
+      to avoid computing the gradient of the cost function.
+
+  Returns:
+    regularized OT cost
+  """
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
@@ -86,9 +110,9 @@ def solution_error(
   Since only balanced case is available for LR, this is marginal deviation.
 
   Args:
-    q: first factor of solution
-    r: second factor of solution
-    ot_prob: linear problem
+    q: first factor of solution.
+    r: second factor of solution.
+    ot_prob: linear problem.
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector products.
 
@@ -126,20 +150,20 @@ class LRSinkhornOutput(NamedTuple):
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
-  def set(self, **kwargs: Any) -> 'LRSinkhornOutput':
+  def set(self, **kwargs: Any) -> "LRSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def set_cost(
+  def set_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       use_danskin: bool = False
-  ) -> 'LRSinkhornOutput':
+  ) -> "LRSinkhornOutput":
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
 
-  def compute_reg_ot_cost(
+  def compute_reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False,
@@ -147,27 +171,27 @@ class LRSinkhornOutput(NamedTuple):
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   @property
-  def linear(self) -> bool:
+  def linear(self) -> bool:  # noqa: D102
     return isinstance(self.ot_prob, linear_problem.LinearProblem)
 
   @property
-  def geom(self) -> geometry.Geometry:
+  def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:
+  def linear_output(self) -> bool:  # noqa: D102
     return True
 
   @property
-  def converged(self) -> bool:
+  def converged(self) -> bool:  # noqa: D102
     return jnp.logical_and(
         jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
     )
@@ -183,7 +207,7 @@ class LRSinkhornOutput(NamedTuple):
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
 
-  def marginal(self, axis: int) -> jnp.ndarray:
+  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
 
@@ -196,7 +220,7 @@ class LRSinkhornOutput(NamedTuple):
     return self.cost_at_geom(other_geom)
 
   @property
-  def primal_cost(self) -> jnp.ndarray:
+  def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
@@ -229,18 +253,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are:
-
-        - `'random'` - :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-        - `'rank2'` - :class:`~ott.initializers.linear.initializers_lr.Rank2Initializer`.
-        - `'k-means'` - :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
-        - `'generalized-k-means'` - :class:`~ott.initializers.linear.initializers_lr.GeneralizedKMeansInitializer`.
-
-      If `None`, :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
+      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
+      `'generalized-k-means`. If `None`,
+      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
       is used when the linear problem's geometry is
       :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`.
-      Otherwise, use :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+      :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
+      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
 
     lse_mode: Whether to run computations in lse or kernel mode. At the moment,
       only ``lse_mode = True`` is implemented.
@@ -297,7 +316,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                   Optional[jnp.ndarray]] = (None, None, None),
-      key: Optional[jnp.ndarray] = None,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any,
   ) -> LRSinkhornOutput:
     """Run low-rank Sinkhorn.
@@ -311,7 +330,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.g`.
 
         Any `None` values will be initialized using the initializer.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       kwargs: Additional arguments when calling the initializer.
 
     Returns:
@@ -319,7 +338,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, key=key, **kwargs)
+    init = initializer(ot_prob, *init, rng=rng, **kwargs)
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, init)
 
@@ -369,6 +388,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iter: int = 10,
       max_iter: int = 10000
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
@@ -539,7 +559,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   @property
-  def norm_error(self) -> Tuple[int]:
+  def norm_error(self) -> Tuple[int]:  # noqa: D102
     return self._norm_error,
 
   @property

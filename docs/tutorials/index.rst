@@ -33,7 +33,6 @@ Miscellaneous
     :maxdepth: 1
 
     notebooks/soft_sort
-    notebooks/fairness
     notebooks/application_biology
 
 Quadratic Optimal Transport

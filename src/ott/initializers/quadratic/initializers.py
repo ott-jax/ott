@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import abc
 from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
 
@@ -26,8 +39,8 @@ class BaseQuadraticInitializer(abc.ABC):
     self._kwargs = kwargs
 
   def __call__(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
-  ) -> 'linear_problem.LinearProblem':
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
+  ) -> "linear_problem.LinearProblem":
     """Compute the initial linearization of a quadratic problem.
 
     Args:
@@ -53,23 +66,23 @@ class BaseQuadraticInitializer(abc.ABC):
 
   @abc.abstractmethod
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
     Args:
-      quad_problem: Quadratic problem.
+      quad_prob: Quadratic problem.
       kwargs: Additional keyword arguments.
 
     Returns:
       Geometry used to initialize the linearized problem.
     """
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], self._kwargs
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "BaseQuadraticInitializer":
     return cls(*children, **aux_data)
@@ -108,7 +121,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   """
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', *, epsilon: float,
+      self, quad_prob: "quadratic_problem.QuadraticProblem", *, epsilon: float,
       **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
@@ -158,12 +171,12 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     lr_linear_initializer: Low-rank linear initializer.
   """
 
-  def __init__(self, lr_linear_initializer: 'initializers_lr.LRInitializer'):
+  def __init__(self, lr_linear_initializer: "initializers_lr.LRInitializer"):
     super().__init__()
     self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
@@ -189,6 +202,6 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     """Rank of the transport matrix factorization."""
     return self._linear_lr_initializer.rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     return children + [self._linear_lr_initializer], aux_data

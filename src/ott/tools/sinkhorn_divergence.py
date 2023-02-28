@@ -1,17 +1,16 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implements the sinkhorn divergence."""
 from types import MappingProxyType
 from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
@@ -27,7 +26,7 @@ __all__ = [
 ]
 
 
-class SinkhornDivergenceOutput(NamedTuple):
+class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
   divergence: float
   potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
@@ -159,8 +158,10 @@ def _sinkhorn_divergence(
         parallel_dual_updates=True,
         momentum=acceleration.Momentum(start=0, value=0.5),
         anderson=None,
-        # TODO(michalk8): implicit_diff
     )
+    implicit_diff = kwargs.get("implicit_diff", None)
+    if implicit_diff is not None:
+      kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 
   out_xy = sinkhorn.solve(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
@@ -263,6 +264,7 @@ def segment_sinkhorn_divergence(
       :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
       instance entropy regularization float, scheduler or normalization.
+
   Returns:
     An array of sinkhorn divergence values for each segment.
   """

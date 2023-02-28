@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -15,13 +28,16 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 import numpy as np
 
-import matplotlib
-import matplotlib.pyplot as plt
-
 from ott.problems.linear import linear_problem
 
 if TYPE_CHECKING:
   from ott.geometry import costs
+
+try:
+  import matplotlib as mpl
+  import matplotlib.pyplot as plt
+except ImportError:
+  mpl = plt = None
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -48,7 +64,7 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: 'costs.CostFn',
+      cost_fn: "costs.CostFn",
       corr: bool = False
   ):
     self._f = f
@@ -86,8 +102,7 @@ class DualPotentials:
       return self._grad_f(vec) if forward else self._grad_g(vec)
     if forward:
       return vec - self._grad_h_inv(self._grad_f(vec))
-    else:
-      return vec - self._grad_h_inv(self._grad_g(vec))
+    return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
@@ -147,7 +162,7 @@ class DualPotentials:
     )
     return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {
         "f": self._f,
         "g": self._g,
@@ -156,7 +171,7 @@ class DualPotentials:
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "DualPotentials":
     return cls(*children, **aux_data)
@@ -166,10 +181,10 @@ class DualPotentials:
       source: jnp.ndarray,
       target: jnp.ndarray,
       forward: bool = True,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
@@ -178,20 +193,25 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       ax: axis to add the plot to
-      scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
-      legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
+      scatter_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
       matplotlib figure and axis with the plots
     """
+    if mpl is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+
     if scatter_kwargs is None:
-      scatter_kwargs = {'alpha': 0.5}
+      scatter_kwargs = {"alpha": 0.5}
     if legend_kwargs is None:
       legend_kwargs = {
-          'ncol': 3,
-          'loc': 'upper center',
-          'bbox_to_anchor': (0.5, -0.05),
-          'edgecolor': 'k'
+          "ncol": 3,
+          "loc": "upper center",
+          "bbox_to_anchor": (0.5, -0.05),
+          "edgecolor": "k"
       }
 
     if ax is None:
@@ -212,14 +232,14 @@ class DualPotentials:
         source[:, 0],
         source[:, 1],
         color=source_color,
-        label='source',
+        label="source",
         **scatter_kwargs,
     )
     ax.scatter(
         target[:, 0],
         target[:, 1],
         color=target_color,
-        label='target',
+        label="target",
         **scatter_kwargs,
     )
 
@@ -251,12 +271,12 @@ class DualPotentials:
       self,
       forward: bool = True,
       quantile: float = 0.05,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["mpl.axes.Axes"] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
       num_grid: int = 50,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
     """Plot the potential.
 
     Args:
@@ -334,11 +354,11 @@ class EntropicPotentials(DualPotentials):
     self._g_yy = g_yy
 
   @property
-  def f(self) -> Potential_t:
+  def f(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="f")
 
   @property
-  def g(self) -> Potential_t:
+  def g(self) -> Potential_t:  # noqa: D102
     return self._potential_fn(kind="g")
 
   def _potential_fn(self, *, kind: Literal["f", "g"]) -> Potential_t:
@@ -401,5 +421,5 @@ class EntropicPotentials(DualPotentials):
     """Entropy regularizer."""
     return self._prob.geom.epsilon
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}

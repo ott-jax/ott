@@ -1,17 +1,16 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implements a geometry class for points supported on a cartesian product."""
 import itertools
 from typing import Any, List, NoReturn, Optional, Sequence, Tuple
 
@@ -99,15 +98,15 @@ class Grid(geometry.Geometry):
       self.num_a = np.prod(np.array(grid_size))
       self.grid_dimension = len(self.grid_size)
     else:
-      raise ValueError('Input either grid_size t-uple or grid locations x.')
+      raise ValueError("Input either grid_size t-uple or grid locations x.")
 
     if cost_fns is None:
       cost_fns = [costs.SqEuclidean()]
     self.cost_fns = cost_fns
     self.kwargs = {
-        'num_a': self.num_a,
-        'grid_size': self.grid_size,
-        'grid_dimension': self.grid_dimension
+        "num_a": self.num_a,
+        "grid_size": self.grid_size,
+        "grid_dimension": self.grid_dimension
     }
 
     super().__init__(**kwargs)
@@ -121,7 +120,9 @@ class Grid(geometry.Geometry):
     ):
       x_values = self.x[dimension][:, jnp.newaxis]
       geom = pointcloud.PointCloud(
-          x_values, cost_fn=cost_fn, epsilon=self._epsilon_init
+          x_values,
+          cost_fn=cost_fn,
+          epsilon=self._epsilon_init,
       )
       geometries.append(geom)
     return geometries
@@ -129,18 +130,18 @@ class Grid(geometry.Geometry):
   @property
   def median_cost_matrix(self) -> NoReturn:
     """Not implemented."""
-    raise NotImplementedError('Median cost not implemented for grids.')
+    raise NotImplementedError("Median cost not implemented for grids.")
 
   @property
-  def can_LRC(self) -> bool:
+  def can_LRC(self) -> bool:  # noqa: D102
     return True
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     return self.num_a, self.num_a
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     return True
 
   # Reimplemented functions to be used in regularized OT
@@ -293,10 +294,10 @@ class Grid(geometry.Geometry):
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use',
-        ' apply_transport_from_potentials(...) if you wish to ',
-        ' apply the transport matrix to a vector, or use a point '
-        ' cloud geometry instead'
+        "Grid geometry cannot instantiate a transport matrix, use",
+        " apply_transport_from_potentials(...) if you wish to ",
+        " apply the transport matrix to a vector, or use a point "
+        " cloud geometry instead"
     )
 
   def transport_from_scalings(
@@ -304,10 +305,10 @@ class Grid(geometry.Geometry):
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
-        'Grid geometry cannot instantiate a transport matrix, use ',
-        'apply_transport_from_scalings(...) if you wish to ',
-        'apply the transport matrix to a vector, or use a point '
-        'cloud geometry instead.'
+        "Grid geometry cannot instantiate a transport matrix, use ",
+        "apply_transport_from_scalings(...) if you wish to ",
+        "apply the transport matrix to a vector, or use a point "
+        "cloud geometry instead."
     )
 
   def subset(
@@ -333,22 +334,22 @@ class Grid(geometry.Geometry):
       **kwargs: Any
   ) -> Tuple["Grid", ...]:
     """Instantiate the geometries used for a divergence computation."""
-    grid_size = kwargs.pop('grid_size', None)
-    x = kwargs.pop('x', args)
+    grid_size = kwargs.pop("grid_size", None)
+    x = kwargs.pop("x", args)
 
     sep_grid = cls(x=x, grid_size=grid_size, **kwargs)
     size = 2 if static_b else 3
     return tuple(sep_grid for _ in range(size))
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.x[0].dtype
 
-  def tree_flatten(self):
-    return (self.x, self.cost_fns, self._epsilon), self.kwargs
+  def tree_flatten(self):  # noqa: D102
+    return (self.x, self.cost_fns, self._epsilon_init), self.kwargs
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(
         x=children[0], cost_fns=children[1], epsilon=children[2], **aux_data
     )
@@ -373,11 +374,11 @@ class Grid(geometry.Geometry):
       kwargs: Keyword arguments, such as ``rank``, to
         :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
         geometries on each slice are not low-rank.
+
     Returns:
       :class:`~ott.geometry.low_rank.LRCGeometry` object.
     """
-    cost_1 = []
-    cost_2 = []
+    cost_1, cost_2 = [], []
     for dimension, geom in enumerate(self.geometries):
       # An overall low-rank conversion of the cost matrix on a grid, to an
       # object of :class:`~ott.geometry.low_rank.LRCGeometry`, necesitates an
@@ -409,9 +410,7 @@ class Grid(geometry.Geometry):
         scale_factor=scale,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
         src_mask=self.src_mask,
         tgt_mask=self.tgt_mask,
-        **self._kwargs
     )
