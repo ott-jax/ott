@@ -23,9 +23,11 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
+import logging
 from datetime import datetime
 
 import ott
+from sphinx.util import logging as sphinx_logging
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
@@ -62,7 +64,7 @@ intersphinx_mapping = {
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pot": ("https://pythonot.github.io/", None),
     "jaxopt": ("https://jaxopt.github.io/stable", None),
     "optax": ("https://optax.readthedocs.io/en/latest/", None),
@@ -75,7 +77,6 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 todo_include_todos = False
-exclude_patterns = ["_build"]
 templates_path = ["_templates"]
 
 autosummary_generate = True
@@ -87,7 +88,6 @@ myst_heading_anchors = 2
 nb_execution_mode = "off"
 nb_mime_priority_overrides = [("spelling", "text/plain", 0)]
 myst_enable_extensions = [
-    "amsmath",
     "colon_fence",
     "dollarmath",
 ]
@@ -107,10 +107,19 @@ spelling_filters = [
     "enchant.tokenize.EmailFilter",
 ]
 
+# linkcheck
+linkcheck_ignore = [
+    # 403 Client Error
+    "https://www.jstor.org/stable/3647580",
+    "https://doi.org/10.1137/19M1301047",
+    "https://doi.org/10.1137/17M1140431",
+    "https://doi.org/10.1137/141000439",
+]
+
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "**.ipynb_checkpoints"]
+exclude_patterns = ["_build"]
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -138,3 +147,16 @@ html_theme_options = {
         "notebook_interface": "jupyterlab",
     },
 }
+
+
+class ChexFilter(logging.Filter):
+  """Ignore missing link to :class:`chex.ArrayTree`."""
+
+  def filter(self, record: logging.LogRecord) -> bool:
+    msg = record.getMessage()
+    return "name 'ArrayTree' is not defined" not in msg
+
+
+sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
+    ChexFilter()
+)

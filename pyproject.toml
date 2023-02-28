@@ -196,25 +196,24 @@ legacy_tox_ini = """
     description = Lint the documentation.
     deps =
     extras = docs
-    allowlist_externals =
-        rm
-        sphinx-build
+    ignore_errors = true
+    allowlist_externals = make
     pass_env = PYENCHANT_LIBRARY_PATH
-    commands_pre =
-        rm -rf {tox_root}/docs/_build/spellcheck
-        rm -rf {tox_root}/docs/_build/linkcheck
+    set_env = SPHINXOPTS = -W --keep-going
+    changedir = {tox_root}/docs
     commands =
-        # sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
-        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+        make linkcheck {posargs}
+        make spelling {posargs}
 
     [testenv:build-docs]
     description = Build the documentation.
     use_develop = true
     deps =
     extras = docs
-    allowlist_externals = sphinx-build
+    allowlist_externals = make
+    changedir = {tox_root}/docs
     commands =
-        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+        make html {posargs}
     commands_post =
         python -c 'import pathlib; print("Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
