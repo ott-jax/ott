@@ -52,8 +52,7 @@ class PointCloud(geometry.Geometry):
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
       that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
-    kwargs: other optional parameters to be passed on to superclass
-      initializer, notably those related to epsilon regularization.
+    kwargs: keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -408,22 +407,17 @@ class PointCloud(geometry.Geometry):
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
   ) -> jnp.ndarray:
-    """Apply the geometry's cost matrix in a vectorised way.
-
-    This performs either:
-    output = C arr (if axis=1)
-    output = C' arr (if axis=0)
-    where C is [num_a, num_b]
+    """Apply the geometry's cost matrix in a vectorized way.
 
     This function can be used when the cost matrix is squared euclidean
-    and fn is a linear map.
+    and ``fn`` is a linear function.
 
     Args:
       arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
         by the cost matrix.
-      axis: standard cost matrix if axis=1, transport if 0
+      axis: standard cost matrix if axis=1, transport if 0.
       fn: function optionally applied to cost matrix element-wise, before the
-        apply
+        application.
 
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1

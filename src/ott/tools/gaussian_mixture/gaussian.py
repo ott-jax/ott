@@ -75,7 +75,7 @@ class Gaussian:
     Args:
       rng: jax.random key
       n_dimensions: desired covariance dimensions
-      stdev_mean: standard deviation of loc and log eigenvalues
+      stdev_mean: standard deviation of location and log eigenvalues
         (means for both are 0)
       stdev_cov: standard deviated of the covariance
       ridge: Offset for means.
@@ -119,18 +119,18 @@ class Gaussian:
     return self.scale.covariance()
 
   def to_z(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Transform x to z = (x - loc) / scale."""
+    r"""Transform :math:`x` to :math:`z = \frac{x - loc}{scale}`."""
     return self.scale.centered_to_z(x_centered=x - self.loc)
 
   def from_z(self, z: jnp.ndarray) -> jnp.ndarray:
-    """Transform z to x = loc + scale * z."""
+    r"""Transform :math:`z` to :math:`x = loc + scale \cdot z`."""
     return self.scale.z_to_centered(z=z) + self.loc
 
   def log_prob(
       self,
       x: jnp.ndarray,  # (?, d)
   ) -> jnp.ndarray:  # (?, d)
-    """Log probability for a gaussian with a diagonal covariance."""
+    """Log probability for a Gaussian with a diagonal covariance."""
     d = x.shape[-1]
     z = self.to_z(x)
     log_det = self.scale.log_det_covariance()
@@ -150,16 +150,18 @@ class Gaussian:
     )
 
   def w2_dist(self, other: "Gaussian") -> jnp.ndarray:
-    r"""Wasserstein distance W_2^2 to another Gaussian.
+    r"""Wasserstein distance :math:`W_2^2` to another Gaussian.
 
-    W_2^2 = ||\mu_0-\mu_1||^2 +
-       \text{trace} ( (\Lambda_0^\frac{1}{2} - \Lambda_1^\frac{1}{2})^2 )
+    .. math::
+
+      W_2^2 = ||\mu_0-\mu_1||^2 +
+         \text{trace} ( (\Lambda_0^\frac{1}{2} - \Lambda_1^\frac{1}{2})^2 )
 
     Args:
       other: other Gaussian
 
     Returns:
-      The W_2^2 distance between self and other
+      The :math:`W_2^2` distance between self and other
     """
     delta_mean = jnp.sum((self.loc - other.loc) ** 2., axis=-1)
     delta_sigma = self.scale.w2_dist(other.scale)

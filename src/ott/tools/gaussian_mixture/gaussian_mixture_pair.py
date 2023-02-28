@@ -129,7 +129,7 @@ class GaussianMixturePair:
     )
 
   def get_cost_matrix(self) -> jnp.ndarray:
-    """Get matrix of W2^2 costs between all pairs of (gmm0, gmm1) components."""
+    """Get matrix of :math:`W_2^2` costs between all pairs of components."""
     return self.get_bures_geometry().cost_matrix
 
   def get_sinkhorn(
@@ -161,7 +161,7 @@ class GaussianMixturePair:
 
     Returns:
       A coupling matrix that tells how much of the mass of each component of
-      gmm0 is mapped to each component of gmm1.
+      :attr:`gmm0` is mapped to each component of :attr:`gmm1`.
     """
     return sinkhorn_output.matrix / jnp.sum(sinkhorn_output.matrix)
 

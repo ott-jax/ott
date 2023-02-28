@@ -2,6 +2,7 @@ Barycenters
 Brenier
 Bures
 Cholesky
+DTW
 Danskin
 Datasets
 Dykstra
@@ -18,9 +19,11 @@ Kullback
 Leibler
 Mahalanobis
 Monge
+SGD
 Schur
 Seidel
 Sinkhorn
+Unbalancedness
 Wasserstein
 adaptively
 backpropagation
@@ -30,6 +33,7 @@ barycentric
 binarized
 boolean
 centroids
+collinear
 covariance
 covariances
 dataloaders
@@ -40,6 +44,7 @@ debiasing
 differentiability
 dimensionality
 discretization
+discretize
 downweighted
 duals
 eigendecomposition
@@ -54,12 +59,14 @@ hyperparameter
 hyperparameters
 iPSCs
 iPSCs
+iff
 initializations
 initializer
 initializers
 instantiation
 invertible
 iso
+iteratively
 jax
 jit
 jitting
@@ -72,11 +79,15 @@ omics
 optimality
 overfitting
 parallelization
+parameterization
 parameterizing
 piecewise
 pluripotent
 positivity
 potentials
+precompile
+precompute
+precomputes
 preconditioner
 preprocess
 preprocessing
@@ -86,6 +97,7 @@ quantiles
 quantizes
 regularizer
 regularizers
+reimplementation
 renormalize
 reproducibility
 rescale
@@ -98,6 +110,7 @@ scRNA
 scalings
 semidefinite
 sigmoid
+simplicial
 softplus
 stateful
 sublinear
@@ -105,6 +118,11 @@ submodule
 suboptimal
 subpopulation
 subpopulations
+subsample
+subsampled
+thresholding
 transcriptome
 undirected
+vectorized
 voxel
+wolfe

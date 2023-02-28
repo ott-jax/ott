@@ -48,7 +48,7 @@ class GWOutput(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    converged: Bool convergence flag for the outer GW iterations.
+    converged: Convergence flag for the outer GW iterations.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
     linear_state: State used to solve and store solutions to the local

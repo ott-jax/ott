@@ -145,8 +145,8 @@ def sort(
     inputs: jnp.ndarray<float> of any shape.
     axis: the axis on which to apply the operator.
     topk: if set to a positive value, the returned vector will only contain
-      the topk values. This also reduces the complexity of soft sorting.
-    num_targets: if topk is not specified, num_targets defines the number of
+      the top-k values. This also reduces the complexity of soft sorting.
+    num_targets: if top-k is not specified, num_targets defines the number of
       (composite) sorted values computed from the inputs (each value is a convex
       combination of values recorded in the inputs, provided in increasing
       order). If not specified, ``num_targets`` is set by default to be the size
@@ -185,7 +185,7 @@ def ranks(
     num_targets: Optional[int] = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Apply the soft trank operator on input tensor.
+  r"""Apply the soft rank operator on input tensor.
 
   Args:
     inputs: a jnp.ndarray<float> of any shape.
@@ -226,7 +226,7 @@ def quantile(
   q = quantile(x, 0.5, 0.01)
 
   Then q will be computed as a mean over the 10 median points of x.
-  Therefore, there is a tradeoff between accuracy and gradient.
+  Therefore, there is a trade-off between accuracy and gradient.
 
   Args:
    inputs: a jnp.ndarray<float> of any shape.
@@ -402,7 +402,7 @@ def quantize(
   values using the transportation matrix. As the regularization parameter
   ``epsilon`` of regularized optimal transport goes to 0, this operator recovers
   the expected behavior of quantization, namely each value in ``inputs`` is
-  assigned a single level. When using ``epsilon>0`` the bheaviour is similar but
+  assigned a single level. When using ``epsilon>0`` the behavior is similar but
   differentiable.
 
   Args:

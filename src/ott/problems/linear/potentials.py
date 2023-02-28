@@ -277,15 +277,17 @@ class DualPotentials:
       num_grid: int = 50,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
-    """Plot the potential.
+    r"""Plot the potential.
 
     Args:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       quantile: quantile to filter the potentials with
       ax: axis to add the plot to
-      x_bounds: x-axis bounds of the plot (xmin, xmax)
-      y_bounds: y-axis bounds of the plot (ymin, ymax)
+      x_bounds: x-axis bounds of the plot
+        :math:`(x_{\text{min}}, x_{\text{max}})`
+      y_bounds: y-axis bounds of the plot
+        :math:`(y_{\text{min}}, y_{\text{max}})`
       num_grid: number of points to discretize the domain into a grid
         along each dimension
       contourf_kwargs: additional kwargs passed into

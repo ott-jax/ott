@@ -45,7 +45,8 @@ def sqrtm(
     regularization: small regularizer added to norm of x, before normalization.
 
   Returns:
-    sqrt matrix of x (or x's if batch), its inverse, errors along iterates.
+    Square root matrix of x (or x's if batch), its inverse,
+    errors along iterates.
   """
   dimension = x.shape[-1]
   norm_x = jnp.linalg.norm(x, axis=(-2, -1)) * (1 + regularization)

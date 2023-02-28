@@ -37,7 +37,7 @@ def segment_sinkhorn(
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Compute `reg_ot_cost` between subsets of vectors described in `x` & `y`.
+  """Compute regularized OT cost between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn regularized OT cost between
   several point clouds of varying size, in parallel, using padding.
@@ -93,7 +93,7 @@ def segment_sinkhorn(
       :class:`~ott.geometry.costs.CostFn` or an entropy regularizer.
 
   Returns:
-    An array of sinkhorn reg_ot_cost for each segment.
+    An array of Sinkhorn regularized OT costs for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]

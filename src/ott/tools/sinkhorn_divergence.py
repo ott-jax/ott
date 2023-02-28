@@ -119,7 +119,7 @@ def _sinkhorn_divergence(
     symmetric_sinkhorn: bool,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
-  """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
+  """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
     measure, as defined in :sejourne:19:, eq. 15.
@@ -201,7 +201,7 @@ def segment_sinkhorn_divergence(
     symmetric_sinkhorn: bool = False,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Compute sinkhorn divergence between subsets of vectors given in `x` & `y`.
+  """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
   clouds of varying size, in parallel, using padding for efficiency.
@@ -216,7 +216,7 @@ def segment_sinkhorn_divergence(
 
   For both interfaces, both `x` and `y` should contain the same total number of
   segments. Each segment will be padded as necessary, all segments rearranged as
-  a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
+  a tensor, and `vmap` used to evaluate Sinkhorn divergences in parallel.
 
   Args:
     x: Array of input points, of shape `[num_x, feature]`.
@@ -248,7 +248,7 @@ def segment_sinkhorn_divergence(
       order as `y`.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
       calls to the `sinkhorn` function, called three times to evaluate for each
-      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
+      segment the Sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
       `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
       evaluated)
     static_b: if True, divergence of measure b against itself is NOT computed
@@ -266,7 +266,7 @@ def segment_sinkhorn_divergence(
       instance entropy regularization float, scheduler or normalization.
 
   Returns:
-    An array of sinkhorn divergence values for each segment.
+    An array of Sinkhorn divergences for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Functions entering the implicit differentiation of Sinkhorn."""
 import dataclasses
 from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
@@ -275,7 +274,7 @@ class ImplicitDiff:
       self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
       g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> "linear_problem.LinearProblem":
-    """Apply vjp to recover gradient in reverse mode differentiation."""
+    """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 

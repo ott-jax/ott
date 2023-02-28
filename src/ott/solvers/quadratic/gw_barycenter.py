@@ -59,7 +59,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   """Gromov-Wasserstein barycenter solver.
 
   Args:
-    epsilon: Entropy regulariser.
+    epsilon: Entropy regularizer.
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
@@ -142,10 +142,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         - :class:`jax.numpy.ndarray` - barycenter cost matrix of shape
           ``[bar_size, bar_size]``.
           Only used in the non-fused case.
-        - :class:`tuple` of :class:`jax.numpy.ndarray` - the 1st array
+        - :class:`tuple` of :class:`jax.numpy.ndarray` - the first array
           corresponds to a cost matrix of shape ``[bar_size, bar_size]``,
-          the 2nd array is a ``[bar_size, ndim_fused]`` feature matrix used in
-          the fused case.
+          the second array is a ``[bar_size, ndim_fused]`` feature matrix used
+          in the fused case.
 
       a: An array of shape ``[bar_size,]`` containing the barycenter weights.
       rng: Random key for seeding used when ``bar_init = None``.

@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from ott import utils
 
 if TYPE_CHECKING:
+  from ott.problems.linear import linear_problem
   from ott.solvers.linear import sinkhorn
 
 __all__ = ["AndersonAcceleration", "Momentum"]
@@ -57,7 +58,8 @@ class AndersonAcceleration:
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
   def update(
-      self, state: "sinkhorn.SinkhornState", iteration: int, pb, lse_mode: bool
+      self, state: "sinkhorn.SinkhornState", iteration: int,
+      prob: "linear_problem.LinearProblem", lse_mode: bool
   ) -> "sinkhorn.SinkhornState":
     """Anderson acceleration update.
 
@@ -70,15 +72,15 @@ class AndersonAcceleration:
     enough the update below will output a potential variable.
 
     Args:
-      state: A sinkhorn.SinkhornState
-      iteration: int, the current iteration.
-      pb: a problem.LinearProblem defining the OT problem.
+      state: Sinkhorn state.
+      iteration: the current iteration.
+      prob: linear OT problem.
       lse_mode: whether to compute in log-sum-exp or in scalings.
 
     Returns:
       A potential variable.
     """
-    geom = pb.geom
+    geom = prob.geom
     trigger_update = jnp.logical_and(
         iteration > self.memory, iteration % self.refresh_every == 0
     )
@@ -109,7 +111,7 @@ class AndersonAcceleration:
   def init_maps(
       self, pb, state: "sinkhorn.SinkhornState"
   ) -> "sinkhorn.SinkhornState":
-    """Initialize log matrix used in Anderson acceleration with nan values."""
+    """Initialize log matrix used in Anderson acceleration with *NaN* values."""
     fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
     return state.set(old_fus=fus, old_mapped_fus=fus)
 

@@ -132,7 +132,7 @@ class QuadraticProblem:
   def marginal_dependent_cost(
       self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
   ) -> low_rank.LRCGeometry:
-    r"""Initialise cost term that depends on the marginals of the transport.
+    r"""Initialize cost term that depends on the marginals of the transport.
 
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
@@ -201,7 +201,7 @@ class QuadraticProblem:
         for samples from :attr:`geom_xx`.
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
-      epsilon: regulariser.
+      epsilon: entropy regularizer.
 
     Returns:
       The cost term.
@@ -227,10 +227,10 @@ class QuadraticProblem:
 
   # TODO(michalk8): highly coupled to the pre-defined initializer, refactor
   def init_transport_mass(self) -> float:
-    """Initialise the transport mass.
+    """Initialize the transport mass.
 
     Returns:
-      The sum of the elements of the normalised transport matrix.
+      The sum of the elements of the normalized transport matrix.
     """
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)

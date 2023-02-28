@@ -498,7 +498,7 @@ class ElasticSqKOverlap(RegTICost):
 
 @jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
-  """Bures distance between a pair of (mean, cov matrix) raveled as vectors.
+  """Bures distance between a pair of (mean, covariance matrix).
 
   Args:
     dimension: Dimensionality of the data.
@@ -540,13 +540,12 @@ class Bures(CostFn):
 
     Args:
       covs: [batch, d^2] covariance matrices
-      weights: simplicial weights (nonnegative, sum to 1)
+      weights: simplicial weights (non-negative, sum to 1)
       tolerance: tolerance of the overall fixed-point procedure
-      kwargs: parameters passed on to the sqrtm (Newton-Schulz)
-        algorithm to compute matrix square roots.
+      kwargs: keyword arguments for :func:`ott.math.matrix_square_root.sqrtm`.
 
     Returns:
-      a covariance matrix, the weighted Bures average of the covs matrices.
+      Weighted Bures average of the covariance matrices.
     """
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])

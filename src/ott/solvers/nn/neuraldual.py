@@ -519,7 +519,7 @@ class W2NeuralDual:
     r"""Return the Kantorovich dual potentials from the trained potentials.
 
     Args:
-      finetune_g: Run the conjugate solver to finetune the prediction.
+      finetune_g: Run the conjugate solver to fine-tune the prediction.
 
     Returns:
       A dual potential object
