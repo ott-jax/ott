@@ -23,11 +23,9 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-import logging
 from datetime import datetime
 
 import ott
-from sphinx.util import logging as sphinx_logging
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
@@ -77,6 +75,8 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 todo_include_todos = False
+exclude_patterns = ["_build"]
+templates_path = ["_templates"]
 
 autosummary_generate = True
 autodoc_typehints = "description"
@@ -99,17 +99,13 @@ bibtex_default_style = "alpha"
 
 # spelling
 spelling_lang = "en_US"
-spelling_warning = True
 spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
-spelling_exclude_patterns = ["references.rst"]
+spelling_exclude_patterns = ["references.rst", "**/_autosummary/*"]
 spelling_filters = [
     "enchant.tokenize.URLFilter",
     "enchant.tokenize.EmailFilter",
 ]
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -142,28 +138,3 @@ html_theme_options = {
         "notebook_interface": "jupyterlab",
     },
 }
-
-
-class AutodocExternalFilter(logging.Filter):
-
-  def filter(self, record: logging.LogRecord) -> bool:
-    msg = record.getMessage()
-    return not (
-        "name 'ArrayTree' is not defined" in msg or
-        "PositiveDense.kernel_init" in msg
-    )
-
-
-class SpellingFilter(logging.Filter):
-
-  def filter(self, record: logging.LogRecord) -> bool:
-    msg = record.getMessage()
-    return "_autosummary" not in msg
-
-
-sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
-    AutodocExternalFilter()
-)
-sphinx_logging.getLogger("sphinxcontrib.spelling.builder").logger.addFilter(
-    SpellingFilter()
-)

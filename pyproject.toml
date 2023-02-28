@@ -200,13 +200,11 @@ legacy_tox_ini = """
         rm
         sphinx-build
     pass_env = PYENCHANT_LIBRARY_PATH
-    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
-    ignore_errors = true
     commands_pre =
         rm -rf {tox_root}/docs/_build/spellcheck
         rm -rf {tox_root}/docs/_build/linkcheck
     commands =
-        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
+        # sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
         sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
 
     [testenv:build-docs]

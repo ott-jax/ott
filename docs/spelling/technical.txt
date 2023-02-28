@@ -26,6 +26,7 @@ Sinkhorn
 Unbalancedness
 Wasserstein
 adaptively
+backpropagates
 backpropagation
 barycenter
 barycenters
@@ -33,6 +34,7 @@ barycentric
 binarized
 boolean
 centroids
+checkpointing
 collinear
 covariance
 covariances
@@ -125,4 +127,3 @@ transcriptome
 undirected
 vectorized
 voxel
-wolfe

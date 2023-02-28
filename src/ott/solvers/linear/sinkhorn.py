@@ -421,7 +421,7 @@ class Sinkhorn:
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponentials of the former). Calling this
+  scalings when parameterized as exponential of the former). Calling this
   function returns therefore a pair of optimal vectors. In addition to these,
   it also returns the objective value achieved by these optimal vectors;
   a vector of size ``max_iterations/inner_iterations`` that records the vector
