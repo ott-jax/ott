@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import jax
@@ -42,7 +55,7 @@ class Graph(geometry.Geometry):
     normalize: Whether to normalize the Laplacian as
       :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
       \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
-      unnormalized Laplacian and :math:`D` the degree matrix.
+      non-normalized Laplacian and :math:`D` is the degree matrix.
     tol: Relative tolerance with respect to the Hilbert metric, see
       :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
       If negative, this option is ignored and only ``n_steps`` is used.
@@ -59,13 +72,12 @@ class Graph(geometry.Geometry):
                                 "crank_nicolson"] = "backward_euler",
       directed: bool = False,
       normalize: bool = False,
-      tol: float = -1.,
+      tol: float = -1.0,
       **kwargs: Any
   ):
     assert ((graph is None and laplacian is not None) or
             (laplacian is None and graph is not None)), \
            "Please provide a graph or a symmetric graph Laplacian."
-    # arbitrary epsilon; can't use `None` as `mean_cost_matrix` would be used
     super().__init__(epsilon=1., **kwargs)
     self._graph = graph
     self._lap = laplacian
@@ -84,6 +96,16 @@ class Graph(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
+    r"""Apply :attr:`kernel_matrix` on positive scaling vector.
+
+    Args:
+      scaling: Scaling to apply the kernel to.
+      eps: passed for consistency, not used yet.
+      axis: passed for consistency, not used yet.
+
+    Returns:
+      Kernel applied to ``scaling``.
+    """
 
     def conf_fn(
         iteration: int, solver_lap: Tuple[decomposition.CholeskySolver,
@@ -145,7 +167,7 @@ class Graph(geometry.Geometry):
         state=state,
     )[1]
 
-  def apply_transport_from_scalings(
+  def apply_transport_from_scalings(  # noqa: D102
       self,
       u: jnp.ndarray,
       v: jnp.ndarray,
@@ -171,7 +193,7 @@ class Graph(geometry.Geometry):
     return res
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:
+  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     # force symmetry because of numerical imprecisions
@@ -179,7 +201,7 @@ class Graph(geometry.Geometry):
     return (kernel + kernel.T) * .5
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:
+  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     return -self.t * mu.safe_log(self.kernel_matrix)
 
   @property
@@ -274,7 +296,7 @@ class Graph(geometry.Geometry):
     return self._solver
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
     arr = self._graph if self._graph is not None else self._lap
     return arr.shape
 
@@ -295,12 +317,12 @@ class Graph(geometry.Geometry):
     return (self._graph + self._graph.T) if self.directed else self._graph
 
   @property
-  def is_symmetric(self) -> bool:
+  def is_symmetric(self) -> bool:  # noqa: D102
     # there may be some numerical imprecisions, but it should be symmetric
     return True
 
   @property
-  def dtype(self) -> jnp.dtype:
+  def dtype(self) -> jnp.dtype:  # noqa: D102
     return self._graph.dtype
 
   # TODO(michalk8): in future, use mixins for lse/kernel mode
@@ -330,22 +352,20 @@ class Graph(geometry.Geometry):
     """Not implemented."""
     raise ValueError("Not implemented.")
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    return [self._graph, self._lap, self.solver], {
-        "t": self._t,
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+    return [self._graph, self._lap, self.solver, self._t], {
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "directed": self.directed,
         "normalize": self.normalize,
         "tol": self._tol,
-        **self._kwargs,
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "Graph":
-    graph, laplacian, solver = children
-    obj = cls(graph=graph, laplacian=laplacian, **aux_data)
+    graph, laplacian, solver, t = children
+    obj = cls(graph=graph, laplacian=laplacian, t=t, **aux_data)
     obj._solver = solver
     return obj
