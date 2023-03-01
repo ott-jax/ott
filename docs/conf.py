@@ -106,6 +106,7 @@ spelling_add_pypi_package_names = True
 # because of indentation error that cannot be suppressed
 spelling_exclude_patterns = [
     "references.rst",
+    "**setup.rst",
     "**lazy_init.rst",
     "**is_initializing.rst",
 ]
