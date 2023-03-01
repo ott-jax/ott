@@ -99,9 +99,10 @@ bibtex_default_style = "alpha"
 
 # spelling
 spelling_lang = "en_US"
+spelling_warning = True
 spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
-spelling_exclude_patterns = ["references.rst", "**/_autosummary/*"]
+spelling_exclude_patterns = ["references.rst"]
 spelling_filters = [
     "enchant.tokenize.URLFilter",
     "enchant.tokenize.EmailFilter",
@@ -150,13 +151,40 @@ html_theme_options = {
 
 
 class ChexFilter(logging.Filter):
-  """Ignore missing link to :class:`chex.ArrayTree`."""
+  """Filter warning related to :class:`chex.ArrayTree` missing link."""
 
   def filter(self, record: logging.LogRecord) -> bool:
     msg = record.getMessage()
     return "name 'ArrayTree' is not defined" not in msg
 
 
+class SpellingAutosummaryFilter(logging.Filter):
+  """Filter warning related to `sphinx.ext.autosummary`.
+
+  ``spelling_warning`` must be set to ``True``.
+  """
+
+  def filter(self, record: logging.LogRecord) -> bool:
+    """Filter warnings.
+
+    Ignore misspelled words because it warns about total number of
+    misspelled words, including ones coming from auto-generated files.
+
+    Ignore everything auto-generated; note that using only "_autosummary"
+    causes the warnings to appear twice, one corresponding to the docstring
+    and the other to the generated `rST` file, e.g.:
+
+    - geometry.rst:50:<autosummary>:1:
+    - geometry.py:docstring of ott.geometry.geometry.Geometry:1:
+    """
+    msg = record.getMessage()
+    return "autosummary" not in msg and "misspelled words" not in msg
+
+
 sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
     ChexFilter()
+)
+
+sphinx_logging.getLogger("sphinxcontrib.spelling.builder").logger.addFilter(
+    SpellingAutosummaryFilter()
 )
