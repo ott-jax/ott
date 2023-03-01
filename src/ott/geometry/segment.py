@@ -34,11 +34,11 @@ def segment_point_cloud(
 
   There are two interfaces:
 
-  1. use ``segment_ids``, and optionally ``indices_are_sorted`` to describe
+  #. use ``segment_ids``, and optionally ``indices_are_sorted`` to describe
      for each data point in the matrix to which segment it belongs to.
-  2. use ``num_per_segment`` which describes contiguous segments.
+  #. use ``num_per_segment`` which describes contiguous segments.
 
-  If using the 1st interface, ``num_segments`` is required for JIT compilation.
+  If using the first interface, ``num_segments`` is required for jitting.
   Assumes ``range(0, num_segments)`` are the segment ids.
 
   In both cases, jitting requires defining a ``max_measure_size``, the
@@ -50,10 +50,10 @@ def segment_point_cloud(
     a: Array of shape ``[num_x,]`` containing the weights (within each measure)
       of all the points.
     num_segments: Number of segments. Required for jitting.
-      If `None` and using the 2nd interface, it will be computed as
+      If `None` and using the second interface, it will be computed as
       ``len(num_per_segment)``.
     max_measure_size: Overall size of padding. Required for jitting.
-      If `None` and using the 2nd interface, it will be computed as
+      If `None` and using the second interface, it will be computed as
       ``max(num_per_segment)``.
     segment_ids: **1st interface** The segment ids for which each row of ``x``
       belongs. This is a similar interface to :func:`jax.ops.segment_sum`.
@@ -67,7 +67,7 @@ def segment_point_cloud(
       to be zero, but can be adjusted to be other values to avoid errors or
       over/underflow in cost matrix that could be problematic (even these values
       are not supposed to be taken given their corresponding masses are 0).
-      See also :func:`ott.geometry.costs.CostFn.padder`.
+      See also :func:`~ott.geometry.costs.CostFn._padder`.
       If ``None``, vector of 0s of shape ``[1, ndim]`` is used.
 
   Returns:

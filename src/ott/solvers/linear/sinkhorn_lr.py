@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Low-Rank Sinkhorn algorithm."""
 from typing import (
     Any,
     Literal,
@@ -516,7 +515,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
       iteration: int, compute_error: bool
   ) -> LRSinkhornState:
-    """Carries out one LR sinkhorn iteration.
+    """Carries out one low-rank Sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
 

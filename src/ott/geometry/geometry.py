@@ -169,13 +169,13 @@ class Geometry:
     """Check quickly if casting geometry as LRC makes sense.
 
     This check is only carried out using basic considerations from the geometry,
-    not using a rigorous check involving, e.g., svd.
+    not using a rigorous check involving, e.g., SVD.
     """
     return False
 
   @property
   def is_squared_euclidean(self) -> bool:
-    """Whether cost is computed by taking squared-Eucl. distance of points."""
+    """Whether cost is computed by taking squared Euclidean distance."""
     return False
 
   @property
@@ -285,11 +285,6 @@ class Geometry:
   ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
 
-    This function applies the ground geometry's kernel, to perform either
-    output = K v    (1)
-    output = K'u   (2)
-    where K is [num_a, num_b]
-
     Args:
       scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
         num_cols of kernel_matrix
@@ -316,7 +311,7 @@ class Geometry:
     """Output marginal of transportation matrix from potentials.
 
     This applies first lse kernel in the standard way, removes the
-    correction used to stabilise computations, and lifts this with an exp to
+    correction used to stabilize computations, and lifts this with an exp to
     recover either of the marginals corresponding to the transport map induced
     by potentials.
 
@@ -726,7 +721,7 @@ class Geometry:
       kwargs: Keyword arguments to override the initialization.
 
     Returns:
-      The subsetted geometry.
+      The modified geometry.
     """
 
     def subset_fn(

@@ -53,10 +53,9 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinxcontrib.bibtex",
+    "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "myst_nb",
-    "IPython.sphinxext.ipython_console_highlighting",
-    "sphinx_autodoc_typehints",
 ]
 
 intersphinx_mapping = {
@@ -64,7 +63,7 @@ intersphinx_mapping = {
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pot": ("https://pythonot.github.io/", None),
     "jaxopt": ("https://jaxopt.github.io/stable", None),
     "optax": ("https://optax.readthedocs.io/en/latest/", None),
@@ -77,17 +76,19 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 todo_include_todos = False
+templates_path = ["_templates"]
 
 autosummary_generate = True
 autodoc_typehints = "description"
+always_document_param_types = True
 
 # myst-nb
 myst_heading_anchors = 2
 nb_execution_mode = "off"
 nb_mime_priority_overrides = [("spelling", "text/plain", 0)]
 myst_enable_extensions = [
-    "amsmath",
     "colon_fence",
+    "amsmath",
     "dollarmath",
 ]
 
@@ -101,19 +102,31 @@ spelling_lang = "en_US"
 spelling_warning = True
 spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
-spelling_exclude_patterns = ["references.rst"]
+# flax misspelled words; `flax.linen.Module.bind` is ignored in `class.rst`
+# because of indentation error that cannot be suppressed
+spelling_exclude_patterns = [
+    "references.rst",
+    "**lazy_init.rst",
+    "**is_initializing.rst",
+]
 spelling_filters = [
     "enchant.tokenize.URLFilter",
     "enchant.tokenize.EmailFilter",
 ]
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
+# linkcheck
+linkcheck_ignore = [
+    # 403 Client Error
+    "https://www.jstor.org/stable/3647580",
+    "https://doi.org/10.1137/19M1301047",
+    "https://doi.org/10.1137/17M1140431",
+    "https://doi.org/10.1137/141000439",
+]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "**.ipynb_checkpoints"]
+exclude_patterns = ["_build"]
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -143,26 +156,41 @@ html_theme_options = {
 }
 
 
-class AutodocExternalFilter(logging.Filter):
+class ChexFilter(logging.Filter):
+  """Filter warning related to :class:`chex.ArrayTree` missing link."""
 
   def filter(self, record: logging.LogRecord) -> bool:
     msg = record.getMessage()
-    return not (
-        "name 'ArrayTree' is not defined" in msg or
-        "PositiveDense.kernel_init" in msg
-    )
+    return "name 'ArrayTree' is not defined" not in msg
 
 
-class SpellingFilter(logging.Filter):
+class SpellingAutosummaryFilter(logging.Filter):
+  """Filter warning related to `sphinx.ext.autosummary`.
+
+  ``spelling_warning`` must be set to ``True``.
+  """
 
   def filter(self, record: logging.LogRecord) -> bool:
+    """Filter warnings.
+
+    Ignore misspelled words because it warns about total number of
+    misspelled words, including ones coming from auto-generated files.
+
+    Ignore everything auto-generated; note that using only "_autosummary"
+    causes the warnings to appear twice, one corresponding to the docstring
+    and the other to the generated `rST` file, e.g.:
+
+    - geometry.rst:50:<autosummary>:1:
+    - geometry.py:docstring of ott.geometry.geometry.Geometry:1:
+    """
     msg = record.getMessage()
-    return "_autosummary" not in msg
+    return "autosummary" not in msg and "misspelled words" not in msg
 
 
 sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
-    AutodocExternalFilter()
+    ChexFilter()
 )
+
 sphinx_logging.getLogger("sphinxcontrib.spelling.builder").logger.addFilter(
-    SpellingFilter()
+    SpellingAutosummaryFilter()
 )

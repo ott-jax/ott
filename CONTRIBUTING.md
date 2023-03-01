@@ -15,7 +15,7 @@ to the project, participating in discussions or raising issues.
    ```
 
 When committing changes, sometimes you might want or need to bypass the pre-commit checks. This can be
-done via the ``--no-verify`` flag as:
+done via the `--no-verify` flag as:
 ```shell
 git commit --no-verify -m "<SOME_COMMIT_MESSAGE>"
 ```
@@ -33,7 +33,7 @@ Alternatively, tests can be also run using the [pytest](https://docs.pytest.org/
 ```shell
 python -m pytest
 ```
-This requires the ``'[test]'`` extra requirements to be installed as ``pip install -e.'[test]'``.
+This requires the `'[test]'` extra requirements to be installed as `pip install -e.'[test]'`.
 
 ## Documentation
 From the root of the repository, run:
@@ -42,16 +42,18 @@ tox -e build-docs  # build documentation
 tox -e clean-docs  # remove documentation
 tox -e lint-docs  # run spellchecker and linkchecker
 ```
-Installing ``pyEnchant`` is required to run spellchecker, please refer to the
+Installing `PyEnchant` is required to run spellchecker, please refer to the
 [installation instructions](https://pyenchant.github.io/pyenchant/install.html). On macOS Silicon, it may be necessary
-to also set ``PYENCHANT_LIBRARY_PATH`` environment variable.
+to also set `PYENCHANT_LIBRARY_PATH` environment variable, as, e.g.,
+`export PYENCHANT_LIBRARY_PATH=/opt/homebrew/lib/libenchant-2.2.dylib`. False positives and correctly spelled words can
+be added to one of the files in [docs/spelling](docs/spelling).
 
 ## Building the package
 The package can be built using:
 ```shell
 tox -e build-package
 ```
-Afterwards, the built package will be located under ``dist/``.
+Afterwards, the built package will be located under `dist/`.
 
 ## Code reviews
 All submissions, including submissions by project members, require review. We use GitHub

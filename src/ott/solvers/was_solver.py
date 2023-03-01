@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
@@ -29,7 +28,7 @@ State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
 # TODO(michalk8): refactor to have generic nested solver API
 @jax.tree_util.register_pytree_node_class
 class WassersteinSolver:
-  """A generic solver for problems that use a linear reg-OT pb in inner loop."""
+  """A generic solver for problems that use a linear problem in inner loop."""
 
   def __init__(
       self,

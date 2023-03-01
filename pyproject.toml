@@ -88,7 +88,7 @@ docs = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = {find = {where = ["src"], namespaces = false}}
+include-package-data = true
 
 [tool.setuptools_scm]
 
@@ -196,35 +196,32 @@ legacy_tox_ini = """
     description = Lint the documentation.
     deps =
     extras = docs
-    allowlist_externals =
-        rm
-        sphinx-build
-    pass_env = PYENCHANT_LIBRARY_PATH
-    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
     ignore_errors = true
-    commands_pre =
-        rm -rf {tox_root}/docs/_build/spellcheck
-        rm -rf {tox_root}/docs/_build/linkcheck
+    allowlist_externals = make
+    pass_env = PYENCHANT_LIBRARY_PATH
+    set_env = SPHINXOPTS = -W -q --keep-going
+    changedir = {tox_root}{/}docs
     commands =
-        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
-        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+        make linkcheck {posargs}
+        make spelling {posargs}
 
     [testenv:build-docs]
     description = Build the documentation.
     use_develop = true
     deps =
     extras = docs
-    allowlist_externals = sphinx-build
+    allowlist_externals = make
+    changedir = {tox_root}{/}docs
     commands =
-        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+        make html {posargs}
     commands_post =
-        python -c 'import pathlib; print(pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
     deps =
     skip_install = true
-    changedir = {tox_root}/docs
+    changedir = {tox_root}{/}docs
     allowlist_externals = make
     commands =
         make clean
@@ -238,7 +235,16 @@ legacy_tox_ini = """
         python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
         twine check {tox_root}{/}dist{/}*
     commands_post =
-        python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+        python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
+
+    [testenv:format-references]
+    description = Format references.bib.
+    deps =
+    allowlist_externals = biber
+    commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
+        --output_align --output_indent=2 --output_fieldcase=lower \
+        --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
+        {tox_root}{/}docs{/}references.bib
 """
 
 [tool.ruff]

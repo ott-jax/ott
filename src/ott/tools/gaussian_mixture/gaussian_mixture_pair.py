@@ -26,13 +26,13 @@ __all__ = ["GaussianMixturePair"]
 
 @jax.tree_util.register_pytree_node_class
 class GaussianMixturePair:
-  """Pytree for a coupled pair of Gaussian mixture models.
+  """Coupled pair of Gaussian mixture models.
 
   Includes methods used in estimating an optimal pairing between GMM components
   using the Wasserstein-like method described in :cite:`delon:20`,
-  as well as generalization that allows for the re-weighting of components.
+  as well as generalization that allows for the reweighting of components.
 
-  The Delon & Desolneux paper above proposes fitting a pair of GMMs to a pair
+  :cite:`delon:20` propose fitting a pair of GMMs to a pair
   of point clouds in such a way that the sum of the log likelihood of the
   points minus a weighted penalty involving a Wasserstein-like distance between
   the GMMs. Their proposed algorithm involves using EM in which a balanced
@@ -41,8 +41,8 @@ class GaussianMixturePair:
 
   Our generalization of this algorithm allows for a mismatch between the
   marginals of the coupling and the GMM component weights. This mismatch can be
-  interpreted as components being re-weighted rather than being transported.
-  We penalize re-weighting with a generalized KL-divergence penalty, and we give
+  interpreted as components being reweighted rather than being transported.
+  We penalize reweighting with a generalized KL-divergence penalty, and we give
   the option to use the unbalanced Sinkhorn algorithm rather than the balanced
   to compute the divergence between GMMs.
   """
@@ -129,7 +129,7 @@ class GaussianMixturePair:
     )
 
   def get_cost_matrix(self) -> jnp.ndarray:
-    """Get matrix of W2^2 costs between all pairs of (gmm0, gmm1) components."""
+    """Get matrix of :math:`W_2^2` costs between all pairs of components."""
     return self.get_bures_geometry().cost_matrix
 
   def get_sinkhorn(
@@ -156,11 +156,12 @@ class GaussianMixturePair:
     """Get the normalized coupling matrix for the specified Sinkhorn output.
 
     Args:
-      sinkhorn_output: Sinkhorn algorithm output as returned by get_sinkhorn()
+      sinkhorn_output: Sinkhorn algorithm output as returned by
+        :meth:`get_sinkhorn`.
 
     Returns:
       A coupling matrix that tells how much of the mass of each component of
-      gmm0 is mapped to each component of gmm1.
+      :attr:`gmm0` is mapped to each component of :attr:`gmm1`.
     """
     return sinkhorn_output.matrix / jnp.sum(sinkhorn_output.matrix)
 

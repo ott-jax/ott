@@ -21,7 +21,7 @@ To achieve this, ``OTT`` rests on two families of tools:
   :cite:`memoli:11,peyre:16`;
 - the second family consists in *continuous* solvers, using suitable neural
   architectures such as an MLP or input-convex neural network
-  :cite:`amos:17` coupled with SGD-type estimators
+  :cite:`amos:17` coupled with SGD-like estimators
   :cite:`makkuva:20,korotin:21,amos:23`.
 
 Installation
@@ -43,7 +43,7 @@ Design Choices
 ``OTT`` is designed with the following choices:
 
 - Take advantage whenever possible of JAX features, such as
-  `Just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
+  `just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
   `automatic`_ but most importantly `implicit`_ differentiation.
 - Split geometry from OT solvers in the discrete case: We argue that there
   should be one, and one implementation only, of every major OT algorithm
@@ -55,7 +55,7 @@ Design Choices
   of a Sinkhorn routine.
 - As a consequence, and to minimize code copy/pasting, use as often as possible
   object hierarchies, and interleave outer solvers (such as quadratic,
-  aka Gromov-Wasserstein solvers) with inner solvers (e.g. Low-Rank Sinkhorn).
+  aka Gromov-Wasserstein solvers) with inner solvers (e.g., low-rank Sinkhorn).
   This choice ensures that speedups achieved at lower computation levels
   (e.g. low-rank factorization of squared Euclidean distances) propagate
   seamlessly and automatically in higher level calls (e.g. updates in
@@ -67,7 +67,7 @@ Packages
 --------
 - :doc:`geometry` contains classes that instantiate the ground *cost matrix*
   used to specify OT problems. Here cost matrix can be understood in
-  a litteral (by actually passing a matrix) or abstract sense (by passing
+  a literal (by actually passing a matrix) or abstract sense (by passing
   information that is sufficient to recreate that matrix, apply all or parts
   of it, or apply its kernel). A typical example in the latter case arises
   when comparing *two point clouds*, paired with a *cost function*. Geometry

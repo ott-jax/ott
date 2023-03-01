@@ -29,7 +29,7 @@ class Grid(geometry.Geometry):
   r"""Class describing the geometry of points taken in a Cartesian product.
 
   This class implements a geometry in which probability measures are supported
-  on a :math:`d`-dimensional cartesian grid, a cartesian product of :math:`d`
+  on a :math:`d`-dimensional Cartesian grid, a Cartesian product of :math:`d`
   lists of values, each list being itself of size :math:`n_i`.
 
   The transportation cost between points in the grid is assumed to be separable,
@@ -59,15 +59,14 @@ class Grid(geometry.Geometry):
       :math:`(n_1,...,n_d)`. This will only be used if x is None.
       In that case the grid will be assumed to lie in the hypercube
       :math:`[0,1]^d`, with the :math:`d` dimensions, described as points
-      regularly sampled in [0,1].
-    cost_fns: a sequence of :math:`d` costs.CostFn's, each being a cost taking
+      regularly sampled in :math:`[0,1]`.
+    cost_fns: a sequence of :math:`d` cost functions, each being a cost taking
       two reals as inputs to output a real number.
     num_a: total size of grid. This parameters will be computed from other
-      inputs and used in the flatten/unflatten functions.
+      inputs.
     grid_dimension: dimension of grid. This parameters will be computed from
-      other inputs and used in the flatten/unflatten functions.
-    kwargs: other optional parameters to be passed on to superclass
-      initializer, notably those related to epsilon regularization.
+      other inputs.
+    kwargs: keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -98,7 +97,7 @@ class Grid(geometry.Geometry):
       self.num_a = np.prod(np.array(grid_size))
       self.grid_dimension = len(self.grid_size)
     else:
-      raise ValueError("Input either grid_size t-uple or grid locations x.")
+      raise ValueError("Input either grid_size tuple or grid locations x.")
 
     if cost_fns is None:
       cost_fns = [costs.SqEuclidean()]
@@ -362,8 +361,8 @@ class Grid(geometry.Geometry):
     """Converts grid to low-rank geometry.
 
     Conversion is carried out by taking advantage of the fact that the true cost
-    matrix of a grid geometry is a sum of kronecker products of local cost
-    matrices (for each dimension) with matrice of 1's (both on left and right
+    matrix of a grid geometry is a sum of Kronecker products of local cost
+    matrices (for each dimension) with matrices of 1's (both on left and right
     sides) of varying dimension. Each of the matrices in that sum can be
     factorized if each of these cost matrices can be factorized, which we do
     by forcing a conversion to a low rank geometry object.

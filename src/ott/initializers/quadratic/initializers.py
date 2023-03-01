@@ -89,7 +89,7 @@ class BaseQuadraticInitializer(abc.ABC):
 
 
 class QuadraticInitializer(BaseQuadraticInitializer):
-  """Initialize a linear problem locally around a naive initializer ab'.
+  r"""Initialize a linear problem locally around :math:`ab^T` initializer.
 
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
@@ -108,13 +108,13 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
   cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
   `left_x` and `right_y` depend on the loss chosen for GW.
-  `gw_unbalanced_correction` is an boolean indicating whether or not the
-  unbalanced correction applies.
-  The equation of the local cost can be written as:
+  `gw_unbalanced_correction` is flag indicating whether the unbalanced
+  correction applies. The equation of the local cost can be written as:
 
-  `cost_matrix` = `marginal_dep_term`
-              + `left_x`(`cost_xx`) :math:`P` `right_y`(`cost_yy`):math:`^T`
-              + `unbalanced_correction` * `gw_unbalanced_correction`
+  .. math::
+
+    \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
+     \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
 
   When working with the fused problem, a linear term is added to the cost
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`

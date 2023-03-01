@@ -65,7 +65,7 @@ def get_summary_stats_from_points_and_assignment_probs(
 
 @jax.tree_util.register_pytree_node_class
 class GaussianMixture:
-  """Pytree for a Gaussian Mixture model."""
+  """Gaussian Mixture model."""
 
   def __init__(
       self, loc: jnp.ndarray, scale_params: jnp.ndarray,

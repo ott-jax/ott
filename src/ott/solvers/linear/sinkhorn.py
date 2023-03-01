@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Sinkhorn algorithm."""
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -98,8 +97,8 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials only
-    iff ``tau_a < 1`` and ``tau_b < 1``.
+    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials iff
+    ``tau_a < 1`` and ``tau_b < 1``.
 
     Args:
       f: The first dual potential.
@@ -422,7 +421,7 @@ class Sinkhorn:
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponentials of the former). Calling this
+  scalings when parameterized as exponential of the former). Calling this
   function returns therefore a pair of optimal vectors. In addition to these,
   it also returns the objective value achieved by these optimal vectors;
   a vector of size ``max_iterations/inner_iterations`` that records the vector
@@ -440,7 +439,7 @@ class Sinkhorn:
   ``init_dual_a`` or ``init_dual_b``), the Sinkhorn algorithm will use
   elementary operations that are carried out by the ``geom`` object.
 
-  Some maths:
+  Math:
     Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
     regularization parameter :math:`\varepsilon`, (or a kernel matrix :math:`K`)
     the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
@@ -504,7 +503,7 @@ class Sinkhorn:
     setting the corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
-    potentials (or alternatively their parametrization as positive scalings
+    potentials (or alternatively their parameterization as positive scalings
     `u`, `v`), rather than solving the primal problem in :math:`P`.
     This is mostly for efficiency (potentials and scalings have a ``n + m``
     memory footprint, rather than ``n m`` required to store `P`). This is also
@@ -611,7 +610,7 @@ class Sinkhorn:
     wrapped in a custom fixed point iteration loop, defined in
     ``fixed_point_loop``, rather than a standard while loop. This is to ensure
     the end result of this fixed point loop can also be differentiated, if
-    needed, using standard JAX operations. To ensure backprop differentiability,
+    needed, using standard JAX operations. To ensure differentiability,
     the ``fixed_point_loop.fixpoint_iter_backprop`` loop does checkpointing of
     state variables (here ``f_u`` and ``g_v``) every ``inner_iterations``, and
     backpropagates automatically, block by block, through blocks of
@@ -663,7 +662,7 @@ class Sinkhorn:
     min_iterations: the minimum number of Sinkhorn iterations carried
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If
-      ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
+      ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
       run by default using a :func:`jax.lax.scan` loop rather than a custom,
       unroll-able :func:`jax.lax.while_loop` that monitors convergence.
       In that case the error is not monitored and the ``converged``
@@ -865,7 +864,7 @@ class Sinkhorn:
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
       iteration: int, compute_error: bool
   ) -> SinkhornState:
-    """Carries out sinkhorn iteration.
+    """Carries out one Sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
 

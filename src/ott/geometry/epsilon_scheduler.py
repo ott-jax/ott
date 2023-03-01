@@ -40,7 +40,7 @@ class Epsilon:
     init: initial value when using epsilon scheduling, understood as multiple
       of target value. if passed, ``int * decay ** iteration`` will be used
       to rescale target.
-    decay: geometric decay factor, smaller than 1.
+    decay: geometric decay factor, :math:`<1`.
   """
 
   def __init__(

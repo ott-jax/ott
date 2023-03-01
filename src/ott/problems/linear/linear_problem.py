@@ -39,11 +39,11 @@ class LinearProblem:
 
   Args:
     geom: The ground geometry cost of the linear problem.
-    a: The first marginal. If `None`, it will be uniform.
-    b: The second marginal. If `None`, it will be uniform.
-    tau_a: If `< 1`, defines how much unbalanced the problem is
+    a: The first marginal. If ``None``, it will be uniform.
+    b: The second marginal. If ``None``, it will be uniform.
+    tau_a: If :math:`<1`, defines how much unbalanced the problem is
       on the first marginal.
-    tau_b: If `< 1`, defines how much unbalanced the problem is
+    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
       on the second marginal.
   """
 
