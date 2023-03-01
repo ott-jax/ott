@@ -236,6 +236,15 @@ legacy_tox_ini = """
         twine check {tox_root}{/}dist{/}*
     commands_post =
         python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+
+    [testenv:format-references]
+    description = Format references.bib.
+    deps =
+    allowlist_externals = biber
+    commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
+        --output_align --output_indent=2 --output_fieldcase=lower \
+        --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
+        {tox_root}{/}docs{/}references.bib
 """
 
 [tool.ruff]
