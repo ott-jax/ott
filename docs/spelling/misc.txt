@@ -4,11 +4,9 @@ cond
 dtype
 eps
 eq
-euler
 fn
 fns
 fu
-gaussian
 gmm
 gv
 init
