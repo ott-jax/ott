@@ -53,10 +53,9 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinxcontrib.bibtex",
+    "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "myst_nb",
-    "IPython.sphinxext.ipython_console_highlighting",
-    "sphinx_autodoc_typehints",
 ]
 
 intersphinx_mapping = {
@@ -103,7 +102,13 @@ spelling_lang = "en_US"
 spelling_warning = True
 spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
-spelling_exclude_patterns = ["references.rst"]
+# flax misspelled words; `flax.linen.Module.bind` is ignored in `autoclass.rst`
+# because of indentation error that cannot be suppressed
+spelling_exclude_patterns = [
+    "references.rst",
+    "**lazy_init.rst",
+    "**is_initializing.rst",
+]
 spelling_filters = [
     "enchant.tokenize.URLFilter",
     "enchant.tokenize.EmailFilter",
