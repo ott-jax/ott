@@ -98,13 +98,46 @@ class Plot:
 
   def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):
     """Compute the lines representing the mapping between the 2 point clouds."""
+    # Only plot the lines with a cost above the threshold.
     u, v = jnp.where(matrix > self._threshold)
     c = matrix[jnp.where(matrix > self._threshold)]
     xy = jnp.concatenate([x[u], y[v]], axis=-1)
+
+    # Check if we want to adjust transparency.
+    adjust_transparency = self._adjust_transparency
+
+    # We can only adjust transparency if max(c) > min(c).
+    if adjust_transparency:
+      min_matrix, max_matrix = jnp.min(c), jnp.max(c)
+      if max_matrix == min_matrix:
+        adjust_transparency = False
+
+    # Initialize the list of lines of the form (start, end, strength, alpha).
     result = []
+
+    # Loop over the lines and add them to the list.
     for i in range(xy.shape[0]):
+
+      # The line strength is the coupling strength multiplied by the number of points.
       strength = jnp.max(jnp.array(matrix.shape)) * c[i]
-      result.append((xy[i, [0, 2]], xy[i, [1, 3]], strength))
+
+      # Compute the transparency.
+      if adjust_transparency:
+
+        # make alpha proportional to the coupling strength and between 0 and 1.
+        normalized_strength = (c[i] - min_matrix) / (max_matrix - min_matrix)
+        alpha = self._alpha * float(normalized_strength)
+
+        # Matplotlib's transparency is sensitive to numerical errors.
+        alpha = min(1.0, alpha)
+      else:
+        alpha = self._alpha
+
+      # Get the start and end points of the line, and append the line to the list.
+      start, end = xy[i, [0, 2]], xy[i, [1, 3]]
+      result.append((start, end, strength, alpha))
+
+    # Return the list of lines.
     return result
 
   def __call__(self, ot: Transport) -> List[plt.Artist]:
@@ -124,25 +157,7 @@ class Plot:
     cmap = plt.get_cmap(self._cmap)
     self._lines = []
 
-    # Make the transparency of the lines depend on the strength of the coupling.
-    adjust_transparency = self._adjust_transparency
-    if adjust_transparency:
-      matrix = ot.matrix
-      min_matrix = float(jnp.min(matrix))
-      max_matrix = float(jnp.max(matrix))
-      scaling_factor = float(jnp.max(jnp.array(matrix.shape)))
-
-      if max_matrix == min_matrix:
-        adjust_transparency = False
-
-    for start, end, strength in lines:
-
-      if adjust_transparency:
-        normalized_strength = float(strength) / scaling_factor - min_matrix
-        normalized_strength /= 1e-3 + max_matrix - min_matrix
-        alpha = self._alpha * normalized_strength
-      else:
-        alpha = self._alpha
+    for start, end, strength, alpha in lines:
 
       line, = self.ax.plot(
           start,
@@ -163,28 +178,10 @@ class Plot:
     if not self._show_lines:
       return []
 
-    # Make the transparency of the lines depend on the strength of the coupling.
-    adjust_transparency = self._adjust_transparency
-    matrix = ot.matrix
-    if adjust_transparency:
-      min_matrix = float(jnp.min(matrix))
-      max_matrix = float(jnp.max(matrix))
-      scaling_factor = float(jnp.max(jnp.array(matrix.shape)))
-
-      if max_matrix == min_matrix:
-        adjust_transparency = False
-
-    new_lines = self._mapping(x, y, matrix)
+    new_lines = self._mapping(x, y, ot.matrix)
     cmap = plt.get_cmap(self._cmap)
     for line, new_line in zip(self._lines, new_lines):
-      start, end, strength = new_line
-
-      if adjust_transparency:
-        normalized_strength = float(strength) / scaling_factor - min_matrix
-        normalized_strength /= 1e-3 + max_matrix - min_matrix
-        alpha = self._alpha * normalized_strength
-      else:
-        alpha = self._alpha
+      start, end, strength, alpha = new_line
 
       line.set_data(start, end)
       line.set_linewidth(0.5 + 4 * strength)
@@ -195,14 +192,7 @@ class Plot:
     num_lines = len(self._lines)
     num_to_plot = len(new_lines) if self._show_lines else 0
     for i in range(num_lines, num_to_plot):
-      start, end, strength = new_lines[i]
-
-      if adjust_transparency:
-        normalized_strength = float(strength) / scaling_factor - min_matrix
-        normalized_strength /= 1e-3 + max_matrix - min_matrix
-        alpha = self._alpha * normalized_strength
-      else:
-        alpha = self._alpha
+      start, end, strength, alpha = new_lines[i]
 
       line, = self.ax.plot(
           start,
