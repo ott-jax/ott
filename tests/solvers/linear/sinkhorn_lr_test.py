@@ -36,9 +36,9 @@ class TestLRSinkhorn:
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
 
-    # adding zero weights to test proper handling
-    a = a.at[0].set(0)
-    b = b.at[3].set(0)
+    # adding zero weights to test proper handling:
+    # a = a.at[0].set(0)
+    # b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 

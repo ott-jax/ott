@@ -381,9 +381,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       gamma = self.gamma
 
-    k_q = jnp.exp(gamma * (grad_q - (1. / gamma) * log_q))
-    k_r = jnp.exp(gamma * (grad_r - (1. / gamma) * log_r))
-    k_g = jnp.exp(gamma * (-grad_g + (1. / gamma) * log_g))
+    k_q = jnp.exp((-gamma) * (grad_q - (1. / gamma) * log_q))
+    k_r = jnp.exp((-gamma) * (grad_r - (1. / gamma) * log_r))
+    k_g = jnp.exp((-gamma) * (grad_g - (1. / gamma) * log_g))
     return k_q, k_r, k_g, gamma
 
   def dykstra_update_lse(
@@ -518,19 +518,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
-    r = self.rank
+    rank = self.rank
     n, m = ot_prob.geom.shape
     a, b = ot_prob.a, ot_prob.b
 
     g_old = k_g
-    v1_old, v2_old = jnp.ones(r), jnp.ones(r)
+    v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
     u1, u2 = jnp.ones(n), jnp.ones(m)
 
-    q_gi, q_gp = jnp.ones(r), jnp.ones(r)
-    q_q, q_r = jnp.ones(r), jnp.ones(r)
+    q_gi, q_gp = jnp.ones(rank), jnp.ones(rank)
+    q_q, q_r = jnp.ones(rank), jnp.ones(rank)
     err = jnp.inf
     state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-    constants = k_q, k_r, a, b
+    constants = k_q, k_r, k_g, a, b
 
     def cond_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
@@ -546,12 +546,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
-      k_q, k_r, a, b = constants
+      k_q, k_r, k_g, a, b = constants
 
       # First Projection
       u1 = a / jnp.dot(k_q, v1_old)
       u2 = b / jnp.dot(k_r, v2_old)
-      g = jnp.maximum(jnp.log(min_entry_value), g_old * q_gi)
+      g = jnp.maximum(min_entry_value, g_old * q_gi)
       q_gi = (g_old * q_gi) / g
       g_old = g
 
@@ -619,7 +619,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     q, r, g = self.dykstra_update_kernel(
         k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
     )
-
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
