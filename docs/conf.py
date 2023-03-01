@@ -89,6 +89,7 @@ nb_execution_mode = "off"
 nb_mime_priority_overrides = [("spelling", "text/plain", 0)]
 myst_enable_extensions = [
     "colon_fence",
+    "amsmath",
     "dollarmath",
 ]
 
