@@ -12,7 +12,8 @@ Sinkhorn Initializers
 
     initializers.DefaultInitializer
     initializers.GaussianInitializer
-    initializers.SinkhornInitializer
+    initializers.SortingInitializer
+    initializers.SubsampleInitializer
 
 Low-rank Sinkhorn Initializers
 ------------------------------

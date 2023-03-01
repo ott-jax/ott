@@ -1,17 +1,16 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Several cost/norm functions for relevant vector types."""
 import abc
 import functools
 import math
@@ -19,12 +18,23 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ott.math import fixed_point_loop, matrix_square_root
+from ott.math import utils as mu
 
 __all__ = [
-    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "Cosine", "ElasticL1",
-    "ElasticSTVS", "ElasticSqKOverlap", "Bures", "UnbalancedBures"
+    "PNormP",
+    "SqPNorm",
+    "Euclidean",
+    "SqEuclidean",
+    "Cosine",
+    "ElasticL1",
+    "ElasticSTVS",
+    "ElasticSqKOverlap",
+    "Bures",
+    "UnbalancedBures",
+    "SoftDTW",
 ]
 
 
@@ -36,10 +46,12 @@ class CostFn(abc.ABC):
   that function is split into two norms -- evaluated on each input separately --
   followed by a pairwise cost that involves both inputs, as in:
 
-  ``c(x,y) = norm(x) + norm(y) + pairwise(x,y)``
+  .. math::
 
-  If the :attr:`norm` function is not implemented, that value is handled as a 0,
-  and only :func:`pairwise` is used.
+    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
+
+  If the :attr:`norm` function is not implemented, that value is handled as
+  :math:`0`, and only :func:`pairwise` is used.
   """
 
   # no norm function created by default.
@@ -47,7 +59,15 @@ class CostFn(abc.ABC):
 
   @abc.abstractmethod
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    pass
+    """Compute cost between :math:`x` and :math:`y`.
+
+    Args:
+      x: Array.
+      y: Array.
+
+    Returns:
+      The cost.
+    """
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
     """Barycentric operator.
@@ -74,38 +94,51 @@ class CostFn(abc.ABC):
     return jnp.zeros((1, dim))
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Compute cost between :math:`x` and :math:`y`.
+
+    Args:
+      x: Array.
+      y: Array.
+
+    Returns:
+      The cost, optionally including the :attr:`norms <norm>` of
+      :math:`x`/:math:`y`.
+    """
     cost = self.pairwise(x, y)
     if self.norm is None:
       return cost
     return cost + self.norm(x) + self.norm(y)
 
+  # TODO(michalk8): unused
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all costs (including norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
   def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all pairwise-costs (no norms) for vectors in x / y.
+    """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
 
     Args:
-      x: [num_a, d] jnp.ndarray
-      y: [num_b, d] jnp.ndarray
+      x: Array of shape ``[n, ...]``.
+      y: Array of shape ``[m, ...]``.
+
     Returns:
-      [num_a, num_b] matrix of pairwise cost evaluations.
+      Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), None
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del aux_data
     return cls(*children)
 
@@ -154,7 +187,7 @@ class SqPNorm(TICost):
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
 
   def h_legendre(self, z: jnp.ndarray) -> float:
@@ -164,11 +197,11 @@ class SqPNorm(TICost):
     """
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0])
 
@@ -188,18 +221,18 @@ class PNormP(TICost):
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0])
 
@@ -231,10 +264,10 @@ class SqEuclidean(TICost):
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.25 * jnp.sum(z ** 2)
 
   def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
@@ -287,10 +320,10 @@ class RegTICost(TICost, abc.ABC):
     """Proximal operator of :func:`reg`."""
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
@@ -312,17 +345,17 @@ class ElasticL1(RegTICost):
     assert gamma >= 0, "Gamma must be non-negative."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return self.gamma * jnp.linalg.norm(z, ord=1)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.gamma,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
@@ -348,19 +381,19 @@ class ElasticSTVS(RegTICost):
     assert gamma > 0, "Gamma must be positive."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     u = jnp.arcsinh(jnp.abs(z) / (2 * self.gamma))
     out = u - 0.5 * jnp.exp(-2.0 * u)
     return (self.gamma ** 2) * jnp.sum(out + 0.5)  # make positive
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.gamma,)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
@@ -388,7 +421,7 @@ class ElasticSqKOverlap(RegTICost):
     self.k = k
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -409,7 +442,7 @@ class ElasticSqKOverlap(RegTICost):
 
     return 0.5 * self.gamma * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:
+  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
     def find_indices(r: int, l: jnp.ndarray,
@@ -454,18 +487,18 @@ class ElasticSqKOverlap(RegTICost):
     # change sign and reorder
     return sgn * q[jnp.argsort(z_ixs.astype(float))]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self.k, self.gamma)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
 class Bures(CostFn):
-  """Bures distance between a pair of (mean, cov matrix) raveled as vectors.
+  """Bures distance between a pair of (mean, covariance matrix).
 
   Args:
     dimension: Dimensionality of the data.
@@ -507,13 +540,12 @@ class Bures(CostFn):
 
     Args:
       covs: [batch, d^2] covariance matrices
-      weights: simplicial weights (nonnegative, sum to 1)
+      weights: simplicial weights (non-negative, sum to 1)
       tolerance: tolerance of the overall fixed-point procedure
-      kwargs: parameters passed on to the sqrtm (Newton-Schulz)
-        algorithm to compute matrix square roots.
+      kwargs: keyword arguments for :func:`ott.math.matrix_square_root.sqrtm`.
 
     Returns:
-      a covariance matrix, the weighted Bures average of the covs matrices.
+      Weighted Bures average of the covariance matrices.
     """
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
@@ -593,24 +625,21 @@ class Bures(CostFn):
     cov_bary = self.covariance_fixpoint_iter(
         covs=covs, weights=weights, **kwargs
     )
-    barycenter = mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
-    return barycenter
+    return mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
-    """Pad with concatenated zero means and \
-      raveled identity covariance matrix."""
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
     )
     return padding[jnp.newaxis, :]
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sqrtm_kw)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     return cls(aux_data[0], **aux_data[1])
 
@@ -718,14 +747,93 @@ class UnbalancedBures(CostFn):
         (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
     dim, sigma, gamma, kwargs = aux_data
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
+
+
+@jax.tree_util.register_pytree_node_class
+class SoftDTW(CostFn):
+  """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
+
+  Args:
+    gamma: Smoothing parameter :math:`> 0` for the soft-min operator.
+    ground_cost: Ground cost function. If ``None``,
+      use :class:`~ott.geometry.costs.SqEuclidean`.
+    debiased: Whether to compute the debiased soft-DTW :cite:`blondel:21`.
+  """
+
+  def __init__(
+      self,
+      gamma: float,
+      ground_cost: Optional[CostFn] = None,
+      debiased: bool = False
+  ):
+    self.gamma = gamma
+    self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
+    self.debiased = debiased
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
+    c_xy = self._soft_dtw(x, y)
+    if self.debiased:
+      return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
+    return c_xy
+
+  def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+
+    def body(
+        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        current_antidiagonal: jnp.ndarray
+    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+      # modified from: https://github.com/khdlr/softdtw_jax
+      two_ago, one_ago = carry
+
+      diagonal, right, down = two_ago[:-1], one_ago[:-1], one_ago[1:]
+      best = mu.softmin(
+          jnp.stack([diagonal, right, down], axis=-1), self.gamma, axis=-1
+      )
+
+      next_row = best + current_antidiagonal
+      next_row = jnp.pad(next_row, (1, 0), constant_values=jnp.inf)
+
+      return (one_ago, next_row), next_row
+
+    t1 = t1[:, None] if t1.ndim == 1 else t1
+    t2 = t2[:, None] if t2.ndim == 1 else t2
+    dist = self.ground_cost.all_pairs(t1, t2)
+
+    n, m = dist.shape
+    if n < m:
+      dist = dist.T
+      n, m = m, n
+
+    model_matrix = jnp.full((n + m - 1, n), fill_value=jnp.inf)
+    mask = np.tri(n + m - 1, n, k=0, dtype=bool)
+    mask = mask & mask[::-1, ::-1]
+    model_matrix = model_matrix.T.at[mask.T].set(dist.ravel()).T
+
+    init = (
+        jnp.pad(model_matrix[0], (1, 0), constant_values=jnp.inf),
+        jnp.pad(
+            model_matrix[1] + model_matrix[0, 0], (1, 0),
+            constant_values=jnp.inf
+        )
+    )
+
+    (_, carry), _ = jax.lax.scan(body, init, model_matrix[2:])
+    return carry[-1]
+
+  def tree_flatten(self):  # noqa: D102
+    return (self.gamma, self.ground_cost), {"debiased": self.debiased}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(*children, **aux_data)
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
@@ -735,10 +843,10 @@ def x_to_means_and_covs(x: jnp.ndarray,
   Args:
     x: [num_gaussians, dimension, (1 + dimension)] array of concatenated means
       and covariances (raveled) dimension: the dimension of the Gaussians.
+    dimension: Dimensionality of the Gaussians.
 
   Returns:
-    means: [num_gaussians, dimension] array that holds the means.
-    covariances: [num_gaussians, dimension] array that holds the covariances.
+    Means and covariances of shape ``[num_gaussian, dimension]``.
   """
   x = jnp.atleast_2d(x)
   means = x[:, :dimension]
@@ -752,5 +860,6 @@ def mean_and_cov_to_x(
     mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
 ) -> jnp.ndarray:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
-  x = jnp.concatenate((mean, jnp.reshape(covariance, (dimension * dimension))))
-  return x
+  return jnp.concatenate(
+      (mean, jnp.reshape(covariance, (dimension * dimension)))
+  )
