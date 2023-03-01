@@ -118,7 +118,7 @@ class Plot:
     # Loop over the lines and add them to the list.
     for i in range(xy.shape[0]):
 
-      # The line strength is the coupling strength multiplied by the number of points.
+      # Line strength is coupling strength times the number of points.
       strength = jnp.max(jnp.array(matrix.shape)) * c[i]
 
       # Compute the transparency.
@@ -133,7 +133,7 @@ class Plot:
       else:
         alpha = self._alpha
 
-      # Get the start and end points of the line, and append the line to the list.
+      # Get start and end points, and append the line to the list.
       start, end = xy[i, [0, 2]], xy[i, [1, 3]]
       result.append((start, end, strength, alpha))
 
