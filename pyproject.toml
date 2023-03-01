@@ -199,8 +199,8 @@ legacy_tox_ini = """
     ignore_errors = true
     allowlist_externals = make
     pass_env = PYENCHANT_LIBRARY_PATH
-    set_env = SPHINXOPTS = -W --keep-going
-    changedir = {tox_root}/docs
+    set_env = SPHINXOPTS = -W -q --keep-going
+    changedir = {tox_root}{/}docs
     commands =
         make linkcheck {posargs}
         make spelling {posargs}
@@ -211,17 +211,17 @@ legacy_tox_ini = """
     deps =
     extras = docs
     allowlist_externals = make
-    changedir = {tox_root}/docs
+    changedir = {tox_root}{/}docs
     commands =
         make html {posargs}
     commands_post =
-        python -c 'import pathlib; print("Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
     deps =
     skip_install = true
-    changedir = {tox_root}/docs
+    changedir = {tox_root}{/}docs
     allowlist_externals = make
     commands =
         make clean
@@ -235,7 +235,7 @@ legacy_tox_ini = """
         python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
         twine check {tox_root}{/}dist{/}*
     commands_post =
-        python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+        python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
 
     [testenv:format-references]
     description = Format references.bib.
