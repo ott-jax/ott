@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -35,7 +35,7 @@ PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 class NeuralTrainState(train_state.TrainState):
   """Adds information about the model's value and gradient to the state.
 
-  This extends :class:`flax.training.train_state.TrainState` to include
+  This extends :class:`~flax.training.train_state.TrainState` to include
   the potential methods from :class:`~ott.solvers.nn.models.ModelBase`
   used during training.
 
@@ -124,6 +124,27 @@ class ModelBase(abc.ABC, nn.Module):
     if self.is_potential:
       return jax.vmap(jax.grad(self.potential_value_fn(params)))
     return lambda x: self.apply({"params": params}, x)
+
+  def create_train_state(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      optimizer: optax.OptState,
+      input: Union[int, Tuple[int, ...]],
+      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+      **kwargs: Any,
+  ) -> NeuralTrainState:
+    """Create initial training state."""
+    if params is None:
+      params = self.init(rng, jnp.ones(input))["params"]
+
+    return NeuralTrainState.create(
+        apply_fn=self.apply,
+        params=params,
+        tx=optimizer,
+        potential_value_fn=self.potential_value_fn,
+        potential_gradient_fn=self.potential_gradient_fn,
+        **kwargs,
+    )
 
 
 class ICNN(ModelBase):
@@ -281,24 +302,6 @@ class ICNN(ModelBase):
     z += self.pos_def_potential(x)
     return z.squeeze()
 
-  def create_train_state(
-      self,
-      rng: jax.random.PRNGKeyArray,
-      optimizer: optax.OptState,
-      input: Union[int, Tuple[int, ...]],
-      # TODO(michalk8): do not ignore or delete in code?
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-  ) -> NeuralTrainState:
-    """Create initial `TrainState`."""
-    params = self.init(rng, jnp.ones(input))["params"]
-    return NeuralTrainState.create(
-        apply_fn=self.apply,
-        params=params,
-        tx=optimizer,
-        potential_value_fn=self.potential_value_fn,
-        potential_gradient_fn=self.potential_gradient_fn,
-    )
-
 
 class MLP(ModelBase):
   """A non-convex MLP.
@@ -340,21 +343,3 @@ class MLP(ModelBase):
       z = x + Wx(z)
 
     return z.squeeze(0) if squeeze else z
-
-  def create_train_state(
-      self,
-      rng: jax.random.PRNGKeyArray,
-      optimizer: optax.OptState,
-      input: Union[int, Tuple[int, ...]],
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-  ) -> NeuralTrainState:
-    """Create initial `TrainState`."""
-    if params is None:
-      params = self.init(rng, jnp.ones(input))["params"]
-    return NeuralTrainState.create(
-        apply_fn=self.apply,
-        params=params,
-        tx=optimizer,
-        potential_value_fn=self.potential_value_fn,
-        potential_gradient_fn=self.potential_gradient_fn,
-    )
