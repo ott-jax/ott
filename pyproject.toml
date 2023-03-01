@@ -88,7 +88,7 @@ docs = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = {find = {where = ["src"], namespaces = false}}
+include-package-data = true
 
 [tool.setuptools_scm]
 
