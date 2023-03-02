@@ -66,7 +66,7 @@ class Plot:
       scale: int = 200,
       show_lines: bool = True,
       cmap: str = "cool",
-      adjust_transparency: bool = False,
+      scale_alpha_by_coupling: bool = False,
       alpha: float = 0.7,
   ):
     if plt is None:
@@ -87,7 +87,7 @@ class Plot:
     self._threshold = cost_threshold
     self._scale = scale
     self._cmap = cmap
-    self._adjust_transparency = adjust_transparency
+    self._scale_alpha_by_coupling = scale_alpha_by_coupling
     self._alpha = alpha
 
   def _scatter(self, ot: Transport):
@@ -110,40 +110,28 @@ class Plot:
     xy = jnp.concatenate([x[u], y[v]], axis=-1)
 
     # Check if we want to adjust transparency.
-    adjust_transparency = self._adjust_transparency
+    scale_alpha_by_coupling = self._scale_alpha_by_coupling
 
-    # We can only adjust transparency if max(c) > min(c).
-    if adjust_transparency:
+    # We can only adjust transparency if max(c) != min(c).
+    if scale_alpha_by_coupling:
       min_matrix, max_matrix = jnp.min(c), jnp.max(c)
-      if max_matrix == min_matrix:
-        adjust_transparency = False
+      scale_alpha_by_coupling = max_matrix != min_matrix
 
-    # Initialize the list of lines of the form (start, end, strength, alpha).
     result = []
-
-    # Loop over the lines and add them to the list.
     for i in range(xy.shape[0]):
-
-      # Line strength is coupling strength times the number of points.
       strength = jnp.max(jnp.array(matrix.shape)) * c[i]
-
-      # Compute the transparency.
-      if adjust_transparency:
-
-        # make alpha proportional to the coupling strength and between 0 and 1.
+      if scale_alpha_by_coupling:
         normalized_strength = (c[i] - min_matrix) / (max_matrix - min_matrix)
         alpha = self._alpha * float(normalized_strength)
-
-        # Matplotlib's transparency is sensitive to numerical errors.
-        alpha = min(1.0, alpha)
       else:
         alpha = self._alpha
 
-      # Get start and end points, and append the line to the list.
+      # Matplotlib's transparency is sensitive to numerical errors.
+      alpha = np.clip(alpha, 0.0, 1.0)
+
       start, end = xy[i, [0, 2]], xy[i, [1, 3]]
       result.append((start, end, strength, alpha))
 
-    # Return the list of lines.
     return result
 
   def __call__(self, ot: Transport) -> List["plt.Artist"]:
@@ -162,9 +150,7 @@ class Plot:
     lines = self._mapping(x, y, ot.matrix)
     cmap = plt.get_cmap(self._cmap)
     self._lines = []
-
     for start, end, strength, alpha in lines:
-
       line, = self.ax.plot(
           start,
           end,
