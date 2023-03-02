@@ -299,7 +299,7 @@ class W2NeuralDual:
             train_batch,
         )
       else:
-        train_batch["source"], train_batch["target"] = self.resample(
+        train_batch["target"], train_batch["source"] = self.resample(
             jnp.asarray(next(trainloader_source)),
             jnp.asarray(next(trainloader_target)), rng_train
         )
@@ -457,8 +457,8 @@ class W2NeuralDual:
       if self.amortization_loss == 'regression':
         amor_loss = ((init_source_hat - source_hat_detach) ** 2).mean()
       elif self.amortization_loss == 'objective':
-        f_value_parameters_detached = lambda x: f_value(
-            jax.lax.stop_gradient(params_f), x
+        f_value_parameters_detached = f_value(
+            jax.lax.stop_gradient(params_f), g_value_partial
         )
         amor_loss = (
             f_value_parameters_detached(init_source_hat) -
@@ -571,7 +571,8 @@ class W2NeuralDual:
 
     return potentials.DualPotentials(
         f=f_value,
-        g=g_value_prediction if not finetune_g else g_value_finetuned,
+        g=g_value_prediction if not finetune_g or self.conjugate_solver is None
+        else g_value_finetuned,
         cost_fn=costs.SqEuclidean(),
         corr=True
     )
@@ -604,8 +605,8 @@ class W2NeuralDual:
     )
 
     # jax categorical uses log probabilities
-    log_marginals_source = jnp.log(jnp.sum(out.marginal(1)))
-    log_marginals_target = jnp.log(jnp.sum(out.marginal(0)))
+    log_marginals_source = jnp.log(out.marginal(1))
+    log_marginals_target = jnp.log(out.marginal(0))
     rng_a, rng_b = jax.random.split(rng, 2)
     sample_idx_source = jax.random.categorical(
         rng_a, log_marginals_source, shape=[len(batch_source)]
