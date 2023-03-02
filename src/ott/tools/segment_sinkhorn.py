@@ -1,17 +1,16 @@
-# Copyright 2022 The OTT Authors.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Segmented sinkhorn utility."""
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple
 
@@ -38,7 +37,7 @@ def segment_sinkhorn(
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Compute `reg_ot_cost` between subsets of vectors described in `x` & `y`.
+  """Compute regularized OT cost between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn regularized OT cost between
   several point clouds of varying size, in parallel, using padding.
@@ -53,7 +52,7 @@ def segment_sinkhorn(
 
   For both interfaces, both `x` and `y` should contain the same total number of
   segments. Each segment will be padded as necessary, all segments rearranged as
-  a tensor, and :func:`jax.vmap` used to evaluate sinkhorn divergences in
+  a tensor, and :func:`jax.vmap` used to evaluate Sinkhorn divergences in
   parallel.
 
   Args:
@@ -84,17 +83,17 @@ def segment_sinkhorn(
     weights_y: Weights of each input points, arranged in the same segmented
       order as `y`.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
-      calls to the `sinkhorn` function, called three times to evaluate for each
-      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
-      `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
-      evaluated).
+      calls for the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver,
+      called three times to evaluate for each segment the Sinkhorn regularized
+      OT cost between `x`/`y`, `x`/`x`, and `y`/`y` (except when `static_b` is
+      `True`, in which case `y`/`y` is not evaluated).
     kwargs: keywords arguments passed to form
       :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, possibly a
       :class:`~ott.geometry.costs.CostFn` or an entropy regularizer.
 
   Returns:
-    An array of sinkhorn reg_ot_cost for each segment.
+    An array of Sinkhorn regularized OT costs for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]

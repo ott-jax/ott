@@ -12,6 +12,7 @@ Sinkhorn Solvers
 
     sinkhorn.solve
     sinkhorn.Sinkhorn
+    sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
     sinkhorn_lr.LRSinkhorn
     sinkhorn_lr.LRSinkhornOutput
@@ -21,9 +22,9 @@ Barycenter Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    continuous_barycenter.WassersteinBarycenter
-    continuous_barycenter.BarycenterState
-    discrete_barycenter.discrete_barycenter
+    continuous_barycenter.FreeWassersteinBarycenter
+    continuous_barycenter.FreeBarycenterState
+    discrete_barycenter.FixedBarycenter
     discrete_barycenter.SinkhornBarycenterOutput
 
 Sinkhorn Acceleration

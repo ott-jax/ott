@@ -78,7 +78,7 @@ The call to `solver(prob)` above works out the optimal transport solution. The `
 more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
 functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
 
-![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/images/couplings.png)
+![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/couplings.png)
 
 ## Citation
 If you have found this work useful, please consider citing this reference:

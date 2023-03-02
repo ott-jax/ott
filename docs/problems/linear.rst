@@ -11,7 +11,8 @@ OT Problems
     :toctree: _autosummary
 
     linear_problem.LinearProblem
-    barycenter_problem.BarycenterProblem
+    barycenter_problem.FixedBarycenterProblem
+    barycenter_problem.FreeBarycenterProblem
 
 Dual Potentials
 ---------------
