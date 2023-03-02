@@ -115,10 +115,12 @@ class W2NeuralDual:
       on the first marginal.
     tau_b: If `< 1`, defines how much unbalanced the problem is
       on the second marginal.
-    epsilon: regularisation parameter in the inner sinkhorn loop. Only relevant, if `tau_a!=1` or `tau_b!=1`.
-    sample_sinkhorn_kwargs: keyword arguments for :meth:`ott.solvers.linear.sinkhorn.solve`
-    geom_kwargs: keyword arguments for :class:`~ott.geometry.pointcloud.PointCloud`, constructed for inner
-      discrete sinkhorn loop
+    epsilon: regularisation parameter in the inner sinkhorn loop.
+      Only relevant, if `tau_a!=1` or `tau_b!=1`.
+    sample_sinkhorn_kwargs: keyword arguments for
+      :meth:`ott.solvers.linear.sinkhorn.solve`
+    geom_kwargs: keyword arguments for :class:`~ott.geometry.pointcloud.PointCloud`,
+      constructed for inner discrete sinkhorn loop
   """
 
   def __init__(
@@ -140,8 +142,11 @@ class W2NeuralDual:
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
-      init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-      init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+      epsilon: Optional[float] = None,
+      sample_sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+      geom_kwargs: Optional[Dict[str, Any]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -157,7 +162,8 @@ class W2NeuralDual:
     self.tau_a = tau_a
     self.tau_b = tau_b
     self.epsilon = epsilon
-    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None else sample_sinkhorn_kwargs
+    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None \
+      else sample_sinkhorn_kwargs
     self.geom_kwargs = {} if geom_kwargs is None else geom_kwargs
 
     # set default optimizers
@@ -229,7 +235,7 @@ class W2NeuralDual:
     def _compute_unbalanced_marginals(
       source_batch: jnp.ndarray, target_batch: jnp.ndarray
       ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        """Jitted function to compute the unbalanced log marginals given a batch."""
+        """Jitted function to compute the unbalanced log marginals."""
         geom = pointcloud.PointCloud(
           source_batch,
           target_batch,
@@ -343,14 +349,14 @@ class W2NeuralDual:
       if not self.is_balanced:
         # unbalanced resampling of the training batch
         rng_train, rng = jax.random.split(rng, 2)
-        log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
+        marginals_source, marginals_target = self.compute_unbalanced_marginals(
           train_batch["source"], train_batch["target"]
         )
         train_batch["source"] = self.unbalanced_resample(
-          rng_train, train_batch["source"], log_marginals_source
+          rng_train, train_batch["source"], marginals_source
         )
         train_batch["target"] = self.unbalanced_resample(
-          rng_train, train_batch["target"], log_marginals_target
+          rng_train, train_batch["target"], marginals_target
         )
 
       if update_forward:
@@ -434,14 +440,14 @@ class W2NeuralDual:
         if not self.is_balanced:
           # unbalanced resampling of the training batch
           rng_train, rng = jax.random.split(rng, 2)
-          log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
+          marginals_source, marginals_target = self.compute_unbalanced_marginals(
             train_batch["source"], train_batch["target"]
           )
           train_batch["source"] = self.unbalanced_resample(
-            rng_train, train_batch["source"], log_marginals_source
+            rng_train, train_batch["source"], marginals_source
           )
           train_batch["target"] = self.unbalanced_resample(
-            rng_train, train_batch["target"], log_marginals_target
+            rng_train, train_batch["target"], marginals_target
           )
         # update g
         self.state_g, loss_g, _ = self.train_step_g(

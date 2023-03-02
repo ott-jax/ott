@@ -222,6 +222,8 @@ def create_uniform_mixture_samplers(
   Args:
     name_source: name of the source sampler
     name_target: name of the target sampler
+    mixture_weights_source: weight of the source distribution
+    mixture_weights_target: weight of the target distribution
     train_batch_size: the training batch size
     valid_batch_size: the validation batch size
     rng: initial PRNG key
