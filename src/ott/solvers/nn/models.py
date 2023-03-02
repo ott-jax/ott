@@ -130,12 +130,10 @@ class ModelBase(abc.ABC, nn.Module):
       rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
       **kwargs: Any,
   ) -> NeuralTrainState:
     """Create initial training state."""
-    if params is None:
-      params = self.init(rng, jnp.ones(input))["params"]
+    params = self.init(rng, jnp.ones(input))["params"]
 
     return NeuralTrainState.create(
         apply_fn=self.apply,

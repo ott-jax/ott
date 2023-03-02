@@ -27,7 +27,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import core
-from flax.core import frozen_dict
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
@@ -102,8 +101,6 @@ class W2NeuralDual:
       :math:`g\approx f^\star`. Options are `'objective'` :cite:`makkuva:20` or
       `'regression'` :cite:`amos:23`.
     parallel_updates: Update :math:`f` and :math:`g` at the same time
-    init_f_params: initial parameters for :math:`f`
-    init_g_params: initial parameters for :math:`g`
   """
 
   def __init__(
@@ -125,8 +122,6 @@ class W2NeuralDual:
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
-      init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-      init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -156,16 +151,22 @@ class W2NeuralDual:
 
     # set optimizer and networks
     self.setup(
-        rng, neural_f, neural_g, dim_data, optimizer_f, optimizer_g,
-        init_f_params, init_g_params
+        rng,
+        neural_f,
+        neural_g,
+        dim_data,
+        optimizer_f,
+        optimizer_g,
     )
 
   def setup(
-      self, rng: jax.random.PRNGKeyArray, neural_f: models.ModelBase,
-      neural_g: models.ModelBase, dim_data: int, optimizer_f: optax.OptState,
+      self,
+      rng: jax.random.PRNGKeyArray,
+      neural_f: models.ModelBase,
+      neural_g: models.ModelBase,
+      dim_data: int,
+      optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
-      init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]],
-      init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]]
   ) -> None:
     """Setup all components required to train the network."""
     # split random number generator
@@ -189,10 +190,14 @@ class W2NeuralDual:
       neural_g.pos_weights = self.pos_weights
 
     self.state_f = neural_f.create_train_state(
-        rng_f, optimizer_f, dim_data, init_f_params
+        rng_f,
+        optimizer_f,
+        dim_data,
     )
     self.state_g = neural_g.create_train_state(
-        rng_g, optimizer_g, dim_data, init_g_params
+        rng_g,
+        optimizer_g,
+        dim_data,
     )
 
     # default to using back_and_forth with the non-convex models
