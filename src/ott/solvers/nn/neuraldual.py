@@ -437,34 +437,27 @@ class W2NeuralDual:
 
     for step in tqdm(range(self.num_train_iters)):
       # execute training steps
-      # get source batch
-      train_batch["source"] = jnp.asarray(next(trainloader_source))
-      if not self.is_balanced:
-        # save current target batch to resample
-        current_target_batch = jnp.asarray(next(trainloader_target))
-        log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
-          train_batch["source"], current_target_batch
-        )
       for _ in range(self.num_inner_iters):
-        # get target batch
-        # g update only dependant on target
+        # get training batch
+        train_batch["source"] = jnp.asarray(next(trainloader_source))
+        train_batch["target"] = jnp.asarray(next(trainloader_target))
         if not self.is_balanced:
-          rng, rng_train = jax.random.split(rng, 2)
-          # unbalanced resampling of current target batch
-          train_batch["target"] = self.unbalanced_resample(
-            rng_train, current_target_batch, log_marginals_target
+          # unbalanced resampling of the training batch
+          rng_train, rng = jax.random.split(rng, 2)
+          log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
+            train_batch["source"], train_batch["target"]
           )
-        else:
-          train_batch["target"] = jnp.asarray(next(trainloader_target))
+          train_batch["source"] = self.unbalanced_resample(
+            rng_train, train_batch["source"], log_marginals_source
+          )
+          train_batch["target"] = self.unbalanced_resample(
+            rng_train, train_batch["target"], log_marginals_target
+          )
+        # update g
         self.state_g, loss_g, _ = self.train_step_g(
             self.state_f, self.state_g, train_batch
         )
-
-      if not self.is_balanced:
-        # resample source batch
-        train_batch["source"] = self.unbalanced_resample(
-          rng_train,train_batch["source"],log_marginals_source
-        )
+      # update f
       self.state_f, loss_f, w_dist = self.train_step_f(
           self.state_f, self.state_g, train_batch
       )
