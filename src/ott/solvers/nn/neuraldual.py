@@ -416,32 +416,27 @@ class W2NeuralDual:
 
     for step in tqdm(range(self.num_train_iters)):
       # execute training steps
-      train_batch["source"] = jnp.asarray(next(trainloader_source))
-      if not self.is_balanced:
-        outer_loop_target_batch = jnp.asarray(next(trainloader_target))
-        log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
-          train_batch["source"], outer_loop_target_batch
-        )
       for _ in range(self.num_inner_iters):
-        rng, rng_train = jax.random.split(rng, 2)
-        # get batch for potential g
-        # update of g only dependent on the target
+        # get training batch
+        train_batch["source"] = jnp.asarray(next(trainloader_source))
+        train_batch["target"] = jnp.asarray(next(trainloader_target))
         if not self.is_balanced:
-          # unbalanced resampling based on computed marginals
+          # unbalanced resampling of the training batch
+          rng_train, rng = jax.random.split(rng, 2)
+          log_marginals_source, log_marginals_target = self.compute_unbalanced_marginals(
+            train_batch["source"], train_batch["target"]
+          )
+          train_batch["source"] = self.unbalanced_resample(
+            rng_train, train_batch["source"], log_marginals_source
+          )
           train_batch["target"] = self.unbalanced_resample(
-            rng_train, outer_loop_target_batch, log_marginals_source)
-        else:
-          train_batch["target"] = jnp.asarray(next(trainloader_source))
+            rng_train, train_batch["target"], log_marginals_target
+          )
+        # update g
         self.state_g, loss_g, _ = self.train_step_g(
             self.state_f, self.state_g, train_batch
         )
-
-      if not self.is_balanced:
-        train_batch["source"] = self.unbalanced_resample(
-          rng_train,
-          train_batch["source"],
-          log_marginals_source
-      )
+      # update f
       self.state_f, loss_f, w_dist = self.train_step_f(
           self.state_f, self.state_g, train_batch
       )
