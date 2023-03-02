@@ -10,7 +10,7 @@ Dataset
 .. autosummary::
     :toctree: _autosummary
 
-    dataset.gaussian_mixture_samplers
-    dataset.uniform_mixture_samplers
+    dataset.create_gaussian_mixture_samplers
+    dataset.create_uniform_mixture_samplers
     dataset.Dataset
     dataset.GaussianMixture
