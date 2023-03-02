@@ -94,11 +94,18 @@ class GaussianMixture:
   def create_sample_generators(self) -> Iterator[jnp.ndarray]:
     # create generator which randomly picks center and adds noise
     key = self.rng
-    while True:
+    
+    @jax.jit
+    def sample(key : jax.random.PRNGKeyArray):
+      """Jitted gaussian sample function."""
       k1, k2, key = jax.random.split(key, 3)
       means = jax.random.choice(k1, self.centers, [self.batch_size])
       normal_samples = jax.random.normal(k2, [self.batch_size, 2])
       samples = self.scale * means + self.variance ** 2 * normal_samples
+      return samples, key
+    
+    while True:
+      samples, key = sample(key)
       yield samples
 
 
@@ -176,24 +183,27 @@ class UniformMixture:
   def create_sample_generators(self) -> Iterator[jnp.ndarray]:
     # create generator which randomly picks center and adds noise
     key = self.rng
-    while True:
-      k1, k2, k3, key = jax.random.split(key, 4)
-      components = jax.random.choice(
-          k1, 2, shape=[self.batch_size], p=jnp.array(self.mixture_weights)
-      )
+
+    @jax.jit
+    def sample(key : jax.random.PRNGKeyArray):
+      """Jitted uniform sample function."""
+      k1, k2, key = jax.random.split(key, 3)
       samples_1 = jax.random.uniform(
-          k2,
-          shape=(len(components) - jnp.sum(components), 2),
-          minval=jnp.array(self.anchors[0]),
-          maxval=jnp.array(self.anchors[0]) + 1
+          k1,
+          shape=(int(self.batch_size * self.mixture_weights[0]), 2),
+          minval=jnp.array(self.anchors[0]) - 0.5,
+          maxval=jnp.array(self.anchors[0]) + 0.5
       )
       samples_2 = jax.random.uniform(
-          k3,
-          shape=(jnp.sum(components), 2),
-          minval=jnp.array(self.anchors[1]),
-          maxval=jnp.array(self.anchors[1]) + 1
+          k2,
+          shape=(int(self.batch_size * self.mixture_weights[1]), 2),
+          minval=jnp.array(self.anchors[1]) - 0.5,
+          maxval=jnp.array(self.anchors[1]) + 0.5
       )
-      samples = jnp.vstack((samples_1, samples_2))
+      return jnp.vstack((samples_1, samples_2)), key
+    
+    while True:
+      samples, key = sample(key)
       yield samples
 
 
