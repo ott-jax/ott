@@ -19,12 +19,12 @@ import jax.numpy as jnp
 import numpy as np
 
 __all__ = [
-    'create_gaussian_mixture_samplers', 'create_uniform_mixture_samplers', 'Dataset',
-    'GaussianMixture', 'UniformMixture'
+    "create_gaussian_mixture_samplers", "create_uniform_mixture_samplers",
+    "Dataset", "GaussianMixture", "UniformMixture"
 ]
 
-Arrangement_t = Literal['simple', 'circle', 'square_five', 'square_four']
-Position_t = Literal['top', 'bottom']
+Arrangement_t = Literal["simple", "circle", "square_five", "square_four"]
+Position_t = Literal["top", "bottom"]
 
 
 class Dataset(NamedTuple):
@@ -95,16 +95,16 @@ class GaussianMixture:
   def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
     # create generator which randomly picks center and adds noise
     key = self.rng
-    
+
     @jax.jit
-    def sample(key : jax.random.PRNGKeyArray):
+    def sample(key: jax.random.PRNGKeyArray):
       """Jitted gaussian sample function."""
       k1, k2, key = jax.random.split(key, 3)
       means = jax.random.choice(k1, self.centers, [self.batch_size])
       normal_samples = jax.random.normal(k2, [self.batch_size, 2])
       samples = self.scale * means + self.variance ** 2 * normal_samples
       return samples, key
-    
+
     while True:
       samples, key = sample(key)
       yield samples
@@ -171,11 +171,11 @@ class UniformMixture:
 
   def __post_init__(self):
     uniform_anchors = {
-        'bottom': [[0.0, 0.0], [5.0, 0.0]],
-        'top': [[0.0, 2.0], [5.0, 2.0]],
+        "bottom": [[0.0, 0.0], [5.0, 0.0]],
+        "top": [[0.0, 2.0], [5.0, 2.0]],
     }
     if self.name not in uniform_anchors:
-      raise ValueError(f'{self.name} is not a valid dataset for UniformMixture')
+      raise ValueError(f"{self.name} is not a valid dataset for UniformMixture")
     self.anchors = uniform_anchors[self.name]
 
   def __iter__(self) -> Iterator[jnp.ndarray]:
@@ -186,7 +186,7 @@ class UniformMixture:
     key = self.rng
 
     @jax.jit
-    def sample(key : jax.random.PRNGKeyArray):
+    def sample(key: jax.random.PRNGKeyArray):
       """Jitted uniform sample function."""
       k1, k2, key = jax.random.split(key, 3)
       samples_1 = jax.random.uniform(
@@ -202,7 +202,7 @@ class UniformMixture:
           maxval=jnp.array(self.anchors[1]) + 0.5
       )
       return jnp.vstack((samples_1, samples_2)), key
-    
+
     while True:
       samples, key = sample(key)
       yield samples
