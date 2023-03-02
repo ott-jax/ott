@@ -109,13 +109,11 @@ class W2NeuralDual:
       :math:`g\approx f^\star`. Options are `'objective'` :cite:`makkuva:20` or
       `'regression'` :cite:`amos:23`.
     parallel_updates: Update :math:`f` and :math:`g` at the same time
-    init_f_params: initial parameters for :math:`f`
-    init_g_params: initial parameters for :math:`g`
     tau_a: If `< 1`, defines how much unbalanced the problem is
       on the first marginal.
     tau_b: If `< 1`, defines how much unbalanced the problem is
       on the second marginal.
-    epsilon: regularisation parameter in the inner sinkhorn loop.
+    epsilon: regularization parameter in the inner sinkhorn loop.
       Only relevant, if `tau_a!=1` or `tau_b!=1`.
     sample_sinkhorn_kwargs: keyword arguments for
       :meth:`ott.solvers.linear.sinkhorn.solve`

@@ -291,7 +291,7 @@ class DualPotentials:
         :math:`(y_{\text{min}}, y_{\text{max}})`
       num_grid: number of points to discretize the domain into a grid
         along each dimension
-      displacement: whether to plot the displacement potential with resepct
+      displacement: whether to plot the displacement potential with respect
          to the half squared Euclidean distance
       contourf_kwargs: additional kwargs passed into
         :meth:`~matplotlib.axes.Axes.contourf`
