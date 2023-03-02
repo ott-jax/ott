@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the neural-based Kantorovich dual."""
-
 import warnings
 from typing import (
     Any,
@@ -30,7 +28,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import core
-from flax.core import frozen_dict
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import potentials
@@ -48,26 +45,21 @@ class W2NeuralDual:
   r"""Solver for the Wasserstein-2 Kantorovich dual between Euclidean spaces.
 
   Learn the Wasserstein-2 optimal transport between two measures
-  :math:`\alpha` and :math:`\beta` in
-  :math:`n`-dimensional Euclidean space,
-  denoted source and target, respectively.
-  This is achieved by parameterizing a Kantorovich potential
-  :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
-  associated with the :math:`\alpha` measure with
-  an :class:`~ott.solvers.nn.models.ICNN`,
-  :class:`~ott.solvers.nn.models.MLP`, or other
-  :class:`~ott.solvers.nn.models.ModelBase`, where
-  :math:`\nabla f` transports source to target cells.
-  This potential is learned by optimizing the dual
-  form associated with the negative inner product cost
+  :math:`\alpha` and :math:`\beta` in :math:`n`-dimensional Euclidean space,
+  denoted source and target, respectively. This is achieved by parameterizing
+  a Kantorovich potential :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
+  associated with the :math:`\alpha` measure with an
+  :class:`~ott.solvers.nn.models.ICNN`, :class:`~ott.solvers.nn.models.MLP`,
+  or other :class:`~ott.solvers.nn.models.ModelBase`, where :math:`\nabla f`
+  transports source to target cells. This potential is learned by optimizing
+  the dual form associated with the negative inner product cost
 
   .. math::
 
     \text{argsup}_{\theta}\; -\mathbb{E}_{x\sim\alpha}[f_\theta(x)] -
       \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)],
 
-  where
-  :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`
+  where :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`
   is the convex conjugate.
   :math:`\nabla f^\star` transports from the target
   to source cells and provides the inverse optimal
@@ -97,22 +89,25 @@ class W2NeuralDual:
   Args:
     dim_data: input dimensionality of data required for network init
     neural_f: network architecture for potential :math:`f`.
-    neural_g: network architecture for the conjugate potential :math:`g\approx f^\star`
+    neural_g: network architecture for the conjugate potential
+      :math:`g\approx f^\star`
     optimizer_f: optimizer function for potential :math:`f`
     optimizer_g: optimizer function for the conjugate potential :math:`g`
     num_train_iters: number of total training iterations
-    num_inner_iters: number of training iterations of :math:`g` per iteration of :math:`f`
-    back_and_forth: alternate between updating the forward and backward directions.
-      Inspired from :cite:`jacobs:20`
+    num_inner_iters: number of training iterations of :math:`g` per iteration
+      of :math:`f`
+    back_and_forth: alternate between updating the forward and backward
+      directions. Inspired from :cite:`jacobs:20`
     valid_freq: frequency with which model is validated
     log_freq: frequency with training and validation are logged
     logging: option to return logs
-    seed: random seed for network initializations
+    rng: random key used for seeding for network initializations
     pos_weights: option to train networks with positive weights or regularizer
     beta: regularization parameter when not training with positive weights
     conjugate_solver: numerical solver for the Fenchel conjugate.
-    amortization_loss: amortization loss for the conjugate :math:`g\approx f^\star`.
-      Options are 'objective' :cite:`makkuva:20` or 'regression' :cite:`amos:23`.
+    amortization_loss: amortization loss for the conjugate
+      :math:`g\approx f^\star`. Options are `'objective'` :cite:`makkuva:20` or
+      `'regression'` :cite:`amos:23`.
     parallel_updates: Update :math:`f` and :math:`g` at the same time
     init_f_params: initial parameters for :math:`f`
     init_g_params: initial parameters for :math:`g`
@@ -147,11 +142,6 @@ class W2NeuralDual:
       parallel_updates: bool = True,
       init_f_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
       init_g_params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-      tau_a: float = 1.0,
-      tau_b: float = 1.0,
-      epsilon: Optional[float] = None,
-      sample_sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
-      geom_kwargs: Optional[Dict[str, Any]] = None,
   ):
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
@@ -423,7 +413,7 @@ class W2NeuralDual:
       callback: Optional[Callback_t] = None,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> Train_t:
-    """Implementation of the training and validation with alternating updates."""  # noqa: D401
+    """Training and validation with alternating updates."""
     try:
       from tqdm.auto import tqdm
     except ImportError:
@@ -475,7 +465,7 @@ class W2NeuralDual:
       if self.logging and step % self.log_freq == 0:
         self._update_logs(train_logs, loss_f, loss_g, w_dist)
 
-      # report the loss on an validuation dataset periodically
+      # report the loss on validation dataset periodically
       if step != 0 and step % self.valid_freq == 0:
         # get batch
         valid_batch["source"] = jnp.asarray(next(validloader_source))

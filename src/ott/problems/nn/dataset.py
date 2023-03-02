@@ -217,14 +217,14 @@ def create_uniform_mixture_samplers(
     valid_batch_size: int = 2048,
     rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
-  """Creates Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
   Args:
     name_source: name of the source sampler
     name_target: name of the target sampler
     train_batch_size: the training batch size
     valid_batch_size: the validation batch size
-    key: initial PRNG key
+    rng: initial PRNG key
 
   Returns:
     The dataset and dimension of the data.
