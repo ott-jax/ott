@@ -117,7 +117,7 @@ class W2NeuralDual:
       :func:`~ott.solvers.linear.sinkhorn.solve`
     geom_kwargs: keyword arguments for
       :class:`~ott.geometry.pointcloud.PointCloud`, constructed
-      for inner discrete sinkhorn loop
+      for inner discrete Sinkhorn loop
   """
 
   def __init__(
