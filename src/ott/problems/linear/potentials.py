@@ -314,10 +314,10 @@ class DualPotentials:
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
     if displacement:
-      Zflat = 1 / 2 * (jnp.linalg.norm(X12flat, axis=-1) ** 2) - Zflat
+      Zflat = 0.5 * (jnp.linalg.norm(X12flat, axis=-1) ** 2) - Zflat
     Zflat = np.asarray(Zflat)
-    vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
-    Zflat = Zflat.clip(vmin, vmax)
+    #vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
+    #Zflat = Zflat.clip(vmin, vmax)
     Z = Zflat.reshape(X1.shape)
 
     CS = ax.contourf(X1, X2, Z, cmap="Blues", **contourf_kwargs)

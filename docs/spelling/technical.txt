@@ -124,6 +124,7 @@ subsample
 subsampled
 thresholding
 transcriptome
+unbalancedness
 undirected
 vectorized
 voxel

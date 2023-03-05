@@ -19,8 +19,8 @@ import jax.numpy as jnp
 import numpy as np
 
 __all__ = [
-    "create_gaussian_mixture_samplers", "create_uniform_mixture_samplers",
-    "Dataset", "GaussianMixture", "UniformMixture"
+    "gaussian_mixture_samplers", "uniform_mixture_samplers", "Dataset",
+    "GaussianMixture", "UniformMixture"
 ]
 
 Arrangement_t = Literal["simple", "circle", "square_five", "square_four"]
@@ -90,6 +90,11 @@ class GaussianMixture:
     self.centers = gaussian_centers[self.name]
 
   def __iter__(self) -> Iterator[jnp.ndarray]:
+    """Random sample generator from Gaussian mixture.
+
+    Returns:
+      A generator of samples from the Gaussian mixture.
+    """
     return self._create_sample_generators()
 
   def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
@@ -110,7 +115,7 @@ class GaussianMixture:
       yield samples
 
 
-def create_gaussian_mixture_samplers(
+def gaussian_mixture_samplers(
     name_source: Arrangement_t,
     name_target: Arrangement_t,
     train_batch_size: int = 2048,
@@ -156,9 +161,8 @@ class UniformMixture:
 
   Args:
     name: the name specifying position of mixture of Gaussian:
-
-        - ``top`` (uniform distributions on top),
-        - ``bottom`` (uniform distributions at the bottom),
+        - ``'top'`` (uniform distributions on top),
+        - ``'bottom'`` (uniform distributions at the bottom),
 
     batch_size: batch size of the samples
     rng: initial PRNG key
@@ -179,6 +183,11 @@ class UniformMixture:
     self.anchors = uniform_anchors[self.name]
 
   def __iter__(self) -> Iterator[jnp.ndarray]:
+    """Random sample generator from uniform mixture.
+
+    Returns:
+      A generator of samples from the uniform mixture.
+    """
     return self._create_sample_generators()
 
   def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
@@ -208,7 +217,7 @@ class UniformMixture:
       yield samples
 
 
-def create_uniform_mixture_samplers(
+def uniform_mixture_samplers(
     name_source: Position_t,
     name_target: Position_t,
     mixture_weights_source: Tuple[float, float],

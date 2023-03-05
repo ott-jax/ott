@@ -83,7 +83,7 @@ class W2NeuralDual:
   Analogous to the discrete setting, if `tau_a` or `tau_b` is not equal to
   1.0, the problem is unbalanced. Following :cite:`eyring:22` and
   :cite:`luebeck:22`, an unbalanced problem is solved for each batch with
-  parameters `tau_a`, `tau_b` and `epsilon`. The samples are re-sampled
+  parameters `tau_a` and `tau_b`. The samples are re-sampled
   according to the posterior marginals.
 
   Args:
@@ -109,14 +109,12 @@ class W2NeuralDual:
       :math:`g\approx f^\star`. Options are `'objective'` :cite:`makkuva:20` or
       `'regression'` :cite:`amos:23`.
     parallel_updates: Update :math:`f` and :math:`g` at the same time
-    tau_a: If `< 1`, defines how much unbalanced the problem is
+    tau_a: If :math:`<1`, defines how much unbalanced the problem is
       on the first marginal.
-    tau_b: If `< 1`, defines how much unbalanced the problem is
+    tau_b: If :math:`<1`, defines how much unbalanced the problem is
       on the second marginal.
-    epsilon: regularization parameter in the inner sinkhorn loop.
-      Only relevant, if `tau_a!=1` or `tau_b!=1`.
-    sample_sinkhorn_kwargs: keyword arguments for
-      :meth:`ott.solvers.linear.sinkhorn.solve`
+    sinkhorn_kwargs: keyword arguments for
+      :func:`~ott.solvers.linear.sinkhorn.solve`
     geom_kwargs: keyword arguments for
       :class:`~ott.geometry.pointcloud.PointCloud`, constructed
       for inner discrete sinkhorn loop
@@ -143,8 +141,7 @@ class W2NeuralDual:
       parallel_updates: bool = True,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      epsilon: Optional[float] = None,
-      sample_sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
+      sinkhorn_kwargs: Optional[Dict[str, Any]] = None,
       geom_kwargs: Optional[Dict[str, Any]] = None,
   ):
     self.num_train_iters = num_train_iters
@@ -160,10 +157,10 @@ class W2NeuralDual:
     self.amortization_loss = amortization_loss
     self.tau_a = tau_a
     self.tau_b = tau_b
-    self.epsilon = epsilon
-    self.sample_sinkhorn_kwargs = {} if sample_sinkhorn_kwargs is None \
-      else sample_sinkhorn_kwargs
-    self.geom_kwargs = {} if geom_kwargs is None else geom_kwargs
+    self.sinkhorn_kwargs = sinkhorn_kwargs or {}
+    self.geom_kwargs = geom_kwargs or {}
+    self.geom_kwargs.setdefault("scale_cost", "mean")
+    self.geom_kwargs.setdefault("epsilon", 1e-2)
 
     # set default optimizers
     if optimizer_f is None:
@@ -231,41 +228,35 @@ class W2NeuralDual:
     )
 
     @jax.jit
-    def _get_unbalanced_marginals(
-        source_batch: jnp.ndarray, target_batch: jnp.ndarray
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-      """Jitted function to compute the unbalanced log marginals."""
-      geom = pointcloud.PointCloud(
-          source_batch,
-          target_batch,
-          epsilon=self.epsilon,
-          scale_cost=self.geom_kwargs.pop("scale_cost", "mean"),
-          **self.geom_kwargs
-      )
+    def _unbalanced_resample(
+        key: jax.random.KeyArray, batch: Dict[str, jnp.ndarray]
+    ) -> Dict[str, jnp.ndarray]:
+      """Jitted function to unbalanced resample a batch."""
+      source, target = batch["source"], batch["target"]
+      # compute unbalanced coupling
+      geom = pointcloud.PointCloud(source, target, **self.geom_kwargs)
       out = sinkhorn.solve(
           geom,
           tau_a=self.tau_a,
           tau_b=self.tau_b,
           jit=False,
-          **self.sample_sinkhorn_kwargs
+          **self.sinkhorn_kwargs
       )
-      # return log probabilities
-      return jnp.log(out.marginal(1)), jnp.log(out.marginal(0))
-
-    @jax.jit
-    def _unbalanced_resample(
-        key: jax.random.KeyArray,
-        batch: jnp.ndarray,
-        log_marginals: jnp.ndarray,
-    ) -> jnp.ndarray:
-      """Jitted resample function of a batch based upon log marginals."""
-      # sample from marginals
-      indices = jax.random.categorical(
-          key, log_marginals, shape=[batch.shape[0]]
+      # compute log marginals to sample from
+      log_a, log_b = jnp.log(out.marginal(1)), jnp.log(out.marginal(0))
+      log_a = jnp.where(jnp.isfinite(log_a), log_a, 0.0)
+      log_b = jnp.where(jnp.isfinite(log_b), log_b, 0.0)
+      indices_source = jax.random.categorical(
+          key, log_a, shape=source.shape[:1]
       )
-      return batch[indices]
+      indices_target = jax.random.categorical(
+          key, log_b, shape=target.shape[:1]
+      )
+      return {
+          "source": source[indices_source],
+          "target": target[indices_target]
+      }
 
-    self.get_unbalanced_marginals = _get_unbalanced_marginals
     self.unbalanced_resample = _unbalanced_resample
 
     # default to using back_and_forth with the non-convex models
@@ -313,7 +304,7 @@ class W2NeuralDual:
         validloader_target,
         callback=callback,
     )
-    res = self.to_dual_potentials(finetune_g=self.conjugate_solver is not None)
+    res = self.to_dual_potentials()
 
     return (res, logs) if self.logging else res
 
@@ -350,15 +341,7 @@ class W2NeuralDual:
       if not self.is_balanced:
         # unbalanced resampling of the training batch
         rng_train, rng = jax.random.split(rng, 2)
-        marginals_source, marginals_target = self.get_unbalanced_marginals(
-            train_batch["source"], train_batch["target"]
-        )
-        train_batch["source"] = self.unbalanced_resample(
-            rng_train, train_batch["source"], marginals_source
-        )
-        train_batch["target"] = self.unbalanced_resample(
-            rng_train, train_batch["target"], marginals_target
-        )
+        train_batch = self.unbalanced_resample(rng_train, train_batch)
 
       if update_forward:
         (self.state_f, self.state_g, loss, loss_f, loss_g,
@@ -382,12 +365,7 @@ class W2NeuralDual:
         )
 
       if callback is not None:
-        _ = callback(
-            step,
-            self.to_dual_potentials(
-                finetune_g=self.conjugate_solver is not None
-            )
-        )
+        _ = callback(step, self.to_dual_potentials())
 
       if not self.pos_weights:
         # Only clip the weights of the f network
@@ -444,15 +422,7 @@ class W2NeuralDual:
         if not self.is_balanced:
           # unbalanced resampling of the training batch
           rng_train, rng = jax.random.split(rng, 2)
-          marginals_source, marginals_target = self.get_unbalanced_marginals(
-              train_batch["source"], train_batch["target"]
-          )
-          train_batch["source"] = self.unbalanced_resample(
-              rng_train, train_batch["source"], marginals_source
-          )
-          train_batch["target"] = self.unbalanced_resample(
-              rng_train, train_batch["target"], marginals_target
-          )
+          train_batch = self.unbalanced_resample(rng_train, train_batch)
         # update g
         self.state_g, loss_g, _ = self.train_step_g(
             self.state_f, self.state_g, train_batch
@@ -468,12 +438,7 @@ class W2NeuralDual:
         )
 
       if callback is not None:
-        callback(
-            step,
-            self.to_dual_potentials(
-                finetune_g=self.conjugate_solver is not None
-            )
-        )
+        callback(step, self.to_dual_potentials())
 
       if self.logging and step % self.log_freq == 0:
         self._update_logs(train_logs, loss_f, loss_g, w_dist)
