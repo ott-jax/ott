@@ -93,7 +93,7 @@ class Graph(geometry.Geometry):
       The graph geometry.
     """
     if directed:
-      G = (G + G.T) / 2.0
+      G = G + G.T
 
     degree = jnp.sum(G, axis=1)
     laplacian = jnp.diag(degree) - G
