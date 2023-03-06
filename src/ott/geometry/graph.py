@@ -72,10 +72,10 @@ class Graph(geometry.Geometry):
       normalize: bool = False,
       **kwargs: Any
   ) -> "Graph":
-    r"""TODO.
+    r"""Construct :class:`~ott.geometry.graph.Graph` from an adjacency matrix.
 
     Args:
-      G: Adjacency matrix with positive edges.
+      G: Adjacency matrix.
       t: Constant used when approximating the geodesic exponential kernel.
         If `None`, use :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
         :cite:`crane:13`. In this case, the ``graph`` must be specified
@@ -92,6 +92,8 @@ class Graph(geometry.Geometry):
     Returns:
       The graph geometry.
     """
+    assert G.shape[0] == G.shape[1], G.shape
+
     if directed:
       G = G + G.T
 
