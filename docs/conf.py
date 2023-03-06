@@ -122,6 +122,7 @@ linkcheck_ignore = [
     "https://doi.org/10.1137/19M1301047",
     "https://doi.org/10.1137/17M1140431",
     "https://doi.org/10.1137/141000439",
+    "https://doi.org/10.1002/mana.19901470121",
 ]
 
 # List of patterns, relative to source directory, that match files and
