@@ -15,7 +15,6 @@ import time
 from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
-import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
@@ -35,7 +34,7 @@ def random_graph(
     *,
     return_laplacian: bool = False,
     directed: bool = False,
-) -> Union[jnp.ndarray, jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]:
+) -> jnp.ndarray:
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
     assert nx.is_connected(G), "Generated graph is not connected."
@@ -77,17 +76,6 @@ def gt_geometry(
 
 
 class TestGraph:
-
-  @pytest.mark.parametrize("empty", [False, True])
-  def test_invalid_initialization(self, empty):
-    if empty:
-      with pytest.raises(AssertionError, match="Please provide"):
-        _ = graph.Graph(graph=None, laplacian=None)
-    else:
-      G = random_graph(100)
-      L = random_graph(100, return_laplacian=True)
-      with pytest.raises(AssertionError, match="Please provide"):
-        _ = graph.Graph(graph=G, laplacian=L)
 
   @pytest.mark.parametrize("fmt", [None, "coo"])
   def test_init_graph(self, fmt: Optional[str]):

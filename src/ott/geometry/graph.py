@@ -75,7 +75,7 @@ class Graph(geometry.Geometry):
     r"""TODO.
 
     Args:
-      G: Adjacency matrix.
+      G: Adjacency matrix with positive edges.
       t: Constant used when approximating the geodesic exponential kernel.
         If `None`, use :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
         :cite:`crane:13`. In this case, the ``graph`` must be specified
@@ -99,7 +99,9 @@ class Graph(geometry.Geometry):
     laplacian = jnp.diag(degree) - G
 
     if normalize:
-      inv_sqrt_deg = jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+      inv_sqrt_deg = jnp.diag(
+          jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+      )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
     if t is None:
@@ -125,7 +127,7 @@ class Graph(geometry.Geometry):
     """
 
     def conf_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray,]],
+        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
         old_new: Tuple[jnp.ndarray, jnp.ndarray]
     ) -> bool:
       del iteration, consts
@@ -139,7 +141,7 @@ class Graph(geometry.Geometry):
       return (jnp.nanmax(f) - jnp.nanmin(f)) > self.tol
 
     def body_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray,]],
+        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
         old_new: Tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
       del iteration, compute_errors
