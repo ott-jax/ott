@@ -20,7 +20,6 @@ dependencies = [
     "numpy>=1.18.4, !=1.23.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
-    "scipy>=1.7.0",
 ]
 keywords = [
     "optimal transport",
@@ -72,6 +71,7 @@ test = [
     "chex",
     "networkx>=2.5",
     "scikit-learn>=1.0",
+    # tslearn needs numba, which isn't supported for 3.11
     "tslearn>=0.5; python_version < '3.11'",
 ]
 docs = [
@@ -176,7 +176,6 @@ legacy_tox_ini = """
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
-    deps = py{3.8,3.9,3.10}: scikit-sparse>=0.4.6
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'

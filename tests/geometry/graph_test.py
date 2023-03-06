@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -23,13 +23,9 @@ import pytest
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from ott.geometry import geometry, graph
-from ott.math import decomposition
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-
-# we mix both dense/sparse tests
-_ = pytest.importorskip("sksparse", reason="Not supported for Python 3.11")
 
 
 def random_graph(
@@ -39,7 +35,6 @@ def random_graph(
     *,
     return_laplacian: bool = False,
     directed: bool = False,
-    fmt: Optional[Literal["csr", "csc", "coo"]] = None
 ) -> Union[jnp.ndarray, jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]:
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
@@ -53,11 +48,7 @@ def random_graph(
       G
   ) if return_laplacian else nx.linalg.adjacency_matrix(G)
 
-  if fmt is None:
-    return jnp.asarray(G.A)
-
-  G = getattr(G, f"to{fmt}")()
-  return decomposition._scipy_sparse_to_jax(G)
+  return jnp.asarray(G.A)
 
 
 def gt_geometry(
@@ -147,27 +138,6 @@ class TestGraph:
     assert geom1.numerical_scheme == geom2.numerical_scheme
     assert geom1.directed == geom2.directed
     assert geom1._solver == geom2._solver
-
-  @pytest.mark.parametrize("fmt", [None, "csr", "csc", "coo"])
-  def test_solver(self, fmt: Optional[str]):
-    n = 27
-    G = random_graph(n, fmt=fmt, return_laplacian=True)
-    geom1 = graph.Graph(laplacian=G)
-
-    assert geom1._solver is None
-    solver = geom1.solver
-    assert geom1.solver is solver  # cached
-
-    if geom1.is_sparse:
-      assert isinstance(solver, decomposition.SparseCholeskySolver)
-      L = solver.L  # trigger the computation
-      assert L is None  # we're interested in the side-effect below
-      assert hash(geom1) in decomposition.SparseCholeskySolver._FACTOR_CACHE
-    else:
-      assert isinstance(solver, decomposition.DenseCholeskySolver)
-      np.testing.assert_array_equal(solver.A, geom1._M)
-      assert isinstance(solver.L, jnp.ndarray)
-      assert solver.L.shape == (n, n)
 
   @pytest.mark.fast.with_args("fmt", [None, "coo"], only_fast=0)
   def test_kernel_is_symmetric_positive_definite(
@@ -359,30 +329,6 @@ class TestGraph:
     time_cached = callback(geom, x)
 
     assert time_cached < time_non_cached
-
-  @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.skip(reason="Buggy")
-  def test_factor_cache_unique(self, jit: bool):
-
-    def callback(g: graph.Graph) -> decomposition.CholeskySolver:
-      # run the decomposition
-      return g.solver
-
-    G1 = random_graph(12, p=0.7, fmt="coo")
-    G2 = random_graph(13, p=0.6, fmt="coo")
-    geom1 = graph.Graph(G1)
-    geom2 = graph.Graph(G2)
-    key1, key2 = hash(geom1), hash(geom2)
-    fn = jax.jit(callback) if jit else callback
-
-    assert key1 not in decomposition.SparseCholeskySolver._FACTOR_CACHE
-    assert key2 not in decomposition.SparseCholeskySolver._FACTOR_CACHE
-
-    _ = fn(geom1)
-    _ = fn(geom2)
-
-    assert key1 in decomposition.SparseCholeskySolver._FACTOR_CACHE
-    assert key2 in decomposition.SparseCholeskySolver._FACTOR_CACHE
 
   # Total memory allocated: 99.1MiB
   @pytest.mark.fast()
