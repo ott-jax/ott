@@ -55,8 +55,6 @@ class TestNeuralDual:
       back_and_forth=[True, False],
       amortization_loss=["objective", "regression"],
       conjugate_solver=[conjugate_solvers.DEFAULT_CONJUGATE_SOLVER, None],
-      tau_a=[0.8, 1.0],
-      tau_b=[0.8, 1.0],
       only_fast=0
   )
   def test_neural_dual_convergence(

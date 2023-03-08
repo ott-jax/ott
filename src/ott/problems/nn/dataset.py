@@ -161,8 +161,9 @@ class UniformMixture:
 
   Args:
     name: the name specifying position of mixture of Gaussian:
-        - ``'top'`` (uniform distributions on top),
-        - ``'bottom'`` (uniform distributions at the bottom),
+
+      - ``'top'`` (uniform distributions on top),
+      - ``'bottom'`` (uniform distributions at the bottom),
 
     batch_size: batch size of the samples
     rng: initial PRNG key
@@ -226,7 +227,7 @@ def uniform_mixture_samplers(
     valid_batch_size: int = 2048,
     rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> Tuple[Dataset, Dataset, int]:
-  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Uniform samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
   Args:
     name_source: name of the source sampler

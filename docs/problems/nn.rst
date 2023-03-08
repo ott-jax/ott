@@ -12,5 +12,3 @@ Dataset
 
     dataset.gaussian_mixture_samplers
     dataset.uniform_mixture_samplers
-    dataset.Dataset
-    dataset.GaussianMixture
