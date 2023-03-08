@@ -239,6 +239,7 @@ legacy_tox_ini = """
     [testenv:format-references]
     description = Format references.bib.
     deps =
+    skip_install = true
     allowlist_externals = biber
     commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
         --output_align --output_indent=2 --output_fieldcase=lower \
