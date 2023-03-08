@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from . import (
-    decomposition,
     fixed_point_loop,
     matrix_square_root,
     unbalanced_functions,
