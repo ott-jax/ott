@@ -64,8 +64,6 @@ class TestNeuralDual:
       back_and_forth: bool,
       amortization_loss: str,
       conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
-      tau_a: float,
-      tau_b: float,
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 
@@ -89,8 +87,6 @@ class TestNeuralDual:
         back_and_forth=back_and_forth,
         amortization_loss=amortization_loss,
         conjugate_solver=conjugate_solver,
-        tau_a=tau_a,
-        tau_b=tau_b,
     )
     train_dataset, valid_dataset = datasets
     neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
