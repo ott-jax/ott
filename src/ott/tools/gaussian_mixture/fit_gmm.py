@@ -17,7 +17,7 @@ Sample usage:
 
 # initialize GMM with K-means++
 gmm_init = fit_gmm.initialize(
-  key=key,
+  rng=rng,
   points=my_points,
   point_weights=None,
   n_components=COMPONENTS)
@@ -166,7 +166,7 @@ def fit_model_em(
     assignment_probs = e_step_fn(gmm, points)
     gmm_new = m_step_fn(points, point_weights, assignment_probs)
     if gmm_new.has_nans():
-      raise ValueError('NaNs in fit.')
+      raise ValueError("NaNs in fit.")
     if verbose:
       loss = loss_fn(gmm_new, points, point_weights)
       q = get_q_fn(
@@ -175,7 +175,7 @@ def fit_model_em(
           points=points,
           point_weights=point_weights
       )
-      print(f'{i}  q={q}  -log prob={loss}', flush=True)
+      print(f"{i}  q={q}  -log prob={loss}")  # noqa: T201
     gmm = gmm_new
   return gmm
 
@@ -195,12 +195,12 @@ def _get_dist_sq(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
 
 
 def _get_locs(
-    key: jnp.ndarray, points: jnp.ndarray, n_components: int
+    rng: jax.random.PRNGKeyArray, points: jnp.ndarray, n_components: int
 ) -> jnp.ndarray:
   """Get the initial component means.
 
   Args:
-    key: jax.random seed
+    rng: jax.random key
     points: (n, n_dimensions) array of observations
     n_components: desired number of components
 
@@ -210,8 +210,8 @@ def _get_locs(
   points = points.copy()
   n_points = points.shape[0]
   weights = jnp.ones(n_points) / n_points
-  key, subkey = jax.random.split(key)
-  index = jax.random.choice(key=subkey, a=points.shape[0], p=weights)
+  rng, subrng = jax.random.split(rng)
+  index = jax.random.choice(key=subrng, a=points.shape[0], p=weights)
   loc = points[index]
   points = jnp.concatenate([points[:index], points[index + 1:]], axis=0)
 
@@ -220,8 +220,8 @@ def _get_locs(
     dist_sq = _get_dist_sq(points, locs)
     min_dist_sq = jnp.min(dist_sq, axis=-1)
     weights = min_dist_sq / jnp.sum(min_dist_sq)
-    key, subkey = jax.random.split(key)
-    index = jax.random.choice(key=subkey, a=points.shape[0], p=weights)
+    rng, subrng = jax.random.split(rng)
+    index = jax.random.choice(key=subrng, a=points.shape[0], p=weights)
     loc = points[index]
     points = jnp.concatenate([points[:index], points[index + 1:]], axis=0)
     locs = jnp.concatenate([locs, loc[None]], axis=0)
@@ -229,7 +229,7 @@ def _get_locs(
 
 
 def from_kmeans_plusplus(
-    key: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     points: jnp.ndarray,
     point_weights: Optional[jnp.ndarray],
     n_components: int,
@@ -237,7 +237,7 @@ def from_kmeans_plusplus(
   """Initialize a GMM via a single pass of K-means++.
 
   Args:
-    key: jax.random seed
+    rng: jax.random key
     points: (n, n_dimensions) array of observations
     point_weights: (n,) array of weights for points
     n_components: desired number of components
@@ -248,8 +248,8 @@ def from_kmeans_plusplus(
   Raises:
     ValueError if any fitted parameters are non-finite.
   """
-  key, subkey = jax.random.split(key)
-  locs = _get_locs(key=subkey, points=points, n_components=n_components)
+  rng, subrng = jax.random.split(rng)
+  locs = _get_locs(rng=subrng, points=points, n_components=n_components)
   dist_sq = _get_dist_sq(points, locs)
   assignment_prob = (dist_sq == jnp.min(dist_sq,
                                         axis=-1)[:, None]).astype(points.dtype)
@@ -265,7 +265,7 @@ def from_kmeans_plusplus(
 
 
 def initialize(
-    key: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     points: jnp.ndarray,
     point_weights: Optional[jnp.ndarray],
     n_components: int,
@@ -275,7 +275,7 @@ def initialize(
   """Initialize a GMM via K-means++ with retries on failure.
 
   Args:
-    key: jax.random seed
+    rng: jax.random key
     points: (n, n_dimensions) array of observations
     point_weights: (n,) array of weights for points
     n_components: desired number of components
@@ -289,15 +289,15 @@ def initialize(
     ValueError if initialization was unsuccessful after n_attempts attempts.
   """
   for attempt in range(n_attempts):
-    key, subkey = jax.random.split(key)
+    rng, subrng = jax.random.split(rng)
     try:
       return from_kmeans_plusplus(
-          key=subkey,
+          rng=subrng,
           points=points,
           point_weights=point_weights,
           n_components=n_components
       )
     except ValueError:
       if verbose:
-        print(f'Failed to initialize, attempt {attempt}.', flush=True)
-  raise ValueError('Failed to initialize.')
+        print(f"Failed to initialize, attempt {attempt}.")  # noqa: T201
+  raise ValueError("Failed to initialize.")

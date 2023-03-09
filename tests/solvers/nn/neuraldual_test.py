@@ -1,4 +1,3 @@
-#
 # Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for implementation of ICNN-based Kantorovich dual by Makkuva+(2020)."""
-from typing import Sequence, Tuple
-
-import pytest
+"""Tests for implementation of the neural Kantorovich dual."""
+from typing import Optional, Sequence, Tuple
 
 import jax
 import numpy as np
-
+import pytest
 from ott.problems.nn import dataset
-from ott.solvers.nn import models, neuraldual
+from ott.solvers.nn import conjugate_solvers, models, neuraldual
 
 ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
 DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]
@@ -37,28 +34,36 @@ def datasets(request: Tuple[str, str]) -> DatasetPair_t:
 
 @pytest.fixture(params=["icnns", "mlps", "mlps-grad"])
 def neural_models(request: str) -> ModelPair_t:
-  if request.param == 'icnns':
+  if request.param == "icnns":
     return (
         models.ICNN(dim_data=2, dim_hidden=[128]),
         models.ICNN(dim_data=2, dim_hidden=[128])
     )
-  elif request.param == 'mlps':
-    return (models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]))
-  elif request.param == 'mlps-grad':
+  if request.param == "mlps":
+    return models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]),
+  if request.param == "mlps-grad":
     return (
         models.MLP(dim_hidden=[128]),
         models.MLP(is_potential=False, dim_hidden=[128])
     )
-  else:
-    raise ValueError(f'Invalid request: {request.param}')
+  raise ValueError(f"Invalid request: {request.param}")
 
 
 class TestNeuralDual:
 
-  @pytest.mark.fast.with_args("back_and_forth", [True, False])
+  @pytest.mark.fast.with_args(
+      back_and_forth=[True, False],
+      amortization_loss=["objective", "regression"],
+      conjugate_solver=[conjugate_solvers.DEFAULT_CONJUGATE_SOLVER, None],
+      only_fast=0
+  )
   def test_neural_dual_convergence(
-      self, datasets: DatasetPair_t, neural_models: ModelPair_t,
-      back_and_forth: bool
+      self,
+      datasets: DatasetPair_t,
+      neural_models: ModelPair_t,
+      back_and_forth: bool,
+      amortization_loss: str,
+      conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 
@@ -80,13 +85,15 @@ class TestNeuralDual:
         logging=True,
         log_freq=log_freq,
         back_and_forth=back_and_forth,
+        amortization_loss=amortization_loss,
+        conjugate_solver=conjugate_solver,
     )
     train_dataset, valid_dataset = datasets
     neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
 
     # check if training loss of f is increasing and g is decreasing
-    assert increasing(logs['train_logs']['loss_f'])
-    assert decreasing(logs['train_logs']['loss_g'])
+    assert increasing(logs["train_logs"]["loss_f"])
+    assert decreasing(logs["train_logs"]["loss_g"])
 
   def test_neural_dual_jit(self, datasets: DatasetPair_t):
     num_train_iters = 10

@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Sinkhorn divergence."""
 from typing import Any, Dict, Optional
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.solvers.linear import acceleration, sinkhorn
 from ott.tools import sinkhorn_divergence
@@ -29,7 +26,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 class TestSinkhornDivergence:
 
   @pytest.fixture(autouse=True)
-  def setUp(self, rng: jnp.ndarray):
+  def setUp(self, rng: jax.random.PRNGKeyArray):
     self._dim = 4
     self._num_points = 13, 17
     self.rng, *rngs = jax.random.split(rng, 3)
@@ -82,14 +79,14 @@ class TestSinkhornDivergence:
         x,
         cost_fn=cost_fn,
         epsilon=1e-1,
-        sinkhorn_kwargs={'inner_iterations': 1},
+        sinkhorn_kwargs={"inner_iterations": 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
     iters_xx = jnp.sum(div.errors[0] > 0)
     iters_xx_sym = jnp.sum(div.errors[1] > 0)
     assert iters_xx >= iters_xx_sym
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_autoepsilon(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
@@ -140,7 +137,7 @@ class TestSinkhornDivergence:
     assert len(div.potentials) == 3
     assert len(div.geoms) == 3
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_unbalanced_wrapper(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
@@ -218,8 +215,8 @@ class TestSinkhornDivergence:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    geom_kwargs = dict(epsilon=0.01)
-    sinkhorn_kwargs = dict(threshold=1e-2)
+    geom_kwargs = {"epsilon": 0.01}
+    sinkhorn_kwargs = {"threshold": 1e-2}
     true_divergence = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
@@ -281,7 +278,7 @@ class TestSinkhornDivergence:
 
     sink_div = jax.jit(
         sinkhorn_divergence.segment_sinkhorn_divergence,
-        static_argnames=['num_per_segment_x', 'num_per_segment_y'],
+        static_argnames=["num_per_segment_x", "num_per_segment_y"],
     )
 
     segmented_divergences = sink_div(
@@ -336,7 +333,7 @@ class TestSinkhornDivergence:
             x,
             y,
             sinkhorn_kwargs={
-                'lse_mode': True
+                "lse_mode": True
             },
             epsilon=0.1,
             cost_fn=b_cost
@@ -353,7 +350,7 @@ class TestSinkhornDivergence:
         max_measure_size=5,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={'lse_mode': True},
+        sinkhorn_kwargs={"lse_mode": True},
         epsilon=0.1,
         cost_fn=b_cost
     )
@@ -405,7 +402,7 @@ class TestSinkhornDivergence:
 class TestSinkhornDivergenceGrad:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self._dim = 3
     self._num_points = 13, 12
     self.rng, *rngs = jax.random.split(rng, 3)
@@ -427,7 +424,7 @@ class TestSinkhornDivergenceGrad:
           epsilon=1.0,
           a=self._a,
           b=self._b,
-          sinkhorn_kwargs=dict(threshold=0.05)
+          sinkhorn_kwargs={"threshold": 0.05},
       )
       return div.divergence
 

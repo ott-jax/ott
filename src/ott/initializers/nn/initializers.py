@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import linen as nn
+from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott.geometry import geometry
@@ -49,7 +50,8 @@ class MetaInitializer(initializers.DefaultInitializer):
   Args:
     geom: The fixed geometry of the problem instances.
     meta_model: The model to predict the potential :math:`f` from the measures.
-    opt: The optimizer to update the parameters.
+    opt: The optimizer to update the parameters. If ``None``, use
+      :func:`optax.adam` with :math:`0.001` learning rate.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.
 
@@ -73,7 +75,8 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       geom: geometry.Geometry,
       meta_model: Optional[nn.Module] = None,
-      opt: optax.GradientTransformation = optax.adam(learning_rate=1e-3),
+      opt: Optional[optax.GradientTransformation
+                   ] = optax.adam(learning_rate=1e-3),  # noqa: B008
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       state: Optional[train_state.TrainState] = None
   ):
@@ -91,7 +94,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       # Initialize the model's training state.
       a_placeholder = jnp.zeros(na, dtype=self.dtype)
       b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(rng, a_placeholder, b_placeholder)['params']
+      params = self.meta_model.init(rng, a_placeholder, b_placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
@@ -115,31 +118,37 @@ class MetaInitializer(initializers.DefaultInitializer):
       \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\;
         J(\hat f_\theta(a, b); \alpha, \beta),
 
-    where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`,
-    :math:`\mathcal{D}` is a meta distribution of optimal transport problems,
+    where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`
+    ,:math:`\mathcal{D}` is a meta distribution of optimal transport problems,
 
     .. math::
       -J(f; \alpha, \beta, c) := \langle f, a\rangle + \langle g, b \rangle -
-        \varepsilon\left\langle \exp\{f/\varepsilon\}, K\exp\{g/\varepsilon\}\right\rangle
+      \varepsilon\left\langle \exp\{f/\varepsilon\}, K\exp\{g/\varepsilon\}
+      \right\rangle
 
     is the entropic dual objective,
     and :math:`K_{i,j} := -C_{i,j}/\varepsilon` is the *Gibbs kernel*.
 
     Args:
       state: Optimizer state of the meta model.
-      a: Probabilites of the :math:`\alpha` measure's atoms.
-      b: Probabilites of the :math:`\beta` measure's atoms.
+      a: Probabilities of the :math:`\alpha` measure's atoms.
+      b: Probabilities of the :math:`\beta` measure's atoms.
 
     Returns:
       The training loss, :math:`f`, and updated state.
     """
     return self.update_impl(state, a, b)
 
-  def init_dual_a(
-      self, ot_prob: 'linear_problem.LinearProblem', lse_mode: bool
+  def init_dual_a(  # noqa: D102
+      self,
+      ot_prob: "linear_problem.LinearProblem",
+      lse_mode: bool,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> jnp.ndarray:
+    del rng
     # Detect if the problem is batched.
-    assert ot_prob.a.ndim in (1, 2) and ot_prob.b.ndim in (1, 2)
+    assert ot_prob.a.ndim in (1, 2)
+    assert ot_prob.b.ndim in (1, 2)
     vmap_a_val = 0 if ot_prob.a.ndim == 2 else None
     vmap_b_val = 0 if ot_prob.b.ndim == 2 else None
 
@@ -151,8 +160,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       compute_f_maybe_batch = self._compute_f
 
     init_f = compute_f_maybe_batch(ot_prob.a, ot_prob.b, self.state.params)
-    f_u = init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
-    return f_u
+    return init_f if lse_mode else ot_prob.geom.scaling_from_potential(init_f)
 
   def _get_update_fn(self):
     """Return the implementation (and jitted) update function."""
@@ -186,23 +194,26 @@ class MetaInitializer(initializers.DefaultInitializer):
 
     return update
 
-  def _compute_f(self, a, b, params):
+  def _compute_f(
+      self, a: jnp.ndarray, b: jnp.ndarray,
+      params: frozen_dict.FrozenDict[str, jnp.ndarray]
+  ) -> jnp.ndarray:
     r"""Predict the optimal :math:`f` potential.
 
     Args:
-      a: Probabilites of the :math:`\alpha` measure's atoms.
-      b: Probabilites of the :math:`\beta` measure's atoms.
+      a: Probabilities of the :math:`\alpha` measure's atoms.
+      b: Probabilities of the :math:`\beta` measure's atoms.
       params: The parameters of the Meta model.
 
     Returns:
       The :math:`f` potential.
     """
-    return self.meta_model.apply({'params': params}, a, b)
+    return self.meta_model.apply({"params": params}, a, b)
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
-        'rng': self.rng,
-        'state': self.state
+        "rng": self.rng,
+        "state": self.state
     }
 
 
@@ -237,5 +248,4 @@ class MetaMLP(nn.Module):
     z = jnp.concatenate((a, b))
     for _ in range(self.num_hidden_layers):
       z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
-    f = nn.Dense(self.potential_size, dtype=dtype)(z)
-    return f
+    return nn.Dense(self.potential_size, dtype=dtype)(z)

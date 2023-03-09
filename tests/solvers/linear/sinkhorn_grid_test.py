@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Sinkhorn when applied on a grid."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
@@ -27,12 +23,12 @@ from ott.solvers.linear import sinkhorn
 class TestSinkhornGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_separable_grid(self, rng: jnp.ndarray, lse_mode: bool):
+  def test_separable_grid(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Two histograms in a grid of size 5 x 6 x 7  in the hypercube^3."""
     grid_size = (5, 6, 7)
-    keys = jax.random.split(rng, 2)
-    a = jax.random.uniform(keys[0], grid_size)
-    b = jax.random.uniform(keys[1], grid_size)
+    rngs = jax.random.split(rng, 2)
+    a = jax.random.uniform(rngs[0], grid_size)
+    b = jax.random.uniform(rngs[1], grid_size)
     #  adding zero weights  to test proper handling, then ravel.
     a = a.at[0].set(0).ravel()
     a = a / jnp.sum(a)
@@ -48,11 +44,13 @@ class TestSinkhornGrid:
     assert threshold > err
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
-  def test_grid_vs_euclidean(self, rng: jnp.ndarray, lse_mode: bool):
+  def test_grid_vs_euclidean(
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
+  ):
     grid_size = (5, 6, 7)
-    keys = jax.random.split(rng, 2)
-    a = jax.random.uniform(keys[0], grid_size)
-    b = jax.random.uniform(keys[1], grid_size)
+    rngs = jax.random.split(rng, 2)
+    a = jax.random.uniform(rngs[0], grid_size)
+    b = jax.random.uniform(rngs[1], grid_size)
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     epsilon = 0.1
@@ -71,11 +69,13 @@ class TestSinkhornGrid:
     )
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
-  def test_apply_transport_grid(self, rng: jnp.ndarray, lse_mode: bool):
+  def test_apply_transport_grid(
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
+  ):
     grid_size = (5, 6, 7)
-    keys = jax.random.split(rng, 4)
-    a = jax.random.uniform(keys[0], grid_size)
-    b = jax.random.uniform(keys[1], grid_size)
+    rngs = jax.random.split(rng, 4)
+    a = jax.random.uniform(rngs[0], grid_size)
+    b = jax.random.uniform(rngs[1], grid_size)
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
@@ -91,8 +91,8 @@ class TestSinkhornGrid:
 
     batch_a = 3
     batch_b = 4
-    vec_a = jax.random.normal(keys[2], [batch_a, np.prod(np.array(grid_size))])
-    vec_b = jax.random.normal(keys[3], [batch_b, np.prod(grid_size)])
+    vec_a = jax.random.normal(rngs[2], [batch_a, np.prod(np.array(grid_size))])
+    vec_b = jax.random.normal(rngs[3], [batch_b, np.prod(grid_size)])
 
     vec_a = vec_a / jnp.sum(vec_a, axis=1)[:, jnp.newaxis]
     vec_b = vec_b / jnp.sum(vec_b, axis=1)[:, jnp.newaxis]
@@ -119,8 +119,8 @@ class TestSinkhornGrid:
     )
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
-  @pytest.mark.fast
-  def test_apply_cost(self, rng: jnp.ndarray):
+  @pytest.mark.fast()
+  def test_apply_cost(self, rng: jax.random.PRNGKeyArray):
     grid_size = (5, 6, 7)
 
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)

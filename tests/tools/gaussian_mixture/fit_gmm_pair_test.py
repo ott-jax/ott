@@ -11,13 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for fit_gmm_pair."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
-
+import pytest
 from ott.tools.gaussian_mixture import (
     fit_gmm,
     fit_gmm_pair,
@@ -29,7 +25,7 @@ from ott.tools.gaussian_mixture import (
 class TestFitGmmPair:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     mean_generator0 = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                 [[0.5, 0.4], [0.4, 0.5]]])
@@ -61,21 +57,18 @@ class TestFitGmmPair:
     self.rho = 0.1
     self.tau = self.rho / (self.rho + self.epsilon)
 
-    self.key, subkey0, subkey1 = jax.random.split(rng, num=3)
-    self.samples_gmm0 = gmm_generator0.sample(key=subkey0, size=2000)
-    self.samples_gmm1 = gmm_generator1.sample(key=subkey1, size=2000)
+    self.rng, subrng0, subrng1 = jax.random.split(rng, num=3)
+    self.samples_gmm0 = gmm_generator0.sample(rng=subrng0, size=2000)
+    self.samples_gmm1 = gmm_generator1.sample(rng=subrng1, size=2000)
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       balanced=[False, True], weighted=[False, True], only_fast=0
   )
   def test_fit_gmm(self, balanced, weighted):
     # dumb integration test that makes sure nothing crashes
-    if balanced:
-      tau = 1.
-    else:
-      tau = self.tau
+    tau = 1.0 if balanced else self.tau
 
     if weighted:
       weights0 = jnp.ones(self.samples_gmm0.shape[0])
@@ -89,7 +82,7 @@ class TestFitGmmPair:
       # Fit a GMM to the pooled samples
     samples = jnp.concatenate([self.samples_gmm0, self.samples_gmm1])
     gmm_init = fit_gmm.initialize(
-        key=self.key,
+        rng=self.rng,
         points=samples,
         point_weights=weights_pooled,
         n_components=3,

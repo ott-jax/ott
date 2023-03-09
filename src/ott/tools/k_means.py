@@ -27,13 +27,13 @@ Init_t = Union[Literal["k-means++", "random"],
                Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
 
 
-class KPPState(NamedTuple):
-  key: jnp.ndarray
+class KPPState(NamedTuple):  # noqa: D101
+  rng: jax.random.PRNGKeyArray
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
 
-class KMeansState(NamedTuple):
+class KMeansState(NamedTuple):  # noqa: D101
   centroids: jnp.ndarray
   prev_assignment: jnp.ndarray
   assignment: jnp.ndarray
@@ -41,7 +41,7 @@ class KMeansState(NamedTuple):
   center_shift: float
 
 
-class KMeansConst(NamedTuple):
+class KMeansConst(NamedTuple):  # noqa: D101
   geom: pointcloud.PointCloud
   x_weights: jnp.ndarray
 
@@ -108,39 +108,41 @@ class KMeansOutput(NamedTuple):
 
 
 def _random_init(
-    geom: pointcloud.PointCloud, k: int, key: jnp.ndarray
+    geom: pointcloud.PointCloud, k: int, rng: jax.random.PRNGKeyArray
 ) -> jnp.ndarray:
   ixs = jnp.arange(geom.shape[0])
-  ixs = jax.random.choice(key, ixs, shape=(k,), replace=False)
+  ixs = jax.random.choice(rng, ixs, shape=(k,), replace=False)
   return geom.subset(ixs, None).x
 
 
 def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
-    key: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
 
-  def init_fn(geom: pointcloud.PointCloud, key: jnp.ndarray) -> KPPState:
-    key, next_key = jax.random.split(key, 2)
-    ix = jax.random.choice(key, jnp.arange(geom.shape[0]), shape=())
+  def init_fn(
+      geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray
+  ) -> KPPState:
+    rng, next_rng = jax.random.split(rng, 2)
+    ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
     dists = geom.subset(ix, None).cost_matrix[0]
-    return KPPState(key=next_key, centroids=centroids, centroid_dists=dists)
+    return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
       iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
-    key, next_key = jax.random.split(state.key, 2)
+    rng, next_rng = jax.random.split(state.rng, 2)
     geom, ixs = const
 
     # no need to normalize when `replace=True`
     probs = state.centroid_dists
     ixs = jax.random.choice(
-        key, ixs, shape=(n_local_trials,), p=probs, replace=True
+        rng, ixs, shape=(n_local_trials,), p=probs, replace=True
     )
     geom = geom.subset(ixs, None)
 
@@ -151,14 +153,14 @@ def _k_means_plus_plus(
     centroid_dists = candidate_dists[best_ix]
 
     return KPPState(
-        key=next_key, centroids=centroids, centroid_dists=centroid_dists
+        rng=next_rng, centroids=centroids, centroid_dists=centroid_dists
     )
 
   if n_local_trials is None:
     n_local_trials = 2 + int(math.log(k))
   assert n_local_trials > 0, n_local_trials
 
-  state = init_fn(geom, key)
+  state = init_fn(geom, rng)
   constants = (geom, jnp.arange(geom.shape[0]))
   state = fixed_point_loop.fixpoint_iter(
       lambda *_, **__: True,
@@ -223,7 +225,7 @@ def _update_centroids(
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _k_means(
-    key: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     geom: pointcloud.PointCloud,
     k: int,
     weights: Optional[jnp.ndarray] = None,
@@ -248,7 +250,7 @@ def _k_means(
           f"or a callable, found `{init_fn!r}`."
       )
 
-    centroids = init(geom, k, key)
+    centroids = init(geom, k, rng)
     if centroids.shape != (k, geom.cost_rank):
       raise ValueError(
           f"Expected initial centroids to have shape "
@@ -351,7 +353,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    key: Optional[jnp.ndarray] = None,
+    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 
@@ -378,7 +380,7 @@ def k_means(
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of iterations.
     store_inner_errors: Whether to store the errors (inertia) at each iteration.
-    key: Random key to seed the initializations.
+    rng: Random key for seeding the initializations.
 
   Returns:
     The k-means clustering.
@@ -401,11 +403,9 @@ def k_means(
     weights = jnp.ones(geom.shape[0])
   assert weights.shape == (geom.shape[0],)
 
-  if key is None:
-    key = jax.random.PRNGKey(0)
-  keys = jax.random.split(key, n_init)
+  rngs = jax.random.split(rng, n_init)
   out = _k_means(
-      keys, geom, k, weights, init, n_local_trials, tol, min_iterations,
+      rngs, geom, k, weights, init, n_local_trials, tol, min_iterations,
       max_iterations, store_inner_errors
   )
   best_ix = jnp.argmin(out.error)

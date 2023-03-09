@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Sinkhorn algorithm."""
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Literal,
     Mapping,
     NamedTuple,
@@ -27,6 +27,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.experimental import host_callback
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
@@ -42,6 +43,9 @@ if TYPE_CHECKING:
 
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
+ProgressCallbackFn_t = Callable[
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
+
 
 class SinkhornState(NamedTuple):
   """Holds the state variables used to solve OT with Sinkhorn."""
@@ -52,7 +56,7 @@ class SinkhornState(NamedTuple):
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornState':
+  def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
@@ -79,7 +83,7 @@ class SinkhornState(NamedTuple):
         parallel_dual_updates=parallel_dual_updates
     )
 
-  def ent_reg_cost(
+  def ent_reg_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
   ) -> float:
     return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
@@ -93,8 +97,8 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials only
-    iff ``tau_a < 1`` and ``tau_b < 1``.
+    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials iff
+    ``tau_a < 1`` and ``tau_b < 1``.
 
     Args:
       f: The first dual potential.
@@ -217,10 +221,9 @@ def marginal_error(
   else:
     marginal = geom.marginal_from_scalings(f_u, g_v, axis=axis)
   norm_error = jnp.asarray(norm_error)
-  error = jnp.sum(
+  return jnp.sum(
       jnp.abs(marginal - target) ** norm_error[:, jnp.newaxis], axis=1
   ) ** (1.0 / norm_error)
-  return error
 
 
 def ent_reg_cost(
@@ -287,14 +290,14 @@ class SinkhornOutput(NamedTuple):
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
 
-  def set(self, **kwargs: Any) -> 'SinkhornOutput':
+  def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
-  def set_cost(
+  def set_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool,
       use_danskin: bool
-  ) -> 'SinkhornOutput':
+  ) -> "SinkhornOutput":
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
@@ -308,7 +311,7 @@ class SinkhornOutput(NamedTuple):
     return dual_cost
 
   @property
-  def primal_cost(self) -> jnp.ndarray:
+  def primal_cost(self) -> float:
     """Return transport cost of current solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
@@ -337,27 +340,27 @@ class SinkhornOutput(NamedTuple):
     return jnp.sum(self.matrix * other_geom.cost_matrix)
 
   @property
-  def linear(self) -> bool:
+  def linear(self) -> bool:  # noqa: D102
     return isinstance(self.ot_prob, linear_problem.LinearProblem)
 
   @property
-  def geom(self) -> geometry.Geometry:
+  def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:
+  def linear_output(self) -> bool:  # noqa: D102
     return True
 
   @property
-  def converged(self) -> bool:
+  def converged(self) -> bool:  # noqa: D102
     if self.errors is None:
       return False
     return jnp.logical_and(
@@ -366,13 +369,13 @@ class SinkhornOutput(NamedTuple):
 
   # TODO(michalk8): this should be always present
   @property
-  def n_iters(self) -> int:
+  def n_iters(self) -> int:  # noqa: D102
     if self.errors is None:
       return -1
     return jnp.sum(self.errors > -1)
 
   @property
-  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
     u = self.ot_prob.geom.scaling_from_potential(self.f)
     v = self.ot_prob.geom.scaling_from_potential(self.g)
     return u, v
@@ -396,7 +399,7 @@ class SinkhornOutput(NamedTuple):
         self.f, self.g, inputs, axis=axis
     )
 
-  def marginal(self, axis: int) -> jnp.ndarray:
+  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
@@ -418,7 +421,7 @@ class Sinkhorn:
   The Sinkhorn algorithm is a fixed point iteration that solves a regularized
   optimal transport (reg-OT) problem between two measures.
   The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponentials of the former). Calling this
+  scalings when parameterized as exponential of the former). Calling this
   function returns therefore a pair of optimal vectors. In addition to these,
   it also returns the objective value achieved by these optimal vectors;
   a vector of size ``max_iterations/inner_iterations`` that records the vector
@@ -436,7 +439,7 @@ class Sinkhorn:
   ``init_dual_a`` or ``init_dual_b``), the Sinkhorn algorithm will use
   elementary operations that are carried out by the ``geom`` object.
 
-  Some maths:
+  Math:
     Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
     regularization parameter :math:`\varepsilon`, (or a kernel matrix :math:`K`)
     the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
@@ -500,7 +503,7 @@ class Sinkhorn:
     setting the corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
 
     The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
-    potentials (or alternatively their parametrization as positive scalings
+    potentials (or alternatively their parameterization as positive scalings
     `u`, `v`), rather than solving the primal problem in :math:`P`.
     This is mostly for efficiency (potentials and scalings have a ``n + m``
     memory footprint, rather than ``n m`` required to store `P`). This is also
@@ -607,7 +610,7 @@ class Sinkhorn:
     wrapped in a custom fixed point iteration loop, defined in
     ``fixed_point_loop``, rather than a standard while loop. This is to ensure
     the end result of this fixed point loop can also be differentiated, if
-    needed, using standard JAX operations. To ensure backprop differentiability,
+    needed, using standard JAX operations. To ensure differentiability,
     the ``fixed_point_loop.fixpoint_iter_backprop`` loop does checkpointing of
     state variables (here ``f_u`` and ``g_v``) every ``inner_iterations``, and
     backpropagates automatically, block by block, through blocks of
@@ -659,7 +662,7 @@ class Sinkhorn:
     min_iterations: the minimum number of Sinkhorn iterations carried
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If
-      ``max_iterations`` is equal to ``min_iterations``, sinkhorn iterations are
+      ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
       run by default using a :func:`jax.lax.scan` loop rather than a custom,
       unroll-able :func:`jax.lax.while_loop` that monitors convergence.
       In that case the error is not monitored and the ``converged``
@@ -682,6 +685,10 @@ class Sinkhorn:
       when the algorithm has converged with a low tolerance.
     jit: Whether to jit the iteration loop.
     initializer: how to compute the initial potentials/scalings.
+    progress_fn: callback function which gets called during the Sinkhorn
+      iterations, so the user can display the error at each iteration,
+      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
+      for a basic implementation.
     kwargs_init: keyword arguments when creating the initializer.
   """
 
@@ -700,9 +707,10 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
-                             ] = implicit_lib.ImplicitDiff(),  # noqa: E124
-      initializer: Union[Literal["default", "gaussian", "sorting"],
+                             ] = implicit_lib.ImplicitDiff(),  # noqa: B008
+      initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
                          init_lib.SinkhornInitializer] = "default",
+      progress_fn: Optional[ProgressCallbackFn_t] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
   ):
     self.lse_mode = lse_mode
@@ -733,6 +741,7 @@ class Sinkhorn:
     self.parallel_dual_updates = parallel_dual_updates
     self.recenter_potentials = recenter_potentials
     self.initializer = initializer
+    self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
     # Force implicit_differentiation to True when using Anderson acceleration,
@@ -755,6 +764,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
@@ -762,13 +772,14 @@ class Sinkhorn:
       ot_prob: Linear OT problem.
       init: Initial dual potentials/scalings f_u and g_v, respectively.
         Any `None` values will be initialized using the initializer.
+      rng: Random number generator key for stochastic initialization.
 
     Returns:
       The Sinkhorn output.
     """
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
-        ot_prob, *init, lse_mode=self.lse_mode
+        ot_prob, *init, lse_mode=self.lse_mode, rng=rng
     )
     run_fn = jax.jit(run) if self.jit else run
     return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
@@ -853,7 +864,7 @@ class Sinkhorn:
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
       iteration: int, compute_error: bool
   ) -> SinkhornState:
-    """Carries out sinkhorn iteration.
+    """Carries out one Sinkhorn iteration.
 
     Depending on lse_mode, these iterations can be either in:
 
@@ -985,7 +996,7 @@ class Sinkhorn:
     return self._norm_error,
 
   # TODO(michalk8): in the future, enforce this (+ in GW) via abstract method
-  def create_initializer(self) -> init_lib.SinkhornInitializer:
+  def create_initializer(self) -> init_lib.SinkhornInitializer:  # noqa: D102
     if isinstance(self.initializer, init_lib.SinkhornInitializer):
       return self.initializer
     if self.initializer == "default":
@@ -994,18 +1005,20 @@ class Sinkhorn:
       return init_lib.GaussianInitializer()
     if self.initializer == "sorting":
       return init_lib.SortingInitializer(**self.kwargs_init)
+    if self.initializer == "subsample":
+      return init_lib.SubsampleInitializer(**self.kwargs_init)
     raise NotImplementedError(
         f"Initializer `{self.initializer}` is not yet implemented."
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
-    aux['norm_error'] = aux.pop('_norm_error')
-    aux.pop('threshold')
+    aux["norm_error"] = aux.pop("_norm_error")
+    aux.pop("threshold")
     return [self.threshold], aux
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(**aux_data, threshold=children[0])
 
 
@@ -1040,7 +1053,13 @@ def iterations(
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
-    return solver.one_iteration(ot_prob, state, iteration, compute_error)
+    state = solver.one_iteration(ot_prob, state, iteration, compute_error)
+    if solver.progress_fn is not None:
+      host_callback.id_tap(
+          solver.progress_fn,
+          (iteration, solver.inner_iterations, solver.max_iterations, state)
+      )
+    return state
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
@@ -1105,7 +1124,7 @@ def solve(
     tau_b: float = 1.0,
     rank: int = -1,
     **kwargs: Any
-) -> Union[SinkhornOutput, 'LRSinkhornOutput']:
+) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:

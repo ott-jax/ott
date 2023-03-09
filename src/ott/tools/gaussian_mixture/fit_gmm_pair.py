@@ -85,7 +85,11 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture, gaussian_mixture_pair
+from ott.tools.gaussian_mixture import (
+    fit_gmm,
+    gaussian_mixture,
+    gaussian_mixture_pair,
+)
 
 __all__ = ["get_fit_model_em_fn"]
 
@@ -190,18 +194,17 @@ def print_losses(
   transport_penalty = sinkhorn_output.reg_ot_cost
   objective = q0 + q1 - weight_transport * transport_penalty
 
-  print((
-      f'{iteration:3d} {q0:.3f} {q1:.3f} '
-      f'transport:{transport_penalty:.3f} '
-      f'objective:{objective:.3f}'
-  ),
-        flush=True)
+  print(  # noqa: T201
+      f"{iteration:3d} {q0:.3f} {q1:.3f} "
+      f"transport:{transport_penalty:.3f} "
+      f"objective:{objective:.3f}"
+  )
 
 
 # The E-step for a single GMM
 
 
-def do_e_step(
+def do_e_step(  # noqa: D103
     e_step_fn: Callable[[gaussian_mixture.GaussianMixture, jnp.ndarray],
                         jnp.ndarray],
     gmm: gaussian_mixture.GaussianMixture,
@@ -232,17 +235,6 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
   Returns:
     A function that performs the M-step of EM.
   """
-  grad_objective_fn = jax.grad(objective_fn, argnums=(0,))
-  gmm_m_step_fn = gaussian_mixture.GaussianMixture.from_points_and_assignment_probs
-  if jit:
-    grad_objective_fn = jax.jit(grad_objective_fn)
-    gmm_m_step_fn = jax.jit(gmm_m_step_fn)
-
-  opt_init, opt_update = optax.chain(
-      # Set the parameters of Adam. Note the learning_rate is not here.
-      optax.scale_by_adam(b1=0.9, b2=0.999, eps=1e-8),
-      optax.scale(learning_rate)
-  )
 
   def _m_step_fn(
       pair: gaussian_mixture_pair.GaussianMixturePair,
@@ -269,8 +261,18 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
       (pair,) = optax.apply_updates((pair,), updates)
       for j, gmm in enumerate((pair.gmm0, pair.gmm1)):
         if gmm.has_nans():
-          raise ValueError(f'NaN in gmm{j}')
+          raise ValueError(f"NaN in gmm{j}")
     return pair
+
+  grad_objective_fn = jax.grad(objective_fn, argnums=(0,))
+  if jit:
+    grad_objective_fn = jax.jit(grad_objective_fn)
+
+  opt_init, opt_update = optax.chain(
+      # Set the parameters of Adam. Note the learning_rate is not here.
+      optax.scale_by_adam(b1=0.9, b2=0.999, eps=1e-8),
+      optax.scale(learning_rate)
+  )
 
   return _m_step_fn
 

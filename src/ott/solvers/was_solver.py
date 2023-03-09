@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
@@ -23,13 +22,13 @@ if TYPE_CHECKING:
 __all__ = ["WassersteinSolver"]
 
 State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
-              "continuous_barycenter.BarycenterState"]
+              "continuous_barycenter.FreeBarycenterState"]
 
 
 # TODO(michalk8): refactor to have generic nested solver API
 @jax.tree_util.register_pytree_node_class
 class WassersteinSolver:
-  """A generic solver for problems that use a linear reg-OT pb in inner loop."""
+  """A generic solver for problems that use a linear problem in inner loop."""
 
   def __init__(
       self,
@@ -83,7 +82,7 @@ class WassersteinSolver:
     """Whether the solver is low-rank."""
     return self.rank > 0
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return ([self.epsilon, self.linear_ot_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
@@ -94,7 +93,7 @@ class WassersteinSolver:
     })
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "WassersteinSolver":
     epsilon, linear_ot_solver, threshold = children

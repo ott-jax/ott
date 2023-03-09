@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the differentiability of reg_ot_cost w.r.t weights/locations."""
 import functools
 from typing import Callable, List, Optional, Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -31,7 +28,7 @@ class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
     self.n = 38
     self.m = 73
@@ -44,9 +41,8 @@ class TestSinkhornImplicit:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @pytest.mark.parametrize(
-      "lse_mode,threshold,pcg", [(False, 1e-6, False), (True, 1e-4, True)]
-  )
+  @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
+                           [(False, 1e-6, False), (True, 1e-4, True)])
   def test_implicit_differentiation_versus_autodiff(
       self, lse_mode: bool, threshold: float, pcg: bool
   ):
@@ -140,17 +136,18 @@ class TestSinkhornJacobian:
       only_fast=0,
   )
   def test_autograd_sinkhorn(
-      self, rng: jnp.ndarray, lse_mode: bool, shape_data: Tuple[int, int]
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, shape_data: Tuple[int,
+                                                                            int]
   ):
     """Test gradient w.r.t. probability weights."""
     n, m = shape_data
     d = 3
     eps = 1e-3  # perturbation magnitude
-    keys = jax.random.split(rng, 5)
-    x = jax.random.uniform(keys[0], (n, d))
-    y = jax.random.uniform(keys[1], (m, d))
-    a = jax.random.uniform(keys[2], (n,)) + eps
-    b = jax.random.uniform(keys[3], (m,)) + eps
+    rngs = jax.random.split(rng, 5)
+    x = jax.random.uniform(rngs[0], (n, d))
+    y = jax.random.uniform(rngs[1], (m, d))
+    a = jax.random.uniform(rngs[2], (n,)) + eps
+    b = jax.random.uniform(rngs[3], (m,)) + eps
     # Adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
@@ -166,7 +163,7 @@ class TestSinkhornJacobian:
 
     reg_ot_and_grad = jax.jit(jax.grad(reg_ot))
     grad_reg_ot = reg_ot_and_grad(a, b)
-    delta = jax.random.uniform(keys[4], (n,))
+    delta = jax.random.uniform(rngs[4], (n,))
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     delta = delta - jnp.sum(delta) / jnp.sum(a > 0)  # center perturbation
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
@@ -181,17 +178,17 @@ class TestSinkhornJacobian:
         atol=1e-02
     )
 
-  @pytest.mark.parametrize(
-      "lse_mode,shape_data", [(True, (7, 9)), (False, (11, 5))]
-  )
+  @pytest.mark.parametrize(("lse_mode", "shape_data"), [(True, (7, 9)),
+                                                        (False, (11, 5))])
   def test_gradient_sinkhorn_geometry(
-      self, rng: jnp.ndarray, lse_mode: bool, shape_data: Tuple[int, int]
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, shape_data: Tuple[int,
+                                                                            int]
   ):
     """Test gradient w.r.t. cost matrix."""
     n, m = shape_data
-    keys = jax.random.split(rng, 2)
-    cost_matrix = jnp.abs(jax.random.normal(keys[0], (n, m)))
-    delta = jax.random.normal(keys[1], (n, m))
+    rngs = jax.random.split(rng, 2)
+    cost_matrix = jnp.abs(jax.random.normal(rngs[0], (n, m)))
+    delta = jax.random.normal(rngs[1], (n, m))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-3  # perturbation magnitude
 
@@ -248,19 +245,19 @@ class TestSinkhornJacobian:
       only_fast=[0, 1],
   )
   def test_gradient_sinkhorn_euclidean(
-      self, rng: jnp.ndarray, lse_mode: bool, implicit: bool, min_iter: int,
-      max_iter: int, epsilon: float, cost_fn: costs.CostFn
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, implicit: bool,
+      min_iter: int, max_iter: int, epsilon: float, cost_fn: costs.CostFn
   ):
     """Test gradient w.r.t. locations x of reg-ot-cost."""
     # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3
     n, m = 11, 13
-    keys = jax.random.split(rng, 4)
-    x = jax.random.normal(keys[0], (n, d)) / 10
-    y = jax.random.normal(keys[1], (m, d)) / 10
+    rngs = jax.random.split(rng, 4)
+    x = jax.random.normal(rngs[0], (n, d)) / 10
+    y = jax.random.normal(rngs[1], (m, d)) / 10
 
-    a = jax.random.uniform(keys[2], (n,))
-    b = jax.random.uniform(keys[3], (m,))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     # Adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
@@ -285,7 +282,7 @@ class TestSinkhornJacobian:
       out = solver(prob)
       return out.reg_ot_cost, out
 
-    delta = jax.random.normal(keys[0], (n, d))
+    delta = jax.random.normal(rngs[0], (n, d))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-5  # perturbation magnitude
 
@@ -324,7 +321,7 @@ class TestSinkhornJacobian:
     )
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
-  def test_autoepsilon_differentiability(self, rng: jnp.ndarray):
+  def test_autoepsilon_differentiability(self, rng: jax.random.PRNGKeyArray):
     cost = jax.random.uniform(rng, (15, 17))
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
@@ -335,8 +332,8 @@ class TestSinkhornJacobian:
     gradient = jax.grad(reg_ot_cost)(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
-  @pytest.mark.fast
-  def test_differentiability_with_jit(self, rng: jnp.ndarray):
+  @pytest.mark.fast()
+  def test_differentiability_with_jit(self, rng: jax.random.PRNGKeyArray):
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
       geom = geometry.Geometry(c, epsilon=1e-2)
@@ -357,8 +354,8 @@ class TestSinkhornJacobian:
       only_fast=0,
   )
   def test_apply_transport_jacobian(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int, axis: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], arg: int, axis: int
   ):
     """Tests Jacobian of application of OT to vector, w.r.t.
 
@@ -465,8 +462,8 @@ class TestSinkhornJacobian:
       only_fast=0,
   )
   def test_potential_jacobian_sinkhorn(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     n, m = shape
@@ -539,23 +536,23 @@ class TestSinkhornJacobian:
     np.testing.assert_allclose(g_imp, g_back, atol=5e-2, rtol=1e-2)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornGradGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_diff_sinkhorn_x_grid_x_perturbation(
-      self, rng: jnp.ndarray, lse_mode: bool
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
   ):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-3  # perturbation magnitude
-    keys = jax.random.split(rng, 6)
+    rngs = jax.random.split(rng, 6)
     x = (
         jnp.array([.0, 1.0]), jnp.array([.3, .4,
                                          .7]), jnp.array([1.0, 1.3, 2.4, 3.7])
     )
     grid_size = tuple(xs.shape[0] for xs in x)
-    a = jax.random.uniform(keys[0], grid_size) + 1.0
-    b = jax.random.uniform(keys[1], grid_size) + 1.0
+    a = jax.random.uniform(rngs[0], grid_size) + 1.0
+    b = jax.random.uniform(rngs[1], grid_size) + 1.0
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
 
@@ -567,7 +564,7 @@ class TestSinkhornGradGrid:
 
     reg_ot_and_grad = jax.grad(reg_ot)
     grad_reg_ot = reg_ot_and_grad(x)
-    delta = [jax.random.uniform(keys[i], (g,)) for i, g in enumerate(grid_size)]
+    delta = [jax.random.uniform(rngs[i], (g,)) for i, g in enumerate(grid_size)]
 
     x_p_delta = [(xs + eps * delt) for xs, delt in zip(x, delta)]
     x_m_delta = [(xs - eps * delt) for xs, delt in zip(x, delta)]
@@ -589,11 +586,11 @@ class TestSinkhornGradGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_diff_sinkhorn_x_grid_weights_perturbation(
-      self, rng: jnp.ndarray, lse_mode: bool
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
   ):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-4  # perturbation magnitude
-    keys = jax.random.split(rng, 3)
+    rngs = jax.random.split(rng, 3)
     # yapf: disable
     x = (
         jnp.asarray([.0, 1.0]),
@@ -602,8 +599,8 @@ class TestSinkhornGradGrid:
     )
     # yapf: enable
     grid_size = tuple(xs.shape[0] for xs in x)
-    a = jax.random.uniform(keys[0], grid_size) + 1
-    b = jax.random.uniform(keys[1], grid_size) + 1
+    a = jax.random.uniform(rngs[0], grid_size) + 1
+    b = jax.random.uniform(rngs[1], grid_size) + 1
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     geom = grid.Grid(x=x, epsilon=1)
@@ -615,7 +612,7 @@ class TestSinkhornGradGrid:
 
     reg_ot_and_grad = jax.grad(reg_ot)
     grad_reg_ot = reg_ot_and_grad(a, b)
-    delta = jax.random.uniform(keys[2], grid_size).ravel()
+    delta = jax.random.uniform(rngs[2], grid_size).ravel()
     delta = delta - jnp.mean(delta)
 
     # center perturbation
@@ -640,8 +637,8 @@ class TestSinkhornJacobianPreconditioning:
       only_fast=[0, -1],
   )
   def test_potential_jacobian_sinkhorn(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     n, m = shape
@@ -737,8 +734,8 @@ class TestSinkhornHessian:
       only_fast=-1
   )
   def test_hessian_sinkhorn(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
     # TODO(cuturi): reinstate this flag to True when JAX bug fixed.
@@ -801,7 +798,7 @@ class TestSinkhornHessian:
     if test_back:
       dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
       rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert 0.1 > rel_dif_norm
+      assert rel_dif_norm < 0.1
 
     eps = 1e-3
     for impl in [True, False] if test_back else [True]:

@@ -11,30 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for apply_cost and apply_kernel."""
 from typing import Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestPointCloudApply:
 
-  def test_apply_cost_and_kernel(self, rng: jnp.ndarray):
+  def test_apply_cost_and_kernel(self, rng: jax.random.PRNGKeyArray):
     """Test consistency of cost/kernel apply to vec."""
     n, m, p, b = 5, 8, 10, 7
-    keys = jax.random.split(rng, 5)
-    x = jax.random.normal(keys[0], (n, p))
-    y = jax.random.normal(keys[1], (m, p)) + 1
+    rngs = jax.random.split(rng, 5)
+    x = jax.random.normal(rngs[0], (n, p))
+    y = jax.random.normal(rngs[1], (m, p)) + 1
     cost = jnp.sum((x[:, None, :] - y[None, :, :]) ** 2, axis=-1)
-    vec0 = jax.random.normal(keys[2], (n, b))
-    vec1 = jax.random.normal(keys[3], (m, b))
+    vec0 = jax.random.normal(rngs[2], (n, b))
+    vec1 = jax.random.normal(rngs[3], (m, b))
 
     geom = pointcloud.PointCloud(x, y, batch_size=3)
     prod0_online = geom.apply_cost(vec0, axis=0)
@@ -70,14 +67,14 @@ class TestPointCloudApply:
     np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
     np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
 
-  def test_general_cost_fn(self, rng: jnp.ndarray):
+  def test_general_cost_fn(self, rng: jax.random.PRNGKeyArray):
     """Test non-vec cost apply to vec."""
     n, m, p, b = 5, 8, 10, 7
-    keys = jax.random.split(rng, 5)
-    x = jax.random.normal(keys[0], (n, p))
-    y = jax.random.normal(keys[1], (m, p)) + 1
-    vec0 = jax.random.normal(keys[2], (n, b))
-    vec1 = jax.random.normal(keys[3], (m, b))
+    rngs = jax.random.split(rng, 5)
+    x = jax.random.normal(rngs[0], (n, p))
+    y = jax.random.normal(rngs[1], (m, p)) + 1
+    vec0 = jax.random.normal(rngs[2], (n, b))
+    vec1 = jax.random.normal(rngs[3], (m, b))
 
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), batch_size=None)
     cost = geom.cost_matrix
@@ -99,10 +96,10 @@ class TestPointCloudApply:
     np.testing.assert_array_equal(pc.shape, (n, m))
 
   @pytest.mark.parametrize("axis", [0, 1])
-  def test_apply_cost_without_norm(self, rng: jnp.ndarray, axis: 1):
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, shape=(17, 3))
-    y = jax.random.normal(key2, shape=(12, 3))
+  def test_apply_cost_without_norm(self, rng: jax.random.PRNGKeyArray, axis: 1):
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, shape=(17, 3))
+    y = jax.random.normal(rng2, shape=(12, 3))
     pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
     arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
 
@@ -124,11 +121,11 @@ class TestPointCloudCosineConversion:
       "scale_cost", ["mean", "median", "max_cost", "max_norm", 41]
   )
   def test_cosine_to_sqeucl_conversion(
-      self, rng: jnp.ndarray, scale_cost: Union[str, float]
+      self, rng: jax.random.PRNGKeyArray, scale_cost: Union[str, float]
   ):
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, shape=(101, 4))
-    y = jax.random.normal(key2, shape=(123, 4))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, shape=(101, 4))
+    y = jax.random.normal(rng2, shape=(123, 4))
     cosine = pointcloud.PointCloud(
         x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
     )
@@ -157,11 +154,12 @@ class TestPointCloudCosineConversion:
   )
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_cosine_to_sqeucl(
-      self, rng: jnp.ndarray, axis: int, scale_cost: Union[str, float]
+      self, rng: jax.random.PRNGKeyArray, axis: int, scale_cost: Union[str,
+                                                                       float]
   ):
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, shape=(17, 5))
-    y = jax.random.normal(key2, shape=(12, 5))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, shape=(17, 5))
+    y = jax.random.normal(rng2, shape=(12, 5))
     cosine = pointcloud.PointCloud(
         x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
     )

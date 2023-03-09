@@ -66,7 +66,7 @@ class LRInitializer(abc.ABC):
   def init_q(
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -75,7 +75,7 @@ class LRInitializer(abc.ABC):
 
     Args:
       ot_prob: OT problem.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       init_g: Initial value for :math:`g` factor.
       kwargs: Additional keyword arguments.
 
@@ -87,7 +87,7 @@ class LRInitializer(abc.ABC):
   def init_r(
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -96,7 +96,7 @@ class LRInitializer(abc.ABC):
 
     Args:
       ot_prob: Linear OT problem.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       init_g: Initial value for :math:`g` factor.
       kwargs: Additional keyword arguments.
 
@@ -108,14 +108,14 @@ class LRInitializer(abc.ABC):
   def init_g(
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Initialize the low-rank factor :math:`g`.
 
     Args:
       ot_prob: OT problem.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       kwargs: Additional keyword arguments.
 
     Returns:
@@ -125,12 +125,12 @@ class LRInitializer(abc.ABC):
   @classmethod
   def from_solver(
       cls,
-      solver: Union['sinkhorn_lr.LRSinkhorn',
-                    'gromov_wasserstein.GromovWasserstein'],
+      solver: Union["sinkhorn_lr.LRSinkhorn",
+                    "gromov_wasserstein.GromovWasserstein"],
       *,
       kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
       **kwargs: Any,
-  ) -> 'LRInitializer':
+  ) -> "LRInitializer":
     """Create a low-rank initializer from a linear or quadratic solver.
 
     Args:
@@ -176,7 +176,7 @@ class LRInitializer(abc.ABC):
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
       *,
-      key: Optional[jnp.ndarray] = None,
+      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
@@ -189,23 +189,21 @@ class LRInitializer(abc.ABC):
         using :meth:`init_r`.
       g: Factor of shape ``[rank,]``. If `None`, it will be initialized
         using :meth:`init_g`.
-      key: Random key for seeding.
+      rng: Random key for seeding.
       kwargs: Additional keyword arguments for :meth:`init_q`, :meth:`init_r`
         and :meth:`init_g`.
 
     Returns:
       The factors :math:`Q`, :math:`R` and :math:`g`, respectively.
     """
-    if key is None:
-      key = jax.random.PRNGKey(0)
-    key1, key2, key3 = jax.random.split(key, 3)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
 
     if g is None:
-      g = self.init_g(ot_prob, key1, **kwargs)
+      g = self.init_g(ot_prob, rng1, **kwargs)
     if q is None:
-      q = self.init_q(ot_prob, key2, init_g=g, **kwargs)
+      q = self.init_q(ot_prob, rng2, init_g=g, **kwargs)
     if r is None:
-      r = self.init_r(ot_prob, key3, init_g=g, **kwargs)
+      r = self.init_r(ot_prob, rng3, init_g=g, **kwargs)
 
     assert g.shape == (self.rank,)
     assert q.shape == (ot_prob.a.shape[0], self.rank)
@@ -218,11 +216,11 @@ class LRInitializer(abc.ABC):
     """Rank of the transport matrix factorization."""
     return self._rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {**self._kwargs, "rank": self.rank}
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "LRInitializer":
     return cls(*children, **aux_data)
@@ -237,40 +235,40 @@ class RandomInitializer(LRInitializer):
     kwargs: Additional keyword arguments.
   """
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs, init_g
     a = ot_prob.a
-    init_q = jnp.abs(jax.random.normal(key, (a.shape[0], self.rank)))
+    init_q = jnp.abs(jax.random.normal(rng, (a.shape[0], self.rank)))
     return a[:, None] * (init_q / jnp.sum(init_q, axis=1, keepdims=True))
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs, init_g
     b = ot_prob.b
-    init_r = jnp.abs(jax.random.normal(key, (b.shape[0], self.rank)))
+    init_r = jnp.abs(jax.random.normal(rng, (b.shape[0], self.rank)))
     return b[:, None] * (init_r / jnp.sum(init_r, axis=1, keepdims=True))
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs
-    init_g = jnp.abs(jax.random.uniform(key, (self.rank,))) + 1.
+    init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.
     return init_g / jnp.sum(init_g)
 
 
@@ -311,35 +309,35 @@ class Rank2Initializer(LRInitializer):
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
             ((1 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del key, kwargs
+    del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="q")
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del key, kwargs
+    del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="r")
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del key, kwargs
+    del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
 
@@ -387,7 +385,7 @@ class KMeansInitializer(LRInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       which: Literal["q", "r"],
@@ -413,7 +411,7 @@ class KMeansInitializer(LRInitializer):
     arr = self._extract_array(geom, first=which == "q")
     marginals = ot_prob.a if which == "q" else ot_prob.b
 
-    centroids = fn(arr, self.rank, key=key).centroids
+    centroids = fn(arr, self.rank, rng=rng).centroids
     geom = pointcloud.PointCloud(
         arr, centroids, epsilon=0.1, scale_cost="max_cost"
     )
@@ -422,40 +420,40 @@ class KMeansInitializer(LRInitializer):
     solver = sinkhorn.Sinkhorn(**self._sinkhorn_kwargs)
     return solver(prob).matrix
 
-  def init_q(
+  def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     return self._compute_factor(
-        ot_prob, key, init_g=init_g, which="q", **kwargs
+        ot_prob, rng, init_g=init_g, which="q", **kwargs
     )
 
-  def init_r(
+  def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
   ) -> jnp.ndarray:
     return self._compute_factor(
-        ot_prob, key, init_g=init_g, which="r", **kwargs
+        ot_prob, rng, init_g=init_g, which="r", **kwargs
     )
 
-  def init_g(
+  def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    del key, kwargs
+    del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
     aux_data["min_iterations"] = self._min_iter
@@ -518,7 +516,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       *,
       init_g: jnp.ndarray,
       which: Literal["q", "r"],
@@ -530,7 +528,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     def init_fn() -> GeneralizedKMeansInitializer.State:
       n = geom.shape[0]
-      factor = jnp.abs(jax.random.normal(key, (n, self.rank))) + 1.  # (n, r)
+      factor = jnp.abs(jax.random.normal(rng, (n, self.rank))) + 1.  # (n, r)
       factor *= consts.marginal[:, None] / jnp.sum(
           factor, axis=1, keepdims=True
       )
