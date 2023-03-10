@@ -13,6 +13,7 @@ Linear Optimal Transport
 .. toctree::
     :maxdepth: 1
 
+    notebooks/point_clouds
     notebooks/One_Sinkhorn
     notebooks/OTT_&_POT
     notebooks/Hessians
