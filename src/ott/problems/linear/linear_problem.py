@@ -15,15 +15,15 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import geometry
 
 __all__ = ["LinearProblem"]
 
 # TODO(michalk8): move to typing.py when refactoring the types
-MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
-                            jnp.ndarray]
+MarginalFunc = Callable[[ArrayLike, ArrayLike], ArrayLike]
+TransportAppFunc = Callable[[ArrayLike, ArrayLike, ArrayLike, int], ArrayLike]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -50,8 +50,8 @@ class LinearProblem:
   def __init__(
       self,
       geom: geometry.Geometry,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      a: Optional[ArrayLike] = None,
+      b: Optional[ArrayLike] = None,
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
@@ -62,13 +62,13 @@ class LinearProblem:
     self.tau_b = tau_b
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> Array:
     """First marginal."""
     num_a = self.geom.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> Array:
     """Second marginal."""
     num_b = self.geom.shape[1]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
