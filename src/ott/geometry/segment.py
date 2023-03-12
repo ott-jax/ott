@@ -16,20 +16,21 @@ from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 __all__ = ["segment_point_cloud"]
 
 
 def segment_point_cloud(
-    x: jnp.ndarray,
-    a: Optional[jnp.ndarray] = None,
+    x: ArrayLike,
+    a: Optional[ArrayLike] = None,
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
-    segment_ids: Optional[jnp.ndarray] = None,
+    segment_ids: Optional[ArrayLike] = None,
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
-    padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    padding_vector: Optional[ArrayLike] = None
+) -> Tuple[Array, Array]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -45,10 +46,10 @@ def segment_point_cloud(
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    x: Array of input points, of shape ``[num_x, ndim]``.
+    x: ArrayLike of input points, of shape ``[num_x, ndim]``.
       Multiple segments are held in this single array.
-    a: Array of shape ``[num_x,]`` containing the weights (within each measure)
-      of all the points.
+    a: ArrayLike of shape ``[num_x,]`` containing the weights
+      (within each measure) of all the points.
     num_segments: Number of segments. Required for jitting.
       If `None` and using the second interface, it will be computed as
       ``len(num_per_segment)``.
@@ -129,21 +130,20 @@ def segment_point_cloud(
 
 
 def _segment_interface(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
-                      jnp.ndarray],
+    x: ArrayLike,
+    y: ArrayLike,
+    eval_fn: Callable[[ArrayLike, ArrayLike, ArrayLike, ArrayLike], ArrayLike],
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
-    segment_ids_x: Optional[jnp.ndarray] = None,
-    segment_ids_y: Optional[jnp.ndarray] = None,
+    segment_ids_x: Optional[ArrayLike] = None,
+    segment_ids_y: Optional[ArrayLike] = None,
     indices_are_sorted: bool = False,
-    num_per_segment_x: Optional[jnp.ndarray] = None,
-    num_per_segment_y: Optional[jnp.ndarray] = None,
-    weights_x: Optional[jnp.ndarray] = None,
-    weights_y: Optional[jnp.ndarray] = None,
-    padding_vector: Optional[jnp.ndarray] = None,
-) -> jnp.ndarray:
+    num_per_segment_x: Optional[ArrayLike] = None,
+    num_per_segment_y: Optional[ArrayLike] = None,
+    weights_x: Optional[ArrayLike] = None,
+    weights_y: Optional[ArrayLike] = None,
+    padding_vector: Optional[ArrayLike] = None,
+) -> Array:
   """Wrapper to segment two point clouds and return parallel evaluations.
 
   Utility function that segments two point clouds using the approach outlined
