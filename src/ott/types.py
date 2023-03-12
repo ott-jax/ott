@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Protocol
 
-import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 __all__ = ["Transport"]
 
@@ -28,11 +28,11 @@ class Transport(Protocol):
   """
 
   @property
-  def matrix(self) -> jnp.ndarray:
+  def matrix(self) -> Array:
     ...
 
-  def apply(self, inputs: jnp.ndarray, axis: int) -> jnp.ndarray:
+  def apply(self, inputs: ArrayLike, axis: int) -> Array:
     ...
 
-  def marginal(self, axis: int = 0) -> jnp.ndarray:
+  def marginal(self, axis: int = 0) -> Array:
     ...
