@@ -15,12 +15,13 @@ from typing import Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 __all__ = ["make_square_loss", "make_kl_loss"]
 
 
 class Loss(NamedTuple):  # noqa: D101
-  func: Callable[[jnp.ndarray], jnp.ndarray]
+  func: Callable[[ArrayLike], ArrayLike]
   is_linear: bool
 
 
