@@ -22,14 +22,15 @@ from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 from jax.nn import initializers
+from jax.typing import Array, ArrayLike
 
 from ott.math import matrix_square_root
 from ott.solvers.nn import layers
 
 __all__ = ["NeuralTrainState", "ModelBase", "ICNN", "MLP"]
 
-PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
-PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+PotentialValueFn_t = Callable[[ArrayLike], ArrayLike]
+PotentialGradientFn_t = Callable[[ArrayLike], ArrayLike]
 
 
 class NeuralTrainState(train_state.TrainState):
@@ -44,9 +45,9 @@ class NeuralTrainState(train_state.TrainState):
     potential_gradient_fn: the potential's gradient function
   """
   potential_value_fn: Callable[
-      [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
+      [frozen_dict.FrozenDict[str, ArrayLike], Optional[PotentialValueFn_t]],
       PotentialValueFn_t] = struct.field(pytree_node=False)
-  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, ArrayLike]],
                                   PotentialGradientFn_t] = struct.field(
                                       pytree_node=False
                                   )
@@ -67,7 +68,7 @@ class ModelBase(abc.ABC, nn.Module):
 
   def potential_value_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      params: frozen_dict.FrozenDict[str, ArrayLike],
       other_potential_value_fn: Optional[PotentialValueFn_t] = None,
   ) -> PotentialValueFn_t:
     r"""Return a function giving the value of the potential.
@@ -98,7 +99,7 @@ class ModelBase(abc.ABC, nn.Module):
         "The value of the gradient-based potential depends " \
         "on the value of the other potential."
 
-    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+    def value_fn(x: ArrayLike) -> Array:
       squeeze = x.ndim == 1
       if squeeze:
         x = jnp.expand_dims(x, 0)
@@ -111,7 +112,7 @@ class ModelBase(abc.ABC, nn.Module):
 
   def potential_gradient_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      params: frozen_dict.FrozenDict[str, ArrayLike],
   ) -> PotentialGradientFn_t:
     """Return a function giving the gradient of the potential.
 
@@ -171,9 +172,9 @@ class ICNN(ModelBase):
   dim_hidden: Sequence[int]
   init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+  act_fn: Callable[[ArrayLike], ArrayLike] = nn.relu
   pos_weights: bool = True
-  gaussian_map: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
+  gaussian_map: Optional[Tuple[ArrayLike, ArrayLike]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -253,8 +254,8 @@ class ICNN(ModelBase):
 
   @staticmethod
   def _compute_gaussian_map(
-      inputs: Tuple[jnp.ndarray, jnp.ndarray]
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      inputs: Tuple[ArrayLike, ArrayLike]
+  ) -> Tuple[ArrayLike, ArrayLike]:
 
     def compute_moments(x, reg=1e-4, sqrt_inv=False):
       shape = x.shape
@@ -286,13 +287,13 @@ class ICNN(ModelBase):
     return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
-  def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def _compute_identity_map(input_dim: int) -> Tuple[Array, Array]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
     return A, b
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: ArrayLike) -> float:  # noqa: D102
     z = self.act_fn(self.w_xs[0](x))
     for i in range(self.num_hidden):
       z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
@@ -315,10 +316,10 @@ class MLP(ModelBase):
 
   dim_hidden: Sequence[int]
   is_potential: bool = True
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
+  act_fn: Callable[[ArrayLike], ArrayLike] = nn.leaky_relu
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
+  def __call__(self, x: ArrayLike) -> Array:  # noqa: D102
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
