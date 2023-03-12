@@ -20,6 +20,7 @@ import optax
 from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers
@@ -79,7 +80,7 @@ class MetaInitializer(initializers.DefaultInitializer):
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       state: Optional[train_state.TrainState] = None
-  ):
+  ) -> None:
     self.geom = geom
     self.dtype = geom.x.dtype
     self.opt = opt
@@ -103,9 +104,8 @@ class MetaInitializer(initializers.DefaultInitializer):
 
     self.update_impl = self._get_update_fn()
 
-  def update(
-      self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
+  def update(self, state: train_state.TrainState, a: ArrayLike,
+             b: ArrayLike) -> Tuple[Array, Array, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -144,7 +144,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2)
@@ -195,9 +195,9 @@ class MetaInitializer(initializers.DefaultInitializer):
     return update
 
   def _compute_f(
-      self, a: jnp.ndarray, b: jnp.ndarray,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray]
-  ) -> jnp.ndarray:
+      self, a: ArrayLike, b: ArrayLike,
+      params: frozen_dict.FrozenDict[str, ArrayLike]
+  ) -> Array:
     r"""Predict the optimal :math:`f` potential.
 
     Args:
@@ -234,7 +234,7 @@ class MetaMLP(nn.Module):
   num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, a: ArrayLike, b: ArrayLike) -> Array:
     r"""Make a prediction.
 
     Args:
