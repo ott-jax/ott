@@ -17,6 +17,8 @@ from typing import Any, List, NoReturn, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax._src.typing import DTypeLike
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, geometry, low_rank, pointcloud
 from ott.math import utils
@@ -71,13 +73,13 @@ class Grid(geometry.Geometry):
 
   def __init__(
       self,
-      x: Optional[Sequence[jnp.ndarray]] = None,
+      x: Optional[Sequence[ArrayLike]] = None,
       grid_size: Optional[Sequence[int]] = None,
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
       grid_dimension: Optional[int] = None,
       **kwargs: Any,
-  ):
+  ) -> None:
     if (
         grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None
@@ -146,12 +148,12 @@ class Grid(geometry.Geometry):
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: ArrayLike,
+      g: ArrayLike,
       eps: float,
-      vec: Optional[jnp.ndarray] = None,
+      vec: Optional[ArrayLike] = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Apply grid kernel in log space. See notes in parent class for use case.
 
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
@@ -160,10 +162,10 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`.
 
     Args:
-      f: jnp.ndarray, a vector of potentials
-      g: jnp.ndarray, a vector of potentials
+      f: ArrayLike, a vector of potentials
+      g: ArrayLike, a vector of potentials
       eps: float, regularization strength
-      vec: jnp.ndarray, if needed, a vector onto which apply the kernel weighted
+      vec: ArrayLike, if needed, a vector onto which apply the kernel weighted
         by f and g.
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -208,9 +210,7 @@ class Grid(geometry.Geometry):
     softmax_res = eps * utils.logsumexp(centered_cost, axis=1)
     return jnp.transpose(softmax_res, indices), None
 
-  def _apply_cost_to_vec(
-      self, vec: jnp.ndarray, axis: int = 0, fn=None
-  ) -> jnp.ndarray:
+  def _apply_cost_to_vec(self, vec: ArrayLike, axis: int = 0, fn=None) -> Array:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
     The `apply_cost` operation on grids rests on the following identity.
@@ -229,13 +229,13 @@ class Grid(geometry.Geometry):
     summation while keeping dimensions.
 
     Args:
-      vec: jnp.ndarray, flat vector of total size prod(grid_size).
+      vec: ArrayLike, flat vector of total size prod(grid_size).
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
 
     Returns:
-      A jnp.ndarray corresponding to cost x matrix
+      A Array corresponding to cost x matrix
     """
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
@@ -255,10 +255,10 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      scaling: ArrayLike,
       eps: Optional[float] = None,
       axis: Optional[int] = None
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Apply grid kernel on scaling vector.
 
     See notes in parent class for use.
@@ -269,7 +269,7 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`,
 
     Args:
-      scaling: jnp.ndarray, a vector of scaling (>0) values.
+      scaling: ArrayLike, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -289,7 +289,7 @@ class Grid(geometry.Geometry):
     return scaling.ravel()
 
   def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+      self, f: ArrayLike, g: ArrayLike, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
@@ -300,7 +300,7 @@ class Grid(geometry.Geometry):
     )
 
   def transport_from_scalings(
-      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+      self, f: ArrayLike, g: ArrayLike, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
@@ -311,15 +311,15 @@ class Grid(geometry.Geometry):
     )
 
   def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
+      self, src_ixs: Optional[ArrayLike], tgt_ixs: Optional[ArrayLike]
   ) -> NoReturn:
     """Not implemented."""
     raise NotImplementedError("Subsetting is not implemented for grids.")
 
   def mask(
       self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
+      src_mask: Optional[ArrayLike],
+      tgt_mask: Optional[ArrayLike],
       mask_value: float = 0.,
   ) -> NoReturn:
     """Not implemented."""
@@ -341,7 +341,7 @@ class Grid(geometry.Geometry):
     return tuple(sep_grid for _ in range(size))
 
   @property
-  def dtype(self) -> jnp.dtype:  # noqa: D102
+  def dtype(self) -> DTypeLike:  # noqa: D102
     return self.x[0].dtype
 
   def tree_flatten(self):  # noqa: D102
