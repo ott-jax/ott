@@ -14,7 +14,7 @@
 import abc
 from typing import Callable, Literal, NamedTuple, Optional
 
-import jax.numpy as jnp
+from jax.typing import ArrayLike
 from jaxopt import LBFGS
 
 from ott import utils
@@ -36,7 +36,7 @@ class ConjugateResults(NamedTuple):
     num_iter: the number of iterations taken by the solver
   """
   val: float
-  grad: jnp.ndarray
+  grad: ArrayLike
   num_iter: int
 
 
@@ -50,9 +50,9 @@ class FenchelConjugateSolver(abc.ABC):
   @abc.abstractmethod
   def solve(
       self,
-      f: Callable[[jnp.ndarray], jnp.ndarray],
-      y: jnp.ndarray,
-      x_init: Optional[jnp.ndarray] = None
+      f: Callable[[ArrayLike], ArrayLike],
+      y: ArrayLike,
+      x_init: Optional[ArrayLike] = None
   ) -> ConjugateResults:
     """Solve for the conjugate.
 
@@ -88,9 +88,9 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
 
   def solve(  # noqa: D102
       self,
-      f: Callable[[jnp.ndarray], jnp.ndarray],
-      y: jnp.ndarray,
-      x_init: Optional[jnp.array] = None
+      f: Callable[[ArrayLike], ArrayLike],
+      y: ArrayLike,
+      x_init: Optional[ArrayLike] = None
   ) -> ConjugateResults:
     assert y.ndim == 1, y.ndim
 
