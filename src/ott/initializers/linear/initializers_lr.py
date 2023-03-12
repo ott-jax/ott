@@ -29,6 +29,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import fixed_point_loop
@@ -58,7 +59,7 @@ class LRInitializer(abc.ABC):
     kwargs: Additional keyword arguments.
   """
 
-  def __init__(self, rank: int, **kwargs: Any):
+  def __init__(self, rank: int, **kwargs: Any) -> None:
     self._rank = rank
     self._kwargs = kwargs
 
@@ -68,9 +69,9 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Initialize the low-rank factor :math:`Q`.
 
     Args:
@@ -89,9 +90,9 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Initialize the low-rank factor :math:`R`.
 
     Args:
@@ -110,7 +111,7 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Initialize the low-rank factor :math:`g`.
 
     Args:
@@ -172,13 +173,13 @@ class LRInitializer(abc.ABC):
   def __call__(
       self,
       ot_prob: Problem_t,
-      q: Optional[jnp.ndarray] = None,
-      r: Optional[jnp.ndarray] = None,
-      g: Optional[jnp.ndarray] = None,
+      q: Optional[ArrayLike] = None,
+      r: Optional[ArrayLike] = None,
+      g: Optional[ArrayLike] = None,
       *,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
       **kwargs: Any
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[Array, Array, Array]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
@@ -240,9 +241,9 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del kwargs, init_g
     a = ot_prob.a
     init_q = jnp.abs(jax.random.normal(rng, (a.shape[0], self.rank)))
@@ -253,9 +254,9 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del kwargs, init_g
     b = ot_prob.b
     init_r = jnp.abs(jax.random.normal(rng, (b.shape[0], self.rank)))
@@ -266,7 +267,7 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del kwargs
     init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.
     return init_g / jnp.sum(init_g)
@@ -284,10 +285,10 @@ class Rank2Initializer(LRInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       *,
       which: Literal["q", "r"],
-  ) -> jnp.ndarray:
+  ) -> Array:
     a, b = ot_prob.a, ot_prob.b
     marginal = a if which == "q" else b
     n, r = marginal.shape[0], self.rank
@@ -314,9 +315,9 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="q")
 
@@ -325,9 +326,9 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="r")
 
@@ -336,7 +337,7 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
@@ -364,7 +365,7 @@ class KMeansInitializer(LRInitializer):
       max_iterations: int = 100,
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
-  ):
+  ) -> None:
     super().__init__(rank, **kwargs)
     self._min_iter = min_iterations
     self._max_iter = max_iterations
@@ -373,7 +374,7 @@ class KMeansInitializer(LRInitializer):
   @staticmethod
   def _extract_array(
       geom: Union[pointcloud.PointCloud, low_rank.LRCGeometry], *, first: bool
-  ) -> jnp.ndarray:
+  ) -> Array:
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
@@ -387,10 +388,10 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       which: Literal["q", "r"],
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     from ott.problems.linear import linear_problem
     from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn
@@ -425,9 +426,9 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     return self._compute_factor(
         ot_prob, rng, init_g=init_g, which="q", **kwargs
     )
@@ -437,9 +438,9 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     return self._compute_factor(
         ot_prob, rng, init_g=init_g, which="r", **kwargs
     )
@@ -449,7 +450,7 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
@@ -488,7 +489,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       inner_iterations: int = 10,
       threshold: float = 1e-6,
       sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
-  ):
+  ) -> None:
     super().__init__(
         rank,
         sinkhorn_kwargs=sinkhorn_kwargs,
@@ -503,14 +504,14 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   class Constants(NamedTuple):  # noqa: D106
     solver: "sinkhorn.Sinkhorn"
     geom: geometry.Geometry  # (n, n)
-    marginal: jnp.ndarray  # (n,)
-    g: jnp.ndarray  # (r,)
+    marginal: ArrayLike  # (n,)
+    g: ArrayLike  # (r,)
     gamma: float
     threshold: float
 
   class State(NamedTuple):  # noqa: D106
-    factor: jnp.ndarray
-    criterions: jnp.ndarray
+    factor: ArrayLike
+    criterions: ArrayLike
     crossed_threshold: bool
 
   def _compute_factor(
@@ -518,10 +519,10 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       ot_prob: Problem_t,
       rng: jax.random.PRNGKeyArray,
       *,
-      init_g: jnp.ndarray,
+      init_g: ArrayLike,
       which: Literal["q", "r"],
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> Array:
     from ott.problems.linear import linear_problem
     from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn
