@@ -15,6 +15,8 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
+from jax._src.typing import DTypeLike
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
@@ -54,7 +56,7 @@ class GaussianMixturePair:
       epsilon: float = 1.e-2,
       tau: float = 1.,
       lock_gmm1: bool = False,
-  ):
+  ) -> None:
     """Constructor.
 
     When fitting a pair of coupled GMMs with *no* reweighting of components
@@ -83,31 +85,31 @@ class GaussianMixturePair:
     self._lock_gmm1 = lock_gmm1
 
   @property
-  def dtype(self):  # noqa: D102
+  def dtype(self) -> DTypeLike:  # noqa: D102
     return self.gmm0.dtype
 
   @property
-  def gmm0(self):  # noqa: D102
+  def gmm0(self) -> gaussian_mixture.GaussianMixture:  # noqa: D102
     return self._gmm0
 
   @property
-  def gmm1(self):  # noqa: D102
+  def gmm1(self) -> gaussian_mixture.GaussianMixture:  # noqa: D102
     return self._gmm1
 
   @property
-  def epsilon(self):  # noqa: D102
+  def epsilon(self) -> float:  # noqa: D102
     return self._epsilon
 
   @property
-  def tau(self):  # noqa: D102
+  def tau(self) -> float:  # noqa: D102
     return self._tau
 
   @property
-  def rho(self):  # noqa: D102
+  def rho(self) -> float:  # noqa: D102
     return self.epsilon * self.tau / (1. - self.tau)
 
   @property
-  def lock_gmm1(self):  # noqa: D102
+  def lock_gmm1(self) -> bool:  # noqa: D102
     return self._lock_gmm1
 
   def get_bures_geometry(self) -> pointcloud.PointCloud:
@@ -128,12 +130,12 @@ class GaussianMixturePair:
         epsilon=self.epsilon
     )
 
-  def get_cost_matrix(self) -> jnp.ndarray:
+  def get_cost_matrix(self) -> Array:
     """Get matrix of :math:`W_2^2` costs between all pairs of components."""
     return self.get_bures_geometry().cost_matrix
 
   def get_sinkhorn(
-      self, cost_matrix: jnp.ndarray, **kwargs: Any
+      self, cost_matrix: ArrayLike, **kwargs: Any
   ) -> sinkhorn.SinkhornOutput:
     """Get the output of Sinkhorn's method for a given cost matrix."""
     # We use a Geometry here rather than the PointCloud created in
@@ -152,7 +154,7 @@ class GaussianMixturePair:
   def get_normalized_sinkhorn_coupling(
       self,
       sinkhorn_output: sinkhorn.SinkhornOutput,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Get the normalized coupling matrix for the specified Sinkhorn output.
 
     Args:
@@ -207,7 +209,7 @@ class GaussianMixturePair:
       children.insert(1, gmm1)
     return cls(*children, **aux_data)
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
     return "{}({})".format(
@@ -215,8 +217,8 @@ class GaussianMixturePair:
                               [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
-  def __hash__(self):
+  def __hash__(self) -> int:
     return jax.tree_util.tree_flatten(self).__hash__()
 
-  def __eq__(self, other):
+  def __eq__(self, other) -> bool:
     return jax.tree_util.tree_flatten(self) == jax.tree_util.tree_flatten(other)
