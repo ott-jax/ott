@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, geometry, segment
 
@@ -56,14 +57,14 @@ class FreeBarycenterProblem:
 
   def __init__(
       self,
-      y: jnp.ndarray,
-      b: Optional[jnp.ndarray] = None,
-      weights: Optional[jnp.ndarray] = None,
+      y: ArrayLike,
+      b: Optional[ArrayLike] = None,
+      weights: Optional[ArrayLike] = None,
       cost_fn: Optional[costs.CostFn] = None,
       epsilon: Optional[float] = None,
       debiased: bool = False,
       **kwargs: Any,
-  ):
+  ) -> None:
     self._y = y
     if y.ndim == 3 and b is None:
       raise ValueError("Specify weights if `y` is already segmented.")
@@ -84,7 +85,7 @@ class FreeBarycenterProblem:
       assert self._b is None or self._y.shape[0] == self._b.shape[0]
 
   @property
-  def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def segmented_y_b(self) -> Tuple[Array, Array]:
     """Tuple of arrays containing the segmented measures and weights.
 
     Additional segment may be added when the problem is debiased.
@@ -107,9 +108,8 @@ class FreeBarycenterProblem:
     return y, b
 
   @staticmethod
-  def _add_slice_for_debiased(
-      y: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def _add_slice_for_debiased(y: ArrayLike,
+                              b: ArrayLike) -> Tuple[Array, Array]:
     _, n, ndim = y.shape  # (num_measures, max_measure_size, ndim)
     # yapf: disable
     y = jnp.concatenate((y, jnp.zeros((1, n, ndim))), axis=0)
@@ -118,14 +118,14 @@ class FreeBarycenterProblem:
     return y, b
 
   @property
-  def flattened_y(self) -> jnp.ndarray:
+  def flattened_y(self) -> Array:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...), ndim]``."""
     if self._is_segmented:
       return self._y.reshape((-1, self._y.shape[-1]))
     return self._y
 
   @property
-  def flattened_b(self) -> Optional[jnp.ndarray]:
+  def flattened_b(self) -> Optional[Array]:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
     return None if self._b is None else self._b.ravel()
 
@@ -145,7 +145,7 @@ class FreeBarycenterProblem:
     return self._y.shape[-1]
 
   @property
-  def weights(self) -> jnp.ndarray:
+  def weights(self) -> Array:
     """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
     if self._weights is None:
       weights = jnp.ones((self.num_measures,)) / self.num_measures
@@ -194,9 +194,9 @@ class FixedBarycenterProblem:
   def __init__(
       self,
       geom: geometry.Geometry,
-      a: jnp.ndarray,
-      weights: Optional[jnp.ndarray] = None,
-  ):
+      a: ArrayLike,
+      weights: Optional[ArrayLike] = None,
+  ) -> None:
     self.geom = geom
     self.a = a
     self._weights = weights
@@ -207,7 +207,7 @@ class FixedBarycenterProblem:
     return self.a.shape[0]
 
   @property
-  def weights(self) -> jnp.ndarray:
+  def weights(self) -> Array:
     """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
     if self._weights is None:
       return jnp.ones((self.num_measures,)) / self.num_measures
