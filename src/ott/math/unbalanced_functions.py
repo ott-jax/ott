@@ -14,22 +14,23 @@
 from typing import Callable
 
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 
-def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
+def phi_star(h: ArrayLike, rho: float) -> Array:
   """Legendre transform of KL, :cite:`sejourne:19`, p. 9."""
   return rho * (jnp.exp(h / rho) - 1)
 
 
 # TODO(cuturi): use jax.grad directly.
-def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
+def derivative_phi_star(f: ArrayLike, rho: float) -> Array:
   """Derivative of Legendre transform of phi_starKL, see phi_star."""
   return jnp.exp(f / rho)
 
 
 def grad_of_marginal_fit(
-    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
-) -> jnp.ndarray:
+    c: ArrayLike, h: ArrayLike, tau: float, epsilon: float
+) -> Array:
   """Compute grad of terms linked to marginals in objective.
 
   Computes gradient w.r.t. f ( or g) of terms in :cite:`sejourne:19`,
@@ -50,15 +51,15 @@ def grad_of_marginal_fit(
   return jnp.where(c > 0, c * derivative_phi_star(-h, r), 0.0)
 
 
-def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
+def second_derivative_phi_star(f: ArrayLike, rho: float) -> Array:
   """Second Derivative of Legendre transform of KL, see phi_star."""
   return jnp.exp(f / rho) / rho
 
 
 def diag_jacobian_of_marginal_fit(
-    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float,
-    derivative: Callable[[jnp.ndarray, float], jnp.ndarray]
-):
+    c: ArrayLike, h: ArrayLike, tau: float, epsilon: float,
+    derivative: Callable[[ArrayLike, float], ArrayLike]
+) -> Array:
   """Compute grad of terms linked to marginals in objective.
 
   Computes second derivative w.r.t. f ( or g) of terms in :cite:`sejourne:19`,
