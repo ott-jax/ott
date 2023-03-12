@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott import utils
 from ott.math import unbalanced_functions as uf
@@ -44,18 +45,18 @@ class ImplicitDiff:
     precondition_fun: TODO(marcocuturi)
   """
 
-  solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
-                       Tuple[jnp.ndarray, ...]] = jax.scipy.sparse.linalg.cg
+  solver_fun: Callable[[ArrayLike, ArrayLike],
+                       Tuple[ArrayLike, ...]] = jax.scipy.sparse.linalg.cg
   ridge_kernel: float = 0.0
   ridge_identity: float = 0.0
   symmetric: bool = False
-  precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
+  precondition_fun: Optional[Callable[[ArrayLike], ArrayLike]] = None
 
   def solve(
-      self, gr: Tuple[jnp.ndarray,
-                      jnp.ndarray], ot_prob: "linear_problem.LinearProblem",
-      f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
-  ) -> jnp.ndarray:
+      self, gr: Tuple[ArrayLike,
+                      ArrayLike], ot_prob: "linear_problem.LinearProblem",
+      f: ArrayLike, g: ArrayLike, lse_mode: bool
+  ) -> Array:
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
@@ -229,8 +230,8 @@ class ImplicitDiff:
     return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
   def first_order_conditions(
-      self, prob, f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
-  ):
+      self, prob, f: ArrayLike, g: ArrayLike, lse_mode: bool
+  ) -> Array:
     r"""Compute vector of first order conditions for the reg-OT problem.
 
     The output of this vector should be close to zero at optimality.
@@ -271,8 +272,8 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(
-      self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
-      g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+      self, prob: "linear_problem.LinearProblem", f: ArrayLike, g: ArrayLike,
+      lse_mode: bool, gr: Tuple[ArrayLike, ArrayLike]
   ) -> "linear_problem.LinearProblem":
     """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
