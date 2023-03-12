@@ -19,6 +19,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.typing import Array, ArrayLike
 
 from ott.math import fixed_point_loop, matrix_square_root
 from ott.math import utils as mu
@@ -55,10 +56,10 @@ class CostFn(abc.ABC):
   """
 
   # no norm function created by default.
-  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
+  norm: Optional[Callable[[ArrayLike], Union[float, ArrayLike]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -69,7 +70,7 @@ class CostFn(abc.ABC):
       The cost.
     """
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: ArrayLike, xs: ArrayLike) -> Array:
     """Barycentric operator.
 
     Args:
@@ -82,7 +83,7 @@ class CostFn(abc.ABC):
     raise NotImplementedError("Barycenter is not implemented.")
 
   @classmethod
-  def _padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> Array:
     """Create a padding vector of adequate dimension, well-suited to a cost.
 
     Args:
@@ -93,7 +94,7 @@ class CostFn(abc.ABC):
     """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -110,7 +111,7 @@ class CostFn(abc.ABC):
     return cost + self.norm(x) + self.norm(y)
 
   # TODO(michalk8): unused
-  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def all_pairs(self, x: ArrayLike, y: ArrayLike) -> Array:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
     Args:
@@ -122,7 +123,7 @@ class CostFn(abc.ABC):
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def all_pairs_pairwise(self, x: ArrayLike, y: ArrayLike) -> Array:
     """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
 
     Args:
@@ -161,14 +162,14 @@ class TICost(CostFn):
   """
 
   @abc.abstractmethod
-  def h(self, z: jnp.ndarray) -> float:
+  def h(self, z: ArrayLike) -> float:
     """TI function acting on difference of :math:`x-y` to output cost."""
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: ArrayLike) -> float:
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("`h_legendre` not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -181,16 +182,16 @@ class SqPNorm(TICost):
     p: Power of the p-norm.
   """
 
-  def __init__(self, p: float):
+  def __init__(self, p: float) -> None:
     super().__init__()
     assert p >= 1.0, "p parameter in sq. p-norm should be >= 1.0"
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h(self, z: ArrayLike) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
 
-  def h_legendre(self, z: jnp.ndarray) -> float:
+  def h_legendre(self, z: ArrayLike) -> float:
     """Legendre transform of :func:`h`.
 
     For details on the derivation, see e.g., :cite:`boyd:04`, p. 93/94.
@@ -214,17 +215,17 @@ class PNormP(TICost):
     p: Power of the p-norm, a finite float larger than 1.0.
   """
 
-  def __init__(self, p: float):
+  def __init__(self, p: float) -> None:
     super().__init__()
     assert p >= 1.0, "p parameter in p-norm should be larger than 1.0"
     assert p < jnp.inf, "p parameter in p-norm should be finite"
     self.p = p
     self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
 
-  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h(self, z: ArrayLike) -> float:  # noqa: D102
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
 
-  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h_legendre(self, z: ArrayLike) -> float:  # noqa: D102
     assert self.q < jnp.inf, "Legendre transform not defined for `p=1.0`"
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
@@ -247,7 +248,7 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute Euclidean norm."""
     return jnp.linalg.norm(x - y)
 
@@ -256,21 +257,21 @@ class Euclidean(CostFn):
 class SqEuclidean(TICost):
   """Squared Euclidean distance."""
 
-  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
+  def norm(self, x: ArrayLike) -> Union[float, Array]:
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
-  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h(self, z: ArrayLike) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h_legendre(self, z: ArrayLike) -> float:  # noqa: D102
     return 0.25 * jnp.sum(z ** 2)
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: ArrayLike, xs: ArrayLike) -> Array:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return jnp.average(xs, weights=weights, axis=0)
 
@@ -283,11 +284,11 @@ class Cosine(CostFn):
     ridge: Ridge regularization.
   """
 
-  def __init__(self, ridge: float = 1e-8):
+  def __init__(self, ridge: float = 1e-8) -> None:
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -298,7 +299,7 @@ class Cosine(CostFn):
     return jnp.clip(cosine_distance, 0., 2.)
 
   @classmethod
-  def _padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> Array:
     return jnp.ones((1, dim))
 
 
@@ -313,17 +314,17 @@ class RegTICost(TICost, abc.ABC):
   """
 
   @abc.abstractmethod
-  def reg(self, z: jnp.ndarray) -> float:
+  def reg(self, z: ArrayLike) -> float:
     """Regularization function."""
 
-  def prox_reg(self, z: jnp.ndarray) -> jnp.ndarray:
+  def prox_reg(self, z: ArrayLike) -> Array:
     """Proximal operator of :func:`reg`."""
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h(self, z: ArrayLike) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
 
-  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def h_legendre(self, z: ArrayLike) -> float:  # noqa: D102
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
@@ -340,15 +341,15 @@ class ElasticL1(RegTICost):
     gamma: Strength of the :math:`\|\cdot\|_1` regularization.
   """
 
-  def __init__(self, gamma: float = 1.0):
+  def __init__(self, gamma: float = 1.0) -> None:
     super().__init__()
     assert gamma >= 0, "Gamma must be non-negative."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def reg(self, z: ArrayLike) -> float:  # noqa: D102
     return self.gamma * jnp.linalg.norm(z, ord=1)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def prox_reg(self, z: ArrayLike) -> float:  # noqa: D102
     return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
 
   def tree_flatten(self):  # noqa: D102
@@ -376,17 +377,17 @@ class ElasticSTVS(RegTICost):
     gamma: Strength of the STVS regularization.
   """  # noqa
 
-  def __init__(self, gamma: float = 1.0):
+  def __init__(self, gamma: float = 1.0) -> None:
     super().__init__()
     assert gamma > 0, "Gamma must be positive."
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def reg(self, z: ArrayLike) -> float:  # noqa: D102
     u = jnp.arcsinh(jnp.abs(z) / (2 * self.gamma))
     out = u - 0.5 * jnp.exp(-2.0 * u)
     return (self.gamma ** 2) * jnp.sum(out + 0.5)  # make positive
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def prox_reg(self, z: ArrayLike) -> float:  # noqa: D102
     return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
 
   def tree_flatten(self):  # noqa: D102
@@ -415,13 +416,13 @@ class ElasticSqKOverlap(RegTICost):
     gamma: Strength of the squared k-overlap norm regularization.
   """
 
-  def __init__(self, k: int, gamma: float = 1.0):
+  def __init__(self, k: int, gamma: float = 1.0) -> None:
     super().__init__()
     assert gamma > 0, "Gamma must be positive."
     self.k = k
     self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def reg(self, z: ArrayLike) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -442,15 +443,13 @@ class ElasticSqKOverlap(RegTICost):
 
     return 0.5 * self.gamma * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def prox_reg(self, z: ArrayLike) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
-    def find_indices(r: int, l: jnp.ndarray,
-                     z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    def find_indices(r: int, l: ArrayLike, z: ArrayLike) -> Tuple[Array, Array]:
 
       @functools.partial(jax.vmap, in_axes=[None, 0, None])
-      def inner(r: int, l: int,
-                z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      def inner(r: int, l: int, z: ArrayLike) -> Tuple[Array, Array]:
         i = k - r - 1
         res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
         res /= l - k + (beta + 1) * r + beta + 1
@@ -505,19 +504,19 @@ class Bures(CostFn):
     kwargs: Keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
-  def __init__(self, dimension: int, **kwargs: Any):
+  def __init__(self, dimension: int, **kwargs: Any) -> None:
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
+  def norm(self, x: ArrayLike) -> Array:
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
     mean, cov = x_to_means_and_covs(x, self._dimension)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -531,11 +530,11 @@ class Bures(CostFn):
 
   def covariance_fixpoint_iter(
       self,
-      covs: jnp.ndarray,
-      weights: jnp.ndarray,
+      covs: ArrayLike,
+      weights: ArrayLike,
       tolerance: float = 1e-4,
       **kwargs: Any
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Iterate fix-point updates to compute barycenter of Gaussians.
 
     Args:
@@ -550,8 +549,8 @@ class Bures(CostFn):
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
     def scale_covariances(
-        cov_sqrt: jnp.ndarray, cov: jnp.ndarray, weight: jnp.ndarray
-    ) -> jnp.ndarray:
+        cov_sqrt: ArrayLike, cov: ArrayLike, weight: ArrayLike
+    ) -> Array:
       """Rescale covariance in barycenter step."""
       return weight * matrix_square_root.sqrtm_only((cov_sqrt @ cov) @ cov_sqrt,
                                                     **kwargs)
@@ -563,8 +562,8 @@ class Bures(CostFn):
 
     def body_fn(
         iteration: int, constants: Tuple[Any, ...],
-        state: Tuple[jnp.ndarray, float], compute_error: bool
-    ) -> Tuple[jnp.ndarray, float]:
+        state: Tuple[ArrayLike, float], compute_error: bool
+    ) -> Tuple[Array, float]:
       del iteration, constants, compute_error
       cov, _ = state
       cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **kwargs)
@@ -575,7 +574,7 @@ class Bures(CostFn):
       diff = jnp.sum((next_cov - cov) ** 2) / jnp.prod(jnp.array(cov.shape))
       return next_cov, diff
 
-    def init_state() -> Tuple[jnp.ndarray, float]:
+    def init_state() -> Tuple[Array, float]:
       cov_init = jnp.eye(self._dimension)
       diff = jnp.inf
       return cov_init, diff
@@ -597,8 +596,8 @@ class Bures(CostFn):
     return cov
 
   def barycenter(
-      self, weights: jnp.ndarray, xs: jnp.ndarray, **kwargs: Any
-  ) -> jnp.ndarray:
+      self, weights: ArrayLike, xs: ArrayLike, **kwargs: Any
+  ) -> Array:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
     Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
@@ -628,7 +627,7 @@ class Bures(CostFn):
     return mean_and_cov_to_x(mu_bary, cov_bary, self._dimension)
 
   @classmethod
-  def _padder(cls, dim: int) -> jnp.ndarray:
+  def _padder(cls, dim: int) -> Array:
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
@@ -664,14 +663,14 @@ class UnbalancedBures(CostFn):
       sigma: float = 1.0,
       gamma: float = 1.0,
       **kwargs: Any,
-  ):
+  ) -> None:
     super().__init__()
     self._dimension = dimension
     self._sigma = sigma
     self._gamma = gamma
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
+  def norm(self, x: ArrayLike) -> Array:
     """Compute norm of Gaussian for unbalanced Bures.
 
     Args:
@@ -684,7 +683,7 @@ class UnbalancedBures(CostFn):
     """
     return self._gamma * x[..., 0]
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:
     """Compute dot-product for unbalanced Bures.
 
     Args:
@@ -773,23 +772,22 @@ class SoftDTW(CostFn):
       gamma: float,
       ground_cost: Optional[CostFn] = None,
       debiased: bool = False
-  ):
+  ) -> None:
     self.gamma = gamma
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
+  def pairwise(self, x: ArrayLike, y: ArrayLike) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
     return c_xy
 
-  def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
+  def _soft_dtw(self, t1: ArrayLike, t2: ArrayLike) -> float:
 
     def body(
-        carry: Tuple[jnp.ndarray, jnp.ndarray],
-        current_antidiagonal: jnp.ndarray
-    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+        carry: Tuple[ArrayLike, ArrayLike], current_antidiagonal: ArrayLike
+    ) -> Tuple[Tuple[Array, Array], Array]:
       # modified from: https://github.com/khdlr/softdtw_jax
       two_ago, one_ago = carry
 
@@ -836,8 +834,7 @@ class SoftDTW(CostFn):
     return cls(*children, **aux_data)
 
 
-def x_to_means_and_covs(x: jnp.ndarray,
-                        dimension: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def x_to_means_and_covs(x: ArrayLike, dimension: int) -> Tuple[Array, Array]:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:
@@ -857,8 +854,8 @@ def x_to_means_and_covs(x: jnp.ndarray,
 
 
 def mean_and_cov_to_x(
-    mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
-) -> jnp.ndarray:
+    mean: ArrayLike, covariance: ArrayLike, dimension: int
+) -> Array:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
   return jnp.concatenate(
       (mean, jnp.reshape(covariance, (dimension * dimension)))
