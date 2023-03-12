@@ -35,7 +35,7 @@ class BaseQuadraticInitializer(abc.ABC):
     kwargs: Keyword arguments.
   """
 
-  def __init__(self, **kwargs: Any):
+  def __init__(self, **kwargs: Any) -> None:
     self._kwargs = kwargs
 
   def __call__(
@@ -171,7 +171,9 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     lr_linear_initializer: Low-rank linear initializer.
   """
 
-  def __init__(self, lr_linear_initializer: "initializers_lr.LRInitializer"):
+  def __init__(
+      self, lr_linear_initializer: "initializers_lr.LRInitializer"
+  ) -> None:
     super().__init__()
     self._linear_lr_initializer = lr_linear_initializer
 
