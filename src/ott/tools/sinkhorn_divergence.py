@@ -15,6 +15,7 @@ from types import MappingProxyType
 from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
@@ -28,13 +29,12 @@ __all__ = [
 
 class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
   divergence: float
-  potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
+  potentials: Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike]]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
-  errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                Optional[jnp.ndarray]]
+  errors: Tuple[Optional[ArrayLike], Optional[ArrayLike], Optional[ArrayLike]]
   converged: Tuple[bool, bool, bool]
-  a: jnp.ndarray
-  b: jnp.ndarray
+  a: ArrayLike
+  b: ArrayLike
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
@@ -49,8 +49,8 @@ class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
 def sinkhorn_divergence(
     geom: Type[geometry.Geometry],
     *args: Any,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: Optional[ArrayLike] = None,
+    b: Optional[ArrayLike] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
@@ -114,8 +114,8 @@ def _sinkhorn_divergence(
     geometry_xy: geometry.Geometry,
     geometry_xx: geometry.Geometry,
     geometry_yy: Optional[geometry.Geometry],
-    a: jnp.ndarray,
-    b: jnp.ndarray,
+    a: ArrayLike,
+    b: ArrayLike,
     symmetric_sinkhorn: bool,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
@@ -131,9 +131,9 @@ def _sinkhorn_divergence(
     between elements of the view X.
     geometry_yy: a Cost object able to apply kernels with a certain epsilon,
     between elements of the view Y.
-    a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
+    a: ArrayLike<float>[n]: the weight of each input point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
-    b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
+    b: ArrayLike<float>[m]: the weight of each target point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
@@ -183,24 +183,24 @@ def _sinkhorn_divergence(
 
 
 def segment_sinkhorn_divergence(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: ArrayLike,
+    y: ArrayLike,
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
-    segment_ids_x: Optional[jnp.ndarray] = None,
-    segment_ids_y: Optional[jnp.ndarray] = None,
+    segment_ids_x: Optional[ArrayLike] = None,
+    segment_ids_y: Optional[ArrayLike] = None,
     indices_are_sorted: bool = False,
     num_per_segment_x: Optional[Tuple[int, ...]] = None,
     num_per_segment_y: Optional[Tuple[int, ...]] = None,
-    weights_x: Optional[jnp.ndarray] = None,
-    weights_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[ArrayLike] = None,
+    weights_y: Optional[ArrayLike] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = False,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> Array:
   """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
@@ -219,9 +219,9 @@ def segment_sinkhorn_divergence(
   a tensor, and `vmap` used to evaluate Sinkhorn divergences in parallel.
 
   Args:
-    x: Array of input points, of shape `[num_x, feature]`.
+    x: ArrayLike of input points, of shape `[num_x, feature]`.
       Multiple segments are held in this single array.
-    y: Array of target points, of shape `[num_y, feature]`.
+    y: ArrayLike of target points, of shape `[num_y, feature]`.
     num_segments: Number of segments contained in `x` and `y`.
       Providing this is required for JIT compilation to work,
       see also :func:`~ott.geometry.segment.segment_point_cloud`.
