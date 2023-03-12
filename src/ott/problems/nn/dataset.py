@@ -15,8 +15,8 @@ import dataclasses
 from typing import Iterator, Literal, NamedTuple, Tuple
 
 import jax
-import jax.numpy as jnp
 import numpy as np
+from jax.typing import Array, ArrayLike
 
 __all__ = ["create_gaussian_mixture_samplers", "Dataset", "GaussianMixture"]
 
@@ -30,8 +30,8 @@ class Dataset(NamedTuple):
     source_iter: loader for the source measure
     target_iter: loader for the target measure
   """
-  source_iter: Iterator[jnp.ndarray]
-  target_iter: Iterator[jnp.ndarray]
+  source_iter: Iterator[ArrayLike]
+  target_iter: Iterator[ArrayLike]
 
 
 @dataclasses.dataclass
@@ -59,7 +59,7 @@ class GaussianMixture:
   scale: float = 5.0
   variance: float = 0.5
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     gaussian_centers = {
         "simple":
             np.array([[0, 0]]),
@@ -85,7 +85,7 @@ class GaussianMixture:
       )
     self.centers = gaussian_centers[self.name]
 
-  def __iter__(self) -> Iterator[jnp.array]:
+  def __iter__(self) -> Iterator[ArrayLike]:
     """Random sample generator from Gaussian mixture.
 
     Returns:
@@ -93,7 +93,7 @@ class GaussianMixture:
     """
     return self._create_sample_generators()
 
-  def _create_sample_generators(self) -> Iterator[jnp.array]:
+  def _create_sample_generators(self) -> Iterator[Array]:
     rng = self.init_rng
     while True:
       rng1, rng2, rng = jax.random.split(rng, 3)
