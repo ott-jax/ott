@@ -16,6 +16,7 @@ from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.math import utils as mu
@@ -60,16 +61,16 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def __init__(
       self,
-      y: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
-      weights: Optional[jnp.ndarray] = None,
-      costs: Optional[jnp.ndarray] = None,
-      y_fused: Optional[jnp.ndarray] = None,
+      y: Optional[ArrayLike] = None,
+      b: Optional[ArrayLike] = None,
+      weights: Optional[ArrayLike] = None,
+      costs: Optional[ArrayLike] = None,
+      y_fused: Optional[ArrayLike] = None,
       fused_penalty: float = 1.0,
       gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
       scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
-  ):
+  ) -> None:
     assert y is None or costs is None, "Cannot specify both `y` and `costs`."
     y = y if costs is None else costs
 
@@ -98,9 +99,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       # TODO(michalk8): in the future, consider checking the other 2 cases
       # using `segmented_y` and `segmented_y_fused`?
 
-  def update_barycenter(
-      self, transports: jnp.ndarray, a: jnp.ndarray
-  ) -> jnp.ndarray:
+  def update_barycenter(self, transports: ArrayLike, a: ArrayLike) -> Array:
     """Update the barycenter cost matrix.
 
     Uses the eq. 14 and 15 of :cite:`peyre:16`.
@@ -116,11 +115,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
     @functools.partial(jax.vmap, in_axes=[0, 0, 0, None])
     def project(
-        y: jnp.ndarray,
-        b: jnp.ndarray,
-        transport: jnp.ndarray,
+        y: ArrayLike,
+        b: ArrayLike,
+        transport: ArrayLike,
         fn: Optional[quadratic_costs.Loss],
-    ) -> jnp.ndarray:
+    ) -> Array:
       geom = self._create_y_geometry(y, mask=b > 0.)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
@@ -146,8 +145,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       return jnp.exp(barycenter)
     return barycenter
 
-  def update_features(self, transports: jnp.ndarray,
-                      a: jnp.ndarray) -> Optional[jnp.ndarray]:
+  def update_features(self, transports: ArrayLike,
+                      a: ArrayLike) -> Optional[Array]:
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
     Uses :cite:`cuturi:14` eq. 8, and is implemented only
@@ -181,8 +180,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_bary_geometry(
       self,
-      cost_matrix: jnp.ndarray,
-      mask: Optional[jnp.ndarray] = None
+      cost_matrix: ArrayLike,
+      mask: Optional[ArrayLike] = None
   ) -> geometry.Geometry:
     return geometry.Geometry(
         cost_matrix=cost_matrix,
@@ -194,8 +193,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_y_geometry(
       self,
-      y: jnp.ndarray,
-      mask: Optional[jnp.ndarray] = None
+      y: ArrayLike,
+      mask: Optional[ArrayLike] = None
   ) -> geometry.Geometry:
     if self._y_as_costs:
       assert y.shape[0] == y.shape[1], y.shape
@@ -217,10 +216,10 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_fused_geometry(
       self,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
-      src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None
+      x: ArrayLike,
+      y: ArrayLike,
+      src_mask: Optional[ArrayLike] = None,
+      tgt_mask: Optional[ArrayLike] = None
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
@@ -235,9 +234,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def _create_problem(
       self,
       state: "GWBarycenterState",  # noqa: F821
-      y: jnp.ndarray,
-      b: jnp.ndarray,
-      f: Optional[jnp.ndarray] = None
+      y: ArrayLike,
+      b: ArrayLike,
+      f: Optional[ArrayLike] = None
   ) -> quadratic_problem.QuadraticProblem:
     # TODO(michalk8): in future, mask in the problem for convenience?
     bary_mask = state.a > 0.
@@ -269,7 +268,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return self._y_fused is not None
 
   @property
-  def segmented_y_fused(self) -> Optional[jnp.ndarray]:
+  def segmented_y_fused(self) -> Optional[Array]:
     """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
