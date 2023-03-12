@@ -27,6 +27,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import core
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs
 from ott.problems.linear import potentials
@@ -122,7 +123,7 @@ class W2NeuralDual:
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
-  ):
+  ) -> None:
     self.num_train_iters = num_train_iters
     self.num_inner_iters = num_inner_iters
     self.back_and_forth = back_and_forth
@@ -231,10 +232,10 @@ class W2NeuralDual:
 
   def __call__(  # noqa: D102
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterator[ArrayLike],
+      trainloader_target: Iterator[ArrayLike],
+      validloader_source: Iterator[ArrayLike],
+      validloader_target: Iterator[ArrayLike],
       callback: Optional[Callback_t] = None,
   ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
                                               Train_t]]:
@@ -251,10 +252,10 @@ class W2NeuralDual:
 
   def train_neuraldual_parallel(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterator[ArrayLike],
+      trainloader_target: Iterator[ArrayLike],
+      validloader_source: Iterator[ArrayLike],
+      validloader_target: Iterator[ArrayLike],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with parallel updates."""
@@ -326,10 +327,10 @@ class W2NeuralDual:
 
   def train_neuraldual_alternating(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterator[ArrayLike],
+      trainloader_target: Iterator[ArrayLike],
+      validloader_source: Iterator[ArrayLike],
+      validloader_target: Iterator[ArrayLike],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with alternating updates."""
@@ -406,7 +407,7 @@ class W2NeuralDual:
 
       init_source_hat = g_gradient(params_g)(target)
 
-      def g_value_partial(y: jnp.ndarray) -> jnp.ndarray:
+      def g_value_partial(y: ArrayLike) -> Array:
         """Lazy way of evaluating g if f's computation needs it."""
         return g_value(params_g)(y)
 
@@ -559,7 +560,7 @@ class W2NeuralDual:
     return core.freeze(params)
 
   @staticmethod
-  def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:
+  def _penalize_weights_icnn(params: Dict[str, ArrayLike]) -> float:
     penalty = 0.0
     for k, param in params.items():
       if k.startswith("w_z"):
@@ -569,9 +570,9 @@ class W2NeuralDual:
   @staticmethod
   def _update_logs(
       logs: Dict[str, List[Union[float, str]]],
-      loss_f: jnp.ndarray,
-      loss_g: jnp.ndarray,
-      w_dist: jnp.ndarray,
+      loss_f: ArrayLike,
+      loss_g: ArrayLike,
+      w_dist: ArrayLike,
   ) -> None:
     logs["loss_f"].append(float(loss_f))
     logs["loss_g"].append(float(loss_g))
