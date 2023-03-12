@@ -28,6 +28,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.experimental import host_callback
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
@@ -44,17 +45,17 @@ if TYPE_CHECKING:
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
 ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
+    [Tuple[ArrayLike, ArrayLike, ArrayLike, "SinkhornState"]], None]
 
 
 class SinkhornState(NamedTuple):
   """Holds the state variables used to solve OT with Sinkhorn."""
 
-  errors: Optional[jnp.ndarray] = None
-  fu: Optional[jnp.ndarray] = None
-  gv: Optional[jnp.ndarray] = None
-  old_fus: Optional[jnp.ndarray] = None
-  old_mapped_fus: Optional[jnp.ndarray] = None
+  errors: Optional[ArrayLike] = None
+  fu: Optional[ArrayLike] = None
+  gv: Optional[ArrayLike] = None
+  old_fus: Optional[ArrayLike] = None
+  old_mapped_fus: Optional[ArrayLike] = None
 
   def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
@@ -68,7 +69,7 @@ class SinkhornState(NamedTuple):
       lse_mode: bool,
       parallel_dual_updates: bool,
       recenter: bool,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """State dependent function to return error."""
     fu, gv = self.fu, self.gv
     if recenter and lse_mode:
@@ -90,10 +91,10 @@ class SinkhornState(NamedTuple):
 
   def recenter(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: ArrayLike,
+      g: ArrayLike,
       ot_prob: linear_problem.LinearProblem,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[Array, Array]:
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
@@ -130,14 +131,14 @@ class SinkhornState(NamedTuple):
 
 
 def solution_error(
-    f_u: jnp.ndarray,
-    g_v: jnp.ndarray,
+    f_u: ArrayLike,
+    g_v: ArrayLike,
     ot_prob: linear_problem.LinearProblem,
     *,
     norm_error: Sequence[int],
     lse_mode: bool,
     parallel_dual_updates: bool,
-) -> jnp.ndarray:
+) -> Array:
   """Given two potential/scaling solutions, computes deviation to optimality.
 
   When the ``ot_prob`` problem is balanced and the usual Sinkhorn updates are
@@ -151,8 +152,8 @@ def solution_error(
   additional quantities to qualify optimality must be taken into account.
 
   Args:
-    f_u: jnp.ndarray, potential or scaling
-    g_v: jnp.ndarray, potential or scaling
+    f_u: ArrayLike, potential or scaling
+    g_v: ArrayLike, potential or scaling
     ot_prob: linear OT problem
     norm_error: int, p-norm used to compute error.
     lse_mode: True if log-sum-exp operations, False if kernel vector products.
@@ -194,14 +195,14 @@ def solution_error(
 
 
 def marginal_error(
-    f_u: jnp.ndarray,
-    g_v: jnp.ndarray,
-    target: jnp.ndarray,
+    f_u: ArrayLike,
+    g_v: ArrayLike,
+    target: ArrayLike,
     geom: geometry.Geometry,
     axis: int = 0,
     norm_error: Sequence[int] = (1,),
     lse_mode: bool = True
-) -> jnp.asarray:
+) -> Array:
   """Output how far Sinkhorn solution is w.r.t target.
 
   Args:
@@ -227,7 +228,7 @@ def marginal_error(
 
 
 def ent_reg_cost(
-    f: jnp.ndarray, g: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
+    f: ArrayLike, g: ArrayLike, ot_prob: linear_problem.LinearProblem,
     lse_mode: bool
 ) -> float:
   r"""Compute objective of Sinkhorn for OT problem given dual solutions.
@@ -241,8 +242,8 @@ def ent_reg_cost(
   values, ``jnp.where`` is used to cancel these contributions.
 
   Args:
-    f: jnp.ndarray, potential
-    g: jnp.ndarray, potential
+    f: ArrayLike, potential
+    g: ArrayLike, potential
     ot_prob: linear optimal transport problem.
     lse_mode: bool, whether to compute total mass in lse or kernel mode.
 
@@ -284,9 +285,9 @@ def ent_reg_cost(
 class SinkhornOutput(NamedTuple):
   """Implements the problems.Transport interface, for a Sinkhorn solution."""
 
-  f: Optional[jnp.ndarray] = None
-  g: Optional[jnp.ndarray] = None
-  errors: Optional[jnp.ndarray] = None
+  f: Optional[ArrayLike] = None
+  g: Optional[ArrayLike] = None
+  errors: Optional[ArrayLike] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
 
@@ -303,7 +304,7 @@ class SinkhornOutput(NamedTuple):
     return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
-  def dual_cost(self) -> jnp.ndarray:
+  def dual_cost(self) -> Array:
     """Return transport cost in dual form of current solution."""
     a, b = self.ot_prob.a, self.ot_prob.b
     dual_cost = jnp.sum(jnp.where(a > 0.0, a * self.f, 0))
@@ -315,9 +316,7 @@ class SinkhornOutput(NamedTuple):
     """Return transport cost of current solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
-  def transport_cost_at_geom(
-      self, other_geom: geometry.Geometry
-  ) -> jnp.ndarray:
+  def transport_cost_at_geom(self, other_geom: geometry.Geometry) -> Array:
     r"""Return bare transport cost of current solution at any geometry.
 
     In order to compute cost, we check first if the geometry can be converted
@@ -348,11 +347,11 @@ class SinkhornOutput(NamedTuple):
     return self.ot_prob.geom
 
   @property
-  def a(self) -> jnp.ndarray:  # noqa: D102
+  def a(self) -> Array:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jnp.ndarray:  # noqa: D102
+  def b(self) -> Array:  # noqa: D102
     return self.ot_prob.b
 
   @property
@@ -375,13 +374,13 @@ class SinkhornOutput(NamedTuple):
     return jnp.sum(self.errors > -1)
 
   @property
-  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
+  def scalings(self) -> Tuple[ArrayLike, ArrayLike]:  # noqa: D102
     u = self.ot_prob.geom.scaling_from_potential(self.f)
     v = self.ot_prob.geom.scaling_from_potential(self.g)
     return u, v
 
   @property
-  def matrix(self) -> jnp.ndarray:
+  def matrix(self) -> ArrayLike:
     """Transport matrix if it can be instantiated."""
     try:
       return self.ot_prob.geom.transport_from_potentials(self.f, self.g)
@@ -393,13 +392,13 @@ class SinkhornOutput(NamedTuple):
     """Sum of transport matrix."""
     return self.marginal(0).sum()
 
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply(self, inputs: ArrayLike, axis: int = 0) -> Array:
     """Apply the transport to a ndarray; axis=1 for its transpose."""
     return self.ot_prob.geom.apply_transport_from_potentials(
         self.f, self.g, inputs, axis=axis
     )
 
-  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
+  def marginal(self, axis: int) -> Array:  # noqa: D102
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
@@ -712,7 +711,7 @@ class Sinkhorn:
                          init_lib.SinkhornInitializer] = "default",
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
-  ):
+  ) -> None:
     self.lse_mode = lse_mode
     self.threshold = threshold
     self.inner_iterations = inner_iterations
@@ -763,7 +762,7 @@ class Sinkhorn:
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
+      init: Tuple[Optional[ArrayLike], Optional[ArrayLike]] = (None, None),
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
@@ -799,9 +798,7 @@ class Sinkhorn:
       k_ij = k(tau_i, tau_j)
       return k_ij / (1. - k_ij)
 
-    def smin(
-        potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
-    ) -> float:
+    def smin(potential: ArrayLike, marginal: ArrayLike, tau: float) -> float:
       rho = uf.rho(ot_prob.epsilon, tau)
       return -rho * mu.logsumexp(-potential / rho, b=marginal)
 
@@ -936,8 +933,8 @@ class Sinkhorn:
     return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
 
   def init_state(
-      self, ot_prob: linear_problem.LinearProblem, init: Tuple[jnp.ndarray,
-                                                               jnp.ndarray]
+      self, ot_prob: linear_problem.LinearProblem, init: Tuple[ArrayLike,
+                                                               ArrayLike]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
     fu, gv = init
@@ -1024,7 +1021,7 @@ class Sinkhorn:
 
 def run(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
+    init: Tuple[ArrayLike, ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
@@ -1037,7 +1034,7 @@ def run(
 
 def iterations(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
+    init: Tuple[ArrayLike, ...]
 ) -> SinkhornOutput:
   """Jittable Sinkhorn loop. args contain initialization variables."""
 
@@ -1080,9 +1077,9 @@ def iterations(
 
 def _iterations_taped(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
-) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
-                                 linear_problem.LinearProblem, Sinkhorn]]:
+    init: Tuple[ArrayLike, ...]
+) -> Tuple[SinkhornOutput, Tuple[Array, Array, linear_problem.LinearProblem,
+                                 Sinkhorn]]:
   """Run forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)
   return state, (state.f, state.g, ot_prob, solver)
@@ -1118,8 +1115,8 @@ _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
 
 def solve(
     geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: Optional[ArrayLike] = None,
+    b: Optional[ArrayLike] = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     rank: int = -1,
