@@ -16,6 +16,8 @@ from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+from jax._src.typing import DTypeLike
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import geometry
 from ott.math import fixed_point_loop
@@ -48,14 +50,14 @@ class Graph(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: jnp.ndarray,
+      laplacian: ArrayLike,
       t: float = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
       tol: float = -1.0,
       **kwargs: Any
-  ):
+  ) -> None:
     super().__init__(epsilon=1., **kwargs)
     self.laplacian = laplacian
     self.t = t
@@ -66,7 +68,7 @@ class Graph(geometry.Geometry):
   @classmethod
   def from_graph(
       cls,
-      G: jnp.ndarray,
+      G: ArrayLike,
       t: Optional[float] = 1e-3,
       directed: bool = False,
       normalize: bool = False,
@@ -113,10 +115,10 @@ class Graph(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      scaling: ArrayLike,
       eps: Optional[float] = None,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> Array:
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
@@ -129,8 +131,8 @@ class Graph(geometry.Geometry):
     """
 
     def conf_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray]
+        iteration: int, consts: Tuple[ArrayLike, Optional[ArrayLike]],
+        old_new: Tuple[ArrayLike, ArrayLike]
     ) -> bool:
       del iteration, consts
 
@@ -143,9 +145,9 @@ class Graph(geometry.Geometry):
       return (jnp.nanmax(f) - jnp.nanmin(f)) > self.tol
 
     def body_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        iteration: int, consts: Tuple[ArrayLike, Optional[ArrayLike]],
+        old_new: Tuple[ArrayLike, ArrayLike], compute_errors: bool
+    ) -> Tuple[Array, Array]:
       del iteration, compute_errors
 
       L, scaled_lap = consts
@@ -186,7 +188,7 @@ class Graph(geometry.Geometry):
     )[1]
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def kernel_matrix(self) -> Array:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     # force symmetry because of numerical imprecision
@@ -194,7 +196,7 @@ class Graph(geometry.Geometry):
     return (kernel + kernel.T) * 0.5
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def cost_matrix(self) -> Array:  # noqa: D102
     return -self.t * mu.safe_log(self.kernel_matrix)
 
   @property
@@ -209,12 +211,12 @@ class Graph(geometry.Geometry):
     )
 
   @property
-  def _scaled_laplacian(self) -> jnp.ndarray:
+  def _scaled_laplacian(self) -> Array:
     """Laplacian scaled by a constant, depending on the numerical scheme."""
     return self._scale * self.laplacian
 
   @property
-  def _M(self) -> jnp.ndarray:
+  def _M(self) -> Array:
     n, _ = self.shape
     return self._scaled_laplacian + jnp.eye(n)
 
@@ -227,32 +229,26 @@ class Graph(geometry.Geometry):
     return True
 
   @property
-  def dtype(self) -> jnp.dtype:  # noqa: D102
+  def dtype(self) -> DTypeLike:  # noqa: D102
     return self.laplacian.dtype
 
-  def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+  def transport_from_potentials(self, f: ArrayLike, g: ArrayLike) -> Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def apply_transport_from_potentials(
-      self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
-      axis: int = 0
-  ) -> jnp.ndarray:
+      self, f: ArrayLike, g: ArrayLike, vec: ArrayLike, axis: int = 0
+  ) -> Array:
     """Since applying from potentials is not feasible in grids, use scalings."""
     u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
     return self.apply_transport_from_scalings(u, v, vec, axis=axis)
 
   def marginal_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: ArrayLike,
+      g: ArrayLike,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
