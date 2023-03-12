@@ -49,7 +49,7 @@ class Epsilon:
       scale_epsilon: Optional[float] = None,
       init: float = 1.0,
       decay: float = 1.0
-  ):
+  ) -> None:
     self._target_init = target
     self._scale_epsilon = scale_epsilon
     self._init = init
