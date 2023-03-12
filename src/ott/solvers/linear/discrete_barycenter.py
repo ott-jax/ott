@@ -16,6 +16,7 @@ from typing import NamedTuple, Optional, Sequence
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from ott.geometry import geometry
 from ott.math import fixed_point_loop
@@ -26,10 +27,10 @@ __all__ = ["SinkhornBarycenterOutput", "FixedBarycenter"]
 
 
 class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
-  f: jnp.ndarray
-  g: jnp.ndarray
-  histogram: jnp.ndarray
-  errors: jnp.ndarray
+  f: ArrayLike
+  g: ArrayLike
+  histogram: ArrayLike
+  errors: ArrayLike
 
 
 @jax.tree_util.register_pytree_node_class
@@ -67,7 +68,7 @@ class FixedBarycenter:
       max_iterations: int = 2000,
       lse_mode: bool = True,
       debiased: bool = False
-  ):
+  ) -> None:
     self.threshold = threshold
     self.norm_error = norm_error
     self.inner_iterations = inner_iterations
@@ -79,7 +80,7 @@ class FixedBarycenter:
   def __call__(
       self,
       fixed_bp: barycenter_problem.FixedBarycenterProblem,
-      dual_initialization: Optional[jnp.ndarray] = None,
+      dual_initialization: Optional[ArrayLike] = None,
   ) -> SinkhornBarycenterOutput:
     """Solve barycenter problem, possibly using clever initialization.
 
@@ -128,10 +129,10 @@ class FixedBarycenter:
 
 @functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12))
 def _discrete_barycenter(
-    geom: geometry.Geometry, a: jnp.ndarray, weights: jnp.ndarray,
-    dual_initialization: jnp.ndarray, threshold: float,
-    norm_error: Sequence[int], inner_iterations: int, min_iterations: int,
-    max_iterations: int, lse_mode: bool, debiased: bool, num_a: int, num_b: int
+    geom: geometry.Geometry, a: ArrayLike, weights: ArrayLike,
+    dual_initialization: ArrayLike, threshold: float, norm_error: Sequence[int],
+    inner_iterations: int, min_iterations: int, max_iterations: int,
+    lse_mode: bool, debiased: bool, num_a: int, num_b: int
 ) -> SinkhornBarycenterOutput:
   """Jit'able function to compute discrete barycenters."""
   if lse_mode:
@@ -180,13 +181,13 @@ def _discrete_barycenter(
 
   const = (geom, a, weights)
 
-  def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
+  def cond_fn(iteration: int, const, state):  # pylint: disable=unused-argument
     errors = state[0]
     return jnp.logical_or(
         iteration == 0, errors[iteration // inner_iterations - 1, 0] > threshold
     )
 
-  def body_fn(iteration, const, state, compute_error):
+  def body_fn(iteration: int, const, state, compute_error):
     geom, a, weights = const
     errors, d, f_u, g_v = state
 
