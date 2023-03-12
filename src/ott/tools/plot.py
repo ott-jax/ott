@@ -16,6 +16,7 @@ from typing import List, Optional, Sequence, Tuple, Union
 import jax.numpy as jnp
 import numpy as np
 import scipy
+from jax.typing import Array, ArrayLike
 
 from ott import utils
 from ott.geometry import pointcloud
@@ -33,8 +34,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
                   gromov_wasserstein.GWOutput]
 
 
-def bidimensional(x: jnp.ndarray,
-                  y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def bidimensional(x: ArrayLike, y: ArrayLike) -> Tuple[Array, Array]:
   """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y
@@ -90,7 +90,7 @@ class Plot:
     self._scale_alpha_by_coupling = scale_alpha_by_coupling
     self._alpha = alpha
 
-  def _scatter(self, ot: Transport):
+  def _scatter(self, ot: Transport) -> Tuple[Array, Array, Array, Array]:
     """Compute the position and scales of the points on a 2D plot."""
     if not isinstance(ot.geom, pointcloud.PointCloud):
       raise ValueError("So far we only plot PointCloud geometry.")
@@ -102,7 +102,7 @@ class Plot:
     scales_y = b * self._scale * b.shape[0]
     return x, y, scales_x, scales_y
 
-  def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):
+  def _mapping(self, x: ArrayLike, y: ArrayLike, matrix: ArrayLike):
     """Compute the lines representing the mapping between the 2 point clouds."""
     # Only plot the lines with a cost above the threshold.
     u, v = jnp.where(matrix > self._threshold)
@@ -218,10 +218,10 @@ class Plot:
 
 def _barycenters(
     ax: "plt.Axes",
-    y: jnp.ndarray,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
-    matrix: jnp.ndarray,
+    y: ArrayLike,
+    a: ArrayLike,
+    b: ArrayLike,
+    matrix: ArrayLike,
     scale: int = 200
 ) -> None:
   """Plot 2-D sinkhorn barycenters."""
@@ -233,13 +233,13 @@ def _barycenters(
 
 
 def barycentric_projections(
-    arg: Union[Transport, jnp.ndarray],
-    a: jnp.ndarray = None,
-    b: jnp.ndarray = None,
-    matrix: jnp.ndarray = None,
+    arg: Union[Transport, ArrayLike],
+    a: ArrayLike = None,
+    b: ArrayLike = None,
+    matrix: ArrayLike = None,
     ax: Optional["plt.Axes"] = None,
     **kwargs
-):
+) -> None:
   """Plot the barycenters, from the Transport object or from arguments."""
   if ax is None:
     _, ax = plt.subplots(1, 1, figsize=(8, 5))
