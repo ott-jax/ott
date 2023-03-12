@@ -14,7 +14,7 @@
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple
 
-import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, pointcloud, segment
 from ott.problems.linear import linear_problem
@@ -22,21 +22,21 @@ from ott.solvers.linear import sinkhorn
 
 
 def segment_sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: ArrayLike,
+    y: ArrayLike,
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
-    segment_ids_x: Optional[jnp.ndarray] = None,
-    segment_ids_y: Optional[jnp.ndarray] = None,
+    segment_ids_x: Optional[ArrayLike] = None,
+    segment_ids_y: Optional[ArrayLike] = None,
     indices_are_sorted: bool = False,
     num_per_segment_x: Optional[Tuple[int, ...]] = None,
     num_per_segment_y: Optional[Tuple[int, ...]] = None,
-    weights_x: Optional[jnp.ndarray] = None,
-    weights_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[ArrayLike] = None,
+    weights_y: Optional[ArrayLike] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
-) -> jnp.ndarray:
+) -> Array:
   """Compute regularized OT cost between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn regularized OT cost between
@@ -104,10 +104,10 @@ def segment_sinkhorn(
     padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
-      padded_x: jnp.ndarray,
-      padded_y: jnp.ndarray,
-      padded_weight_x: jnp.ndarray,
-      padded_weight_y: jnp.ndarray,
+      padded_x: ArrayLike,
+      padded_y: ArrayLike,
+      padded_weight_x: ArrayLike,
+      padded_weight_y: ArrayLike,
   ) -> float:
     mask_x = padded_weight_x > 0.
     mask_y = padded_weight_y > 0.

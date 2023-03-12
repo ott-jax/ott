@@ -219,9 +219,9 @@ def segment_sinkhorn_divergence(
   a tensor, and `vmap` used to evaluate Sinkhorn divergences in parallel.
 
   Args:
-    x: ArrayLike of input points, of shape `[num_x, feature]`.
+    x: Array of input points, of shape `[num_x, feature]`.
       Multiple segments are held in this single array.
-    y: ArrayLike of target points, of shape `[num_y, feature]`.
+    y: Array of target points, of shape `[num_y, feature]`.
     num_segments: Number of segments contained in `x` and `y`.
       Providing this is required for JIT compilation to work,
       see also :func:`~ott.geometry.segment.segment_point_cloud`.
