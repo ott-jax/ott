@@ -17,6 +17,7 @@ from typing import Callable, Literal, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import costs, pointcloud
 from ott.math import fixed_point_loop
@@ -24,39 +25,39 @@ from ott.math import fixed_point_loop
 __all__ = ["k_means", "KMeansOutput"]
 
 Init_t = Union[Literal["k-means++", "random"],
-               Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
+               Callable[[pointcloud.PointCloud, int, ArrayLike], ArrayLike]]
 
 
 class KPPState(NamedTuple):  # noqa: D101
   rng: jax.random.PRNGKeyArray
-  centroids: jnp.ndarray
-  centroid_dists: jnp.ndarray
+  centroids: ArrayLike
+  centroid_dists: ArrayLike
 
 
 class KMeansState(NamedTuple):  # noqa: D101
-  centroids: jnp.ndarray
-  prev_assignment: jnp.ndarray
-  assignment: jnp.ndarray
-  errors: jnp.ndarray
+  centroids: ArrayLike
+  prev_assignment: ArrayLike
+  assignment: ArrayLike
+  errors: ArrayLike
   center_shift: float
 
 
 class KMeansConst(NamedTuple):  # noqa: D101
   geom: pointcloud.PointCloud
-  x_weights: jnp.ndarray
+  x_weights: ArrayLike
 
   @property
-  def x(self) -> jnp.ndarray:
+  def x(self) -> Array:
     """Array of shape ``[n, ndim]`` containing the unweighted point cloud."""
     return self.geom.x
 
   @property
-  def weighted_x(self):
+  def weighted_x(self) -> Array:
     """Array of shape ``[n, ndim]`` containing the weighted point cloud."""
     return self.x_weights[:, :-1]
 
   @property
-  def weights(self) -> jnp.ndarray:
+  def weights(self) -> Array:
     """Array of shape ``[n, 1]`` containing weights for each point."""
     return self.x_weights[:, -1:]
 
@@ -65,8 +66,8 @@ class KMeansOutput(NamedTuple):
   """Output of the :func:`~ott.tools.k_means.k_means` algorithm.
 
   Args:
-    centroids: Array of shape ``[k, ndim]`` containing the centroids.
-    assignment: Array of shape ``[n,]`` containing the labels.
+    centroids: ArrayLike of shape ``[k, ndim]`` containing the centroids.
+    assignment: ArrayLike of shape ``[n,]`` containing the labels.
     converged: Whether the algorithm has converged.
     iteration: The number of iterations run.
     error: (Weighted) sum of squared distances from each point to its closest
@@ -74,12 +75,12 @@ class KMeansOutput(NamedTuple):
     inner_errors: Array of shape ``[max_iterations,]`` containing the ``error``
       at every iteration.
   """
-  centroids: jnp.ndarray
-  assignment: jnp.ndarray
+  centroids: ArrayLike
+  assignment: ArrayLike
   converged: bool
   iteration: int
   error: float
-  inner_errors: Optional[jnp.ndarray]
+  inner_errors: Optional[ArrayLike]
 
   @classmethod
   def _from_state(
@@ -109,7 +110,7 @@ class KMeansOutput(NamedTuple):
 
 def _random_init(
     geom: pointcloud.PointCloud, k: int, rng: jax.random.PRNGKeyArray
-) -> jnp.ndarray:
+) -> Array:
   ixs = jnp.arange(geom.shape[0])
   ixs = jax.random.choice(rng, ixs, shape=(k,), replace=False)
   return geom.subset(ixs, None).x
@@ -120,7 +121,7 @@ def _k_means_plus_plus(
     k: int,
     rng: jax.random.PRNGKeyArray,
     n_local_trials: Optional[int] = None,
-) -> jnp.ndarray:
+) -> Array:
 
   def init_fn(
       geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray
@@ -132,7 +133,7 @@ def _k_means_plus_plus(
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
-      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
+      iteration: int, const: Tuple[pointcloud.PointCloud, ArrayLike],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
@@ -178,10 +179,10 @@ def _k_means_plus_plus(
 @functools.partial(jax.vmap, in_axes=[None, 0, 0, 0], out_axes=0)
 def _reallocate_centroids(
     const: KMeansConst,
-    ix: jnp.ndarray,
-    centroid: jnp.ndarray,
-    weight: jnp.ndarray,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    ix: ArrayLike,
+    centroid: ArrayLike,
+    weight: ArrayLike,
+) -> Tuple[Array, Array]:
   is_empty = weight <= 0.
   new_centroid = (1 - is_empty) * centroid + is_empty * const.x[ix]  # (ndim,)
   centroid_to_remove = is_empty * const.weighted_x[ix]  # (ndim,)
@@ -191,8 +192,8 @@ def _reallocate_centroids(
 
 def _update_assignment(
     const: KMeansConst,
-    centroids: jnp.ndarray,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    centroids: ArrayLike,
+) -> Tuple[Array, Array]:
   (x, _, *args), aux_data = const.geom.tree_flatten()
   cost_matrix = type(
       const.geom
@@ -204,9 +205,9 @@ def _update_assignment(
 
 
 def _update_centroids(
-    const: KMeansConst, k: int, assignment: jnp.ndarray,
-    dist_to_centers: jnp.ndarray
-) -> jnp.ndarray:
+    const: KMeansConst, k: int, assignment: ArrayLike,
+    dist_to_centers: ArrayLike
+) -> Array:
   # TODO(michalk8):
   # cannot put `k` into `const`, see https://github.com/ott-jax/ott/issues/129
   x_weights = jax.ops.segment_sum(const.x_weights, assignment, num_segments=k)
@@ -228,7 +229,7 @@ def _k_means(
     rng: jax.random.PRNGKeyArray,
     geom: pointcloud.PointCloud,
     k: int,
-    weights: Optional[jnp.ndarray] = None,
+    weights: Optional[ArrayLike] = None,
     init: Init_t = "k-means++",
     n_local_trials: Optional[int] = None,
     tol: float = 1e-4,
@@ -343,9 +344,9 @@ def _k_means(
 
 
 def k_means(
-    geom: Union[jnp.ndarray, pointcloud.PointCloud],
+    geom: Union[ArrayLike, pointcloud.PointCloud],
     k: int,
-    weights: Optional[jnp.ndarray] = None,
+    weights: Optional[ArrayLike] = None,
     init: Init_t = "k-means++",
     n_init: int = 10,
     n_local_trials: Optional[int] = None,
