@@ -42,7 +42,7 @@ class WassersteinSolver:
       jit: bool = True,
       store_inner_errors: bool = False,
       **kwargs: Any,
-  ):
+  ) -> None:
     from ott.solvers.linear import sinkhorn, sinkhorn_lr
     default_epsilon = 1.0
     # Set epsilon value to default if needed, but keep track of whether None was
