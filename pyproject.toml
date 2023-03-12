@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
     "jax>=0.4.4",
-    "jaxlib>=0.1.47",
+    "jaxlib>=0.4.4",
     "jaxopt>=0.5.5",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
     "numpy>=1.18.4, !=1.23.0",
