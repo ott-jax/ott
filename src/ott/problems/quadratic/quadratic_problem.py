@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
@@ -97,15 +98,15 @@ class QuadraticProblem:
       geom_xy: Optional[geometry.Geometry] = None,
       fused_penalty: float = 1.0,
       scale_cost: Optional[Union[bool, float, str]] = False,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      a: Optional[ArrayLike] = None,
+      b: Optional[ArrayLike] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: bool = True,
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
-  ):
+  ) -> None:
     self._geom_xx = geom_xx._set_scale_cost(scale_cost)
     self._geom_yy = geom_yy._set_scale_cost(scale_cost)
     self._geom_xy = (
@@ -130,7 +131,7 @@ class QuadraticProblem:
       self.loss = loss
 
   def marginal_dependent_cost(
-      self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
+      self, marginal_1: ArrayLike, marginal_2: ArrayLike
   ) -> low_rank.LRCGeometry:
     r"""Initialize cost term that depends on the marginals of the transport.
 
@@ -172,9 +173,9 @@ class QuadraticProblem:
 
   def cost_unbalanced_correction(
       self,
-      transport_matrix: jnp.ndarray,
-      marginal_1: jnp.ndarray,
-      marginal_2: jnp.ndarray,
+      transport_matrix: ArrayLike,
+      marginal_1: ArrayLike,
+      marginal_2: ArrayLike,
       epsilon: epsilon_scheduler.Epsilon,
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
@@ -336,7 +337,7 @@ class QuadraticProblem:
     )
 
   @property
-  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+  def _fused_cost_matrix(self) -> Union[float, ArrayLike]:
     if not self.is_fused:
       return 0.
     if isinstance(
@@ -423,13 +424,13 @@ class QuadraticProblem:
     return self._geom_xy
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> Array:
     """First marginal."""
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> Array:
     """Second marginal."""
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
@@ -491,7 +492,7 @@ def update_epsilon_unbalanced(  # noqa: D103
 
 
 def apply_cost(  # noqa: D103
-    geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
+    geom: geometry.Geometry, arr: ArrayLike, *, axis: int,
     fn: quadratic_costs.Loss
-) -> jnp.ndarray:
+) -> Array:
   return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)
