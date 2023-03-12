@@ -16,6 +16,7 @@ from typing import Any, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
@@ -40,11 +41,11 @@ class FreeBarycenterState(NamedTuple):
     a: barycenter weights.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
-  errors: Optional[jnp.ndarray] = None
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
+  costs: Optional[ArrayLike] = None
+  linear_convergence: Optional[ArrayLike] = None
+  errors: Optional[ArrayLike] = None
+  x: Optional[ArrayLike] = None
+  a: Optional[ArrayLike] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -134,7 +135,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
-      x_init: Optional[jnp.ndarray] = None,
+      x_init: Optional[ArrayLike] = None,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
@@ -145,7 +146,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
-      x_init: Optional[jnp.ndarray] = None,
+      x_init: Optional[ArrayLike] = None,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
@@ -199,7 +200,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 
 def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
+    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: ArrayLike,
     rng: jax.random.PRNGKeyArray
 ) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
