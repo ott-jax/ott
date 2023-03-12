@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+from jax.typing import Array, ArrayLike
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
@@ -36,7 +37,7 @@ class SinkhornInitializer(abc.ABC):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Initialize Sinkhorn potential/scaling f_u.
 
     Args:
@@ -54,7 +55,7 @@ class SinkhornInitializer(abc.ABC):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Initialize Sinkhorn potential/scaling g_v.
 
     Args:
@@ -69,11 +70,11 @@ class SinkhornInitializer(abc.ABC):
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      a: Optional[jnp.ndarray],
-      b: Optional[jnp.ndarray],
+      a: Optional[ArrayLike],
+      b: Optional[ArrayLike],
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[Array, Array]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
     Args:
@@ -127,7 +128,7 @@ class DefaultInitializer(SinkhornInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
 
@@ -136,7 +137,7 @@ class DefaultInitializer(SinkhornInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     del rng
     return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
 
@@ -157,7 +158,7 @@ class GaussianInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
-  ) -> jnp.ndarray:
+  ) -> Array:
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
@@ -198,15 +199,15 @@ class SortingInitializer(DefaultInitializer):
       vectorized_update: bool = True,
       tolerance: float = 1e-2,
       max_iter: int = 100
-  ):
+  ) -> None:
     super().__init__()
     self.tolerance = tolerance
     self.max_iter = max_iter
     self.vectorized_update = vectorized_update
 
   def _init_sorting_dual(
-      self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
-  ) -> jnp.ndarray:
+      self, modified_cost: ArrayLike, init_f: ArrayLike
+  ) -> Array:
     """Run DualSort algorithm.
 
     Args:
@@ -219,15 +220,15 @@ class SortingInitializer(DefaultInitializer):
     """
 
     def body_fn(
-        state: Tuple[jnp.ndarray, float, int]
-    ) -> Tuple[jnp.ndarray, float, int]:
+        state: Tuple[ArrayLike, float, int]
+    ) -> Tuple[Array, float, int]:
       prev_f, _, it = state
       new_f = fn(prev_f, modified_cost)
       diff = jnp.sum((new_f - prev_f) ** 2)
       it += 1
       return new_f, diff, it
 
-    def cond_fn(state: Tuple[jnp.ndarray, float, int]) -> bool:
+    def cond_fn(state: Tuple[ArrayLike, float, int]) -> bool:
       _, diff, it = state
       return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
 
@@ -244,8 +245,8 @@ class SortingInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
-      init_f: Optional[jnp.ndarray] = None,
-  ) -> jnp.ndarray:
+      init_f: Optional[ArrayLike] = None,
+  ) -> Array:
     """Apply DualSort algorithm.
 
     Args:
@@ -312,7 +313,7 @@ class SubsampleInitializer(DefaultInitializer):
       subsample_n_x: int,
       subsample_n_y: Optional[int] = None,
       **kwargs: Any,
-  ):
+  ) -> None:
     super().__init__()
     self.subsample_n_x = subsample_n_x
     self.subsample_n_y = subsample_n_y or subsample_n_x
@@ -323,7 +324,7 @@ class SubsampleInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
-  ) -> jnp.ndarray:
+  ) -> Array:
     from ott.solvers.linear import sinkhorn
 
     assert isinstance(
@@ -370,9 +371,7 @@ class SubsampleInitializer(DefaultInitializer):
     })
 
 
-def _vectorized_update(
-    f: jnp.ndarray, modified_cost: jnp.ndarray
-) -> jnp.ndarray:
+def _vectorized_update(f: ArrayLike, modified_cost: ArrayLike) -> Array:
   """Inner loop DualSort Update.
 
   Args:
@@ -385,9 +384,7 @@ def _vectorized_update(
   return jnp.min(modified_cost + f[None, :], axis=1)
 
 
-def _coordinate_update(
-    f: jnp.ndarray, modified_cost: jnp.ndarray
-) -> jnp.ndarray:
+def _coordinate_update(f: ArrayLike, modified_cost: ArrayLike) -> Array:
   """Coordinate-wise updates within inner loop.
 
   Args:
@@ -398,7 +395,7 @@ def _coordinate_update(
     updated potential vector, f.
   """
 
-  def body_fn(i: int, f: jnp.ndarray) -> jnp.ndarray:
+  def body_fn(i: int, f: ArrayLike) -> Array:
     new_f = jnp.min(modified_cost[i, :] + f)
     return f.at[i].set(new_f)
 
