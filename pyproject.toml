@@ -13,7 +13,7 @@ authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 dependencies = [
-    "jax>=0.1.67",
+    "jax>=0.4.4",
     "jaxlib>=0.1.47",
     "jaxopt>=0.5.5",
     # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
