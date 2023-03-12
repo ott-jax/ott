@@ -84,6 +84,7 @@ from typing import Callable, NamedTuple, Optional, Tuple
 import jax
 import jax.numpy as jnp
 import optax
+from jax.typing import Array, ArrayLike
 
 from ott.tools.gaussian_mixture import (
     fit_gmm,
@@ -99,17 +100,15 @@ LOG2 = math.log(2)
 class Observations(NamedTuple):
   """Weighted observations and their E-step assignment probabilities."""
 
-  points: jnp.ndarray
-  point_weights: jnp.ndarray
-  assignment_probs: jnp.ndarray
+  points: ArrayLike
+  point_weights: ArrayLike
+  assignment_probs: ArrayLike
 
 
 # Model fit
 
 
-def get_q(
-    gmm: gaussian_mixture.GaussianMixture, obs: Observations
-) -> jnp.ndarray:
+def get_q(gmm: gaussian_mixture.GaussianMixture, obs: Observations) -> Array:
   r"""Get Q(\Theta|\Theta^{(t)}).
 
   Here Q is the log likelihood for our observations based on the current
@@ -146,7 +145,7 @@ def get_q(
 
 
 @functools.lru_cache
-def get_objective_fn(weight_transport: float):
+def get_objective_fn(weight_transport: float) -> Callable:
   """Get the total loss function with static parameters in a closure.
 
   Args:
@@ -160,7 +159,7 @@ def get_objective_fn(weight_transport: float):
       pair: gaussian_mixture_pair.GaussianMixturePair,
       obs0: Observations,
       obs1: Observations,
-  ) -> jnp.ndarray:
+  ) -> Array:
     """Compute the objective function for a pair of GMMs.
 
     Args:
@@ -185,7 +184,7 @@ def print_losses(
     iteration: int, weight_transport: float,
     pair: gaussian_mixture_pair.GaussianMixturePair, obs0: Observations,
     obs1: Observations
-):
+) -> None:
   """Print the loss components for diagnostic purposes."""
   q0 = get_q(gmm=pair.gmm0, obs=obs0)
   q1 = get_q(gmm=pair.gmm1, obs=obs1)
@@ -205,11 +204,11 @@ def print_losses(
 
 
 def do_e_step(  # noqa: D103
-    e_step_fn: Callable[[gaussian_mixture.GaussianMixture, jnp.ndarray],
-                        jnp.ndarray],
+    e_step_fn: Callable[[gaussian_mixture.GaussianMixture, ArrayLike],
+                        ArrayLike],
     gmm: gaussian_mixture.GaussianMixture,
-    points: jnp.ndarray,
-    point_weights: jnp.ndarray,
+    points: ArrayLike,
+    point_weights: ArrayLike,
 ) -> Observations:
   assignment_probs = e_step_fn(gmm, points)
   return Observations(
@@ -222,7 +221,7 @@ def do_e_step(  # noqa: D103
 # The M-step
 
 
-def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
+def get_m_step_fn(learning_rate: float, objective_fn, jit: bool) -> Callable:
   """Get a function that performs the M-step of the EM algorithm.
 
   We precompile and precompute a few quantities that we put into a closure.
@@ -281,7 +280,7 @@ def get_fit_model_em_fn(
     weight_transport: float,
     learning_rate: float = 0.001,
     jit: bool = True,
-):
+) -> Callable:
   """Get a function that performs penalized EM.
 
   We precompile and precompute a few quantities that we put into a closure.
@@ -307,10 +306,10 @@ def get_fit_model_em_fn(
 
   def _fit_model_em(
       pair: gaussian_mixture_pair.GaussianMixturePair,
-      points0: jnp.ndarray,
-      points1: jnp.ndarray,
-      point_weights0: Optional[jnp.ndarray],
-      point_weights1: Optional[jnp.ndarray],
+      points0: ArrayLike,
+      points1: ArrayLike,
+      point_weights0: Optional[ArrayLike],
+      point_weights1: Optional[ArrayLike],
       em_steps: int,
       m_steps: int = 50,
       verbose: bool = False,
