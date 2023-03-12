@@ -15,6 +15,8 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
+from jax._src.typing import DTypeLike
+from jax.typing import Array, ArrayLike
 
 __all__ = ["Probabilities"]
 
@@ -27,9 +29,9 @@ class Probabilities:
   to a length n simplex by appending a 0 and taking a softmax.
   """
 
-  _params: jnp.ndarray
+  _params: ArrayLike
 
-  def __init__(self, params):
+  def __init__(self, params) -> None:
     self._params = params
 
   @classmethod
@@ -47,7 +49,7 @@ class Probabilities:
     )
 
   @classmethod
-  def from_probs(cls, probs: jnp.ndarray) -> "Probabilities":
+  def from_probs(cls, probs: ArrayLike) -> "Probabilities":
     """Construct Probabilities from a vector of probabilities."""
     log_probs = jnp.log(probs)
     log_probs_normalized, norm = log_probs[:-1], log_probs[-1]
@@ -55,28 +57,28 @@ class Probabilities:
     return cls(params=log_probs_normalized)
 
   @property
-  def params(self):  # noqa: D102
+  def params(self) -> Array:  # noqa: D102
     return self._params
 
   @property
-  def dtype(self):  # noqa: D102
+  def dtype(self) -> DTypeLike:  # noqa: D102
     return self._params.dtype
 
-  def unnormalized_log_probs(self) -> jnp.ndarray:
+  def unnormalized_log_probs(self) -> Array:
     """Get the unnormalized log probabilities."""
     return jnp.concatenate([self._params,
                             jnp.zeros((1,), dtype=self.dtype)],
                            axis=-1)
 
-  def log_probs(self) -> jnp.ndarray:
+  def log_probs(self) -> Array:
     """Get the log probabilities."""
     return jax.nn.log_softmax(self.unnormalized_log_probs())
 
-  def probs(self) -> jnp.ndarray:
+  def probs(self) -> Array:
     """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
-  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> Array:
     """Sample from the distribution."""
     return jax.random.categorical(
         key=rng, logits=self.unnormalized_log_probs(), shape=(size,)
@@ -91,7 +93,7 @@ class Probabilities:
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
     return "{}({})".format(
@@ -99,8 +101,8 @@ class Probabilities:
                               [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
-  def __hash__(self):
+  def __hash__(self) -> int:
     return jax.tree_util.tree_flatten(self).__hash__()
 
-  def __eq__(self, other):
+  def __eq__(self, other) -> bool:
     return jax.tree_util.tree_flatten(self) == jax.tree_util.tree_flatten(other)
