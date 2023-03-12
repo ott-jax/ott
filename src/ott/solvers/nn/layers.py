@@ -11,18 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Tuple
+from typing import Any, Callable
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+from jax._src.typing import DTypeLike, Shape
+from jax.typing import Array, ArrayLike
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
-
-PRNGKey = Any
-Shape = Tuple[int]
-Dtype = Any
-Array = Any
 
 
 class PositiveDense(nn.Module):
@@ -40,18 +37,19 @@ class PositiveDense(nn.Module):
     bias_init: initializer function for the bias.
   """
   dim_hidden: int
-  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
-  inv_rectifier_fn: Callable[[jnp.ndarray],
-                             jnp.ndarray] = lambda x: jnp.log(jnp.exp(x) - 1)
+  rectifier_fn: Callable[[ArrayLike], ArrayLike] = nn.softplus
+  inv_rectifier_fn: Callable[[ArrayLike],
+                             ArrayLike] = lambda x: jnp.log(jnp.exp(x) - 1)
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
+  kernel_init: Callable[[jax.random.PRNGKeyArray, Shape, DTypeLike],
+                        ArrayLike] = nn.initializers.lecun_normal()
+  bias_init: Callable[[jax.random.PRNGKeyArray, Shape, DTypeLike],
+                      ArrayLike] = nn.initializers.zeros
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, inputs: ArrayLike) -> Array:
     """Applies a linear transformation to inputs along the last dimension.
 
     Args:
@@ -93,12 +91,13 @@ class PosDefPotentials(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
+  kernel_init: Callable[[jax.random.PRNGKeyArray, Shape, DTypeLike],
+                        ArrayLike] = nn.initializers.lecun_normal()
+  bias_init: Callable[[jax.random.PRNGKeyArray, Shape, DTypeLike],
+                      ArrayLike] = nn.initializers.zeros
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, inputs: ArrayLike) -> Array:
     """Apply a few quadratic forms.
 
     Args:
