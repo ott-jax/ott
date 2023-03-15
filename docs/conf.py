@@ -146,7 +146,7 @@ html_static_path = ["_static"]
 html_theme_options = {
     "announcement":
         "In 0.4.1, the jit argument in solvers will be "
-        "removed. Please jit the solvers explicitly",
+        "removed. Please jit the solvers explicitly.",
     "repository_url": "https://github.com/ott-jax/ott",
     "repository_branch": "main",
     "path_to_docs": "docs/",

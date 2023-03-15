@@ -86,7 +86,7 @@ Packages
   between GMMs, or computing differentiable sort and quantile operations
   :cite:`cuturi:19`.
 - :mod:`ott.math` holds low-level mathematical primitives.
-- :mod:`ott.utils` provides misc helper functions
+- :mod:`ott.utils` provides misc helper functions.
 
 .. toctree::
     :maxdepth: 1
