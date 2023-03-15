@@ -1,7 +1,7 @@
 ott.geometry
 ============
+.. module:: ott.geometry
 .. currentmodule:: ott.geometry
-.. automodule:: ott.geometry
 
 This package implements several classes to define a geometry, arguably the most
 influential ingredient of optimal transport problem. In its full generality, a

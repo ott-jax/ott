@@ -1,7 +1,7 @@
 ott.problems.nn
 ===============
+.. module:: ott.problems.nn
 .. currentmodule:: ott.problems.nn
-.. automodule:: ott.problems.nn
 
 .. TODO(marcocuturi): maybe add some text here
 

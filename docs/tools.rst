@@ -1,7 +1,7 @@
 ott.tools
 =========
+.. module:: ott.tools
 .. currentmodule:: ott.tools
-.. automodule:: ott.tools
 
 The tools package contains high level functions that build on outputs produced
 by core functions. They can be used to compute Sinkhorn divergences

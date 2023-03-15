@@ -150,6 +150,7 @@ coalesce_brackets = true
 [tool.rstcheck]
 ignore_directives = [
     "toctree",
+    "module",
     "currentmodule",
     "autosummary",
     "automodule",
@@ -159,6 +160,7 @@ ignore_directives = [
 ignore_roles = [
     "class",
     "doc",
+    "mod",
     "cite",
 ]
 

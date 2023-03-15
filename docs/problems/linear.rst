@@ -1,7 +1,7 @@
 ott.problems.linear
 ===================
+.. module:: ott.problems.linear
 .. currentmodule:: ott.problems.linear
-.. automodule:: ott.problems.linear
 
 .. TODO(marcocuturi): maybe add some text here
 
