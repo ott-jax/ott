@@ -152,6 +152,8 @@ html_theme_options = {
     "path_to_docs": "docs/",
     "use_repository_button": True,
     "use_fullscreen_button": False,
+    "pygment_light_style": "tango",
+    "pygment_dark_style": "monokai",
     "launch_buttons": {
         "colab_url": "https://colab.research.google.com",
         "binderhub_url": "https://mybinder.org",
