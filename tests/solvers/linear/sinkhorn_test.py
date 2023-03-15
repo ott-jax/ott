@@ -465,8 +465,7 @@ class TestSinkhorn:
     y = jax.random.uniform(rngs[1], (m, 2))
     geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
     problem = linear_problem.LinearProblem(geom)
-    solver = sinkhorn.Sinkhorn(jit=False)
-    solver = jax.jit(solver)
+    solver = jax.jit(sinkhorn.Sinkhorn())
 
     out = solver(problem)
     assert out.converged
