@@ -1,7 +1,7 @@
 ott.solvers.linear
 ==================
+.. module:: ott.solvers.linear
 .. currentmodule:: ott.solvers.linear
-.. automodule:: ott.solvers.linear
 
 .. TODO(marcocuturi): maybe add some text here
 

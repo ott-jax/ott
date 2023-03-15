@@ -1,7 +1,7 @@
 ott.initializers.linear
 =======================
+.. module:: ott.initializers.linear
 .. currentmodule:: ott.initializers.linear
-.. automodule:: ott.initializers.linear
 
 .. TODO(marcocuturi): maybe add some text here
 

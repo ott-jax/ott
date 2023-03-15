@@ -150,6 +150,7 @@ coalesce_brackets = true
 [tool.rstcheck]
 ignore_directives = [
     "toctree",
+    "module",
     "currentmodule",
     "autosummary",
     "automodule",
@@ -159,6 +160,7 @@ ignore_directives = [
 ignore_roles = [
     "class",
     "doc",
+    "mod",
     "cite",
 ]
 
@@ -277,6 +279,7 @@ select = [
     "W", # pycodestyle
     "Q", # flake8-quotes
     "SIM", # flake8-simplify
+    "TID",  # flake-8-tidy-imports
     "NPY",  # NumPy-specific rules
     "PT",  # flake8-pytest-style
     "B", # flake8-bugbear
