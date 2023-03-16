@@ -78,10 +78,13 @@ class DualPotentials:
     Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
     given the Legendre transform of the dual potentials.
 
-    That OT map can be recovered as :math:`x- (\nabla h)^{-1}\circ \nabla f(x)`
-    For the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
-    and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
-    :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
+    That OT map can be recovered as :math:`x- (\nabla h^*)\circ \nabla f(x)`,
+    where :math:`h^*` is the Legendre transform of :math:`h`.
+    
+    For instance, in the case
+    :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
+    :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
     When the dual potentials are solved in correlation form (only in the Sq.
     Euclidean distance case), the maps are :math:`\nabla g` for forward,
