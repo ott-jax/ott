@@ -79,10 +79,8 @@ class DualPotentials:
     given the Legendre transform of the dual potentials.
 
     That OT map can be recovered as :math:`x- (\nabla h^*)\circ \nabla f(x)`,
-    where :math:`h^*` is the Legendre transform of :math:`h`.
-    
-    For instance, in the case
-    :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    where :math:`h^*` is the Legendre transform of :math:`h`. For instance,
+    in the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
     one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
     :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
