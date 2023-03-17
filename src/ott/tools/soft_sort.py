@@ -223,7 +223,7 @@ def quantile(
   For instance:
 
   x = jax.random.uniform(rng, (1000,))
-  q = quantile(x, 0.5, 0.01)
+  q = quantile(x, level=0.5, weight=0.01)
 
   Then q will be computed as a mean over the 10 median points of x.
   Therefore, there is a trade-off between accuracy and gradient.
