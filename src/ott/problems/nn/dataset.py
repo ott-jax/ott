@@ -18,9 +18,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ["create_gaussian_mixture_samplers", "Dataset", "GaussianMixture"]
+__all__ = [
+    "gaussian_mixture_samplers", "uniform_mixture_samplers", "Dataset",
+    "GaussianMixture", "UniformMixture"
+]
 
-Name_t = Literal["simple", "circle", "square_five", "square_four"]
+Arrangement_t = Literal["simple", "circle", "square_five", "square_four"]
+Position_t = Literal["top", "bottom"]
 
 
 class Dataset(NamedTuple):
@@ -49,13 +53,13 @@ class GaussianMixture:
         rectangle
 
     batch_size: batch size of the samples
-    init_rng: initial PRNG key
+    rng: initial PRNG key
     scale: scale of the individual Gaussian samples
     variance: the variance of the individual Gaussian samples
   """
-  name: Name_t
+  name: Arrangement_t
   batch_size: int
-  init_rng: jax.random.PRNGKeyArray
+  rng: jax.random.PRNGKeyArray
   scale: float = 5.0
   variance: float = 0.5
 
@@ -85,7 +89,7 @@ class GaussianMixture:
       )
     self.centers = gaussian_centers[self.name]
 
-  def __iter__(self) -> Iterator[jnp.array]:
+  def __iter__(self) -> Iterator[jnp.ndarray]:
     """Random sample generator from Gaussian mixture.
 
     Returns:
@@ -93,19 +97,27 @@ class GaussianMixture:
     """
     return self._create_sample_generators()
 
-  def _create_sample_generators(self) -> Iterator[jnp.array]:
-    rng = self.init_rng
-    while True:
-      rng1, rng2, rng = jax.random.split(rng, 3)
-      means = jax.random.choice(rng1, self.centers, [self.batch_size])
-      normal_samples = jax.random.normal(rng2, [self.batch_size, 2])
+  def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
+    # create generator which randomly picks center and adds noise
+    key = self.rng
+
+    @jax.jit
+    def sample(key: jax.random.PRNGKeyArray):
+      """Jitted gaussian sample function."""
+      k1, k2, key = jax.random.split(key, 3)
+      means = jax.random.choice(k1, self.centers, [self.batch_size])
+      normal_samples = jax.random.normal(k2, [self.batch_size, 2])
       samples = self.scale * means + self.variance ** 2 * normal_samples
+      return samples, key
+
+    while True:
+      samples, key = sample(key)
       yield samples
 
 
-def create_gaussian_mixture_samplers(
-    name_source: Name_t,
-    name_target: Name_t,
+def gaussian_mixture_samplers(
+    name_source: Arrangement_t,
+    name_target: Arrangement_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
     rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
@@ -125,25 +137,144 @@ def create_gaussian_mixture_samplers(
   rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=train_batch_size, init_rng=rng1
+          GaussianMixture(name_source, batch_size=train_batch_size, rng=rng1)
+      ),
+      target_iter=iter(
+          GaussianMixture(name_target, batch_size=train_batch_size, rng=rng2)
+      )
+  )
+  valid_dataset = Dataset(
+      source_iter=iter(
+          GaussianMixture(name_source, batch_size=valid_batch_size, rng=rng3)
+      ),
+      target_iter=iter(
+          GaussianMixture(name_target, batch_size=valid_batch_size, rng=rng4)
+      )
+  )
+  dim_data = 2
+  return train_dataset, valid_dataset, dim_data
+
+
+@dataclasses.dataclass
+class UniformMixture:
+  """A mixture of uniform distributions.
+
+  Args:
+    name: the name specifying position of mixture of Gaussian:
+
+      - ``'top'`` (uniform distributions on top),
+      - ``'bottom'`` (uniform distributions at the bottom),
+
+    batch_size: batch size of the samples
+    rng: initial PRNG key
+    mixture_weights: mixture weights between two uniform distributions
+  """
+  name: Position_t
+  batch_size: int
+  rng: jax.random.PRNGKeyArray
+  mixture_weights: Tuple[float, float]
+
+  def __post_init__(self):
+    uniform_anchors = {
+        "bottom": [[0.0, 0.0], [5.0, 0.0]],
+        "top": [[0.0, 2.0], [5.0, 2.0]],
+    }
+    if self.name not in uniform_anchors:
+      raise ValueError(f"{self.name} is not a valid dataset for UniformMixture")
+    self.anchors = uniform_anchors[self.name]
+
+  def __iter__(self) -> Iterator[jnp.ndarray]:
+    """Random sample generator from uniform mixture.
+
+    Returns:
+      A generator of samples from the uniform mixture.
+    """
+    return self._create_sample_generators()
+
+  def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
+    # create generator which randomly picks center and adds noise
+    key = self.rng
+
+    @jax.jit
+    def sample(key: jax.random.PRNGKeyArray):
+      """Jitted uniform sample function."""
+      k1, k2, key = jax.random.split(key, 3)
+      samples_1 = jax.random.uniform(
+          k1,
+          shape=(int(self.batch_size * self.mixture_weights[0]), 2),
+          minval=jnp.array(self.anchors[0]) - 0.5,
+          maxval=jnp.array(self.anchors[0]) + 0.5
+      )
+      samples_2 = jax.random.uniform(
+          k2,
+          shape=(int(self.batch_size * self.mixture_weights[1]), 2),
+          minval=jnp.array(self.anchors[1]) - 0.5,
+          maxval=jnp.array(self.anchors[1]) + 0.5
+      )
+      return jnp.vstack((samples_1, samples_2)), key
+
+    while True:
+      samples, key = sample(key)
+      yield samples
+
+
+def uniform_mixture_samplers(
+    name_source: Position_t,
+    name_target: Position_t,
+    mixture_weights_source: Tuple[float, float],
+    mixture_weights_target: Tuple[float, float],
+    train_batch_size: int = 2048,
+    valid_batch_size: int = 2048,
+    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+) -> Tuple[Dataset, Dataset, int]:
+  """Uniform samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+
+  Args:
+    name_source: name of the source sampler
+    name_target: name of the target sampler
+    mixture_weights_source: weight of the source distribution
+    mixture_weights_target: weight of the target distribution
+    train_batch_size: the training batch size
+    valid_batch_size: the validation batch size
+    rng: initial PRNG key
+
+  Returns:
+    The dataset and dimension of the data.
+  """
+  rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+  train_dataset = Dataset(
+      source_iter=iter(
+          UniformMixture(
+              name_source,
+              batch_size=train_batch_size,
+              rng=rng1,
+              mixture_weights=mixture_weights_source
           )
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=train_batch_size, init_rng=rng2
+          UniformMixture(
+              name_target,
+              batch_size=train_batch_size,
+              rng=rng2,
+              mixture_weights=mixture_weights_target
           )
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=valid_batch_size, init_rng=rng3
+          UniformMixture(
+              name_source,
+              batch_size=valid_batch_size,
+              rng=rng3,
+              mixture_weights=mixture_weights_source
           )
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=valid_batch_size, init_rng=rng4
+          UniformMixture(
+              name_target,
+              batch_size=valid_batch_size,
+              rng=rng4,
+              mixture_weights=mixture_weights_target
           )
       )
   )

@@ -276,6 +276,7 @@ class DualPotentials:
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
       num_grid: int = 50,
+      displacement: bool = False,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
     r"""Plot the potential.
@@ -291,6 +292,8 @@ class DualPotentials:
         :math:`(y_{\text{min}}, y_{\text{max}})`
       num_grid: number of points to discretize the domain into a grid
         along each dimension
+      displacement: whether to plot the displacement potential with respect
+         to the half squared Euclidean distance
       contourf_kwargs: additional kwargs passed into
         :meth:`~matplotlib.axes.Axes.contourf`
 
@@ -311,9 +314,11 @@ class DualPotentials:
     X1, X2 = jnp.meshgrid(x1, x2)
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
+    if displacement:
+      Zflat = 0.5 * (jnp.linalg.norm(X12flat, axis=-1) ** 2) - Zflat
     Zflat = np.asarray(Zflat)
-    vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
-    Zflat = Zflat.clip(vmin, vmax)
+    #vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
+    #Zflat = Zflat.clip(vmin, vmax)
     Z = Zflat.reshape(X1.shape)
 
     CS = ax.contourf(X1, X2, Z, cmap="Blues", **contourf_kwargs)

@@ -53,3 +53,4 @@ Neural Optimal Transport
     notebooks/neural_dual
     notebooks/icnn_inits
     notebooks/MetaOT
+    notebooks/unbalanced_neural_dual

@@ -78,7 +78,7 @@ docs = [
     "sphinx>=4.0",
     "ipython>=7.20.0",
     "sphinx_autodoc_typehints>=1.12.0",
-    "sphinx-book-theme>=0.3.3",
+    "sphinx-book-theme>=1.0.0",
     "sphinx-copybutton>=0.5.1",
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinxcontrib-spelling>=7.7.0",
@@ -241,6 +241,7 @@ legacy_tox_ini = """
     [testenv:format-references]
     description = Format references.bib.
     deps =
+    skip_install = true
     allowlist_externals = biber
     commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
         --output_align --output_indent=2 --output_fieldcase=lower \

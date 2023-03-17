@@ -30,7 +30,7 @@ import ott
 from sphinx.util import logging as sphinx_logging
 
 # -- Project information -----------------------------------------------------
-needs_sphinx = "4.0"
+needs_sphinx = "5.0"
 
 project = "ott"
 author = "OTT authors"
@@ -149,7 +149,6 @@ html_theme_options = {
     "path_to_docs": "docs/",
     "use_repository_button": True,
     "use_fullscreen_button": False,
-    "logo_only": True,
     "launch_buttons": {
         "colab_url": "https://colab.research.google.com",
         "binderhub_url": "https://mybinder.org",
