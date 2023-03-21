@@ -1,7 +1,7 @@
 ott.solvers.nn
 ==============
+.. module:: ott.solvers.nn
 .. currentmodule:: ott.solvers.nn
-.. automodule:: ott.solvers.nn
 
 .. TODO(marcocuturi): maybe add some text here
 

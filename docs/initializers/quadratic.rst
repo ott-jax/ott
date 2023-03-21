@@ -1,7 +1,7 @@
 ott.initializers.quadratic
 ==========================
+.. module:: ott.initializers.quadratic
 .. currentmodule:: ott.initializers.quadratic
-.. automodule:: ott.initializers.quadratic
 
 .. TODO(marcocuturi): maybe add some text here
 

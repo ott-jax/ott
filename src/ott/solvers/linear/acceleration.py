@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import TYPE_CHECKING
 
 import jax
@@ -6,6 +19,7 @@ import jax.numpy as jnp
 from ott import utils
 
 if TYPE_CHECKING:
+  from ott.problems.linear import linear_problem
   from ott.solvers.linear import sinkhorn
 
 __all__ = ["AndersonAcceleration", "Momentum"]
@@ -44,8 +58,9 @@ class AndersonAcceleration:
     return jnp.where(jnp.isfinite(combination), combination, -jnp.inf)
 
   def update(
-      self, state: 'sinkhorn.SinkhornState', iteration: int, pb, lse_mode: bool
-  ) -> 'sinkhorn.SinkhornState':
+      self, state: "sinkhorn.SinkhornState", iteration: int,
+      prob: "linear_problem.LinearProblem", lse_mode: bool
+  ) -> "sinkhorn.SinkhornState":
     """Anderson acceleration update.
 
     When using Anderson acceleration, first update the dual variable f_u with
@@ -57,15 +72,15 @@ class AndersonAcceleration:
     enough the update below will output a potential variable.
 
     Args:
-      state: A sinkhorn.SinkhornState
-      iteration: int, the current iteration.
-      pb: a problem.LinearProblem defining the OT problem.
+      state: Sinkhorn state.
+      iteration: the current iteration.
+      prob: linear OT problem.
       lse_mode: whether to compute in log-sum-exp or in scalings.
 
     Returns:
       A potential variable.
     """
-    geom = pb.geom
+    geom = prob.geom
     trigger_update = jnp.logical_and(
         iteration > self.memory, iteration % self.refresh_every == 0
     )
@@ -94,15 +109,16 @@ class AndersonAcceleration:
     return state.set(fu=fu, old_fus=old_fus)
 
   def init_maps(
-      self, pb, state: 'sinkhorn.SinkhornState'
-  ) -> 'sinkhorn.SinkhornState':
-    """Initialize log matrix used in Anderson acceleration with nan values."""
+      self, pb, state: "sinkhorn.SinkhornState"
+  ) -> "sinkhorn.SinkhornState":
+    """Initialize log matrix used in Anderson acceleration with *NaN* values."""
     fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
     return state.set(old_fus=fus, old_mapped_fus=fus)
 
   def update_history(
-      self, state: 'sinkhorn.SinkhornState', pb, lse_mode: bool
-  ) -> 'sinkhorn.SinkhornState':
+      self, state: "sinkhorn.SinkhornState", pb, lse_mode: bool
+  ) -> "sinkhorn.SinkhornState":
+    """Update history of mapped dual variables."""
     f = state.fu if lse_mode else pb.geom.potential_from_scaling(state.fu)
     mapped = jnp.concatenate((state.old_mapped_fus[:, 1:], f[:, None]), axis=1)
     return state.set(old_mapped_fus=mapped)
@@ -110,29 +126,30 @@ class AndersonAcceleration:
 
 @utils.register_pytree_node
 class Momentum:
-  """Momentum for Sinkhorn updates, either constant :cite:`thibault:21` or \
-  adaptive :cite:`lehmann:21`."""
+  """Momentum for Sinkhorn updates.
+
+  Can be either constant :cite:`thibault:21` or adaptive :cite:`lehmann:21`.
+  """
 
   start: int = 0
   error_threshold: float = jnp.inf
   value: float = 1.0
   inner_iterations: int = 1
 
-  def weight(self, state: 'sinkhorn.SinkhornState', iteration: int) -> float:
+  def weight(self, state: "sinkhorn.SinkhornState", iteration: int) -> float:
     """Compute momentum term if needed, using previously seen errors."""
     if self.start == 0:
       return self.value
     idx = self.start // self.inner_iterations
 
-    weight = jax.lax.cond(
+    return jax.lax.cond(
         jnp.logical_and(
             iteration >= self.start,
             state.errors[idx - 1, -1] < self.error_threshold
         ), lambda state: self.lehmann(state), lambda state: self.value, state
     )
-    return weight
 
-  def lehmann(self, state: 'sinkhorn.SinkhornState') -> float:
+  def lehmann(self, state: "sinkhorn.SinkhornState") -> float:
     """Momentum formula :cite:`lehmann:21`, eq. 5."""
     idx = self.start // self.inner_iterations
     error_ratio = jnp.minimum(
@@ -141,7 +158,7 @@ class Momentum:
     power = 1.0 / self.inner_iterations
     return 2.0 / (1.0 + jnp.sqrt(1.0 - error_ratio ** power))
 
-  def __call__(
+  def __call__(  # noqa: D102
       self,
       weight: float,
       value: jnp.ndarray,
@@ -151,6 +168,5 @@ class Momentum:
     if lse_mode:
       value = jnp.where(jnp.isfinite(value), value, 0.0)
       return (1.0 - weight) * value + weight * new_value
-    else:
-      value = jnp.where(value > 0.0, value, 1.0)
-      return value ** (1.0 - weight) * new_value ** weight
+    value = jnp.where(value > 0.0, value, 1.0)
+    return value ** (1.0 - weight) * new_value ** weight

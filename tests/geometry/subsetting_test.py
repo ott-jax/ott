@@ -1,11 +1,22 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Optional, Sequence, Tuple, Type, Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, low_rank, pointcloud
 
 Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
@@ -13,14 +24,14 @@ Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
 
 @pytest.fixture()
 def pc_masked(
-    rng: jnp.ndarray
+    rng: jax.random.PRNGKeyArray
 ) -> Tuple[pointcloud.PointCloud, pointcloud.PointCloud]:
   n, m = 20, 30
-  key1, key2 = jax.random.split(rng, 2)
+  rng1, rng2 = jax.random.split(rng, 2)
   # x = jnp.full((n,), fill_value=1.)
   # y = jnp.full((m,), fill_value=2.)
-  x = jax.random.normal(key1, shape=(n, 3))
-  y = jax.random.normal(key1, shape=(m, 3))
+  x = jax.random.normal(rng1, shape=(n, 3))
+  y = jax.random.normal(rng1, shape=(m, 3))
   src_mask = jnp.asarray([0, 1, 2])
   tgt_mask = jnp.asarray([3, 5, 6])
 
@@ -45,7 +56,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
   return geom, masked
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestMaskPointCloud:
 
   @pytest.mark.parametrize("tgt_ixs", [7, jnp.arange(5)])
@@ -54,14 +65,14 @@ class TestMaskPointCloud:
       "clazz", [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
   )
   def test_mask(
-      self, rng: jnp.ndarray, clazz: Type[geometry.Geometry],
+      self, rng: jax.random.PRNGKeyArray, clazz: Type[geometry.Geometry],
       src_ixs: Optional[Union[int, Sequence[int]]],
       tgt_ixs: Optional[Union[int, Sequence[int]]]
   ):
-    key1, key2 = jax.random.split(rng, 2)
+    rng1, rng2 = jax.random.split(rng, 2)
     new_batch_size = 7
-    x = jax.random.normal(key1, shape=(10, 3))
-    y = jax.random.normal(key2, shape=(20, 3))
+    x = jax.random.normal(rng1, shape=(10, 3))
+    y = jax.random.normal(rng2, shape=(20, 3))
 
     if clazz is geometry.Geometry:
       geom = clazz(cost_matrix=x @ y.T, scale_cost="mean")
@@ -74,7 +85,10 @@ class TestMaskPointCloud:
         tgt_ixs, int
     ) else len(tgt_ixs)
 
-    geom_sub = geom.subset(src_ixs, tgt_ixs, batch_size=new_batch_size)
+    if clazz is geometry.Geometry:
+      geom_sub = geom.subset(src_ixs, tgt_ixs)
+    else:
+      geom_sub = geom.subset(src_ixs, tgt_ixs, batch_size=new_batch_size)
 
     assert type(geom_sub) == type(geom)
     np.testing.assert_array_equal(geom_sub.shape, (n, m))
@@ -125,9 +139,10 @@ class TestMaskPointCloud:
       )
 
   def test_mask_permutation(
-      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud],
+      rng: jax.random.PRNGKeyArray
   ):
-    key1, key2 = jax.random.split(rng)
+    rng1, rng2 = jax.random.split(rng)
     geom, _ = geom_masked
     n, m = geom.shape
 
@@ -138,8 +153,8 @@ class TestMaskPointCloud:
     children, aux_data = geom.tree_flatten()
     gt_geom = type(geom).tree_unflatten(aux_data, children)
 
-    geom._src_mask = jax.random.permutation(key1, jnp.arange(n))
-    geom._tgt_mask = jax.random.permutation(key2, jnp.arange(m))
+    geom._src_mask = jax.random.permutation(rng1, jnp.arange(n))
+    geom._tgt_mask = jax.random.permutation(rng2, jnp.arange(m))
 
     np.testing.assert_allclose(geom.mean_cost_matrix, gt_geom.mean_cost_matrix)
     np.testing.assert_allclose(
@@ -147,15 +162,16 @@ class TestMaskPointCloud:
     )
 
   def test_boolean_mask(
-      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], rng: jnp.ndarray
+      self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud],
+      rng: jax.random.PRNGKeyArray
   ):
-    key1, key2 = jax.random.split(rng)
+    rng1, rng2 = jax.random.split(rng)
     p = jnp.array([0.5, 0.5])
     geom, _ = geom_masked
     n, m = geom.shape
 
-    src_mask = jax.random.choice(key1, jnp.array([False, True]), (n,), p=p)
-    tgt_mask = jax.random.choice(key1, jnp.array([False, True]), (m,), p=p)
+    src_mask = jax.random.choice(rng1, jnp.array([False, True]), (n,), p=p)
+    tgt_mask = jax.random.choice(rng1, jnp.array([False, True]), (m,), p=p)
     geom._src_mask = src_mask
     geom._tgt_mask = tgt_mask
     gt_cost = geom.cost_matrix[src_mask, :][:, tgt_mask]

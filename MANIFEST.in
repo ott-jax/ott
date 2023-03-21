@@ -1,5 +1,3 @@
 prune docs
-prune examples
-prune images
 prune tests
 prune .github

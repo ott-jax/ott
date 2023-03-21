@@ -1,13 +1,24 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import collections.abc
 import itertools
 from typing import Any, Mapping, Optional, Sequence
 
-import pytest
-from _pytest.config.argparsing import Parser
-from _pytest.python import Metafunc
-
 import jax
 import jax.numpy as jnp
+import pytest
+from _pytest.python import Metafunc
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:
@@ -56,30 +67,16 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
-def pytest_addoption(parser: Parser) -> None:
-  parser.addoption(
-      "--kernel-name",
-      default="python3",
-      help="Jupyter kernel name when executing notebook tests."
-  )
-  parser.addoption(
-      "--notebook-cell-timeout",
-      type=int,
-      default=60,
-      help="Execution timeout in seconds for notebook cells."
-  )
-
-
 @pytest.fixture(scope="session")
 def rng() -> jnp.ndarray:
   return jax.random.PRNGKey(0)
 
 
 @pytest.fixture()
-def enable_x64():
+def enable_x64() -> bool:
   previous_value = jax.config.jax_enable_x64
   jax.config.update("jax_enable_x64", True)
   try:
-    yield
+    yield True
   finally:
     jax.config.update("jax_enable_x64", previous_value)

@@ -1,7 +1,7 @@
 ott.initializers.nn
 ===================
+.. module:: ott.initializers.nn
 .. currentmodule:: ott.initializers.nn
-.. automodule:: ott.initializers.nn
 
 .. TODO(marcocuturi): maybe add some text here
 

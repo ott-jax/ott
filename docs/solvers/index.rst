@@ -1,10 +1,7 @@
 ott.solvers
 ===========
-
+.. module:: ott.solvers
 .. TODO(marcocuturi): add some nice text here please
-
-.. currentmodule:: ott.solvers
-.. automodule:: ott.solvers
 
 .. toctree::
     :maxdepth: 2

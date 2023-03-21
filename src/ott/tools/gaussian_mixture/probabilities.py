@@ -1,18 +1,16 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree for a vector of probabilities."""
-
 from typing import Optional
 
 import jax
@@ -37,19 +35,19 @@ class Probabilities:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: Optional[jnp.dtype] = None
-  ) -> 'Probabilities':
+  ) -> "Probabilities":
     """Construct a random Probabilities."""
     return cls(
         params=jax.random
-        .normal(key=key, shape=(n_dimensions - 1,), dtype=dtype) * stdev
+        .normal(key=rng, shape=(n_dimensions - 1,), dtype=dtype) * stdev
     )
 
   @classmethod
-  def from_probs(cls, probs: jnp.ndarray) -> 'Probabilities':
+  def from_probs(cls, probs: jnp.ndarray) -> "Probabilities":
     """Construct Probabilities from a vector of probabilities."""
     log_probs = jnp.log(probs)
     log_probs_normalized, norm = log_probs[:-1], log_probs[-1]
@@ -57,44 +55,48 @@ class Probabilities:
     return cls(params=log_probs_normalized)
 
   @property
-  def params(self):
+  def params(self):  # noqa: D102
     return self._params
 
   @property
-  def dtype(self):
+  def dtype(self):  # noqa: D102
     return self._params.dtype
 
   def unnormalized_log_probs(self) -> jnp.ndarray:
+    """Get the unnormalized log probabilities."""
     return jnp.concatenate([self._params,
                             jnp.zeros((1,), dtype=self.dtype)],
                            axis=-1)
 
   def log_probs(self) -> jnp.ndarray:
+    """Get the log probabilities."""
     return jax.nn.log_softmax(self.unnormalized_log_probs())
 
   def probs(self) -> jnp.ndarray:
+    """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
-  def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
+    """Sample from the distribution."""
     return jax.random.categorical(
-        key=key, logits=self.unnormalized_log_probs(), shape=(size,)
+        key=rng, logits=self.unnormalized_log_probs(), shape=(size,)
     )
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.params,)
     aux_data = {}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):

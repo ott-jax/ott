@@ -1,19 +1,18 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Functions entering the implicit differentiation of Sinkhorn."""
-
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+import dataclasses
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -275,7 +274,7 @@ class ImplicitDiff:
       self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
       g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> "linear_problem.LinearProblem":
-    """Apply vjp to recover gradient in reverse mode differentiation."""
+    """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 
@@ -286,3 +285,6 @@ class ImplicitDiff:
     # Carries pullback onto original inputs, here geom, a and b.
     _, pull_prob = jax.vjp(foc_prob, prob)
     return pull_prob(vjp_gr)
+
+  def replace(self, **kwargs: Any) -> "ImplicitDiff":  # noqa: D102
+    return dataclasses.replace(self, **kwargs)

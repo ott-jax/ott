@@ -1,17 +1,16 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Functions useful to define unbalanced OT problems."""
 from typing import Callable
 
 import jax.numpy as jnp
@@ -24,7 +23,7 @@ def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
 
 # TODO(cuturi): use jax.grad directly.
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Derivative of Legendre transform of phi_starKL, see phi_star."""  # noqa: D401
+  """Derivative of Legendre transform of phi_starKL, see phi_star."""
   return jnp.exp(f / rho)
 
 
@@ -87,5 +86,5 @@ def diag_jacobian_of_marginal_fit(
   )
 
 
-def rho(epsilon: float, tau: float) -> float:
+def rho(epsilon: float, tau: float) -> float:  # noqa: D103
   return (epsilon * tau) / (1. - tau)

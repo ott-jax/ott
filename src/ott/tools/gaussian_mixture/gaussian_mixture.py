@@ -1,24 +1,27 @@
-# Copyright 2022 Google LLC.
+# Copyright OTT-JAX
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree for a Gaussian mixture model."""
-
 from typing import List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott.tools.gaussian_mixture import gaussian, linalg, probabilities, scale_tril
+from ott.tools.gaussian_mixture import (
+    gaussian,
+    linalg,
+    probabilities,
+    scale_tril,
+)
 
 __all__ = ["GaussianMixture"]
 
@@ -62,7 +65,7 @@ def get_summary_stats_from_points_and_assignment_probs(
 
 @jax.tree_util.register_pytree_node_class
 class GaussianMixture:
-  """Pytree for a Gaussian Mixture model."""
+  """Gaussian Mixture model."""
 
   def __init__(
       self, loc: jnp.ndarray, scale_params: jnp.ndarray,
@@ -75,7 +78,7 @@ class GaussianMixture:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_components: int,
       n_dimensions: int,
       stdev_mean: float = 0.1,
@@ -83,14 +86,14 @@ class GaussianMixture:
       stdev_weights: float = 0.1,
       ridge: Union[float, jnp.array] = 0,
       dtype: Optional[jnp.dtype] = None
-  ) -> 'GaussianMixture':
+  ) -> "GaussianMixture":
     """Construct a random GMM."""
     loc = []
     scale_params = []
     for _ in range(n_components):
-      key, subkey = jax.random.split(key)
+      rng, subrng = jax.random.split(rng)
       component = gaussian.Gaussian.from_random(
-          key=subkey,
+          rng=subrng,
           n_dimensions=n_dimensions,
           stdev_mean=stdev_mean,
           stdev_cov=stdev_cov,
@@ -102,7 +105,7 @@ class GaussianMixture:
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        key=subkey, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
+        rng=subrng, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
     )
     return cls(
         loc=loc, scale_params=scale_params, component_weight_ob=weight_ob
@@ -128,7 +131,7 @@ class GaussianMixture:
       points: jnp.ndarray,
       point_weights: jnp.ndarray,
       assignment_probs: jnp.ndarray,
-  ) -> 'GaussianMixture':
+  ) -> "GaussianMixture":
     """Estimate a GMM from points and a set of component probabilities."""
     mean, cov, wts = get_summary_stats_from_points_and_assignment_probs(
         points=points,
@@ -141,26 +144,32 @@ class GaussianMixture:
 
   @property
   def dtype(self):
+    """Dtype of the GMM parameters."""
     return self.loc.dtype
 
   @property
   def n_dimensions(self):
+    """Number of dimensions of the GMM parameters."""
     return self._loc.shape[-1]
 
   @property
   def n_components(self):
+    """Number of components of the GMM parameters."""
     return self._loc.shape[-2]
 
   @property
   def loc(self) -> jnp.ndarray:
+    """Location parameters of the GMM."""
     return self._loc
 
   @property
   def scale_params(self) -> jnp.ndarray:
+    """Scale parameters of the GMM."""
     return self._scale_params
 
   @property
   def cholesky(self) -> jnp.ndarray:
+    """Cholesky decomposition of the GMM covariance matrices."""
     size = self.n_dimensions
 
     def _get_cholesky(scale_params):
@@ -170,6 +179,7 @@ class GaussianMixture:
 
   @property
   def covariance(self) -> jnp.ndarray:
+    """Covariance matrices of the GMM."""
     size = self.n_dimensions
 
     def _get_covariance(scale_params):
@@ -179,13 +189,16 @@ class GaussianMixture:
 
   @property
   def component_weight_ob(self) -> probabilities.Probabilities:
+    """Component weight object."""
     return self._component_weight_ob
 
   @property
   def component_weights(self) -> jnp.ndarray:
+    """Component weights probabilities."""
     return self._component_weight_ob.probs()
 
   def log_component_weights(self) -> jnp.ndarray:
+    """Log component weights probabilities."""
     return self._component_weight_ob.log_probs()
 
   def _get_normal(
@@ -197,21 +210,21 @@ class GaussianMixture:
     )
 
   def get_component(self, index: int) -> gaussian.Gaussian:
-    """Get the specified GMM component."""
+    """Specified GMM component."""
     return self._get_normal(
         loc=self.loc[index], scale_params=self.scale_params[index]
     )
 
   def components(self) -> List[gaussian.Gaussian]:
-    """Get a list of all GMM components."""
+    """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
-  def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
-    subkey0, subkey1 = jax.random.split(key)
-    component = self.component_weight_ob.sample(key=subkey0, size=size)
+    subrng0, subrng1 = jax.random.split(rng)
+    component = self.component_weight_ob.sample(rng=subrng0, size=size)
     std_samples = jax.random.normal(
-        key=subkey1, shape=(size, self.n_dimensions)
+        key=subrng1, shape=(size, self.n_dimensions)
     )
 
     def _transform_single_component(k, scale, loc):
@@ -288,27 +301,27 @@ class GaussianMixture:
         log_prob_unnorm, axis=-1, keepdims=True
     )
 
-  def has_nans(self) -> bool:
+  def has_nans(self) -> bool:  # noqa: D102
     for leaf in jax.tree_util.tree_leaves(self):
       if jnp.any(~jnp.isfinite(leaf)):
         return True
     return False
 
-  def tree_flatten(self):
+  def tree_flatten(self):  # noqa: D102
     children = (self.loc, self.scale_params, self.component_weight_ob)
     aux_data = {}
     return children, aux_data
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
 
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):
