@@ -17,6 +17,7 @@ Linear Optimal Transport
     notebooks/OTT_&_POT
     notebooks/Hessians
     notebooks/LRSinkhorn
+    notebooks/Unbalanced_OT
 
 Barycenters
 ^^^^^^^^^^^
