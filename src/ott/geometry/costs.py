@@ -184,9 +184,7 @@ class SqPNorm(TICost):
   def __init__(self, p: float):
     super().__init__()
     self.p = p
-    self.q = jax.lax.cond(
-        p > 1.0, lambda: 1.0 / (1.0 - (1.0 / p)), lambda: jnp.inf
-    )
+    self.q = 1.0 / (1.0 - (1.0 / p)) if p > 1.0 else jnp.inf
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
@@ -199,12 +197,12 @@ class SqPNorm(TICost):
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
   def tree_flatten(self):  # noqa: D102
-    return (self.p,), None
+    return None, (self.p,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del aux_data
-    return cls(*children)
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -219,9 +217,7 @@ class PNormP(TICost):
   def __init__(self, p: float):
     super().__init__()
     self.p = p
-    self.q = jax.lax.cond(
-        p > 1.0, lambda: 1.0 / (1.0 - (1.0 / p)), lambda: jnp.inf
-    )
+    self.q = 1.0 / (1.0 - (1.0 / p)) if p > 1.0 else jnp.inf
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(z, self.p) ** self.p / self.p
@@ -231,12 +227,12 @@ class PNormP(TICost):
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
   def tree_flatten(self):  # noqa: D102
-    return (self.p,), None
+    return None, (self.p,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del aux_data
-    return cls(*children)
+    del children
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
