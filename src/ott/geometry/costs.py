@@ -197,7 +197,7 @@ class SqPNorm(TICost):
     return 0.5 * jnp.linalg.norm(z, self.q) ** 2
 
   def tree_flatten(self):  # noqa: D102
-    return None, (self.p,)
+    return (), (self.p,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
@@ -227,7 +227,7 @@ class PNormP(TICost):
     return jnp.linalg.norm(z, self.q) ** self.q / self.q
 
   def tree_flatten(self):  # noqa: D102
-    return None, (self.p,)
+    return (), (self.p,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
