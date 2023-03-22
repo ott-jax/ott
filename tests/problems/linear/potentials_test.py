@@ -177,8 +177,10 @@ class TestEntropicPotentials:
     )
 
     if p == 1.0:
-      with pytest.raises(AssertionError, match="Legendre transform not"):
-        z = potentials.transport(x_test, forward=forward)
+      # h_legendre not defined in this case, NaNs will be returned, see also
+      # https://github.com/ott-jax/ott/pull/340
+      z = potentials.transport(x_test, forward=forward)
+      np.testing.assert_array_equal(z, np.nan)
     else:
       if forward:
         z = potentials.transport(x_test, forward=forward)
