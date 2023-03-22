@@ -184,7 +184,7 @@ class SqPNorm(TICost):
   def __init__(self, p: float):
     super().__init__()
     self.p = p
-    self.q = 1. / (1. - 1. / self.p) if p > 1.0 else jnp.inf
+    self.q = jnp.where(p > 1.0, 1.0 / (1.0 - 1.0 / self.p), jnp.inf)
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.linalg.norm(z, self.p) ** 2
