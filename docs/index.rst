@@ -81,12 +81,12 @@ Packages
 - :mod:`ott.initializers` are used to speed up the resolution of OT
   solvers.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
-  solvers in the solvers. Such tasks include computing approximations
-  to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
-  between GMMs, or computing differentiable sort and quantile operations
-  :cite:`cuturi:19`.
+  solvers from the :mod:`ott.solvers` module. Such tasks include computing
+  approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
+  approximating OT between GMMs, or computing differentiable sort and quantile
+  operations :cite:`cuturi:19`.
 - :mod:`ott.math` holds low-level mathematical primitives.
-- :mod:`ott.utils` provides misc helper functions.
+- :mod:`ott.utils` provides miscellaneous helper functions.
 
 .. toctree::
     :maxdepth: 1
