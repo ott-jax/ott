@@ -74,12 +74,11 @@ Packages
   of it, or apply its kernel). A typical example in the latter case arises
   when comparing *two point clouds*, paired with a *cost function*. Geometry
   objects are used to describe OT *problems*, solved next by *solvers*.
-- :mod:`ott.problems` are used to describe linear or quadratic (GW) OT
+- :mod:`ott.problems` are used to describe linear, quadratic or barycenter OT
   problems.
-- :mod:`ott.solvers` solve linear or quadratic problems with various
-  techniques, including some neural approaches.
-- :mod:`ott.initializers` are used to speed up the resolution of OT
-  solvers.
+- :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
+  one of the implemented techniques.
+- :mod:`ott.initializers` are used to speed up the resolution of OT solvers.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing
   approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
