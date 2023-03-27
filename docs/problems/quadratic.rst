@@ -1,7 +1,7 @@
 ott.problems.quadratic
 ======================
+.. module:: ott.problems.quadratic
 .. currentmodule:: ott.problems.quadratic
-.. automodule:: ott.problems.quadratic
 
 .. TODO(marcocuturi): maybe add some text here
 

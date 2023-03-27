@@ -3,28 +3,27 @@
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
-
     {% block methods %}
-    {% if methods %}
-    .. rubric:: Methods
+    {%- if methods %}
+    .. rubric:: {{ _('Methods') }}
+
     .. autosummary::
-       :toctree: .
+        :toctree: .
     {% for item in methods %}
-        {% if (item != '__init__') and (item != 'tree_flatten') and (item != 'tree_unflatten') %}
-            ~{{ fullname }}.{{ item }}
-        {% endif %}
-    {% endfor %}
-    {% endif %}
-    {% endblock %}
-
+    {%- if item not in ['__init__', 'tree_flatten', 'tree_unflatten', 'bind'] %}
+        ~{{ name }}.{{ item }}
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+    {%- endblock %}
     {% block attributes %}
-    {% if attributes %}
-    .. rubric:: Attributes
+    {%- if attributes %}
+    .. rubric:: {{ _('Attributes') }}
 
     .. autosummary::
-       :toctree: .
+        :toctree: .
     {% for item in attributes %}
-       ~{{ fullname }}.{{ item }}
-    {% endfor %}
-    {% endif %}
+        ~{{ name }}.{{ item }}
+    {%- endfor %}
+    {%- endif %}
     {% endblock %}

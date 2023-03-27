@@ -1,7 +1,7 @@
 ott.tools
 =========
+.. module:: ott.tools
 .. currentmodule:: ott.tools
-.. automodule:: ott.tools
 
 The tools package contains high level functions that build on outputs produced
 by core functions. They can be used to compute Sinkhorn divergences
@@ -14,6 +14,13 @@ Segmented Sinkhorn
     :toctree: _autosummary
 
     segment_sinkhorn.segment_sinkhorn
+
+Plotting
+--------
+.. autosummary::
+    :toctree: _autosummary
+
+    plot.Plot
 
 Sinkhorn Divergence
 -------------------

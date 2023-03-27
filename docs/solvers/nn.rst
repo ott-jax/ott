@@ -1,7 +1,7 @@
 ott.solvers.nn
 ==============
+.. module:: ott.solvers.nn
 .. currentmodule:: ott.solvers.nn
-.. automodule:: ott.solvers.nn
 
 .. TODO(marcocuturi): maybe add some text here
 
@@ -10,12 +10,22 @@ Neural Dual
 .. autosummary::
     :toctree: _autosummary
 
-    neuraldual.NeuralDualSolver
+    neuraldual.W2NeuralDual
 
-ICNN
-----
+Models
+------
 .. autosummary::
     :toctree: _autosummary
 
-    icnn.ICNN
-    layers.PositiveDense
+    models.ModelBase
+    models.ICNN
+    models.MLP
+
+Conjugate Solvers
+-----------------
+.. autosummary::
+    :toctree: _autosummary
+
+    conjugate_solvers.ConjugateResults
+    conjugate_solvers.FenchelConjugateSolver
+    conjugate_solvers.FenchelConjugateLBFGS
