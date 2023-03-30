@@ -157,6 +157,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
+    unscale_last_linearization: Whether to remove any scaling from the
+      cost matrices of the last linearized
+      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
@@ -176,6 +179,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       *args: Any,
       warm_start: Optional[bool] = None,
+      unscale_last_linearization: bool = False,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
@@ -184,6 +188,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   ):
     super().__init__(*args, **kwargs)
     self._warm_start = warm_start
+    self.unscale_last_linearization = unscale_last_linearization
     self.quad_initializer = quad_initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
@@ -268,21 +273,38 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=errors,
     )
 
-  def output_from_state(self, state: GWState) -> GWOutput:
+  def output_from_state(
+      self,
+      state: GWState,
+      prob: quadratic_problem.QuadraticProblem,
+  ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
       state: A GWState.
+      prob: Quadratic problem.
 
     Returns:
       A GWOutput.
     """
+    if self.is_low_rank:
+      lin_prob = prob.update_lr_linearization(
+          state.linear_state, remove_scale=self.unscale_last_linearization
+      )
+    else:
+      lin_prob = prob.update_linearization(
+          state.linear_state,
+          epsilon=self.epsilon,
+          old_transport_mass=state.old_transport_mass,
+          remove_scale=self.unscale_last_linearization,
+      )
+
     return GWOutput(
         costs=state.costs,
         linear_convergence=state.linear_convergence,
         errors=state.errors,
         linear_state=state.linear_state,
-        geom=state.linear_pb.geom,
+        geom=lin_prob.geom,
         old_transport_mass=state.old_transport_mass
     )
 
@@ -333,6 +355,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
+    aux_data["unscale_last_linearization"] = self.unscale_last_linearization
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
@@ -388,7 +411,7 @@ def iterations(
       state=solver.init_state(prob, init, rng=rng)
   )
 
-  return solver.output_from_state(state)
+  return solver.output_from_state(state, prob)
 
 
 def solve(

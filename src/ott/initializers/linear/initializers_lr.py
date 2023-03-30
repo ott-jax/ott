@@ -641,7 +641,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     consts = self.Constants(
         solver=sinkhorn.Sinkhorn(**self._sinkhorn_kwargs),
-        geom=geom._set_scale_cost("max_cost"),
+        geom=geom.set_scale_cost("max_cost"),
         marginal=ot_prob.a if which == "q" else ot_prob.b,
         g=init_g,
         gamma=self._kwargs["gamma"],
