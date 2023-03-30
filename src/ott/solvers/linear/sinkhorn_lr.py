@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import (
     Any,
+    Callable,
     Literal,
     Mapping,
     NamedTuple,
@@ -25,6 +26,8 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import numpy as np
+from jax.experimental import host_callback
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
@@ -34,6 +37,9 @@ from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
+
+ProgressCallbackFn_t = Callable[
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRSinkhornState"]], None]
 
 
 class LRSinkhornState(NamedTuple):
@@ -268,6 +274,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
+    progress_fn: callback function which gets called during the Sinkhorn
+      iterations, so the user can display the error at each iteration,
+      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
+      for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update`.
     kwargs_init: Keyword arguments for
       :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
@@ -290,6 +300,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       implicit_diff: bool = False,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
+      progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
     assert lse_mode, "Kernel mode not yet implemented."
@@ -306,6 +317,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
     self.initializer = initializer
+    self.progress_fn = progress_fn
     # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
@@ -550,11 +562,19 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         )
     )
 
-    return state.set(
+    state = state.set(
         costs=state.costs.at[it].set(cost),
         errors=state.errors.at[it].set(error),
         crossed_threshold=crossed_threshold,
     )
+
+    if self.progress_fn is not None:
+      host_callback.id_tap(
+          self.progress_fn,
+          (iteration, self.inner_iterations, self.max_iterations, state)
+      )
+
+    return state
 
   @property
   def norm_error(self) -> Tuple[int]:  # noqa: D102

@@ -905,7 +905,14 @@ class Sinkhorn:
         ot_prob,
     )
     errors = state.errors.at[iteration // self.inner_iterations, :].set(err)
-    return state.set(errors=errors)
+    state = state.set(errors=errors)
+
+    if self.progress_fn is not None:
+      host_callback.id_tap(
+          self.progress_fn,
+          (iteration, self.inner_iterations, self.max_iterations, state)
+      )
+    return state
 
   def _converged(self, state: SinkhornState, iteration: int) -> bool:
     err = state.errors[iteration // self.inner_iterations - 1, 0]
@@ -1049,13 +1056,7 @@ def iterations(
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
-    state = solver.one_iteration(ot_prob, state, iteration, compute_error)
-    if solver.progress_fn is not None:
-      host_callback.id_tap(
-          solver.progress_fn,
-          (iteration, solver.inner_iterations, solver.max_iterations, state)
-      )
-    return state
+    return solver.one_iteration(ot_prob, state, iteration, compute_error)
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
