@@ -34,6 +34,7 @@ Miscellaneous
 .. toctree::
     :maxdepth: 1
 
+    notebooks/tracking_progress
     notebooks/soft_sort
     notebooks/application_biology
 
