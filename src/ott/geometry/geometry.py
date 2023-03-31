@@ -206,7 +206,8 @@ class Geometry:
       return 1.0 / jnp.nanmedian(self._cost_matrix)
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+  def set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+    """Modify how to rescale of the :attr:`cost_matrix`."""
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
     if scale_cost is False or scale_cost == self._scale_cost:

@@ -157,6 +157,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
+    unscale_last_linearization: Whether to remove any scaling from the
+      cost matrices of the last linearization stored in
+      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`.
+      This has the practical benefit that, while the OT coupling matrices
+      obtained with GW might have been computed by re-scaling cost matrices for
+      numerical stability, the last linearization stored in the geometry will be
+      unscaled and recomputed with the original cost values.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
@@ -176,6 +183,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       *args: Any,
       warm_start: Optional[bool] = None,
+      unscale_last_linearization: bool = False,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
@@ -184,6 +192,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   ):
     super().__init__(*args, **kwargs)
     self._warm_start = warm_start
+    self.unscale_last_linearization = unscale_last_linearization
     self.quad_initializer = quad_initializer
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
@@ -216,22 +225,28 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       init = initializer(prob, epsilon=self.epsilon, rng=rng1, **kwargs)
 
     out = iterations(self, prob, init, rng2)
-    # TODO(lpapaxanthos): remove stop_gradient when using backprop
+    # TODO(lpapaxanthoos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
-          jax.lax.stop_gradient(out.linear_state)
+          jax.lax.stop_gradient(out.linear_state),
+          remove_scale=self.unscale_last_linearization
       )
     else:
       linearization = prob.update_linearization(
-          jax.lax.stop_gradient(out.linear_state), self.epsilon,
-          jax.lax.stop_gradient(out.old_transport_mass)
+          jax.lax.stop_gradient(out.linear_state),
+          epsilon=self.epsilon,
+          old_transport_mass=jax.lax.stop_gradient(out.old_transport_mass),
+          remove_scale=self.unscale_last_linearization,
       )
+
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
         iteration < self.max_iterations, jnp.all(out.linear_convergence)
     )
-    return out.set(linear_state=linear_state, converged=converged)
+    return out.set(
+        linear_state=linear_state, geom=linearization.geom, converged=converged
+    )
 
   def init_state(
       self,
@@ -268,7 +283,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=errors,
     )
 
-  def output_from_state(self, state: GWState) -> GWOutput:
+  def output_from_state(
+      self,
+      state: GWState,
+  ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
@@ -333,6 +351,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
+    aux_data["unscale_last_linearization"] = self.unscale_last_linearization
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
