@@ -306,8 +306,11 @@ class QuadraticProblem:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
       old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
-      remove_scale: Whether to remove any scaling from the cost matrices before
-        computing the linearization.
+      remove_scale: Whether to remove any scaling from the cost matrices when
+        computing the linearization of the quadratic cost. At the moment, this
+        is only used when doing this update at the last outer iteration of the
+        :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
+        solver.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.

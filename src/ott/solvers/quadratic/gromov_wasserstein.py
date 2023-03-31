@@ -158,8 +158,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
     unscale_last_linearization: Whether to remove any scaling from the
-      cost matrices of the last linearized
-      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`
+      cost matrices of the last linearization stored in
+      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`.
+      This has the practical benefit that, while the OT coupling matrices
+      obtained with GW might have been computed by re-scaling cost matrices for
+      numerical stability, the last linearization stored in the geometry will be
+      unscaled and recomputed with the original cost values.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
