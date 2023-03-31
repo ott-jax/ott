@@ -225,22 +225,28 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       init = initializer(prob, epsilon=self.epsilon, rng=rng1, **kwargs)
 
     out = iterations(self, prob, init, rng2)
-    # TODO(lpapaxanthos): remove stop_gradient when using backprop
+    # TODO(lpapaxanthoos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
-          jax.lax.stop_gradient(out.linear_state)
+          jax.lax.stop_gradient(out.linear_state),
+          remove_scale=self.unscale_last_linearization
       )
     else:
       linearization = prob.update_linearization(
-          jax.lax.stop_gradient(out.linear_state), self.epsilon,
-          jax.lax.stop_gradient(out.old_transport_mass)
+          jax.lax.stop_gradient(out.linear_state),
+          epsilon=self.epsilon,
+          old_transport_mass=jax.lax.stop_gradient(out.old_transport_mass),
+          remove_scale=self.unscale_last_linearization,
       )
+
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
         iteration < self.max_iterations, jnp.all(out.linear_convergence)
     )
-    return out.set(linear_state=linear_state, converged=converged)
+    return out.set(
+        linear_state=linear_state, geom=linearization.geom, converged=converged
+    )
 
   def init_state(
       self,
@@ -280,35 +286,21 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def output_from_state(
       self,
       state: GWState,
-      prob: quadratic_problem.QuadraticProblem,
   ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
       state: A GWState.
-      prob: Quadratic problem.
 
     Returns:
       A GWOutput.
     """
-    if self.is_low_rank:
-      lin_prob = prob.update_lr_linearization(
-          state.linear_state, remove_scale=self.unscale_last_linearization
-      )
-    else:
-      lin_prob = prob.update_linearization(
-          state.linear_state,
-          epsilon=self.epsilon,
-          old_transport_mass=state.old_transport_mass,
-          remove_scale=self.unscale_last_linearization,
-      )
-
     return GWOutput(
         costs=state.costs,
         linear_convergence=state.linear_convergence,
         errors=state.errors,
         linear_state=state.linear_state,
-        geom=lin_prob.geom,
+        geom=state.linear_pb.geom,
         old_transport_mass=state.old_transport_mass
     )
 
@@ -415,7 +407,7 @@ def iterations(
       state=solver.init_state(prob, init, rng=rng)
   )
 
-  return solver.output_from_state(state, prob)
+  return solver.output_from_state(state)
 
 
 def solve(

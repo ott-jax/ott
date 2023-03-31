@@ -353,6 +353,7 @@ class QuadraticProblem:
                    self._fused_cost_matrix(remove_scale)
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+
     return linear_problem.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
