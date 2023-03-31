@@ -392,11 +392,11 @@ class TestGromovWasserstein:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(out_cold.matrix, out_warm.matrix)
 
-  @pytest.mark.parametrize("scale_cost", [1.03, 2.3])
+  @pytest.mark.parametrize("scale_cost", [1.15, 2.3])
   def test_unscale_last_linearization(
       self, rng: jax.random.PRNGKeyArray, scale_cost: float
   ):
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    rng1, rng2 = jax.random.split(rng, 2)
     n, m = 7, 16
     rtol = atol = 1e-3
 
@@ -406,10 +406,8 @@ class TestGromovWasserstein:
     geom_y = pointcloud.PointCloud(
         jax.random.normal(rng2, (m, 6)), scale_cost=scale_cost
     )
-    # TODO(michalk8): test in FGW
-    # TODO(michalk8): only true when `scale_cost`
-    # is the same for both geometries
-    expected = 1.0 / geom_x.inv_scale_cost * 1 / geom_y.inv_scale_cost
+    # hold true only when `scale_cost` is the same for both geometries
+    expected = 1.0 / (geom_x.inv_scale_cost * geom_y.inv_scale_cost)
 
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
     solver_scaled = gromov_wasserstein.GromovWasserstein(
