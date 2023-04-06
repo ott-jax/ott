@@ -13,6 +13,7 @@ Gromov-Wasserstein Solvers
     gromov_wasserstein.solve
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
+    gromov_wasserstein.GWState
 
 Barycenter Solvers
 ------------------
