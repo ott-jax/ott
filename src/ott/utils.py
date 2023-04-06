@@ -70,7 +70,7 @@ def default_progress_fn(
   """Callback function that reports progress of
   :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` by printing to the console.
 
-  It updates the progress bar only when the error is computed, that is every
+  It prints the progress only when the error is computed, that is every
   :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
 
   Note:
@@ -107,19 +107,19 @@ def default_progress_fn(
 
       def progress_fn(status, *args):
         iteration, inner_iterations, total_iter, state = status
-        iteration = int(iteration)
+        iteration = int(iteration) + 1
         inner_iterations = int(inner_iterations)
         total_iter = int(total_iter)
         errors = np.asarray(state.errors).ravel()
 
         # Avoid reporting error on each iteration,
         # because errors are only computed every `inner_iterations`.
-        if (iteration + 1) % inner_iterations == 0:
-          error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+        if iteration % inner_iterations == 0:
+          error_idx = max(0, iteration // inner_iterations - 1)
           error = errors[error_idx]
 
           pbar.set_postfix_str(f"error: {error:0.6e}")
-          pbar.total = total_iter
+          pbar.total = total_iter // inner_iterations
           pbar.update()
 
       prob = linear_problem.LinearProblem(...)
@@ -130,15 +130,15 @@ def default_progress_fn(
   """  # noqa: D205
   # Convert arguments.
   iteration, inner_iterations, total_iter, state = status
-  iteration = int(iteration)
+  iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
   total_iter = int(total_iter)
   errors = np.array(state.errors).ravel()
 
   # Avoid reporting error on each iteration,
   # because errors are only computed every `inner_iterations`.
-  if (iteration + 1) % inner_iterations == 0:
-    error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+  if iteration % inner_iterations == 0:
+    error_idx = max(0, iteration // inner_iterations - 1)
     error = errors[error_idx]
 
     print(f"{iteration} / {total_iter} -- {error}")  # noqa: T201

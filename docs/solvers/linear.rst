@@ -15,6 +15,7 @@ Sinkhorn Solvers
     sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
     sinkhorn_lr.LRSinkhorn
+    sinkhorn_lr.LRSinkhornState
     sinkhorn_lr.LRSinkhornOutput
 
 Barycenter Solvers
