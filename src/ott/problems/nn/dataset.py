@@ -124,7 +124,7 @@ def create_gaussian_mixture_samplers(
   Returns:
     The dataset and dimension of the data.
   """
-  rng = utils.default_prng(rng)
+  rng = utils.default_prng_key(rng)
   rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(

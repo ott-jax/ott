@@ -152,7 +152,7 @@ class W2NeuralDual:
 
     # set optimizer and networks
     self.setup(
-        utils.default_prng(rng),
+        utils.default_prng_key(rng),
         neural_f,
         neural_g,
         dim_data,

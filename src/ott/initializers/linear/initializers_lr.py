@@ -197,7 +197,7 @@ class LRInitializer(abc.ABC):
     Returns:
       The factors :math:`Q`, :math:`R` and :math:`g`, respectively.
     """
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     rng1, rng2, rng3 = jax.random.split(rng, 3)
 
     if g is None:

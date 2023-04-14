@@ -429,7 +429,7 @@ class QuadraticProblem:
     if self.is_low_rank:
       return self
 
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     rng1, rng2, rng3 = jax.random.split(rng, 3)
     (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
     (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)

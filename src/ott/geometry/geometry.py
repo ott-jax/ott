@@ -660,7 +660,7 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
-      rng = utils.default_prng(rng)
+      rng = utils.default_prng_key(rng)
       rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 

@@ -775,7 +775,7 @@ class Sinkhorn:
     Returns:
       The Sinkhorn output.
     """
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode, rng=rng

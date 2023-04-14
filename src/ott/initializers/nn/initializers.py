@@ -84,7 +84,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     self.geom = geom
     self.dtype = geom.x.dtype
     self.opt = opt
-    self.rng = utils.default_prng(rng)
+    self.rng = utils.default_prng_key(rng)
 
     na, nb = geom.shape
     self.meta_model = MetaMLP(

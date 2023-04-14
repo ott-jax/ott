@@ -393,7 +393,7 @@ def k_means(
   if isinstance(geom.cost_fn, costs.Cosine):
     geom = geom._cosine_to_sqeucl()
   assert geom.is_squared_euclidean
-  rng = utils.default_prng(rng)
+  rng = utils.default_prng_key(rng)
 
   if geom.is_online:
     # to allow materializing the cost matrix

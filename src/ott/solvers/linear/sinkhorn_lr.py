@@ -349,7 +349,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       The low-rank Sinkhorn output.
     """
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)

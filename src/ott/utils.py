@@ -64,17 +64,18 @@ def is_jax_array(obj: Any) -> bool:
   return isinstance(obj, jnp.DeviceArray)
 
 
-def default_prng(
+def default_prng_key(
     rng: Optional[jax.random.PRNGKeyArray] = None,
 ) -> jax.random.PRNGKeyArray:
-  """TODO.
+  """Get the default PRNG key.
 
   Args:
     rng:
-      TODO.
+      PRNG key.
 
   Returns:
-    TODO.
+    If ``rng = None``, returns the default PRNG key.
+    Otherwise, it returns the unmodified ``rng`` key.
   """
   return jax.random.PRNGKey(0) if rng is None else rng
 

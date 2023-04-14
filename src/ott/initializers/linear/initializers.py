@@ -89,7 +89,7 @@ class SinkhornInitializer(abc.ABC):
     Returns:
       The initial potentials/scalings.
     """
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     rng_x, rng_y = jax.random.split(rng, 2)
     n, m = ot_prob.geom.shape
     if a is None:
@@ -331,7 +331,7 @@ class SubsampleInitializer(DefaultInitializer):
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
     ), "Subsample initializer valid only for pointcloud geom."
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     rng_x, rng_y = jax.random.split(rng, 2)
 
     x, y = ot_prob.geom.x, ot_prob.geom.y

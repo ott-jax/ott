@@ -216,7 +216,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     rng1, rng2 = jax.random.split(rng, 2)
 
     if prob._is_low_rank_convertible:

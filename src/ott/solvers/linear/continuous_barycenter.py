@@ -139,7 +139,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
-    rng = utils.default_prng(rng)
+    rng = utils.default_prng_key(rng)
     return iterations(self, bar_size, bar_prob, x_init, rng)
 
   def init_state(
@@ -168,7 +168,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       x = x_init
     else:
       # sample randomly points in the support of the y measures
-      rng = utils.default_prng(rng)
+      rng = utils.default_prng_key(rng)
       indices_subset = jax.random.choice(
           rng,
           a=bar_prob.flattened_y.shape[0],

@@ -156,7 +156,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert a.shape == (bar_size,)
 
     if bar_init is None:
-      rng = utils.default_prng(rng)
+      rng = utils.default_prng_key(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
