@@ -30,6 +30,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
@@ -176,7 +177,7 @@ class LRInitializer(abc.ABC):
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
       *,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
@@ -196,6 +197,7 @@ class LRInitializer(abc.ABC):
     Returns:
       The factors :math:`Q`, :math:`R` and :math:`g`, respectively.
     """
+    rng = utils.default_prng_key(rng)
     rng1, rng2, rng3 = jax.random.split(rng, 3)
 
     if g is None:

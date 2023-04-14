@@ -64,6 +64,22 @@ def is_jax_array(obj: Any) -> bool:
   return isinstance(obj, jnp.DeviceArray)
 
 
+def default_prng_key(
+    rng: Optional[jax.random.PRNGKeyArray] = None,
+) -> jax.random.PRNGKeyArray:
+  """Get the default PRNG key.
+
+  Args:
+    rng:
+      PRNG key.
+
+  Returns:
+    If ``rng = None``, returns the default PRNG key.
+    Otherwise, it returns the unmodified ``rng`` key.
+  """
+  return jax.random.PRNGKey(0) if rng is None else rng
+
+
 def default_progress_fn(
     status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args: Any
 ) -> None:

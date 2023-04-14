@@ -231,10 +231,11 @@ class LRCGeometry(geometry.Geometry):
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
+      scale: float = 1.0,
   ) -> "LRCGeometry":
     """Return self."""
-    del rank, tol, rng
+    del rank, tol, rng, scale
     return self
 
   @property

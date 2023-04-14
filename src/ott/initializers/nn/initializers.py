@@ -21,6 +21,7 @@ from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
 
+from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers
 
@@ -77,13 +78,13 @@ class MetaInitializer(initializers.DefaultInitializer):
       meta_model: Optional[nn.Module] = None,
       opt: Optional[optax.GradientTransformation
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
     self.dtype = geom.x.dtype
     self.opt = opt
-    self.rng = rng
+    self.rng = utils.default_prng_key(rng)
 
     na, nb = geom.shape
     self.meta_model = MetaMLP(
@@ -94,7 +95,8 @@ class MetaInitializer(initializers.DefaultInitializer):
       # Initialize the model's training state.
       a_placeholder = jnp.zeros(na, dtype=self.dtype)
       b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(rng, a_placeholder, b_placeholder)["params"]
+      params = self.meta_model.init(self.rng, a_placeholder,
+                                    b_placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
@@ -143,7 +145,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.

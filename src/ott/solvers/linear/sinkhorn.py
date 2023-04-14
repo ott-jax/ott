@@ -29,6 +29,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax.experimental import host_callback
 
+from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
 from ott.math import fixed_point_loop
@@ -761,7 +762,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
@@ -774,6 +775,7 @@ class Sinkhorn:
     Returns:
       The Sinkhorn output.
     """
+    rng = utils.default_prng_key(rng)
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode, rng=rng

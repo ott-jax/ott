@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Iterator, Literal, NamedTuple, Tuple
+from typing import Iterator, Literal, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 __all__ = ["create_gaussian_mixture_samplers", "Dataset", "GaussianMixture"]
+
+from ott import utils
 
 Name_t = Literal["simple", "circle", "square_five", "square_four"]
 
@@ -108,7 +110,7 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+    rng: Optional[jax.random.PRNGKeyArray] = None,
 ) -> Tuple[Dataset, Dataset, int]:
   """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 
@@ -122,6 +124,7 @@ def create_gaussian_mixture_samplers(
   Returns:
     The dataset and dimension of the data.
   """
+  rng = utils.default_prng_key(rng)
   rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(
