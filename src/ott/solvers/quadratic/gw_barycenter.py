@@ -17,6 +17,7 @@ from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
@@ -125,7 +126,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
 
@@ -155,6 +156,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert a.shape == (bar_size,)
 
     if bar_init is None:
+      rng = utils.default_prng(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver

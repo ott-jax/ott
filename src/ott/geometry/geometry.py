@@ -619,7 +619,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       scale: float = 1.
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -660,6 +660,7 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
+      rng = utils.default_prng(rng)
       rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 

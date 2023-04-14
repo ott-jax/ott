@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 
+from ott import utils
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
@@ -404,7 +405,8 @@ class QuadraticProblem:
     )
 
   def to_low_rank(
-      self, rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      self,
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 
@@ -427,8 +429,9 @@ class QuadraticProblem:
     if self.is_low_rank:
       return self
 
-    (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
+    rng = utils.default_prng(rng)
     rng1, rng2, rng3 = jax.random.split(rng, 3)
+    (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
     (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)
 
     geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, rng=rng1)

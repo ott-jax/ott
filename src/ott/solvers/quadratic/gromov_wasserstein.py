@@ -26,6 +26,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.initializers.quadratic import initializers as quad_initializers
@@ -200,7 +201,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: Optional[linear_problem.LinearProblem] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
   ) -> GWOutput:
     """Run the Gromov-Wasserstein solver.
@@ -215,6 +216,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
+    rng = utils.default_prng(rng)
     rng1, rng2 = jax.random.split(rng, 2)
 
     if prob._is_low_rank_convertible:

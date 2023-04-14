@@ -28,6 +28,7 @@ import jax.numpy as jnp
 import optax
 from flax import core
 
+from ott import utils
 from ott.geometry import costs
 from ott.problems.linear import potentials
 from ott.solvers.nn import conjugate_solvers, models
@@ -116,7 +117,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
@@ -151,7 +152,7 @@ class W2NeuralDual:
 
     # set optimizer and networks
     self.setup(
-        rng,
+        utils.default_prng(rng),
         neural_f,
         neural_g,
         dim_data,

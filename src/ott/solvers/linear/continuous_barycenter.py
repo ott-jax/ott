@@ -17,6 +17,7 @@ from typing import Any, NamedTuple, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
@@ -135,9 +136,10 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
+    rng = utils.default_prng(rng)
     return iterations(self, bar_size, bar_prob, x_init, rng)
 
   def init_state(
@@ -145,7 +147,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
@@ -166,6 +168,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       x = x_init
     else:
       # sample randomly points in the support of the y measures
+      rng = utils.default_prng(rng)
       indices_subset = jax.random.choice(
           rng,
           a=bar_prob.flattened_y.shape[0],
