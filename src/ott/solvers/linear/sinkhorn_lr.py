@@ -29,7 +29,6 @@ import jax.scipy as jsp
 import numpy as np
 from jax.experimental import host_callback
 
-from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
 from ott.math import fixed_point_loop
@@ -349,7 +348,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       The low-rank Sinkhorn output.
     """
     assert ot_prob.is_balanced, "Unbalanced case is not implemented."
-    rng = utils.default_prng_key(rng)
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
