@@ -95,7 +95,8 @@ class MetaInitializer(initializers.DefaultInitializer):
       # Initialize the model's training state.
       a_placeholder = jnp.zeros(na, dtype=self.dtype)
       b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(rng, a_placeholder, b_placeholder)["params"]
+      params = self.meta_model.init(self.rng, a_placeholder,
+                                    b_placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
