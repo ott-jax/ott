@@ -74,7 +74,7 @@ out = solver(prob)
 ```
 
 The call to `solver(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
-(here of size $12\times 14$) that quantifies a `link strength` between each point of the first point cloud, to one or
+(here of size $12\times 14$) that quantifies the association strength between each point of the first point cloud, to one or
 more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
 functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
 
