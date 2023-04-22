@@ -21,7 +21,7 @@ To achieve this, ``OTT`` rests on two families of tools:
   :cite:`memoli:11,peyre:16`;
 - the second family consists in *continuous* solvers, using suitable neural
   architectures such as an MLP or input-convex neural network
-  :cite:`amos:17` coupled with SGD-type estimators
+  :cite:`amos:17` coupled with SGD-like estimators
   :cite:`makkuva:20,korotin:21,amos:23`.
 
 Installation
@@ -43,7 +43,7 @@ Design Choices
 ``OTT`` is designed with the following choices:
 
 - Take advantage whenever possible of JAX features, such as
-  `Just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
+  `just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
   `automatic`_ but most importantly `implicit`_ differentiation.
 - Split geometry from OT solvers in the discrete case: We argue that there
   should be one, and one implementation only, of every major OT algorithm
@@ -55,7 +55,7 @@ Design Choices
   of a Sinkhorn routine.
 - As a consequence, and to minimize code copy/pasting, use as often as possible
   object hierarchies, and interleave outer solvers (such as quadratic,
-  aka Gromov-Wasserstein solvers) with inner solvers (e.g. Low-Rank Sinkhorn).
+  aka Gromov-Wasserstein solvers) with inner solvers (e.g., low-rank Sinkhorn).
   This choice ensures that speedups achieved at lower computation levels
   (e.g. low-rank factorization of squared Euclidean distances) propagate
   seamlessly and automatically in higher level calls (e.g. updates in
@@ -65,24 +65,33 @@ Design Choices
 
 Packages
 --------
-- :doc:`geometry` contains classes to instantiate objects that describe
-  *two point clouds* paired with a *cost* function. Geometry objects are used to
-  describe OT problems, handled by solvers in the solvers.
-- :doc:`problems/index`
-- :doc:`solvers/index`
-- :doc:`initializers/index`
-- :doc:`tools` provides an interface to exploit OT solutions, as produced by
-  solvers in the solvers. Such tasks include computing approximations
-  to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
-  between GMMs, or computing differentiable sort and quantile operations
-  :cite:`cuturi:19`.
-- :doc:`math`
+.. module:: ott
+
+- :mod:`ott.geometry` contains classes that instantiate the ground *cost matrix*
+  used to specify OT problems. Here cost matrix can be understood in
+  a literal (by actually passing a matrix) or abstract sense (by passing
+  information that is sufficient to recreate that matrix, apply all or parts
+  of it, or apply its kernel). A typical example in the latter case arises
+  when comparing *two point clouds*, paired with a *cost function*. Geometry
+  objects are used to describe OT *problems*, solved next by *solvers*.
+- :mod:`ott.problems` are used to describe linear, quadratic or barycenter OT
+  problems.
+- :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
+  one of the implemented techniques.
+- :mod:`ott.initializers` are used to speed up the resolution of OT solvers.
+- :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
+  solvers from the :mod:`ott.solvers` module. Such tasks include computing
+  approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
+  approximating OT between GMMs, or computing differentiable sort and quantile
+  operations :cite:`cuturi:19`.
+- :mod:`ott.math` holds low-level mathematical primitives.
+- :mod:`ott.utils` provides miscellaneous helper functions.
 
 .. toctree::
     :maxdepth: 1
     :caption: Examples
 
-    Getting Started <tutorials/notebooks/point_clouds>
+    Getting Started <tutorials/notebooks/basic_ot_between_datasets>
     tutorials/index
 
 .. toctree::
@@ -95,6 +104,7 @@ Packages
     initializers/index
     tools
     math
+    utils
 
 .. toctree::
     :maxdepth: 1

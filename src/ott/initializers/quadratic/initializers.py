@@ -39,8 +39,8 @@ class BaseQuadraticInitializer(abc.ABC):
     self._kwargs = kwargs
 
   def __call__(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
-  ) -> 'linear_problem.LinearProblem':
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
+  ) -> "linear_problem.LinearProblem":
     """Compute the initial linearization of a quadratic problem.
 
     Args:
@@ -66,30 +66,30 @@ class BaseQuadraticInitializer(abc.ABC):
 
   @abc.abstractmethod
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
     Args:
-      quad_problem: Quadratic problem.
+      quad_prob: Quadratic problem.
       kwargs: Additional keyword arguments.
 
     Returns:
       Geometry used to initialize the linearized problem.
     """
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], self._kwargs
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "BaseQuadraticInitializer":
     return cls(*children, **aux_data)
 
 
 class QuadraticInitializer(BaseQuadraticInitializer):
-  """Initialize a linear problem locally around a naive initializer ab'.
+  r"""Initialize a linear problem locally around :math:`ab^T` initializer.
 
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
@@ -108,20 +108,20 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
   cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
   `left_x` and `right_y` depend on the loss chosen for GW.
-  `gw_unbalanced_correction` is an boolean indicating whether or not the
-  unbalanced correction applies.
-  The equation of the local cost can be written as:
+  `gw_unbalanced_correction` is flag indicating whether the unbalanced
+  correction applies. The equation of the local cost can be written as:
 
-  `cost_matrix` = `marginal_dep_term`
-              + `left_x`(`cost_xx`) :math:`P` `right_y`(`cost_yy`):math:`^T`
-              + `unbalanced_correction` * `gw_unbalanced_correction`
+  .. math::
+
+    \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
+     \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
 
   When working with the fused problem, a linear term is added to the cost
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
   """
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', *, epsilon: float,
+      self, quad_prob: "quadratic_problem.QuadraticProblem", *, epsilon: float,
       **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
@@ -160,7 +160,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       )
       cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
-    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix()
     return geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
 
 
@@ -171,12 +171,12 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     lr_linear_initializer: Low-rank linear initializer.
   """
 
-  def __init__(self, lr_linear_initializer: 'initializers_lr.LRInitializer'):
+  def __init__(self, lr_linear_initializer: "initializers_lr.LRInitializer"):
     super().__init__()
     self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
-      self, quad_prob: 'quadratic_problem.QuadraticProblem', **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 

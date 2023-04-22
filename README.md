@@ -10,15 +10,12 @@
 
 ## What is OTT-JAX?
 A ``JAX`` powered library to compute optimal transport at scale and on accelerators, ``OTT-JAX`` includes the fastest
-implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling,
-acceleration, initializations) and extensions (low-rank), that can be used directly, or within more advanced problems
+implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, momentum, acceleration, initializations) and extensions (low-rank, entropic maps). They can be used directly between two datasets, or within more advanced problems
 (Gromov-Wasserstein, barycenters). Some of ``JAX`` features, including
 [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions),
 [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and
 [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html)
-work towards the goal of having end-to-end differentiable outputs. OTT-JAX is developed by a team of researchers
-from Apple, Google, Meta and many academic contributors, including TU München, Oxford, ENSAE/IP Paris and the
-Hebrew University.
+work towards the goal of having end-to-end differentiable outputs. OTT-JAX is led by a team of researchers at Apple, with contributions from Google and Meta researchers, as well as many academic partners, including TU München, Oxford, ENSAE/IP Paris, ENS Paris and the Hebrew University.
 
 ## Installation
 Install ``OTT-JAX`` from [PyPI](https://pypi.org/project/ott-jax/) as:
@@ -29,7 +26,6 @@ or with ``conda`` via [conda-forge](https://anaconda.org/conda-forge/ott-jax) as
 ```bash
 conda install -c conda-forge ott-jax
 ```
-
 
 ## What is optimal transport?
 Optimal transport can be loosely described as the branch of mathematics and optimization that studies
@@ -74,11 +70,11 @@ out = solver(prob)
 ```
 
 The call to `solver(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
-(here of size $12\times 14$) that quantifies a `link strength` between each point of the first point cloud, to one or
+(here of size $12\times 14$) that quantifies the association strength between each point of the first point cloud, to one or
 more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
 functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
 
-![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/images/couplings.png)
+![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/couplings.png)
 
 ## Citation
 If you have found this work useful, please consider citing this reference:
@@ -92,3 +88,5 @@ If you have found this work useful, please consider citing this reference:
   year={2022}
 }
 ```
+## See also
+The [moscot](https://moscot.readthedocs.io/en/latest/index.html) package for OT analysis of multi-omics data also uses OTT as a backbone.

@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Soft sort operators."""
-
 import functools
 from typing import Any, Callable, Optional
 
@@ -56,7 +54,7 @@ def transport_for_sort(
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
     raise ValueError(
-        f'Shape ({shape}) not supported. The input should be one-dimensional.'
+        f"Shape ({shape}) not supported. The input should be one-dimensional."
     )
 
   x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
@@ -110,8 +108,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
   rank = len(result.shape) - 1
   axis = min(axis)
   permutation = permutation[:axis] + (rank,) + permutation[axis:-1]
-  result = jnp.transpose(result, permutation)
-  return result
+  return jnp.transpose(result, permutation)
 
 
 def _sort(
@@ -148,8 +145,8 @@ def sort(
     inputs: jnp.ndarray<float> of any shape.
     axis: the axis on which to apply the operator.
     topk: if set to a positive value, the returned vector will only contain
-      the topk values. This also reduces the complexity of soft sorting.
-    num_targets: if topk is not specified, num_targets defines the number of
+      the top-k values. This also reduces the complexity of soft sorting.
+    num_targets: if top-k is not specified, num_targets defines the number of
       (composite) sorted values computed from the inputs (each value is a convex
       combination of values recorded in the inputs, provided in increasing
       order). If not specified, ``num_targets`` is set by default to be the size
@@ -188,7 +185,7 @@ def ranks(
     num_targets: Optional[int] = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
-  r"""Apply the soft trank operator on input tensor.
+  r"""Apply the soft rank operator on input tensor.
 
   Args:
     inputs: a jnp.ndarray<float> of any shape.
@@ -226,10 +223,10 @@ def quantile(
   For instance:
 
   x = jax.random.uniform(rng, (1000,))
-  q = quantile(x, 0.5, 0.01)
+  q = quantile(x, level=0.5, weight=0.01)
 
   Then q will be computed as a mean over the 10 median points of x.
-  Therefore, there is a tradeoff between accuracy and gradient.
+  Therefore, there is a trade-off between accuracy and gradient.
 
   Args:
    inputs: a jnp.ndarray<float> of any shape.
@@ -244,6 +241,7 @@ def quantile(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -300,6 +298,7 @@ def quantile_normalization(
       ``num_targets`` target values (squared Euclidean distance by default, see
       ``pointcloud.py`` for more details); ``epsilon`` values as well as other
       parameters to shape the ``sinkhorn`` algorithm.
+
   Returns:
     A jnp.ndarray, which has the same shape as the input, except on the give
     axis on which the dimension is 1.
@@ -310,8 +309,8 @@ def quantile_normalization(
   """
   if weights is not None and weights.shape != targets.shape:
     raise ValueError(
-        'The target weights and targets values should have the '
-        f'same shape: {targets.shape} != {weights.shape}'
+        "The target weights and targets values should have the "
+        f"same shape: {targets.shape} != {weights.shape}"
     )
   if weights is None:
     num_targets = targets.shape[0]
@@ -403,7 +402,7 @@ def quantize(
   values using the transportation matrix. As the regularization parameter
   ``epsilon`` of regularized optimal transport goes to 0, this operator recovers
   the expected behavior of quantization, namely each value in ``inputs`` is
-  assigned a single level. When using ``epsilon>0`` the bheaviour is similar but
+  assigned a single level. When using ``epsilon>0`` the behavior is similar but
   differentiable.
 
   Args:

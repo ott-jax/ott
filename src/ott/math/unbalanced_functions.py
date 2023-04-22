@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Functions useful to define unbalanced OT problems."""
 from typing import Callable
 
 import jax.numpy as jnp
@@ -24,7 +23,7 @@ def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
 
 # TODO(cuturi): use jax.grad directly.
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
-  """Derivative of Legendre transform of phi_starKL, see phi_star."""  # noqa: D401
+  """Derivative of Legendre transform of phi_starKL, see phi_star."""
   return jnp.exp(f / rho)
 
 

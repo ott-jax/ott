@@ -11,21 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests Anderson acceleration for Sinkhorn."""
 from typing import Optional, Tuple
 
 import chex
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import acceleration
+from ott.solvers.linear import acceleration, sinkhorn
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
 
 
 class TestSinkhornAnderson:
@@ -40,8 +36,8 @@ class TestSinkhornAnderson:
       only_fast=0,
   )
   def test_anderson(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], refresh_anderson_frequency: int
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
+      tau_b: float, shape: Tuple[int, int], refresh_anderson_frequency: int
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -100,7 +96,7 @@ class TestSinkhornAnderson:
       assert iterations_anderson[0] > iterations_anderson[i]
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornBures:
 
   @pytest.fixture(autouse=True)
@@ -132,9 +128,11 @@ class TestSinkhornBures:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  @pytest.mark.parametrize("unbalanced,thresh", [(False, 1e-3), (True, 1e-4)])
+  @pytest.mark.parametrize(("unbalanced", "thresh"), [(False, 1e-3),
+                                                      (True, 1e-4)])
   def test_bures_point_cloud(
-      self, rng: jnp.ndarray, lse_mode: bool, unbalanced: bool, thresh: float
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, unbalanced: bool,
+      thresh: float
   ):
     """Two point clouds of Gaussians, tested with various parameters."""
     if unbalanced:
@@ -173,7 +171,7 @@ class TestSinkhornBures:
 class TestSinkhornOnline:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
     self.n = 1000
     self.m = 402
@@ -234,11 +232,11 @@ class TestSinkhornOnline:
     assert threshold > err
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornUnbalanced:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 17
     self.m = 23
@@ -319,7 +317,7 @@ class TestSinkhornJIT:
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
     self.n = 10
     self.m = 11
@@ -342,7 +340,7 @@ class TestSinkhornJIT:
         epsilon=self.epsilon
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_jit_vs_non_jit_fwd(self):
 
     def assert_output_close(

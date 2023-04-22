@@ -11,18 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for probabilities."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.tools.gaussian_mixture import probabilities
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestProbabilities:
 
   def test_probs(self):
@@ -44,9 +40,9 @@ class TestProbabilities:
 
   def test_from_random(self):
     n_dimensions = 4
-    key = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(0)
     pp = probabilities.Probabilities.from_random(
-        key=key, n_dimensions=n_dimensions, stdev=0.1
+        rng=rng, n_dimensions=n_dimensions, stdev=0.1
     )
     np.testing.assert_array_equal(pp.probs().shape, (4,))
 
@@ -59,7 +55,7 @@ class TestProbabilities:
     p = 0.4
     probs = jnp.array([p, 1. - p])
     pp = probabilities.Probabilities.from_probs(probs)
-    samples = pp.sample(key=jax.random.PRNGKey(0), size=10000)
+    samples = pp.sample(rng=jax.random.PRNGKey(0), size=10000)
     sd = jnp.sqrt(p * (1. - p))
     np.testing.assert_allclose(jnp.mean(samples == 0), p, atol=3. * sd)
 

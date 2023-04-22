@@ -11,14 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Gromov-Wasserstein initializers."""
-
-import pytest
-
 import jax
-import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as lin_init
 from ott.initializers.linear import initializers_lr
@@ -30,12 +25,14 @@ from ott.solvers.quadratic import gromov_wasserstein
 class TestQuadraticInitializers:
 
   @pytest.mark.parametrize("kind", ["pc", "lrc", "geom"])
-  def test_create_default_lr_initializer(self, rng: jnp.ndarray, kind: str):
+  def test_create_default_lr_initializer(
+      self, rng: jax.random.PRNGKeyArray, kind: str
+  ):
     n, d1, d2, rank = 150, 2, 3, 5
     eps = 1e-1
-    key1, key2 = jax.random.split(rng, 2)
-    x = jax.random.normal(key1, (n, d1))
-    y = jax.random.normal(key1, (n, d2))
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d1))
+    y = jax.random.normal(rng1, (n, d2))
     kwargs_init = {"foo": "bar"}
 
     geom_x = pointcloud.PointCloud(x, epsilon=eps)
@@ -93,18 +90,20 @@ class TestQuadraticInitializers:
       assert solver.quad_initializer.rank == rank
 
   @pytest.mark.parametrize("eps", [0., 1e-2])
-  def test_gw_better_initialization_helps(self, rng: jnp.ndarray, eps: float):
+  def test_gw_better_initialization_helps(
+      self, rng: jax.random.PRNGKeyArray, eps: float
+  ):
     n, m, d1, d2, rank = 123, 124, 12, 10, 5
-    key1, key2, key3, key4 = jax.random.split(rng, 4)
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
 
     geom_x = pointcloud.PointCloud(
-        jax.random.normal(key1, (n, d1)),
-        jax.random.normal(key2, (n, d1)),
+        jax.random.normal(rng1, (n, d1)),
+        jax.random.normal(rng2, (n, d1)),
         epsilon=eps,
     )
     geom_y = pointcloud.PointCloud(
-        jax.random.normal(key3, (m, d2)),
-        jax.random.normal(key4, (m, d2)),
+        jax.random.normal(rng3, (m, d2)),
+        jax.random.normal(rng4, (m, d2)),
         epsilon=eps,
     )
     problem = quadratic_problem.QuadraticProblem(geom_x, geom_y)

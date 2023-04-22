@@ -28,13 +28,16 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 import numpy as np
 
-import matplotlib
-import matplotlib.pyplot as plt
-
 from ott.problems.linear import linear_problem
 
 if TYPE_CHECKING:
   from ott.geometry import costs
+
+try:
+  import matplotlib as mpl
+  import matplotlib.pyplot as plt
+except ImportError:
+  mpl = plt = None
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -61,7 +64,7 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: 'costs.CostFn',
+      cost_fn: "costs.CostFn",
       corr: bool = False
   ):
     self._f = f
@@ -75,10 +78,11 @@ class DualPotentials:
     Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
     given the Legendre transform of the dual potentials.
 
-    That OT map can be recovered as :math:`x- (\nabla h)^{-1}\circ \nabla f(x)`
-    For the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
-    and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
-    :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
+    That OT map can be recovered as :math:`x- (\nabla h^*)\circ \nabla f(x)`,
+    where :math:`h^*` is the Legendre transform of :math:`h`. For instance,
+    in the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
+    :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
     When the dual potentials are solved in correlation form (only in the Sq.
     Euclidean distance case), the maps are :math:`\nabla g` for forward,
@@ -99,8 +103,7 @@ class DualPotentials:
       return self._grad_f(vec) if forward else self._grad_g(vec)
     if forward:
       return vec - self._grad_h_inv(self._grad_f(vec))
-    else:
-      return vec - self._grad_h_inv(self._grad_g(vec))
+    return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
@@ -179,10 +182,10 @@ class DualPotentials:
       source: jnp.ndarray,
       target: jnp.ndarray,
       forward: bool = True,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
@@ -191,20 +194,25 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       ax: axis to add the plot to
-      scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
-      legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
+      scatter_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
       matplotlib figure and axis with the plots
     """
+    if mpl is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+
     if scatter_kwargs is None:
-      scatter_kwargs = {'alpha': 0.5}
+      scatter_kwargs = {"alpha": 0.5}
     if legend_kwargs is None:
       legend_kwargs = {
-          'ncol': 3,
-          'loc': 'upper center',
-          'bbox_to_anchor': (0.5, -0.05),
-          'edgecolor': 'k'
+          "ncol": 3,
+          "loc": "upper center",
+          "bbox_to_anchor": (0.5, -0.05),
+          "edgecolor": "k"
       }
 
     if ax is None:
@@ -225,14 +233,14 @@ class DualPotentials:
         source[:, 0],
         source[:, 1],
         color=source_color,
-        label='source',
+        label="source",
         **scatter_kwargs,
     )
     ax.scatter(
         target[:, 0],
         target[:, 1],
         color=target_color,
-        label='target',
+        label="target",
         **scatter_kwargs,
     )
 
@@ -264,21 +272,23 @@ class DualPotentials:
       self,
       forward: bool = True,
       quantile: float = 0.05,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["mpl.axes.Axes"] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
       num_grid: int = 50,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-    """Plot the potential.
+  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
+    r"""Plot the potential.
 
     Args:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       quantile: quantile to filter the potentials with
       ax: axis to add the plot to
-      x_bounds: x-axis bounds of the plot (xmin, xmax)
-      y_bounds: y-axis bounds of the plot (ymin, ymax)
+      x_bounds: x-axis bounds of the plot
+        :math:`(x_{\text{min}}, x_{\text{max}})`
+      y_bounds: y-axis bounds of the plot
+        :math:`(y_{\text{min}}, y_{\text{max}})`
       num_grid: number of points to discretize the domain into a grid
         along each dimension
       contourf_kwargs: additional kwargs passed into

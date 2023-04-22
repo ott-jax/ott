@@ -1,7 +1,7 @@
 ott.problems.linear
 ===================
+.. module:: ott.problems.linear
 .. currentmodule:: ott.problems.linear
-.. automodule:: ott.problems.linear
 
 .. TODO(marcocuturi): maybe add some text here
 
@@ -11,7 +11,8 @@ OT Problems
     :toctree: _autosummary
 
     linear_problem.LinearProblem
-    barycenter_problem.BarycenterProblem
+    barycenter_problem.FixedBarycenterProblem
+    barycenter_problem.FreeBarycenterProblem
 
 Dual Potentials
 ---------------

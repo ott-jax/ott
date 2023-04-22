@@ -14,24 +14,22 @@ concurrency:
 
 jobs:
   fast-tests:
-    name: Fast tests Python 3.9 on ubuntu-latest
+    name: Fast tests Python ${{ matrix.python-version }} ${{ matrix.jax-version }}
     runs-on: ubuntu-latest
+    # allow tests using the latest JAX to fail
+    continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9']
+        jax-version: [jax-default, jax-latest]
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
-
-    - name: Install apt dependencies
-      if: ${{ runner.os == 'Linux' }}
-      run: |
-        sudo apt-get install libsuitesparse-dev
-
-    - name: Install brew dependencies
-      if: ${{ runner.os == 'macOS' }}
-      run: |
-        brew install suite-sparse
+        python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
       run: |
@@ -40,11 +38,11 @@ jobs:
 
     - name: Setup environment
       run: |
-        tox -e py39 --notest -v
+        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --notest -v
 
     - name: Run tests
       run: |
-        tox -e py39 --skip-pkg-install -- -m fast --memray -n auto -vv
+        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
 
   gpu-tests:
     name: Fast GPU tests Python 3.8 on ubuntu-20.04
@@ -57,11 +55,12 @@ jobs:
 
     - name: Install dependencies
       # `jax[cuda]<0.4` because of Docker issues: https://github.com/google/jax/issues/13758
+      # `chex<0.1.7` because it requires `jax>=0.4.6`
       # `flax<0.6.5` because it requires `jax>=0.4.2`
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "flax<0.6.5"
+        python3 -m pip install "flax<0.6.5" "chex<0.1.7"
         python3 -m pip install "jax[cuda]<0.4" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
     - name: Nvidia SMI
@@ -90,16 +89,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Install apt dependencies
-      if: ${{ runner.os == 'Linux' }}
-      run: |
-        sudo apt-get install libsuitesparse-dev
-
-    - name: Install brew dependencies
-      if: ${{ runner.os == 'macOS' }}
-      run: |
-        brew install suite-sparse
 
     - name: Install dependencies
       run: |

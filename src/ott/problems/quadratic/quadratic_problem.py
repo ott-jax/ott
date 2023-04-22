@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Classes defining OT problem(s) (objective function + utilities)."""
-
 from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 
+from ott import utils
 from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
@@ -78,8 +77,8 @@ class QuadraticProblem:
     tau_b: if `< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only affect
-      the inner Sinkhorn loop.
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
+      only affect the inner Sinkhorn loop.
     ranks: Ranks of the cost matrices, see
       :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
       geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
@@ -101,17 +100,17 @@ class QuadraticProblem:
       scale_cost: Optional[Union[bool, float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
-      loss: Union[Literal['sqeucl', 'kl'], quadratic_costs.GWLoss] = 'sqeucl',
+      loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
       tau_a: Optional[float] = 1.0,
       tau_b: Optional[float] = 1.0,
       gw_unbalanced_correction: bool = True,
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
   ):
-    self._geom_xx = geom_xx._set_scale_cost(scale_cost)
-    self._geom_yy = geom_yy._set_scale_cost(scale_cost)
+    self._geom_xx = geom_xx.set_scale_cost(scale_cost)
+    self._geom_yy = geom_yy.set_scale_cost(scale_cost)
     self._geom_xy = (
-        None if geom_xy is None else geom_xy._set_scale_cost(scale_cost)
+        None if geom_xy is None else geom_xy.set_scale_cost(scale_cost)
     )
     self.fused_penalty = fused_penalty
     self.scale_cost = scale_cost
@@ -124,50 +123,67 @@ class QuadraticProblem:
     self.tolerances = tolerances
 
     self._loss_name = loss
-    if self._loss_name == 'sqeucl':
+    if self._loss_name == "sqeucl":
       self.loss = quadratic_costs.make_square_loss()
-    elif loss == 'kl':
+    elif loss == "kl":
       self.loss = quadratic_costs.make_kl_loss()
     else:
       self.loss = loss
 
   def marginal_dependent_cost(
-      self, marginal_1: jnp.ndarray, marginal_2: jnp.ndarray
+      self,
+      marginal_1: jnp.ndarray,
+      marginal_2: jnp.ndarray,
+      *,
+      remove_scale: bool = False,
   ) -> low_rank.LRCGeometry:
-    r"""Initialise cost term that depends on the marginals of the transport.
+    r"""Initialize cost term that depends on the marginals of the transport.
 
     Uses the first term in eq. 6, p. 1 of :cite:`peyre:16`.
 
-    Let :math:`p` [num_a,] be the marginal of the transport matrix for samples
-    from `geom_xx` and :math:`q` [num_b,] be the marginal of the transport
-    matrix for samples from `geom_yy`. `cost_xx` (resp. `cost_yy`) is the
-    cost matrix of `geom_xx` (resp. `geom_yy`). The cost term that
-    depends on these marginals can be written as:
+    Let :math:`p` be the `[n,]` marginal of the transport matrix for samples
+    from :attr:`geom_xx` and :math:`q` the `[m,]` marginal of the
+    transport matrix for samples from :attr:`geom_yy`.
 
-    `marginal_dep_term` = `lin1`(`cost_xx`) :math:`p \mathbb{1}_{num_b}^T`
-                      + (`lin2`(`cost_yy`) :math:`q \mathbb{1}_{num_a}^T)^T`
+    When ``cost_xx`` (resp. ``cost_yy``) is the cost matrix of :attr:`geom_xx`
+    (resp. :attr:`geom_yy`), the cost term that depends on these marginals can
+    be written as:
+
+    .. math::
+
+      \text{marginal_dep_term} = \text{lin1}(\text{cost_xx}) p \mathbb{1}_{m}^T
+                      +  \mathbb{1}_{n}(\text{lin2}(\text{cost_yy}) q)^T
+
+    This helper function instantiates these two low-rank matrices and groups
+    them into a single low-rank cost geometry object.
 
     Args:
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
-       for samples from geom_xx
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
-       for samples from geom_yy
+      marginal_1: [n,], first marginal of transport matrix.
+      marginal_2: [m,], second marginal of transport matrix.
+      remove_scale: Whether to remove any scaling from the cost matrices before
+        computing the linearization.
 
     Returns:
-      Low-rank geometry.
+      Low-rank geometry of rank 2, storing normalization constants.
     """
-    if self._loss_name == 'sqeucl':  # quadratic apply, efficient for LR
-      tmp1 = self.geom_xx.apply_square_cost(marginal_1, axis=1)
-      tmp2 = self.geom_yy.apply_square_cost(marginal_2, axis=1)
+
+    geom_xx, geom_yy = self.geom_xx, self.geom_yy
+    if remove_scale:
+      geom_xx = geom_xx.set_scale_cost(1.0)
+      geom_yy = geom_yy.set_scale_cost(1.0)
+
+    if self._loss_name == "sqeucl":  # quadratic apply, efficient for LR
+      tmp1 = geom_xx.apply_square_cost(marginal_1, axis=1)
+      tmp2 = geom_yy.apply_square_cost(marginal_2, axis=1)
     elif self._loss_name == 'kl':
       f1, f2 = self.linear_loss
-      tmp1 = apply_kernel(self.geom_xx, marginal_1, axis=1, fn=f1)
-      tmp2 = apply_kernel(self.geom_yy, marginal_2, axis=1, fn=f2)
+      tmp1 = apply_kernel(geom_xx, marginal_1, axis=1, fn=f1)
+      tmp2 = apply_kernel(geom_yy, marginal_2, axis=1, fn=f2)  
     else:
       f1, f2 = self.linear_loss
-      tmp1 = apply_cost(self.geom_xx, marginal_1, axis=1, fn=f1)
-      tmp2 = apply_cost(self.geom_yy, marginal_2, axis=1, fn=f2)
-
+      tmp1 = apply_cost(geom_xx, marginal_1, axis=1, fn=f1)
+      tmp2 = apply_cost(geom_yy, marginal_2, axis=1, fn=f2)
+    
     x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
     y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
     return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
@@ -203,7 +219,7 @@ class QuadraticProblem:
         for samples from :attr:`geom_xx`.
       marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
-      epsilon: regulariser.
+      epsilon: entropy regularizer.
 
     Returns:
       The cost term.
@@ -229,22 +245,26 @@ class QuadraticProblem:
 
   # TODO(michalk8): highly coupled to the pre-defined initializer, refactor
   def init_transport_mass(self) -> float:
-    """Initialise the transport mass.
+    """Initialize the transport mass.
 
     Returns:
-      The sum of the elements of the normalised transport matrix.
+      The sum of the elements of the normalized transport matrix.
     """
     a = jax.lax.stop_gradient(self.a)
     b = jax.lax.stop_gradient(self.b)
     return a.sum() * b.sum()
 
   def update_lr_geom(
-      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
+      self,
+      lr_sink: "sinkhorn_lr.LRSinkhornOutput",
+      remove_scale: bool = False,
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
     marginal_2 = lr_sink.marginal(0)
-    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
+    marginal_cost = self.marginal_dependent_cost(
+        marginal_1, marginal_2, remove_scale=remove_scale
+    )
 
     # Extract factors from LR Sinkhorn output
     q, r, inv_sqg = lr_sink.q, lr_sink.r, 1.0 / jnp.sqrt(lr_sink.g)
@@ -253,27 +273,34 @@ class QuadraticProblem:
 
     # Handle LRC Geometry case.
     h1, h2 = self.quad_loss
+    geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
+    if remove_scale:
+      geom_xx = geom_xx.set_scale_cost(1.0)
+      geom_yy = geom_yy.set_scale_cost(1.0)
+      geom_xy = geom_xy.set_scale_cost(1.0) if self.is_fused else None
     if self._loss_name == 'kl':
       tmp1 = apply_kernel(self.geom_xx, q, axis=1, fn=h1)
       tmp2 = apply_kernel(self.geom_yy, r, axis=1, fn=h2)
     else:
       tmp1 = apply_cost(self.geom_xx, q, axis=1, fn=h1)
       tmp2 = apply_cost(self.geom_yy, r, axis=1, fn=h2)
+
     if self.is_low_rank:
       geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2) + marginal_cost
       if self.is_fused:
-        geom = geom + self.geom_xy
+        geom = geom + geom_xy
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
-      cost_matrix += self.fused_penalty * self._fused_cost_matrix
+      cost_matrix += self.fused_penalty * self._fused_cost_matrix(remove_scale)
       geom = geometry.Geometry(cost_matrix=cost_matrix)
-    return geom
+    return geom  # noqa: RET504
 
   def update_linearization(
       self,
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
-      old_transport_mass: float = 1.0
+      old_transport_mass: float = 1.0,
+      remove_scale: bool = False,
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -291,6 +318,11 @@ class QuadraticProblem:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
       old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
+      remove_scale: Whether to remove any scaling from the cost matrices when
+        computing the linearization of the quadratic cost. At the moment, this
+        is only used when doing this update at the last outer iteration of the
+        :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
+        solver.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
@@ -305,7 +337,9 @@ class QuadraticProblem:
 
     marginal_1 = transport.marginal(axis=1) * rescale_factor
     marginal_2 = transport.marginal(axis=0) * rescale_factor
-    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
+    marginal_cost = self.marginal_dependent_cost(
+        marginal_1, marginal_2, remove_scale=remove_scale
+    )
 
     transport_matrix = transport.matrix * rescale_factor
 
@@ -318,6 +352,11 @@ class QuadraticProblem:
       )
 
     h1, h2 = self.quad_loss
+    geom_xx, geom_yy = self.geom_xx, self.geom_yy
+    if remove_scale:
+      geom_xx = geom_xx.set_scale_cost(1.0)
+      geom_yy = geom_yy.set_scale_cost(1.0)
+
     if self._loss_name == 'kl':
       tmp = apply_kernel(self.geom_xx, transport_matrix, axis=1, fn=h1)
       tmp = apply_kernel(self.geom_yy, tmp.T, axis=1, fn=h2).T
@@ -326,34 +365,41 @@ class QuadraticProblem:
       tmp = apply_cost(self.geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-    cost_matrix += self.fused_penalty * self._fused_cost_matrix * rescale_factor
+    cost_matrix += self.fused_penalty * rescale_factor * \
+                   self._fused_cost_matrix(remove_scale)
 
     geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+
     return linear_problem.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
     )
 
   def update_lr_linearization(
-      self, lr_sink: 'sinkhorn_lr.LRSinkhornOutput'
+      self,
+      lr_sink: "sinkhorn_lr.LRSinkhornOutput",
+      *,
+      remove_scale: bool = False,
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(
-        self.update_lr_geom(lr_sink),
+        self.update_lr_geom(lr_sink, remove_scale=remove_scale),
         self.a,
         self.b,
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
 
-  @property
-  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+  def _fused_cost_matrix(self,
+                         unscale: bool = False) -> Union[float, jnp.ndarray]:
     if not self.is_fused:
-      return 0.
-    if isinstance(
-        self.geom_xy, pointcloud.PointCloud
-    ) and self.geom_xy.is_online:
-      return self.geom_xy._compute_cost_matrix() * self.geom_xy.inv_scale_cost
-    return self.geom_xy.cost_matrix
+      return 0.0
+    geom_xy = self.geom_xy
+    if unscale:
+      geom_xy = geom_xy.set_scale_cost(1.0)
+
+    if isinstance(geom_xy, pointcloud.PointCloud) and geom_xy.is_online:
+      return geom_xy._compute_cost_matrix() * geom_xy.inv_scale_cost
+    return geom_xy.cost_matrix
 
   @property
   def _is_low_rank_convertible(self) -> bool:
@@ -373,11 +419,14 @@ class QuadraticProblem:
         (geom_xy is None or convertible(geom_xy))
     )
 
-  def to_low_rank(self, seed: int = 0) -> "QuadraticProblem":
+  def to_low_rank(
+      self,
+      rng: Optional[jax.random.PRNGKeyArray] = None,
+  ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 
     Args:
-      seed: Random seed.
+      rng: Random key for seeding.
 
     Returns:
       Quadratic problem with low-rank geometries.
@@ -395,12 +444,13 @@ class QuadraticProblem:
     if self.is_low_rank:
       return self
 
+    rng = utils.default_prng_key(rng)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
     (geom_xx, geom_yy, geom_xy, *children), aux_data = self.tree_flatten()
-    (s1, s2, s3) = jax.random.split(jax.random.PRNGKey(seed), 3)[:, 0]
     (r1, r2, r3), (t1, t2, t3) = convert(self.ranks), convert(self.tolerances)
 
-    geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, seed=s1)
-    geom_yy = geom_yy.to_LRCGeometry(rank=r2, tol=t2, seed=s2)
+    geom_xx = geom_xx.to_LRCGeometry(rank=r1, tol=t1, rng=rng1)
+    geom_yy = geom_yy.to_LRCGeometry(rank=r2, tol=t2, rng=rng2)
     if self.is_fused:
       if isinstance(
           geom_xy, pointcloud.PointCloud
@@ -408,7 +458,7 @@ class QuadraticProblem:
         geom_xy = geom_xy.to_LRCGeometry(scale=self.fused_penalty)
       else:
         geom_xy = geom_xy.to_LRCGeometry(
-            rank=r3, tol=t3, seed=s3, scale=self.fused_penalty
+            rank=r3, tol=t3, rng=rng3, scale=self.fused_penalty
         )
 
     return type(self).tree_unflatten(
@@ -474,14 +524,14 @@ class QuadraticProblem:
 
   def tree_flatten(self):  # noqa: D102
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
-        'tau_a': self.tau_a,
-        'tau_b': self.tau_b,
-        'loss': self._loss_name,
-        'fused_penalty': self.fused_penalty,
-        'scale_cost': self.scale_cost,
-        'gw_unbalanced_correction': self.gw_unbalanced_correction,
-        'ranks': self.ranks,
-        'tolerances': self.tolerances
+        "tau_a": self.tau_a,
+        "tau_b": self.tau_b,
+        "loss": self._loss_name,
+        "fused_penalty": self.fused_penalty,
+        "scale_cost": self.scale_cost,
+        "gw_unbalanced_correction": self.gw_unbalanced_correction,
+        "ranks": self.ranks,
+        "tolerances": self.tolerances
     })
 
   @classmethod
@@ -490,17 +540,15 @@ class QuadraticProblem:
     return cls(*geoms, a=a, b=b, **aux_data)
 
 
-def update_epsilon_unbalanced(
+def update_epsilon_unbalanced(  # noqa: D103
     epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
 ) -> epsilon_scheduler.Epsilon:
-  updated_epsilon = epsilon_scheduler.Epsilon.make(epsilon)
-  updated_epsilon._scale_epsilon = (
-      updated_epsilon._scale_epsilon * transport_mass
-  )
-  return updated_epsilon
+  if not isinstance(epsilon, epsilon_scheduler.Epsilon):
+    epsilon = epsilon_scheduler.Epsilon(epsilon, scale_epsilon=1.0)
+  return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
-def apply_cost(
+def apply_cost(  # noqa: D103
     geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
     fn: quadratic_costs.Loss
 ) -> jnp.ndarray:

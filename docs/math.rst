@@ -12,14 +12,6 @@ Fixed-point Iteration
 
     fixed_point_loop.fixpoint_iter
 
-Cholesky Decomposition
-----------------------
-.. autosummary::
-    :toctree: _autosummary
-
-    decomposition.DenseCholeskySolver
-    decomposition.SparseCholeskySolver
-
 Matrix Square Root
 ------------------
 .. autosummary::

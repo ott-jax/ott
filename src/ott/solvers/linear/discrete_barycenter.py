@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implementation of :cite:`janati:20` Wasserstein barycenter algorithm."""
-
 import functools
 from typing import NamedTuple, Optional, Sequence
 
@@ -21,9 +19,10 @@ import jax.numpy as jnp
 
 from ott.geometry import geometry
 from ott.math import fixed_point_loop
+from ott.problems.linear import barycenter_problem
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["SinkhornBarycenterOutput", "discrete_barycenter"]
+__all__ = ["SinkhornBarycenterOutput", "FixedBarycenter"]
 
 
 class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
@@ -33,67 +32,98 @@ class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
   errors: jnp.ndarray
 
 
-# TODO(michalk8): refactor as a solver?
-def discrete_barycenter(
-    geom: geometry.Geometry,
-    a: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None,
-    dual_initialization: Optional[jnp.ndarray] = None,
-    threshold: float = 1e-2,
-    norm_error: int = 1,
-    inner_iterations: float = 10,
-    min_iterations: int = 0,
-    max_iterations: int = 2000,
-    lse_mode: bool = True,
-    debiased: bool = False
-) -> SinkhornBarycenterOutput:
-  """Compute discrete barycenter :cite:`janati:20a`.
+@jax.tree_util.register_pytree_node_class
+class FixedBarycenter:
+  """A Wasserstein barycenter solver for histograms on a common geometry.
+
+  This solver uses a variant of the
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm proposed in
+  :cite:`janati:20a` to compute the barycenter of various measures supported on
+  the same (common to all) geometry. The geometry is assumed to be either
+  symmetric, or to describe costs between a set of points and another. In that
+  case all reference measures have support on the first measure, whereas the
+  barycenter is supported on the second.
 
   Args:
-    geom: geometry object.
-    a: batch of histograms of shape ``[batch, num_a]``.
-    weights: positive weights in the probability simplex.
-    dual_initialization: array of shape ``[batch, num_b]`` for the
-      initialization of `g_v`.
-    threshold: tolerance to monitor convergence.
-    norm_error: power used to define p-norm of error for marginal/target.
-    inner_iterations: the Sinkhorn error is not recomputed at each
-     iteration but every inner_num_iter instead to avoid computational overhead.
-    min_iterations: the minimum number of Sinkhorn iterations carried
-     out before the error is computed and monitored.
-    max_iterations: the maximum number of Sinkhorn iterations.
-    lse_mode: True for log-sum-exp computations, False for kernel multiply.
-    debiased: whether to run the debiased version of the Sinkhorn divergence.
-
-  Returns:
-    A ``SinkhornBarycenterOutput``, which contains two arrays of potentials,
-    each of size ``batch`` times ``geom.num_a``, summarizing the OT between each
-    histogram in the database onto the barycenter, described in ``histogram``,
-    as well as a sequence of errors that monitors convergence.
+    threshold: convergence threshold. The algorithm stops when the marginal
+      violations of all transport plans computed for that barycenter go below
+      that threshold.
+    norm_error: norm used to compute marginal deviation.
+    inner_iterations: number of iterations run before recomputing errors.
+    min_iterations: number of iterations run without checking whether
+      termination criterion is true.
+    max_iterations: maximal number of iterations.
+    lse_mode: sets computations in kernel (``False``) or log-sum-exp mode.
+    debiased: uses debiasing correction to avoid blur due to entropic
+      regularization.
   """
-  batch_size, num_a = a.shape
-  _, num_b = geom.shape
 
-  if weights is None:
-    weights = jnp.ones((batch_size,)) / batch_size
-  if weights.shape[0] != batch_size:
-    raise ValueError(f'weights must have size `{batch_size}`.')
+  def __init__(
+      self,
+      threshold: float = 1e-2,
+      norm_error: int = 1,
+      inner_iterations: float = 10,
+      min_iterations: int = 0,
+      max_iterations: int = 2000,
+      lse_mode: bool = True,
+      debiased: bool = False
+  ):
+    self.threshold = threshold
+    self.norm_error = norm_error
+    self.inner_iterations = inner_iterations
+    self.min_iterations = min_iterations
+    self.max_iterations = max_iterations
+    self.lse_mode = lse_mode
+    self.debiased = debiased
 
-  if dual_initialization is None:
-    # initialization strategy from https://arxiv.org/pdf/1503.02533.pdf, (3.6)
-    dual_initialization = geom.apply_cost(a.T, axis=0).T
-    dual_initialization -= jnp.average(
-        dual_initialization, weights=weights, axis=0
-    )[jnp.newaxis, :]
+  def __call__(
+      self,
+      fixed_bp: barycenter_problem.FixedBarycenterProblem,
+      dual_initialization: Optional[jnp.ndarray] = None,
+  ) -> SinkhornBarycenterOutput:
+    """Solve barycenter problem, possibly using clever initialization.
 
-  if debiased and not geom.is_symmetric:
-    raise ValueError('Geometry must be symmetric to use debiased option.')
-  norm_error = (norm_error,)
-  return _discrete_barycenter(
-      geom, a, weights, dual_initialization, threshold, norm_error,
-      inner_iterations, min_iterations, max_iterations, lse_mode, debiased,
-      num_a, num_b
-  )
+    Args:
+      fixed_bp: Fixed barycenter problem.
+      dual_initialization: Initial value for the g_v potential/scalings,
+        one for each of the histograms described in ``fixed_bp``. If ``None``,
+        use initialization from :cite:`cuturi:15`, eq. 3.6.
+
+    Returns:
+      The barycenter.
+    """
+    geom = fixed_bp.geom
+    a = fixed_bp.a
+    num_a, num_b = geom.shape
+
+    weights = fixed_bp.weights
+
+    if dual_initialization is None:
+      # initialization strategy from :cite:`cuturi:15`, (3.6).
+      dual_initialization = geom.apply_cost(a.T, axis=0).T
+      dual_initialization -= jnp.average(
+          dual_initialization, weights=weights, axis=0
+      )[jnp.newaxis, :]
+
+    if self.debiased and not geom.is_symmetric:
+      raise ValueError("Geometry must be symmetric to use debiased option.")
+    norm_error = (self.norm_error,)
+    return _discrete_barycenter(
+        geom, a, weights, dual_initialization, self.threshold, norm_error,
+        self.inner_iterations, self.min_iterations, self.max_iterations,
+        self.lse_mode, self.debiased, num_a, num_b
+    )
+
+  def tree_flatten(self):  # noqa: D102
+    aux = vars(self).copy()
+    aux.pop("threshold")
+    return [
+        self.threshold,
+    ], aux
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(**aux_data, threshold=children[0])
 
 
 @functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12))
@@ -146,7 +176,6 @@ def _discrete_barycenter(
       ),
       in_axes=[0, 0, 0]
   )
-
   errors = -jnp.ones((max_iterations // inner_iterations + 1, len(norm_error)))
 
   const = (geom, a, weights)

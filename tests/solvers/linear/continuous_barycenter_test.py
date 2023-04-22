@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for continuous barycenter."""
 import functools
 from typing import Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, segment
 from ott.problems.linear import barycenter_problem
 from ott.solvers.linear import continuous_barycenter as cb
@@ -52,8 +49,8 @@ class TestBarycenter:
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jnp.ndarray, rank: int, epsilon: float, init_random: bool,
-      jit: bool
+      self, rng: jax.random.PRNGKeyArray, rank: int, epsilon: float,
+      init_random: bool, jit: bool
   ):
     rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
@@ -72,7 +69,7 @@ class TestBarycenter:
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
-    bar_prob = barycenter_problem.BarycenterProblem(
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
         y,
         b,
         epsilon=epsilon,
@@ -86,7 +83,7 @@ class TestBarycenter:
 
     # Define solver
     threshold = 1e-3
-    solver = cb.WassersteinBarycenter(rank=rank, threshold=threshold)
+    solver = cb.FreeWassersteinBarycenter(rank=rank, threshold=threshold)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -117,7 +114,9 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() > .7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
-  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
+  def test_barycenter_jit(
+      self, rng: jax.random.PRNGKeyArray, segment_before: bool
+  ):
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
@@ -125,17 +124,17 @@ class TestBarycenter:
         b: jnp.ndarray,
         segment_before: bool,
         num_per_segment: Tuple[int, ...],
-    ) -> cb.BarycenterState:
+    ) -> cb.FreeBarycenterState:
       if segment_before:
         y, b = segment.segment_point_cloud(
             x=y, a=b, num_per_segment=num_per_segment
         )
-        bar_prob = barycenter_problem.BarycenterProblem(y, b, epsilon=1e-1)
+        bar_prob = barycenter_problem.FreeBarycenterProblem(y, b, epsilon=1e-1)
       else:
-        bar_prob = barycenter_problem.BarycenterProblem(
+        bar_prob = barycenter_problem.FreeBarycenterProblem(
             y, b, epsilon=1e-1, num_per_segment=num_per_segment
         )
-      solver = cb.WassersteinBarycenter(threshold=threshold)
+      solver = cb.FreeWassersteinBarycenter(threshold=threshold)
       return solver(bar_prob)
 
     rngs = jax.random.split(rng, 20)
@@ -181,7 +180,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       lse_mode: bool,
       epsilon: float,
       jit: bool,
@@ -228,7 +227,7 @@ class TestBarycenter:
         num_per_segment=(num_components, num_components),
         padding_vector=bures_cost._padder(y.shape[1]),
     )
-    bar_p = barycenter_problem.BarycenterProblem(
+    bar_p = barycenter_problem.FreeBarycenterProblem(
         seg_y,
         seg_b,
         weights=barycentric_weights,
@@ -239,7 +238,7 @@ class TestBarycenter:
     assert bar_p.max_measure_size == seg_y.shape[1]
     assert bar_p.ndim == seg_y.shape[2]
 
-    solver = cb.WassersteinBarycenter(lse_mode=lse_mode)
+    solver = cb.FreeWassersteinBarycenter(lse_mode=lse_mode)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -278,7 +277,7 @@ class TestBarycenter:
   )
   def test_bures_barycenter_different_number_of_components(
       self,
-      rng: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       alpha: float,
       epsilon: float,
       dim: int,
@@ -293,21 +292,21 @@ class TestBarycenter:
     b_cost = costs.Bures(dimension=dim)
 
     # keys for random number generation
-    keys = jax.random.split(rng, num=4)
+    rngs = jax.random.split(rng, num=4)
 
     # test for non-uniform barycentric weights
     barycentric_weights = jax.random.dirichlet(
-        keys[0], alpha=jnp.ones(num_measures) * alpha
+        rngs[0], alpha=jnp.ones(num_measures) * alpha
     )
 
     ridges = jnp.array([jnp.ones(dim), 5 * jnp.ones(dim)])
     stdev_means = 0.1 * jnp.mean(ridges, axis=1)
     stdev_covs = jax.random.uniform(
-        keys[1], shape=(num_measures,), minval=0., maxval=10.
+        rngs[1], shape=(num_measures,), minval=0., maxval=10.
     )
 
     seeds = jax.random.randint(
-        keys[2], shape=(num_measures,), minval=0, maxval=100
+        rngs[2], shape=(num_measures,), minval=0, maxval=100
     )
 
     gmm_generators = [
@@ -339,7 +338,7 @@ class TestBarycenter:
 
     # random initialization of the barycenter
     gmm_generator = gaussian_mixture.GaussianMixture.from_random(
-        keys[3], n_components=bar_size, n_dimensions=dim
+        rngs[3], n_components=bar_size, n_dimensions=dim
     )
     x_init_means = gmm_generator.loc
     x_init_covs = gmm_generator.covariance
@@ -347,7 +346,7 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    bar_p = barycenter_problem.BarycenterProblem(
+    bar_p = barycenter_problem.FreeBarycenterProblem(
         y=ys,
         b=bs,
         weights=barycentric_weights,
@@ -361,7 +360,7 @@ class TestBarycenter:
     assert bar_p.num_measures == num_measures
     assert bar_p.ndim == ys.shape[-1]
 
-    solver = cb.WassersteinBarycenter(lse_mode=True)
+    solver = cb.FreeWassersteinBarycenter(lse_mode=True)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 

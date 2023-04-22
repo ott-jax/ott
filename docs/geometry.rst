@@ -1,7 +1,7 @@
 ott.geometry
 ============
+.. module:: ott.geometry
 .. currentmodule:: ott.geometry
-.. automodule:: ott.geometry
 
 This package implements several classes to define a geometry, arguably the most
 influential ingredient of optimal transport problem. In its full generality, a
@@ -13,9 +13,9 @@ unit of mass from any of the input points to the target points.
 The geometry package proposes a few simple geometries. The simplest of all would
 be that for which input and target points coincide, and the geometry between
 them simplifies to a symmetric cost or kernel matrix. In the very particular
-case where these points happen to lie on grid (a cartesian product in full
-generality, e.g. 2 or 3D grids), the :class:`~ott.geometry.grid.Grid`
-geometry will prove useful.
+case where these points happen to lie on grid (a Cartesian product in full
+generality, e.g., 2- or-3-dimensional grids), the
+:class:`~ott.geometry.grid.Grid` geometry will prove useful.
 
 For more general settings where input/target points do not coincide, one can
 alternatively instantiate a :class:`~ott.geometry.geometry.Geometry` through a
@@ -30,9 +30,10 @@ standard cost functions that are meaningful in an OT context, notably the
 That cost can be used for instance to compute a distance between Gaussian
 mixtures, as proposed in :cite:`chen:19a` and revisited in :cite:`delon:20`.
 
-To be useful with Sinkhorn solvers, ``Geometries`` typically need to provide an
-``epsilon`` regularization parameter. We propose either to set that value once
-for all, or implement an annealing
+To be useful with :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solvers,
+:class:`Geometries <ott.geometry.geometry.Geometry>` typically need to provide
+an ``epsilon`` regularization parameter. We propose either to set that value
+once for all, or implement an annealing
 :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler.
 
 Geometries
@@ -63,6 +64,7 @@ Cost Functions
     costs.ElasticL1
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
+    costs.SoftDTW
 
 Utilities
 ---------
