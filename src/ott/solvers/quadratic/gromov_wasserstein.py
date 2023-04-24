@@ -164,13 +164,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
-    unscale_last_linearization: Whether to remove any scaling from the
-      cost matrices of the last linearization stored in
-      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`.
-      This has the practical benefit that, while the OT coupling matrices
-      obtained with GW might have been computed by re-scaling cost matrices for
-      numerical stability, the last linearization stored in the geometry will be
-      unscaled and recomputed with the original cost values.
+    relative_epsilon: Whether to use relative epsilon in the linearized
+      geometry.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
@@ -194,7 +189,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       *args: Any,
       warm_start: Optional[bool] = None,
-      unscale_last_linearization: bool = False,
+      relative_epsilon: Optional[bool] = None,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
@@ -204,7 +199,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   ):
     super().__init__(*args, **kwargs)
     self._warm_start = warm_start
-    self.unscale_last_linearization = unscale_last_linearization
+    self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
     self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
@@ -236,21 +231,27 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     if init is None:
       initializer = self.create_initializer(prob)
-      init = initializer(prob, epsilon=self.epsilon, rng=rng1, **kwargs)
+      init = initializer(
+          prob,
+          epsilon=self.epsilon,
+          rng=rng1,
+          relative_epsilon=self.relative_epsilon,
+          **kwargs
+      )
 
     out = iterations(self, prob, init, rng2)
     # TODO(lpapaxanthoos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
           jax.lax.stop_gradient(out.linear_state),
-          remove_scale=self.unscale_last_linearization
+          relative_epsilon=self.relative_epsilon,
       )
     else:
       linearization = prob.update_linearization(
           jax.lax.stop_gradient(out.linear_state),
           epsilon=self.epsilon,
           old_transport_mass=jax.lax.stop_gradient(out.old_transport_mass),
-          remove_scale=self.unscale_last_linearization,
+          relative_epsilon=self.relative_epsilon,
       )
 
     linear_state = out.linear_state.set_cost(linearization, True, True)
@@ -366,7 +367,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
     aux_data["progress_fn"] = self.progress_fn
-    aux_data["unscale_last_linearization"] = self.unscale_last_linearization
+    aux_data["relative_epsilon"] = self.relative_epsilon
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
@@ -396,12 +397,17 @@ def iterations(
       rng = state.rngs[iteration]
       init = (lin_state.q, lin_state.r,
               lin_state.g) if solver.warm_start else (None, None, None)
-      linear_pb = prob.update_lr_linearization(state.linear_state)
+      linear_pb = prob.update_lr_linearization(
+          state.linear_state, relative_epsilon=solver.relative_epsilon
+      )
       out = solver.linear_ot_solver(linear_pb, init=init, rng=rng)
     else:
       init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
       linear_pb = prob.update_linearization(
-          lin_state, solver.epsilon, state.old_transport_mass
+          lin_state,
+          solver.epsilon,
+          state.old_transport_mass,
+          relative_epsilon=solver.relative_epsilon,
       )
       out = solver.linear_ot_solver(linear_pb, init=init)
 
