@@ -51,8 +51,10 @@ class Geometry:
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
       is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
       ``epsilon = None``, use :math:`0.05`.
-    relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood the value of the :attr:`mean_cost_matrix`.
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
+      adaptively from data.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
