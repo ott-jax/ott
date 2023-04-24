@@ -111,6 +111,13 @@ class TestGWBarycenter:
     np.testing.assert_allclose(out_pc.cost, out_cost.cost, rtol=tol, atol=tol)
     np.testing.assert_allclose(out_pc.costs, out_cost.costs, rtol=tol, atol=tol)
 
+    np.testing.assert_allclose(
+        out_pc.costs,
+        jnp.sum(out_pc.costs_bary * problem_pc.weights, axis=-1),
+        rtol=tol,
+        atol=tol
+    )
+
   @pytest.mark.fast(
       "jit,fused_penalty,scale_cost", [(False, 1.5, "mean"),
                                        (True, 3.1, "max_cost")],
@@ -174,3 +181,11 @@ class TestGWBarycenter:
     np.testing.assert_array_equal(jnp.isfinite(out.x), True)
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
     np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
+
+    weights = jnp.ones(len(num_per_segment)) / len(num_per_segment)
+    np.testing.assert_allclose(
+        out.costs,
+        jnp.sum(out.costs_bary * weights, axis=-1),
+        rtol=1e-6,
+        atol=1e-6,
+    )
