@@ -180,10 +180,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
       Otherwise, use
       :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-    progress_fn: callback function which gets called during the Sinkhorn
-      iterations, so the user can display the error at each iteration,
-      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
-      for a basic implementation.
+    progress_fn: callback function which gets called during the
+      Gromov-Wasserstein iterations, so the user can display the error at each
+      iteration, e.g., using a progress bar.
+      See :func:`~ott.utils.default_progress_fn` for a basic implementation.
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
@@ -363,6 +363,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
+    aux_data["progress_fn"] = self.progress_fn
     aux_data["unscale_last_linearization"] = self.unscale_last_linearization
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init

@@ -1138,7 +1138,7 @@ def solve(
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
       :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
-      depending ``rank``.
+      depending on ``rank``.
 
   Returns:
     The Sinkhorn output.
