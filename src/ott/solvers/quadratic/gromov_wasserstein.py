@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import (
     Any,
+    Callable,
     Dict,
     Literal,
     Mapping,
@@ -25,6 +26,8 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+from jax.experimental import host_callback
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
@@ -39,6 +42,9 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 __all__ = ["GWOutput", "GromovWasserstein", "solve"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+
+ProgressCallbackFn_t = Callable[
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
 
 
 class GWOutput(NamedTuple):
@@ -175,6 +181,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
       Otherwise, use
       :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+    progress_fn: callback function which gets called during the
+      Gromov-Wasserstein iterations, so the user can display the error at each
+      iteration, e.g., using a progress bar.
+      See :func:`~ott.utils.default_progress_fn` for a basic implementation.
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
@@ -188,6 +198,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
+      progress_fn: Optional[ProgressCallbackFn_t] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
@@ -195,6 +206,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     self._warm_start = warm_start
     self.unscale_last_linearization = unscale_last_linearization
     self.quad_initializer = quad_initializer
+    self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
@@ -353,6 +365,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
+    aux_data["progress_fn"] = self.progress_fn
     aux_data["unscale_last_linearization"] = self.unscale_last_linearization
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
@@ -395,9 +408,19 @@ def iterations(
     old_transport_mass = jax.lax.stop_gradient(
         state.linear_state.transport_mass
     )
-    return state.update(
+    new_state = state.update(
         iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
     )
+
+    # Inner iterations is currently fixed to 1.
+    inner_iterations = 1
+    if solver.progress_fn is not None:
+      host_callback.id_tap(
+          solver.progress_fn,
+          (iteration, inner_iterations, solver.max_iterations, state)
+      )
+
+    return new_state
 
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
