@@ -3,7 +3,7 @@ ott.math
 .. currentmodule:: ott.math
 .. automodule:: ott.math
 
-The :mod:`ott.math` modules holds low level comptutational primitives that
+The :mod:`ott.math` module holds low level comptutational primitives that
 appear in some more advanced optimal transport problems.
 :mod:`ott.math.fixed_point_loop` implements a fixed-point iteration `while` loop
 that can be automatically differentiated, and which might
