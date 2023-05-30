@@ -3,7 +3,7 @@ ott.initializers.linear
 .. module:: ott.initializers.linear
 .. currentmodule:: ott.initializers.linear
 
-.. TODO(marcocuturi): maybe add some text here
+Initializers for linear OT problems, focusing on Sinkhorn and low-rank solvers.
 
 Sinkhorn Initializers
 ---------------------

@@ -61,8 +61,6 @@ Design Choices
   seamlessly and automatically in higher level calls (e.g. updates in
   Gromov-Wasserstein), without requiring any attention from the user.
 
-.. TODO(marcocuturi): add missing package descriptions below
-
 Packages
 --------
 .. module:: ott
@@ -78,13 +76,21 @@ Packages
   problems.
 - :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
   one of the implemented techniques.
-- :mod:`ott.initializers` are used to speed up the resolution of OT solvers.
+- :mod:`ott.initializers` implement simple strategies to initialize solvers.
+  When the problems are solved with a convex solver, such as a
+  :class:`~ott.problems.linear.linear_problem.LinearProblem` solved with a
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, the resolution of OT
+  solvers, then this initialization is mostly useful to speed up convergences.
+  When the problem is *not* convex, which is the case for most other uses of
+  this toolbox, the initialization can play a decisive role to reach a useful
+  solution.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing
   approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
   approximating OT between GMMs, or computing differentiable sort and quantile
   operations :cite:`cuturi:19`.
-- :mod:`ott.math` holds low-level mathematical primitives.
+- :mod:`ott.math` holds low-level miscellaneous mathematical primitives, such as
+  an implementation of the matrix square-root.
 - :mod:`ott.utils` provides miscellaneous helper functions.
 
 .. toctree::

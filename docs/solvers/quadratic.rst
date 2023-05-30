@@ -3,7 +3,9 @@ ott.solvers.quadratic
 .. module:: ott.solvers.quadratic
 .. currentmodule:: ott.solvers.quadratic
 
-.. TODO(marcocuturi): maybe add some text here
+The :mod:`ott.solvers.quadratic` module holds the important family of
+Gromov-Wasserstein (GW) solvers and related GW barycenters. They are designed to
+solve :mod:`ott.problems.quadratic` problems.
 
 Gromov-Wasserstein Solvers
 --------------------------

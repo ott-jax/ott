@@ -41,7 +41,14 @@ class ImplicitDiff:
       ``a == b`` or the precondition_fun is the identity. False by default, and,
       at the moment, needs to be set manually by the user in the more favorable
       case where the system is guaranteed to be symmetric.
-    precondition_fun: TODO(marcocuturi)
+    precondition_fun: Function used to precondition, on both sides, the linear
+      system derived from first-order conditions of the regularized OT problem.
+      That linear system typically involves an equality between marginals (or
+      simple transform of these marginals when the problem is unbalanced) and
+      another function of the potentials. When that function is specified, that
+      function is applied on both sides of the equality, before being further
+      differentiated to provide the Jacobians needed for implicit function
+      theorem differentiation.
   """
 
   solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
