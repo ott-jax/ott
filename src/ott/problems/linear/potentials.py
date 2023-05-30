@@ -295,7 +295,7 @@ class DualPotentials:
         :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns:
-      matplotlib figure and axis with the plots.
+      a `matplotlib` figure with axis, with the plots.
     """
     if contourf_kwargs is None:
       contourf_kwargs = {}
