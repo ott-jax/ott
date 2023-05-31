@@ -24,8 +24,8 @@ def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
 
 def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Derivative of Legendre transform of phi_starKL, see phi_star."""
-  return jax.grad(phi_star)(f, rho)
-
+  # TODO(cuturi): use jax.grad directly.
+  return jnp.exp(f / rho)
 
 def grad_of_marginal_fit(
     c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
