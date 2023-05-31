@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Callable
 
-import jax
 import jax.numpy as jnp
 
 
@@ -26,6 +25,7 @@ def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Derivative of Legendre transform of phi_starKL, see phi_star."""
   # TODO(cuturi): use jax.grad directly.
   return jnp.exp(f / rho)
+
 
 def grad_of_marginal_fit(
     c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
