@@ -500,11 +500,9 @@ class Bures(CostFn):
     dimension: Dimensionality of the data.
     sqrtm_kw: Dictionary of keyword arguments to control the
       behavior of inner calls to :func:`~ott.math.matrix_square_root.sqrtm`.
-    kwargs: keyword arguments to control the behavior of the fixed-point
-      iterations used in the inner computation of barycenters of Gaussians.
   """
 
-  def __init__(self, dimension: int, sqrtm_kw: Dict[str, Any] = None, **kwargs):
+  def __init__(self, dimension: int, sqrtm_kw: Dict[str, Any] = None):
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = sqrtm_kw if sqrtm_kw is not None else {}
@@ -548,9 +546,12 @@ class Bures(CostFn):
       kwargs: keyword arguments for the outer fixed-point iteration
 
     Returns:
-      Weighted Bures average of the covariance matrices.
+      List containing Weighted Bures average of the covariance matrices, and
+      vector of (normalized) 2-norms of successive differences between iterates,
+      to monitor convergence.
     """
     sqrtm_kw = {} if sqrtm_kw is None else sqrtm_kw
+    # Pop values or set defaults for fixed-point loop.
     min_iterations = kwargs.pop("min_iterations", 1)
     max_iterations = kwargs.pop("max_iterations", 100)
     inner_iterations = kwargs.pop("inner_iterations", 5)
@@ -608,7 +609,7 @@ class Bures(CostFn):
       weights: jnp.ndarray,
       xs: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Dict[Any, Any] = None,
+      sqrtm_kw: Dict[str, Any] = None,
       **kwargs
   ) -> jnp.ndarray:
     """Compute the Bures barycenter of weighted Gaussian distributions.
@@ -628,9 +629,9 @@ class Bures(CostFn):
         :func:`ott.math.matrix_square_root.sqrtm` function used within
         :meth:`covariance_fixpoint_iter`. This defines the precision
         (in terms of convergence threshold, and number of iterations) of the
-        matrix square root call. That call is used at each outer iteration of
-        the computation of Gaussian barycenters. These values are by default, if
-        not passed, the same as those used to compute the Bures distance.
+        matrix square root calls that are used at each outer iteration of
+        the computation of Gaussian barycenters. These values are, by default,
+        the same as those used to define the Bures cost object itself.
       kwargs: Passed on to :meth:`covariance_fixpoint_iter`, to specify the
         number of iterations and tolerance of the fixed-point iteration of the
         barycenter routine, by parameterizing `tolerance` and other relevant
