@@ -549,6 +549,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     rank = self.rank
     n, m = ot_prob.geom.shape
     a, b = ot_prob.a, ot_prob.b
+    supp_a, supp_b = a > 0, b > 0
 
     g_old = k_g
     v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
@@ -577,8 +578,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       k_q, k_r, k_g, a, b = constants
 
       # First Projection
-      u1 = a / jnp.dot(k_q, v1_old)
-      u2 = b / jnp.dot(k_r, v2_old)
+      u1 = jnp.where(supp_a, a / jnp.dot(k_q, v1_old), 0.0)
+      u2 = jnp.where(supp_b, b / jnp.dot(k_r, v2_old), 0.0)
       g = jnp.maximum(min_entry_value, g_old * q_gi)
       q_gi = (g_old * q_gi) / g
       g_old = g

@@ -206,3 +206,37 @@ class TestLRSinkhorn:
 
     # check that max iterations is provided each time: [30, 30]
     assert traced_values["total"] == [num_iterations] * 2
+
+  @pytest.mark.fast.with_args(rank=[5, 10], eps=[0.0, 1e-1])
+  def test_lse_matches_kernel_mode(self, rank: int, eps: float):
+    threshold = 1e-3
+    tol = 1e-5
+    geom = pointcloud.PointCloud(self.x, self.y)
+    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+
+    out_lse = sinkhorn_lr.LRSinkhorn(
+        lse_mode=True,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    out_kernel = sinkhorn_lr.LRSinkhorn(
+        lse_mode=False,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    assert out_lse.converged
+    assert out_kernel.converged
+    np.testing.assert_allclose(
+        out_lse.reg_ot_cost, out_kernel.reg_ot_cost, rtol=tol, atol=tol
+    )
+    np.testing.assert_allclose(
+        out_lse.matrix, out_kernel.matrix, rtol=tol, atol=tol
+    )
