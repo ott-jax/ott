@@ -69,10 +69,9 @@ class LRSinkhornState(NamedTuple):
   ) -> float:
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
-  def solution_error(
+  def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
   ) -> jnp.ndarray:
-    """TODO."""
     return solution_error(self.q, self.r, ot_prob, norm_error)
 
   def set(self, **kwargs: Any) -> "LRSinkhornState":
