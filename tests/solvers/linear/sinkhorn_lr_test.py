@@ -35,7 +35,7 @@ class TestLRSinkhorn:
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
 
-    # adding zero weights to test proper handling
+    # adding zero weights to test proper handling:
     a = a.at[0].set(0)
     b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
@@ -45,10 +45,12 @@ class TestLRSinkhorn:
       use_lrcgeom=[True, False],
       initializer=["rank2", "random", "k-means"],
       gamma_rescale=[False, True],
+      lse_mode=[True, False],
       only_fast=0,
   )
   def test_euclidean_point_cloud_lr(
-      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool
+      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool,
+      lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
     threshold = 1e-3
@@ -65,6 +67,7 @@ class TestLRSinkhorn:
         rank=6,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer
     )
     solved = solver(ot_prob)
@@ -87,6 +90,7 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)
@@ -114,7 +118,9 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=14,
         epsilon=5e-1,
+        gamma=1.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)
@@ -200,3 +206,37 @@ class TestLRSinkhorn:
 
     # check that max iterations is provided each time: [30, 30]
     assert traced_values["total"] == [num_iterations] * 2
+
+  @pytest.mark.fast.with_args(rank=[5, 10], eps=[0.0, 1e-1])
+  def test_lse_matches_kernel_mode(self, rank: int, eps: float):
+    threshold = 1e-3
+    tol = 1e-5
+    geom = pointcloud.PointCloud(self.x, self.y)
+    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+
+    out_lse = sinkhorn_lr.LRSinkhorn(
+        lse_mode=True,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    out_kernel = sinkhorn_lr.LRSinkhorn(
+        lse_mode=False,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    assert out_lse.converged
+    assert out_kernel.converged
+    np.testing.assert_allclose(
+        out_lse.reg_ot_cost, out_kernel.reg_ot_cost, rtol=tol, atol=tol
+    )
+    np.testing.assert_allclose(
+        out_lse.matrix, out_kernel.matrix, rtol=tol, atol=tol
+    )
