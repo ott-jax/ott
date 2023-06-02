@@ -18,7 +18,6 @@ from typing import (
     Literal,
     Mapping,
     NamedTuple,
-    NoReturn,
     Optional,
     Tuple,
     Union,
@@ -73,6 +72,7 @@ class LRSinkhornState(NamedTuple):
   def solution_error(
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
   ) -> jnp.ndarray:
+    """TODO."""
     return solution_error(self.q, self.r, ot_prob, norm_error)
 
   def set(self, **kwargs: Any) -> "LRSinkhornState":
@@ -301,7 +301,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
-    # assert lse_mode, "Kernel mode not yet implemented."
     assert not implicit_diff, "Implicit diff. not yet implemented."
     super().__init__(
         lse_mode=lse_mode,
