@@ -118,6 +118,7 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=14,
         epsilon=5e-1,
+        gamma=1.0,
         gamma_rescale=gamma_rescale,
         lse_mode=lse_mode,
         initializer=initializer,
