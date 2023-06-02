@@ -612,7 +612,7 @@ class Bures(CostFn):
       xs: jnp.ndarray,
       tolerance: float = 1e-4,
       sqrtm_kw: Optional[Dict[str, Any]] = None,
-      **kwargs
+      **kwargs: Any
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
