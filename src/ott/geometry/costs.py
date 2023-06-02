@@ -69,7 +69,8 @@ class CostFn(abc.ABC):
       The cost.
     """
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Barycentric operator.
 
     Args:
