@@ -270,7 +270,8 @@ class SqEuclidean(TICost):
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.25 * jnp.sum(z ** 2)
 
-  def barycenter(self, weights: jnp.ndarray, xs: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return jnp.average(xs, weights=weights, axis=0), None
 
@@ -502,10 +503,10 @@ class Bures(CostFn):
       behavior of inner calls to :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
-  def __init__(self, dimension: int, sqrtm_kw: Dict[str, Any] = None):
+  def __init__(self, dimension: int, sqrtm_kw: Optional[Dict[str, Any]] = None):
     super().__init__()
     self._dimension = dimension
-    self._sqrtm_kw = sqrtm_kw if sqrtm_kw is not None else {}
+    self._sqrtm_kw = {} if sqrtm_kw is None else sqrtm_kw
 
   def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
@@ -531,8 +532,8 @@ class Bures(CostFn):
       covs: jnp.ndarray,
       weights: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Dict[Any, Any] = None,
-      **kwargs
+      sqrtm_kw: Optional[Dict[Any, Any]] = None,
+      **kwargs: Any
   ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians.
 
@@ -542,7 +543,7 @@ class Bures(CostFn):
       tolerance: tolerance of the fixed-point procedure. That tolerance is
         applied to the Frobenius norm (normalized by total size)
         of two successive iterations of the algorithm
-      sqrtm_kw: keyword arguments for :func:`ott.math.matrix_square_root.sqrtm`
+      sqrtm_kw: keyword arguments for :func:`~ott.math.matrix_square_root.sqrtm`
       kwargs: keyword arguments for the outer fixed-point iteration
 
     Returns:
@@ -609,9 +610,9 @@ class Bures(CostFn):
       weights: jnp.ndarray,
       xs: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Dict[str, Any] = None,
+      sqrtm_kw: Optional[Dict[str, Any]] = None,
       **kwargs
-  ) -> jnp.ndarray:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
     Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
