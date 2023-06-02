@@ -39,7 +39,6 @@ class WassersteinSolver:
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
-      jit: bool = True,
       store_inner_errors: bool = False,
       **kwargs: Any,
   ):
@@ -73,7 +72,6 @@ class WassersteinSolver:
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
-    self.jit = jit
     self.store_inner_errors = store_inner_errors
     self._kwargs = kwargs
 
@@ -87,7 +85,6 @@ class WassersteinSolver:
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
         "rank": self.rank,
-        "jit": self.jit,
         "store_inner_errors": self.store_inner_errors,
         **self._kwargs
     })

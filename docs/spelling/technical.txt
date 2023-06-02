@@ -125,5 +125,6 @@ subsampled
 thresholding
 transcriptome
 undirected
+unscaled
 vectorized
 voxel

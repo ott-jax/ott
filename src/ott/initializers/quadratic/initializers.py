@@ -160,7 +160,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       )
       cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
-    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix()
     return geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
 
 

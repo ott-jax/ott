@@ -76,14 +76,12 @@ test = [
 ]
 docs = [
     "sphinx>=4.0",
-    "ipython>=7.20.0",
+    "sphinx-book-theme>=1.0.1",
     "sphinx_autodoc_typehints>=1.12.0",
-    "sphinx-book-theme>=0.3.3",
     "sphinx-copybutton>=0.5.1",
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinxcontrib-spelling>=7.7.0",
     "myst-nb>=0.17.1",
-    "matplotlib>=3.0.0",
 ]
 
 [tool.setuptools]
@@ -150,6 +148,7 @@ coalesce_brackets = true
 [tool.rstcheck]
 ignore_directives = [
     "toctree",
+    "module",
     "currentmodule",
     "autosummary",
     "automodule",
@@ -159,6 +158,7 @@ ignore_directives = [
 ignore_roles = [
     "class",
     "doc",
+    "mod",
     "cite",
 ]
 
@@ -277,6 +277,7 @@ select = [
     "W", # pycodestyle
     "Q", # flake8-quotes
     "SIM", # flake8-simplify
+    "TID",  # flake-8-tidy-imports
     "NPY",  # NumPy-specific rules
     "PT",  # flake8-pytest-style
     "B", # flake8-bugbear
@@ -301,7 +302,5 @@ keep-runtime-typing = true
 [tool.ruff.flake8-tidy-imports]
 # Disallow all relative imports.
 ban-relative-imports = "parents"
-[tool.ruff.flake8-bugbear]
-extend-immutable-calls = ["jax.random.PRNGKey"]
 [tool.ruff.flake8-quotes]
 inline-quotes = "double"

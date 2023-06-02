@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import (
     Any,
+    Callable,
     Dict,
     Literal,
     Mapping,
@@ -25,7 +26,10 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+from jax.experimental import host_callback
 
+from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.initializers.quadratic import initializers as quad_initializers
@@ -38,6 +42,9 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 __all__ = ["GWOutput", "GromovWasserstein", "solve"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+
+ProgressCallbackFn_t = Callable[
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
 
 
 class GWOutput(NamedTuple):
@@ -157,6 +164,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
       from the previous iteration. If `None`, warm starts are not used for
       standard Sinkhorn, but used for low-rank Sinkhorn.
+    unscale_last_linearization: Whether to remove any scaling from the
+      cost matrices of the last linearization stored in
+      :attr:`~ott.solvers.quadratic.gromov_wasserstein.GWOutput.geom`.
+      This has the practical benefit that, while the OT coupling matrices
+      obtained with GW might have been computed by re-scaling cost matrices for
+      numerical stability, the last linearization stored in the geometry will be
+      unscaled and recomputed with the original cost values.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
       is always used. Otherwise, the quadratic initializer wraps the low-rank
@@ -167,6 +181,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
       Otherwise, use
       :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+    progress_fn: callback function which gets called during the
+      Gromov-Wasserstein iterations, so the user can display the error at each
+      iteration, e.g., using a progress bar.
+      See :func:`~ott.utils.default_progress_fn` for a basic implementation.
     kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
@@ -176,22 +194,26 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       *args: Any,
       warm_start: Optional[bool] = None,
+      unscale_last_linearization: bool = False,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
                 quad_initializers.BaseQuadraticInitializer]] = None,
+      progress_fn: Optional[ProgressCallbackFn_t] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
     self._warm_start = warm_start
+    self.unscale_last_linearization = unscale_last_linearization
     self.quad_initializer = quad_initializer
+    self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: Optional[linear_problem.LinearProblem] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
   ) -> GWOutput:
     """Run the Gromov-Wasserstein solver.
@@ -206,6 +228,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
+    rng = utils.default_prng_key(rng)
     rng1, rng2 = jax.random.split(rng, 2)
 
     if prob._is_low_rank_convertible:
@@ -215,24 +238,29 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       initializer = self.create_initializer(prob)
       init = initializer(prob, epsilon=self.epsilon, rng=rng1, **kwargs)
 
-    run_fn = jax.jit(iterations) if self.jit else iterations
-    out = run_fn(self, prob, init, rng2)
-    # TODO(lpapaxanthos): remove stop_gradient when using backprop
+    out = iterations(self, prob, init, rng2)
+    # TODO(lpapaxanthoos): remove stop_gradient when using backprop
     if self.is_low_rank:
       linearization = prob.update_lr_linearization(
-          jax.lax.stop_gradient(out.linear_state)
+          jax.lax.stop_gradient(out.linear_state),
+          remove_scale=self.unscale_last_linearization
       )
     else:
       linearization = prob.update_linearization(
-          jax.lax.stop_gradient(out.linear_state), self.epsilon,
-          jax.lax.stop_gradient(out.old_transport_mass)
+          jax.lax.stop_gradient(out.linear_state),
+          epsilon=self.epsilon,
+          old_transport_mass=jax.lax.stop_gradient(out.old_transport_mass),
+          remove_scale=self.unscale_last_linearization,
       )
+
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
         iteration < self.max_iterations, jnp.all(out.linear_convergence)
     )
-    return out.set(linear_state=linear_state, converged=converged)
+    return out.set(
+        linear_state=linear_state, geom=linearization.geom, converged=converged
+    )
 
   def init_state(
       self,
@@ -269,7 +297,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=errors,
     )
 
-  def output_from_state(self, state: GWState) -> GWOutput:
+  def output_from_state(
+      self,
+      state: GWState,
+  ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
@@ -334,6 +365,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self._warm_start
+    aux_data["progress_fn"] = self.progress_fn
+    aux_data["unscale_last_linearization"] = self.unscale_last_linearization
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
@@ -375,9 +408,19 @@ def iterations(
     old_transport_mass = jax.lax.stop_gradient(
         state.linear_state.transport_mass
     )
-    return state.update(
+    new_state = state.update(
         iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
     )
+
+    # Inner iterations is currently fixed to 1.
+    inner_iterations = 1
+    if solver.progress_fn is not None:
+      host_callback.id_tap(
+          solver.progress_fn,
+          (iteration, inner_iterations, solver.max_iterations, state)
+      )
+
+    return new_state
 
   state = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,

@@ -17,6 +17,7 @@ from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
@@ -39,6 +40,8 @@ class GWBarycenterState(NamedTuple):
       ``[max_iter, num_measures, quad_max_iter, lin_outer_iter]`` containing
       the GW errors at each iteration.
     costs: Array of shape ``[max_iter,]`` containing the cost at each iteration.
+    costs_bary: Array of shape ``[max_iter, num_measures]`` containing the
+      cost between the individual measures and the barycenter at each iteration.
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
       of all GW problems at each iteration.
   """
@@ -47,11 +50,19 @@ class GWBarycenterState(NamedTuple):
   a: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   costs: Optional[jnp.ndarray] = None
+  costs_bary: Optional[jnp.ndarray] = None
   gw_convergence: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "GWBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
+
+  @property
+  def n_iters(self) -> int:
+    """Number of iterations."""
+    if self.gw_convergence is None:
+      return -1
+    return jnp.sum(self.gw_convergence > -1)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -63,7 +74,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
-    jit: Whether to jit the iteration loop.
     store_inner_errors: Whether to store the errors of the GW solver, as well
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
@@ -78,7 +88,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
-      jit: bool = True,
       store_inner_errors: bool = False,
       quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
       # TODO(michalk8): maintain the API compatibility with `was_solver`
@@ -93,7 +102,6 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         max_iterations=max_iterations,
         threshold=threshold,
         store_inner_errors=store_inner_errors,
-        jit=jit,
     )
     if quad_solver is None:
       kwargs["epsilon"] = epsilon
@@ -118,8 +126,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       The solution.
     """
     state = self.init_state(problem, bar_size, **kwargs)
-    run_fn = jax.jit(iterations) if self.jit else iterations
-    state = run_fn(self, problem, state)
+    state = iterations(self, problem, state)
     return self.output_from_state(state)
 
   def init_state(
@@ -129,7 +136,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
 
@@ -159,6 +166,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       assert a.shape == (bar_size,)
 
     if bar_init is None:
+      rng = utils.default_prng_key(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
       linear_solver = self._quad_solver.linear_ot_solver
@@ -184,6 +192,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       errors = None
 
     costs = -jnp.ones((num_iter,))
+    costs_bary = -jnp.ones((num_iter, problem.num_measures))
     gw_convergence = -jnp.ones((num_iter,))
     return GWBarycenterState(
         cost=cost,
@@ -191,6 +200,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         a=a,
         errors=errors,
         costs=costs,
+        costs_bary=costs_bary,
         gw_convergence=gw_convergence
     )
 
@@ -223,7 +233,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
 
     cost = jnp.sum(costs * problem.weights)
+    costs_bary = state.costs_bary.at[iteration].set(costs)
     costs = state.costs.at[iteration].set(cost)
+
     converged = jnp.all(convergeds)
     gw_convergence = state.gw_convergence.at[iteration].set(converged)
 
@@ -240,6 +252,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         cost=cost,
         x=x,
         costs=costs,
+        costs_bary=costs_bary,
         errors=errors,
         gw_convergence=gw_convergence
     )

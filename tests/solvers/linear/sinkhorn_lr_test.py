@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any, Tuple
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -151,3 +153,55 @@ class TestLRSinkhorn:
     np.testing.assert_allclose(
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
+
+  @pytest.mark.fast.with_args("num_iterations", [30, 60])
+  def test_callback_fn(self, num_iterations: int):
+    """Check that the callback function is actually called."""
+
+    def progress_fn(
+        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
+                      sinkhorn_lr.LRSinkhornState], *args: Any
+    ) -> None:
+      # Convert arguments.
+      iteration, inner_iterations, total_iter, state = status
+      iteration = int(iteration)
+      inner_iterations = int(inner_iterations)
+      total_iter = int(total_iter)
+      errors = np.array(state.errors).ravel()
+
+      # Avoid reporting error on each iteration,
+      # because errors are only computed every `inner_iterations`.
+      if (iteration + 1) % inner_iterations == 0:
+        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+        error = errors[error_idx]
+
+        traced_values["iters"].append(iteration)
+        traced_values["error"].append(error)
+        traced_values["total"].append(total_iter)
+
+    traced_values = {"iters": [], "error": [], "total": []}
+
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-3)
+    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+
+    rank = 2
+    inner_iterations = 10
+
+    _ = sinkhorn_lr.LRSinkhorn(
+        rank,
+        progress_fn=progress_fn,
+        max_iterations=num_iterations,
+        inner_iterations=inner_iterations
+    )(
+        lin_prob
+    )
+
+    # check that the function is called on the 10th iteration (iter #9), the
+    # 20th iteration (iter #19).
+    assert traced_values["iters"] == [9, 19]
+
+    # check that error decreases
+    np.testing.assert_array_equal(np.diff(traced_values["error"]) < 0, True)
+
+    # check that max iterations is provided each time: [30, 30]
+    assert traced_values["total"] == [num_iterations] * 2

@@ -18,6 +18,7 @@ from typing import Callable, Literal, NamedTuple, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import costs, pointcloud
 from ott.math import fixed_point_loop
 
@@ -353,7 +354,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+    rng: Optional[jax.random.PRNGKeyArray] = None,
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 
@@ -392,6 +393,7 @@ def k_means(
   if isinstance(geom.cost_fn, costs.Cosine):
     geom = geom._cosine_to_sqeucl()
   assert geom.is_squared_euclidean
+  rng = utils.default_prng_key(rng)
 
   if geom.is_online:
     # to allow materializing the cost matrix

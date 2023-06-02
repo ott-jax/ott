@@ -60,6 +60,7 @@ extensions = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
@@ -144,12 +145,16 @@ html_favicon = "_static/images/logoOTT.ico"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_theme_options = {
+    "announcement":
+        "In 0.4.1, the jit argument in solvers will be "
+        "removed. Please jit the solvers explicitly.",
     "repository_url": "https://github.com/ott-jax/ott",
     "repository_branch": "main",
     "path_to_docs": "docs/",
     "use_repository_button": True,
     "use_fullscreen_button": False,
-    "logo_only": True,
+    "pygment_light_style": "tango",
+    "pygment_dark_style": "monokai",
     "launch_buttons": {
         "colab_url": "https://colab.research.google.com",
         "binderhub_url": "https://mybinder.org",

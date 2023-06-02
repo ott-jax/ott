@@ -104,8 +104,8 @@ class TestMaskPointCloud:
       self, geom_masked: Tuple[Geom_t, pointcloud.PointCloud], scale_cost: str
   ):
     geom, masked = geom_masked
-    geom = geom._set_scale_cost(scale_cost)
-    masked = masked._set_scale_cost(scale_cost)
+    geom = geom.set_scale_cost(scale_cost)
+    masked = masked.set_scale_cost(scale_cost)
 
     try:
       actual = geom.inv_scale_cost

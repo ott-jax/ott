@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 
@@ -35,7 +36,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
@@ -53,7 +54,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
@@ -72,7 +73,7 @@ class SinkhornInitializer(abc.ABC):
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
@@ -88,8 +89,9 @@ class SinkhornInitializer(abc.ABC):
     Returns:
       The initial potentials/scalings.
     """
-    n, m = ot_prob.geom.shape
+    rng = utils.default_prng_key(rng)
     rng_x, rng_y = jax.random.split(rng, 2)
+    n, m = ot_prob.geom.shape
     if a is None:
       a = self.init_dual_a(ot_prob, lse_mode=lse_mode, rng=rng_x)
     if b is None:
@@ -126,7 +128,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
@@ -135,7 +137,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
@@ -156,7 +158,7 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
@@ -243,7 +245,7 @@ class SortingInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
@@ -322,19 +324,20 @@ class SubsampleInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
     from ott.solvers.linear import sinkhorn
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
     ), "Subsample initializer valid only for pointcloud geom."
+    rng = utils.default_prng_key(rng)
+    rng_x, rng_y = jax.random.split(rng, 2)
 
     x, y = ot_prob.geom.x, ot_prob.geom.y
     a, b = ot_prob.a, ot_prob.b
 
     # subsample
-    rng_x, rng_y = jax.random.split(rng, 2)
     sub_x = jax.random.choice(
         key=rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
     )

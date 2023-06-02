@@ -29,6 +29,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax.experimental import host_callback
 
+from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
 from ott.math import fixed_point_loop
@@ -683,7 +684,6 @@ class Sinkhorn:
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
-    jit: Whether to jit the iteration loop.
     initializer: how to compute the initial potentials/scalings.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
@@ -705,7 +705,6 @@ class Sinkhorn:
       parallel_dual_updates: bool = False,
       recenter_potentials: bool = False,
       use_danskin: Optional[bool] = None,
-      jit: bool = True,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: B008
       initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
@@ -721,7 +720,6 @@ class Sinkhorn:
     self._norm_error = norm_error
     self.anderson = anderson
     self.implicit_diff = implicit_diff
-    self.jit = jit
 
     if momentum is not None:
       self.momentum = acceleration.Momentum(
@@ -764,7 +762,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0)
+      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
@@ -777,12 +775,12 @@ class Sinkhorn:
     Returns:
       The Sinkhorn output.
     """
+    rng = utils.default_prng_key(rng)
     initializer = self.create_initializer()
     init_dual_a, init_dual_b = initializer(
         ot_prob, *init, lse_mode=self.lse_mode, rng=rng
     )
-    run_fn = jax.jit(run) if self.jit else run
-    return run_fn(ot_prob, self, (init_dual_a, init_dual_b))
+    return run(ot_prob, self, (init_dual_a, init_dual_b))
 
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
@@ -909,7 +907,14 @@ class Sinkhorn:
         ot_prob,
     )
     errors = state.errors.at[iteration // self.inner_iterations, :].set(err)
-    return state.set(errors=errors)
+    state = state.set(errors=errors)
+
+    if self.progress_fn is not None:
+      host_callback.id_tap(
+          self.progress_fn,
+          (iteration, self.inner_iterations, self.max_iterations, state)
+      )
+    return state
 
   def _converged(self, state: SinkhornState, iteration: int) -> bool:
     err = state.errors[iteration // self.inner_iterations - 1, 0]
@@ -1053,13 +1058,7 @@ def iterations(
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
-    state = solver.one_iteration(ot_prob, state, iteration, compute_error)
-    if solver.progress_fn is not None:
-      host_callback.id_tap(
-          solver.progress_fn,
-          (iteration, solver.inner_iterations, solver.max_iterations, state)
-      )
-    return state
+    return solver.one_iteration(ot_prob, state, iteration, compute_error)
 
   # Run the Sinkhorn loop. Choose either a standard fixpoint_iter loop if
   # differentiation is implicit, otherwise switch to the backprop friendly
@@ -1141,7 +1140,7 @@ def solve(
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
       :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
-      depending ``rank``.
+      depending on ``rank``.
 
   Returns:
     The Sinkhorn output.

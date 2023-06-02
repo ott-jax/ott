@@ -51,8 +51,10 @@ class Geometry:
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
       is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
       ``epsilon = None``, use :math:`0.05`.
-    relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood the value of the :attr:`mean_cost_matrix`.
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
+      adaptively from data.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -206,7 +208,8 @@ class Geometry:
       return 1.0 / jnp.nanmedian(self._cost_matrix)
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+  def set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+    """Modify how to rescale of the :attr:`cost_matrix`."""
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
     if scale_cost is False or scale_cost == self._scale_cost:
@@ -618,7 +621,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: jax.random.PRNGKeyArray = jax.random.PRNGKey(0),
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       scale: float = 1.
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -659,6 +662,7 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
+      rng = utils.default_prng_key(rng)
       rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 

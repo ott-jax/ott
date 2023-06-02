@@ -1,9 +1,15 @@
 ott.solvers.linear
 ==================
+.. module:: ott.solvers.linear
 .. currentmodule:: ott.solvers.linear
-.. automodule:: ott.solvers.linear
 
-.. TODO(marcocuturi): maybe add some text here
+Linear solvers are the bread-and-butter of OT solvers. They can be called on
+their own, either the Sinkhorn
+:class:`ott.solvers.linear.sinkhorn.Sinkhorn` or Low-Rank
+:class:`ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, to match two
+datasets. They also appear as subroutines for more advanced solvers in the
+:mod:`ott.solvers` module, notably :mod:`ott.solvers.quadratic` or
+:mod:`ott.solvers.nn`.
 
 Sinkhorn Solvers
 ----------------
@@ -15,6 +21,7 @@ Sinkhorn Solvers
     sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
     sinkhorn_lr.LRSinkhorn
+    sinkhorn_lr.LRSinkhornState
     sinkhorn_lr.LRSinkhornOutput
 
 Barycenter Solvers

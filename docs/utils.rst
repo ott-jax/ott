@@ -1,14 +1,12 @@
 ott.utils
 =========
-.. currentmodule:: ott
-.. automodule:: ott
+.. module:: ott.utils
+.. currentmodule:: ott.utils
 
 This package contains miscellaneous functions, e.g., progress callback
 function for :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 
-Utilities
----------
 .. autosummary::
     :toctree: _autosummary
 
-    utils.default_progress_fn
+    default_progress_fn

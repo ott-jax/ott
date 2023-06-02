@@ -1,9 +1,10 @@
 ott.problems.nn
 ===============
+.. module:: ott.problems.nn
 .. currentmodule:: ott.problems.nn
-.. automodule:: ott.problems.nn
 
-.. TODO(marcocuturi): maybe add some text here
+This module only contains simple tools to generate iterators that are useful to
+benchmark continuous and function based OT solvers.
 
 Dataset
 -------

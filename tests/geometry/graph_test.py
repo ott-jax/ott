@@ -207,7 +207,7 @@ class TestGraph:
   def test_graph_sinkhorn(self, rng: jax.random.PRNGKeyArray, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
-      solver = sinkhorn.Sinkhorn(lse_mode=False, jit=False)
+      solver = sinkhorn.Sinkhorn(lse_mode=False)
       problem = linear_problem.LinearProblem(geom)
       return solver(problem)
 

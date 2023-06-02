@@ -61,36 +61,43 @@ Design Choices
   seamlessly and automatically in higher level calls (e.g. updates in
   Gromov-Wasserstein), without requiring any attention from the user.
 
-.. TODO(marcocuturi): add missing package descriptions below
-
 Packages
 --------
-- :doc:`geometry` contains classes that instantiate the ground *cost matrix*
+.. module:: ott
+
+- :mod:`ott.geometry` contains classes that instantiate the ground *cost matrix*
   used to specify OT problems. Here cost matrix can be understood in
   a literal (by actually passing a matrix) or abstract sense (by passing
   information that is sufficient to recreate that matrix, apply all or parts
   of it, or apply its kernel). A typical example in the latter case arises
   when comparing *two point clouds*, paired with a *cost function*. Geometry
   objects are used to describe OT *problems*, solved next by *solvers*.
-- :doc:`problems/index` are used to describe linear or quadratic (GW) OT
+- :mod:`ott.problems` are used to describe linear, quadratic or barycenter OT
   problems.
-- :doc:`solvers/index` solve linear or quadratic problems with various
-  techniques, including some neural approaches.
-- :doc:`initializers/index` are used to speed up the resolution of OT
-  solvers.
-- :doc:`tools` provides an interface to exploit OT solutions, as produced by
-  solvers in the solvers. Such tasks include computing approximations
-  to Wasserstein distances :cite:`genevay:18,sejourne:19`, approximating OT
-  between GMMs, or computing differentiable sort and quantile operations
-  :cite:`cuturi:19`.
-- :doc:`math` holds low-level mathematical primitives.
-- :doc:`utils` provides misc helper functions
+- :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
+  one of the implemented techniques.
+- :mod:`ott.initializers` implement simple strategies to initialize solvers.
+  When the problems are solved with a convex solver, such as a
+  :class:`~ott.problems.linear.linear_problem.LinearProblem` solved with a
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, the resolution of OT
+  solvers, then this initialization is mostly useful to speed up convergences.
+  When the problem is *not* convex, which is the case for most other uses of
+  this toolbox, the initialization can play a decisive role to reach a useful
+  solution.
+- :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
+  solvers from the :mod:`ott.solvers` module. Such tasks include computing
+  approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
+  approximating OT between GMMs, or computing differentiable sort and quantile
+  operations :cite:`cuturi:19`.
+- :mod:`ott.math` holds low-level miscellaneous mathematical primitives, such as
+  an implementation of the matrix square-root.
+- :mod:`ott.utils` provides miscellaneous helper functions.
 
 .. toctree::
     :maxdepth: 1
     :caption: Examples
 
-    Getting Started <tutorials/notebooks/point_clouds>
+    Getting Started <tutorials/notebooks/basic_ot_between_datasets>
     tutorials/index
 
 .. toctree::
