@@ -670,7 +670,7 @@ class Bures(CostFn):
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     del children
-    return cls(aux_data[0], **aux_data[1])
+    return cls(*aux_data)
 
 
 @jax.tree_util.register_pytree_node_class

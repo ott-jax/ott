@@ -116,7 +116,7 @@ class FreeBarycenterState(NamedTuple):
     )
 
     x_new = jax.vmap(
-        bar_prob.cost_fn.barycenter, in_axes=[None, 1]
+        lambda w, y : bar_prob.cost_fn.barycenter(w,y)[0], in_axes=[None, 1]
     )(bar_prob.weights, barycenters_per_measure)
 
     return self.set(
