@@ -146,8 +146,9 @@ def barycentric_projection(
   Returns:
     a vector of shape (n,) containing the barycentric projection of matrix.
   """
-  return jax.vmap(lambda m, y : cost_fn.barycenter(m, y)[0],
-                  in_axes=[0, None])(matrix, y)
+  return jax.vmap(
+      lambda m, y: cost_fn.barycenter(m, y)[0], in_axes=[0, None]
+  )(matrix, y)
 
 
 softmin.defvjp(

@@ -145,8 +145,9 @@ class TestSinkhornBures:
       cost_fn = costs.UnbalancedBures(dimension=self.dim, gamma=0.9, sigma=0.98)
     else:
       x, y = self.x, self.y
-      cost_fn = costs.Bures(dimension=self.dim,
-                            sqrtm_kw={'regularization':1e-4})
+      cost_fn = costs.Bures(
+          dimension=self.dim, sqrtm_kw={"regularization": 1e-4}
+      )
 
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=self.eps)
     prob = linear_problem.LinearProblem(geom, self.a, self.b)
