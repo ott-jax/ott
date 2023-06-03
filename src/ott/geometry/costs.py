@@ -533,7 +533,7 @@ class Bures(CostFn):
       covs: jnp.ndarray,
       weights: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Optional[Dict[Any, Any]] = None,
+      sqrtm_kw: Optional[Dict[str, Any]] = None,
       **kwargs: Any
   ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians.
@@ -628,7 +628,7 @@ class Bures(CostFn):
       tolerance: convergence tolerance to control the termination of the
         algorithm.
       sqrtm_kw: Arguments passed on to the
-        :func:`ott.math.matrix_square_root.sqrtm` function used within
+        :func:`~ott.math.matrix_square_root.sqrtm` function used within
         :meth:`covariance_fixpoint_iter`. This defines the precision
         (in terms of convergence threshold, and number of iterations) of the
         matrix square root calls that are used at each outer iteration of
@@ -637,7 +637,7 @@ class Bures(CostFn):
       kwargs: Passed on to :meth:`covariance_fixpoint_iter`, to specify the
         number of iterations and tolerance of the fixed-point iteration of the
         barycenter routine, by parameterizing `tolerance` and other relevant
-        arguments passed on to :meth:`ott.math.fixed_point_loop.fixpoint_iter`,
+        arguments passed on to :func:`~ott.math.fixed_point_loop.fixpoint_iter`,
         namely `min_iterations`, `max_iterations` and `inner_iterations`.
 
     Returns:
