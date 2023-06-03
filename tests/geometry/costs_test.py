@@ -80,25 +80,45 @@ class TestBuresBarycenter:
 
   def test_bures(self, rng: jax.random.PRNGKeyArray):
     d = 5
-    r = jnp.array([0.3206, 0.8825, 0.1113, 0.00052, 0.9454])
+    r = jnp.array([1.2036, 0.2825, 0.013, 0.00052, 0.1454])
     Sigma1 = r * jnp.eye(d)
-    s = jnp.array([0.3075, 0.8545, 0.1110, 0.0054, 0.9206])
+    s = jnp.array([3.3075, 0.8545, 0.1110, 0.54, 0.9206])
     Sigma2 = s * jnp.eye(d)
     # initializing Bures cost function
     weights = jnp.array([.3, .7])
-    bures = costs.Bures(d)
+    tolerance = 1e-6
+    min_iterations = 13
+    inner_iterations = 1
+    max_iterations = 123
+    bures = costs.Bures(d, sqrtm_kw={"max_iterations": 134, "threshold": 1e-8})
     # stacking parameter values
     xs = jnp.vstack((
         costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma1, d),
         costs.mean_and_cov_to_x(jnp.zeros((d,)), Sigma2, d)
     ))
 
-    output = bures.barycenter(weights, xs, tolerance=1e-4, threshold=1e-6)
-    _, sigma = costs.x_to_means_and_covs(output, 5)
+    cov, diffs = bures.barycenter(
+        weights,
+        xs,
+        tolerance=tolerance,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations,
+        inner_iterations=inner_iterations
+    )
+
+    _, sigma = costs.x_to_means_and_covs(cov, 5)
     ground_truth = (weights[0] * jnp.sqrt(r) + weights[1] * jnp.sqrt(s)) ** 2
     np.testing.assert_allclose(
-        ground_truth, jnp.diag(sigma), rtol=1e-5, atol=1e-5
+        ground_truth, jnp.diag(sigma), rtol=1e-4, atol=1e-4
     )
+    # Check that outer loop ran for at leat min_iterations
+    np.testing.assert_array_less(
+        0, diffs[min_iterations // inner_iterations - 1]
+    )
+    # Check converged
+    np.testing.assert_array_less((diffs[diffs > -1])[-1], tolerance)
+    # Check right output size of difference vectors
+    np.testing.assert_equal(diffs.shape[0], max_iterations // inner_iterations)
 
 
 @pytest.mark.fast()
