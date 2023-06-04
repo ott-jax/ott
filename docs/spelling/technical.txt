@@ -19,10 +19,12 @@ Kullback
 Leibler
 Mahalanobis
 Monge
+Riemannian
 SGD
 Schur
 Seidel
 Sinkhorn
+Stiefel
 Unbalancedness
 Wasserstein
 adaptively
@@ -85,6 +87,7 @@ parameterization
 parameterizing
 piecewise
 pluripotent
+polytope
 positivity
 potentials
 precompile
@@ -115,6 +118,7 @@ sigmoid
 simplicial
 softplus
 stateful
+subgradient
 sublinear
 submodule
 suboptimal
