@@ -2,6 +2,7 @@ Barycenters
 Brenier
 Bures
 Cholesky
+Cuturi
 DTW
 Danskin
 Datasets

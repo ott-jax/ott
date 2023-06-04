@@ -101,9 +101,7 @@ bibtex_default_style = "alpha"
 # spelling
 spelling_lang = "en_US"
 spelling_warning = True
-spelling_word_list_filename = [
-    "spelling/technical.txt", "spelling/misc.txt", "spelling/latex.txt"
-]
+spelling_word_list_filename = ["spelling/technical.txt", "spelling/misc.txt"]
 spelling_add_pypi_package_names = True
 # flax misspelled words; `flax.linen.Module.bind` is ignored in `class.rst`
 # because of indentation error that cannot be suppressed
