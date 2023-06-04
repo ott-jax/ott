@@ -19,6 +19,7 @@ Linear Optimal Transport
     notebooks/Hessians
     notebooks/LRSinkhorn
     notebooks/sinkhorn_divergence_gradient_flow
+    notebooks/EntropicMapEstimation
 
 Barycenters
 ^^^^^^^^^^^
