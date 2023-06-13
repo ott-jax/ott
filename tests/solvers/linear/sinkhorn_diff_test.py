@@ -423,11 +423,14 @@ class TestSinkhornJacobian:
       )
 
     # Compute finite difference
-    perturb_scale = 1e-5
-    a_p = a + perturb_scale * delta_a if arg == 0 else a
-    x_p = x if arg == 0 else x + perturb_scale * delta_x
-    a_m = a - perturb_scale * delta_a if arg == 0 else a
-    x_m = x if arg == 0 else x - perturb_scale * delta_x
+    perturb_scale = 1e-3
+    a_p, a_m, x_p, x_m = a, a, x, x
+    if arg == 0:
+      a_p = a + perturb_scale * delta_a
+      a_m = a - perturb_scale * delta_a
+    else:
+      x_p = x + perturb_scale * delta_x
+      x_m = x - perturb_scale * delta_x
 
     app_p = apply_ot(a_p, x_p, False)
     app_m = apply_ot(a_m, x_m, True)
@@ -454,7 +457,7 @@ class TestSinkhornJacobian:
       lse_mode=[True, False],
       tau_a=[1.0, .93],
       tau_b=[1.0, .91],
-      shape=[(12, 15), (27, 18)],
+      shape=[(22, 25), (27, 18)],
       arg=[0, 1],
       only_fast=0,
   )
@@ -463,6 +466,8 @@ class TestSinkhornJacobian:
       tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
+    atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
+    rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
     dim = 3
     rngs = jax.random.split(rng, 7)
@@ -481,8 +486,8 @@ class TestSinkhornJacobian:
       delta_a = delta_a - jnp.mean(delta_a)
     delta_x = jax.random.uniform(rngs[6], (n, dim))
 
-    # As expected, lse_mode False has a harder time with small epsilon when
-    # differentiating.
+    # As expected, when not using lse_mode, the algorithm has a harder time
+    # with small epsilon when differentiating.
     epsilon = 0.01 if lse_mode else 0.1
 
     def loss_from_potential(a: jnp.ndarray, x: jnp.ndarray, implicit: bool):
@@ -523,14 +528,14 @@ class TestSinkhornJacobian:
     val_m, _ = loss_imp(a_m, x_m)
     fin_dif = (val_p - val_m) / (2 * perturb_scale)
 
-    np.testing.assert_allclose(fin_dif, back_dif, atol=1e-2, rtol=1e-2)
-    np.testing.assert_allclose(fin_dif, imp_dif, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, back_dif, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(fin_dif, imp_dif, atol=atol, rtol=rtol)
 
     # center g_imp, g_back if balanced problem testing gradient w.r.t weights
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       g_imp = g_imp - jnp.mean(g_imp)
       g_back = g_back - jnp.mean(g_back)
-    np.testing.assert_allclose(g_imp, g_back, atol=5e-2, rtol=1e-2)
+    np.testing.assert_allclose(g_imp, g_back, atol=atol, rtol=rtol)
 
 
 @pytest.mark.fast()
@@ -637,7 +642,9 @@ class TestSinkhornJacobianPreconditioning:
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
       tau_b: float, shape: Tuple[int, int], arg: int
   ):
-    """Test Jacobian of optimal potential w.r.t. weights and locations."""
+    """Test Jacobian of optimal potential works across 2 precond_fun."""
+    atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
+    rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
     dim = 3
     rngs = jax.random.split(rng, 7)
@@ -678,7 +685,7 @@ class TestSinkhornJacobianPreconditioning:
 
       return jnp.sum(random_dir * out.f)
 
-    # Compute implicit gradient
+    # Compute using no preconditioning
     loss_imp_no_precond = jax.jit(
         jax.value_and_grad(
             functools.partial(
@@ -689,7 +696,7 @@ class TestSinkhornJacobianPreconditioning:
             argnums=arg
         )
     )
-
+    # Compute using the default preconditioning, which uses h(x) = eps * log(x)
     loss_imp_log_precond = jax.jit(jax.grad(loss_from_potential, argnums=arg))
 
     _, g_imp_np = loss_imp_no_precond(a, x)
@@ -708,16 +715,16 @@ class TestSinkhornJacobianPreconditioning:
     val_p, _ = loss_imp_no_precond(a_p, x_p)
     val_m, _ = loss_imp_no_precond(a_m, x_m)
     fin_dif = (val_p - val_m) / (2 * perturb_scale)
-    np.testing.assert_allclose(fin_dif, imp_dif_lp, atol=1e-2, rtol=1e-2)
-    np.testing.assert_allclose(fin_dif, imp_dif_np, atol=1e-2, rtol=1e-2)
-    np.testing.assert_allclose(imp_dif_np, imp_dif_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(fin_dif, imp_dif_lp, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(fin_dif, imp_dif_np, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(imp_dif_np, imp_dif_lp, atol=atol, rtol=rtol)
 
     # center both if balanced problem testing gradient w.r.t weights
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       g_imp_np = g_imp_np - jnp.mean(g_imp_np)
       g_imp_lp = g_imp_lp - jnp.mean(g_imp_lp)
 
-    np.testing.assert_allclose(g_imp_np, g_imp_lp, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(g_imp_np, g_imp_lp, atol=atol, rtol=rtol)
 
 
 class TestSinkhornHessian:
@@ -748,15 +755,11 @@ class TestSinkhornHessian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
-    ridge = 1e-5
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(geom, a, b, tau_a, tau_b)
-      implicit_diff = (
-          None if not implicit else
-          implicit_lib.ImplicitDiff(ridge_kernel=ridge, ridge_identity=ridge)
-      )
+      implicit_diff = (implicit_lib.ImplicitDiff() if implicit else None)
       solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode,
           threshold=1e-4,

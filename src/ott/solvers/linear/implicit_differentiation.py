@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, TypeVar
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
+import lineax as lx
+from jaxtyping import Array, Float, PyTree
 
 from ott import utils
 from ott.math import unbalanced_functions as uf
@@ -25,6 +29,27 @@ if TYPE_CHECKING:
 
 __all__ = ["ImplicitDiff"]
 
+_T = TypeVar("_T")
+_FlatPyTree = tuple[list[_T], jtu.PyTreeDef]
+
+
+class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
+  """Implement a linear operator that can specify its transpose directly."""
+  fn: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
+  fn_t: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
+  input_structure: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
+  input_structure_t: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
+  tags: frozenset[object]
+
+  def __init__(self, fn, fn_t, input_structure, input_structure_t, tags=()):
+    super().__init__(fn, input_structure, tags)
+    self.fn_t = eqx.filter_closure_convert(fn_t, input_structure_t)
+    self.input_structure_t = input_structure_t
+
+  def transpose(self):
+    """Provide custom transposition operator from function."""
+    return lx.FunctionLinearOperator(self.fn_t, self.input_structure_t)
+
 
 @utils.register_pytree_node
 class ImplicitDiff:
@@ -32,15 +57,12 @@ class ImplicitDiff:
 
   Args:
     solver_fun: Callable, should return (solution, ...)
-    ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
-    ridge_identity: handles rank deficient transport matrices (this happens
-      typically when rows/cols in cost/kernel matrices are collinear, or,
-      equivalently when two points from either measure are close).
     symmetric: flag used to figure out whether the linear system solved in the
-      implicit function theorem is symmetric or not. This happens when either
-      ``a == b`` or the precondition_fun is the identity. False by default, and,
-      at the moment, needs to be set manually by the user in the more favorable
-      case where the system is guaranteed to be symmetric.
+      implicit function theorem is symmetric or not. This happens when
+      ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
+      is the identity. The flag is False by default, and is also tested against
+       ``tau_a==tau_b``. It needs to be set manually by the user in the more
+      favorable case where the system is guaranteed to be symmetric.
     precondition_fun: Function used to precondition, on both sides, the linear
       system derived from first-order conditions of the regularized OT problem.
       That linear system typically involves an equality between marginals (or
@@ -51,10 +73,7 @@ class ImplicitDiff:
       theorem differentiation.
   """
 
-  solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
-                       Tuple[jnp.ndarray, ...]] = jax.scipy.sparse.linalg.cg
-  ridge_kernel: float = 0.0
-  ridge_identity: float = 0.0
+  solver: Optional[lx.AbstractLinearSolver] = None
   symmetric: bool = False
   precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
 
@@ -117,20 +136,9 @@ class ImplicitDiff:
     instantiate the Schur complement of the first or of the second diagonal
     block.
 
-    In either case, the Schur complement is rank deficient, with a 0 eigenvalue
-    for the vector of ones in the balanced case, which is why we add a ridge on
-    that subspace to enforce solutions have zero sum.
-
-    The Schur complement can also be rank deficient if two lines or columns of T
-    are collinear. This will typically happen it two rows or columns of the cost
-    or kernel matrix are numerically close. To avoid this, we add a more global
-    ``ridge_identity * z`` regularizer to achieve better conditioning.
-
-    These linear systems are solved using the user defined ``solver_fun``,
-    which is set by default to ``cg``. When the system is symmetric (as detected
-    by the corresponding flag ``symmetric``), ``cg`` is applied directly. When
-    it is not, normal equations are used (i.e. the Schur complement is
-    multiplied by its transpose before solving the system).
+    These linear systems are solved using the user defined ``solver``. This
+    defaults to :class:`~lineax.AutoLinearSolver` when the operator is
+    symmetric, and :class:`~lineax.NormalCG` when it is not.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
@@ -147,12 +155,23 @@ class ImplicitDiff:
         ot_prob.get_transport_functions(lse_mode)
     )
 
+    if self.symmetric:
+      solver = lx.AutoLinearSolver(
+          well_posed=False
+      ) if self.solver is None else self.solver
+    else:
+      solver = lx.NormalCG(
+          rtol=1e-6, atol=1e-6
+      ) if self.solver is None else self.solver
+
     # elementwise vmap apply of derivative of precondition_fun. No vmapping
     # can be problematic here.
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
+      symmetric = False
     else:
       precond_fun = self.precondition_fun
+      symmetric = self.symmetric
     derivative = jax.vmap(jax.grad(precond_fun))
 
     n, m = geom.shape
@@ -164,13 +183,12 @@ class ImplicitDiff:
         f, g, z * derivative(marginal_a(f, g)), axis=0
     ) / geom.epsilon
 
-    if not self.symmetric:
-      vjp_fgt = lambda z: app_transport(
-          f, g, z, axis=0
-      ) * derivative(marginal_b(f, g)) / geom.epsilon
-      vjp_gft = lambda z: app_transport(
-          f, g, z, axis=1
-      ) * derivative(marginal_a(f, g)) / geom.epsilon
+    vjp_fgt = lambda z: app_transport(
+        f, g, z, axis=0
+    ) * derivative(marginal_b(f, g)) / geom.epsilon
+    vjp_gft = lambda z: app_transport(
+        f, g, z, axis=1
+    ) * derivative(marginal_a(f, g)) / geom.epsilon
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
@@ -186,50 +204,49 @@ class ImplicitDiff:
     )
 
     n, m = geom.shape
-    # Remove ridge on kernel space if problem is balanced.
-    ridge_kernel = jnp.where(ot_prob.is_balanced, self.ridge_kernel, 0.0)
 
     # Forks on using Schur complement of either A or D, depending on size.
     if n > m:  #  if n is bigger, run m x m linear system.
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
-      schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
+      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
       res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      input_structure = jax.eval_shape(lambda: res)  # for lineax
+      if symmetric:
+        fn_operator = lx.FunctionLinearOperator(
+            schur, input_structure, tags=lx.symmetric_tag
         )
+        sch = lx.linear_solve(fn_operator, res, solver).value
       else:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
+        fn_operator = CustomTransposeLinearOperator(
+            schur, schur_t, input_structure, input_structure
         )
+        sch = lx.linear_solve(fn_operator, res, solver).value
 
-      sch = self.solver_fun(schur, res)[0]
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
+
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
-      schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
+      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
       res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
+      input_structure = jax.eval_shape(lambda: res)  # for lineax
+      if symmetric:
+        fn_operator = lx.FunctionLinearOperator(
+            schur, input_structure, tags=lx.symmetric_tag
         )
+        sch = lx.linear_solve(fn_operator, res, solver).value
       else:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
+        fn_operator = CustomTransposeLinearOperator(
+            schur, schur_t, input_structure, input_structure
         )
+        sch = lx.linear_solve(fn_operator, res, solver).value
 
-      sch = self.solver_fun(schur, res)[0]
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
