@@ -164,6 +164,7 @@ class ImplicitDiff:
           rtol=1e-6, atol=1e-6
       ) if self.solver is None else self.solver
 
+    if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
       symmetric = False
     else:
@@ -172,7 +173,6 @@ class ImplicitDiff:
     derivative = jax.vmap(jax.grad(precond_fun))
     # elementwise vmap apply of derivative of precondition_fun. No vmapping
     # can be problematic here.
-    if self.precondition_fun is None:
 
     n, m = geom.shape
     # pylint: disable=g-long-lambda
