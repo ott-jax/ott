@@ -46,7 +46,7 @@ class ImplicitDiff:
       implicit function theorem is symmetric or not. This happens when
       ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
       is the identity. The flag is False by default, and is also tested against
-       ``tau_a==tau_b``. It needs to be set manually by the user in the more
+      ``tau_a==tau_b``. It needs to be set manually by the user in the more
       favorable case where the system is guaranteed to be symmetric.
     precondition_fun: Function used to precondition, on both sides, the linear
       system derived from first-order conditions of the regularized OT problem.
