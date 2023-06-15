@@ -183,7 +183,7 @@ class ImplicitDiff:
         )
     )
     n, m = geom.shape
-    #TODO(cuturi) consider materializing linear if size allows.
+    # TODO(cuturi) consider materializing linear operator schur if size allows.
     # Forks on using Schur complement of either A or D, depending on size.
     if n > m:  #  if n is bigger, run m x m linear system.
       inv_vjp_ff = lambda z: z / diag_hess_a
