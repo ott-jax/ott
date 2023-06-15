@@ -745,6 +745,8 @@ class TestSinkhornHessian:
       tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
+    if tau_a == tau_b == 1.0:
+      _ = pytest.importorskip("lineax")  # only tested using lineax
     # TODO(cuturi): reinstate this flag to True when JAX bug fixed.
     test_back = False
 
