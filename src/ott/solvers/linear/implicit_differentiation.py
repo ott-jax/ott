@@ -35,11 +35,12 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Args:
-    solver: Callable to compute the solution to a linear solver. The
-      Callable expects a linear function, a vector, another linear function that
-      is the transpose of that function and a boolean flag to signal symmetry.
-      This defaults to Lineax's `CG` or `NormalCG` solvers if the latter can be
-      imported, JAX's analogous maps if it cannot.
+    solver: Callable to compute the solution to a linear solver. The Callable
+      expects a linear function, a vector, another linear function that
+      implements the transpose of that function, and a boolean flag to specify
+      symmetry. This defaults to `lineax` `CG` or `NormalCG` solvers if the
+      latter can be imported, or `JAX` analogous solvers if the former cannot
+      be loaded.
     solver_kwargs: keyword arguments passed on to solver.
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when
