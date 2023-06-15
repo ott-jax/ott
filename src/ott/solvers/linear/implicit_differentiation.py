@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
-import equinox as eqx
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
-import lineax as lx
-from jaxtyping import Array, Float, PyTree
 
 from ott import utils
 from ott.math import unbalanced_functions as uf
@@ -27,28 +23,11 @@ from ott.math import unbalanced_functions as uf
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
 
+LinOp_t = Callable[[jnp.ndarray], jnp.ndarray]
+Solver_t = Callable[[LinOp_t, jnp.ndarray, Optional[LinOp_t], bool],
+                    jnp.ndarray]
+
 __all__ = ["ImplicitDiff"]
-
-_T = TypeVar("_T")
-_FlatPyTree = tuple[list[_T], jtu.PyTreeDef]
-
-
-class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
-  """Implement a linear operator that can specify its transpose directly."""
-  fn: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
-  fn_t: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
-  input_structure: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
-  input_structure_t: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
-  tags: frozenset[object]
-
-  def __init__(self, fn, fn_t, input_structure, input_structure_t, tags=()):
-    super().__init__(fn, input_structure, tags)
-    self.fn_t = eqx.filter_closure_convert(fn_t, input_structure_t)
-    self.input_structure_t = input_structure_t
-
-  def transpose(self):
-    """Provide custom transposition operator from function."""
-    return lx.FunctionLinearOperator(self.fn_t, self.input_structure_t)
 
 
 @utils.register_pytree_node
@@ -56,7 +35,12 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Args:
-    solver_fun: Callable, should return (solution, ...)
+    solver: Callable to compute the solution to a linear solver. The
+      Callable expects a linear function, a vector, another linear function that
+      is the transpose of that function and a boolean flag to signal symmetry.
+      This defaults to Lineax's `CG` or `NormalCG` solvers if the latter can be
+      imported, JAX's analogous maps if it cannot.
+    solver_kwargs: keyword arguments passed on to solver.
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when
       ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
@@ -73,14 +57,18 @@ class ImplicitDiff:
       theorem differentiation.
   """
 
-  solver: Optional[lx.AbstractLinearSolver] = None
+  solver: Optional[Solver_t] = None
+  solver_kwargs: Optional[Dict[str, Any]] = None
   symmetric: bool = False
   precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
 
   def solve(
-      self, gr: Tuple[jnp.ndarray,
-                      jnp.ndarray], ot_prob: "linear_problem.LinearProblem",
-      f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
+      self,
+      gr: Tuple[jnp.ndarray, jnp.ndarray],
+      ot_prob: "linear_problem.LinearProblem",
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      lse_mode: bool,
   ) -> jnp.ndarray:
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
@@ -150,29 +138,20 @@ class ImplicitDiff:
     Returns:
       A tuple of two vectors, of the same size as ``gr``.
     """
+    solver = _get_solver() if self.solver is None else self.solver
+    solver_kwargs = {} if self.solver_kwargs is None else self.solver_kwargs
     geom = ot_prob.geom
     marginal_a, marginal_b, app_transport = (
         ot_prob.get_transport_functions(lse_mode)
     )
-
-    if self.symmetric:
-      solver = lx.AutoLinearSolver(
-          well_posed=False
-      ) if self.solver is None else self.solver
-    else:
-      solver = lx.NormalCG(
-          rtol=1e-6, atol=1e-6
-      ) if self.solver is None else self.solver
-
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
       symmetric = False
     else:
       precond_fun = self.precondition_fun
       symmetric = self.symmetric
+
     derivative = jax.vmap(jax.grad(precond_fun))
-    # elementwise vmap apply of derivative of precondition_fun. No vmapping
-    # can be problematic here.
 
     n, m = geom.shape
     # pylint: disable=g-long-lambda
@@ -202,51 +181,34 @@ class ImplicitDiff:
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
         )
     )
-
     n, m = geom.shape
-
+    #TODO(cuturi) consider materializing linear if size allows.
     # Forks on using Schur complement of either A or D, depending on size.
     if n > m:  #  if n is bigger, run m x m linear system.
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
-      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
-      res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
-
-      input_structure = jax.eval_shape(lambda: res)  # for lineax
-      if symmetric:
-        fn_operator = lx.FunctionLinearOperator(
-            schur, input_structure, tags=lx.symmetric_tag
-        )
-        sch = lx.linear_solve(fn_operator, res, solver).value
-      else:
+      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))
+                                          ) + (.001 * z if symmetric else 0)
+      if not symmetric:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        fn_operator = CustomTransposeLinearOperator(
-            schur, schur_t, input_structure, input_structure
-        )
-        sch = lx.linear_solve(fn_operator, res, solver).value
-
+      else:
+        schur_t = None
+      res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
+      sch = solver(schur, res, schur_t, symmetric, **solver_kwargs)
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
-
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
-      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
-      res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
+      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))
+                                          ) + (.001 * z if symmetric else 0)
 
-      input_structure = jax.eval_shape(lambda: res)  # for lineax
-      if symmetric:
-        fn_operator = lx.FunctionLinearOperator(
-            schur, input_structure, tags=lx.symmetric_tag
-        )
-        sch = lx.linear_solve(fn_operator, res, solver).value
-      else:
+      if not symmetric:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        fn_operator = CustomTransposeLinearOperator(
-            schur, schur_t, input_structure, input_structure
-        )
-        sch = lx.linear_solve(fn_operator, res, solver).value
-
+      else:
+        schur_t = None
+      res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
+      sch = solver(schur, res, schur_t, symmetric, **solver_kwargs)
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
@@ -312,3 +274,24 @@ class ImplicitDiff:
 
   def replace(self, **kwargs: Any) -> "ImplicitDiff":  # noqa: D102
     return dataclasses.replace(self, **kwargs)
+
+
+def solve_jax_cg(
+    lin: LinOp_t,
+    b: jnp.ndarray,
+    lin_t: Optional[LinOp_t] = None,
+    symmetric: Optional[bool] = False,
+    **kwargs: Any
+) -> jnp.ndarray:
+  """Wrapper around JAX native linear solvers."""
+  lin_ = lin if symmetric else lambda x: lin_t(lin(x))
+  return jax.scipy.sparse.linalg.cg(lin_, b, **kwargs)[0]
+
+
+def _get_solver() -> Solver_t:
+  """Get lineax solver when possible, default to jax.scipy else."""
+  try:
+    from ott.solvers.linear import lineax_implicit
+    return lineax_implicit.solve_lineax
+  except ImportError:
+    return solve_jax_cg

@@ -161,6 +161,7 @@ class TestSoftSort:
       self, rng: jax.random.PRNGKeyArray, implicit: bool
   ):
     b, n = 10, 40
+    num_targets = n // 2
     idx_column = 5
     rngs = jax.random.split(rng, 3)
     z = jax.random.uniform(rngs[0], ((b, n)))
@@ -171,7 +172,7 @@ class TestSoftSort:
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
-          num_targets=167,
+          num_targets=num_targets,
           implicit_diff=implicit_diff,
       )
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)

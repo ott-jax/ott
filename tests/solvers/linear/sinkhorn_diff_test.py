@@ -638,7 +638,7 @@ class TestSinkhornJacobianPreconditioning:
       arg=[0, 1],
       only_fast=[0, -1],
   )
-  def test_potential_jacobian_sinkhorn(
+  def test_potential_jacobian_sinkhorn_precond(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
       tau_b: float, shape: Tuple[int, int], arg: int
   ):

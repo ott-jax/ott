@@ -20,7 +20,7 @@ dependencies = [
     "numpy>=1.18.4, !=1.23.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
-    "lineax>=0.0.1"
+    "lineax>=0.0.1; python_version >= '3.9'"
 ]
 keywords = [
     "optimal transport",
