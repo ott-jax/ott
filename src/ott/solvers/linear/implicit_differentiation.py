@@ -56,6 +56,7 @@ class ImplicitDiff:
       function is applied on both sides of the equality, before being further
       differentiated to provide the Jacobians needed for implicit function
       theorem differentiation.
+
   """
 
   solver: Optional[Solver_t] = None
