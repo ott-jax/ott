@@ -38,7 +38,7 @@ class ImplicitDiff:
     solver: Callable to compute the solution to a linear solver. The Callable
       expects a linear function, a vector, another linear function that
       implements the transpose of that function, and a boolean flag to specify
-      symmetry. This defaults to `lineax` `CG` or `NormalCG` solvers if the
+      symmetry. This defaults to `lineax`'s `CG` or `NormalCG` solvers if the
       latter can be imported, or `JAX` analogous solvers if the former cannot
       be loaded.
     solver_kwargs: keyword arguments passed on to solver.
