@@ -43,32 +43,32 @@ def monge_gap(
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
-  samples: samples from the reference measure :math:`rho`.
-  mapped_samples: samples from the reference measure :math:`rho`
-  mapped with :math:`T`, i.e. samples from :math:T\sharp\rho.
-  cost_fn: a CostFn function between two points in dimension d.
-  epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
-  ``relative_epsilon = True`` or ``relative_epsilon = None`` and
-  ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-  is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
-  ``epsilon = None``, use :math:`0.05`.
-  relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
-  value of the entropic regularization parameter. When `True`, ``epsilon``
-  refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
-  adaptively from data.
-  scale_cost: option to rescale the cost matrix. Implemented scalings are
-  'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
-  given to rescale the cost such that ``cost_matrix /= scale_cost``.
-  If `True`, use 'mean'.
-  sinkhorn_kwargs: holds the kwargs to instanciate the or
-  :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver to
-  compute the regularized OT cost.
-  kwargs: additional kwargs to pass to the
-  :class:`ott.geometry.pointcloud.PointCloud`, for instantiating
-  the geometry between ``samples`` and ``mapped samples``.
+    samples: samples from the reference measure :math:`rho`.
+    mapped_samples: samples from the reference measure :math:`rho`
+    mapped with :math:`T`, i.e. samples from :math:T\sharp\rho.
+    cost_fn: a CostFn function between two points in dimension d.
+    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+      ``epsilon = None``, use :math:`0.05`.
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
+      adaptively from data.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+      If `True`, use 'mean'.
+    sinkhorn_kwargs: holds the kwargs to instanciate the or
+      :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver to
+      the regularized OT cost.
+    kwargs: additional kwargs to pass to the
+      :class:`ott.geometry.pointcloud.PointCloud`, for instantiating
+      the geometry between ``samples`` and ``mapped samples``.
 
   Returns:
-  The Monge gap value.
+    The Monge gap value.
   """
   n = len(samples)
   geom = pointcloud.PointCloud(
