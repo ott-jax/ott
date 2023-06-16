@@ -134,9 +134,9 @@ class ImplicitDiff:
     instantiate the Schur complement of the first or of the second diagonal
     block.
 
-    These linear systems are solved using the user defined ``solver``. This
-    defaults to :class:`~lineax.AutoLinearSolver` when the operator is
-    symmetric, and :class:`~lineax.NormalCG` when it is not.
+    These linear systems are solved using the user defined ``solver``, using
+    by default `lineax` solvers when available, or falling back on `jax` when
+    not.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
