@@ -35,21 +35,21 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Args:
-    solver: Callable to compute the solution to a linear solver. The Callable
-      expects a linear function, a vector, another linear function that
-      implements the transpose of that function, and a boolean flag to specify
-      symmetry. This defaults to `lineax`'s `CG` or `NormalCG` solvers if the
-      package can be imported, as described in
+    solver: Callable to compute the solution to a linear problem. The Callable
+      expects a linear function, a vector, optionally another linear function
+      that implements the transpose of that function, and a boolean flag to
+      specify symmetry. This solver is by default one of `lineax`'s `CG` or
+      `NormalCG` solvers, if the package can be imported, as described in
       {func}:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The pure `JAX` alternative is described in
       {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
       Note that `lineax` solvers handle better poorly conditioned problems,
       which arise typically when differentiating the solutions of balanced OT
-      problems (when ``tau_a==tau_b==1.0``). Using
+      problems (when ``tau_a==tau_b==1.0``). Relying on
       {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
-      in such cases might require hand-tuning ridge parameters,
+      for such cases might require hand-tuning ridge parameters,
       in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
-      doc, using ``solver_kwargs`` below.
+      doc. These parameters can be passed using ``solver_kwargs`` below.
     solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when
