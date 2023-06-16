@@ -40,13 +40,13 @@ class ImplicitDiff:
       that implements the transpose of that function, and a boolean flag to
       specify symmetry. This solver is by default one of `lineax`'s `CG` or
       `NormalCG` solvers, if the package can be imported, as described in
-      {func}:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
+      :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The pure `JAX` alternative is described in
-      {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
+      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
       Note that `lineax` solvers handle better poorly conditioned problems,
       which arise typically when differentiating the solutions of balanced OT
       problems (when ``tau_a==tau_b==1.0``). Relying on
-      {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
+      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
       for such cases might require hand-tuning ridge parameters,
       in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
       doc. These parameters can be passed using ``solver_kwargs`` below.
