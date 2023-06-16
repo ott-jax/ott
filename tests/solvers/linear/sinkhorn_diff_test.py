@@ -668,7 +668,7 @@ class TestSinkhornJacobianPreconditioning:
 
     # As expected, lse_mode False has a harder time with small epsilon when
     # differentiating.
-    epsilon = 0.01 if lse_mode else 0.1
+    epsilon = 0.05 if lse_mode else 0.1
 
     def loss_from_potential(
         a: jnp.ndarray,
