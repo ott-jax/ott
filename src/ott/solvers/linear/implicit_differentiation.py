@@ -39,9 +39,18 @@ class ImplicitDiff:
       expects a linear function, a vector, another linear function that
       implements the transpose of that function, and a boolean flag to specify
       symmetry. This defaults to `lineax`'s `CG` or `NormalCG` solvers if the
-      latter can be imported, or `JAX` analogous solvers if the former cannot
-      be loaded.
-    solver_kwargs: keyword arguments passed on to solver.
+      package can be imported, as described in
+      {func}:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
+      The pure `JAX` alternative is described in
+      {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
+      Note that `lineax` solvers handle better poorly conditioned problems,
+      which arise typically when differentiating the solutions of balanced OT
+      problems (when ``tau_a==tau_b==1.0``). Using
+      {func}:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
+      in such cases might require hand-tuning ridge parameters,
+      in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
+      doc, using ``solver_kwargs`` below.
+    solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when
       ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
@@ -163,12 +172,13 @@ class ImplicitDiff:
         f, g, z * derivative(marginal_a(f, g)), axis=0
     ) / geom.epsilon
 
-    vjp_fgt = lambda z: app_transport(
-        f, g, z, axis=0
-    ) * derivative(marginal_b(f, g)) / geom.epsilon
-    vjp_gft = lambda z: app_transport(
-        f, g, z, axis=1
-    ) * derivative(marginal_a(f, g)) / geom.epsilon
+    if not symmetric:
+      vjp_fgt = lambda z: app_transport(
+          f, g, z, axis=0
+      ) * derivative(marginal_b(f, g)) / geom.epsilon
+      vjp_gft = lambda z: app_transport(
+          f, g, z, axis=1
+      ) * derivative(marginal_a(f, g)) / geom.epsilon
 
     diag_hess_a = (
         marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
@@ -188,8 +198,7 @@ class ImplicitDiff:
     if n > m:  #  if n is bigger, run m x m linear system.
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
-      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z))
-                                          ) + (.001 * z if symmetric else 0)
+      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
       if not symmetric:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
       else:
@@ -201,8 +210,7 @@ class ImplicitDiff:
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
-      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z))
-                                          ) + (.001 * z if symmetric else 0)
+      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
 
       if not symmetric:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))

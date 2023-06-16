@@ -168,12 +168,21 @@ class TestSoftSort:
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
     def loss_fn(logits: jnp.ndarray) -> float:
-      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+      im_d = None
+      if implicit:
+        # Ridge parameters are only used when using JAX's CG.
+        im_d = implicit_lib.ImplicitDiff(
+            solver_kwargs={
+                "ridge_identity": 1e-1,
+                "ridge_kernel": 1e-1
+            }
+        )
+
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
           num_targets=num_targets,
-          implicit_diff=implicit_diff,
+          implicit_diff=im_d,
       )
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 
