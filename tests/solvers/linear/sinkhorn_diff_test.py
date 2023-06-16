@@ -745,8 +745,6 @@ class TestSinkhornHessian:
       tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
-    if tau_a == tau_b == 1.0:
-      _ = pytest.importorskip("lineax")  # only tested using lineax
     # TODO(cuturi): reinstate this flag to True when JAX bug fixed.
     test_back = False
 
@@ -760,11 +758,19 @@ class TestSinkhornHessian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
+    ridge_kernel = 1e-5 if tau_a == tau_b == 1.0 else 0.0
+    ridge_identity = 1e-5
+    # Kwargs used for JAX solvers (not considered by Lineax)
+    solver_kwargs = {
+        "ridge_kernel": ridge_kernel,
+        "ridge_identity": ridge_identity
+    }
+    imp_dif = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(geom, a, b, tau_a, tau_b)
-      implicit_diff = (implicit_lib.ImplicitDiff() if implicit else None)
+      implicit_diff = imp_dif if implicit else None
       solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode,
           threshold=1e-4,

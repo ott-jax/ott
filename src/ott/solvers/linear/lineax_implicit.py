@@ -52,10 +52,23 @@ def solve_lineax(
     nonsym_solver: Optional[lx.AbstractLinearSolver] = None,
     **kwargs: Any
 ):
-  """Wrapper around lineax solvers."""
+  """Wrapper around lineax solvers.
+
+  Args:
+    lin: Linear operator
+    b: vector such that sought `x` is such that `lin(x)=b`
+    lin_t: Linear operator, corresponding to transpose of `lin`.
+    symmetric: whether `lin` is symmetric.
+    nonsym_solver: `lineax` solver used when handling non symmetric cases. Note
+      that `CG` is used by default in the symmetric case.
+    kwargs: arguments passed to `lineax`'s linear solver.
+  """
   input_structure = jax.eval_shape(lambda: b)
   kwargs.setdefault("rtol", 1e-6)
   kwargs.setdefault("atol", 1e-6)
+  # Ridge parameters passed to JAX solvers are ignored in lineax.
+  _ = kwargs.pop("ridge_identity", None)
+  _ = kwargs.pop("ridge_kernel", None)
 
   if symmetric:
     solver = lx.CG(**kwargs)

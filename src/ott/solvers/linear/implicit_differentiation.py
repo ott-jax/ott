@@ -282,11 +282,29 @@ def solve_jax_cg(
     b: jnp.ndarray,
     lin_t: Optional[LinOp_t] = None,
     symmetric: Optional[bool] = False,
+    ridge_identity: float = 0.0,
+    ridge_kernel: float = 0.0,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Wrapper around JAX native linear solvers."""
-  lin_ = lin if symmetric else lambda x: lin_t(lin(x))
-  return jax.scipy.sparse.linalg.cg(lin_, b, **kwargs)[0]
+  """Wrapper around JAX native linear solvers.
+
+  Args:
+    lin: Linear operator
+    b: vector such that sought `x` is such that `lin(x)=b`
+    lin_t: Linear operator, corresponding to transpose of `lin`.
+    symmetric: whether `lin` is symmetric.
+    ridge_kernel: promotes zero-sum solutions. Only use if `tau_a = tau_b = 1.0`
+    ridge_identity: handles rank deficient transport matrices (this happens
+      typically when rows/cols in cost/kernel matrices are collinear, or,
+      equivalently when two points from either measure are close).
+    kwargs: arguments passed to jax.scipy.sparse.linalg.cg
+  """
+  l = lin if symmetric else lambda x: lin_t(lin(x))
+  if ridge_kernel > 0.0 or ridge_identity > 0.0:
+    lin_reg = lambda x: l(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
+  else:
+    lin_reg = l
+  return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
 
 
 def _get_solver() -> Solver_t:
