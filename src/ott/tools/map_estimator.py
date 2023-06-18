@@ -47,17 +47,17 @@ class MapEstimator:
   optimal for the Monge problem induced by :math:`c`.
 
   Args:
-  dim_data: input dimensionality of data required for network init
-  model: network architecture for map :math:`T`.
-  optimizer: optimizer function for map :math:`T`.
-  fitting_loss: fitting loss :math:`Delta` to fit the marginal constraint
-  regularizer: regularizer :math:`R` to impose an inductive bias
-  on the map :math:`T`
-  num_train_iters: number of total training iterations
-  num_inner_iters: number of training iterations of :math:`g` per iteration
-  valid_freq: frequency with training and validation are logged
-  logging: option to return logs
-  rng: random key used for seeding for network initializations
+    dim_data: input dimensionality of data required for network init
+    model: network architecture for map :math:`T`.
+    optimizer: optimizer function for map :math:`T`.
+    fitting_loss: fitting loss :math:`Delta` to fit the marginal constraint
+    regularizer: regularizer :math:`R` to impose an inductive bias
+      on the map :math:`T`
+    num_train_iters: number of total training iterations
+    num_inner_iters: number of training iterations of :math:`g` per iteration
+    valid_freq: frequency with training and validation are logged
+    logging: option to return logs
+    rng: random key used for seeding for network initializations
   """
 
   def __init__(
