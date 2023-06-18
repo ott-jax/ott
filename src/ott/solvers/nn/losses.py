@@ -67,7 +67,7 @@ def monge_gap(
       the geometry between ``samples`` and ``mapped samples``.
 
   Returns:
-  The Monge gap value.
+    The Monge gap value.
   """
   n = len(samples)
   geom = pointcloud.PointCloud(

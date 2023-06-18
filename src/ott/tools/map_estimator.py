@@ -105,7 +105,7 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be for instance the {function}`~ott.solvers.nn.losses.monge_gap`.
+    Can be for instance the {func}`~ott.solvers.nn.losses.monge_gap`.
     If no ``regularizer`` is passed for solver instanciation,
     or regularization weight ``lambd_regularizer``is 0.,
     return 0. by default.
@@ -120,7 +120,7 @@ class MapEstimator:
     """Fitting loss to fit the marginal constraint.
 
     Can be for instance the
-    {function}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    {func}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
     If no ``fitting_loss` is passed for solver instanciation,
     return 0. by default.
     In that case, only the ``regularizer`` is minimized.
