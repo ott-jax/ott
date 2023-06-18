@@ -106,10 +106,10 @@ class MapEstimator:
     """Regularizer added to the fitting loss.
 
     Can be for instance the {func}`~ott.solvers.nn.losses.monge_gap`.
-    If no :attr:``regularizer`` is passed for solver instanciation,
+    If no regularizer is passed for solver instanciation,
     or regularization weight :attr:``lambd_regularizer``is 0.,
-    return 0. by default.
-    In that case, only the :attr:``fitting loss`` is minimized.
+    return 0 by default.
+    In that case, only the fitting loss is minimized.
     """
     if self._regularizer is not None:
       return self._regularizer
@@ -121,9 +121,9 @@ class MapEstimator:
 
     Can be for instance the
     {func}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
-    If no :attr:``fitting_loss` is passed for solver instanciation,
+    If no fitting_loss is passed for solver instanciation,
     return 0. by default.
-    In that case, only the :attr:``regularizer`` is minimized.
+    In that case, only the regularizer is minimized.
     """
     if self._fitting_loss is not None:
       return self._fitting_loss
