@@ -21,7 +21,6 @@ import jax.numpy as jnp
 import optax
 from flax.core.frozen_dict import FrozenDict
 from flax.training import train_state
-from tqdm import trange
 
 from ott.solvers.nn.models import ModelBase
 
@@ -156,7 +155,13 @@ class MapEstimator:
     # define logs
     logs = defaultdict(lambda: defaultdict(list))
 
-    tbar = trange(self.num_train_iters, leave=True)
+    # try to display training progress with tqdm
+    try:
+      from tqdm import trange
+      tbar = trange(self.num_train_iters, leave=True)
+    except ImportError:
+      tbar = range(self.num_train_iters)
+
     for step in tbar:
 
       #  update step
@@ -183,15 +188,18 @@ class MapEstimator:
         for log_key in logs:
           for metric_key in logs[log_key]:
             logs[log_key][metric_key].append(current_logs[log_key][metric_key])
-        reg_msg = (
-            "not computed" if current_logs["eval"]["regularizer"] == 0. else
-            f"{current_logs['eval']['regularizer']:.4f}"
-        )
-        postfix_str = (
-            f"fitting_loss: {current_logs['eval']['fitting_loss']:.4f}, "
-            f"regularizer: {reg_msg}."
-        )
-        tbar.set_postfix_str(postfix_str)
+
+        # udpate the tqdm bar if tqdm is available
+        if not isinstance(tbar, range):
+          reg_msg = (
+              "not computed" if current_logs["eval"]["regularizer"] == 0. else
+              f"{current_logs['eval']['regularizer']:.4f}"
+          )
+          postfix_str = (
+              f"fitting_loss: {current_logs['eval']['fitting_loss']:.4f}, "
+              f"regularizer: {reg_msg}."
+          )
+          tbar.set_postfix_str(postfix_str)
 
     return self.state_neural_net, logs
 
