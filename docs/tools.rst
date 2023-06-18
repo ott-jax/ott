@@ -50,6 +50,13 @@ Clustering
     k_means.k_means
     k_means.KMeansOutput
 
+Mapping Estimation
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    map_estimator.MapEstimator
+
 ott.tools.gaussian_mixture package
 ----------------------------------
 .. currentmodule:: ott.tools.gaussian_mixture
@@ -68,10 +75,3 @@ Gaussian Mixtures
     fit_gmm.initialize
     fit_gmm.fit_model_em
     fit_gmm_pair.get_fit_model_em_fn
-
-Map Estimator
-^^^^^^^^^^^^^^^^^
-.. autosummary::
-    :toctree: _autosummary
-
-    map_estimator.MapEstimator
