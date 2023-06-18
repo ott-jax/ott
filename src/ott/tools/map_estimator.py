@@ -41,8 +41,8 @@ class MapEstimator:
 
   For instance, :math:`\Delta` can be the
   {function}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the {function}`~ott.solvers.nn.losses.monge_gap`
-  (see :cite:`uscidda:23) for a given cost function :math:`c`.
+  and :math:`R` the {func}`~ott.solvers.nn.losses.monge_gap`
+  (see :cite:`uscidda:23`) for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
 
