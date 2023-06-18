@@ -80,9 +80,7 @@ def monge_gap(
       scale_cost=scale_cost,
       **kwargs
   )
-  gt_displacement_cost = (1 / n) * jnp.sum(
-      jax.vmap(cost_fn)(samples, mapped_samples)
-  )
+  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(samples, mapped_samples))
   reg_opt_displacement_cost = sinkhorn.solve(
       geom=geom, **sinkhorn_kwargs
   ).reg_ot_cost
