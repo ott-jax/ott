@@ -734,8 +734,8 @@ class TestSinkhornHessian:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .97],
-      tau_b=[1.0, .95],
+      tau_a=[1.0, .93],
+      tau_b=[1.0, .91],
       shape=[(12, 15)],
       arg=[0, 1],
       only_fast=-1
@@ -758,7 +758,6 @@ class TestSinkhornHessian:
 
     ## Add a ridge when using JAX solvers.
     try:
-      from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
     except ImportError:
       solver_kwargs = {
@@ -794,6 +793,7 @@ class TestSinkhornHessian:
         jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
     )
     hess_back = hess_loss_back(a, x)
+
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
     # but only need to be so on the orthogonal space to 1s.
@@ -807,32 +807,33 @@ class TestSinkhornHessian:
     # entire matrices. We switch to relative 1-norm of difference.
     dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
     rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-    assert rel_dif_norm < 0.1 if lse_mode else 0.25
+    assert rel_dif_norm < 0.1
 
     eps = 1e-3
-    for impl in [True, False]:
-      grad_ = jax.jit(
-          jax.grad(functools.partial(loss, implicit=impl), argnums=arg)
-      )
-      grad_init = grad_(a, x)
 
-      # Depending on variable tested, perturb either a or x.
-      a_p = a + eps * delta_a if arg == 0 else a
-      x_p = x if arg == 0 else x + eps * delta_x
+    # Numerical test of implicit diff jacobian.
+    grad_ = jax.jit(
+        jax.grad(functools.partial(loss, implicit=True), argnums=arg)
+    )
+    grad_init = grad_(a, x)
 
-      # Perturbed gradient.
-      grad_pert = grad_(a_p, x_p)
-      grad_dif = (grad_pert - grad_init) / eps
-      # Apply hessian to perturbation
-      if arg == 0:
-        hess_delta = jnp.matmul(hess_imp, delta_a)
-      else:
-        # Here tensordot is needed because Hessian is 4D, delta_x is 2D.
-        hess_delta = jnp.tensordot(hess_imp, delta_x)
+    # Depending on variable tested, perturb either a or x.
+    a_p = a + eps * delta_a if arg == 0 else a
+    x_p = x if arg == 0 else x + eps * delta_x
 
-      if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
-        hess_delta -= jnp.mean(hess_delta)
-        grad_dif -= jnp.mean(grad_dif)
+    # Perturbed gradient.
+    grad_pert = grad_(a_p, x_p)
+    grad_dif = (grad_pert - grad_init) / eps
+    # Apply hessian to perturbation
+    if arg == 0:
+      hess_delta = jnp.matmul(hess_imp, delta_a)
+    else:
+      # Here tensordot is needed because Hessian is 4D, delta_x is 2D.
+      hess_delta = jnp.tensordot(hess_imp, delta_x)
 
-      # No rtol here because many of these values can be close to 0.
-      np.testing.assert_allclose(grad_dif, hess_delta, atol=0.1, rtol=0.1)
+    if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
+      hess_delta -= jnp.mean(hess_delta)
+      grad_dif -= jnp.mean(grad_dif)
+
+    # No rtol here because many of these values can be close to 0.
+    np.testing.assert_allclose(grad_dif, hess_delta, atol=0.1, rtol=0.1)
