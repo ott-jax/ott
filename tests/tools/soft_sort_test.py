@@ -160,6 +160,11 @@ class TestSoftSort:
   def test_soft_sort_jacobian(
       self, rng: jax.random.PRNGKeyArray, implicit: bool
   ):
+    ## Add a ridge when using JAX solvers.
+    try:
+      solver_kwargs = {}
+    except ImportError:
+      solver_kwargs = {"ridge_identity": 1e-1, "ridge_kernel": 1e-1}
     b, n = 10, 40
     num_targets = n // 2
     idx_column = 5
@@ -171,12 +176,7 @@ class TestSoftSort:
       im_d = None
       if implicit:
         # Ridge parameters are only used when using JAX's CG.
-        im_d = implicit_lib.ImplicitDiff(
-            solver_kwargs={
-                "ridge_identity": 1e-1,
-                "ridge_kernel": 1e-1
-            }
-        )
+        im_d = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 
       ranks_fn = functools.partial(
           soft_sort.ranks,

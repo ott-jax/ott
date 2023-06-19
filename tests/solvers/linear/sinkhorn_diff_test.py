@@ -745,9 +745,6 @@ class TestSinkhornHessian:
       tau_b: float, shape: Tuple[int, int], arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
-    # TODO(cuturi): reinstate this flag to True when JAX bug fixed.
-    test_back = False
-
     n, m = shape
     dim = 3
     rngs = jax.random.split(rng, 6)
@@ -758,13 +755,16 @@ class TestSinkhornHessian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
-    ridge_kernel = 1e-5 if tau_a == tau_b == 1.0 else 0.0
-    ridge_identity = 1e-5
-    # Kwargs used for JAX solvers (not considered by Lineax)
-    solver_kwargs = {
-        "ridge_kernel": ridge_kernel,
-        "ridge_identity": ridge_identity
-    }
+
+    ## Add a ridge when using JAX solvers.
+    try:
+      solver_kwargs = {}
+    except ImportError:
+      solver_kwargs = {
+          "ridge_identity": 1e-5,
+          "ridge_kernel": 1e-5 if tau_a == tau_b == 1.0 else 0.0
+      }
+
     imp_dif = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 
     def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
@@ -789,11 +789,10 @@ class TestSinkhornHessian:
     hess_imp = hess_loss_imp(a, x)
 
     # Test that Hessians produced with either backprop or implicit do match.
-    if test_back:
-      hess_loss_back = jax.jit(
-          jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
-      )
-      hess_back = hess_loss_back(a, x)
+    hess_loss_back = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+    )
+    hess_back = hess_loss_back(a, x)
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
     # but only need to be so on the orthogonal space to 1s.
@@ -801,18 +800,16 @@ class TestSinkhornHessian:
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       hess_imp -= jnp.mean(hess_imp, axis=1)[:, None]
-      if test_back:
-        hess_back -= jnp.mean(hess_back, axis=1)[:, None]
+      hess_back -= jnp.mean(hess_back, axis=1)[:, None]
 
     # Uniform equality is difficult to obtain numerically on the
     # entire matrices. We switch to relative 1-norm of difference.
-    if test_back:
-      dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
-      rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert rel_dif_norm < 0.1
+    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
+    rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
+    assert rel_dif_norm < 0.1
 
     eps = 1e-3
-    for impl in [True, False] if test_back else [True]:
+    for impl in [True, False]:
       grad_ = jax.jit(
           jax.grad(functools.partial(loss, implicit=impl), argnums=arg)
       )

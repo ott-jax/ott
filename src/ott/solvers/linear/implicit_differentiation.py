@@ -35,13 +35,13 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Args:
-    solver: Callable to compute the solution to a linear problem. The Callable
+    solver: Callable to compute the solution to a linear problem. The callable
       expects a linear function, a vector, optionally another linear function
       that implements the transpose of that function, and a boolean flag to
-      specify symmetry. This solver is by default one of `lineax`'s `CG` or
-      `NormalCG` solvers, if the package can be imported, as described in
-      :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
-      The pure `JAX` alternative is described in
+      specify symmetry. This solver is by default one of :class:`lineax.CG` or
+      :class:`lineax.NormalCG` solvers, if the package can be imported, as
+      described in :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
+      The :mod:`jax` alternative is described in
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
       Note that `lineax` solvers handle better poorly conditioned problems,
       which arise typically when differentiating the solutions of balanced OT
@@ -134,9 +134,9 @@ class ImplicitDiff:
     instantiate the Schur complement of the first or of the second diagonal
     block.
 
-    These linear systems are solved using the user defined ``solver``, using
-    by default `lineax` solvers when available, or falling back on `jax` when
-    not.
+    These linear systems are solved using the user-defined ``solver``, using
+    by default :mod:`lineax` solvers when available, or falling back on
+    :mod:`jax` when not.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
@@ -289,7 +289,7 @@ def solve_jax_cg(
     lin: LinOp_t,
     b: jnp.ndarray,
     lin_t: Optional[LinOp_t] = None,
-    symmetric: Optional[bool] = False,
+    symmetric: bool = False,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any
@@ -298,20 +298,20 @@ def solve_jax_cg(
 
   Args:
     lin: Linear operator
-    b: vector such that sought `x` is such that `lin(x)=b`
+    b: vector. Returned `x` is such that `lin(x)=b`
     lin_t: Linear operator, corresponding to transpose of `lin`.
     symmetric: whether `lin` is symmetric.
     ridge_kernel: promotes zero-sum solutions. Only use if `tau_a = tau_b = 1.0`
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are collinear, or,
       equivalently when two points from either measure are close).
-    kwargs: arguments passed to jax.scipy.sparse.linalg.cg
+    kwargs: arguments passed to :func:`~jax.scipy.sparse.linalg.cg`
   """
-  l = lin if symmetric else lambda x: lin_t(lin(x))
+  op = lin if symmetric else lambda x: lin_t(lin(x))
   if ridge_kernel > 0.0 or ridge_identity > 0.0:
-    lin_reg = lambda x: l(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
+    lin_reg = lambda x: op(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
   else:
-    lin_reg = l
+    lin_reg = op
   return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
 
 

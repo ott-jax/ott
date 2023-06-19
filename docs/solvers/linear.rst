@@ -48,3 +48,5 @@ Implicit Differentiation
     :toctree: _autosummary
 
     implicit_differentiation.ImplicitDiff
+    implicit_differentiation.solve_jax_cg
+    lineax_implicit.solve_lineax
