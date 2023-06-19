@@ -758,6 +758,7 @@ class TestSinkhornHessian:
 
     ## Add a ridge when using JAX solvers.
     try:
+      from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
     except ImportError:
       solver_kwargs = {

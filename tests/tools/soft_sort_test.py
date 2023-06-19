@@ -162,6 +162,7 @@ class TestSoftSort:
   ):
     ## Add a ridge when using JAX solvers.
     try:
+      from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
     except ImportError:
       solver_kwargs = {"ridge_identity": 1e-1, "ridge_kernel": 1e-1}
