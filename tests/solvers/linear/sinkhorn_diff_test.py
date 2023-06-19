@@ -760,11 +760,13 @@ class TestSinkhornHessian:
     try:
       from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
+      test_back = True
     except ImportError:
       solver_kwargs = {
           "ridge_identity": 1e-5,
           "ridge_kernel": 1e-5 if tau_a == tau_b == 1.0 else 0.0
       }
+      test_back = False
 
     imp_dif = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 
@@ -790,10 +792,11 @@ class TestSinkhornHessian:
     hess_imp = hess_loss_imp(a, x)
 
     # Test that Hessians produced with either backprop or implicit do match.
-    hess_loss_back = jax.jit(
-        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
-    )
-    hess_back = hess_loss_back(a, x)
+    if test_back:
+      hess_loss_back = jax.jit(
+          jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+      )
+      hess_back = hess_loss_back(a, x)
 
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
@@ -802,13 +805,15 @@ class TestSinkhornHessian:
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       hess_imp -= jnp.mean(hess_imp, axis=1)[:, None]
-      hess_back -= jnp.mean(hess_back, axis=1)[:, None]
+      if test_back:
+        hess_back -= jnp.mean(hess_back, axis=1)[:, None]
 
-    # Uniform equality is difficult to obtain numerically on the
-    # entire matrices. We switch to relative 1-norm of difference.
-    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
-    rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-    assert rel_dif_norm < 0.1
+    if test_back:
+      # Uniform equality is difficult to obtain numerically on the
+      # entire matrices. We switch to relative 1-norm of difference.
+      dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
+      rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
+      assert rel_dif_norm < 0.1
 
     eps = 1e-3
 
