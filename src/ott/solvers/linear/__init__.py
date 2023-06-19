@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
+
 from . import (
     acceleration,
     continuous_barycenter,
@@ -19,3 +21,7 @@ from . import (
     sinkhorn,
     sinkhorn_lr,
 )
+
+#TODO(cuturi): remove contextlib when 3.8 is deprecated.
+with contextlib.supress(ImportError):
+  from . import lineax_implicit

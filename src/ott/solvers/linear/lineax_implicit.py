@@ -62,7 +62,8 @@ def solve_lineax(
     nonsym_solver: :class:`~lineax.AbstractLinearSolver` used when handling non
       symmetric cases. Note that :class:`~lineax.CG` is used by default in the
       symmetric case.
-    kwargs: arguments passed to :mod:`lineax`'s linear solver.
+    kwargs: arguments passed to :mod:`~lineax.AbstractLinearSolver` linear
+      solver.
   """
   input_structure = jax.eval_shape(lambda: b)
   kwargs.setdefault("rtol", 1e-6)
