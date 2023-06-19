@@ -178,7 +178,6 @@ legacy_tox_ini = """
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
-    basepython = python3.9
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
