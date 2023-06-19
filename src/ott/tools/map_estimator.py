@@ -54,7 +54,6 @@ class MapEstimator:
     regularizer: regularizer :math:`R` to impose an inductive bias
       on the map :math:`T`
     num_train_iters: number of total training iterations
-    num_inner_iters: number of training iterations of :math:`g` per iteration
     valid_freq: frequency with training and validation are logged
     logging: option to return logs
     rng: random key used for seeding for network initializations
