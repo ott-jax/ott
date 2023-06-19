@@ -23,5 +23,5 @@ from . import (
 )
 
 #TODO(cuturi): remove contextlib when 3.8 is deprecated.
-with contextlib.supress(ImportError):
+with contextlib.suppress(ImportError):
   from . import lineax_implicit
