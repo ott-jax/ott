@@ -48,7 +48,7 @@ def solve_lineax(
     lin: Callable,
     b: jnp.ndarray,
     lin_t: Optional[Callable] = None,
-    symmetric: Optional[bool] = False,
+    symmetric: bool = False,
     nonsym_solver: Optional[lx.AbstractLinearSolver] = None,
     **kwargs: Any
 ) -> jnp.ndarray:
@@ -59,10 +59,9 @@ def solve_lineax(
     b: vector. Returned `x` is such that `lin(x)=b`
     lin_t: Linear operator, corresponding to transpose of `lin`.
     symmetric: whether `lin` is symmetric.
-    nonsym_solver: :class:`~lineax.AbstractLinearSolver` used when handling non
-      symmetric cases. Note that :class:`~lineax.CG` is used by default in the
-      symmetric case.
-    kwargs: arguments passed to :mod:`~lineax.AbstractLinearSolver` linear
+    nonsym_solver: solver used when handling non-symmetric cases. Note that
+      :class:`~lineax.CG` is used by default in the symmetric case.
+    kwargs: arguments passed to :class:`~lineax.AbstractLinearSolver` linear
       solver.
   """
   input_structure = jax.eval_shape(lambda: b)
@@ -74,7 +73,7 @@ def solve_lineax(
         lin, input_structure, tags=lx.positive_semidefinite_tag
     )
     return lx.linear_solve(fn_operator, b, solver).value
-  # In the nonsymmetric case, use NormalCG by default, but consider
+  # In the non-symmetric case, use NormalCG by default, but consider
   # user defined choice of alternative lx solver.
   solver_type = lx.NormalCG if nonsym_solver is None else nonsym_solver
   solver = solver_type(**kwargs)
