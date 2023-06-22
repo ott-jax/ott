@@ -57,13 +57,15 @@ def ibp_step(
     return jsp.special.logsumexp(gamma * (v - c), axis=axis)
 
   def _error(
-      v1: jnp.ndarray, v2: jnp.ndarray, u1: jnp.ndarray, u2: jnp.ndarray
+      gamma: float,
+      new_state: State,
+      old_state: State,
   ) -> float:
-    u1_trans = jnp.exp(_softm(v1, c_q, axis=1))
-    err_1 = jnp.sum(jnp.abs(jnp.exp(gamma * u1) * u1_trans - ot_prob.a))
-    u2_trans = jnp.exp(_softm(v2, c_r, axis=1))
-    err_2 = jnp.sum(jnp.abs(jnp.exp(gamma * u2) * u2_trans - ot_prob.b))
-    return err_1 + err_2
+    u1_err = jnp.linalg.norm(new_state.u1 - old_state.u1, ord=jnp.inf)
+    u2_err = jnp.linalg.norm(new_state.u2 - old_state.u2, ord=jnp.inf)
+    v1_err = jnp.linalg.norm(new_state.v1 - old_state.v1, ord=jnp.inf)
+    v2_err = jnp.linalg.norm(new_state.v2 - old_state.v2, ord=jnp.inf)
+    return (1.0 / gamma) * jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
 
   def cond_fn(
       iteration: int,
@@ -71,7 +73,7 @@ def ibp_step(
       state: State,
   ) -> bool:
     del iteration, const
-    return state.err > tolerance
+    return tolerance < state.err
 
   def body_fn(
       iteration: int, const: Constants, state: State, compute_error: bool
@@ -83,23 +85,34 @@ def ibp_step(
     u2 = const.tau_b * (const.log_b - _softm(state.v2, c_r, axis=1)) / gamma
     v2_trans = _softm(u2, c_r, axis=0) / gamma
 
-    g = (1. / 3.) * (-h + v1_trans + v2_trans)
+    g = (1.0 / 3.0) * (-h + v1_trans + v2_trans)
     v1 = g - v1_trans
     v2 = g - v2_trans
 
+    new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= min_iter), _error,
-        lambda *_: state.err, v1, v2, u1, u2
+        jnp.logical_and(compute_error, iteration >= min_iter),
+        _error,
+        lambda *_: gamma,
+        new_state,
+        state,
     )
-
     return State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=err)
 
   n, m, r = c_q.shape[0], c_r.shape[0], h.shape[0]
   constants = Constants(
-      jnp.log(ot_prob.a), jnp.log(ot_prob.b), ot_prob.tau_a, ot_prob.tau_b
+      log_a=jnp.log(ot_prob.a),
+      log_b=jnp.log(ot_prob.b),
+      tau_a=ot_prob.tau_a,
+      tau_b=ot_prob.tau_b
   )
   init_state = State(
-      jnp.zeros(r), jnp.zeros(r), jnp.zeros(n), jnp.zeros(m), g=h, err=jnp.inf
+      v1=jnp.zeros(r),
+      v2=jnp.zeros(r),
+      u1=jnp.zeros(n),
+      u2=jnp.zeros(m),
+      g=h,
+      err=jnp.inf
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
