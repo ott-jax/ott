@@ -17,6 +17,7 @@ from . import (
     continuous_barycenter,
     discrete_barycenter,
     implicit_differentiation,
+    lr_utils,
     sinkhorn,
     sinkhorn_lr,
 )

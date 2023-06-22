@@ -34,7 +34,7 @@ from ott.initializers.linear import initializers_lr as init_lib
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import lr_utils, sinkhorn
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
@@ -414,6 +414,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     k_g = jnp.exp((-gamma) * (grad_g - (1. / gamma) * log_g))
     return k_q, k_r, k_g, gamma
 
+  # TODO(michalk8): move to utils
   def dykstra_update_lse(
       self,
       c_q: jnp.ndarray,
@@ -634,9 +635,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
     c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
-    q, r, g = self.dykstra_update_lse(
-        c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
-    )
+    if ot_prob.is_balanced:
+      q, r, g = self.dykstra_update_lse(
+          c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
+      )
+    else:
+      q, r, g = lr_utils.ibp_step(
+          c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
+      )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
