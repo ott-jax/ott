@@ -343,7 +343,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       The low-rank Sinkhorn output.
     """
-    assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
@@ -376,10 +375,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       gamma = self.gamma
 
+    # c_q = -gamma * grad_q + log_q
+    # c_r = -gamma * grad_r + log_r
+    # c_g = -gamma * grad_g + log_g  # TODO(michalk8): -/+ previously
     c_q = grad_q - (1. / gamma) * log_q
     c_r = grad_r - (1. / gamma) * log_r
-    h = -grad_g + (1. / gamma) * log_g
-    return c_q, c_r, h, gamma
+    c_g = grad_g - (1. / gamma) * log_g  # TODO(michalk8): -/+ previously
+
+    return c_q, c_r, c_g, gamma
 
   def _lr_kernels(
       self,
@@ -640,7 +643,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
           c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
       )
     else:
-      q, r, g = lr_utils.ibp_step(
+      q, r, g = lr_utils.unbalanced_dykstra_lse(
           c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
       )
     return state.set(q=q, g=g, r=r, gamma=gamma)
@@ -651,9 +654,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> LRSinkhornState:
     """LR Sinkhorn Kernel update."""
     k_q, k_r, k_g, gamma = self._lr_kernels(ot_prob, state)
-    q, r, g = self.dykstra_update_kernel(
-        k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
-    )
+    if ot_prob.is_balanced:
+      q, r, g = self.dykstra_update_kernel(
+          k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
+      )
+    else:
+      q, r, g = lr_utils.unbalanced_dykstra_kernel(
+          k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
+      )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(

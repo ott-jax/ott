@@ -20,11 +20,13 @@ import jax.scipy as jsp
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 
+__all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
 
-def ibp_step(
+
+def unbalanced_dykstra_lse(
     c_q: jnp.ndarray,
     c_r: jnp.ndarray,
-    h: jnp.ndarray,
+    c_g: jnp.ndarray,
     gamma: float,
     ot_prob: linear_problem.LinearProblem,
     tolerance: float = 1e-3,
@@ -43,8 +45,8 @@ def ibp_step(
     err: float
 
   class Constants(NamedTuple):
-    log_a: jnp.ndarray
-    log_b: jnp.ndarray
+    a: jnp.ndarray
+    b: jnp.ndarray
     tau_a: float
     tau_b: float
 
@@ -72,20 +74,20 @@ def ibp_step(
       const: Constants,
       state: State,
   ) -> bool:
-    del iteration, const
+    del const
+    # hcb.id_print((iteration, state.err))
     return tolerance < state.err
 
   def body_fn(
       iteration: int, const: Constants, state: State, compute_error: bool
   ) -> State:
-    # TODO(michalk8): handle 0s in a/b
-    u1 = const.tau_a * (const.log_a - _softm(state.v1, c_q, axis=1)) / gamma
-    v1_trans = _softm(u1, c_q, axis=0) / gamma
+    u1 = const.tau_a * (const.a - _softm(state.v1, c_q, axis=1)) / gamma
+    u2 = const.tau_b * (const.b - _softm(state.v2, c_r, axis=1)) / gamma
 
-    u2 = const.tau_b * (const.log_b - _softm(state.v2, c_r, axis=1)) / gamma
+    v1_trans = _softm(u1, c_q, axis=0) / gamma
     v2_trans = _softm(u2, c_r, axis=0) / gamma
 
-    g = (1.0 / 3.0) * (-h + v1_trans + v2_trans)
+    g = (1.0 / 3.0) * (c_g + v1_trans + v2_trans)
     v1 = g - v1_trans
     v2 = g - v2_trans
 
@@ -93,16 +95,17 @@ def ibp_step(
     err = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= min_iter),
         _error,
-        lambda *_: gamma,
+        lambda *_: state.err,
+        gamma,
         new_state,
         state,
     )
     return State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=err)
 
-  n, m, r = c_q.shape[0], c_r.shape[0], h.shape[0]
+  n, m, r = c_q.shape[0], c_r.shape[0], c_g.shape[0]
   constants = Constants(
-      log_a=jnp.log(ot_prob.a),
-      log_b=jnp.log(ot_prob.b),
+      a=jnp.log(ot_prob.a),
+      b=jnp.log(ot_prob.b),
       tau_a=ot_prob.tau_a,
       tau_b=ot_prob.tau_b
   )
@@ -111,7 +114,7 @@ def ibp_step(
       v2=jnp.zeros(r),
       u1=jnp.zeros(n),
       u2=jnp.zeros(m),
-      g=h,
+      g=c_g,
       err=jnp.inf
   )
 
@@ -124,3 +127,115 @@ def ibp_step(
   g = jnp.exp(gamma * state.g)
 
   return q, r, g
+
+
+def unbalanced_dykstra_kernel(
+    k_q: jnp.ndarray,
+    k_r: jnp.ndarray,
+    k_g: jnp.ndarray,
+    gamma: float,
+    ot_prob: linear_problem.LinearProblem,
+    tolerance: float = 1e-3,
+    min_iter: int = 0,
+    inner_iter: int = 10,
+    max_iter: int = 10000
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  """TODO."""
+
+  class State(NamedTuple):
+    v1: jnp.ndarray
+    v2: jnp.ndarray
+    u1: jnp.ndarray
+    u2: jnp.ndarray
+    g: jnp.ndarray
+    err: float
+
+  class Constants(NamedTuple):
+    a: jnp.ndarray
+    b: jnp.ndarray
+    tau_a: float
+    tau_b: float
+    supp_a: jnp.ndarray
+    supp_b: jnp.ndarray
+
+  def _error(
+      gamma: float,
+      new_state: State,
+      old_state: State,
+  ) -> float:
+    u1_err = jnp.linalg.norm(
+        jnp.log(new_state.u1) - jnp.log(old_state.u1), ord=jnp.inf
+    )
+    u2_err = jnp.linalg.norm(
+        jnp.log(new_state.u2) - jnp.log(old_state.u2), ord=jnp.inf
+    )
+    v1_err = jnp.linalg.norm(
+        jnp.log(new_state.v1) - jnp.log(old_state.v1), ord=jnp.inf
+    )
+    v2_err = jnp.linalg.norm(
+        jnp.log(new_state.v2) - jnp.log(old_state.v2), ord=jnp.inf
+    )
+    return (1.0 / gamma) * jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
+
+  def cond_fn(
+      iteration: int,
+      const: Constants,
+      state: State,
+  ) -> bool:
+    del iteration, const
+    return tolerance < state.err
+
+  def body_fn(
+      iteration: int, const: Constants, state: State, compute_error: bool
+  ) -> State:
+    u1 = jnp.where(
+        const.supp_a, (const.a / (k_q @ state.v1)) ** const.tau_a, 0.0
+    )
+    u2 = jnp.where(
+        const.supp_b, (const.b / (k_r @ state.v2)) ** const.tau_b, 0.0
+    )
+
+    v1_trans = k_q.T @ u1
+    v2_trans = k_r.T @ u2
+
+    g = (k_g * v1_trans * v2_trans) ** (1.0 / 3.0)
+    v1 = g / v1_trans
+    v2 = g / v2_trans
+
+    new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
+    err = jax.lax.cond(
+        jnp.logical_and(compute_error, iteration >= min_iter),
+        _error,
+        lambda *_: state.err,
+        gamma,
+        new_state,
+        state,
+    )
+    return State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=err)
+
+  n, m, r = k_q.shape[0], k_r.shape[0], k_g.shape[0]
+  constants = Constants(
+      a=ot_prob.a,
+      b=ot_prob.b,
+      tau_a=ot_prob.tau_a,
+      tau_b=ot_prob.tau_b,
+      supp_a=ot_prob.a > 0.0,
+      supp_b=ot_prob.b > 0.0,
+  )
+  init_state = State(
+      v1=jnp.ones(r),
+      v2=jnp.ones(r),
+      u1=jnp.ones(n),
+      u2=jnp.ones(m),
+      g=k_g,
+      err=jnp.inf
+  )
+
+  state: State = fixed_point_loop.fixpoint_iter_backprop(
+      cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
+  )
+
+  q = state.u1[:, None] * k_q * state.v1[None, :]
+  r = state.u2[:, None] * k_r * state.v2[None, :]
+
+  return q, r, state.g
