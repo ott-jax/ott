@@ -11,16 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 
 from ott.math import fixed_point_loop
+from ott.math import unbalanced_functions as uf
 from ott.problems.linear import linear_problem
 
 __all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
+
+
+class State(NamedTuple):
+  v1: jnp.ndarray
+  v2: jnp.ndarray
+  u1: jnp.ndarray
+  u2: jnp.ndarray
+  g: jnp.ndarray
+  err: float
+
+
+class Constants(NamedTuple):
+  a: jnp.ndarray
+  b: jnp.ndarray
+  tau_a: float
+  tau_b: float
+  supp_a: Optional[jnp.ndarray] = None
+  supp_b: Optional[jnp.ndarray] = None
 
 
 def unbalanced_dykstra_lse(
@@ -35,20 +54,6 @@ def unbalanced_dykstra_lse(
     max_iter: int = 10000
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """TODO."""
-
-  class State(NamedTuple):
-    v1: jnp.ndarray
-    v2: jnp.ndarray
-    u1: jnp.ndarray
-    u2: jnp.ndarray
-    g: jnp.ndarray
-    err: float
-
-  class Constants(NamedTuple):
-    a: jnp.ndarray
-    b: jnp.ndarray
-    tau_a: float
-    tau_b: float
 
   def _softm(
       v: jnp.ndarray,
@@ -142,22 +147,6 @@ def unbalanced_dykstra_kernel(
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """TODO."""
 
-  class State(NamedTuple):
-    v1: jnp.ndarray
-    v2: jnp.ndarray
-    u1: jnp.ndarray
-    u2: jnp.ndarray
-    g: jnp.ndarray
-    err: float
-
-  class Constants(NamedTuple):
-    a: jnp.ndarray
-    b: jnp.ndarray
-    tau_a: float
-    tau_b: float
-    supp_a: jnp.ndarray
-    supp_b: jnp.ndarray
-
   def _error(
       gamma: float,
       new_state: State,
@@ -239,3 +228,39 @@ def unbalanced_dykstra_kernel(
   r = state.u2[:, None] * k_r * state.v2[None, :]
 
   return q, r, state.g
+
+
+def compute_lambdas(
+    state: State, const: Constants, gamma: float, eta_g: jnp.ndarray, *,
+    lse: bool
+) -> Tuple[float, float]:
+  gamma_inv = 1.0 / gamma
+  rho_a = uf.rho(gamma_inv, const.tau_a)
+  rho_b = uf.rho(gamma_inv, const.tau_b)
+
+  if lse:
+    num_1 = jsp.special.logsumexp((-gamma_inv / rho_a) * state.u1, b=const.a)
+    num_2 = jsp.special.logsumexp((-gamma_inv / rho_b) * state.u2, b=const.b)
+    den = jsp.special.logsumexp(eta_g - (state.v1 + state.v2))
+    const_1 = num_1 - den
+    const_2 = num_2 - den
+
+    ratio_1 = rho_a / (rho_a + gamma_inv)
+    ratio_2 = rho_b / (rho_b + gamma_inv)
+    harmonic = 1 / (1 - (ratio_1 * ratio_2))
+    lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
+    lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
+    return lam_1, lam_2
+
+  num_1 = jnp.sum((state.u1 ** (-gamma_inv / rho_a)) * const.a)
+  num_2 = jnp.sum((state.u2 ** (-gamma_inv / rho_b)) * const.b)
+  den = jnp.sum(eta_g / (state.v1 * state.v2))
+  const_1 = jnp.log(num_1 / den)
+  const_2 = jnp.log(num_2 / den)
+
+  ratio_1 = rho_a / (rho_a + gamma_inv)
+  ratio_2 = rho_b / (rho_b + gamma_inv)
+  harmonic = 1 / (1 - (ratio_1 * ratio_2))
+  lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
+  lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
+  return lam_1, lam_2
