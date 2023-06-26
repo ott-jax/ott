@@ -28,6 +28,7 @@ pre
 rng
 rngs
 sqeucl
+submodules
 topk
 vec
 wolfe
