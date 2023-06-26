@@ -107,7 +107,7 @@ def unbalanced_dykstra_lse(
       )
       state_lam = jax.tree_map(lambda x: gamma * x, state_lam)
       lam_a, lam_b = compute_lambdas(
-          const, state_lam, gamma, eta_g=c_g, lse=True
+          const, state_lam, gamma, eta_g=gamma * c_g, lse=True
       )
 
       v1_trans = _softm(u1, c_q, axis=0)
