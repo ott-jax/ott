@@ -26,6 +26,7 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 import numpy as np
 from jax.experimental import host_callback
 
@@ -315,6 +316,30 @@ class SinkhornOutput(NamedTuple):
   def primal_cost(self) -> float:
     """Return transport cost of current solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
+
+  @property
+  def ent_reg_cost(self) -> float:
+    r"""Entropy regularized cost.
+
+    This outputs :math:`\langle P^{\star},C\rangle - \varepsilon H(P^{\star}),`
+    where :math:`P^{\star}` is the coupling returned by the
+    :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+    """
+    ent_a = jnp.sum(jsp.special.entr(self.ot_prob.a))
+    ent_b = jnp.sum(jsp.special.entr(self.ot_prob.b))
+    return self.reg_ot_cost - self.geom.epsilon * (ent_a + ent_b)
+
+  @property
+  def kl_reg_cost(self) -> float:
+    r"""KL regularized OT transport cost.
+
+    This outputs :math:`\langle P^{\star}, C \rangle +
+    \varepsilon KL(P^{\star},ab^T),` where :math:`P^{\star}, a, b` are the
+    coupling returned by the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`
+    algorithm and the two marginal weight vectors, respectively.
+    This coincides with :attr:`reg_ot_cost`.
+    """
+    return self.reg_ot_cost
 
   def transport_cost_at_geom(
       self, other_geom: geometry.Geometry
