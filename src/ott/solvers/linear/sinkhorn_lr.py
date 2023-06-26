@@ -375,12 +375,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       gamma = self.gamma
 
-    # c_q = -gamma * grad_q + log_q
-    # c_r = -gamma * grad_r + log_r
-    # c_g = -gamma * grad_g + log_g  # TODO(michalk8): -/+ previously
-    c_q = grad_q - (1. / gamma) * log_q
-    c_r = grad_r - (1. / gamma) * log_r
-    c_g = grad_g - (1. / gamma) * log_g  # TODO(michalk8): -/+ previously
+    c_q = -gamma * grad_q + log_q
+    c_r = -gamma * grad_r + log_r
+    c_g = -gamma * grad_g + log_g
 
     return c_q, c_r, c_g, gamma
 
