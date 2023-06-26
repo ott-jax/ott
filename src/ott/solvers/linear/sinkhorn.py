@@ -354,7 +354,7 @@ class SinkhornOutput(NamedTuple):
     :math:`\rho_b=\varepsilon \tau_b / (1-\tau_b)` are obtained when the problem
     is unbalanced from parameters ``tau_a`` and ``tau_b``. Note that the last
     two terms vanish in the balanced case, when ``tau_a==tau_b==1``. This
-    quantity coincides with :attr:`reg_ot_cost`, which is computed using from
+    quantity coincides with :attr:`reg_ot_cost`, which is computed using
     dual variables.
     """
     return self.reg_ot_cost
