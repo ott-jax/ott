@@ -87,7 +87,7 @@ def compute_reg_ot_cost(
     ot_prob: linear_problem.LinearProblem,
     use_danskin: bool = False
 ) -> float:
-  """Compute the regularized OT cost, here the primal cost of LR solution.
+  """Compute the regularized OT cost, here the primal cost of the LR solution.
 
   Args:
     q: first factor of solution
@@ -98,7 +98,7 @@ def compute_reg_ot_cost(
       to avoid computing the gradient of the cost function.
 
   Returns:
-    regularized OT cost, here the (primal) transport cost of low-rank solution.
+    regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r

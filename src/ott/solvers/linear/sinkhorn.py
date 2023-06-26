@@ -322,9 +322,9 @@ class SinkhornOutput(NamedTuple):
 
     This outputs
 
-    :math:`\\langle P^\\star,C\\rangle> - \\varepsilon H(P^\\star) ,`
+    :math:`\langle P^{\star},C\rangle> - \varepsilon H(P^{\star}),`
 
-    where :math:`P^\\star` is the coupling returned by Sinkhorn.
+    where :math:`P^{\star}` is the coupling returned by Sinkhorn.
     """
     ent_a = jnp.sum(jax.scipy.special.entr(self.ot_prob.a))
     ent_b = jnp.sum(jax.scipy.special.entr(self.ot_prob.b))
@@ -336,10 +336,11 @@ class SinkhornOutput(NamedTuple):
 
     This outputs
 
-    :math:`\\langle P^\\star, C \\rangle + \\varepsilon KL(P^\\star,ab^T),`
+    :math:`\langle P^{\star}, C \rangle + \varepsilon KL(P^{\star},ab^T),`
 
-    where :math:`P^\\star, a, b` are the coupling returned by Sinkhorn and the
-    two original marginal weight vectors. This coincides with `reg_ot_cost`.
+    where :math:`P^{\star}, a, b` are the coupling returned by the Sinkhorn
+    algorithm and the two marginal weight vectors. This coincides with
+    :attr:`reg_ot_cost`.
     """
     return self.reg_ot_cost
 
