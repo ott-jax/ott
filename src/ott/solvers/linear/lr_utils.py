@@ -62,7 +62,7 @@ def unbalanced_dykstra_lse(
       axis: int,
   ) -> jnp.ndarray:
     v = jnp.expand_dims(v, axis=1 - axis)
-    return jsp.special.logsumexp(v + c, axis=axis)
+    return jsp.special.logsumexp(gamma * (v - c), axis=axis) / gamma
 
   def _error(
       gamma: float,
@@ -73,7 +73,7 @@ def unbalanced_dykstra_lse(
     u2_err = jnp.linalg.norm(new_state.u2 - old_state.u2, ord=jnp.inf)
     v1_err = jnp.linalg.norm(new_state.v1 - old_state.v1, ord=jnp.inf)
     v2_err = jnp.linalg.norm(new_state.v2 - old_state.v2, ord=jnp.inf)
-    return (1.0 / gamma) * jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
+    return jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
 
   def cond_fn(
       iteration: int,
@@ -92,34 +92,37 @@ def unbalanced_dykstra_lse(
       rho_a = uf.rho(1.0 / gamma, const.tau_a)
       rho_b = uf.rho(1.0 / gamma, const.tau_b)
 
-      lam_a, lam_b = compute_lambdas(const, state, gamma, eta_g=c_g, lse=True)
+      state_lam = jax.tree_map(lambda x: gamma * x, state)
+      lam_a, lam_b = compute_lambdas(
+          const, state_lam, gamma, eta_g=gamma * c_g, lse=True
+      )
 
-      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))
+      u1 = const.tau_a * (log_a / gamma - _softm(state.v1, c_q, axis=1))
       u1 = u1 - lam_a / ((1.0 / gamma) + rho_a)
-      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))
+      u2 = const.tau_b * (log_b / gamma - _softm(state.v2, c_r, axis=1))
       u2 = u2 - lam_b / ((1.0 / gamma) + rho_b)
 
       state_lam = State(
           v1=state.v1, v2=state.v2, u1=u1, u2=u2, g=state.g, err=state.err
       )
+      state_lam = jax.tree_map(lambda x: gamma * x, state_lam)
       lam_a, lam_b = compute_lambdas(
           const, state_lam, gamma, eta_g=c_g, lse=True
       )
 
-      v1_trans = _softm(u1, c_q, axis=0)  # / gamma
-      v2_trans = _softm(u2, c_r, axis=0)  # / gamma
+      v1_trans = _softm(u1, c_q, axis=0)
+      v2_trans = _softm(u2, c_r, axis=0)
 
-      c_trans = gamma * (lam_a + lam_b) + c_g
-      g = (1.0 / 3.0) * (c_trans + v1_trans + v2_trans)
+      g_trans = gamma * (lam_a + lam_b) + c_g
     else:
-      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))  # / gamma
-      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))  # / gamma
+      u1 = const.tau_a * (log_a / gamma - _softm(state.v1, c_q, axis=1))
+      u2 = const.tau_b * (log_b / gamma - _softm(state.v2, c_r, axis=1))
 
-      v1_trans = _softm(u1, c_q, axis=0)  # / gamma
-      v2_trans = _softm(u2, c_r, axis=0)  # / gamma
+      v1_trans = _softm(u1, c_q, axis=0)
+      v2_trans = _softm(u2, c_r, axis=0)
+      g_trans = c_g  # TODO(michalk8): check if this shouldn't be -c_g
 
-      g = (1.0 / 3.0) * (c_g + v1_trans + v2_trans)
-
+    g = (1.0 / 3.0) * (g_trans + v1_trans + v2_trans)
     v1 = g - v1_trans
     v2 = g - v2_trans
 
@@ -156,9 +159,9 @@ def unbalanced_dykstra_lse(
       cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
   )
 
-  q = jnp.exp(state.u1[:, None] + c_q + state.v1[None, :])
-  r = jnp.exp(state.u2[:, None] + c_r + state.v2[None, :])
-  g = jnp.exp(state.g)
+  q = jnp.exp(gamma * (state.u1[:, None] + state.v1[None, :] - c_q))
+  r = jnp.exp(gamma * (state.u2[:, None] + state.v2[None, :] - c_r))
+  g = jnp.exp(gamma * state.g)
 
   return q, r, g
 
