@@ -79,8 +79,7 @@ def unbalanced_dykstra_lse(
       const: Constants,
       state: State,
   ) -> bool:
-    del const
-    # hcb.id_print((iteration, state.err))
+    del iteration, const
     return tolerance < state.err
 
   def body_fn(
@@ -140,6 +139,7 @@ def unbalanced_dykstra_kernel(
     k_g: jnp.ndarray,
     gamma: float,
     ot_prob: linear_problem.LinearProblem,
+    translation_invariant: bool = False,
     tolerance: float = 1e-3,
     min_iter: int = 0,
     inner_iter: int = 10,
@@ -177,19 +177,47 @@ def unbalanced_dykstra_kernel(
   def body_fn(
       iteration: int, const: Constants, state: State, compute_error: bool
   ) -> State:
-    u1 = jnp.where(
-        const.supp_a, (const.a / (k_q @ state.v1)) ** const.tau_a, 0.0
-    )
-    u2 = jnp.where(
-        const.supp_b, (const.b / (k_r @ state.v2)) ** const.tau_b, 0.0
-    )
+    if translation_invariant:
+      rho_a = uf.rho(1.0 / gamma, const.tau_a)
+      rho_b = uf.rho(1.0 / gamma, const.tau_b)
+      c_a = const.tau_a
+      c_b = const.tau_b
+      lam_a, lam_b = compute_lambdas(const, state, gamma, eta_g=k_g, lse=False)
 
-    v1_trans = k_q.T @ u1
-    v2_trans = k_r.T @ u2
+      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
+      u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + rho_a))
+      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
+      u2 = u2 * jnp.exp(-lam_b / ((1.0 / gamma) + rho_b))
 
-    g = (k_g * v1_trans * v2_trans) ** (1.0 / 3.0)
-    v1 = g / v1_trans
-    v2 = g / v2_trans
+      state_lam = State(
+          v1=state.v1, v2=state.v2, u1=u1, u2=u2, g=state.g, err=state.err
+      )
+      lam_a, lam_b = compute_lambdas(
+          const, state_lam, gamma, eta_g=k_g, lse=False
+      )
+
+      v1_trans = k_q.T @ u1
+      v2_trans = k_r.T @ u2
+
+      k_trans = jnp.exp(gamma * (lam_a + lam_b)) * k_g
+      g = (k_trans * v1_trans * v2_trans) ** (1.0 / 3.0)
+
+      v1 = g / v1_trans
+      v2 = g / v2_trans
+    else:
+      u1 = jnp.where(
+          const.supp_a, (const.a / (k_q @ state.v1)) ** const.tau_a, 0.0
+      )
+      u2 = jnp.where(
+          const.supp_b, (const.b / (k_r @ state.v2)) ** const.tau_b, 0.0
+      )
+
+      v1_trans = k_q.T @ u1
+      v2_trans = k_r.T @ u2
+
+      g = (k_g * v1_trans * v2_trans) ** (1.0 / 3.0)
+      v1 = g / v1_trans
+      v2 = g / v2_trans
 
     new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
@@ -231,7 +259,7 @@ def unbalanced_dykstra_kernel(
 
 
 def compute_lambdas(
-    state: State, const: Constants, gamma: float, eta_g: jnp.ndarray, *,
+    const: Constants, state: State, gamma: float, eta_g: jnp.ndarray, *,
     lse: bool
 ) -> Tuple[float, float]:
   gamma_inv = 1.0 / gamma
@@ -247,20 +275,28 @@ def compute_lambdas(
 
     ratio_1 = rho_a / (rho_a + gamma_inv)
     ratio_2 = rho_b / (rho_b + gamma_inv)
-    harmonic = 1 / (1 - (ratio_1 * ratio_2))
+    harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
     lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
     lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
     return lam_1, lam_2
 
-  num_1 = jnp.sum((state.u1 ** (-gamma_inv / rho_a)) * const.a)
-  num_2 = jnp.sum((state.u2 ** (-gamma_inv / rho_b)) * const.b)
+  num_1 = jnp.sum(
+      jnp.where(
+          const.supp_a, ((state.u1 ** (-gamma_inv / rho_a)) * const.a), 0.0
+      )
+  )
+  num_2 = jnp.sum(
+      jnp.where(
+          const.supp_b, ((state.u2 ** (-gamma_inv / rho_b)) * const.b), 0.0
+      )
+  )
   den = jnp.sum(eta_g / (state.v1 * state.v2))
   const_1 = jnp.log(num_1 / den)
   const_2 = jnp.log(num_2 / den)
 
-  ratio_1 = rho_a / (rho_a + gamma_inv)
-  ratio_2 = rho_b / (rho_b + gamma_inv)
-  harmonic = 1 / (1 - (ratio_1 * ratio_2))
+  ratio_1 = const.tau_a  # rho_a / (rho_a + gamma_inv)
+  ratio_2 = const.tau_b  # rho_b / (rho_b + gamma_inv)
+  harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
   lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
   lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
   return lam_1, lam_2
