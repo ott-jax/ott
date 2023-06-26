@@ -67,7 +67,7 @@ class LRSinkhornState(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False
   ) -> float:
-    """For LR sinkhorn, this defaults to the primal cost of LR solution."""
+    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(  # noqa: D102

@@ -320,7 +320,9 @@ class SinkhornOutput(NamedTuple):
   def ent_reg_cost(self) -> float:
     r"""Entropy regularized cost.
 
-    This outputs :math:`\\langle P^\\star,C> - \varepsilon H(P^\\star),
+    This outputs
+
+    :math:`\\langle P^\\star,C\\rangle> - \\varepsilon H(P^\\star) ,`
 
     where :math:`P^\\star` is the coupling returned by Sinkhorn.
     """
@@ -332,7 +334,9 @@ class SinkhornOutput(NamedTuple):
   def kl_reg_cost(self) -> float:
     r"""KL regularized OT transport cost.
 
-    This outputs :math:`\\langle P^\\star,C> + \varepsilon KL(P^\\star,ab^T),
+    This outputs
+
+    :math:`\\langle P^\\star, C \\rangle + \\varepsilon KL(P^\\star,ab^T),`
 
     where :math:`P^\\star, a, b` are the coupling returned by Sinkhorn and the
     two original marginal weight vectors. This coincides with `reg_ot_cost`.
