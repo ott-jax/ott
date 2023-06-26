@@ -316,6 +316,29 @@ class SinkhornOutput(NamedTuple):
     """Return transport cost of current solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
+  @property
+  def ent_reg_cost(self) -> float:
+    r"""Entropy regularized cost.
+
+    This outputs :math:`\\langle P^\\star,C> - \varepsilon H(P^\\star),
+
+    where :math:`P^\\star` is the coupling returned by Sinkhorn.
+    """
+    ent_a = jnp.sum(jax.scipy.special.entr(self.ot_prob.a))
+    ent_b = jnp.sum(jax.scipy.special.entr(self.ot_prob.b))
+    return self.reg_ot_cost - self.geom.epsilon * (ent_a + ent_b)
+
+  @property
+  def kl_reg_cost(self) -> float:
+    r"""KL regularized OT transport cost.
+
+    This outputs :math:`\\langle P^\\star,C> + \varepsilon KL(P^\\star,ab^T),
+
+    where :math:`P^\\star, a, b` are the coupling returned by Sinkhorn and the
+    two original marginal weight vectors. This coincides with `reg_ot_cost`.
+    """
+    return self.reg_ot_cost
+
   def transport_cost_at_geom(
       self, other_geom: geometry.Geometry
   ) -> jnp.ndarray:

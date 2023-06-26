@@ -67,6 +67,7 @@ class LRSinkhornState(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False
   ) -> float:
+    """For LR sinkhorn, this defaults to the primal cost of LR solution."""
     return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
 
   def solution_error(  # noqa: D102
@@ -86,7 +87,7 @@ def compute_reg_ot_cost(
     ot_prob: linear_problem.LinearProblem,
     use_danskin: bool = False
 ) -> float:
-  """Compute the regularized OT cost.
+  """Compute the regularized OT cost, here the primal cost of LR solution.
 
   Args:
     q: first factor of solution
@@ -97,7 +98,7 @@ def compute_reg_ot_cost(
       to avoid computing the gradient of the cost function.
 
   Returns:
-    regularized OT cost
+    regularized OT cost, here the (primal) transport cost of low-rank solution.
   """
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
