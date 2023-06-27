@@ -543,34 +543,36 @@ class Sinkhorn:
     \infty`. This problem can be shown to be equivalent to a matrix scaling
     problem, which can be solved using the Sinkhorn fixed-point algorithm.
     To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
-    ``sinkhorn`` function uses parameters :math:`tau\_a := \rho_a /
-    (\varepsilon + \rho_a)` and :math:`tau\_b := \rho_b / (\varepsilon +
-    \rho_b)` instead. Setting either of these parameters to 1 corresponds to
-    setting the corresponding :math:`\rho_a, \rho_b` to :math:`\infty`.
+    ``sinkhorn`` function uses parameters ``tau_a`` and ``tau_b`` equal
+    respectively to :math:`\rho_a /(\varepsilon + \rho_a)` and
+    :math:`\rho_b / (\varepsilon + \rho_b)` instead. Setting either of these
+    parameters to 1 corresponds to setting the corresponding
+    :math:`\rho_a, \rho_b` to :math:`\infty`.
 
-    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal `f`, `g`
-    potentials (or alternatively their parameterization as positive scalings
-    `u`, `v`), rather than solving the primal problem in :math:`P`.
-    This is mostly for efficiency (potentials and scalings have a ``n + m``
-    memory footprint, rather than ``n m`` required to store `P`). This is also
-    because both problems are, in fact, equivalent, since the optimal transport
-    math:`P^*` can be recovered from optimal potentials :math:`f^*`, :math:`g^*`
-    or scalings :math:`u^*`, :math:`v^*`, using the geometry's cost or kernel
+    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal
+    :math:`f`, :math:`g` potentials (or alternatively their parameterization
+    as positive scaling vectors :math:`u`, :math:`v`), rather than solving the
+    primal problem in :math:`P`. This is mostly for efficiency (potentials and
+    scalings have a ``n + m`` memory footprint, rather than ``n m`` required
+    to store `P`). This is also because both problems are, in fact, equivalent,
+    since the optimal transport :math:`P^{\star}` can be recovered from
+    optimal potentials :math:`f^{\star}`, :math:`g^{\star}` or scaling
+    :math:`u^{\star}`, :math:`v^{\star}`, using the geometry's cost or kernel
     matrix respectively:
 
     .. math::
 
-      P^* = \exp\left(\frac{f^*\mathbf{1}_m^T + \mathbf{1}_n g^{*T} -
-      C}{\varepsilon}\right) \text{ or } P^* = \text{diag}(u^*) K
-      \text{diag}(v^*)
+      P^{\star} = \exp\left(\frac{f^{\star}\mathbf{1}_m^T + \mathbf{1}_n g^{*T}-
+      C}{\varepsilon}\right) \text{ or } P^{\star} = \text{diag}(u^{\star}) K
+      \text{diag}(v^{\star})
 
-    By default, the Sinkhorn algorithm solves this dual problem in `f, g` or
-    `u, v` using block coordinate ascent, i.e. devising an update for each `f`
-    and `g` (resp. `u` and `v`) that cancels their respective gradients, one at
-    a time. These two iterations are repeated ``inner_iterations`` times, after
-    which the norm of these gradients will be evaluated and compared with the
-    ``threshold`` value. The iterations are then repeated as long as that error
-    exceeds ``threshold``.
+    By default, the Sinkhorn algorithm solves this dual problem in :math:`f, g`
+    or :math:`u, v` using block coordinate ascent, i.e. devising an update for
+    each :math:`f` and :math:`g` (resp. :math:`u` and :math:`v`) that cancels
+    their respective gradients, one at a time. These two iterations are repeated
+    ``inner_iterations`` times, after which the norm of these gradients will be
+    evaluated and compared with the ``threshold`` value. The iterations are then
+    repeated as long as that error exceeds ``threshold``.
 
   Note on Sinkhorn updates:
     The boolean flag ``lse_mode`` sets whether the algorithm is run in either:
@@ -622,9 +624,10 @@ class Sinkhorn:
   Differentiation:
     The optimal solutions ``f`` and ``g`` and the optimal objective
     (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated
-    w.r.t. relevant inputs ``geom``, ``a`` and ``b`` using, by default, implicit
-    differentiation of the optimality conditions (``implicit_diff``
-    not equal to ``None``). This choice has two consequences.
+    w.r.t. relevant inputs ``geom``, ``a`` and ``b``. In the default setting,
+    implicit differentiation of the optimality conditions (``implicit_diff``
+    not equal to ``None``), this has two consequences, treating ``f`` and ``g``
+    differently from ``reg_ot_cost``.
 
     - The termination criterion used to stop Sinkhorn (cancellation of
       gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate
