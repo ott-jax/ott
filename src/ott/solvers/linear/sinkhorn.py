@@ -549,15 +549,16 @@ class Sinkhorn:
     parameters to 1 corresponds to setting the corresponding
     :math:`\rho_a, \rho_b` to :math:`\infty`.
 
-    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal :math:`f`,
-    :math:`g` potentials (or alternatively their parameterization as positive
-    scaling vectors :math:`u`, :math:`v`), rather than solving the primal problem
-    in :math:`P`. This is mostly for efficiency (potentials and scalings have a
-    ``n + m`` memory footprint, rather than ``n m`` required to store `P`).
-    This is also because both problems are, in fact, equivalent, since the optimal
-    transport :math:`P^{\star}` can be recovered from optimal potentials
-    :math:`f^{\star}`, :math:`g^{\star}` or scalings :math:`u^{\star}`,
-    :math:`v^{\star}`, using the geometry's cost or kernel matrix respectively:
+    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal
+    :math:`f`, :math:`g` potentials (or alternatively their parameterization
+    as positive scaling vectors :math:`u`, :math:`v`), rather than solving the
+    primal problem in :math:`P`. This is mostly for efficiency (potentials and
+    scalings have a ``n + m`` memory footprint, rather than ``n m`` required
+    to store `P`). This is also because both problems are, in fact, equivalent,
+    since the optimal transport :math:`P^{\star}` can be recovered from
+    optimal potentials :math:`f^{\star}`, :math:`g^{\star}` or scaling
+    :math:`u^{\star}`, :math:`v^{\star}`, using the geometry's cost or kernel
+    matrix respectively:
 
     .. math::
 
@@ -565,10 +566,10 @@ class Sinkhorn:
       C}{\varepsilon}\right) \text{ or } P^{\star} = \text{diag}(u^{\star}) K
       \text{diag}(v^{\star})
 
-    By default, the Sinkhorn algorithm solves this dual problem in :math:`f, g` or
-    :math:`u, v` using block coordinate ascent, i.e. devising an update for each
-    :math:`f` and :math:`g` (resp. :math:`u` and :math:`v`) that cancels their
-    respective gradients, one at a time. These two iterations are repeated
+    By default, the Sinkhorn algorithm solves this dual problem in :math:`f, g`
+    or :math:`u, v` using block coordinate ascent, i.e. devising an update for
+    each :math:`f` and :math:`g` (resp. :math:`u` and :math:`v`) that cancels
+    their respective gradients, one at a time. These two iterations are repeated
     ``inner_iterations`` times, after which the norm of these gradients will be
     evaluated and compared with the ``threshold`` value. The iterations are then
     repeated as long as that error exceeds ``threshold``.
