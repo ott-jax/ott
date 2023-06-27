@@ -24,13 +24,17 @@ from flax.training import train_state
 
 from ott.solvers.nn.models import ModelBase
 
+__all__ = ["MapEstimator"]
+
 
 class MapEstimator:
   r"""Mapping estimator between probability measures.
 
   It estimates a map :math:`T` by minimizing the loss:
-  :math:`\text{min}_{\theta}\; \Delta(T_\theta \sharp \mu, \theta)
-  + \lambda R(T_\theta)`
+
+  .. math::
+    \text{min}_{\theta}\; \Delta(T_\theta \sharp \mu, \theta)
+    + \lambda R(T_\theta)
 
   where :math:`\Delta` is a fitting loss and :math:`R` is a regularizer.
   :math:`\Delta` allows to fit the marginal constraint, i.e. transport
@@ -38,23 +42,24 @@ class MapEstimator:
   is a regularizer imposing an inductive bias on the learned map.
 
   For instance, :math:`\Delta` can be the
-  {func}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the {func}`~ott.solvers.nn.losses.monge_gap`
-  (see :cite:`uscidda:23`) for a given cost function :math:`c`.
+  :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
+  and :math:`R` the :func:`~ott.solvers.nn.losses.monge_gap`
+  :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
 
   Args:
-    dim_data: input dimensionality of data required for network init
+    dim_data: input dimensionality of data required for network init.
     model: network architecture for map :math:`T`.
     optimizer: optimizer function for map :math:`T`.
-    fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint
+    fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint.
     regularizer: regularizer :math:`R` to impose an inductive bias
-      on the map :math:`T`
-    num_train_iters: number of total training iterations
-    valid_freq: frequency with training and validation are logged
-    logging: option to return logs
-    rng: random key used for seeding for network initializations
+      on the map :math:`T`.
+    regularizer_strength: strength of the :meth:`regularizer`.
+    num_train_iters: number of total training iterations.
+    logging: option to return logs.
+    valid_freq: frequency with training and validation are logged.
+    rng: random key used for seeding for network initializations.
   """
 
   def __init__(
@@ -65,7 +70,7 @@ class MapEstimator:
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       float]] = None,
       regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray], float]] = None,
-      lambd_regularizer: float = 1.,
+      regularizer_strength: float = 1.,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
@@ -73,21 +78,18 @@ class MapEstimator:
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
-    self.lambd_regularizer = lambd_regularizer
+    self.regularizer_strength = regularizer_strength
     self.num_train_iters = num_train_iters
     self.logging = logging
     self.valid_freq = valid_freq
-    if rng is not None:
-      self.rng = rng
-    else:
-      self.rng = jax.random.PRNGKey(0)
+    self.rng = jax.random.PRNGKey(0) if rng is None else rng
     self.setup(dim_data, model, optimizer)
 
   def setup(
       self,
-      dim_data,
-      neural_net,
-      optimizer,
+      dim_data: int,
+      neural_net: ModelBase,
+      optimizer: optax.OptState,
   ) -> None:
     """Setup all components required to train the network."""
     # neural network
@@ -103,10 +105,9 @@ class MapEstimator:
     """Regularizer added to the fitting loss.
 
     Can be for instance the {func}`~ott.solvers.nn.losses.monge_gap`.
-    If no regularizer is passed for solver instanciation,
-    or regularization weight :attr:``lambd_regularizer``is 0.,
+    If no regularizer is passed for solver instantiation,
+    or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default.
-    In that case, only the fitting loss is minimized.
     """
     if self._regularizer is not None:
       return self._regularizer
@@ -117,10 +118,8 @@ class MapEstimator:
     """Fitting loss to fit the marginal constraint.
 
     Can be for instance the
-    {func}`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
-    If no fitting_loss is passed for solver instanciation,
-    return 0. by default.
-    In that case, only the regularizer is minimized.
+    :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    If no fitting_loss is passed for solver instantiation, return 0 by default.
     """
     if self._fitting_loss is not None:
       return self._fitting_loss
@@ -220,7 +219,7 @@ class MapEstimator:
           samples=batch["source"], mapped_samples=mapped_samples
       )
       val_tot_loss = (
-          val_fitting_loss + self.lambd_regularizer * val_regularizer
+          val_fitting_loss + self.regularizer_strength * val_regularizer
       )
 
       # store training logs

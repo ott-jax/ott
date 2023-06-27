@@ -16,6 +16,7 @@ from . import (
     k_means,
     map_estimator,
     plot,
+    segment_sinkhorn,
     sinkhorn_divergence,
     soft_sort,
 )

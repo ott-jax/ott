@@ -20,6 +20,8 @@ import jax.numpy as jnp
 from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
 
+__all__ = ["monge_gap"]
+
 
 def monge_gap(
     source: jnp.ndarray,
@@ -38,14 +40,14 @@ def monge_gap(
   defined by samples :math:`(x_i)_{i=1,...,n}`, the (entropic) Monge gap
   of a vector field :math:`T` is defined as:
   :math:`\mathcal{M}^c_{\rho_x, \epsilon}
-  = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) - W_\epsilon(\rho, T \# \rho)`.
+  = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) - W_\epsilon(\rho, T \sharp \rho)`.
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
     source: samples from the reference measure :math:`\rho`.
-    target: samples from the mapped reference measure :math:`T\sharp\rho`
-    mapped with :math:`T`, i.e. samples from :math:`T\sharp\rho`.
-    cost_fn: a cost function between two points in dimension d.
+    target: samples from the mapped reference measure :math:`T \sharp \rho`.
+      mapped with :math:`T`, i.e. samples from :math:`T \sharp \rho`.
+    cost_fn: a cost function between two points in dimension :math:`d`.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
       ``relative_epsilon = True`` or ``relative_epsilon = None`` and
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
@@ -60,12 +62,12 @@ def monge_gap(
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
     return_output: boolean to also return Sinkhorn output.
-    kwargs: holds the kwargs to instanciate the or
+    kwargs: holds the kwargs to instantiate the or
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
       compute the regularized OT cost.
 
   Returns:
-    The Monge gap value and optionaly the Sinkhorn output.
+    The Monge gap value and optionally the Sinkhorn output.
   """
   geom = pointcloud.PointCloud(
       x=source,
