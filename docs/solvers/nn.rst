@@ -34,7 +34,7 @@ Conjugate Solvers
     conjugate_solvers.FenchelConjugateLBFGS
 
 Losses
------------------
+------
 .. autosummary::
     :toctree: _autosummary
 

@@ -48,10 +48,13 @@ def monge_gap(
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
-    source: samples from the reference measure :math:`\rho`.
-    target: samples from the mapped reference measure :math:`T \sharp \rho`.
-      mapped with :math:`T`, i.e. samples from :math:`T \sharp \rho`.
+    source: samples from the reference measure :math:`\rho`,
+      array of shape ``[n, d]``.
+    target: samples from the mapped reference measure :math:`T \sharp \rho`
+      mapped with :math:`T`, i.e. samples from :math:`T \sharp \rho`,
+      array of shape ``[n, d]``.
     cost_fn: a cost function between two points in dimension :math:`d`.
+      If :obj:`None`, :class:`~ott.geometry.costs.SqEuclidean` is used.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
       ``relative_epsilon = True`` or ``relative_epsilon = None`` and
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
