@@ -29,10 +29,8 @@ class MapEstimator:
   r"""Mapping estimator between probability measures.
 
   It estimates a map :math:`T` by minimizing the loss:
-  .. math:
-
-  \text{min}_{\theta}\; \Delta(T_\theta \sharp \mu, \theta)
-  + \lambda R(T_\theta)
+  :math:`\text{min}_{\theta}\; \Delta(T_\theta \sharp \mu, \theta)
+  + \lambda R(T_\theta)`
 
   where :math:`\Delta` is a fitting loss and :math:`R` is a regularizer.
   :math:`\Delta` allows to fit the marginal constraint, i.e. transport
@@ -50,7 +48,7 @@ class MapEstimator:
     dim_data: input dimensionality of data required for network init
     model: network architecture for map :math:`T`.
     optimizer: optimizer function for map :math:`T`.
-    fitting_loss: fitting loss :math:`Delta` to fit the marginal constraint
+    fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint
     regularizer: regularizer :math:`R` to impose an inductive bias
       on the map :math:`T`
     num_train_iters: number of total training iterations
