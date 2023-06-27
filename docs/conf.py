@@ -62,6 +62,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "lineax": ("https://docs.kidger.site/lineax/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
@@ -145,9 +146,6 @@ html_favicon = "_static/images/logoOTT.ico"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_theme_options = {
-    "announcement":
-        "In 0.4.1, the jit argument in solvers will be "
-        "removed. Please jit the solvers explicitly.",
     "repository_url": "https://github.com/ott-jax/ott",
     "repository_branch": "main",
     "path_to_docs": "docs/",

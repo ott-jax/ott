@@ -65,6 +65,7 @@ class PositiveDense(nn.Module):
         "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
+    kernel = jnp.asarray(kernel, self.dtype)
     y = jax.lax.dot_general(
         inputs,
         kernel, (((inputs.ndim - 1,), (0,)), ((), ())),

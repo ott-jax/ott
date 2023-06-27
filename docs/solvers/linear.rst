@@ -3,7 +3,13 @@ ott.solvers.linear
 .. module:: ott.solvers.linear
 .. currentmodule:: ott.solvers.linear
 
-.. TODO(marcocuturi): maybe add some text here
+Linear solvers are the bread-and-butter of OT solvers. They can be called on
+their own, either the Sinkhorn
+:class:`ott.solvers.linear.sinkhorn.Sinkhorn` or Low-Rank
+:class:`ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, to match two
+datasets. They also appear as subroutines for more advanced solvers in the
+:mod:`ott.solvers` module, notably :mod:`ott.solvers.quadratic` or
+:mod:`ott.solvers.nn`.
 
 Sinkhorn Solvers
 ----------------
@@ -42,3 +48,5 @@ Implicit Differentiation
     :toctree: _autosummary
 
     implicit_differentiation.ImplicitDiff
+    implicit_differentiation.solve_jax_cg
+    lineax_implicit.solve_lineax

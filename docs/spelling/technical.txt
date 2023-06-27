@@ -117,6 +117,7 @@ softplus
 stateful
 sublinear
 submodule
+submodules
 suboptimal
 subpopulation
 subpopulations

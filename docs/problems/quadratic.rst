@@ -3,7 +3,9 @@ ott.problems.quadratic
 .. module:: ott.problems.quadratic
 .. currentmodule:: ott.problems.quadratic
 
-.. TODO(marcocuturi): maybe add some text here
+The :mod:`ott.problems.quadratic` module describes the quadratic assignment
+problem and its generalizations, including notably the fused-problem (including
+a linear term) and the more advanced GW barycenter problem.
 
 OT Problems
 -----------

@@ -160,19 +160,30 @@ class TestSoftSort:
   def test_soft_sort_jacobian(
       self, rng: jax.random.PRNGKeyArray, implicit: bool
   ):
+    ## Add a ridge when using JAX solvers.
+    try:
+      from ott.solvers.linear import lineax_implicit  # noqa: F401
+      solver_kwargs = {}
+    except ImportError:
+      solver_kwargs = {"ridge_identity": 1e-1, "ridge_kernel": 1e-1}
     b, n = 10, 40
+    num_targets = n // 2
     idx_column = 5
     rngs = jax.random.split(rng, 3)
     z = jax.random.uniform(rngs[0], ((b, n)))
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
     def loss_fn(logits: jnp.ndarray) -> float:
-      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+      im_d = None
+      if implicit:
+        # Ridge parameters are only used when using JAX's CG.
+        im_d = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
+
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
-          num_targets=167,
-          implicit_diff=implicit_diff,
+          num_targets=num_targets,
+          implicit_diff=im_d,
       )
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 
