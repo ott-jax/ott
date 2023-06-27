@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,8 +29,9 @@ def monge_gap(
     relative_epsilon: Optional[bool] = None,
     scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                 "median"]] = 1.0,
+    return_output: bool = False,
     **kwargs: Any
-) -> float:
+) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
   For a cost function :math:`c` and an empirical reference :math:`\rho`
@@ -41,10 +42,10 @@ def monge_gap(
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
-    samples: samples from the reference measure :math:`rho`.
-    mapped_samples: samples from the reference measure :math:`rho`
-    mapped with :math:`T`, i.e. samples from :math:T\sharp\rho.
-    cost_fn: a CostFn function between two points in dimension d.
+    samples: samples from the reference measure :math:`\rho`.
+    mapped_samples: samples from the reference measure :math:`\rho`
+    mapped with :math:`T`, i.e. samples from :math:`T\sharp\rho`.
+    cost_fn: a cost function between two points in dimension d.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
@@ -58,14 +59,14 @@ def monge_gap(
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
+    return_output: boolean to also return Sinkhorn output.
     kwargs: holds the kwargs to instanciate the or
-      :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver to
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
       compute the regularized OT cost.
 
   Returns:
-  The Monge gap value.
+    The Monge gap value and optionaly the Sinkhorn output.
   """
-  n = len(samples)
   geom = pointcloud.PointCloud(
       x=samples,
       y=mapped_samples,
@@ -74,17 +75,7 @@ def monge_gap(
       relative_epsilon=relative_epsilon,
       scale_cost=scale_cost,
   )
-  gt_displacement_cost = (1 / n) * jnp.sum(
-      jax.vmap(cost_fn)(samples, mapped_samples)
-  )
-  reg_opt_displacement_cost = sinkhorn.solve(geom=geom, **kwargs).reg_ot_cost
-
-  # to ensures the Monge gap positivity,
-  # we use as entropic regularizer the negative Shannon entropy
-  # :math:`H(P)` instead of the kl-divergence between
-  # the plan and the product of the marginals :math:`KL(P|a\otimes b)`.
-  # since :math:`KL(P|a\otimes b) = - H(P) + H(a) + H(b)`, we just need to
-  # remove the the entropy of the marginals here, which are both uniforms.
-  reg_opt_displacement_cost -= 2 * geom.epsilon * jnp.log(n)
-
-  return gt_displacement_cost - reg_opt_displacement_cost
+  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(samples, mapped_samples))
+  out = sinkhorn.solve(geom=geom, **kwargs)
+  loss = gt_displacement_cost - out.ent_reg_cost
+  return (loss, out) if return_output else loss
