@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from types import MappingProxyType
-from typing import Any, Literal, Mapping, Optional, Union
+
+from typing import Any, Literal, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +29,6 @@ def monge_gap(
     relative_epsilon: Optional[bool] = None,
     scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                 "median"]] = 1.0,
-    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
 ) -> float:
   r"""Monge gap regularizer :cite:`uscidda:23`.
@@ -47,10 +46,10 @@ def monge_gap(
     mapped with :math:`T`, i.e. samples from :math:T\sharp\rho.
     cost_fn: a CostFn function between two points in dimension d.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
-      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
-      ``epsilon = None``, use :math:`0.05`.
+     ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+     ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+     is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+     ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
@@ -59,15 +58,12 @@ def monge_gap(
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    sinkhorn_kwargs: holds the kwargs to instanciate the or
+    kwargs: holds the kwargs to instanciate the or
       :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver to
-      the regularized OT cost.
-    kwargs: additional kwargs to pass to the
-      :class:`ott.geometry.pointcloud.PointCloud`, for instantiating
-      the geometry between ``samples`` and ``mapped samples``.
+      compute the regularized OT cost.
 
   Returns:
-    The Monge gap value.
+  The Monge gap value.
   """
   n = len(samples)
   geom = pointcloud.PointCloud(
@@ -77,12 +73,11 @@ def monge_gap(
       epsilon=epsilon,
       relative_epsilon=relative_epsilon,
       scale_cost=scale_cost,
-      **kwargs
   )
-  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(samples, mapped_samples))
-  reg_opt_displacement_cost = sinkhorn.solve(
-      geom=geom, **sinkhorn_kwargs
-  ).reg_ot_cost
+  gt_displacement_cost = (1 / n) * jnp.sum(
+      jax.vmap(cost_fn)(samples, mapped_samples)
+  )
+  reg_opt_displacement_cost = sinkhorn.solve(geom=geom, **kwargs).reg_ot_cost
 
   # to ensures the Monge gap positivity,
   # we use as entropic regularizer the negative Shannon entropy
