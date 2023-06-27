@@ -562,7 +562,7 @@ class Sinkhorn:
 
     .. math::
 
-      P^{\star} = \exp\left(\frac{f^{\star}\mathbf{1}_m^T + \mathbf{1}_n g^{*T} -
+      P^{\star} = \exp\left(\frac{f^{\star}\mathbf{1}_m^T + \mathbf{1}_n g^{*T}-
       C}{\varepsilon}\right) \text{ or } P^{\star} = \text{diag}(u^{\star}) K
       \text{diag}(v^{\star})
 
