@@ -525,7 +525,8 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\min_{P} \varepsilon KL(P|K) + \rho_a \text{KL}(P\mathbf{1}_m | a) +
+      \arg\min_{P} \varepsilon \text{KL}(P|K)
+      + \rho_a \text{KL}(P\mathbf{1}_m | a) +
       \rho_b \text{KL}(P^T \mathbf{1}_n | b)
 
     The *original* OT problem taught in linear programming courses is recovered
