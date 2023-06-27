@@ -22,8 +22,8 @@ from ott.solvers.linear import sinkhorn
 
 
 def monge_gap(
-    samples: jnp.ndarray,
-    mapped_samples: jnp.ndarray,
+    source: jnp.ndarray,
+    target: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
@@ -42,8 +42,8 @@ def monge_gap(
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
-    samples: samples from the reference measure :math:`\rho`.
-    mapped_samples: samples from the reference measure :math:`\rho`
+    source: samples from the reference measure :math:`\rho`.
+    target: samples from the mapped reference measure :math:`T\sharp\rho`
     mapped with :math:`T`, i.e. samples from :math:`T\sharp\rho`.
     cost_fn: a cost function between two points in dimension d.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
@@ -68,14 +68,14 @@ def monge_gap(
     The Monge gap value and optionaly the Sinkhorn output.
   """
   geom = pointcloud.PointCloud(
-      x=samples,
-      y=mapped_samples,
+      x=source,
+      y=target,
       cost_fn=cost_fn,
       epsilon=epsilon,
       relative_epsilon=relative_epsilon,
       scale_cost=scale_cost,
   )
-  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(samples, mapped_samples))
+  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(source, target))
   out = sinkhorn.solve(geom=geom, **kwargs)
   loss = gt_displacement_cost - out.ent_reg_cost
   return (loss, out) if return_output else loss
