@@ -36,11 +36,15 @@ def monge_gap(
 ) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
-  For a cost function :math:`c` and an empirical reference :math:`\rho`
-  defined by samples :math:`(x_i)_{i=1,...,n}`, the (entropic) Monge gap
+  For a cost function :math:`c` and an empirical reference :math:`\hat{\rho}_n`
+  defined by samples :math:`(x_i)_{i=1,\dots,n}`, the (entropic) Monge gap
   of a vector field :math:`T` is defined as:
-  :math:`\mathcal{M}^c_{\rho_x, \epsilon}
-  = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) - W_\epsilon(\rho, T \sharp \rho)`.
+
+  .. math::
+    \mathcal{M}^c_{\hat{\rho}_n, \varepsilon} (T)
+    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) -
+    W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
+
   See :cite:`uscidda:23` Eq. (8).
 
   Args:
@@ -51,12 +55,14 @@ def monge_gap(
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
       ``relative_epsilon = True`` or ``relative_epsilon = None`` and
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
-      ``epsilon = None``, use :math:`0.05`.
+      is used, ``scale_epsilon`` is the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`.
+      If ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
-      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
-      adaptively from data.
+      refers to a fraction of the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`, which is
+      computed adaptively from data.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.

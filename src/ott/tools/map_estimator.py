@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
-from functools import partial
+import collections
+import functools
 from typing import Any, Callable, Dict, Iterator, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import optax
-from flax.core.frozen_dict import FrozenDict
+from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott.solvers.nn.models import ModelBase
@@ -55,7 +55,7 @@ class MapEstimator:
     fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint.
     regularizer: regularizer :math:`R` to impose an inductive bias
       on the map :math:`T`.
-    regularizer_strength: strength of the :meth:`regularizer`.
+    regularizer_strength: strength of the :attr:`regularizer`.
     num_train_iters: number of total training iterations.
     logging: option to return logs.
     valid_freq: frequency with training and validation are logged.
@@ -104,7 +104,7 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be for instance the {func}`~ott.solvers.nn.losses.monge_gap`.
+    Can be for instance the :func:`~ott.solvers.nn.losses.monge_gap`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default.
@@ -149,7 +149,7 @@ class MapEstimator:
   ) -> Tuple[train_state.TrainState, Dict[str, Any]]:
     """Training loop."""
     # define logs
-    logs = defaultdict(lambda: defaultdict(list))
+    logs = collections.defaultdict(lambda: collections.defaultdict(list))
 
     # try to display training progress with tqdm
     try:
@@ -185,7 +185,7 @@ class MapEstimator:
           for metric_key in logs[log_key]:
             logs[log_key][metric_key].append(current_logs[log_key][metric_key])
 
-        # udpate the tqdm bar if tqdm is available
+        # update the tqdm bar if tqdm is available
         if not isinstance(tbar, range):
           reg_msg = (
               "not computed" if current_logs["eval"]["regularizer"] == 0. else
@@ -203,7 +203,7 @@ class MapEstimator:
     """Create a one step training and evaluation function."""
 
     def loss_fn(
-        params: FrozenDict,
+        params: frozen_dict.FrozenDict,
         apply_fn: Callable,
         batch: Dict[str, jnp.ndarray],
     ) -> Tuple[float, Dict[str, float]]:
@@ -231,7 +231,7 @@ class MapEstimator:
 
       return val_tot_loss, loss_logs
 
-    @partial(jax.jit, static_argnums=3)
+    @functools.partial(jax.jit, static_argnums=3)
     def step_fn(
         state_neural_net: train_state.TrainState,
         train_batch: Dict[str, jnp.ndarray],
