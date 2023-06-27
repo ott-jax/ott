@@ -47,10 +47,10 @@ def monge_gap(
     mapped with :math:`T`, i.e. samples from :math:`T\sharp\rho`.
     cost_fn: a cost function between two points in dimension d.
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
-     ``relative_epsilon = True`` or ``relative_epsilon = None`` and
-     ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-     is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
-     ``epsilon = None``, use :math:`0.05`.
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+      ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
