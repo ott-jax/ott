@@ -344,12 +344,13 @@ class SinkhornOutput(NamedTuple):
 
     This outputs
     .. math::
-      \langle P^{\star}, C \rangle + \varepsilon KL(P^{\star},ab^T)
-      + \rho_a\text{KL}(P^{\star} 1|a) + \rho_b\text{KL}(1^T P^{\star}|b),
 
-    where :math:`P^{\star}, a, b` are the
-    coupling returned by the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`
-    algorithm and the two marginal weight vectors, respectively, and
+      \langle P^{\star}, C \rangle + \varepsilon KL(P^{\star},ab^T) +
+      \rho_a\text{KL}(P^{\star} 1|a) + \rho_b\text{KL}(1^T P^{\star}|b),
+
+    where :math:`P^{\star}, a, b` are the coupling returned by the
+    :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm and the two
+    marginal weight vectors, respectively, and
     :math:`\rho_a=\varepsilon \tau_a / (1-\tau_a)` and
     :math:`\rho_b=\varepsilon \tau_b / (1-\tau_b)` are obtained when the problem
     is unbalanced from parameters ``tau_a`` and ``tau_b``. Note that the last
