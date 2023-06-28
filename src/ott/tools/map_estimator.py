@@ -66,7 +66,7 @@ class MapEstimator:
       self,
       dim_data: int,
       model: ModelBase,
-      optimizer: optax.OptState,
+      optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       float]] = None,
       regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray], float]] = None,
@@ -83,6 +83,12 @@ class MapEstimator:
     self.logging = logging
     self.valid_freq = valid_freq
     self.rng = jax.random.PRNGKey(0) if rng is None else rng
+
+    # set default optimizer
+    if optimizer is None:
+      optimizer = optax.adam(learning_rate=0.001, b1=0.5, b2=0.9, eps=1e-8)
+
+    # setup training
     self.setup(dim_data, model, optimizer)
 
   def setup(
@@ -90,7 +96,7 @@ class MapEstimator:
       dim_data: int,
       neural_net: ModelBase,
       optimizer: optax.OptState,
-  ) -> None:
+  ):
     """Setup all components required to train the network."""
     # neural network
     self.state_neural_net = neural_net.create_train_state(
@@ -181,8 +187,8 @@ class MapEstimator:
 
       # store and print metrics if logging step
       if is_logging_step:
-        for log_key in logs:
-          for metric_key in logs[log_key]:
+        for log_key in current_logs:
+          for metric_key in current_logs[log_key]:
             logs[log_key][metric_key].append(current_logs[log_key][metric_key])
 
         # update the tqdm bar if tqdm is available
