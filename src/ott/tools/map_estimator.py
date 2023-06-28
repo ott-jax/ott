@@ -212,12 +212,8 @@ class MapEstimator:
       mapped_samples = apply_fn({"params": params}, batch["source"])
 
       # compute the loss
-      val_fitting_loss = self.fitting_loss(
-          samples=batch["target"], mapped_samples=mapped_samples
-      )
-      val_regularizer = self.regularizer(
-          samples=batch["source"], mapped_samples=mapped_samples
-      )
+      val_fitting_loss = self.fitting_loss(batch["target"], mapped_samples)
+      val_regularizer = self.regularizer(batch["source"], mapped_samples)
       val_tot_loss = (
           val_fitting_loss + self.regularizer_strength * val_regularizer
       )

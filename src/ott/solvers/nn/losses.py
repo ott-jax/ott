@@ -78,6 +78,7 @@ def monge_gap(
   Returns:
     The Monge gap value and optionally the Sinkhorn output.
   """
+  cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
   geom = pointcloud.PointCloud(
       x=source,
       y=target,

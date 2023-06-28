@@ -11,24 +11,75 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import jax
+import numpy as np
+import pytest
+from ott.geometry import costs
+from ott.solvers.nn import losses
 
 
+@pytest.mark.fast()
 class TestMongeGap:
 
-  def test_monge_gap(self, rng: jax.random.PRNGKey):
-    """Tests convexity of ICNN."""
+  def test_monge_gap_non_negativity(self, rng: jax.random.PRNGKey):
+    """Tests non-negativity of the Monge gap."""
+
+    # generate data
     n_samples, n_features = 10, 2
+    rng1, rng2 = jax.random.split(rng, 2)
+    source = jax.random.normal(rng1, (n_samples, n_features))
+    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
 
-    # define icnn model
-    # model = models.ICNN(n_features, dim_hidden=dim_hidden)
+    # compute the Monge gap
+    monge_gap_value = losses.monge_gap(source=source, target=target)
+    np.testing.assert_array_equal(monge_gap_value >= 0, True)
 
-    # # initialize model
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
-    # model.init(rng1, jnp.ones(n_features))["params"]
+  def test_monge_gap_different_cost(self, rng: jax.random.PRNGKey):
+    """Tests that Monge gaps intantiated for different costs
+    provide different values.
+    """
 
-    # check convexity
-    jax.random.normal(rng1, (n_samples, n_features)) * 0.1
-    jax.random.normal(rng2, (n_samples, n_features))
+    # generate data
+    n_samples, n_features = 10, 2
+    rng1, rng2 = jax.random.split(rng, 2)
+    source = jax.random.normal(rng1, (n_samples, n_features))
+    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
 
-    raise NotImplementedError("Add a test.")
+    # compute the Monge gaps for different costs
+    monge_gap_value_sq_eucl = losses.monge_gap(
+        source=source, target=target, cost_fn=costs.SqEuclidean()
+    )
+    monge_gap_value_eucl = losses.monge_gap(
+        source=source, target=target, cost_fn=costs.Euclidean()
+    )
+    np.testing.assert_array_equal(
+        monge_gap_value_sq_eucl == monge_gap_value_eucl, False
+    )
+
+  def test_monge_gap_jit(self, rng: jax.random.PRNGKey):
+    """Tests if the Monge gap can be jitted
+    w.r.t. the data points.
+    """
+
+    # generate data
+    n_samples, n_features = 10, 2
+    rng1, rng2 = jax.random.split(rng, 2)
+    source = jax.random.normal(rng1, (n_samples, n_features))
+    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
+
+    # define jitted monge gap
+    jit_monge_gap = jax.jit(
+        lambda source, target: losses.monge_gap(source, target)
+    )
+
+    # compute the Monge gaps for different costs
+    monge_gap_value = losses.monge_gap(
+        source=source,
+        target=target,
+    )
+    jit_monge_gap_value = jit_monge_gap(
+        source=source,
+        target=target,
+    )
+    np.testing.assert_allclose(monge_gap_value, jit_monge_gap_value, rtol=1e-3)
