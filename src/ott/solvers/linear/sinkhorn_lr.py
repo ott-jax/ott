@@ -383,39 +383,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       return xi_q, xi_r, xi_g, gamma
     return jnp.exp(xi_q), jnp.exp(xi_r), jnp.exp(xi_g), gamma
 
-  def _lr_kernels(
-      self,
-      ot_prob: linear_problem.LinearProblem,
-      state: LRSinkhornState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
-    log_q, log_r, log_g = (
-        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
-    )
-
-    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    diag_qcr = jnp.sum(
-        state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
-    )
-    grad_g = -diag_qcr / (state.g ** 2)
-    if self.is_entropic:
-      grad_q += self.epsilon * log_q
-      grad_r += self.epsilon * log_r
-      grad_g += self.epsilon * log_g
-
-    if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
-      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
-    else:
-      gamma = self.gamma
-
-    k_q = jnp.exp((-gamma) * (grad_q - (1. / gamma) * log_q))
-    k_r = jnp.exp((-gamma) * (grad_r - (1. / gamma) * log_r))
-    k_g = jnp.exp((-gamma) * (grad_g - (1. / gamma) * log_g))
-    return k_q, k_r, k_g, gamma
-
   # TODO(michalk8): move to `lr_utils` when refactoring this
   def dykstra_update_lse(
       self,
