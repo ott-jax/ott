@@ -17,4 +17,18 @@ import jax
 class TestMongeGap:
 
   def test_monge_gap(self, rng: jax.random.PRNGKey):
+    """Tests convexity of ICNN."""
+    n_samples, n_features = 10, 2
+
+    # define icnn model
+    # model = models.ICNN(n_features, dim_hidden=dim_hidden)
+
+    # # initialize model
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    # model.init(rng1, jnp.ones(n_features))["params"]
+
+    # check convexity
+    jax.random.normal(rng1, (n_samples, n_features)) * 0.1
+    jax.random.normal(rng2, (n_samples, n_features))
+
     raise NotImplementedError("Add a test.")
