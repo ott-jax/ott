@@ -408,9 +408,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       gamma = self.gamma
 
-    xi_q = -gamma * grad_q + log_q
-    xi_r = -gamma * grad_r + log_r
-    xi_g = -gamma * grad_g + log_g
+    eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
+    gamma *= eps_factor
+
+    xi_q = -gamma * grad_q + eps_factor * log_q
+    xi_r = -gamma * grad_r + eps_factor * log_r
+    xi_g = -gamma * grad_g + eps_factor * log_g
 
     if self.lse_mode:
       return xi_q, xi_r, xi_g, gamma

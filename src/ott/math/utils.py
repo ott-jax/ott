@@ -26,6 +26,7 @@ __all__ = [
     "barycentric_projection"
 ]
 
+
 def safe_log(  # noqa: D103
     x: jnp.ndarray,
     *,
