@@ -15,7 +15,7 @@ implementation of the Sinkhorn algorithm you will find around. We have implement
 [JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions),
 [auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and
 [implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html)
-work towards the goal of having end-to-end differentiable outputs. OTT-JAX is led by a team of researchers at Apple, with contributions from Google and Meta researchers, as well as many academic partners, including TU München, Oxford, ENSAE/IP Paris, ENS Paris and the Hebrew University.
+work towards the goal of having end-to-end differentiable outputs. ``OTT-JAX`` is led by a team of researchers at Apple, with contributions from Google and Meta researchers, as well as many academic partners, including TU München, Oxford, ENSAE/IP Paris, ENS Paris and the Hebrew University.
 
 ## Installation
 Install ``OTT-JAX`` from [PyPI](https://pypi.org/project/ott-jax/) as:

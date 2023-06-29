@@ -253,6 +253,14 @@ class TestSinkhorn:
     np.testing.assert_allclose(
         out_online.reg_ot_cost, out_batch.reg_ot_cost, rtol=1e-6
     )
+    np.testing.assert_allclose(
+        out_online.kl_reg_cost, out_batch.kl_reg_cost, rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        out_online.ent_reg_cost, out_batch.ent_reg_cost, rtol=1e-6
+    )
+    # Check values are bigger than 0 for KL regularized OT.
+    np.testing.assert_array_less(0.0, out_online.kl_reg_cost)
     # check regularized transport matrices match
     np.testing.assert_allclose(
         online_geom.transport_from_potentials(out_online.f, out_online.g),
