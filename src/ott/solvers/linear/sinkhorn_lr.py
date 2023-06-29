@@ -44,7 +44,6 @@ ProgressCallbackFn_t = Callable[
 
 class LRSinkhornState(NamedTuple):
   """State of the Low Rank Sinkhorn algorithm."""
-
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -56,18 +55,27 @@ class LRSinkhornState(NamedTuple):
   def compute_error(  # noqa: D102
       self, previous_state: "LRSinkhornState"
   ) -> float:
-    err_1 = mu.js(self.q, previous_state.q, c=1.)
-    err_2 = mu.js(self.r, previous_state.r, c=1.)
-    err_3 = mu.js(self.g, previous_state.g, c=1.)
+    err_q = mu.js(self.q, previous_state.q, c=1.0)
+    err_r = mu.js(self.r, previous_state.r, c=1.0)
+    err_g = mu.js(self.g, previous_state.g, c=1.0)
 
-    return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
+    return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
   def reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
+      *,
+      epsilon: float,
       use_danskin: bool = False
   ) -> float:
-    return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
+    return compute_reg_ot_cost(
+        self.q,
+        self.r,
+        self.g,
+        ot_prob,
+        epsilon=epsilon,
+        use_danskin=use_danskin
+    )
 
   def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
@@ -84,6 +92,7 @@ def compute_reg_ot_cost(
     r: jnp.ndarray,
     g: jnp.ndarray,
     ot_prob: linear_problem.LinearProblem,
+    epsilon: float,
     use_danskin: bool = False
 ) -> float:
   """Compute the regularized OT cost.
@@ -93,16 +102,32 @@ def compute_reg_ot_cost(
     r: second factor of solution
     g: weights of solution
     ot_prob: linear problem
+    epsilon: Entropic regularization.
     use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
       to avoid computing the gradient of the cost function.
 
   Returns:
     regularized OT cost
   """
+
+  def ent(x: jnp.ndarray) -> float:
+    # generalized entropy
+    return jnp.sum(jsp.special.entr(x) + x)
+
+  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
-  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1. / g)[None, :])
+
+  cost = jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+  cost -= epsilon * (ent(q) + ent(r) + ent(g))
+  if tau_a != 1.0:
+    cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
+  if tau_b != 1.0:
+    cost += tau_b / (1.0 - tau_b) * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
+
+  return cost
 
 
 def solution_error(
@@ -149,6 +174,7 @@ class LRSinkhornOutput(NamedTuple):
   # in future, enforce via class hierarchy
   errors: jnp.ndarray
   ot_prob: linear_problem.LinearProblem
+  epsilon: float
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
@@ -170,7 +196,14 @@ class LRSinkhornOutput(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False,
   ) -> float:
-    return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
+    return compute_reg_ot_cost(
+        self.q,
+        self.r,
+        self.g,
+        ot_prob,
+        epsilon=self.epsilon,
+        use_danskin=use_danskin
+    )
 
   @property
   def linear(self) -> bool:  # noqa: D102
@@ -663,7 +696,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # re-computes error if compute_error is True, else set it to inf.
     cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
+        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        lambda: jnp.inf
     )
     error = state.compute_error(previous_state)
     crossed_threshold = jnp.logical_or(
@@ -761,6 +795,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         ot_prob=ot_prob,
         costs=state.costs,
         errors=state.errors,
+        epsilon=self.epsilon,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
