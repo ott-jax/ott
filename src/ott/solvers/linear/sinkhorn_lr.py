@@ -68,6 +68,7 @@ class LRSinkhornState(NamedTuple):
       epsilon: float,
       use_danskin: bool = False
   ) -> float:
+    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
     return compute_reg_ot_cost(
         self.q,
         self.r,
@@ -95,7 +96,7 @@ def compute_reg_ot_cost(
     epsilon: float,
     use_danskin: bool = False
 ) -> float:
-  """Compute the regularized OT cost.
+  """Compute the regularized OT cost, here the primal cost of the LR solution.
 
   Args:
     q: first factor of solution
@@ -107,7 +108,7 @@ def compute_reg_ot_cost(
       to avoid computing the gradient of the cost function.
 
   Returns:
-    regularized OT cost
+    regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
 
   def ent(x: jnp.ndarray) -> float:
