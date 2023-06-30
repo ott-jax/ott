@@ -380,7 +380,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
 
-  def _get_xis(  # TODO(michalk8): rename
+  def _get_costs(
       self,
       ot_prob: linear_problem.LinearProblem,
       state: LRSinkhornState,
@@ -411,13 +411,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
     gamma *= eps_factor
 
-    xi_q = -gamma * grad_q + eps_factor * log_q
-    xi_r = -gamma * grad_r + eps_factor * log_r
-    xi_g = -gamma * grad_g + eps_factor * log_g
+    c_q = -gamma * grad_q + eps_factor * log_q
+    c_r = -gamma * grad_r + eps_factor * log_r
+    c_g = -gamma * grad_g + eps_factor * log_g
 
-    if self.lse_mode:
-      return xi_q, xi_r, xi_g, gamma
-    return jnp.exp(xi_q), jnp.exp(xi_r), jnp.exp(xi_g), gamma
+    return c_q, c_r, c_g, gamma
 
   # TODO(michalk8): move to `lr_utils` when refactoring this
   def dykstra_update_lse(
@@ -639,17 +637,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    xi_q, xi_r, xi_g, gamma = self._get_xis(ot_prob, state)
+    c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
 
     if ot_prob.is_balanced:
-      # TODO(michalk8): refactor to use xis directly
-      c_q, c_r, h = xi_q / -gamma, xi_r / -gamma, xi_g / gamma
+      c_q, c_r, h = c_q / -gamma, c_r / -gamma, c_g / gamma
       q, r, g = self.dykstra_update_lse(
           c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
       )
     else:
       q, r, g = lr_utils.unbalanced_dykstra_lse(
-          xi_q, xi_r, xi_g, gamma, ot_prob, **self.kwargs_dys
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
       )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
@@ -658,14 +655,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn Kernel update."""
-    xi_q, xi_r, xi_g, gamma = self._get_xis(ot_prob, state)
+    c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
+    c_q, c_r, c_g = jnp.exp(c_q), jnp.exp(c_r), jnp.exp(c_g)
+
     if ot_prob.is_balanced:
       q, r, g = self.dykstra_update_kernel(
-          xi_q, xi_r, xi_g, gamma, ot_prob, **self.kwargs_dys
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
       )
     else:
       q, r, g = lr_utils.unbalanced_dykstra_kernel(
-          xi_q, xi_r, xi_g, gamma, ot_prob, **self.kwargs_dys
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
       )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 

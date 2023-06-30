@@ -43,9 +43,9 @@ class Constants(NamedTuple):  # noqa: D101
 
 
 def unbalanced_dykstra_lse(
-    xi_q: jnp.ndarray,
-    xi_r: jnp.ndarray,
-    xi_g: jnp.ndarray,
+    c_q: jnp.ndarray,
+    c_r: jnp.ndarray,
+    c_g: jnp.ndarray,
     gamma: float,
     ot_prob: linear_problem.LinearProblem,
     translation_invariant: bool = True,
@@ -92,33 +92,31 @@ def unbalanced_dykstra_lse(
       rho_a = uf.rho(1.0 / gamma, const.tau_a)
       rho_b = uf.rho(1.0 / gamma, const.tau_b)
 
-      lam_a, lam_b = compute_lambdas(
-          const, state, gamma, xi_g=xi_g, lse_mode=True
-      )
+      lam_a, lam_b = compute_lambdas(const, state, gamma, g=c_g, lse_mode=True)
 
-      u1 = const.tau_a * (log_a - _softm(state.v1, xi_q, axis=1))
+      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))
       u1 = u1 - lam_a / ((1.0 / gamma) + rho_a)
-      u2 = const.tau_b * (log_b - _softm(state.v2, xi_r, axis=1))
+      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))
       u2 = u2 - lam_b / ((1.0 / gamma) + rho_b)
 
       state_lam = State(
           v1=state.v1, v2=state.v2, u1=u1, u2=u2, g=state.g, err=state.err
       )
       lam_a, lam_b = compute_lambdas(
-          const, state_lam, gamma, xi_g=xi_g, lse_mode=True
+          const, state_lam, gamma, g=c_g, lse_mode=True
       )
 
-      v1_trans = _softm(u1, xi_q, axis=0)
-      v2_trans = _softm(u2, xi_r, axis=0)
+      v1_trans = _softm(u1, c_q, axis=0)
+      v2_trans = _softm(u2, c_r, axis=0)
 
-      g_trans = gamma * (lam_a + lam_b) + xi_g
+      g_trans = gamma * (lam_a + lam_b) + c_g
     else:
-      u1 = const.tau_a * (log_a - _softm(state.v1, xi_q, axis=1))
-      u2 = const.tau_b * (log_b - _softm(state.v2, xi_r, axis=1))
+      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))
+      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))
 
-      v1_trans = _softm(u1, xi_q, axis=0)
-      v2_trans = _softm(u2, xi_r, axis=0)
-      g_trans = xi_g
+      v1_trans = _softm(u1, c_q, axis=0)
+      v2_trans = _softm(u2, c_r, axis=0)
+      g_trans = c_g
 
     g = (1.0 / 3.0) * (g_trans + v1_trans + v2_trans)
     v1 = g - v1_trans
@@ -135,7 +133,7 @@ def unbalanced_dykstra_lse(
     )
     return State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=err)
 
-  n, m, r = xi_q.shape[0], xi_r.shape[0], xi_g.shape[0]
+  n, m, r = c_q.shape[0], c_r.shape[0], c_g.shape[0]
   constants = Constants(
       a=ot_prob.a,
       b=ot_prob.b,
@@ -149,7 +147,7 @@ def unbalanced_dykstra_lse(
       v2=jnp.zeros(r),
       u1=jnp.zeros(n),
       u2=jnp.zeros(m),
-      g=xi_g,
+      g=c_g,
       err=jnp.inf,
   )
 
@@ -157,8 +155,8 @@ def unbalanced_dykstra_lse(
       cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
   )
 
-  q = jnp.exp(state.u1[:, None] + xi_q + state.v1[None, :])
-  r = jnp.exp(state.u2[:, None] + xi_r + state.v2[None, :])
+  q = jnp.exp(state.u1[:, None] + c_q + state.v1[None, :])
+  r = jnp.exp(state.u2[:, None] + c_r + state.v2[None, :])
   g = jnp.exp(state.g)
 
   return q, r, g
@@ -214,9 +212,7 @@ def unbalanced_dykstra_kernel(
       c_a = const.tau_a
       c_b = const.tau_b
 
-      lam_a, lam_b = compute_lambdas(
-          const, state, gamma, xi_g=k_g, lse_mode=False
-      )
+      lam_a, lam_b = compute_lambdas(const, state, gamma, g=k_g, lse_mode=False)
 
       u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
       u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + rho_a))
@@ -227,7 +223,7 @@ def unbalanced_dykstra_kernel(
           v1=state.v1, v2=state.v2, u1=u1, u2=u2, g=state.g, err=state.err
       )
       lam_a, lam_b = compute_lambdas(
-          const, state_lam, gamma, xi_g=k_g, lse_mode=False
+          const, state_lam, gamma, g=k_g, lse_mode=False
       )
 
       v1_trans = k_q.T @ u1
@@ -291,7 +287,7 @@ def unbalanced_dykstra_kernel(
 
 
 def compute_lambdas(
-    const: Constants, state: State, gamma: float, xi_g: jnp.ndarray, *,
+    const: Constants, state: State, gamma: float, g: jnp.ndarray, *,
     lse_mode: bool
 ) -> Tuple[float, float]:
   """TODO."""
@@ -302,7 +298,7 @@ def compute_lambdas(
   if lse_mode:
     num_1 = jsp.special.logsumexp((-gamma_inv / rho_a) * state.u1, b=const.a)
     num_2 = jsp.special.logsumexp((-gamma_inv / rho_b) * state.u2, b=const.b)
-    den = jsp.special.logsumexp(xi_g - (state.v1 + state.v2))
+    den = jsp.special.logsumexp(g - (state.v1 + state.v2))
     const_1 = num_1 - den
     const_2 = num_2 - den
 
@@ -323,7 +319,7 @@ def compute_lambdas(
           const.supp_b, ((state.u2 ** (-gamma_inv / rho_b)) * const.b), 0.0
       )
   )
-  den = jnp.sum(xi_g / (state.v1 * state.v2))
+  den = jnp.sum(g / (state.v1 * state.v2))
   const_1 = jnp.log(num_1 / den)
   const_2 = jnp.log(num_2 / den)
 
