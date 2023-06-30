@@ -707,7 +707,7 @@ class Sinkhorn:
       successive solutions in the unbalanced case.
     norm_error: power used to define p-norm of error for marginal/target.
     inner_iterations: the Sinkhorn error is not recomputed at each
-      iteration but every inner_num_iter instead.
+      iteration but every ``inner_iterations`` instead.
     min_iterations: the minimum number of Sinkhorn iterations carried
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If

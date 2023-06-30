@@ -296,9 +296,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       :class:`~ott.geometry.pointcloud.PointCloud` or
       :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
       :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-
-    lse_mode: Whether to run computations in lse or kernel mode. At the moment,
-      only ``lse_mode = True`` is implemented.
+    lse_mode: Whether to run computations in lse or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
@@ -309,7 +307,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
-    kwargs_dys: Keyword arguments passed to :meth:`dykstra_update`.
+    kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
+      :meth:`dykstra_update_kernel` or one of the functions defined in
+      :mod:`ott.solvers.linear`, depending on whether the problem
+      is balanced and on the ``lse_mode``.
     kwargs_init: Keyword arguments for
       :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for

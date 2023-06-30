@@ -54,7 +54,25 @@ def unbalanced_dykstra_lse(
     inner_iter: int = 10,
     max_iter: int = 10000
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-  """TODO."""
+  """Dykstra's algorithm for the unbalanced
+  :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in LSE mode.
+
+  Args:
+    c_q: Cost associated with :math:`Q`.
+    c_r: Cost associated with :math:`R`.
+    c_g: Cost associated with :math:`g`.
+    gamma: The (inverse of) the gradient step.
+    ot_prob: Unbalanced OT problem.
+    translation_invariant: Whether to use the translation invariant objective,
+      see :cite:`scetbon:23`, alg. 3.
+    tolerance: Convergence threshold.
+    min_iter: Minimum number of iterations.
+    inner_iter: Compute error every ``inner_iter``.
+    max_iter: Maximum number of iterations.
+
+  Returns:
+    The :math:`Q`, :math:`R` and :math:`g` factors.
+  """  # noqa: D205
 
   def _softm(
       v: jnp.ndarray,
@@ -174,7 +192,25 @@ def unbalanced_dykstra_kernel(
     inner_iter: int = 10,
     max_iter: int = 10000
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-  """TODO."""
+  """Dykstra's algorithm for the unbalanced
+  :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in kernel mode.
+
+  Args:
+    k_q: Kernel associated with :math:`Q`.
+    k_r: Kernel associated with :math:`R`.
+    k_g: Kernel associated with :math:`g`.
+    gamma: The (inverse of) the gradient step.
+    ot_prob: Unbalanced OT problem.
+    translation_invariant: Whether to use the translation invariant objective,
+      see :cite:`scetbon:23`, alg. 3.
+    tolerance: Convergence threshold.
+    min_iter: Minimum number of iterations.
+    inner_iter: Compute error every ``inner_iter``.
+    max_iter: Maximum number of iterations.
+
+  Returns:
+    The :math:`Q`, :math:`R` and :math:`g` factors.
+  """  # noqa: D205
 
   def _error(
       gamma: float,
