@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -27,8 +27,8 @@ __all__ = ["sort", "ranks", "quantile"]
 
 def transport_for_sort(
     inputs: jnp.ndarray,
-    weights: jnp.ndarray,
-    target_weights: jnp.ndarray,
+    weights: Optional[jnp.ndarray] = None,
+    target_weights: Optional[jnp.ndarray] = None,
     squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
     epsilon: float = 1e-2,
     **kwargs: Any,
@@ -62,14 +62,16 @@ def transport_for_sort(
     squashing_fun = lambda z: jax.nn.sigmoid((z - jnp.mean(z)) /
                                              (jnp.std(z) + 1e-10))
   x = squashing_fun(x)
+
   a = jnp.squeeze(weights)
   b = jnp.squeeze(target_weights)
-  num_targets = b.shape[0]
+  num_targets = inputs.shape[0] if b is None else b.shape[0]
   y = jnp.linspace(0.0, 1.0, num_targets)[:, jnp.newaxis]
 
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   prob = linear_problem.LinearProblem(geom, a=a, b=b)
 
+  # Ensure the default initializer is "sorting" if default uniform weights.
   solver = sinkhorn.Sinkhorn(**kwargs)
 
   return solver(prob)
@@ -124,7 +126,10 @@ def _sort(
         jnp.ones(topk, dtype=inputs.dtype) / num_points
     ])
   else:
-    num_targets = num_points if num_targets is None else num_targets
+    if num_targets is None or num_targets == num_points:
+      num_targets = num_points
+      # use sorting initializer in this case.
+      kwargs.setdefault("initializer", "sorting")
     start_index = 0
     b = jnp.ones((num_targets,)) / num_targets
   ot = transport_for_sort(inputs, a, b, **kwargs)
@@ -215,50 +220,122 @@ def quantile(
     inputs: jnp.ndarray,
     axis: int = -1,
     level: float = 0.5,
-    weight: float = 0.05,
+    weight: Optional[float] = None,
+    **kwargs: Any,
+) -> jnp.ndarray:
+  """Compute a soft quantile on the input tensor."""
+  return quantiles(
+      inputs, axis, levels=jnp.atleast_1d(level), weight=weight, **kwargs
+  )
+
+
+def quantiles(
+    inputs: jnp.ndarray,
+    axis: int = -1,
+    levels: Optional[jnp.ndarray] = None,
+    weight: Optional[Union[float, jnp.ndarray]] = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Apply the soft quantile operator on the input tensor.
 
   For instance:
 
+  ```
   x = jax.random.uniform(rng, (1000,))
-  q = quantile(x, level=0.5, weight=0.01)
+  q = quantiles(x, level=jnp.array([0.2, 0.8], weight=0.01)
+  ```
 
-  Then q will be computed as a mean over the 10 median points of x.
-  Therefore, there is a trade-off between accuracy and gradient.
+  In that case, ``q`` will not hold the 20-th and 80-th percentile in ``x``, but
+  rather a convex combination (a weighted mean, with weights summing to 1) of
+  all values in ``x``, that approximates such percentiles. These values offer
+  a trade-off between accuracy (closeness to the true median) and gradient (the
+  differentiation of ``q`` will impact all values listed in ``x``).
 
   Args:
    inputs: a jnp.ndarray<float> of any shape.
    axis: the axis on which to apply the operator.
-   level: the value of the quantile level to be computed. 0.5 for median.
-   weight: the weight of the quantile in the transport problem.
+   levels: values of the quantile level to be computed, e.g. [0.5] for median.
+     should be >0.0 and <1.0. Selected as [0.2, 0.5, 0.8] by default.
+   weight: the weight assigned to each quantile target value in the OT problem.
+    Note: Since the number of quantiles times that weight must be strictly
+    smaller than 0, in order to leave enough mass to set other target values
+    in the transport problem, the algorithm ensures this by selecting if needed,
+    a lower value.
    kwargs: keyword arguments passed on to lower level functions. Of interest
-      to the user are ``squashing_fun``, which will redistribute the values in
-      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
-      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
-      that defines the ground cost function to transport from ``inputs`` to the
-      ``num_targets`` target values (squared Euclidean distance by default, see
-      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
-      parameters to shape the ``sinkhorn`` algorithm.
+    to the user are ``squashing_fun``, which will redistribute the values in
+    ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
+    solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
+    that defines the ground cost function to transport from ``inputs`` to the
+    ``num_targets`` target values (squared Euclidean distance by default, see
+    ``pointcloud.py`` for more details); ``epsilon`` values as well as other
+    parameters to shape the ``sinkhorn`` algorithm.
 
   Returns:
-    A jnp.ndarray, which has the same shape as the input, except on the give
+    A jnp.ndarray, which has the same shape as the input, except on the given
     axis on which the dimension is 1.
   """
 
   def _quantile(
-      inputs: jnp.ndarray, level: float, weight: float, **kwargs
+      inputs: jnp.ndarray, levels: float, weight: float, **kwargs
   ) -> jnp.ndarray:
-    # TODO(cuturi,oliviert) option to compute several quantiles at once
     num_points = inputs.shape[0]
+    num_quantiles = levels.shape[0]
     a = jnp.ones((num_points,)) / num_points
-    b = jnp.array([level - weight / 2, weight, 1.0 - weight / 2 - level])
-    ot = transport_for_sort(inputs, a, b, **kwargs)
-    out = 1.0 / b * ot.apply(jnp.squeeze(inputs), axis=0)
-    return out[1:2]
+    levels = jnp.array([0.2, 0.5, 0.8]) if levels is None else levels
+    idx = jnp.argsort(levels)
+    levels = levels[idx]
 
-  return apply_on_axis(_quantile, inputs, axis, level, weight, **kwargs)
+    extended_levels = jnp.concatenate([
+        jnp.array([0.0]), levels, jnp.array([1.0])
+    ])
+    filler_weights = extended_levels[1:] - extended_levels[:-1]
+    safe_weight = 0.5 * jnp.concatenate([
+        jnp.array([1.0 / num_quantiles]), filler_weights
+    ])
+    if weight is None:
+      # Populate with other options.
+      safe_weight = jnp.concatenate([
+          safe_weight,
+          jnp.array(
+              [.02]
+          ),  # reasonable mass per quantile for a small number of points
+          jnp.array(
+              [1.5 / num_points]
+          ),  # this means each quantile would be ~ assigned 1.5 points.
+      ])
+    else:
+      safe_weight = jnp.concatenate([safe_weight, jnp.atleast_1d(weight)])
+    weight = jnp.min(safe_weight)
+    weights = jnp.ones(filler_weights.shape) * weight
+
+    # Takes into account quantile_width in the definition of weights
+    shift = -jnp.ones(filler_weights.shape)
+    shift = shift + 0.5 * (
+        jax.nn.one_hot(0, num_quantiles + 1) +
+        jax.nn.one_hot(num_quantiles, num_quantiles + 1)
+    )
+    filler_weights = filler_weights + weights * shift
+
+    # Adds one more value to have tensors of the same shape to interleave them.
+    quantile_weights = jnp.ones(num_quantiles + 1) * weights
+
+    # Interleaves the filler_weights with the quantile weights.
+    weights = jnp.reshape(
+        jnp.stack([filler_weights, quantile_weights], axis=1), (-1,)
+    )[:-1]
+
+    ot = transport_for_sort(inputs, a, weights, **kwargs)
+    out = 1.0 / weights * ot.apply(jnp.squeeze(inputs), axis=0)
+
+    # Recover odd indices corresponding to the desired quantiles.
+    odds = jnp.concatenate([
+        jnp.zeros((num_quantiles + 1, 1), dtype=bool),
+        jnp.ones((num_quantiles + 1, 1), dtype=bool)
+    ],
+                           axis=1).ravel()[:-1]
+    return (out[odds])[idx]
+
+  return apply_on_axis(_quantile, inputs, axis, levels, weight, **kwargs)
 
 
 def _quantile_normalization(
