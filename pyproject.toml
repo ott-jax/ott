@@ -16,7 +16,8 @@ dependencies = [
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
     "jaxopt>=0.5.5",
-    "numpy>=1.18.0",
+    ## https://github.com/google/jax/discussions/9951#discussioncomment-3017784
+    "numpy>=1.18.4, !=1.25.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
     "lineax>=0.0.1; python_version >= '3.9'"
