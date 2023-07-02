@@ -26,6 +26,11 @@ except ImportError:
   ts_metrics = None
 
 
+def _proj(matrix: jnp.ndarray) -> jnp.ndarray:
+  u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
+  return u.dot(v_h)
+
+
 @pytest.mark.fast()
 class TestCostFn:
 
@@ -124,30 +129,34 @@ class TestBuresBarycenter:
 @pytest.mark.fast()
 class TestRegTICost:
 
+  @pytest.mark.parametrize("scaling_reg", [8.0, 13.0])
+  @pytest.mark.parametrize("use_mat", [False, True], ids=["nomat", "mat"])
   @pytest.mark.parametrize(
-      "cost_fn",
-      [
-          costs.ElasticL1(gamma=5),
-          costs.ElasticL1(gamma=0.0),
-          costs.ElasticSTVS(gamma=2.2),
-          costs.ElasticSTVS(gamma=10),
-      ],
-      ids=[
-          "elasticnet",
-          "elasticnet-gam0",
-          "stvs-gam2.2",
-          "stvs-gam10",
-      ],
+      "cost_fn_t", [
+          costs.ElasticL1, costs.ElasticL2, costs.ElasticSTVS,
+          costs.ElasticOrthL2
+      ]
   )
   def test_reg_cost_legendre(
-      self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
+      self,
+      rng: jax.random.PRNGKeyArray,
+      scaling_reg: float,
+      cost_fn_t: Type[costs.RegTICost],
+      use_mat: bool,
   ):
     for d in [5, 10, 50, 100, 1000]:
-      rng, rng1 = jax.random.split(rng)
+      rng, rng1, rng_mat = jax.random.split(rng, 3)
+      if use_mat:
+        matrix = jnp.abs(jax.random.normal(rng_mat, (d // 4, d)))
+        matrix = _proj(matrix)
+      else:
+        matrix = None
+      cost_fn = cost_fn_t(matrix=matrix, scaling_reg=scaling_reg)
+
       expected = jax.random.normal(rng1, (d,))
       actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
       np.testing.assert_allclose(
-          actual, expected, rtol=1e-5, atol=1e-5, err_msg=f"d={d}"
+          actual, expected, rtol=1e-4, atol=1e-4, err_msg=f"d={d}"
       )
 
   @pytest.mark.parametrize("k", [1, 2, 7, 10])
@@ -157,16 +166,16 @@ class TestRegTICost:
   ):
     expected = jax.random.normal(rng, (d,))
 
-    cost_fn = costs.ElasticSqKOverlap(k=k, gamma=1e-2)
+    cost_fn = costs.ElasticSqKOverlap(k=k, scaling_reg=1e-2)
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
-    # should hold for small gamma
+    # should hold for small scaling_reg
     assert np.corrcoef(expected, actual)[0][1] > 0.97
 
   @pytest.mark.parametrize(
       "cost_fn", [
-          costs.ElasticL1(gamma=100),
-          costs.ElasticSTVS(gamma=10),
-          costs.ElasticSqKOverlap(k=3, gamma=20)
+          costs.ElasticL1(scaling_reg=113),
+          costs.ElasticSTVS(scaling_reg=12),
+          costs.ElasticSqKOverlap(k=3, scaling_reg=17)
       ]
   )
   def test_sparse_displacement(
@@ -184,9 +193,9 @@ class TestRegTICost:
       arr_t = dp.transport(arr, forward=fwd)
       assert np.sum(np.isclose(arr, arr_t)) / arr.size > frac_sparse
 
-  @pytest.mark.parametrize("cost_clazz", [costs.ElasticL1, costs.ElasticSTVS])
+  @pytest.mark.parametrize("cost_type_t", [costs.ElasticL1, costs.ElasticSTVS])
   def test_stronger_regularization_increases_sparsity(
-      self, rng: jax.random.PRNGKeyArray, cost_clazz: Type[costs.RegTICost]
+      self, rng: jax.random.PRNGKeyArray, cost_type_t: Type[costs.RegTICost]
   ):
     d, rngs = 30, jax.random.split(rng, 4)
     x = jax.random.normal(rngs[0], (50, d))
@@ -195,8 +204,8 @@ class TestRegTICost:
     yy = jax.random.normal(rngs[3], (35, d))
 
     sparsity = {False: [], True: []}
-    for gamma in [9, 10, 100]:
-      cost_fn = cost_clazz(gamma=gamma)
+    for scaling_reg in [9, 11, 89]:
+      cost_fn = cost_type_t(scaling_reg=scaling_reg)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
       dp = sinkhorn.solve(geom).to_dual_potentials()

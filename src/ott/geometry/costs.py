@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jaxopt
 import numpy as np
 
 from ott.math import fixed_point_loop, matrix_square_root
@@ -30,6 +31,8 @@ __all__ = [
     "SqEuclidean",
     "Cosine",
     "ElasticL1",
+    "ElasticL2",
+    "ElasticOrthL2",
     "ElasticSTVS",
     "ElasticSqKOverlap",
     "Bures",
@@ -47,8 +50,7 @@ class CostFn(abc.ABC):
   followed by a pairwise cost that involves both inputs, as in:
 
   .. math::
-
-    c(x,y) = norm(x) + norm(y) + pairwise(x,y)
+    c(x, y) = norm(x) + norm(y) + pairwise(x, y)
 
   If the :attr:`norm` function is not implemented, that value is handled as
   :math:`0`, and only :func:`pairwise` is used.
@@ -154,8 +156,7 @@ class TICost(CostFn):
   real-values, to be used as:
 
   .. math::
-
-    c(x,y) = h(z), z := x-y.
+    c(x, y) = h(z), z := x - y.
 
   If that cost function is used to form an Entropic map using the
   :cite:`brenier:91` theorem, then the user should ensure :math:`h` is
@@ -295,9 +296,7 @@ class Cosine(CostFn):
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
-    cosine_distance = 1.0 - cosine_similarity
-    # similarity is in [-1, 1], clip because of numerical imprecision
-    return jnp.clip(cosine_distance, 0., 2.)
+    return 1.0 - cosine_similarity
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
@@ -308,26 +307,116 @@ class RegTICost(TICost, abc.ABC):
   r"""Base class for regularized translation-invariant costs.
 
   .. math::
-
-    \frac{1}{2} \|\cdot\|_2^2 + reg\left(\cdot\right)
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} reg\left(\cdot\right)
 
   where :func:`reg` is the regularization function.
+
+  Args:
+    scaling_reg: Strength of the :meth:`regularization <reg>`.
+    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
   """
 
+  def __init__(
+      self,
+      scaling_reg: float = 1.0,
+      matrix: Optional[jnp.ndarray] = None,
+  ):
+    super().__init__()
+    self.scaling_reg = scaling_reg
+    self.matrix = matrix
+
   @abc.abstractmethod
-  def reg(self, z: jnp.ndarray) -> float:
+  def _reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
 
-  def prox_reg(self, z: jnp.ndarray) -> jnp.ndarray:
-    """Proximal operator of :func:`reg`."""
+  def reg(self, z: jnp.ndarray) -> float:
+    """Regularization function, evaluated for arbitrary vector."""
+    if self.matrix is not None:
+      z = self.matrix @ z
+    return self._reg(z)
+
+  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    """TODO."""
+    if self.matrix is None:
+      return self._prox_reg(z, tau)
+    return self._orthogonal(z, tau)
+
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     raise NotImplementedError("Proximal operator is not implemented.")
 
+  def _orthogonal(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    tmp = self.matrix @ z
+    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
+
+  def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    """TODO."""
+    return z - tau * self.prox_reg(z / tau, 1.0 / tau)
+
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return 0.5 * jnp.linalg.norm(z, ord=2) ** 2 + self.reg(z)
+    out = 0.5 * jnp.linalg.norm(z, ord=2) ** 2
+    return out + self.scaling_reg * self.reg(z)
 
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
+
+  def h_transform(self, f: Callable[[jnp.ndarray], float],
+                  **kwargs: Any) -> Callable[[jnp.ndarray], float]:
+    r"""Compute the h-transform of a concave function.
+
+    Returns a callable :math:`f_h`, taking vectors as inputs, defined as:
+
+    .. math::
+      f_h(x) = \min_y h(x - y) - f(y)
+
+    This is equivalent, up to a change of variables, :math:`z = x - y`, to
+    define
+
+    .. math::
+      \min_z h(z) - f(x - z). \\
+      \min_z h(z) + \tilde{f}(z, x).
+
+    where :math:`\tilde{f}(z, x) := -f(x - z)`.
+
+    TODO(michalk8): format this nicely
+    This is solved using proximal gradient descent, which requires having
+    access to the prox of `scaling_h * h` (and not only to that of `h`).
+    Given the properties of `h` (as squared-norm + `reg`), that prox is obtained
+    by rescaling the output of the prox of a suitable scaling of `reg`.
+
+    Args:
+      f: Concave function.
+      kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
+
+    Returns:
+      The h-transform of ``f``.
+    """
+
+    def minus_f(z: jnp.ndarray, x: jnp.ndarray) -> float:
+      return -f(x - z)
+
+    def prox(
+        x: jnp.ndarray, scaling_reg: float, scaling_h: float
+    ) -> jnp.ndarray:
+      """https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 2.2."""
+      tmp = 1.0 / (1.0 + scaling_h)
+      tau = scaling_reg * scaling_h * tmp
+      return self.prox_reg(x * tmp, tau)
+
+    def f_h(x: jnp.ndarray) -> float:
+      pg = jaxopt.ProximalGradient(fun=minus_f, prox=prox, **kwargs)
+      pg_run = pg.run(x, self.scaling_reg, x=x)
+      pg_sol = jax.lax.stop_gradient(pg_run.params)
+      return self.h(pg_sol) + minus_f(pg_sol, x)
+
+    return f_h
+
+  def tree_flatten(self):  # noqa: D102
+    return (self.scaling_reg, self.matrix), {}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(*children, **aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -335,30 +424,51 @@ class ElasticL1(RegTICost):
   r"""Cost inspired by elastic net :cite:`zou:05` regularization.
 
   .. math::
-
-    \frac{1}{2} \|\cdot\|_2^2 + \gamma \|\cdot\|_1
-
-  Args:
-    gamma: Strength of the :math:`\|\cdot\|_1` regularization, :math:`\ge 0`.
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\cdot\|_1
   """
 
-  def __init__(self, gamma: float = 1.0):
-    super().__init__()
-    self.gamma = gamma
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+    return jnp.linalg.norm(z, ord=1)
+
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - tau * self.scaling_reg)
+
+
+@jax.tree_util.register_pytree_node_class
+class ElasticL2(RegTICost):
+  # TODO(michalk8): format this
+  r"""Cost, see https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 6.1.1.
+
+  .. math::
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \| matrix \cdot\|_2^2
+  """
+
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+    return 0.5 * jnp.sum(z ** 2)
+
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    return z / (1.0 + tau * self.scaling_reg)
+
+
+@jax.tree_util.register_pytree_node_class
+class ElasticOrthL2(RegTICost):
+  """TODO."""
 
   def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return self.gamma * jnp.linalg.norm(z, ord=1)
+    out = 0.5 * jnp.sum(z ** 2)
+    if self.matrix is not None:
+      out -= 0.5 * jnp.sum((self.matrix @ z) ** 2)
+    return out
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - self.gamma)
+  def _reg(self, z: jnp.ndarray) -> float:
+    raise NotImplementedError("Unreachable.")
 
-  def tree_flatten(self):  # noqa: D102
-    return (self.gamma,), None
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    return z / (1.0 + tau * self.scaling_reg)
 
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del aux_data
-    return cls(*children)
+  def _orthogonal(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
+    return self._prox_reg(out, tau)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -367,35 +477,26 @@ class ElasticSTVS(RegTICost):
   :cite:`schreck:15` regularization.
 
   .. math::
-
-    \frac{1}{2} \|\cdot\|_2^2 + \gamma^2\mathbf{1}_d^T\left(\sigma(\cdot) -
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg}^2\mathbf{1}_d^T\left(\sigma(\cdot) -
     \frac{1}{2} \exp\left(-2\sigma(\cdot)\right) + \frac{1}{2}\right)
 
-  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}{2\gamma}\right)`
+  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}{2\text{scaling_reg}}\right)`
+  """  # noqa: D205,E501
 
-  Args:
-    gamma: Strength of the STVS regularization, :math:`> 0`.
-  """  # noqa
-
-  def __init__(self, gamma: float = 1.0):
-    super().__init__()
-    self.gamma = gamma
-
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    u = jnp.arcsinh(jnp.abs(z) / (2 * self.gamma))
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+    u = jnp.arcsinh(jnp.abs(z) / (2 * self.scaling_reg))
     out = u - 0.5 * jnp.exp(-2.0 * u)
-    return (self.gamma ** 2) * jnp.sum(out + 0.5)  # make positive
+    # based on Lemma 2.1 of `schreck:15`; don't use `self.scaling_reg ** 2`
+    # because it's included in the `self.reg(...)`
+    return self.scaling_reg * jnp.sum(out + 0.5)  # make positive
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return jax.nn.relu(1 - (self.gamma / (jnp.abs(z) + 1e-12)) ** 2) * z
-
-  def tree_flatten(self):  # noqa: D102
-    return (self.gamma,), None
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del aux_data
-    return cls(*children)
+  def _prox_reg(  # noqa: D102
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
+    # TODO(michalk8): check the tau
+    return jax.nn.relu(
+        1.0 - (self.scaling_reg * tau / (jnp.abs(z) + 1e-12)) ** 2
+    ) * z
 
 
 @jax.tree_util.register_pytree_node_class
@@ -403,8 +504,7 @@ class ElasticSqKOverlap(RegTICost):
   r"""Cost with squared k-overlap norm regularization :cite:`argyriou:12`.
 
   .. math::
-
-    \frac{1}{2} \|\cdot\|_2^2 + \frac{1}{2} \gamma \|\cdot\|_{ovk}^2
+    \frac{1}{2} \|\cdot\|_2^2 + \frac{1}{2} \text{scaling_reg} \|\cdot\|_{ovk}^2
 
   where :math:`\|\cdot\|_{ovk}^2` is the squared k-overlap norm,
   see def. 2.1 of :cite:`argyriou:12`.
@@ -412,15 +512,15 @@ class ElasticSqKOverlap(RegTICost):
   Args:
     k: Number of groups. Must be in ``[0, d)`` where :math:`d` is the
       dimensionality of the data.
-    gamma: Strength of the squared k-overlap norm regularization, :math:`> 0`.
+    args: Positional arguments for :class:`~ott.geometry.costs.RegTICost`.
+    kwargs: Keyword arguments for :class:`~ott.geometry.costs.RegTICost`.
   """
 
-  def __init__(self, k: int, gamma: float = 1.0):
-    super().__init__()
+  def __init__(self, k: int, *args, **kwargs: Any):
+    super().__init__(*args, **kwargs)
     self.k = k
-    self.gamma = gamma
 
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -439,9 +539,9 @@ class ElasticSqKOverlap(RegTICost):
     r = jnp.argmax(lower_bound * upper_bound)
     s = jnp.sum(jnp.where(jnp.arange(k) < k - r - 1, jnp.flip(top_w) ** 2, 0))
 
-    return 0.5 * self.gamma * (s + (r + 1) * cesaro[r] ** 2)
+    return 0.5 * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox_reg(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
     def find_indices(r: int, l: jnp.ndarray,
@@ -467,7 +567,8 @@ class ElasticSqKOverlap(RegTICost):
       return inner(r, l, z)
 
     # Alg. 1 of :cite:`argyriou:12`
-    k, d, beta = self.k, z.shape[-1], 1.0 / self.gamma
+    assert False, "TODO(michalk8): fix tau"  # noqa: PT015,B011
+    k, d, beta = self.k, z.shape[-1], 1.0 / self.scaling_reg
 
     ixs = jnp.arange(d)
     z, sgn = jnp.abs(z), jnp.sign(z)
@@ -487,11 +588,13 @@ class ElasticSqKOverlap(RegTICost):
     return sgn * q[jnp.argsort(z_ixs.astype(float))]
 
   def tree_flatten(self):  # noqa: D102
-    return (self.gamma,), {"k": self.k}
+    children, aux_data = super().tree_flatten()
+    return children, (self.k, aux_data)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(**aux_data, gamma=children[0])
+    k, aux_data = aux_data
+    return cls(k, *children, **aux_data)
 
 
 @jax.tree_util.register_pytree_node_class
