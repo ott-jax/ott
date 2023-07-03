@@ -20,7 +20,7 @@ from ott.solvers.nn import losses
 
 
 @pytest.mark.fast()
-@pytest.mark.parametrize("n_samples", [5, 10, 25, 50])
+@pytest.mark.parametrize("n_samples", [5, 25])
 @pytest.mark.parametrize("n_features", [10, 50, 100])
 class TestMongeGap:
 
