@@ -332,7 +332,7 @@ class RegTICost(TICost, abc.ABC):
   def _reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
 
-  def _reg_stiefel(self, z: jnp.ndarray) -> float:
+  def _reg_orth(self, z: jnp.ndarray) -> float:
     raise NotImplementedError("TODO")
 
   def reg(self, z: jnp.ndarray) -> float:
@@ -340,7 +340,7 @@ class RegTICost(TICost, abc.ABC):
     if self.matrix is None:
       return self._reg(z)
     if self.orthogonal:
-      return self._reg_stiefel(z)
+      return self._reg_orth(z)
     return self._reg(self.matrix @ z)
 
   def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
@@ -348,7 +348,7 @@ class RegTICost(TICost, abc.ABC):
     if self.matrix is None:
       return self._prox_reg(z, tau)
     if self.orthogonal:
-      return self._prox_reg_stiefel(z, tau)
+      return self._prox_reg_orth(z, tau)
     # this assumes `matrix` has orthogonal rows
     tmp = self.matrix @ z
     return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
@@ -356,8 +356,14 @@ class RegTICost(TICost, abc.ABC):
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def _prox_reg_stiefel(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    raise NotImplementedError("Proximal operator is not implemented.")
+  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+
+    # orth operator is symmetric
+    def orth(x: jnp.ndarray) -> jnp.ndarray:
+      return x - self.matrix.T @ (self.matrix @ x)
+
+    tmp = orth(z)
+    return z - orth(tmp - self._prox_reg(tmp, tau))
 
   def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     """TODO."""
@@ -457,14 +463,14 @@ class ElasticL2(RegTICost):
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.sum(z ** 2)
 
-  def _reg_stiefel(self, z: jnp.ndarray) -> float:
+  def _reg_orth(self, z: jnp.ndarray) -> float:
     # Pythagorean identity
     return self._reg(z) - self._reg(self.matrix @ z)
 
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return z / (1.0 + tau * self.scaling_reg)
 
-  def _prox_reg_stiefel(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
     return self._prox_reg(out, tau)
 
