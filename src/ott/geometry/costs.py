@@ -32,7 +32,6 @@ __all__ = [
     "Cosine",
     "ElasticL1",
     "ElasticL2",
-    "ElasticOrthL2",
     "ElasticSTVS",
     "ElasticSqKOverlap",
     "Bures",
@@ -314,39 +313,51 @@ class RegTICost(TICost, abc.ABC):
   Args:
     scaling_reg: Strength of the :meth:`regularization <reg>`.
     matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
+    orthogonal: Whether to regularize in the orthogonal complement
+      to promote displacements in the span of ``matrix``.
   """
 
   def __init__(
       self,
       scaling_reg: float = 1.0,
       matrix: Optional[jnp.ndarray] = None,
+      orthogonal: bool = False,
   ):
     super().__init__()
     self.scaling_reg = scaling_reg
     self.matrix = matrix
+    self.orthogonal = orthogonal
 
   @abc.abstractmethod
   def _reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
 
+  def _reg_orth(self, z: jnp.ndarray) -> float:
+    raise NotImplementedError("TODO")
+
   def reg(self, z: jnp.ndarray) -> float:
     """Regularization function, evaluated for arbitrary vector."""
-    if self.matrix is not None:
-      z = self.matrix @ z
-    return self._reg(z)
+    if self.orthogonal:
+      return self._reg_orth(z)
+    if self.matrix is None:
+      return self._reg(z)
+    return self._reg(self.matrix @ z)
 
   def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     """TODO."""
+    if self.orthogonal:
+      return self._prox_reg_orth(z, tau)
     if self.matrix is None:
       return self._prox_reg(z, tau)
-    return self._orthogonal(z, tau)
+    # this assumes `matrix` has orthogonal rows
+    tmp = self.matrix @ z
+    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
 
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def _orthogonal(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    tmp = self.matrix @ z
-    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
+  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+    raise NotImplementedError("Proximal operator is not implemented.")
 
   def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     """TODO."""
@@ -412,7 +423,7 @@ class RegTICost(TICost, abc.ABC):
     return f_h
 
   def tree_flatten(self):  # noqa: D102
-    return (self.scaling_reg, self.matrix), {}
+    return (self.scaling_reg, self.matrix), {"orthogonal": self.orthogonal}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
@@ -446,27 +457,13 @@ class ElasticL2(RegTICost):
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.sum(z ** 2)
 
-  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    return z / (1.0 + tau * self.scaling_reg)
-
-
-@jax.tree_util.register_pytree_node_class
-class ElasticOrthL2(RegTICost):
-  """TODO."""
-
-  def reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    out = 0.5 * jnp.sum(z ** 2)
-    if self.matrix is not None:
-      out -= 0.5 * jnp.sum((self.matrix @ z) ** 2)
-    return out
-
-  def _reg(self, z: jnp.ndarray) -> float:
-    raise NotImplementedError("Unreachable.")
+  def _reg_orth(self, z: jnp.ndarray) -> float:
+    return self._reg(z) + 0.5 * jnp.sum((self.matrix @ z) ** 2)
 
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return z / (1.0 + tau * self.scaling_reg)
 
-  def _orthogonal(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
     return self._prox_reg(out, tau)
 

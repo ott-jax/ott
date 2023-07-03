@@ -133,8 +133,9 @@ class TestRegTICost:
   @pytest.mark.parametrize("use_mat", [False, True], ids=["nomat", "mat"])
   @pytest.mark.parametrize(
       "cost_fn_t", [
-          costs.ElasticL1, costs.ElasticL2, costs.ElasticSTVS,
-          costs.ElasticOrthL2
+          costs.ElasticL1,
+          costs.ElasticL2,
+          costs.ElasticSTVS,
       ]
   )
   def test_reg_cost_legendre(
