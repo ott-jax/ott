@@ -240,3 +240,82 @@ class TestLRSinkhorn:
     np.testing.assert_allclose(
         out_lse.matrix, out_kernel.matrix, rtol=tol, atol=tol
     )
+
+  @pytest.mark.fast.with_args("ti", [False, True], only_fast=0)
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.95), (0.89, 1.0),
+                                                (1.0, 0.85)])
+  def test_lr_unbalanced_lse(self, tau_a: float, tau_b: float, ti: bool):
+    rank, epsilon, threshold = 10, 0.0, 1e-4
+    geom = pointcloud.PointCloud(self.x, self.y)
+    prob = linear_problem.LinearProblem(
+        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out_lse = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=True,
+        kwargs_dys={"translation_invariant": ti},
+    )(
+        prob
+    )
+    out_kernel = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=False,
+        kwargs_dys={"translation_invariant": ti},
+    )(
+        prob
+    )
+
+    assert out_lse.converged
+    assert out_kernel.converged
+    np.testing.assert_allclose(
+        out_lse.reg_ot_cost, out_kernel.reg_ot_cost, rtol=1e-5, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        out_lse.matrix, out_kernel.matrix, rtol=1e-5, atol=1e-5
+    )
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  @pytest.mark.fast.with_args(("tau_a", "tau_b", "epsilon"),
+                              [(0.92, 0.99, 1e-3), (0.75, 1.0, 0.0),
+                               (1.0, 0.5, 0.0)],
+                              only_fast=1)
+  def test_lr_unbalanced_ti(
+      self, tau_a: float, tau_b: float, epsilon: float, lse_mode: bool
+  ):
+    rank, threshold = 8, 1e-4
+    geom = pointcloud.PointCloud(self.x, self.y)
+    prob = linear_problem.LinearProblem(
+        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=lse_mode,
+        kwargs_dys={"translation_invariant": False},
+    )(
+        prob
+    )
+    out_ti = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=lse_mode,
+        kwargs_dys={"translation_invariant": True},
+    )(
+        prob
+    )
+
+    assert out.converged
+    assert out_ti.converged
+    np.testing.assert_allclose(out.errors, out_ti.errors, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(
+        out.reg_ot_cost, out_ti.reg_ot_cost, rtol=1e-2, atol=1e-2
+    )
+    np.testing.assert_allclose(out.matrix, out_ti.matrix, rtol=1e-2, atol=1e-2)
