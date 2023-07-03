@@ -258,7 +258,7 @@ def ranks(
 
   Returns:
     A jnp.ndarray of the same shape as the input with soft-rank values
-    normalized to be in :math:`[0,1]` that replace the orignal ones.
+    normalized to be in :math:`[0,1]`, replacing the original ones.
 
   """
   return apply_on_axis(_ranks, inputs, axis, num_targets, **kwargs)
@@ -280,14 +280,13 @@ def quantile(
   x_quantiles = quantiles(x, q=jnp.array([0.2, 0.8]))
   ```
 
-  ``x_quantiles`` will hold an approximation to the 20-th and 80-th
-  percentiles in ``x``, computed as a convex combination
-  (a weighted mean, with weights summing to 1) of all values in ``x`` (and not,
-  as would be the usual approach, the 20th and 80th values of ``x`` sorted in
-  ascending order). These values offer a trade-off between accuracy
-  (closeness to the true percentiles) and gradient (the Jacobian of
-  ``x_quantiles`` w.r.t ``x`` will impact all values listed in ``x``, not just
-  the 20th and 80th).
+  ``x_quantiles`` will hold an approximation to the 20 and 80 percentiles in
+  ``x``, computed as a convex combination (a weighted mean, with weights summing
+  to 1) of all values in ``x`` (and not, as would be the usual approach, the
+  values ``x_sorted[20]`` and ``x_sorted[80]`` is ``x_sorted=jnp.sort(x)``.
+  These values offer a trade-off between accuracy (closeness to the true
+  percentiles) and gradient (the Jacobian of ``x_quantiles`` w.r.t ``x`` will
+  impact all values listed in ``x``, not just those indexed at 20 and 80).
 
   The non-differentiable version is given by :func:`jax.numpy.quantile`, e.g.
   ```
