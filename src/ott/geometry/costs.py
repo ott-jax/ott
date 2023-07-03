@@ -332,7 +332,7 @@ class RegTICost(TICost, abc.ABC):
   def _reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
 
-  def _reg_orth(self, z: jnp.ndarray) -> float:
+  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
     raise NotImplementedError("TODO")
 
   def reg(self, z: jnp.ndarray) -> float:
@@ -340,7 +340,7 @@ class RegTICost(TICost, abc.ABC):
     if self.matrix is None:
       return self._reg(z)
     if self.orthogonal:
-      return self._reg_orth(z)
+      return self._reg_stiefel_orth(z)
     return self._reg(self.matrix @ z)
 
   def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
@@ -468,7 +468,7 @@ class ElasticL2(RegTICost):
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.sum(z ** 2)
 
-  def _reg_orth(self, z: jnp.ndarray) -> float:
+  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
     # Pythagorean identity
     return self._reg(z) - self._reg(self.matrix @ z)
 
