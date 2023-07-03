@@ -348,22 +348,27 @@ class RegTICost(TICost, abc.ABC):
     if self.matrix is None:
       return self._prox_reg(z, tau)
     if self.orthogonal:
-      return self._prox_reg_orth(z, tau)
-    # this assumes `matrix` has orthogonal rows
-    tmp = self.matrix @ z
-    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
+      # regularization in the orthogonal subspace
+      return self._prox_reg_stiefel_orth(z, tau)
+    return self._prox_reg_stiefel(z, tau)
 
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def _prox_reg_stiefel_orth(
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
 
-    # orth operator is symmetric
     def orth(x: jnp.ndarray) -> jnp.ndarray:
       return x - self.matrix.T @ (self.matrix @ x)
 
     tmp = orth(z)
     return z - orth(tmp - self._prox_reg(tmp, tau))
+
+  def _prox_reg_stiefel(self, z: jnp.ndarray, tau: float) -> jnp.ndarray:
+    # assumes `matrix` has orthogonal rows
+    tmp = self.matrix @ z
+    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
 
   def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     """TODO."""
@@ -470,7 +475,9 @@ class ElasticL2(RegTICost):
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return z / (1.0 + tau * self.scaling_reg)
 
-  def _prox_reg_orth(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def _prox_reg_stiefel_orth(
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
     out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
     return self._prox_reg(out, tau)
 
