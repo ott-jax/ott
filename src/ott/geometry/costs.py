@@ -458,7 +458,7 @@ class ElasticL2(RegTICost):
     return 0.5 * jnp.sum(z ** 2)
 
   def _reg_orth(self, z: jnp.ndarray) -> float:
-    return self._reg(z) + 0.5 * jnp.sum((self.matrix @ z) ** 2)
+    return self._reg(z) - 0.5 * jnp.sum((self.matrix @ z) ** 2)
 
   def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return z / (1.0 + tau * self.scaling_reg)
