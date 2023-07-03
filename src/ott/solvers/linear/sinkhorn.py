@@ -291,6 +291,7 @@ class SinkhornOutput(NamedTuple):
   errors: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
+  threshold: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -409,7 +410,7 @@ class SinkhornOutput(NamedTuple):
     if self.errors is None:
       return False
     return jnp.logical_and(
-        jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
+        not jnp.any(jnp.isnan(self.errors)), self.errors[-1] < self.threshold
     )
 
   # TODO(michalk8): this should be always present
@@ -944,7 +945,10 @@ class Sinkhorn:
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= self.min_iterations),
+        jnp.logical_or(
+            iteration == self.max_iterations - 1,
+            jnp.logical_and(compute_error, iteration >= self.min_iterations)
+        ),
         lambda state, prob: state.solution_error(
             prob,
             self.norm_error,
@@ -1038,7 +1042,9 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
+    return SinkhornOutput(
+        f=f, g=g, errors=state.errors[:, 0], threshold=self.threshold
+    )
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
