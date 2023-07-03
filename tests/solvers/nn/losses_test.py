@@ -20,13 +20,15 @@ from ott.solvers.nn import losses
 
 
 @pytest.mark.fast()
+@pytest.mark.parametrize("n_samples", [5, 10, 25, 50])
+@pytest.mark.parametrize("n_features", [10, 50, 100])
 class TestMongeGap:
 
-  def test_monge_gap_non_negativity(self, rng: jax.random.PRNGKey):
-    """Tests non-negativity of the Monge gap."""
+  def test_monge_gap_non_negativity(
+      self, rng: jax.random.PRNGKey, n_samples: int, n_features: int
+  ):
 
     # generate data
-    n_samples, n_features = 10, 2
     rng1, rng2 = jax.random.split(rng, 2)
     source = jax.random.normal(rng1, (n_samples, n_features))
     target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
@@ -35,51 +37,63 @@ class TestMongeGap:
     monge_gap_value = losses.monge_gap(source=source, target=target)
     np.testing.assert_array_equal(monge_gap_value >= 0, True)
 
-  def test_monge_gap_different_cost(self, rng: jax.random.PRNGKey):
-    """Tests that Monge gaps intantiated for different costs
-    provide different values.
-    """
+  def test_monge_gap_jit(
+      self, rng: jax.random.PRNGKey, n_samples: int, n_features: int
+  ):
 
     # generate data
-    n_samples, n_features = 10, 2
-    rng1, rng2 = jax.random.split(rng, 2)
-    source = jax.random.normal(rng1, (n_samples, n_features))
-    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
-
-    # compute the Monge gaps for different costs
-    monge_gap_value_sq_eucl = losses.monge_gap(
-        source=source, target=target, cost_fn=costs.SqEuclidean()
-    )
-    monge_gap_value_eucl = losses.monge_gap(
-        source=source, target=target, cost_fn=costs.Euclidean()
-    )
-    np.testing.assert_array_equal(
-        monge_gap_value_sq_eucl == monge_gap_value_eucl, False
-    )
-
-  def test_monge_gap_jit(self, rng: jax.random.PRNGKey):
-    """Tests if the Monge gap can be jitted
-    w.r.t. the data points.
-    """
-
-    # generate data
-    n_samples, n_features = 10, 2
     rng1, rng2 = jax.random.split(rng, 2)
     source = jax.random.normal(rng1, (n_samples, n_features))
     target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
 
     # define jitted monge gap
-    jit_monge_gap = jax.jit(
-        lambda source, target: losses.monge_gap(source, target)
-    )
+    jit_monge_gap = jax.jit(losses.monge_gap)
 
     # compute the Monge gaps for different costs
-    monge_gap_value = losses.monge_gap(
-        source=source,
-        target=target,
-    )
-    jit_monge_gap_value = jit_monge_gap(
-        source=source,
-        target=target,
-    )
+    monge_gap_value = losses.monge_gap(source, target)
+    jit_monge_gap_value = jit_monge_gap(source, target)
     np.testing.assert_allclose(monge_gap_value, jit_monge_gap_value, rtol=1e-3)
+
+  @pytest.mark.parametrize(
+      "cost_fn",
+      [
+          costs.SqEuclidean(),
+          costs.PNormP(p=1),
+          costs.ElasticL1(gamma=2.),
+          costs.ElasticSTVS(gamma=2.),
+      ],
+      ids=[
+          "squared-euclidean",
+          "p-norm-p1",
+          "elasticnet-gam2",
+          "stvs-gam2",
+      ],
+  )
+  def test_monge_gap_different_cost(
+      self, rng: jax.random.PRNGKeyArray, cost_fn: costs.CostFn, n_samples: int,
+      n_features: int
+  ):
+    """Test that the Monge gap for different costs.TestMongeGap
+
+    We use the Monge gap for the Euclidean cost as a reference,
+    and we compute the Monge gap for several other costs and
+    verify that we obtain a different value.
+    """
+
+    # generate data
+    rng1, rng2 = jax.random.split(rng, 2)
+    source = jax.random.normal(rng1, (n_samples, n_features))
+    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
+
+    # compute the Monge gaps for the euclidean cost
+    monge_gap_value_eucl = losses.monge_gap(
+        source=source, target=target, cost_fn=costs.Euclidean()
+    )
+    monge_gap_value_cost_fn = losses.monge_gap(
+        source=source, target=target, cost_fn=cost_fn
+    )
+    are_finite = not (
+        np.isinf(monge_gap_value_eucl) or np.isinf(monge_gap_value_cost_fn)
+    )
+    are_different = (monge_gap_value_eucl != monge_gap_value_cost_fn)
+    np.testing.assert_array_equal(are_different and are_finite, True)
