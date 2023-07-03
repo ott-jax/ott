@@ -92,8 +92,11 @@ class TestMongeGap:
     monge_gap_value_cost_fn = losses.monge_gap(
         source=source, target=target, cost_fn=cost_fn
     )
-    are_finite = not (
-        np.isinf(monge_gap_value_eucl) or np.isinf(monge_gap_value_cost_fn)
-    )
-    are_different = (monge_gap_value_eucl != monge_gap_value_cost_fn)
-    np.testing.assert_array_equal(are_different and are_finite, True)
+
+    with pytest.raises(AssertionError, match=r"tolerance"):
+      np.testing.assert_allclose(
+          monge_gap_value_eucl, monge_gap_value_cost_fn, rtol=1e-3, atol=1e-3
+      )
+
+    np.testing.assert_array_equal(np.isfinite(monge_gap_value_eucl), True)
+    np.testing.assert_array_equal(np.isfinite(monge_gap_value_cost_fn), True)
