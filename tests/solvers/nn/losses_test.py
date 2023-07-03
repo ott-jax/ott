@@ -73,7 +73,7 @@ class TestMongeGap:
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.CostFn, n_samples: int,
       n_features: int
   ):
-    """Test that the Monge gap for different costs.TestMongeGap
+    """Test that the Monge gap for different costs.
 
     We use the Monge gap for the Euclidean cost as a reference,
     and we compute the Monge gap for several other costs and
