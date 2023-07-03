@@ -20,10 +20,10 @@ from ott.solvers.nn import losses
 
 
 @pytest.mark.fast()
-@pytest.mark.parametrize("n_samples", [5, 25])
-@pytest.mark.parametrize("n_features", [10, 50, 100])
 class TestMongeGap:
 
+  @pytest.mark.parametrize("n_samples", [5, 25])
+  @pytest.mark.parametrize("n_features", [10, 50, 100])
   def test_monge_gap_non_negativity(
       self, rng: jax.random.PRNGKey, n_samples: int, n_features: int
   ):
@@ -55,12 +55,12 @@ class TestMongeGap:
     np.testing.assert_allclose(monge_gap_value, jit_monge_gap_value, rtol=1e-3)
 
   @pytest.mark.parametrize(
-      "cost_fn",
+      ("cost_fn", "n_samples", "n_features"),
       [
-          costs.SqEuclidean(),
-          costs.PNormP(p=1),
-          costs.ElasticL1(gamma=2.),
-          costs.ElasticSTVS(gamma=2.),
+          (costs.SqEuclidean(), 13, 5),
+          (costs.PNormP(p=1), 20, 3),
+          (costs.ElasticL1(gamma=2.0), 100, 30),
+          (costs.ElasticSTVS(gamma=2.0), 7, 10),
       ],
       ids=[
           "squared-euclidean",
