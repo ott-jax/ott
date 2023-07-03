@@ -96,20 +96,18 @@ class TestSoftSort:
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
   @pytest.mark.fast()
-  @pytest.mark.parametrize("level", [0.2, 0.9])
-  def test_quantile(self, level: float):
+  @pytest.mark.parametrize("q", [0.2, 0.9])
+  def test_quantile(self, q: float):
     x = jnp.linspace(0.0, 1.0, 100)
-    q = soft_sort.quantile(
-        x, level=level, weight=0.05, epsilon=1e-3, lse_mode=True
-    )
+    x_q = soft_sort.quantile(x, q=q, weight=0.05, epsilon=1e-3, lse_mode=True)
 
-    np.testing.assert_approx_equal(q, level, significant=1)
+    np.testing.assert_approx_equal(x_q, q, significant=1)
 
   def test_quantile_on_several_axes(self, rng: jax.random.PRNGKeyArray):
     batch, height, width, channels = 16, 100, 100, 3
     x = jax.random.uniform(rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
-        x, axis=(1, 2), level=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
+        x, axis=(1, 2), q=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
     )
 
     np.testing.assert_array_equal(q.shape, (batch, 1, channels))
@@ -120,18 +118,11 @@ class TestSoftSort:
   @pytest.mark.fast()
   def test_quantiles(self):
     inputs = jax.random.uniform(jax.random.PRNGKey(0), (200, 2, 3))
-
-    level = .5
-    m1 = soft_sort.quantile(inputs, level=level, weight=None, axis=0)
-    np.testing.assert_approx_equal(m1.mean(), level, significant=2)
-    m2 = soft_sort.quantile(inputs, level=level, weight=.01, axis=0)
-    np.testing.assert_approx_equal(m2.mean(), level, significant=2)
-
-    levels = jnp.array([.1, .8, .4])
-    m1 = soft_sort.quantiles(inputs, levels=levels, weight=None, axis=0)
-    np.testing.assert_allclose(m1.mean(axis=[1, 2]), levels, atol=5e-2)
-    m2 = soft_sort.quantiles(inputs, levels=levels, weight=None, axis=0)
-    np.testing.assert_allclose(m2.mean(axis=[1, 2]), levels, atol=5 - 2)
+    q = jnp.array([.1, .8, .4])
+    m1 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
+    np.testing.assert_allclose(m1.mean(axis=[1, 2]), q, atol=5e-2)
+    m2 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
+    np.testing.assert_allclose(m2.mean(axis=[1, 2]), q, atol=5e-2)
 
   def test_soft_quantile_normalization(self, rng: jax.random.PRNGKeyArray):
     rngs = jax.random.split(rng, 2)
