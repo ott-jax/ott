@@ -279,7 +279,7 @@ class TestFusedGromovWasserstein:
       assert geom.cost_rank == rank
 
     assert out.converged
-    assert out.reg_gw_cost > 0
+    assert out.primal_cost > 0
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
 
   @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])

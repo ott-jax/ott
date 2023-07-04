@@ -50,3 +50,11 @@ Implicit Differentiation
     implicit_differentiation.ImplicitDiff
     implicit_differentiation.solve_jax_cg
     lineax_implicit.solve_lineax
+
+Low-rank Sinkhorn Utilities
+---------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    lr_utils.unbalanced_dykstra_lse
+    lr_utils.unbalanced_dykstra_kernel

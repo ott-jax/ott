@@ -57,8 +57,8 @@ class TestMongeGap:
       [
           (costs.SqEuclidean(), 13, 5),
           (costs.PNormP(p=1), 20, 3),
-          (costs.ElasticL1(gamma=2.0), 100, 30),
-          (costs.ElasticSTVS(gamma=2.0), 7, 10),
+          (costs.ElasticL1(scaling_reg=2.0), 100, 30),
+          (costs.ElasticSTVS(scaling_reg=2.0), 7, 10),
       ],
       ids=[
           "squared-euclidean",

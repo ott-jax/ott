@@ -34,7 +34,7 @@ from ott.initializers.linear import initializers_lr as init_lib
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import lr_utils, sinkhorn
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
@@ -44,7 +44,6 @@ ProgressCallbackFn_t = Callable[
 
 class LRSinkhornState(NamedTuple):
   """State of the Low Rank Sinkhorn algorithm."""
-
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -56,19 +55,28 @@ class LRSinkhornState(NamedTuple):
   def compute_error(  # noqa: D102
       self, previous_state: "LRSinkhornState"
   ) -> float:
-    err_1 = mu.js(self.q, previous_state.q, c=1.)
-    err_2 = mu.js(self.r, previous_state.r, c=1.)
-    err_3 = mu.js(self.g, previous_state.g, c=1.)
+    err_q = mu.js(self.q, previous_state.q, c=1.0)
+    err_r = mu.js(self.r, previous_state.r, c=1.0)
+    err_g = mu.js(self.g, previous_state.g, c=1.0)
 
-    return ((1. / self.gamma) ** 2) * (err_1 + err_2 + err_3)
+    return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
   def reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
+      *,
+      epsilon: float,
       use_danskin: bool = False
   ) -> float:
     """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
-    return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
+    return compute_reg_ot_cost(
+        self.q,
+        self.r,
+        self.g,
+        ot_prob,
+        epsilon=epsilon,
+        use_danskin=use_danskin
+    )
 
   def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
@@ -85,6 +93,7 @@ def compute_reg_ot_cost(
     r: jnp.ndarray,
     g: jnp.ndarray,
     ot_prob: linear_problem.LinearProblem,
+    epsilon: float,
     use_danskin: bool = False
 ) -> float:
   """Compute the regularized OT cost, here the primal cost of the LR solution.
@@ -94,16 +103,32 @@ def compute_reg_ot_cost(
     r: second factor of solution
     g: weights of solution
     ot_prob: linear problem
+    epsilon: Entropic regularization.
     use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
       to avoid computing the gradient of the cost function.
 
   Returns:
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
+
+  def ent(x: jnp.ndarray) -> float:
+    # generalized entropy
+    return jnp.sum(jsp.special.entr(x) + x)
+
+  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
-  return jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1. / g)[None, :])
+
+  cost = jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
+  cost -= epsilon * (ent(q) + ent(r) + ent(g))
+  if tau_a != 1.0:
+    cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
+  if tau_b != 1.0:
+    cost += tau_b / (1.0 - tau_b) * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
+
+  return cost
 
 
 def solution_error(
@@ -150,6 +175,7 @@ class LRSinkhornOutput(NamedTuple):
   # in future, enforce via class hierarchy
   errors: jnp.ndarray
   ot_prob: linear_problem.LinearProblem
+  epsilon: float
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
@@ -171,7 +197,14 @@ class LRSinkhornOutput(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       use_danskin: bool = False,
   ) -> float:
-    return compute_reg_ot_cost(self.q, self.r, self.g, ot_prob, use_danskin)
+    return compute_reg_ot_cost(
+        self.q,
+        self.r,
+        self.g,
+        ot_prob,
+        epsilon=self.epsilon,
+        use_danskin=use_danskin
+    )
 
   @property
   def linear(self) -> bool:  # noqa: D102
@@ -263,9 +296,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       :class:`~ott.geometry.pointcloud.PointCloud` or
       :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
       :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-
-    lse_mode: Whether to run computations in lse or kernel mode. At the moment,
-      only ``lse_mode = True`` is implemented.
+    lse_mode: Whether to run computations in lse or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
@@ -276,7 +307,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
-    kwargs_dys: Keyword arguments passed to :meth:`dykstra_update`.
+    kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
+      :meth:`dykstra_update_kernel` or one of the functions defined in
+      :mod:`ott.solvers.linear`, depending on whether the problem
+      is balanced and on the ``lse_mode``.
     kwargs_init: Keyword arguments for
       :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for
@@ -344,12 +378,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       The low-rank Sinkhorn output.
     """
-    assert ot_prob.is_balanced, "Unbalanced case is not implemented."
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
 
-  def _lr_costs(
+  def _get_costs(
       self,
       ot_prob: linear_problem.LinearProblem,
       state: LRSinkhornState,
@@ -377,44 +410,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     else:
       gamma = self.gamma
 
-    c_q = grad_q - (1. / gamma) * log_q
-    c_r = grad_r - (1. / gamma) * log_r
-    h = -grad_g + (1. / gamma) * log_g
-    return c_q, c_r, h, gamma
+    eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
+    gamma *= eps_factor
 
-  def _lr_kernels(
-      self,
-      ot_prob: linear_problem.LinearProblem,
-      state: LRSinkhornState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
-    log_q, log_r, log_g = (
-        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
-    )
+    c_q = -gamma * grad_q + eps_factor * log_q
+    c_r = -gamma * grad_r + eps_factor * log_r
+    c_g = -gamma * grad_g + eps_factor * log_g
 
-    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    diag_qcr = jnp.sum(
-        state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
-    )
-    grad_g = -diag_qcr / (state.g ** 2)
-    if self.is_entropic:
-      grad_q += self.epsilon * log_q
-      grad_r += self.epsilon * log_r
-      grad_g += self.epsilon * log_g
+    return c_q, c_r, c_g, gamma
 
-    if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
-      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
-      gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
-    else:
-      gamma = self.gamma
-
-    k_q = jnp.exp((-gamma) * (grad_q - (1. / gamma) * log_q))
-    k_r = jnp.exp((-gamma) * (grad_r - (1. / gamma) * log_r))
-    k_g = jnp.exp((-gamma) * (grad_g - (1. / gamma) * log_g))
-    return k_q, k_r, k_g, gamma
-
+  # TODO(michalk8): move to `lr_utils` when refactoring this
   def dykstra_update_lse(
       self,
       c_q: jnp.ndarray,
@@ -634,10 +639,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn LSE update."""
-    c_q, c_r, h, gamma = self._lr_costs(ot_prob, state)
-    q, r, g = self.dykstra_update_lse(
-        c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
-    )
+    c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
+
+    if ot_prob.is_balanced:
+      c_q, c_r, h = c_q / -gamma, c_r / -gamma, c_g / gamma
+      q, r, g = self.dykstra_update_lse(
+          c_q, c_r, h, gamma, ot_prob, **self.kwargs_dys
+      )
+    else:
+      q, r, g = lr_utils.unbalanced_dykstra_lse(
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
+      )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def kernel_step(
@@ -645,10 +657,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       iteration: int
   ) -> LRSinkhornState:
     """LR Sinkhorn Kernel update."""
-    k_q, k_r, k_g, gamma = self._lr_kernels(ot_prob, state)
-    q, r, g = self.dykstra_update_kernel(
-        k_q, k_r, k_g, gamma, ot_prob, **self.kwargs_dys
-    )
+    c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
+    c_q, c_r, c_g = jnp.exp(c_q), jnp.exp(c_r), jnp.exp(c_g)
+
+    if ot_prob.is_balanced:
+      q, r, g = self.dykstra_update_kernel(
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
+      )
+    else:
+      q, r, g = lr_utils.unbalanced_dykstra_kernel(
+          c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
+      )
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
@@ -681,7 +700,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # re-computes error if compute_error is True, else set it to inf.
     cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob), lambda: jnp.inf
+        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        lambda: jnp.inf
     )
     error = state.compute_error(previous_state)
     crossed_threshold = jnp.logical_or(
@@ -779,6 +799,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         ot_prob=ot_prob,
         costs=state.costs,
         errors=state.errors,
+        epsilon=self.epsilon,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:

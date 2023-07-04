@@ -257,7 +257,7 @@ def ent_reg_cost(
   if ot_prob.tau_a == 1.0:
     div_a = jnp.sum(jnp.where(supp_a, ot_prob.a * (f - fa), 0.0))
   else:
-    rho_a = ot_prob.epsilon * (ot_prob.tau_a / (1 - ot_prob.tau_a))
+    rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
     div_a = -jnp.sum(
         jnp.where(supp_a, ot_prob.a * uf.phi_star(-(f - fa), rho_a), 0.0)
     )
@@ -266,7 +266,7 @@ def ent_reg_cost(
   if ot_prob.tau_b == 1.0:
     div_b = jnp.sum(jnp.where(supp_b, ot_prob.b * (g - gb), 0.0))
   else:
-    rho_b = ot_prob.epsilon * (ot_prob.tau_b / (1 - ot_prob.tau_b))
+    rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
     div_b = -jnp.sum(
         jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
@@ -707,7 +707,7 @@ class Sinkhorn:
       successive solutions in the unbalanced case.
     norm_error: power used to define p-norm of error for marginal/target.
     inner_iterations: the Sinkhorn error is not recomputed at each
-      iteration but every inner_num_iter instead.
+      iteration but every ``inner_iterations`` instead.
     min_iterations: the minimum number of Sinkhorn iterations carried
       out before the error is computed and monitored.
     max_iterations: the maximum number of Sinkhorn iterations. If

@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 import jax
-import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.scipy as jsp
 
@@ -23,12 +22,9 @@ if TYPE_CHECKING:
   from ott.geometry import costs
 
 __all__ = [
-    "safe_log", "kl", "js", "sparse_scale", "logsumexp", "softmin",
+    "safe_log", "kl", "gen_kl", "js", "logsumexp", "softmin",
     "barycentric_projection"
 ]
-
-# TODO(michalk8): move to typing.py when refactoring types
-Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
 def safe_log(  # noqa: D103
@@ -43,23 +39,19 @@ def safe_log(  # noqa: D103
 
 # TODO(michalk8): add axis argument
 def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
-  """Kullback-Leilbler divergence."""
+  """Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
 
 
+def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+  """Generalized Kullback-Leibler divergence."""
+  return jnp.vdot(p, (safe_log(p) - safe_log(q))) + jnp.sum(q) - jnp.sum(p)
+
+
 # TODO(michalk8): add axis argument
-def js(p: jnp.ndarray, q: jnp.ndarray, *, c: float = 0.5) -> float:
+def js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
   return c * (kl(p, q) + kl(q, p))
-
-
-def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
-  """Scale a sparse matrix by a constant."""
-  if isinstance(mat, jesp.BCOO):
-    # most feature complete, defer to original impl.
-    return c * mat
-  (data, *children), aux_data = mat.tree_flatten()
-  return type(mat).tree_unflatten(aux_data, [c * data] + children)
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))
