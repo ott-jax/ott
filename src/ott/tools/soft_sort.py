@@ -281,8 +281,8 @@ def quantile(
 
   ``x_quantiles`` will hold an approximation to the 20 and 80 percentiles in
   ``x``, computed as a convex combination (a weighted mean, with weights summing
-  to 1) of all values in ``x`` (and not, as would be the usual approach, the
-  values ``x_sorted[20]`` and ``x_sorted[80]`` is ``x_sorted=jnp.sort(x)``.
+  to 1) of all values in ``x`` (and not, as for standard quantiles, the
+  values ``x_sorted[20]`` and ``x_sorted[80]`` if ``x_sorted=jnp.sort(x)``).
   These values offer a trade-off between accuracy (closeness to the true
   percentiles) and gradient (the Jacobian of ``x_quantiles`` w.r.t ``x`` will
   impact all values listed in ``x``, not just those indexed at 20 and 80).
