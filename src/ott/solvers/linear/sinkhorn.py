@@ -732,7 +732,9 @@ class Sinkhorn:
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid (as with ``implicit_differentiation``)
       when the algorithm has converged with a low tolerance.
-    initializer: how to compute the initial potentials/scalings.
+    initializer: how to compute the initial potentials/scalings. This refers to
+      a few possible classes implemented following the template in
+      :class:`~ott.initializers.linear.SinkhornInitializer`.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
