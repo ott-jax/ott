@@ -577,8 +577,8 @@ class ElasticSqKOverlap(RegTICost):
 
       return inner(r, l, z)
 
+    del tau  # this case is not handled and currently not needed
     # Alg. 1 of :cite:`argyriou:12`
-    del tau  # this case is not handled
     k, d, beta = self.k, z.shape[-1], 1.0 / self.scaling_reg
 
     ixs = jnp.arange(d)

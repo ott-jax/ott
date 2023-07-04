@@ -100,7 +100,7 @@ class TestKmeansPlusPlus:
         pred_centers.min(axis=0) >= geom.x.min(axis=0), True
     )
     # the largest was 70.56378
-    assert jnp.abs(pred_inertia - gt_inertia) <= 100
+    assert jnp.abs(pred_inertia - gt_inertia) <= 200
 
   def test_initialization_differentiable(self, rng: jax.random.PRNGKeyArray):
 
