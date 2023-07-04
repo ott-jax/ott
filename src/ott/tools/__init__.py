@@ -11,4 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import gaussian_mixture, k_means, plot, sinkhorn_divergence, soft_sort
+from . import (
+    gaussian_mixture,
+    k_means,
+    map_estimator,
+    plot,
+    segment_sinkhorn,
+    sinkhorn_divergence,
+    soft_sort,
+)

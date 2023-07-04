@@ -56,3 +56,4 @@ Neural Optimal Transport
     notebooks/neural_dual
     notebooks/icnn_inits
     notebooks/MetaOT
+    notebooks/Monge_Gap

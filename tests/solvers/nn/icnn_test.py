@@ -30,7 +30,7 @@ class TestICNN:
     model = models.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    rng1, rng2 = jax.random.split(rng, 2)
     params = model.init(rng1, jnp.ones(n_features))["params"]
 
     # check convexity

@@ -32,3 +32,10 @@ Conjugate Solvers
     conjugate_solvers.ConjugateResults
     conjugate_solvers.FenchelConjugateSolver
     conjugate_solvers.FenchelConjugateLBFGS
+
+Losses
+------
+.. autosummary::
+    :toctree: _autosummary
+
+    losses.monge_gap

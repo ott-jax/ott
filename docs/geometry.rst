@@ -62,6 +62,7 @@ Cost Functions
     costs.Bures
     costs.UnbalancedBures
     costs.ElasticL1
+    costs.ElasticL2
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
     costs.SoftDTW

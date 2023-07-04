@@ -49,7 +49,7 @@ class Geometry:
     epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
       ``relative_epsilon = True`` or ``relative_epsilon = None`` and
       ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-      is used, ``scale_epsilon`` the is :attr:`mean_cost_matrix`. If
+      is used, ``scale_epsilon`` is the :attr:`mean_cost_matrix`. If
       ``epsilon = None``, use :math:`0.05`.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
