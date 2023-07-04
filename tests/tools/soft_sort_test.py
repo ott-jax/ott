@@ -116,13 +116,11 @@ class TestSoftSort:
     )
 
   @pytest.mark.fast()
-  def test_quantiles(self):
-    inputs = jax.random.uniform(jax.random.PRNGKey(0), (200, 2, 3))
+  def test_quantiles(self, rng: jax.random.PRNGKeyArray):
+    inputs = jax.random.uniform(rng, (200, 2, 3))
     q = jnp.array([.1, .8, .4])
     m1 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
     np.testing.assert_allclose(m1.mean(axis=[1, 2]), q, atol=5e-2)
-    m2 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
-    np.testing.assert_allclose(m2.mean(axis=[1, 2]), q, atol=5e-2)
 
   def test_soft_quantile_normalization(self, rng: jax.random.PRNGKeyArray):
     rngs = jax.random.split(rng, 2)
