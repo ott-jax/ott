@@ -320,7 +320,9 @@ class TestGromovWasserstein:
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
-    np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
+    np.testing.assert_allclose(
+        ot_gwlr.primal_cost, ot_gw.primal_cost, rtol=5e-2
+    )
 
   def test_gw_lr_matches_fused(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same fused problem."""

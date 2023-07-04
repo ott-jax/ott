@@ -70,19 +70,17 @@ class TestLRSinkhorn:
         lse_mode=lse_mode,
         initializer=initializer
     )
-    solved = solver(ot_prob)
-    costs = solved.costs
-    costs = costs[costs > -1]
+    out = solver(ot_prob)
 
-    criterions = solved.errors
+    criterions = out.errors
     criterions = criterions[criterions > -1]
 
     # Check convergence
-    if solved.converged:
+    if out.converged:
       assert criterions[-1] < threshold
 
     # Store cost value.
-    cost_1 = costs[-1]
+    cost_1 = out.primal_cost
 
     # Try with higher rank
     solver = sinkhorn_lr.LRSinkhorn(
@@ -95,8 +93,7 @@ class TestLRSinkhorn:
     )
     out = solver(ot_prob)
 
-    costs = out.costs
-    cost_2 = costs[costs > -1][-1]
+    cost_2 = out.primal_cost
     # Ensure solution with more rank budget has lower cost (not guaranteed)
     try:
       assert cost_1 > cost_2
@@ -125,8 +122,7 @@ class TestLRSinkhorn:
     )
     out = solver(ot_prob)
 
-    costs = out.costs
-    cost_3 = costs[costs > -1][-1]
+    cost_3 = out.primal_cost
     try:
       assert cost_3 > cost_2
     except AssertionError:
