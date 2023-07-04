@@ -36,9 +36,9 @@ def transport_for_sort(
   r"""Solve reg. OT, from inputs to a weighted family of increasing values.
 
   Args:
-    inputs: jnp.ndarray[num_points]. Must be one dimensional.
-    weights: jnp.ndarray[num_points]. Weight vector `a` for input values.
-    target_weights: jnp.ndarray[num_targets]: Weight vector of the target
+    inputs: Array[num_points]. Must be one dimensional.
+    weights: Array[num_points]. Weight vector `a` for input values.
+    target_weights: Array[num_targets]: Weight vector of the target
       measure. It may be of different size than `weights`.
     squashing_fun: function taking an array to squash all its entries in [0,1].
       sigmoid of whitened values by default. Can be set to be the identity by
@@ -48,8 +48,7 @@ def transport_for_sort(
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 
   Returns:
-    A jnp.ndarray<float> num_points x num_target transport matrix, from all
-    inputs onto the sorted target.
+    A :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput` object.
   """
   shape = inputs.shape
   if len(shape) > 2 or (len(shape) == 2 and shape[1] != 1):
@@ -81,7 +80,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
 
   Args:
     op: a differentiable operator (can be ranks, quantile, etc.)
-    inputs: jnp.ndarray<float> of any shape.
+    inputs: Array of any shape.
     axis: the axis (int) or tuple of ints on which to apply the operator. If
       several axes are passed the operator, those are merged as a single
       dimension.
@@ -89,7 +88,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
     kwargs: other positional arguments to the operator.
 
   Returns:
-    A jnp.ndarray holding the output of the differentiable operator on the given
+    An Array holding the output of the differentiable operator on the given
     axis.
   """
   op_inner = functools.partial(op, **kwargs)
@@ -148,22 +147,23 @@ def sort(
 
   For instance:
 
-  ```
-  x = jax.random.uniform(rng, (100,))
-  x_sorted = sort(x)
-  ```
+  .. code-block:: python
+
+    x = jax.random.uniform(rng, (100,))
+    x_sorted = sort(x)
+
 
   will output sorted convex-combinations of values contained in ``x``, that are
   differentiable approximations to the sorted vector of entries in ``x``.
   These should be the values produced by :func:`jax.numpy.sort`,
 
-  ```
-  x_ranks = jax.numpy.sort(x)
-  ```
+  .. code-block:: python
+
+    x_sorted = jax.numpy.sort(x)
 
 
   Args:
-    inputs: jnp.ndarray<float> of any shape.
+    inputs: Array of any shape.
     axis: the axis on which to apply the soft-sorting operator.
     topk: if set to a positive value, the returned vector will only contain
       the top-k values. This also reduces the complexity of soft-sorting, since
@@ -180,16 +180,15 @@ def sort(
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
       to solve the optimal transport problem;
-      attribute :attr:`~ott.geometry.pointcloud.cost_fn` of
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
       :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
       cost function to transport from ``inputs`` to the ``num_targets`` target
-      values (:class:`~ott.geometry.costs.SqEuclidean` by default, see
-      :class:`~ott.geometry.pointcloud.PointCloud`); ``epsilon`` regularization
+      values ; ``epsilon`` regularization
       parameter. Remaining ``kwargs`` are passed on to defined the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
   Returns:
-    A jnp.ndarray of the same shape as the input with soft-sorted values on the
+    An Array of the same shape as the input with soft-sorted values on the
     given axis.
   """
   return apply_on_axis(_sort, inputs, axis, topk, num_targets, **kwargs)
@@ -216,22 +215,22 @@ def ranks(
 
   For instance:
 
-  ```
-  x = jax.random.uniform(rng, (100,))
-  x_ranks = ranks(x)
-  ```
+  .. code-block:: python
+
+    x = jax.random.uniform(rng, (100,))
+    x_ranks = ranks(x)
 
   will output fractional values, between 0 and 1, that are differentiable
   approximations to the normalized ranks of entries in ``x``. These should be
   compared to the non-differentiable rank vectors, namely the normalized inverse
   permutation produced by :func:`jax.numpy.argsort`, which can be obtained as:
 
-  ```
-  x_ranks = jax.numpy.argsort(jax.numpy.argsort(x)) / x.shape[0]
-  ```
+  .. code-block:: python
+
+    x_ranks = jax.numpy.argsort(jax.numpy.argsort(x)) / x.shape[0]
 
   Args:
-    inputs: jnp.ndarray<float> of any shape.
+    inputs: Array of any shape.
     axis: the axis on which to apply the soft-sorting operator.
     topk: if set to a positive value, the returned vector will only contain
       the top-k values. This also reduces the complexity of soft-sorting, since
@@ -248,16 +247,15 @@ def ranks(
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
       to solve the optimal transport problem;
-      attribute :attr:`~ott.geometry.pointcloud.cost_fn` of
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
       :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
       cost function to transport from ``inputs`` to the ``num_targets`` target
-      values (:class:`~ott.geometry.costs.SqEuclidean` by default, see
-      :class:`~ott.geometry.pointcloud.PointCloud`); ``epsilon`` regularization
+      values ; ``epsilon`` regularization
       parameter. Remaining ``kwargs`` are passed on to defined the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
   Returns:
-    A jnp.ndarray of the same shape as the input with soft-rank values
+    An Array of the same shape as the input with soft-rank values
     normalized to be in :math:`[0,1]`, replacing the original ones.
 
   """
@@ -266,8 +264,8 @@ def ranks(
 
 def quantile(
     inputs: jnp.ndarray,
+    q: jnp.ndarray,
     axis: int = -1,
-    q: Optional[jnp.ndarray] = None,
     weight: Optional[Union[float, jnp.ndarray]] = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
@@ -275,30 +273,31 @@ def quantile(
 
   For instance:
 
-  ```
-  x = jax.random.uniform(rng, (100,))
-  x_quantiles = quantiles(x, q=jnp.array([0.2, 0.8]))
-  ```
+  .. code-block:: python
+
+    x = jax.random.uniform(rng, (100,))
+    x_quantiles = quantiles(x, q=jnp.array([0.2, 0.8]))
 
   ``x_quantiles`` will hold an approximation to the 20 and 80 percentiles in
   ``x``, computed as a convex combination (a weighted mean, with weights summing
-  to 1) of all values in ``x`` (and not, as would be the usual approach, the
-  values ``x_sorted[20]`` and ``x_sorted[80]`` is ``x_sorted=jnp.sort(x)``.
+  to 1) of all values in ``x`` (and not, as for standard quantiles, the
+  values ``x_sorted[20]`` and ``x_sorted[80]`` if ``x_sorted=jnp.sort(x)``).
   These values offer a trade-off between accuracy (closeness to the true
   percentiles) and gradient (the Jacobian of ``x_quantiles`` w.r.t ``x`` will
   impact all values listed in ``x``, not just those indexed at 20 and 80).
 
   The non-differentiable version is given by :func:`jax.numpy.quantile`, e.g.
-  ```
-  x_quantiles = jax.numpy.quantile(x, q=jnp.array([0.2, 0.8]))
-  ```
+
+  .. code-block:: python
+
+    x_quantiles = jax.numpy.quantile(x, q=jnp.array([0.2, 0.8]))
+
 
   Args:
-   inputs: a jnp.ndarray<float> of any shape.
-   axis: the axis on which to apply the operator.
+   inputs: an Array of any shape.
    q: values of the quantile level to be computed, e.g. [0.5] for median.
-     These values should all lie in :math:`[0,1]` and are selected as
-     ``[0.2, 0.5, 0.8]`` by default.
+     These values should all lie in :math:`[0,1]`.
+   axis: the axis on which to apply the operator.
    weight: the weight assigned to each quantile target value in the OT problem.
     This weight should be small, typically of the order of ``1/n``, where ``n``
     is the size of ``x``. Note: Since the size of ``q`` times ``weight``
@@ -309,17 +308,16 @@ def quantile(
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
       to solve the optimal transport problem;
-      attribute :attr:`~ott.geometry.pointcloud.cost_fn` of
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
       :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
       cost function to transport from ``inputs`` to the ``num_targets`` target
-      values (:class:`~ott.geometry.costs.SqEuclidean` by default, see
-      :class:`~ott.geometry.pointcloud.PointCloud`); ``epsilon`` regularization
+      values ; ``epsilon`` regularization
       parameter. Remaining ``kwargs`` are passed on to defined the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
   Returns:
-    A jnp.ndarray, which has the same shape as the input, except on the ``axis``
-    that is passed, which has size ``q.shape[0]`` to collect soft-quantile
+    An Array, which has the same shape as ``inputs``, except on the ``axis``
+    that is passed, which has size ``q.shape[0]``, to collect soft-quantile
     values.
   """
 
@@ -379,7 +377,7 @@ def quantile(
         jnp.ones((num_quantiles + 1, 1), dtype=bool)
     ],
                            axis=1).ravel()[:-1]
-    return (out[odds])[idx]
+    return out[odds][idx]
 
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
 
@@ -412,9 +410,9 @@ def quantile_normalization(
     inputs: array of any shape whose values will be changed to match those in
       ``targets``.
     targets: sorted array (in ascending order) of dimension 1 describing a
-      discrete distribution. Note: the``targets`` values must be provided as
+      discrete distribution. Note: the ``targets`` values must be provided as
       a sorted vector.
-    weights: vector of nonnegative weights, summing to :math:`1.0`, of the same
+    weights: vector of nonnegative weights, summing to :math:`1`, of the same
       size as ``targets``. When not set, this defaults to the uniform
       distribution.
     axis: the axis along which the quantile transformation is applied.
@@ -422,17 +420,16 @@ def quantile_normalization(
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
       to solve the optimal transport problem;
-      attribute :attr:`~ott.geometry.pointcloud.cost_fn` of
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
       :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
       cost function to transport from ``inputs`` to the ``num_targets`` target
-      values (:class:`~ott.geometry.costs.SqEuclidean` by default, see
-      :class:`~ott.geometry.pointcloud.PointCloud`); ``epsilon`` regularization
+      values ; ``epsilon`` regularization
       parameter. Remaining ``kwargs`` are passed on to defined the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
   Returns:
-    A jnp.ndarray, which has the same shape as the input, except on the give
-    axis on which the dimension is 1.
+    An array, which has the same shape as the input, except on the give axis on
+    which the dimension is 1.
 
   Raises:
     A ValueError in case the weights and the targets are both set and not of
@@ -468,7 +465,7 @@ def sort_with(
   smaller indices will contain combinations of vectors with smaller criterion.
 
   Args:
-    inputs: the inputs as a jnp.ndarray[batch, dim].
+    inputs: Array of size [batch, dim].
     criterion: the values according to which to sort the inputs. It has shape
       [batch, 1].
     topk: The number of outputs to keep.
@@ -476,16 +473,15 @@ def sort_with(
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
       to solve the optimal transport problem;
-      attribute :attr:`~ott.geometry.pointcloud.cost_fn` of
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
       :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
       cost function to transport from ``inputs`` to the ``num_targets`` target
-      values (:class:`~ott.geometry.costs.SqEuclidean` by default, see
-      :class:`~ott.geometry.pointcloud.PointCloud`); ``epsilon`` regularization
+      values ; ``epsilon`` regularization
       parameter. Remaining ``kwargs`` are passed on to defined the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
   Returns:
-    A jnp.ndarray[batch | topk, dim].
+    An Array of size [batch | topk, dim].
   """
   num_points = criterion.shape[0]
   weights = jnp.ones(num_points, dtype=criterion.dtype) / num_points
@@ -538,19 +534,22 @@ def quantize(
   differentiable.
 
   Args:
-    inputs: the inputs as a jnp.ndarray[batch, dim].
-    num_levels: number of q available to quantize the signal.
+    inputs: an Array of size [batch, dim].
+    num_levels: number of quantiles available to quantize the signal.
     axis: axis along which quantization is carried out.
     kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
-      ``inputs`` to lie in [0,1] (sigmoid of whitened values by default) to
-      solve the optimal transport problem; ``cost_fn``, used in ``PointCloud``,
-      that defines the ground cost function to transport from ``inputs`` to the
-      ``num_targets`` target values (squared Euclidean distance by default, see
-      ``pointcloud.py`` for more details); ``epsilon`` values as well as other
-      parameters to shape the ``sinkhorn`` algorithm.
+      ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
+      to solve the optimal transport problem;
+      attribute :class:`cost_fn <ott.geometry.costs.CostFn>` of
+      :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
+      cost function to transport from ``inputs`` to the ``num_targets`` target
+      values ; ``epsilon`` regularization
+      parameter. Remaining ``kwargs`` are passed on to defined the
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+
 
   Returns:
-    A jnp.ndarray of the same size as ``inputs``.
+    An Array of the same size as ``inputs``.
   """
   return apply_on_axis(_quantize, inputs, axis, num_levels, **kwargs)
