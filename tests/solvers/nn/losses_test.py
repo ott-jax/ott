@@ -37,10 +37,8 @@ class TestMongeGap:
     monge_gap_value = losses.monge_gap(source=source, target=target)
     np.testing.assert_array_equal(monge_gap_value >= 0, True)
 
-  def test_monge_gap_jit(
-      self, rng: jax.random.PRNGKey, n_samples: int, n_features: int
-  ):
-
+  def test_monge_gap_jit(self, rng: jax.random.PRNGKey):
+    n_samples, n_features = 31, 17
     # generate data
     rng1, rng2 = jax.random.split(rng, 2)
     source = jax.random.normal(rng1, (n_samples, n_features))
@@ -95,7 +93,7 @@ class TestMongeGap:
 
     with pytest.raises(AssertionError, match=r"tolerance"):
       np.testing.assert_allclose(
-          monge_gap_value_eucl, monge_gap_value_cost_fn, rtol=1e-3, atol=1e-3
+          monge_gap_value_eucl, monge_gap_value_cost_fn, rtol=1e-1, atol=1e-1
       )
 
     np.testing.assert_array_equal(np.isfinite(monge_gap_value_eucl), True)
