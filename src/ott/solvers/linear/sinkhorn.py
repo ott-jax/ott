@@ -291,7 +291,7 @@ class SinkhornOutput(NamedTuple):
   errors: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
-  threshold: Optional[float] = None
+  threshold: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -1044,7 +1044,10 @@ class Sinkhorn:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
     return SinkhornOutput(
-        f=f, g=g, errors=state.errors[:, 0], threshold=self.threshold
+        f=f,
+        g=g,
+        errors=state.errors[:, 0],
+        threshold=jnp.array(self.threshold)
     )
 
   @property
