@@ -16,7 +16,7 @@ dependencies = [
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
     "jaxopt>=0.5.5",
-    # conflict between numpy/numba
+    # numba/numpy compatibility issue
     "numpy>=1.18.4, !=1.25.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
