@@ -113,7 +113,6 @@ class CostFn(abc.ABC):
       return cost
     return cost + self.norm(x) + self.norm(y)
 
-  # TODO(michalk8): unused
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
@@ -165,11 +164,18 @@ class TICost(CostFn):
 
   @abc.abstractmethod
   def h(self, z: jnp.ndarray) -> float:
-    """TI function acting on difference of :math:`x-y` to output cost."""
+    """TI function acting on difference of :math:`x-y` to output cost.
+
+    Args:
+      z: Array of shape ``[d,]``.
+
+    Returns:
+      The cost.
+    """
 
   def h_legendre(self, z: jnp.ndarray) -> float:
     """Legendre transform of :func:`h` when it is convex."""
-    raise NotImplementedError("`h_legendre` not implemented.")
+    raise NotImplementedError("Legendre transform of `h` is not implemented.")
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
@@ -333,10 +339,20 @@ class RegTICost(TICost, abc.ABC):
     """Regularization function."""
 
   def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
-    raise NotImplementedError("TODO")
+    raise NotImplementedError(
+        "Regularization in the orthogonal "
+        "subspace is not implemented."
+    )
 
   def reg(self, z: jnp.ndarray) -> float:
-    """Regularization function, evaluated for arbitrary vector."""
+    """Regularization function.
+
+    Args:
+      z: Array of shape ``[d,]``.
+
+    Returns:
+      The regularization value.
+    """
     if self.matrix is None:
       return self._reg(z)
     if self.orthogonal:
@@ -344,7 +360,15 @@ class RegTICost(TICost, abc.ABC):
     return self._reg(self.matrix @ z)
 
   def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    """TODO."""
+    """Proximal operator of :meth:`reg`.
+
+    Args:
+      z: Array of shape ``[d,]``.
+      tau: Positive weight.
+
+    Returns:
+      The prox of ``z``.
+    """
     if self.matrix is None:
       return self._prox_reg(z, tau)
     if self.orthogonal:
@@ -362,6 +386,7 @@ class RegTICost(TICost, abc.ABC):
     def orth(x: jnp.ndarray) -> jnp.ndarray:
       return x - self.matrix.T @ (self.matrix @ x)
 
+    # assumes `matrix` has orthogonal rows
     tmp = orth(z)
     return z - orth(tmp - self._prox_reg(tmp, tau))
 
@@ -371,7 +396,21 @@ class RegTICost(TICost, abc.ABC):
     return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
 
   def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    """TODO."""
+    r"""Proximal operator of the Legendre transform of :meth:`reg`.
+
+    Uses Moreau's decomposition:
+
+    .. math::
+        x = \text{prox}_{\tau f} \left(x\right) +
+        \tau \text{prox}_{\frac{1}{\tau} f^*} \left(\frac{x}{\tau}\right)
+
+    Args:
+      z: Array of shape ``[d,]``.
+      tau: Positive weight.
+
+    Returns:
+      The prox of ``z``.
+    """
     return z - tau * self.prox_reg(z / tau, 1.0 / tau)
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
@@ -386,7 +425,7 @@ class RegTICost(TICost, abc.ABC):
                   **kwargs: Any) -> Callable[[jnp.ndarray], float]:
     r"""Compute the h-transform of a concave function.
 
-    Returns a callable :math:`f_h`, taking vectors as inputs, defined as:
+    Return a callable :math:`f_h` defined as:
 
     .. math::
       f_h(x) = \min_y h(x - y) - f(y)
@@ -400,11 +439,10 @@ class RegTICost(TICost, abc.ABC):
 
     where :math:`\tilde{f}(z, x) := -f(x - z)`.
 
-    TODO(michalk8): format this nicely
     This is solved using proximal gradient descent, which requires having
-    access to the prox of `scaling_h * h` (and not only to that of `h`).
-    Given the properties of `h` (as squared-norm + `reg`), that prox is obtained
-    by rescaling the output of the prox of a suitable scaling of `reg`.
+    access to the prox of :math:`\text{scaling_h} \cdot h` and not only to that
+    of :meth:`h`. Given the properties of :meth:`h`, the prox is obtained by
+    rescaling the output of the prox of a suitable scaling of :meth:`prox_reg`.
 
     Args:
       f: Concave function.
@@ -420,7 +458,7 @@ class RegTICost(TICost, abc.ABC):
     def prox(
         x: jnp.ndarray, scaling_reg: float, scaling_h: float
     ) -> jnp.ndarray:
-      """https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 2.2."""
+      # https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 2.2.
       tmp = 1.0 / (1.0 + scaling_h)
       tau = scaling_reg * scaling_h * tmp
       return self.prox_reg(x * tmp, tau)
@@ -446,7 +484,13 @@ class ElasticL1(RegTICost):
   r"""Cost inspired by elastic net :cite:`zou:05` regularization.
 
   .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\cdot\|_1
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\text{matrix} \cdot\|_1
+
+  Args:
+    scaling_reg: Strength of the :meth:`regularization <reg>`.
+    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
+    orthogonal: Whether to regularize in the orthogonal complement
+      to promote displacements in the span of ``matrix``.
   """
 
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
@@ -458,11 +502,16 @@ class ElasticL1(RegTICost):
 
 @jax.tree_util.register_pytree_node_class
 class ElasticL2(RegTICost):
-  # TODO(michalk8): format this
-  r"""Cost, see https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 6.1.1.
+  r"""Cost with L2 regularization.
 
   .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \| matrix \cdot\|_2^2
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\text{matrix} \cdot\|_2^2
+
+  Args:
+    scaling_reg: Strength of the :meth:`regularization <reg>`.
+    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
+    orthogonal: Whether to regularize in the orthogonal complement
+      to promote displacements in the span of ``matrix``.
   """
 
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
@@ -491,23 +540,28 @@ class ElasticSTVS(RegTICost):
     \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg}^2\mathbf{1}_d^T\left(\sigma(\cdot) -
     \frac{1}{2} \exp\left(-2\sigma(\cdot)\right) + \frac{1}{2}\right)
 
-  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}{2\text{scaling_reg}}\right)`
+  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}
+  {2\text{scaling_reg}}\right)`
+
+  Args:
+    scaling_reg: Strength of the :meth:`regularization <reg>`.
+    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
+    orthogonal: Whether to regularize in the orthogonal complement
+      to promote displacements in the span of ``matrix``.
   """  # noqa: D205,E501
 
   def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     u = jnp.arcsinh(jnp.abs(z) / (2 * self.scaling_reg))
     out = u - 0.5 * jnp.exp(-2.0 * u)
-    # based on Lemma 2.1 of `schreck:15`; don't use `self.scaling_reg ** 2`
-    # because it's included in the `self.reg(...)`
+    # Lemma 2.1 of `schreck:15`;
+    # don't use `self.scaling_reg ** 2` because it's included in `h`
     return self.scaling_reg * jnp.sum(out + 0.5)  # make positive
 
   def _prox_reg(  # noqa: D102
       self, z: jnp.ndarray, tau: float = 1.0
   ) -> jnp.ndarray:
-    # TODO(michalk8): check the tau
-    return jax.nn.relu(
-        1.0 - (self.scaling_reg * tau / (jnp.abs(z) + 1e-12)) ** 2
-    ) * z
+    tmp = 1.0 - (self.scaling_reg * tau / (jnp.abs(z) + 1e-12)) ** 2
+    return jax.nn.relu(tmp) * z
 
 
 @jax.tree_util.register_pytree_node_class
