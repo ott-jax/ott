@@ -37,18 +37,19 @@ class TestMongeGap:
     target = model.apply(params, reference_points)
 
     # compute the Monge gap based on samples
-    monge_gap_samples_value = losses.monge_gap_samples(
+    monge_gap_from_samples_value = losses.monge_gap_from_samples(
         source=reference_points, target=target
     )
-    np.testing.assert_array_equal(monge_gap_samples_value >= 0, True)
+    np.testing.assert_array_equal(monge_gap_from_samples_value >= 0, True)
 
     # Compute the Monge gap using model directly
     monge_gap_value = losses.monge_gap(
-        model=model, params=params, reference_points=reference_points
+        map_fn=lambda x: model.apply(params, x=x),
+        reference_points=reference_points
     )
     np.testing.assert_array_equal(monge_gap_value >= 0, True)
 
-    np.testing.assert_array_equal(monge_gap_value, monge_gap_samples_value)
+    np.testing.assert_array_equal(monge_gap_value, monge_gap_from_samples_value)
 
   def test_monge_gap_jit(self, rng: jax.random.PRNGKey):
     n_samples, n_features = 31, 17
@@ -57,10 +58,12 @@ class TestMongeGap:
     source = jax.random.normal(rng1, (n_samples, n_features))
     target = jax.random.normal(rng2, (n_samples, n_features))
     # define jitted monge gap
-    jit_monge_gap = jax.jit(losses.monge_gap_samples)
+    jit_monge_gap = jax.jit(losses.monge_gap_from_samples)
 
     # compute the Monge gaps for different costs
-    monge_gap_value = losses.monge_gap_samples(source=source, target=target)
+    monge_gap_value = losses.monge_gap_from_samples(
+        source=source, target=target
+    )
     jit_monge_gap_value = jit_monge_gap(source, target)
     np.testing.assert_allclose(monge_gap_value, jit_monge_gap_value, rtol=1e-3)
 
@@ -79,7 +82,7 @@ class TestMongeGap:
           "stvs-gam2",
       ],
   )
-  def test_monge_gap_samples_different_cost(
+  def test_monge_gap_from_samples_different_cost(
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.CostFn, n_samples: int,
       n_features: int
   ):
@@ -96,24 +99,24 @@ class TestMongeGap:
     target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
 
     # compute the Monge gaps for the euclidean cost
-    monge_gap_samples_value_eucl = losses.monge_gap_samples(
+    monge_gap_from_samples_value_eucl = losses.monge_gap_from_samples(
         source=source, target=target, cost_fn=costs.Euclidean()
     )
-    monge_gap_samples_value_cost_fn = losses.monge_gap_samples(
+    monge_gap_from_samples_value_cost_fn = losses.monge_gap_from_samples(
         source=source, target=target, cost_fn=cost_fn
     )
 
     with pytest.raises(AssertionError, match=r"tolerance"):
       np.testing.assert_allclose(
-          monge_gap_samples_value_eucl,
-          monge_gap_samples_value_cost_fn,
+          monge_gap_from_samples_value_eucl,
+          monge_gap_from_samples_value_cost_fn,
           rtol=1e-1,
           atol=1e-1
       )
 
     np.testing.assert_array_equal(
-        np.isfinite(monge_gap_samples_value_eucl), True
+        np.isfinite(monge_gap_from_samples_value_eucl), True
     )
     np.testing.assert_array_equal(
-        np.isfinite(monge_gap_samples_value_cost_fn), True
+        np.isfinite(monge_gap_from_samples_value_cost_fn), True
     )
