@@ -19,13 +19,15 @@ import jax.numpy as jnp
 
 from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
+from ott.solvers.nn import models
 
 __all__ = ["monge_gap"]
 
 
 def monge_gap(
-    source: jnp.ndarray,
-    target: jnp.ndarray,
+    model: models.ModelBase,
+    reference_points: jnp.ndarray,
+    params: Any,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
@@ -36,47 +38,78 @@ def monge_gap(
 ) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
-  For a cost function :math:`c` and an empirical reference :math:`\hat{\rho}_n`
-  defined by samples :math:`(x_i)_{i=1,\dots,n}`, the (entropic) Monge gap
-  of a vector field :math:`T` is defined as:
+  For a cost function :math:`c` and empirical reference measure
+  :math:`\hat{\rho}_n` defined by samples :math:`(x_i)_{i=1,\dots,n}`
+  (argument ``reference_points``), the
+  (entropic) Monge gap of a parameterized (argument ``params``) vector field
+  :math:`T` (argument ``model``), :math:`T(\cdot,\theta)` is defined as:
 
   .. math::
     \mathcal{M}^c_{\hat{\rho}_n, \varepsilon} (T)
-    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) -
+    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i, \theta)) -
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
   See :cite:`uscidda:23` Eq. (8).
+  """
+  target = model.apply(params, reference_points)
+  return monge_gap_samples(
+      source=reference_points,
+      target=target,
+      cost_fn=cost_fn,
+      epsilon=epsilon,
+      relative_epsilon=relative_epsilon,
+      scale_cost=scale_cost,
+      **kwargs
+  )
+
+
+def monge_gap_samples(
+    source: jnp.ndarray,
+    target: jnp.ndarray,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[float] = None,
+    relative_epsilon: Optional[bool] = None,
+    scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
+                                                "median"]] = 1.0,
+    return_output: bool = False,
+    **kwargs: Any
+) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
+  r"""Monge gap, instantiated in terms of samples before / after applying map.
+
+  .. math::
+
+    \frac{1}{n} \sum_{i=1}^n c(x_i, y_i)) -
+    W_{c, \varepsilon}(\frac{1}{n}\sum_i \delta_{x_i},
+    \frac{1}{n}\sum_i \delta_{y_i})
+
+  where :math:`W_{c, \varepsilon}` is an entropy-regularized optimal transport
+  cost, :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`
 
   Args:
-    source: samples from the reference measure :math:`\rho`,
-      array of shape ``[n, d]``.
-    target: samples from the mapped reference measure :math:`T \sharp \rho`
-      mapped with :math:`T`, i.e. samples from :math:`T \sharp \rho`,
-      array of shape ``[n, d]``.
+    source: samples from first measure, array of shape ``[n, d]``.
+    target: samples from second measure, array of shape ``[n, d]``.
     cost_fn: a cost function between two points in dimension :math:`d`.
       If :obj:`None`, :class:`~ott.geometry.costs.SqEuclidean` is used.
-    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
-      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-      is used, ``scale_epsilon`` is the
-      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`.
-      If ``epsilon = None``, use :math:`0.05`.
+    epsilon: Regularization parameter. See
+      :class:`~ott.geometry.pointcloud.PointCloud`
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the
       :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`, which is
-      computed adaptively from data.
+      computed adaptively using ``source`` and ``target`` points.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
-    return_output: boolean to also return Sinkhorn output.
+    return_output: boolean to also return the
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
     kwargs: holds the kwargs to instantiate the or
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
       compute the regularized OT cost.
 
   Returns:
-    The Monge gap value and optionally the Sinkhorn output.
+    The Monge gap value and optionally the
+    :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
   """
   cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
   geom = pointcloud.PointCloud(
