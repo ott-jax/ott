@@ -44,7 +44,7 @@ class TestMongeGap:
 
     # Compute the Monge gap using model directly
     monge_gap_value = losses.monge_gap(
-        map_fn=lambda x: model.apply(params, x=x),
+        map_fn=lambda x: model.apply(params, x),
         reference_points=reference_points
     )
     np.testing.assert_array_equal(monge_gap_value >= 0, True)

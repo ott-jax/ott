@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs, pointcloud
 from ott.solvers.linear import sinkhorn
-from ott.solvers.nn import models
 
-__all__ = ["monge_gap"]
+__all__ = ["monge_gap", "monge_gap_from_samples"]
 
 
 def monge_gap(
-    model: models.ModelBase,
+    map_fn: Callable[[jnp.ndarray], jnp.ndarray],
     reference_points: jnp.ndarray,
-    params: Any,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
@@ -39,10 +37,9 @@ def monge_gap(
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
   For a cost function :math:`c` and empirical reference measure
-  :math:`\hat{\rho}_n` defined by samples :math:`(x_i)_{i=1,\dots,n}`
-  (argument ``reference_points``), the
-  (entropic) Monge gap of a parameterized (argument ``params``) vector field
-  :math:`T` (argument ``model``), :math:`T(\cdot,\theta)` is defined as:
+  :math:`\hat{\rho}_n` defined by samples :math:`(x_i)_{i=1,\dots,n}`, the
+  (entropic) Monge gap of a map function
+  :math:`T:\mathbb{R}^d\righarrow\mathbb{R}^d` is defined as:
 
   .. math::
     \mathcal{M}^c_{\hat{\rho}_n, \varepsilon} (T)
@@ -50,9 +47,37 @@ def monge_gap(
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
   See :cite:`uscidda:23` Eq. (8).
+
+  Args:
+    map_fn: Callable corresponding to map :math:`T` in definition above. The
+      callable should be vectorized (e.g. using :func:`jax.vmap`), i.e,
+      able to process a *batch* of vectors of size `d`, namely
+      ``map_fn`` applied to an array returns an array of the same shape.
+    reference_points: Array of `[n,d]` points, :math:`\hat\rho_n` in paper
+    cost_fn: An object of class :class:`~ott.geometry.costs.CostFn`.
+    epsilon: Regularization parameter. See
+      :class:`~ott.geometry.pointcloud.PointCloud`
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`, which is
+      computed adaptively using ``source`` and ``target`` points.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+      If `True`, use 'mean'.
+    return_output: boolean to also return the
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
+    kwargs: holds the kwargs to instantiate the or
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
+      compute the regularized OT cost.
+
+  Returns:
+    The Monge gap value and optionally the
+    :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
   """
-  target = model.apply(params, reference_points)
-  return monge_gap_samples(
+  target = map_fn(reference_points)
+  return monge_gap_from_samples(
       source=reference_points,
       target=target,
       cost_fn=cost_fn,
@@ -63,7 +88,7 @@ def monge_gap(
   )
 
 
-def monge_gap_samples(
+def monge_gap_from_samples(
     source: jnp.ndarray,
     target: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,

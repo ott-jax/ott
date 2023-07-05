@@ -43,7 +43,7 @@ class TestMapEstimator:
           y=mapped_samples,
       ).divergence
 
-    regularizer = losses.monge_gap_samples
+    regularizer = losses.monge_gap_from_samples
 
     # define the model
     model = models.MLP(dim_hidden=[64, 32], is_potential=False)
