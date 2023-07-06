@@ -187,6 +187,25 @@ class TestSinkhorn:
     assert errors[2] == jnp.inf
     assert errors[3] > 0
 
+  @pytest.mark.fast()
+  def test_euclidean_point_cloud_scan_loop(self):
+    """Testing the scan loop behavior."""
+    threshold = 1e-3
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    out = sinkhorn.solve(
+        geom,
+        a=self.a,
+        b=self.b,
+        threshold=threshold,
+        min_iterations=50,
+        max_iterations=50
+    )
+    # Test converged flag is True despite running in scan mode
+    assert out.converged
+    # Test last error recomputed at the final iteration, and below threshold.
+    assert out.errors[-1] > 0
+    assert out.errors[-1] < threshold
+
   def test_geom_vs_point_cloud(self):
     """Two point clouds vs. simple cost_matrix execution of Sinkhorn."""
     geom_1 = pointcloud.PointCloud(self.x, self.y)

@@ -351,12 +351,11 @@ class TestSinkhornJIT:
       """Assert SinkhornOutputs are close."""
       x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
       y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
-      return chex.assert_tree_all_close(x, y, atol=1e-6, rtol=0)
+      return chex.assert_trees_all_close(x, y, atol=1e-6, rtol=0)
 
     geom = self.geometry
     jitted_result = jax.jit(sinkhorn.solve)(geom, a=self.a, b=self.b)
     non_jitted_result = sinkhorn.solve(geom, a=self.a, b=self.b)
-
     assert_output_close(non_jitted_result, jitted_result)
 
   @pytest.mark.parametrize("implicit", [False, True])
@@ -382,5 +381,9 @@ class TestSinkhornJIT:
     jitted_loss, jitted_grad = jax.jit(val_grad)(self.a, self.x)
     non_jitted_loss, non_jitted_grad = val_grad(self.a, self.x)
 
-    chex.assert_tree_all_close(jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.)
-    chex.assert_tree_all_close(jitted_grad, non_jitted_grad, atol=1e-6, rtol=0.)
+    chex.assert_trees_all_close(
+        jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.
+    )
+    chex.assert_trees_all_close(
+        jitted_grad, non_jitted_grad, atol=1e-6, rtol=0.
+    )

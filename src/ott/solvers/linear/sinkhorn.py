@@ -284,13 +284,47 @@ def ent_reg_cost(
 
 
 class SinkhornOutput(NamedTuple):
-  """Implements the problems.Transport interface, for a Sinkhorn solution."""
+  """Holds the output of a Sinkhorn solver applied to a problem.
+
+  Objects of this class contain both solutions and problem definition of a
+  regularized OT problem, along several methods that can be used to access its
+  content, to, for instance, materialize an OT matrix or apply it to a vector
+  (without having to materialize it when not needed).
+
+  Args:
+    f: dual variables vector of size ``ot.prob.shape[0]`` returned by Sinkhorn
+    g: dual variables vector of size ``ot.prob.shape[1]`` returned by Sinkhorn
+    errors: vector or errors, along iterations. This vector is of size
+      ``max_iterations // inner_iterations`` where those were the parameters
+      passed on to the :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+      For each entry indexed at ``i``, ``errors[i]`` can be either a real
+      nonnegative value (meaning the algorithm recorded that error at the
+      ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
+      algorithm computed that iteration but did not compute its error, because,
+      for instance, ``i < min_iterations // inner_iterations``), or a ``-1``,
+      meaning that execution was terminated before that iteration, because the
+      criterion was found to be smaller than ``threshold``.
+    reg_ot_cost: the regularized optimal transport cost. By default this is
+      the linear contribution + KL term. See
+      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
+      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.primal_cost` and
+      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.dual_cost` for other
+      objective values.
+    ot_prob: stores the definition of the OT problem, including geometry,
+      marginals, unbalanced regularizers, etc.
+    threshold: convergence threshold used to control the termination of the
+      algorithm.
+    converged: whether the output corresponds to a solution whose error is
+      below the convergence threshold.
+  """
 
   f: Optional[jnp.ndarray] = None
   g: Optional[jnp.ndarray] = None
   errors: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
+  threshold: Optional[jnp.ndarray] = None
+  converged: Optional[bool] = None
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -306,7 +340,7 @@ class SinkhornOutput(NamedTuple):
 
   @property
   def dual_cost(self) -> jnp.ndarray:
-    """Return transport cost in dual form of current solution."""
+    """Return dual transport cost, without considering regularizer."""
     a, b = self.ot_prob.a, self.ot_prob.b
     dual_cost = jnp.sum(jnp.where(a > 0.0, a * self.f, 0))
     dual_cost += jnp.sum(jnp.where(b > 0.0, b * self.g, 0))
@@ -314,7 +348,7 @@ class SinkhornOutput(NamedTuple):
 
   @property
   def primal_cost(self) -> float:
-    """Return transport cost of current solution at geometry."""
+    """Return transport cost of current transport solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
   @property
@@ -403,14 +437,6 @@ class SinkhornOutput(NamedTuple):
   @property
   def linear_output(self) -> bool:  # noqa: D102
     return True
-
-  @property
-  def converged(self) -> bool:  # noqa: D102
-    if self.errors is None:
-      return False
-    return jnp.logical_and(
-        jnp.any(self.errors == -1), jnp.all(jnp.isfinite(self.errors))
-    )
 
   # TODO(michalk8): this should be always present
   @property
@@ -944,7 +970,10 @@ class Sinkhorn:
 
     # re-computes error if compute_error is True, else set it to inf.
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= self.min_iterations),
+        jnp.logical_or(
+            iteration == self.max_iterations - 1,
+            jnp.logical_and(compute_error, iteration >= self.min_iterations)
+        ),
         lambda state, prob: state.solution_error(
             prob,
             self.norm_error,
@@ -1038,7 +1067,27 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    return SinkhornOutput(f=f, g=g, errors=state.errors[:, 0])
+    # By convention, the algorithm is said to have converged if the algorithm
+    # has not nan'ed during iterations (notice some errors might be infinite,
+    # this convention is used when the error is not recomputed), and if the
+    # last recorded error is lower than the threshold. Note that this will be
+    # the case if either the algorithm terminated earlier (in which case the
+    # last state.errors[-1] = -1 by convention) or if the algorithm carried out
+    # the maximal number of iterations and its last recorded error (at -1
+    # position) is lower than the threshold.
+
+    converged = jnp.logical_and(
+        jnp.logical_not(jnp.any(jnp.isnan(state.errors))),
+        state.errors[-1] < self.threshold
+    )[0]
+
+    return SinkhornOutput(
+        f=f,
+        g=g,
+        errors=state.errors[:, 0],
+        threshold=jnp.array(self.threshold),
+        converged=converged
+    )
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
