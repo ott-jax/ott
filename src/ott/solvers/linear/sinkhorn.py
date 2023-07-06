@@ -1079,7 +1079,7 @@ class Sinkhorn:
     converged = jnp.logical_and(
         jnp.logical_not(jnp.any(jnp.isnan(state.errors))),
         state.errors[-1] < self.threshold
-    )
+    )[0]
 
     return SinkhornOutput(
         f=f,
