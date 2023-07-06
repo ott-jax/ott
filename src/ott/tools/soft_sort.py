@@ -155,7 +155,7 @@ def sort(
 
   will output sorted convex-combinations of values contained in ``x``, that are
   differentiable approximations to the sorted vector of entries in ``x``.
-  These should be the values produced by :func:`jax.numpy.sort`,
+  These can be compared with the values produced by :func:`jax.numpy.sort`,
 
   .. code-block:: python
 
