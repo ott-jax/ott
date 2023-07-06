@@ -37,13 +37,13 @@ def monge_gap(
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
   For a cost function :math:`c` and empirical reference measure
-  :math:`\hat{\rho}_n` defined by samples :math:`(x_i)_{i=1,\dots,n}`, the
+  :math:`\hat{\rho}_n=\frac{1}{n}\sum_{i=1}^n \delta_{x_i}`, the
   (entropic) Monge gap of a map function
-  :math:`T:\mathbb{R}^d\righarrow\mathbb{R}^d` is defined as:
+  :math:`T:\mathbb{R}^d\rightarrow\mathbb{R}^d` is defined as:
 
   .. math::
     \mathcal{M}^c_{\hat{\rho}_n, \varepsilon} (T)
-    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i, \theta)) -
+    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) -
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
   See :cite:`uscidda:23` Eq. (8).
