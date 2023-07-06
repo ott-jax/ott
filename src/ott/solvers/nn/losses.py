@@ -46,7 +46,8 @@ def monge_gap(
     = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) -
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
-  See :cite:`uscidda:23` Eq. (8).
+  See :cite:`uscidda:23` Eq. (8). This function is a thin wrapper that calls
+  :func:`~ott.solvers.linear.nn.lossses.monge_gap_from_samples`.
 
   Args:
     map_fn: Callable corresponding to map :math:`T` in definition above. The
