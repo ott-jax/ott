@@ -39,3 +39,4 @@ Losses
     :toctree: _autosummary
 
     losses.monge_gap
+    losses.monge_gap_from_samples
