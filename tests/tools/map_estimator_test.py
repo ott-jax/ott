@@ -28,7 +28,7 @@ class TestMapEstimator:
   def test_map_estimator_convergence(self):
     """Tests convergence of a simple
     map estimator with Sinkhorn divergence fitting loss
-    and Monge gap regularizer.
+    and Monge (coupling) gap regularizer.
     """
 
     # define the fitting loss and the regularizer
@@ -43,7 +43,7 @@ class TestMapEstimator:
           y=mapped_samples,
       ).divergence
 
-    regularizer = losses.monge_gap
+    regularizer = losses.monge_gap_from_samples
 
     # define the model
     model = models.MLP(dim_hidden=[64, 32], is_potential=False)

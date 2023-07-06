@@ -58,11 +58,11 @@ class ModelBase(abc.ABC, nn.Module):
   @property
   @abc.abstractmethod
   def is_potential(self) -> bool:
-    """Indicates if the module defines the potential's value or the gradient.
+    """Indicates if the module implements a potential value or a vector field.
 
     Returns:
-      ``True`` if the module defines the potential's value, ``False``
-      if it defines the gradient.
+      ``True`` if the module defines a potential, ``False`` if it defines a
+       vector field.
     """
 
   def potential_value_fn(
@@ -89,7 +89,8 @@ class ModelBase(abc.ABC, nn.Module):
         potential. Only needed when :attr:`is_potential` is ``False``.
 
     Returns:
-      A function that can be evaluated to obtain the potential's value
+      A function that can be evaluated to obtain a potential value, or a linear
+      interpolation of a potential.
     """
     if self.is_potential:
       return lambda x: self.apply({"params": params}, x)
@@ -113,7 +114,7 @@ class ModelBase(abc.ABC, nn.Module):
       self,
       params: frozen_dict.FrozenDict[str, jnp.ndarray],
   ) -> PotentialGradientFn_t:
-    """Return a function giving the gradient of the potential.
+    """Return a function returning a vector or the gradient of the potential.
 
     Args:
       params: parameters of the module
@@ -302,7 +303,7 @@ class ICNN(ModelBase):
 
 
 class MLP(ModelBase):
-  """A non-convex MLP.
+  """A generic, typically not-convex (w.r.t input) MLP.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The output
