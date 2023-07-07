@@ -89,12 +89,6 @@ class FreeBarycenterState(NamedTuple):
           out.errors if store_errors else None
       )
 
-    if bar_prob.debiased:
-      raise NotImplementedError(
-          "Debiased version of continuous Wasserstein barycenter "
-          "not yet implemented."
-      )
-
     reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
         self.a, self.x, seg_b, seg_y
     )
