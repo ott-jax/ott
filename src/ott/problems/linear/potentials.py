@@ -108,8 +108,9 @@ class DualPotentials:
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     """Evaluate 2-Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20` when given in `corr` form, direct
-    estimation by integrating dual function against points when using dual form.
+    This uses direct estimation of potentials against measures when dual
+    functions are provided in usual form, and renormalizes w.r.t. data when
+    given in dual form.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
@@ -120,15 +121,13 @@ class DualPotentials:
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
     f = jax.vmap(self.f)
+    g = jax.vmap(self.g)
 
     if self._corr:
-      grad_g_y = self._grad_g(tgt)
-      term1 = -jnp.mean(f(src))
-      term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
-
-      C = jnp.mean(jnp.sum(src ** 2, axis=-1))
-      C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
-      return 2. * (term1 + term2) + C
+      out = jnp.mean(jnp.sum(src ** 2, axis=-1))
+      out += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
+      out -= 2.0 * (jnp.mean(f(src)) + jnp.mean(g(tgt)))
+      return out
 
     g = jax.vmap(self.g)
     return jnp.mean(f(src)) + jnp.mean(g(tgt))

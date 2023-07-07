@@ -63,16 +63,30 @@ class TestEntropicPotentials:
     x = g1.sample(rng1, n1)
     y = g2.sample(rng2, n2)
 
-    geom = pointcloud.PointCloud(x, y, epsilon=eps)
+    g1.sample(rng3, n1)
+    g2.sample(rng4, n2)
+
+    geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=costs.SqEuclidean())
     prob = linear_problem.LinearProblem(geom)
     out = sinkhorn.Sinkhorn()(prob)
     assert out.converged
-    potentials = out.to_dual_potentials()
+    dual_potentials = out.to_dual_potentials()
 
     expected_dist = jnp.sum(out.matrix * geom.cost_matrix)
-    actual_dist = potentials.distance(x, y)
+    actual_dist = dual_potentials.distance(x, y)
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
     assert rel_error < 2 * eps
+
+    # Try with potentials in correlation form
+    f_cor = lambda x: 0.5 * jnp.sum(x ** 2) - 0.5 * dual_potentials.f(x)
+    g_cor = lambda x: 0.5 * jnp.sum(x ** 2) - 0.5 * dual_potentials.g(x)
+    dual_potentials_corr = potentials.DualPotentials(
+        f=f_cor, g=g_cor, cost_fn=dual_potentials.cost_fn, corr=True
+    )
+    actual_dist_cor = dual_potentials_corr.distance(x, y)
+    rel_error = jnp.abs(expected_dist - actual_dist_cor) / expected_dist
+    assert rel_error < 2 * eps
+    assert jnp.abs(actual_dist_cor - actual_dist) < 1e-5
 
   @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
   def test_entropic_potentials_displacement(
