@@ -106,11 +106,13 @@ class DualPotentials:
     return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    """Evaluate 2-Wasserstein distance between samples using dual potentials.
+    r"""Evaluate 2-Wasserstein distance between samples using dual potentials.
 
     This uses direct estimation of potentials against measures when dual
-    functions are provided in usual form, and renormalizes w.r.t. data when
-    given in dual form.
+    functions are provided in usual form. When potentials are given in
+    correlation form (i.e. they correspond to the minimization of the primal
+    where the transport cost is :math:`-2\\langle x,y\rangle`), this is
+    rearranged to take into account the residual squared norms.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
