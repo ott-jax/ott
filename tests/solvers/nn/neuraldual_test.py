@@ -53,6 +53,7 @@ class TestNeuralDual:
 
   @pytest.mark.fast.with_args(
       back_and_forth=[True, False],
+      test_gaussian_init=[True, False],
       amortization_loss=["objective", "regression"],
       conjugate_solver=[conjugate_solvers.DEFAULT_CONJUGATE_SOLVER, None],
       only_fast=0
@@ -63,6 +64,7 @@ class TestNeuralDual:
       neural_models: ModelPair_t,
       back_and_forth: bool,
       amortization_loss: str,
+      test_gaussian_init: bool,
       conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
@@ -74,8 +76,18 @@ class TestNeuralDual:
       return all(x >= y for x, y in zip(losses, losses[1:]))
 
     num_train_iters, log_freq = 100, 100
-    neural_f, neural_g = neural_models
 
+    if test_gaussian_init:
+      neural_f = models.ICNN(
+          dim_data=2, dim_hidden=[128], gaussian_map_samples=datasets
+      )
+      neural_g = models.ICNN(
+          dim_data=2, dim_hidden=[128], gaussian_map_samples=datasets
+      )
+    else:
+      neural_f, neural_g = neural_models
+
+    train_dataset, valid_dataset = datasets
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
         dim_data=2,
@@ -88,7 +100,6 @@ class TestNeuralDual:
         amortization_loss=amortization_loss,
         conjugate_solver=conjugate_solver,
     )
-    train_dataset, valid_dataset = datasets
     neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
 
     # check if training loss of f is increasing and g is decreasing
