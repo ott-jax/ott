@@ -79,10 +79,10 @@ class TestNeuralDual:
 
     if test_gaussian_init:
       neural_f = models.ICNN(
-          dim_data=2, dim_hidden=[128], gaussian_map_samples=datasets
+          dim_data=2, dim_hidden=[128], gaussian_map_samples_loaders=datasets
       )
       neural_g = models.ICNN(
-          dim_data=2, dim_hidden=[128], gaussian_map_samples=datasets
+          dim_data=2, dim_hidden=[128], gaussian_map_samples_loaders=datasets
       )
     else:
       neural_f, neural_g = neural_models
