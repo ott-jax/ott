@@ -40,12 +40,6 @@ class FreeBarycenterProblem:
     cost_fn: Cost function used. If `None`,
       use the :class:`~ott.geometry.costs.SqEuclidean` cost.
     epsilon: Epsilon regularization used to solve reg-OT problems.
-    debiased: **Currently not implemented.**
-      Whether the problem is debiased, in the sense that
-      the regularized transportation cost of barycenter to itself will
-      be considered when computing gradient. Note that if the debiased option
-      is used, the barycenter size needs to be smaller than the maximum measure
-      size for parallelization to operate efficiently.
     kwargs: Keyword arguments :func:`~ott.geometry.segment.segment_point_cloud`.
       Only used when ``y`` is not already segmented. When passing
       ``segment_ids``, 2 arguments must be specified for jitting to work:
@@ -61,7 +55,6 @@ class FreeBarycenterProblem:
       weights: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       epsilon: Optional[float] = None,
-      debiased: bool = False,
       **kwargs: Any,
   ):
     self._y = y
@@ -71,7 +64,6 @@ class FreeBarycenterProblem:
     self._weights = weights
     self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     self.epsilon = epsilon
-    self.debiased = debiased
     self._kwargs = kwargs
 
     if self._is_segmented:
@@ -87,10 +79,8 @@ class FreeBarycenterProblem:
   def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Tuple of arrays containing the segmented measures and weights.
 
-    Additional segment may be added when the problem is debiased.
-
-      - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
-      - Segmented weights of shape ``[num_measures, max_measure_size]``.
+    - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
+    - Segmented weights of shape ``[num_measures, max_measure_size]``.
     """
     if self._is_segmented:
       y, b = self._y, self._b
@@ -101,20 +91,6 @@ class FreeBarycenterProblem:
           padding_vector=self.cost_fn._padder(self.ndim),
           **self._kwargs
       )
-
-    if self.debiased:
-      return self._add_slice_for_debiased(y, b)
-    return y, b
-
-  @staticmethod
-  def _add_slice_for_debiased(
-      y: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    _, n, ndim = y.shape  # (num_measures, max_measure_size, ndim)
-    # yapf: disable
-    y = jnp.concatenate((y, jnp.zeros((1, n, ndim))), axis=0)
-    b = jnp.concatenate((b, jnp.zeros((1, n))), axis=0)
-    # yapf: enable
     return y, b
 
   @property
@@ -148,15 +124,11 @@ class FreeBarycenterProblem:
   def weights(self) -> jnp.ndarray:
     """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
     if self._weights is None:
-      weights = jnp.ones((self.num_measures,)) / self.num_measures
-    else:
-      # Check that the number of measures coincides with the weights' size.
-      assert self._weights.shape[0] == self.num_measures
-      # By default, we assume that weights sum to 1, and enforce this if needed.
-      weights = self._weights / jnp.sum(self._weights)
-    if self.debiased:
-      return jnp.concatenate((weights, jnp.array([-0.5])))
-    return weights
+      return jnp.ones((self.num_measures,)) / self.num_measures
+    # Check that the number of measures coincides with the weights' size.
+    assert self._weights.shape[0] == self.num_measures
+    # By default, we assume that weights sum to 1, and enforce this if needed.
+    return self._weights / jnp.sum(self._weights)
 
   @property
   def _is_segmented(self) -> bool:
@@ -166,7 +138,6 @@ class FreeBarycenterProblem:
     return ([self._y, self._b, self._weights], {
         "cost_fn": self.cost_fn,
         "epsilon": self.epsilon,
-        "debiased": self.debiased,
         **self._kwargs,
     })
 

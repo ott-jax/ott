@@ -261,7 +261,10 @@ class Euclidean(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class SqEuclidean(TICost):
-  """Squared Euclidean distance."""
+  r"""Squared Euclidean distance.
+
+  Implemented as a translation invariant cost, :math:`h(z) = \|z\|^2`.
+  """
 
   def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     """Compute squared Euclidean norm for vector."""

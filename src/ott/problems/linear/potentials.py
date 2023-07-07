@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -28,10 +27,8 @@ import jax.scipy as jsp
 import jax.tree_util as jtu
 import numpy as np
 
+from ott.geometry import costs
 from ott.problems.linear import linear_problem
-
-if TYPE_CHECKING:
-  from ott.geometry import costs
 
 try:
   import matplotlib as mpl
@@ -64,11 +61,14 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: "costs.CostFn",
+      cost_fn: costs.CostFn,
       corr: bool = False
   ):
     self._f = f
     self._g = g
+    assert (
+        not corr or type(cost_fn) == costs.SqEuclidean
+    ), "Duals in `corr` form can only be used with a squared-Euclidean cost."
     self.cost_fn = cost_fn
     self._corr = corr
 
@@ -106,32 +106,34 @@ class DualPotentials:
     return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    """Evaluate 2-Wasserstein distance between samples using dual potentials.
+    r"""Evaluate Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20` when given in `corr` form, direct
-    estimation by integrating dual function against points when using dual form.
+    This uses direct estimation of potentials against measures when dual
+    functions are provided in usual form. This expression is valid for any
+    cost function.
+
+    When potentials are given in correlation form, as specified by the flag
+    ``corr``, the dual potentials solve the dual problem corresponding to the
+    minimization of the primal OT problem where the ground cost is
+    :math:`-2\langle x,y\rangle`. To recover the (squared) 2-Wasserstein
+    distance, terms are re-arranged and contributions from squared norms are
+    taken into account.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-      Wasserstein distance.
+      Wasserstein distance using specified cost function.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
     f = jax.vmap(self.f)
-
-    if self._corr:
-      grad_g_y = self._grad_g(tgt)
-      term1 = -jnp.mean(f(src))
-      term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
-
-      C = jnp.mean(jnp.sum(src ** 2, axis=-1))
-      C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
-      return 2. * (term1 + term2) + C
-
     g = jax.vmap(self.g)
-    return jnp.mean(f(src)) + jnp.mean(g(tgt))
+    out = jnp.mean(f(src)) + jnp.mean(g(tgt))
+    if self._corr:
+      out = -2.0 * out + jnp.mean(jnp.sum(src ** 2, axis=-1))
+      out += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
+    return out
 
   @property
   def f(self) -> Potential_t:

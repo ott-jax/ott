@@ -48,7 +48,9 @@ class TestDiscreteBarycenter:
     a2 /= jnp.sum(a2)
     threshold = 1e-2
 
-    fixed_bp = bp.FixedBarycenterProblem(geom=grid_3d, a=jnp.stack((a1, a2)))
+    fixed_bp = bp.FixedBarycenterProblem(
+        geom=grid_3d, a=jnp.stack((a1, a2)), weights=jnp.array([0.5, 0.5])
+    )
     solver = db.FixedBarycenter(
         threshold=threshold, lse_mode=lse_mode, debiased=debiased
     )
