@@ -260,6 +260,8 @@ class ICNN(ModelBase):
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     from ott.tools.gaussian_mixture import gaussian
     source, target = samples
+    # print(source)
+    # print(type(source))
     g_s = gaussian.Gaussian.from_samples(source)
     g_t = gaussian.Gaussian.from_samples(target)
     lin_operator = g_s.scale.gaussian_map(g_t.scale)
