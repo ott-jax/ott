@@ -61,7 +61,7 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: "costs.CostFn",
+      cost_fn: costs.CostFn,
       corr: bool = False
   ):
     self._f = f
