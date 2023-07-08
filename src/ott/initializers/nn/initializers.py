@@ -177,7 +177,9 @@ class MetaInitializer(initializers.DefaultInitializer):
       g_pred = jnp.where(jnp.isfinite(g_pred), g_pred, 0.)
 
       ot_prob = linear_problem.LinearProblem(geom=self.geom, a=a, b=b)
-      dual_obj = sinkhorn.ent_reg_cost(f_pred, g_pred, ot_prob, lse_mode=True)
+      dual_obj = sinkhorn.compute_kl_reg_cost(
+          f_pred, g_pred, ot_prob, lse_mode=True
+      )
       loss = -dual_obj
       return loss, f_pred
 

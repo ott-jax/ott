@@ -85,10 +85,10 @@ class SinkhornState(NamedTuple):
         parallel_dual_updates=parallel_dual_updates
     )
 
-  def ent_reg_cost(  # noqa: D102
+  def compute_kl_reg_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
   ) -> float:
-    return ent_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
+    return compute_kl_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
   def recenter(
       self,
@@ -228,7 +228,7 @@ def marginal_error(
   ) ** (1.0 / norm_error)
 
 
-def ent_reg_cost(
+def compute_kl_reg_cost(
     f: jnp.ndarray, g: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
     lse_mode: bool
 ) -> float:
@@ -336,7 +336,7 @@ class SinkhornOutput(NamedTuple):
   ) -> "SinkhornOutput":
     f = jax.lax.stop_gradient(self.f) if use_danskin else self.f
     g = jax.lax.stop_gradient(self.g) if use_danskin else self.g
-    return self.set(reg_ot_cost=ent_reg_cost(f, g, ot_prob, lse_mode))
+    return self.set(reg_ot_cost=compute_kl_reg_cost(f, g, ot_prob, lse_mode))
 
   @property
   def dual_cost(self) -> jnp.ndarray:
