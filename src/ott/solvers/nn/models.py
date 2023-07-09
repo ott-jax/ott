@@ -164,9 +164,11 @@ class ICNN(ModelBase):
     pos_weights: Enforce positive weights with a projection.
       If ``False``, the positive weights should be enforced with clipping
       or regularization in the loss.
-    gaussian_map_samples_loaders: Tuple of loader of source and target points.
-      Those are used to initialize ICNN based on Gaussian approximation of input
-      and target measure (if ``None``, identity initialization is used).
+    gaussian_map_samples: Tuple of source and target points, used to initialize
+      the ICNN to mimic the linear Bures map that morphs the (Gaussian
+      approximation) of the input measure to that of the target measure. If
+      ``None``, the identity initialization is used, and ICNN mimics half the
+      squared Euclidean norm.
   """
   dim_data: int
   dim_hidden: Sequence[int]
@@ -264,11 +266,10 @@ class ICNN(ModelBase):
     # print(type(source))
     g_s = gaussian.Gaussian.from_samples(source)
     g_t = gaussian.Gaussian.from_samples(target)
-    lin_operator = g_s.scale.gaussian_map(g_t.scale)
-    b = jnp.squeeze(g_t.loc
-                   ) - jnp.linalg.solve(lin_operator, jnp.squeeze(g_t.loc))
-    lin_operator = matrix_square_root.sqrtm_only(lin_operator)
-    return jnp.expand_dims(lin_operator, 0), jnp.expand_dims(b, 0)
+    lin_op = g_s.scale.gaussian_map(g_t.scale)
+    b = jnp.squeeze(g_t.loc) - jnp.linalg.solve(lin_op, jnp.squeeze(g_t.loc))
+    lin_op = matrix_square_root.sqrtm_only(lin_op)
+    return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
   def _compute_identity_map_params(
