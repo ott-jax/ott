@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Any, Callable, Iterator, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -174,8 +174,7 @@ class ICNN(ModelBase):
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map_samples_loaders: Optional[Tuple[Iterator[jnp.ndarray],
-                                               Iterator[jnp.ndarray]]] = None
+  gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -194,9 +193,9 @@ class ICNN(ModelBase):
       rescale = lambda x: x
     self.use_init = False
     # check if Gaussian map was provided
-    if self.gaussian_map_samples_loaders is not None:
+    if self.gaussian_map_samples is not None:
       factor, mean = self._compute_gaussian_map_params(
-          self.gaussian_map_samples_loaders
+          self.gaussian_map_samples
       )
     else:
       factor, mean = self._compute_identity_map_params(self.dim_data)
@@ -257,12 +256,10 @@ class ICNN(ModelBase):
 
   @staticmethod
   def _compute_gaussian_map_params(
-      samples_loader: Tuple[jnp.ndarray, jnp.ndarray]
+      samples: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     from ott.tools.gaussian_mixture import gaussian
-    source, target = samples_loader
-    source = jnp.asarray(next(source))
-    target = jnp.asarray(next(target))
+    source, target = samples
     # print(source)
     # print(type(source))
     g_s = gaussian.Gaussian.from_samples(source)

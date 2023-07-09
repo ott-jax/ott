@@ -99,8 +99,8 @@ class GaussianMixture:
     rng = self.init_rng
     while True:
       rng1, rng2, rng = jax.random.split(rng, 3)
-      means = jax.random.choice(rng1, self.centers, [self.batch_size])
-      normal_samples = jax.random.normal(rng2, [self.batch_size, 2])
+      means = jax.random.choice(rng1, self.centers, (self.batch_size,))
+      normal_samples = jax.random.normal(rng2, (self.batch_size, 2))
       samples = self.scale * means + self.variance ** 2 * normal_samples
       yield samples
 

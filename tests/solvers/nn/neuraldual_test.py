@@ -27,7 +27,7 @@ DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]
 @pytest.fixture(params=[("simple", "circle")])
 def datasets(request: Tuple[str, str]) -> DatasetPair_t:
   train_dataset, valid_dataset, _ = dataset.create_gaussian_mixture_samplers(
-      request.param[0], request.param[1]
+      request.param[0], request.param[1], rng=jax.random.PRNGKey(0)
   )
   return (train_dataset, valid_dataset)
 
@@ -77,17 +77,28 @@ class TestNeuralDual:
 
     num_train_iters, log_freq = 100, 100
 
+    train_dataset, valid_dataset = datasets
+
     if test_gaussian_init:
       neural_f = models.ICNN(
-          dim_data=2, dim_hidden=[128], gaussian_map_samples_loaders=datasets
+          dim_data=2,
+          dim_hidden=[128],
+          gaussian_map_samples=[
+              next(train_dataset.source_iter),
+              next(train_dataset.target_iter)
+          ]
       )
       neural_g = models.ICNN(
-          dim_data=2, dim_hidden=[128], gaussian_map_samples_loaders=datasets
+          dim_data=2,
+          dim_hidden=[128],
+          gaussian_map_samples=[
+              next(train_dataset.target_iter),
+              next(train_dataset.source_iter)
+          ]
       )
     else:
       neural_f, neural_g = neural_models
 
-    train_dataset, valid_dataset = datasets
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
         dim_data=2,
