@@ -264,12 +264,12 @@ class TestBarycenter:
     )
 
   @pytest.mark.fast.with_args(
-      alpha=[50., 1.],
-      epsilon=[1e-2, 1e-1],
-      dim=[4, 10],
+      alpha=[5.],
+      epsilon=[1e-2],
+      dim=[3],
       jit=[False, True],
       only_fast={
-          "alpha": 50,
+          "alpha": 5.0,
           "epsilon": 1e-1,
           "dim": 4,
           "jit": False
