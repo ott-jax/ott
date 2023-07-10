@@ -752,8 +752,8 @@ class TestSinkhornHessian:
     y = jax.random.uniform(rngs[1], (m, dim))
     a = jax.random.uniform(rngs[2], (n,)) + .1
     b = jax.random.uniform(rngs[3], (m,)) + .1
-    a = a / jnp.sum(a) if tau_a == 1.0 else a / n
-    b = b / jnp.sum(b) if tau_b == 1.0 else b / m
+    a = a / jnp.sum(a)
+    b = b / jnp.sum(b)
     epsilon = 0.1
 
     ## Add a ridge when using JAX solvers.
