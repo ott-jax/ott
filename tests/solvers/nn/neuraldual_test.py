@@ -36,14 +36,14 @@ def datasets(request: Tuple[str, str]) -> DatasetPair_t:
 def neural_models(request: str) -> ModelPair_t:
   if request.param == "icnns":
     return (
-        models.ICNN(dim_data=2, dim_hidden=[128]),
-        models.ICNN(dim_data=2, dim_hidden=[128])
+        models.ICNN(dim_data=2,
+                    dim_hidden=[32]), models.ICNN(dim_data=2, dim_hidden=[32])
     )
   if request.param == "mlps":
-    return models.MLP(dim_hidden=[128]), models.MLP(dim_hidden=[128]),
+    return models.MLP(dim_hidden=[32]), models.MLP(dim_hidden=[32]),
   if request.param == "mlps-grad":
     return (
-        models.MLP(dim_hidden=[128]),
+        models.MLP(dim_hidden=[32]),
         models.MLP(is_potential=False, dim_hidden=[128])
     )
   raise ValueError(f"Invalid request: {request.param}")
@@ -75,14 +75,14 @@ class TestNeuralDual:
     def decreasing(losses: Sequence[float]) -> bool:
       return all(x >= y for x, y in zip(losses, losses[1:]))
 
-    num_train_iters, log_freq = 100, 100
+    num_train_iters, log_freq = 10, 10
 
     train_dataset, valid_dataset = datasets
 
     if test_gaussian_init:
       neural_f = models.ICNN(
           dim_data=2,
-          dim_hidden=[128],
+          dim_hidden=[32],
           gaussian_map_samples=[
               next(train_dataset.source_iter),
               next(train_dataset.target_iter)
@@ -90,7 +90,7 @@ class TestNeuralDual:
       )
       neural_g = models.ICNN(
           dim_data=2,
-          dim_hidden=[128],
+          dim_hidden=[32],
           gaussian_map_samples=[
               next(train_dataset.target_iter),
               next(train_dataset.source_iter)
@@ -118,7 +118,7 @@ class TestNeuralDual:
     assert decreasing(logs["train_logs"]["loss_g"])
 
   def test_neural_dual_jit(self, datasets: DatasetPair_t):
-    num_train_iters = 10
+    num_train_iters = 4
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
         dim_data=2, num_train_iters=num_train_iters

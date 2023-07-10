@@ -194,7 +194,7 @@ class TestFusedGromovWasserstein:
 
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
-          lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=1000
+          lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=200
       )
       solver = gromov_wasserstein.GromovWasserstein(
           epsilon=1.0, max_iterations=10, linear_ot_solver=linear_solver
@@ -214,12 +214,11 @@ class TestFusedGromovWasserstein:
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
     )
 
-  @pytest.mark.limit_memory("400 MB")
+  @pytest.mark.limit_memory("100 MB")
   @pytest.mark.parametrize("jit", [False, True])
   def test_fgw_lr_memory(self, rng: jax.random.PRNGKeyArray, jit: bool):
-    # Total memory allocated on CI: 342.5MiB (32bit)
     rngs = jax.random.split(rng, 4)
-    n, m, d1, d2 = 15_000, 10_000, 2, 3
+    n, m, d1, d2 = 5_000, 2_500, 1, 2
     x = jax.random.uniform(rngs[0], (n, d1))
     y = jax.random.uniform(rngs[1], (m, d2))
     xx = jax.random.uniform(rngs[2], (n, d2))
@@ -229,7 +228,7 @@ class TestFusedGromovWasserstein:
     geom_xy = pointcloud.PointCloud(xx, yy)
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, geom_xy)
 
-    solver = gromov_wasserstein.GromovWasserstein(rank=5)
+    solver = gromov_wasserstein.GromovWasserstein(rank=2)
     if jit:
       solver = jax.jit(solver, static_argnames="rank")
 

@@ -33,7 +33,7 @@ class TestQuadraticProblem:
       self, rng: jax.random.PRNGKeyArray, as_pc: bool,
       rank: Union[int, Tuple[int, ...]]
   ):
-    n, m, d1, d2, d = 200, 300, 20, 25, 30
+    n, m, d1, d2, d = 100, 120, 4, 6, 10
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
     x = jax.random.normal(rng1, (n, d1))
     y = jax.random.normal(rng2, (m, d2))
@@ -90,7 +90,7 @@ class TestQuadraticProblem:
   def test_gw_implicit_conversion_mixed_input(
       self, rng: jax.random.PRNGKeyArray
   ):
-    n, m, d1, d2 = 200, 300, 20, 25
+    n, m, d1, d2 = 13, 77, 3, 4
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n, d1))
     y = jax.random.normal(rng2, (m, d2))

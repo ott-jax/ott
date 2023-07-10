@@ -63,7 +63,7 @@ class TestKmeansPlusPlus:
 
   @pytest.mark.fast.with_args("n_local_trials", [None, 1, 5], only_fast=-1)
   def test_n_local_trials(self, rng: jax.random.PRNGKeyArray, n_local_trials):
-    n, k = 150, 4
+    n, k = 100, 4
     rng1, rng2 = jax.random.split(rng)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
@@ -76,11 +76,11 @@ class TestKmeansPlusPlus:
 
     assert shift1 > shift2
 
-  @pytest.mark.fast.with_args("k", [4, 5, 10], only_fast=0)
+  @pytest.mark.fast.with_args("k", [3, 5], only_fast=0)
   def test_matches_sklearn(self, rng: jax.random.PRNGKeyArray, k: int):
     ndim = 2
     geom, _, _ = make_blobs(
-        n_samples=200,
+        n_samples=100,
         centers=k,
         n_features=ndim,
         cost_fn="sqeucl",

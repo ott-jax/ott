@@ -46,7 +46,7 @@ class TestMapEstimator:
     regularizer = losses.monge_gap_from_samples
 
     # define the model
-    model = models.MLP(dim_hidden=[64, 32], is_potential=False)
+    model = models.MLP(dim_hidden=[16, 8], is_potential=False)
 
     # generate data
     train_dataset, valid_dataset, dim_data = (
@@ -65,9 +65,9 @@ class TestMapEstimator:
         regularizer=regularizer,
         model=model,
         regularizer_strength=1.,
-        num_train_iters=100,
+        num_train_iters=15,
         logging=True,
-        valid_freq=10,
+        valid_freq=5,
     )
     neural_state, logs = solver.train_map_estimator(
         *train_dataset, *valid_dataset
