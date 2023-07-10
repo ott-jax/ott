@@ -27,7 +27,7 @@ DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]
 @pytest.fixture(params=[("simple", "circle")])
 def datasets(request: Tuple[str, str]) -> DatasetPair_t:
   train_dataset, valid_dataset, _ = dataset.create_gaussian_mixture_samplers(
-      request.param[0], request.param[1]
+      request.param[0], request.param[1], rng=jax.random.PRNGKey(0)
   )
   return (train_dataset, valid_dataset)
 
@@ -53,6 +53,7 @@ class TestNeuralDual:
 
   @pytest.mark.fast.with_args(
       back_and_forth=[True, False],
+      test_gaussian_init=[True, False],
       amortization_loss=["objective", "regression"],
       conjugate_solver=[conjugate_solvers.DEFAULT_CONJUGATE_SOLVER, None],
       only_fast=0
@@ -63,6 +64,7 @@ class TestNeuralDual:
       neural_models: ModelPair_t,
       back_and_forth: bool,
       amortization_loss: str,
+      test_gaussian_init: bool,
       conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
@@ -74,7 +76,28 @@ class TestNeuralDual:
       return all(x >= y for x, y in zip(losses, losses[1:]))
 
     num_train_iters, log_freq = 100, 100
-    neural_f, neural_g = neural_models
+
+    train_dataset, valid_dataset = datasets
+
+    if test_gaussian_init:
+      neural_f = models.ICNN(
+          dim_data=2,
+          dim_hidden=[128],
+          gaussian_map_samples=[
+              next(train_dataset.source_iter),
+              next(train_dataset.target_iter)
+          ]
+      )
+      neural_g = models.ICNN(
+          dim_data=2,
+          dim_hidden=[128],
+          gaussian_map_samples=[
+              next(train_dataset.target_iter),
+              next(train_dataset.source_iter)
+          ]
+      )
+    else:
+      neural_f, neural_g = neural_models
 
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
@@ -88,7 +111,6 @@ class TestNeuralDual:
         amortization_loss=amortization_loss,
         conjugate_solver=conjugate_solver,
     )
-    train_dataset, valid_dataset = datasets
     neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
 
     # check if training loss of f is increasing and g is decreasing

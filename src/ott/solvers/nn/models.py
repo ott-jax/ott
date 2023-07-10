@@ -164,9 +164,11 @@ class ICNN(ModelBase):
     pos_weights: Enforce positive weights with a projection.
       If ``False``, the positive weights should be enforced with clipping
       or regularization in the loss.
-    gaussian_map: data inputs of source and target measures for
-      initialization scheme based on Gaussian approximation of input and
-      target measure (if ``None``, identity initialization is used).
+    gaussian_map_samples: Tuple of source and target points, used to initialize
+      the ICNN to mimic the linear Bures map that morphs the (Gaussian
+      approximation) of the input measure to that of the target measure. If
+      ``None``, the identity initialization is used, and ICNN mimics half the
+      squared Euclidean norm.
   """
   dim_data: int
   dim_hidden: Sequence[int]
@@ -174,7 +176,7 @@ class ICNN(ModelBase):
   init_fn: Callable = jax.nn.initializers.normal
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
+  gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -193,10 +195,12 @@ class ICNN(ModelBase):
       rescale = lambda x: x
     self.use_init = False
     # check if Gaussian map was provided
-    if self.gaussian_map is not None:
-      factor, mean = self._compute_gaussian_map(self.gaussian_map)
+    if self.gaussian_map_samples is not None:
+      factor, mean = self._compute_gaussian_map_params(
+          self.gaussian_map_samples
+      )
     else:
-      factor, mean = self._compute_identity_map(self.dim_data)
+      factor, mean = self._compute_identity_map_params(self.dim_data)
 
     w_zs = []
     # keep track of previous size to normalize accordingly
@@ -253,41 +257,24 @@ class ICNN(ModelBase):
     self.w_xs = w_xs
 
   @staticmethod
-  def _compute_gaussian_map(
-      inputs: Tuple[jnp.ndarray, jnp.ndarray]
+  def _compute_gaussian_map_params(
+      samples: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-
-    def compute_moments(x, reg=1e-4, sqrt_inv=False):
-      shape = x.shape
-      z = x.reshape(shape[0], -1)
-      mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
-      z = z - mu
-      matmul = lambda a, b: jnp.matmul(a, b)
-      sigma = jax.vmap(matmul)(jnp.expand_dims(z, 2), jnp.expand_dims(z, 1))
-      # unbiased estimate
-      sigma = jnp.sum(sigma, axis=0) / (shape[0] - 1)
-      # regularize
-      sigma = sigma + reg * jnp.eye(shape[1])
-
-      if sqrt_inv:
-        sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
-        return sigma, sigma_sqrt, sigma_inv_sqrt, mu
-      return sigma, mu
-
-    source, target = inputs
-    _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
-    covt, mut = compute_moments(target, sqrt_inv=False)
-
-    mo = matrix_square_root.sqrtm_only(
-        jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt)
-    )
-    A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
-    b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
-    A = matrix_square_root.sqrtm_only(A)
-    return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
+    from ott.tools.gaussian_mixture import gaussian
+    source, target = samples
+    # print(source)
+    # print(type(source))
+    g_s = gaussian.Gaussian.from_samples(source)
+    g_t = gaussian.Gaussian.from_samples(target)
+    lin_op = g_s.scale.gaussian_map(g_t.scale)
+    b = jnp.squeeze(g_t.loc) - jnp.linalg.solve(lin_op, jnp.squeeze(g_t.loc))
+    lin_op = matrix_square_root.sqrtm_only(lin_op)
+    return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
-  def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def _compute_identity_map_params(
+      input_dim: int
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
     return A, b
