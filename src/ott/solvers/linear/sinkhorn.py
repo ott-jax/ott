@@ -291,8 +291,8 @@ class SinkhornOutput(NamedTuple):
     primal_cost: the final unregularized cost value in the primal space
     linear: whether the problem is linear
     geom: the geometry used in the problem
-    a: marginals of the problem
-    b: marginals of the problem
+    a: source marginals of the problem
+    b: target marginals of the problem
     linear_output: True
     converged: whether the Sinkhorn solver has converged
     n_iters: the number of iterations of the solver
