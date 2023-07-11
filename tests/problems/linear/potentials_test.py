@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from ott.geometry import costs, pointcloud
@@ -121,6 +123,11 @@ class TestEntropicPotentials:
     # TODO(michalk8): better error measure
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.3
+
+    def test_plot_fn(monkeypatch):
+      monkeypatch.setattr(plt, "show", lambda: None)
+      potentials.plot_ot_map(x, y, x_test, forward=True)
+      potentials.plot_ot_map(x, y, y_test, forward=False)
 
   @pytest.mark.fast.with_args(
       p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
