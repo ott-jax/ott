@@ -183,6 +183,7 @@ class DualPotentials:
       self,
       source: jnp.ndarray,
       target: jnp.ndarray,
+      samples: Optional[jnp.ndarray] = None,
       forward: bool = True,
       ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
@@ -193,8 +194,10 @@ class DualPotentials:
     Args:
       source: samples from the source measure
       target: samples from the target measure
-      forward: use the forward map from the potentials
-        if ``True``, otherwise use the inverse map
+      samples: extra samples to transport, either ``source`` (if ``forward``) or
+        ``target`` (if not ``forward``) by default.
+      forward: use the forward map from the potentials if ``True``,
+        otherwise use the inverse map.
       ax: axis to add the plot to
       scatter_kwargs: additional kwargs passed into
         :meth:`~matplotlib.axes.Axes.scatter`
@@ -247,8 +250,8 @@ class DualPotentials:
     )
 
     # plot the transported samples
-    base_samples = source if forward else target
-    transported_samples = self.transport(base_samples, forward=forward)
+    samples = (source if forward else target) if samples is None else samples
+    transported_samples = self.transport(samples, forward=forward)
     ax.scatter(
         transported_samples[:, 0],
         transported_samples[:, 1],
@@ -257,12 +260,12 @@ class DualPotentials:
         **scatter_kwargs,
     )
 
-    for i in range(base_samples.shape[0]):
+    for i in range(samples.shape[0]):
       ax.arrow(
-          base_samples[i, 0],
-          base_samples[i, 1],
-          transported_samples[i, 0] - base_samples[i, 0],
-          transported_samples[i, 1] - base_samples[i, 1],
+          samples[i, 0],
+          samples[i, 1],
+          transported_samples[i, 0] - samples[i, 0],
+          transported_samples[i, 1] - samples[i, 1],
           color=[0.5, 0.5, 1],
           alpha=0.3
       )
