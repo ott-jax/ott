@@ -129,6 +129,7 @@ class TestEntropicPotentials:
     monkeypatch.setattr(plt, "show", lambda: None)
     potentials.plot_ot_map(x, y, x_test, forward=True)
     potentials.plot_ot_map(x, y, y_test, forward=False)
+    potentials.plot_potential()
 
   @pytest.mark.fast.with_args(
       p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
