@@ -75,6 +75,7 @@ test = [
     # tslearn needs numba, which isn't supported for 3.11
     "tslearn>=0.5; python_version < '3.11'",
     "lineax; python_version >= '3.9'",
+    "matplotlib",
 ]
 docs = [
     "sphinx>=4.0",
