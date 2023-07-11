@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -26,14 +25,16 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
+from ott.geometry import costs
 from ott.problems.linear import linear_problem
 
-if TYPE_CHECKING:
-  from ott.geometry import costs
+try:
+  import matplotlib as mpl
+  import matplotlib.pyplot as plt
+except ImportError:
+  mpl = plt = None
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
 Potential_t = Callable[[jnp.ndarray], float]
@@ -60,11 +61,14 @@ class DualPotentials:
       f: Potential_t,
       g: Potential_t,
       *,
-      cost_fn: 'costs.CostFn',
+      cost_fn: costs.CostFn,
       corr: bool = False
   ):
     self._f = f
     self._g = g
+    assert (
+        not corr or type(cost_fn) == costs.SqEuclidean
+    ), "Duals in `corr` form can only be used with a squared-Euclidean cost."
     self.cost_fn = cost_fn
     self._corr = corr
 
@@ -74,10 +78,11 @@ class DualPotentials:
     Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
     given the Legendre transform of the dual potentials.
 
-    That OT map can be recovered as :math:`x- (\nabla h)^{-1}\circ \nabla f(x)`
-    For the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
-    and as a consequence :math:`h^*(\cdot) = \|.\|^2 / 4`, while one has that
-    :math:`\nabla h^*(\cdot) = (\nabla h)^{-1}(\cdot) = 0.5 \cdot\,`.
+    That OT map can be recovered as :math:`x- (\nabla h^*)\circ \nabla f(x)`,
+    where :math:`h^*` is the Legendre transform of :math:`h`. For instance,
+    in the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
+    one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
+    :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
     When the dual potentials are solved in correlation form (only in the Sq.
     Euclidean distance case), the maps are :math:`\nabla g` for forward,
@@ -98,36 +103,37 @@ class DualPotentials:
       return self._grad_f(vec) if forward else self._grad_g(vec)
     if forward:
       return vec - self._grad_h_inv(self._grad_f(vec))
-    else:
-      return vec - self._grad_h_inv(self._grad_g(vec))
+    return vec - self._grad_h_inv(self._grad_g(vec))
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    """Evaluate 2-Wasserstein distance between samples using dual potentials.
+    r"""Evaluate Wasserstein distance between samples using dual potentials.
 
-    Uses Eq. 5 from :cite:`makkuva:20` when given in `corr` form, direct
-    estimation by integrating dual function against points when using dual form.
+    This uses direct estimation of potentials against measures when dual
+    functions are provided in usual form. This expression is valid for any
+    cost function.
+
+    When potentials are given in correlation form, as specified by the flag
+    ``corr``, the dual potentials solve the dual problem corresponding to the
+    minimization of the primal OT problem where the ground cost is
+    :math:`-2\langle x,y\rangle`. To recover the (squared) 2-Wasserstein
+    distance, terms are re-arranged and contributions from squared norms are
+    taken into account.
 
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-      Wasserstein distance.
+      Wasserstein distance using specified cost function.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
     f = jax.vmap(self.f)
-
-    if self._corr:
-      grad_g_y = self._grad_g(tgt)
-      term1 = -jnp.mean(f(src))
-      term2 = -jnp.mean(jnp.sum(tgt * grad_g_y, axis=-1) - f(grad_g_y))
-
-      C = jnp.mean(jnp.sum(src ** 2, axis=-1))
-      C += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
-      return 2. * (term1 + term2) + C
-
     g = jax.vmap(self.g)
-    return jnp.mean(f(src)) + jnp.mean(g(tgt))
+    out = jnp.mean(f(src)) + jnp.mean(g(tgt))
+    if self._corr:
+      out = -2.0 * out + jnp.mean(jnp.sum(src ** 2, axis=-1))
+      out += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
+    return out
 
   @property
   def f(self) -> Potential_t:
@@ -177,33 +183,41 @@ class DualPotentials:
       self,
       source: jnp.ndarray,
       target: jnp.ndarray,
+      samples: Optional[jnp.ndarray] = None,
       forward: bool = True,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+  ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
       source: samples from the source measure
       target: samples from the target measure
-      forward: use the forward map from the potentials
-        if ``True``, otherwise use the inverse map
+      samples: extra samples to transport, either ``source`` (if ``forward``) or
+        ``target`` (if not ``forward``) by default.
+      forward: use the forward map from the potentials if ``True``,
+        otherwise use the inverse map.
       ax: axis to add the plot to
-      scatter_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.scatter`
-      legend_kwargs: additional kwargs passed into :meth:`~matplotlib.axes.Axes.legend`
+      scatter_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
-      matplotlib figure and axis with the plots
+      a `matplotlib` figure and axis with the plots
     """
+    if mpl is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+
     if scatter_kwargs is None:
-      scatter_kwargs = {'alpha': 0.5}
+      scatter_kwargs = {"alpha": 0.5}
     if legend_kwargs is None:
       legend_kwargs = {
-          'ncol': 3,
-          'loc': 'upper center',
-          'bbox_to_anchor': (0.5, -0.05),
-          'edgecolor': 'k'
+          "ncol": 3,
+          "loc": "upper center",
+          "bbox_to_anchor": (0.5, -0.05),
+          "edgecolor": "k"
       }
 
     if ax is None:
@@ -224,20 +238,20 @@ class DualPotentials:
         source[:, 0],
         source[:, 1],
         color=source_color,
-        label='source',
+        label="source",
         **scatter_kwargs,
     )
     ax.scatter(
         target[:, 0],
         target[:, 1],
         color=target_color,
-        label='target',
+        label="target",
         **scatter_kwargs,
     )
 
     # plot the transported samples
-    base_samples = source if forward else target
-    transported_samples = self.transport(base_samples, forward=forward)
+    samples = (source if forward else target) if samples is None else samples
+    transported_samples = self.transport(samples, forward=forward)
     ax.scatter(
         transported_samples[:, 0],
         transported_samples[:, 1],
@@ -246,12 +260,12 @@ class DualPotentials:
         **scatter_kwargs,
     )
 
-    for i in range(base_samples.shape[0]):
+    for i in range(samples.shape[0]):
       ax.arrow(
-          base_samples[i, 0],
-          base_samples[i, 1],
-          transported_samples[i, 0] - base_samples[i, 0],
-          transported_samples[i, 1] - base_samples[i, 1],
+          samples[i, 0],
+          samples[i, 1],
+          transported_samples[i, 0] - samples[i, 0],
+          transported_samples[i, 1] - samples[i, 1],
           color=[0.5, 0.5, 1],
           alpha=0.3
       )
@@ -263,28 +277,30 @@ class DualPotentials:
       self,
       forward: bool = True,
       quantile: float = 0.05,
-      ax: Optional[matplotlib.axes.Axes] = None,
+      ax: Optional["mpl.axes.Axes"] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
       num_grid: int = 50,
       contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
-    """Plot the potential.
+  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
+    r"""Plot the potential.
 
     Args:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       quantile: quantile to filter the potentials with
       ax: axis to add the plot to
-      x_bounds: x-axis bounds of the plot (xmin, xmax)
-      y_bounds: y-axis bounds of the plot (ymin, ymax)
+      x_bounds: x-axis bounds of the plot
+        :math:`(x_{\text{min}}, x_{\text{max}})`
+      y_bounds: y-axis bounds of the plot
+        :math:`(y_{\text{min}}, y_{\text{max}})`
       num_grid: number of points to discretize the domain into a grid
         along each dimension
       contourf_kwargs: additional kwargs passed into
         :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns:
-      matplotlib figure and axis with the plots.
+      a `matplotlib` figure with axis, with the plots.
     """
     if contourf_kwargs is None:
       contourf_kwargs = {}

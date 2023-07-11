@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax version of the regularised GW Solver (Peyre et al. 2016)."""
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
@@ -23,13 +22,13 @@ if TYPE_CHECKING:
 __all__ = ["WassersteinSolver"]
 
 State = Union["sinkhorn.SinkhornState", "sinkhorn_lr.LRSinkhornState",
-              "continuous_barycenter.BarycenterState"]
+              "continuous_barycenter.FreeBarycenterState"]
 
 
 # TODO(michalk8): refactor to have generic nested solver API
 @jax.tree_util.register_pytree_node_class
 class WassersteinSolver:
-  """A generic solver for problems that use a linear reg-OT pb in inner loop."""
+  """A generic solver for problems that use a linear problem in inner loop."""
 
   def __init__(
       self,
@@ -40,7 +39,6 @@ class WassersteinSolver:
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
-      jit: bool = True,
       store_inner_errors: bool = False,
       **kwargs: Any,
   ):
@@ -74,7 +72,6 @@ class WassersteinSolver:
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
-    self.jit = jit
     self.store_inner_errors = store_inner_errors
     self._kwargs = kwargs
 
@@ -88,7 +85,6 @@ class WassersteinSolver:
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
         "rank": self.rank,
-        "jit": self.jit,
         "store_inner_errors": self.store_inner_errors,
         **self._kwargs
     })

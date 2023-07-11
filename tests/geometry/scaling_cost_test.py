@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the option to scale the cost matrix."""
 from typing import Optional, Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
@@ -28,7 +25,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 class TestScaleCost:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 7
     self.m = 9
@@ -110,9 +107,9 @@ class TestScaleCost:
     np.testing.assert_allclose(
         geom2.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
     )
-    if scale == 'mean':
+    if scale == "mean":
       np.testing.assert_allclose(1.0, geom1.cost_matrix.mean(), rtol=1e-4)
-    elif scale == 'max_cost':
+    elif scale == "max_cost":
       np.testing.assert_allclose(1.0, geom1.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.fast.with_args(
@@ -184,9 +181,9 @@ class TestScaleCost:
         rtol=1e-4
     )
 
-    if scale == 'mean':
+    if scale == "mean":
       np.testing.assert_allclose(1.0, geom.cost_matrix.mean(), rtol=1e-4)
-    if scale == 'max_cost':
+    if scale == "max_cost":
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.parametrize("batch_size", [5, 12])
@@ -194,7 +191,7 @@ class TestScaleCost:
     """Test max_cost options for low rank with batch_size fixed."""
 
     geom0 = low_rank.LRCGeometry(
-        self.cost1, self.cost2, scale_cost='max_cost', batch_size=batch_size
+        self.cost1, self.cost2, scale_cost="max_cost", batch_size=batch_size
     )
 
     np.testing.assert_allclose(
@@ -204,12 +201,12 @@ class TestScaleCost:
   def test_max_scale_cost_low_rank_large_array(self):
     """Test max_cost options for large matrices."""
 
-    _, *keys = jax.random.split(self.rng, 3)
-    cost1 = jax.random.uniform(keys[0], (10000, 2))
-    cost2 = jax.random.uniform(keys[1], (11000, 2))
+    _, *rngs = jax.random.split(self.rng, 3)
+    cost1 = jax.random.uniform(rngs[0], (10000, 2))
+    cost2 = jax.random.uniform(rngs[1], (11000, 2))
     max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
 
-    geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost='max_cost')
+    geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost="max_cost")
 
     np.testing.assert_allclose(
         geom0.inv_scale_cost, 1.0 / max_cost_lr, rtol=1e-4

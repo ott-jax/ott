@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree for a lower triangular Cholesky factored covariance matrix."""
-
 from typing import Optional, Tuple
 
 import jax
@@ -38,7 +36,7 @@ class ScaleTriL:
       cls,
       points: jnp.ndarray,
       weights: jnp.ndarray,
-  ) -> Tuple[jnp.ndarray, 'ScaleTriL']:
+  ) -> Tuple[jnp.ndarray, "ScaleTriL"]:
     """Get a mean and a ScaleTriL from a set of points and weights."""
     mean, cov = linalg.get_mean_and_cov(points=points, weights=weights)
     return mean, cls.from_covariance(cov)
@@ -46,15 +44,15 @@ class ScaleTriL:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: jnp.dtype = jnp.float32,
-  ) -> 'ScaleTriL':
+  ) -> "ScaleTriL":
     """Construct a random ScaleTriL.
 
     Args:
-      key: pseudo-random number generator key
+      rng: pseudo-random number generator key
       n_dimensions: number of dimensions
       stdev: desired standard deviation (around 0) for the log eigenvalues
       dtype: data type for the covariance matrix
@@ -63,12 +61,12 @@ class ScaleTriL:
       A ScaleTriL.
     """
     # generate a random orthogonal matrix
-    key, subkey = jax.random.split(key)
-    q = linalg.get_random_orthogonal(key=subkey, dim=n_dimensions, dtype=dtype)
+    rng, subrng = jax.random.split(rng)
+    q = linalg.get_random_orthogonal(rng=subrng, dim=n_dimensions, dtype=dtype)
 
     # generate random eigenvalues
     eigs = stdev * jnp.exp(
-        jax.random.normal(key=key, shape=(n_dimensions,), dtype=dtype)
+        jax.random.normal(key=rng, shape=(n_dimensions,), dtype=dtype)
     )
 
     # random positive definite matrix
@@ -82,7 +80,7 @@ class ScaleTriL:
     return cls(params=flat, size=n_dimensions)
 
   @classmethod
-  def from_cholesky(cls, cholesky: jnp.ndarray) -> 'ScaleTriL':
+  def from_cholesky(cls, cholesky: jnp.ndarray) -> "ScaleTriL":
     """Construct ScaleTriL from a Cholesky factor of a covariance matrix."""
     m = linalg.apply_to_diag(cholesky, jnp.log)
     flat = linalg.tril_to_flat(m)
@@ -92,7 +90,7 @@ class ScaleTriL:
   def from_covariance(
       cls,
       covariance: jnp.ndarray,
-  ) -> 'ScaleTriL':
+  ) -> "ScaleTriL":
     """Construct ScaleTriL from a covariance matrix."""
     cholesky = jnp.linalg.cholesky(covariance)
     return cls.from_cholesky(cholesky)
@@ -139,7 +137,7 @@ class ScaleTriL:
     """Scale standardized points to points with the specified covariance."""
     return (self.cholesky() @ z.T).T
 
-  def w2_dist(self, other: 'ScaleTriL') -> jnp.ndarray:
+  def w2_dist(self, other: "ScaleTriL") -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian with same mean.
 
     Args:
@@ -160,7 +158,7 @@ class ScaleTriL:
     return (cost_fn.norm(x0) + cost_fn.norm(x1) +
             cost_fn.pairwise(x0, x1))[...,]
 
-  def gaussian_map(self, dest_scale: 'ScaleTriL') -> jnp.ndarray:
+  def gaussian_map(self, dest_scale: "ScaleTriL") -> jnp.ndarray:
     """Scaling matrix used in transport between 0-mean Gaussians.
 
     Sigma_mu^{-1/2} @
@@ -178,11 +176,10 @@ class ScaleTriL:
     m = matrix_square_root.sqrtm_only(
         jnp.matmul(sqrt0, jnp.matmul(sigma1, sqrt0))
     )
-    m = jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
-    return m
+    return jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
 
   def transport(
-      self, dest_scale: 'ScaleTriL', points: jnp.ndarray
+      self, dest_scale: "ScaleTriL", points: jnp.ndarray
   ) -> jnp.ndarray:
     """Apply Monge map, computed between two 0-mean Gaussians, to points.
 
@@ -198,7 +195,7 @@ class ScaleTriL:
 
   def tree_flatten(self):  # noqa: D102
     children = (self.params,)
-    aux_data = {'size': self.size}
+    aux_data = {"size": self.size}
     return children, aux_data
 
   @classmethod
@@ -208,9 +205,9 @@ class ScaleTriL:
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):

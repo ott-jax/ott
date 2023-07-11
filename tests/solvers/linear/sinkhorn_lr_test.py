@@ -11,13 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests Sinkhorn Low-Rank solver with various initializations."""
-import pytest
+from typing import Any, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
@@ -26,7 +25,7 @@ from ott.solvers.linear import sinkhorn_lr
 class TestLRSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
     self.n = 33
     self.m = 37
@@ -36,7 +35,7 @@ class TestLRSinkhorn:
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
 
-    # adding zero weights to test proper handling
+    # adding zero weights to test proper handling:
     a = a.at[0].set(0)
     b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
@@ -46,10 +45,12 @@ class TestLRSinkhorn:
       use_lrcgeom=[True, False],
       initializer=["rank2", "random", "k-means"],
       gamma_rescale=[False, True],
+      lse_mode=[True, False],
       only_fast=0,
   )
   def test_euclidean_point_cloud_lr(
-      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool
+      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool,
+      lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
     threshold = 1e-3
@@ -66,21 +67,20 @@ class TestLRSinkhorn:
         rank=6,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer
     )
-    solved = solver(ot_prob)
-    costs = solved.costs
-    costs = costs[costs > -1]
+    out = solver(ot_prob)
 
-    criterions = solved.errors
+    criterions = out.errors
     criterions = criterions[criterions > -1]
 
     # Check convergence
-    if solved.converged:
+    if out.converged:
       assert criterions[-1] < threshold
 
     # Store cost value.
-    cost_1 = costs[-1]
+    cost_1 = out.primal_cost
 
     # Try with higher rank
     solver = sinkhorn_lr.LRSinkhorn(
@@ -88,12 +88,12 @@ class TestLRSinkhorn:
         rank=14,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)
 
-    costs = out.costs
-    cost_2 = costs[costs > -1][-1]
+    cost_2 = out.primal_cost
     # Ensure solution with more rank budget has lower cost (not guaranteed)
     try:
       assert cost_1 > cost_2
@@ -115,13 +115,14 @@ class TestLRSinkhorn:
         threshold=threshold,
         rank=14,
         epsilon=5e-1,
+        gamma=1.0,
         gamma_rescale=gamma_rescale,
+        lse_mode=lse_mode,
         initializer=initializer,
     )
     out = solver(ot_prob)
 
-    costs = out.costs
-    cost_3 = costs[costs > -1][-1]
+    cost_3 = out.primal_cost
     try:
       assert cost_3 > cost_2
     except AssertionError:
@@ -149,3 +150,168 @@ class TestLRSinkhorn:
     np.testing.assert_allclose(
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
+
+  @pytest.mark.fast.with_args("num_iterations", [30, 60])
+  def test_callback_fn(self, num_iterations: int):
+    """Check that the callback function is actually called."""
+
+    def progress_fn(
+        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
+                      sinkhorn_lr.LRSinkhornState], *args: Any
+    ) -> None:
+      # Convert arguments.
+      iteration, inner_iterations, total_iter, state = status
+      iteration = int(iteration)
+      inner_iterations = int(inner_iterations)
+      total_iter = int(total_iter)
+      errors = np.array(state.errors).ravel()
+
+      # Avoid reporting error on each iteration,
+      # because errors are only computed every `inner_iterations`.
+      if (iteration + 1) % inner_iterations == 0:
+        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+        error = errors[error_idx]
+
+        traced_values["iters"].append(iteration)
+        traced_values["error"].append(error)
+        traced_values["total"].append(total_iter)
+
+    traced_values = {"iters": [], "error": [], "total": []}
+
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-3)
+    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+
+    rank = 2
+    inner_iterations = 10
+
+    _ = sinkhorn_lr.LRSinkhorn(
+        rank,
+        progress_fn=progress_fn,
+        max_iterations=num_iterations,
+        inner_iterations=inner_iterations
+    )(
+        lin_prob
+    )
+
+    # check that the function is called on the 10th iteration (iter #9), the
+    # 20th iteration (iter #19).
+    assert traced_values["iters"] == [9, 19]
+
+    # check that error decreases
+    np.testing.assert_array_equal(np.diff(traced_values["error"]) < 0, True)
+
+    # check that max iterations is provided each time: [30, 30]
+    assert traced_values["total"] == [num_iterations] * 2
+
+  @pytest.mark.fast.with_args(rank=[5, 10], eps=[0.0, 1e-1])
+  def test_lse_matches_kernel_mode(self, rank: int, eps: float):
+    threshold = 1e-3
+    tol = 1e-5
+    geom = pointcloud.PointCloud(self.x, self.y)
+    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+
+    out_lse = sinkhorn_lr.LRSinkhorn(
+        lse_mode=True,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    out_kernel = sinkhorn_lr.LRSinkhorn(
+        lse_mode=False,
+        threshold=threshold,
+        rank=rank,
+        epsilon=eps,
+    )(
+        ot_prob
+    )
+
+    assert out_lse.converged
+    assert out_kernel.converged
+    np.testing.assert_allclose(
+        out_lse.reg_ot_cost, out_kernel.reg_ot_cost, rtol=tol, atol=tol
+    )
+    np.testing.assert_allclose(
+        out_lse.matrix, out_kernel.matrix, rtol=tol, atol=tol
+    )
+
+  @pytest.mark.fast.with_args("ti", [False, True], only_fast=0)
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.95), (0.89, 1.0),
+                                                (1.0, 0.85)])
+  def test_lr_unbalanced_lse(self, tau_a: float, tau_b: float, ti: bool):
+    rank, epsilon, threshold = 10, 0.0, 1e-4
+    geom = pointcloud.PointCloud(self.x, self.y)
+    prob = linear_problem.LinearProblem(
+        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out_lse = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=True,
+        kwargs_dys={"translation_invariant": ti},
+    )(
+        prob
+    )
+    out_kernel = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=False,
+        kwargs_dys={"translation_invariant": ti},
+    )(
+        prob
+    )
+
+    assert out_lse.converged
+    assert out_kernel.converged
+    np.testing.assert_allclose(
+        out_lse.reg_ot_cost, out_kernel.reg_ot_cost, rtol=1e-5, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        out_lse.matrix, out_kernel.matrix, rtol=1e-5, atol=1e-5
+    )
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  @pytest.mark.fast.with_args(("tau_a", "tau_b", "epsilon"),
+                              [(0.92, 0.99, 1e-3), (0.75, 1.0, 0.0),
+                               (1.0, 0.5, 0.0)],
+                              only_fast=1)
+  def test_lr_unbalanced_ti(
+      self, tau_a: float, tau_b: float, epsilon: float, lse_mode: bool
+  ):
+    rank, threshold = 8, 1e-4
+    geom = pointcloud.PointCloud(self.x, self.y)
+    prob = linear_problem.LinearProblem(
+        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=lse_mode,
+        kwargs_dys={"translation_invariant": False},
+    )(
+        prob
+    )
+    out_ti = sinkhorn_lr.LRSinkhorn(
+        threshold=threshold,
+        rank=rank,
+        epsilon=epsilon,
+        lse_mode=lse_mode,
+        kwargs_dys={"translation_invariant": True},
+    )(
+        prob
+    )
+
+    assert out.converged
+    assert out_ti.converged
+    np.testing.assert_allclose(out.errors, out_ti.errors, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(
+        out.reg_ot_cost, out_ti.reg_ot_cost, rtol=1e-2, atol=1e-2
+    )
+    np.testing.assert_allclose(out.matrix, out_ti.matrix, rtol=1e-2, atol=1e-2)

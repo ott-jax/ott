@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A class describing operations used to instantiate and use a geometry."""
 import functools
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Tuple, Union
 
@@ -45,20 +44,17 @@ class Geometry:
   basic operations to be run with the Sinkhorn algorithm.
 
   Args:
-    cost_matrix: jnp.ndarray<float>[num_a, num_b]: a cost matrix storing n x m
-      costs.
-    kernel_matrix: jnp.ndarray<float>[num_a, num_b]: a kernel matrix storing n
-      x m kernel values.
-    epsilon: a regularization parameter.
-      If a :class:`~ott.geometry.epsilon_scheduler.Epsilon` scheduler is passed,
-      other parameters below are ignored in practice. If the
-      parameter is a float, then this is understood to be the regularization
-      that is needed, unless ``relative_epsilon`` below is ``True``, in which
-      case ``epsilon`` is understood as a normalized quantity, to be scaled by
-      the mean value of the :attr:`cost_matrix`.
-    relative_epsilon: whether epsilon is passed relative to scale of problem,
-      here understood as mean value of :attr:`cost_matrix`.
-    scale_epsilon: the scale multiplier for epsilon.
+    cost_matrix: Cost matrix of shape ``[n, m]``.
+    kernel_matrix: Kernel matrix of shape ``[n, m]``.
+    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
+      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
+      is used, ``scale_epsilon`` is the :attr:`mean_cost_matrix`. If
+      ``epsilon = None``, use :math:`0.05`.
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
+      adaptively from data.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -67,70 +63,43 @@ class Geometry:
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
       :attr:`cost_matrix`, see :attr:`tgt_mask`.
-    kwargs: additional kwargs for epsilon scheduler.
 
   Note:
-    When defining a ``Geometry`` through a ``cost_matrix``, it is important to
-    select an ``epsilon`` regularization parameter that is meaningful. That
-    parameter can be provided by the user, or assigned a default value through
-    a simple rule, using the :attr:`mean_cost_matrix`.
+    When defining a :class:`~ott.geometry.geometry.Geometry` through a
+    ``cost_matrix``, it is important to select an ``epsilon`` regularization
+    parameter that is meaningful. That parameter can be provided by the user,
+    or assigned a default value through a simple rule,
+    using the :attr:`mean_cost_matrix`.
   """
 
   def __init__(
       self,
       cost_matrix: Optional[jnp.ndarray] = None,
       kernel_matrix: Optional[jnp.ndarray] = None,
-      epsilon: Union[epsilon_scheduler.Epsilon, float, None] = None,
+      epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
-      scale_epsilon: Optional[float] = None,
+      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
+                                                  "median"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
-      scale_cost: Union[bool, int, float, Literal['mean', 'max_cost',
-                                                  'median']] = 1.0,
-      **kwargs: Any,
   ):
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-    self._epsilon_init = epsilon
+
+    # needed for `copy_epsilon`, because of the `isinstance` check
+    self._epsilon_init = epsilon if isinstance(
+        epsilon, epsilon_scheduler.Epsilon
+    ) else epsilon_scheduler.Epsilon(epsilon)
     self._relative_epsilon = relative_epsilon
-    self._scale_epsilon = scale_epsilon
+
     self._scale_cost = "mean" if scale_cost is True else scale_cost
+
     self._src_mask = src_mask
     self._tgt_mask = tgt_mask
-    # Define default dictionary and update it with user's values.
-    self._kwargs = {**{'init': None, 'decay': None}, **kwargs}
 
   @property
   def cost_rank(self) -> Optional[int]:
     """Output rank of cost matrix, if any was provided."""
-    return None
-
-  @property
-  def scale_epsilon(self) -> float:
-    """Compute the scale of the epsilon, potentially based on data."""
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return 1.0
-
-    rel = self._relative_epsilon
-    trigger = ((self._scale_epsilon is None) and
-               ((rel is None and self._epsilon_init is None) or rel))
-
-    if (self._scale_epsilon is None) and (trigger is not None):  # for dry run
-      return jnp.where(
-          trigger, jax.lax.stop_gradient(self.mean_cost_matrix), 1.0
-      )
-    else:
-      return self._scale_epsilon
-
-  @property
-  def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    """Return epsilon scheduler, either passed directly or by building it."""
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return self._epsilon_init
-    eps = 5e-2 if self._epsilon_init is None else self._epsilon_init
-    return epsilon_scheduler.Epsilon.make(
-        eps, scale_epsilon=self.scale_epsilon, **self._kwargs
-    )
 
   @property
   def cost_matrix(self) -> jnp.ndarray:
@@ -158,11 +127,29 @@ class Geometry:
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
-    """Kernel matrix, either provided by user or recomputed from \
-     :attr:`cost_matrix`."""
+    """Kernel matrix.
+
+    Either provided by user or recomputed from :attr:`cost_matrix`.
+    """
     if self._kernel_matrix is None:
       return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
     return self._kernel_matrix ** self.inv_scale_cost
+
+  @property
+  def _epsilon(self) -> epsilon_scheduler.Epsilon:
+    (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
+    rel = self._relative_epsilon
+
+    use_mean_scale = rel is True or (rel is None and target is None)
+    if scale_eps is None and use_mean_scale:
+      scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
+
+    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
+      return self._epsilon_init.set(scale_epsilon=scale_eps)
+
+    return epsilon_scheduler.Epsilon(
+        target=5e-2 if target is None else target, scale_epsilon=scale_eps
+    )
 
   @property
   def epsilon(self) -> float:
@@ -184,13 +171,13 @@ class Geometry:
     """Check quickly if casting geometry as LRC makes sense.
 
     This check is only carried out using basic considerations from the geometry,
-    not using a rigorous check involving, e.g., svd.
+    not using a rigorous check involving, e.g., SVD.
     """
     return False
 
   @property
   def is_squared_euclidean(self) -> bool:
-    """Whether cost is computed by taking squared-Eucl. distance of points."""
+    """Whether cost is computed by taking squared Euclidean distance."""
     return False
 
   @property
@@ -213,15 +200,16 @@ class Geometry:
                   (int, float)) or utils.is_jax_array(self._scale_cost):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
-    if self._scale_cost == 'max_cost':
+    if self._scale_cost == "max_cost":
       return 1.0 / jnp.nanmax(self._cost_matrix)
-    if self._scale_cost == 'mean':
+    if self._scale_cost == "mean":
       return 1.0 / jnp.nanmean(self._cost_matrix)
-    if self._scale_cost == 'median':
+    if self._scale_cost == "median":
       return 1.0 / jnp.nanmedian(self._cost_matrix)
-    raise ValueError(f'Scaling {self._scale_cost} not implemented.')
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def _set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+  def set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+    """Modify how to rescale of the :attr:`cost_matrix`."""
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
     if scale_cost is False or scale_cost == self._scale_cost:
@@ -230,13 +218,22 @@ class Geometry:
     aux_data["scale_cost"] = scale_cost
     return type(self).tree_unflatten(aux_data, children)
 
-  def copy_epsilon(self, other: 'Geometry') -> "Geometry":
+  def copy_epsilon(self, other: "Geometry") -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
-    scheduler = other._epsilon
-    self._epsilon_init = scheduler._target_init
-    self._relative_epsilon = False
-    self._scale_epsilon = other.scale_epsilon
-    return self
+    other_epsilon = other._epsilon
+    children, aux_data = self.tree_flatten()
+
+    new_children = []
+    for child in children:
+      if isinstance(child, epsilon_scheduler.Epsilon):
+        child = child.set(
+            target=other_epsilon._target_init,
+            scale_epsilon=other_epsilon._scale_epsilon
+        )
+      new_children.append(child)
+
+    aux_data["relative_epsilon"] = False
+    return type(self).tree_unflatten(aux_data, new_children)
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
@@ -250,7 +247,7 @@ class Geometry:
       vec: jnp.ndarray = None,
       axis: int = 0
   ) -> jnp.ndarray:
-    r"""Apply :attr:`kernel_matrix` in log domain on a pair of dual potential variables.
+    r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
     a stabilized formulation. At a high level, this iteration performs either:
@@ -271,8 +268,8 @@ class Geometry:
       eps: float, regularization strength
       vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
-        multiplication of exp(g / eps) by a vector. This is carried out by adding
-        weights to the log-sum-exp function, and needs to handle signs
+        multiplication of exp(g / eps) by a vector. This is carried out by
+        adding weights to the log-sum-exp function, and needs to handle signs
         separately.
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
 
@@ -290,11 +287,6 @@ class Geometry:
       axis: int = 0,
   ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
-
-    This function applies the ground geometry's kernel, to perform either
-    output = K v    (1)
-    output = K'u   (2)
-    where K is [num_a, num_b]
 
     Args:
       scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
@@ -322,7 +314,7 @@ class Geometry:
     """Output marginal of transportation matrix from potentials.
 
     This applies first lse kernel in the standard way, removes the
-    correction used to stabilise computations, and lifts this with an exp to
+    correction used to stabilize computations, and lifts this with an exp to
     recover either of the marginals corresponding to the transport map induced
     by potentials.
 
@@ -425,11 +417,11 @@ class Geometry:
           self._center(f, g) / eps, b=vec, axis=axis, return_sign=True
       )
       return eps * lse_output[0], lse_output[1]
-    else:
-      lse_output = mu.logsumexp(
-          self._center(f, g) / eps, axis=axis, return_sign=False
-      )
-      return eps * lse_output, jnp.array([1.0])
+
+    lse_output = mu.logsumexp(
+        self._center(f, g) / eps, axis=axis, return_sign=False
+    )
+    return eps * lse_output, jnp.array([1.0])
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(
@@ -617,8 +609,8 @@ class Geometry:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
-    cost_matrices = kwargs.pop('cost_matrix', args)
-    kernel_matrices = kwargs.pop('kernel_matrix', nones)
+    cost_matrices = kwargs.pop("cost_matrix", args)
+    kernel_matrices = kwargs.pop("kernel_matrix", nones)
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
         cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
@@ -629,9 +621,9 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      seed: int = 0,
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       scale: float = 1.
-  ) -> 'low_rank.LRCGeometry':
+  ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
     When `rank=min(n,m)` or `0` (by default), use :func:`jax.numpy.linalg.svd`.
@@ -648,7 +640,7 @@ class Geometry:
       rank: Target rank of the :attr:`cost_matrix`.
       tol: Tolerance of the error. The total number of sampled points is
         :math:`min(n, m,\frac{rank}{tol})`.
-      seed: Random seed.
+      rng: The PRNG key to use for initializing the model.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
 
@@ -670,32 +662,27 @@ class Geometry:
       cost_1 = u
       cost_2 = (s[:, None] * vh).T
     else:
-      rng = jax.random.PRNGKey(seed)
-      key1, key2, key3, key4, key5 = jax.random.split(rng, 5)
+      rng = utils.default_prng_key(rng)
+      rng1, rng2, rng3, rng4, rng5 = jax.random.split(rng, 5)
       n_subset = min(int(rank / tol), n, m)
 
-      i_star = jax.random.randint(key1, shape=(), minval=0, maxval=n)
-      j_star = jax.random.randint(key2, shape=(), minval=0, maxval=m)
+      i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
+      j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
-      # force `batch_size=None` since `cost_matrix` would be `None`
-      ci_star = self.subset(
-          i_star, None, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(
-          None, j_star, batch_size=None
-      ).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
-      row_ixs = jax.random.choice(key3, n, shape=(n_subset,), p=p_row)
+      row_ixs = jax.random.choice(rng3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
-      s = self.subset(row_ixs, None, batch_size=None).cost_matrix
+      s = self.subset(row_ixs, None).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
       p_col /= jnp.sum(p_col)
       # (n_subset,)
-      col_ixs = jax.random.choice(key4, m, shape=(n_subset,), p=p_col)
+      col_ixs = jax.random.choice(rng4, m, shape=(n_subset,), p=p_col)
       # (n_subset, n_subset)
       w = s[:, col_ixs] / jnp.sqrt(n_subset * p_col[col_ixs][None, :])
 
@@ -707,12 +694,10 @@ class Geometry:
       v = v.T / jnp.sqrt(d)[None, :]
 
       inv_scale = (1. / jnp.sqrt(n_subset))
-      col_ixs = jax.random.choice(key5, m, shape=(n_subset,))  # (n_subset,)
+      col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
-      A_trans = self.subset(
-          None, col_ixs, batch_size=None
-      ).cost_matrix * inv_scale
+      A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
       B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
       M = jnp.linalg.inv(B.T @ B)  # (k, k)
       V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
@@ -724,10 +709,8 @@ class Geometry:
         cost_2=cost_2,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale=self._scale_epsilon,
         scale_cost=self._scale_cost,
         scale_factor=scale,
-        **self._kwargs
     )
 
   def subset(
@@ -742,7 +725,7 @@ class Geometry:
       kwargs: Keyword arguments to override the initialization.
 
     Returns:
-      The subsetted geometry.
+      The modified geometry.
     """
 
     def subset_fn(
@@ -756,10 +739,14 @@ class Geometry:
         arr = arr[jnp.atleast_1d(src_ixs)]
       if tgt_ixs is not None:
         arr = arr[:, jnp.atleast_1d(tgt_ixs)]
-      return arr
+      return arr  # noqa: RET504
 
     return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
+        src_ixs,
+        tgt_ixs,
+        fn=subset_fn,
+        propagate_mask=True,
+        **kwargs,
     )
 
   def mask(
@@ -800,7 +787,7 @@ class Geometry:
         arr = jnp.where(src_mask[:, None], arr, mask_value)
       if tgt_mask is not None:
         arr = jnp.where(tgt_mask[None, :], arr, mask_value)
-      return arr
+      return arr  # noqa: RET504
 
     src_mask = self._normalize_mask(src_mask, self.shape[0])
     tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
@@ -819,8 +806,7 @@ class Geometry:
       propagate_mask: bool,
       **kwargs: Any,
   ) -> "Geometry":
-    (cost, kernel, *children, src_mask, tgt_mask,
-     kws), aux_data = self.tree_flatten()
+    (cost, kernel, eps, src_mask, tgt_mask), aux_data = self.tree_flatten()
     cost = fn(cost, src_ixs, tgt_ixs)
     kernel = fn(kernel, src_ixs, tgt_ixs)
     if propagate_mask:
@@ -831,7 +817,7 @@ class Geometry:
 
     aux_data = {**aux_data, **kwargs}
     return type(self).tree_unflatten(
-        aux_data, [cost, kernel] + children + [src_mask, tgt_mask, kws]
+        aux_data, [cost, kernel, eps, src_mask, tgt_mask]
     )
 
   @property
@@ -874,16 +860,14 @@ class Geometry:
 
   @property
   def _n_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_a,]`` \
-    taking into account :attr:`src_mask`."""
+    """Normalized array of shape ``[num_a,]``."""
     mask = self.src_mask
     arr = jnp.ones(self.shape[0]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @property
   def _m_normed_ones(self) -> jnp.ndarray:
-    """Normalized array of shape ``[num_b,]`` \
-    taking into account :attr:`tgt_mask`."""
+    """Normalized array of shape ``[num_b,]``."""
     mask = self.tgt_mask
     arr = jnp.ones(self.shape[1]) if mask is None else mask
     return arr / jnp.sum(arr)
@@ -903,16 +887,18 @@ class Geometry:
   def tree_flatten(self):  # noqa: D102
     return (
         self._cost_matrix, self._kernel_matrix, self._epsilon_init,
-        self._relative_epsilon, self._scale_epsilon, self._src_mask,
-        self._tgt_mask, self._kwargs
+        self._src_mask, self._tgt_mask
     ), {
-        'scale_cost': self._scale_cost
+        "scale_cost": self._scale_cost,
+        "relative_epsilon": self._relative_epsilon
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    *args, kwargs = children
-    return cls(*args, **kwargs, **aux_data)
+    cost, kernel, eps, src_mask, tgt_mask = children
+    return cls(
+        cost, kernel, eps, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
+    )
 
 
 def is_affine(fn) -> bool:

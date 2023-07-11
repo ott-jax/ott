@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""jheek@ backprop-friendly implementation of fixed point loop."""
 from typing import Any, Callable
 
 import jax
@@ -28,31 +27,31 @@ def fixpoint_iter(
 ):
   """Implementation of a fixed point loop.
 
-  This fixed point loop iterator applies body_fn to a tuple
-  (iteration, constants, state, compute_error) to output a new state, using
+  This fixed point loop iterator applies ``body_fn`` to a tuple
+  ``(iteration, constants, state, compute_error)`` to output a new state, using
   context provided in iteration and constants.
 
-  body_fn is iterated (inner_iterations -1) times, and one last time with the
-  compute_error flag indicating that additional computational effort can be
-  spent on recalculating the latest error (errors are stored as the first
-  element of the state tuple).
+  ``body_fn`` is iterated (inner_iterations -1) times, and one last time with
+  the ``compute_error`` flag to ``True``, indicating that additional
+  computational effort can be spent on recalculating the latest error
+  (``errors`` are stored as the first element of the state tuple).
 
-  upon termination of these inner_iterations, the loop is continued if iteration
-  is smaller than min_iterations, stopped if equal/larger than max_iterations,
-  and interrupted if cond_fn returns False.
+  upon termination of these ``inner_iterations``, the loop is continued if
+  iteration is smaller than ``min_iterations``, stopped if equal/larger than
+  ``max_iterations``, and interrupted if ``cond_fn`` returns False.
 
   Args:
     cond_fn : termination condition function
     body_fn : body loop instructions
     min_iterations : lower bound on the total amount of fixed point iterations
     max_iterations : upper bound on the total amount of fixed point iterations
-    inner_iterations : number of iterations body_fn will be executed
-      successively before calling cond_fn.
+    inner_iterations : number of iterations ``body_fn`` will be executed
+      successively before calling ``cond_fn``.
     constants : constant (during loop) parameters passed on to body
     state : state variable
 
   Returns:
-    outputs state returned by body_fn upon termination.
+    outputs state returned by ``body_fn`` upon termination.
   """  # noqa: D401
   # If number of minimal iterations matches maximal number, force a scan instead
   # of a while loop.

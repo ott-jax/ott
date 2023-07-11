@@ -11,17 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Default Hyperparameter configuration."""
+from setuptools import setup
 
-import ml_collections
-
-
-def get_config():
-  """Get the default hyperparameter configuration."""
-  config = ml_collections.ConfigDict()
-  config.dataset = 'cifar10'
-  config.learning_rate = 1e-4
-  config.batch_size = 64
-  config.num_epochs = 100
-  config.loss = 'soft_error'
-  return config
+# for packaging tools not supporting, e.g., PEP 517, PEP 660
+setup()

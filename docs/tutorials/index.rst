@@ -13,10 +13,13 @@ Linear Optimal Transport
 .. toctree::
     :maxdepth: 1
 
+    notebooks/point_clouds
     notebooks/One_Sinkhorn
     notebooks/OTT_&_POT
     notebooks/Hessians
     notebooks/LRSinkhorn
+    notebooks/sinkhorn_divergence_gradient_flow
+    notebooks/sparse_monge_displacements
 
 Barycenters
 ^^^^^^^^^^^
@@ -32,8 +35,8 @@ Miscellaneous
 .. toctree::
     :maxdepth: 1
 
+    notebooks/tracking_progress
     notebooks/soft_sort
-    notebooks/fairness
     notebooks/application_biology
 
 Quadratic Optimal Transport
@@ -53,3 +56,4 @@ Neural Optimal Transport
     notebooks/neural_dual
     notebooks/icnn_inits
     notebooks/MetaOT
+    notebooks/Monge_Gap

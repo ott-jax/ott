@@ -1,9 +1,12 @@
 ott.initializers.quadratic
 ==========================
+.. module:: ott.initializers.quadratic
 .. currentmodule:: ott.initializers.quadratic
-.. automodule:: ott.initializers.quadratic
 
-.. TODO(marcocuturi): maybe add some text here
+Two families of initializers are described in the following to provide the first
+iteration of Gromov-Wasserstein solvers. They apply respectively to the simpler
+GW entropic solver :cite:`peyre:16` and its low-rank formulation
+:cite:`scetbon:22`.
 
 Gromov-Wasserstein Initializers
 -------------------------------

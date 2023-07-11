@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Sinkhorn initializers."""
-from typing import Any, Literal, Optional
-
-import pytest
+from typing import Literal, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.initializers.nn import initializers as nn_init
@@ -28,7 +25,7 @@ from ott.solvers.linear import sinkhorn
 
 
 def create_sorting_problem(
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n: int,
     epsilon: float = 1e-2,
     batch_size: Optional[int] = None
@@ -58,7 +55,7 @@ def create_sorting_problem(
 
 
 def create_ot_problem(
-    rng: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
     n: int,
     m: int,
     d: int,
@@ -86,43 +83,40 @@ def run_sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
     *,
-    initializer: Literal["default", "sorting", "gaussian"],
+    initializer: linear_init.SinkhornInitializer,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
-    **kwargs: Any
 ) -> sinkhorn.SinkhornOutput:
-  if initializer == "default":
-    init = linear_init.DefaultInitializer()
-  elif initializer == "sorting":
-    init = linear_init.SortingInitializer(**kwargs)
-  elif initializer == "gaussian":
-    init = linear_init.GaussianInitializer(**kwargs)
-  else:
-    raise NotImplementedError(initializer)
+  """Runs Sinkhorn algorithm with given initializer."""
 
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   prob = linear_problem.LinearProblem(geom, a, b)
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=init)
+  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
   return solver(prob)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornInitializers:
 
   @pytest.mark.parametrize(
       "init", [
-          "default", "gaussian", "sorting",
+          "default", "gaussian", "sorting", "subsample",
           linear_init.DefaultInitializer(), "non-existent"
       ]
   )
   def test_create_initializer(self, init: str):
-    solver = sinkhorn.Sinkhorn(initializer=init)
+    kwargs_init = {}
+    if init == "subsample":
+      kwargs_init["subsample_n_x"] = 10
+
+    solver = sinkhorn.Sinkhorn(initializer=init, kwargs_init=kwargs_init)
     expected_types = {
         "default": linear_init.DefaultInitializer,
         "gaussian": linear_init.GaussianInitializer,
         "sorting": linear_init.SortingInitializer,
+        "subsample": linear_init.SubsampleInitializer,
     }
 
     if isinstance(init, linear_init.SinkhornInitializer):
@@ -135,9 +129,9 @@ class TestSinkhornInitializers:
       expected_type = expected_types[init]
       assert isinstance(actual, expected_type)
 
-  @pytest.mark.parametrize(
-      "vector_min, lse_mode", [(True, True), (True, False), (False, True)]
-  )
+  @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
+                                                        (True, False),
+                                                        (False, True)])
   def test_sorting_init(self, vector_min: bool, lse_mode: bool):
     """Tests sorting dual initializer."""
     rng = jax.random.PRNGKey(42)
@@ -149,7 +143,7 @@ class TestSinkhornInitializers:
     sink_out_base = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon
@@ -158,11 +152,12 @@ class TestSinkhornInitializers:
     sink_out_init = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="sorting",
+        initializer=linear_init.SortingInitializer(
+            vectorized_update=vector_min
+        ),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
-        vectorized_update=vector_min,
         lse_mode=lse_mode
     )
 
@@ -172,7 +167,7 @@ class TestSinkhornInitializers:
       assert sink_out_init.converged
       assert sink_out_base.n_iters > sink_out_init.n_iters
 
-  def test_sorting_init_online(self, rng: jnp.ndarray):
+  def test_sorting_init_online(self, rng: jax.random.PRNGKeyArray):
     n = 100
     epsilon = 1e-2
 
@@ -183,7 +178,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_sorting_init_square_cost(self, rng: jnp.ndarray):
+  def test_sorting_init_square_cost(self, rng: jax.random.PRNGKeyArray):
     n, m, d = 100, 150, 1
     epsilon = 1e-2
 
@@ -192,7 +187,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_default_initializer(self, rng: jnp.ndarray):
+  def test_default_initializer(self, rng: jax.random.PRNGKeyArray):
     """Tests default initializer"""
     n, m, d = 200, 200, 2
     epsilon = 1e-2
@@ -210,7 +205,7 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(0., default_potential_a)
     np.testing.assert_array_equal(0., default_potential_b)
 
-  def test_gauss_pointcloud_geom(self, rng: jnp.ndarray):
+  def test_gauss_pointcloud_geom(self, rng: jax.random.PRNGKeyArray):
     n, m, d = 200, 200, 2
     epsilon = 1e-2
 
@@ -224,39 +219,46 @@ class TestSinkhornInitializers:
         geom=new_geom, a=ot_problem.a, b=ot_problem.b
     )
 
-    with pytest.raises(AssertionError, match=r"point cloud"):
+    with pytest.raises(AssertionError, match=r"pointcloud"):
       gaus_init.init_dual_a(ot_problem, lse_mode=True)
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
+  @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.parametrize("initializer", ["sorting", "gaussian"])
+  @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
-      self, rng: jnp.ndarray, lse_mode: bool, jit: bool,
-      initializer: Literal["sorting", "gaussian"]
+      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, jit: bool,
+      initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""
     n, m, d = 200, 200, 2
+    subsample_n = 100
     epsilon = 1e-2
 
-    if initializer == "gaussian":
+    # initializer
+    if initializer == "sorting":
+      initializer = linear_init.SortingInitializer(vectorized_update=True)
+    elif initializer == "gaussian":
+      initializer = linear_init.GaussianInitializer()
+    elif initializer == "subsample":
+      initializer = linear_init.SubsampleInitializer(subsample_n_x=subsample_n)
+
+    # ot problem
+    if initializer == "sorting":
+      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
+    else:
       ot_problem = create_ot_problem(
           rng, n, m, d, epsilon=epsilon, batch_size=3
       )
-    else:
-      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
 
+    run_fn = run_sinkhorn
     if jit:
-      run_fn = jax.jit(
-          run_sinkhorn, static_argnames=["initializer", "lse_mode"]
-      )
-    else:
-      run_fn = run_sinkhorn
+      run_fn = jax.jit(run_fn, static_argnames=["lse_mode"])
 
     # run sinkhorn
     default_out = run_fn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
@@ -270,7 +272,7 @@ class TestSinkhornInitializers:
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,
-        lse_mode=lse_mode
+        lse_mode=lse_mode,
     )
 
     if lse_mode:
@@ -280,8 +282,8 @@ class TestSinkhornInitializers:
     else:
       assert default_out.n_iters >= init_out.n_iters
 
-  @pytest.mark.parametrize('lse_mode', [True, False])
-  def test_meta_initializer(self, rng: jnp.ndarray, lse_mode: bool):
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 200, 200, 2
     epsilon = 1e-2
@@ -295,7 +297,7 @@ class TestSinkhornInitializers:
     sink_out = run_sinkhorn(
         x=ot_problem.geom.x,
         y=ot_problem.geom.y,
-        initializer="default",
+        initializer=linear_init.DefaultInitializer(),
         a=ot_problem.a,
         b=ot_problem.b,
         epsilon=epsilon,

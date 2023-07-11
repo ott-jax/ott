@@ -16,12 +16,11 @@ dependencies = [
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
     "jaxopt>=0.5.5",
-    # https://github.com/google/jax/discussions/9951#discussioncomment-3017784
-    "numpy>=1.18.4, !=1.23.0",
-    "matplotlib>=3.0.0",
+    # numba/numpy compatibility issue in JAXOPT.
+    "numpy>=1.18.4, <1.25.0",
     "flax>=0.5.2",
     "optax>=0.1.1",
-    "scipy>=1.7.0",
+    "lineax>=0.0.1; python_version >= '3.9'"
 ]
 keywords = [
     "optimal transport",
@@ -73,12 +72,15 @@ test = [
     "chex",
     "networkx>=2.5",
     "scikit-learn>=1.0",
+    # tslearn needs numba, which isn't supported for 3.11
+    "tslearn>=0.5; python_version < '3.11'",
+    "lineax; python_version >= '3.9'",
+    "matplotlib",
 ]
 docs = [
     "sphinx>=4.0",
-    "ipython>=7.20.0",
+    "sphinx-book-theme>=1.0.1",
     "sphinx_autodoc_typehints>=1.12.0",
-    "sphinx-book-theme>=0.3.3",
     "sphinx-copybutton>=0.5.1",
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinxcontrib-spelling>=7.7.0",
@@ -87,7 +89,7 @@ docs = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = {find = {where = ["src"], namespaces = false}}
+include-package-data = true
 
 [tool.setuptools_scm]
 
@@ -101,8 +103,9 @@ profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "NUMERIC", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
-known_numeric = ["numpy", "scipy", "pandas", "sklearn", "jax", "flax", "optax", "torch"]
-known_plotting = ["matplotlib", "mpl_toolkits", "seaborn"]
+# also contains what we import in notebooks
+known_numeric = ["numpy", "scipy", "jax", "flax", "optax", "jaxopt", "torch", "ot", "torchvision", "pandas", "sklearn"]
+known_plotting = ["IPython", "matplotlib", "mpl_toolkits", "seaborn"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -149,6 +152,7 @@ coalesce_brackets = true
 [tool.rstcheck]
 ignore_directives = [
     "toctree",
+    "module",
     "currentmodule",
     "autosummary",
     "automodule",
@@ -158,6 +162,7 @@ ignore_directives = [
 ignore_roles = [
     "class",
     "doc",
+    "mod",
     "cite",
 ]
 
@@ -175,9 +180,9 @@ legacy_tox_ini = """
     [testenv]
     extras = test
     pass_env = CUDA_*,PYTEST_*,CI
-    deps = py{3.8,3.9,3.10}: scikit-sparse>=0.4.6
     commands_pre =
-        gpu: pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
     commands =
         python -m pytest {tty:--color=yes} {posargs: \
             --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
@@ -192,34 +197,34 @@ legacy_tox_ini = """
 
     [testenv:lint-docs]
     description = Lint the documentation.
+    deps =
     extras = docs
-    allowlist_externals =
-        rm
-        sphinx-build
-    pass_env = PYENCHANT_LIBRARY_PATH
-    ignore_outcome = true  # TODO(michalk8): disable this once the checks pass
     ignore_errors = true
-    commands_pre =
-        rm -rf {tox_root}/docs/_build/spellcheck
-        rm -rf {tox_root}/docs/_build/linkcheck
+    allowlist_externals = make
+    pass_env = PYENCHANT_LIBRARY_PATH
+    set_env = SPHINXOPTS = -W -q --keep-going
+    changedir = {tox_root}{/}docs
     commands =
-        sphinx-build -q -W --keep-going -b linkcheck {tox_root}/docs {tox_root}/docs/_build/linkcheck {posargs}
-        sphinx-build -W --keep-going -b spelling {tox_root}/docs {tox_root}/docs/_build/spellcheck {posargs}
+        make linkcheck {posargs}
+        make spelling {posargs}
 
     [testenv:build-docs]
     description = Build the documentation.
     use_develop = true
+    deps =
     extras = docs
-    allowlist_externals = sphinx-build
+    allowlist_externals = make
+    changedir = {tox_root}{/}docs
     commands =
-        sphinx-build -b html {tox_root}/docs {tox_root}/docs/_build/html {posargs}
+        make html {posargs}
     commands_post =
-        python -c 'import pathlib; print(f"Documentation is under:", pathlib.Path(f"{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+        python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
     [testenv:clean-docs]
     description = Remove the documentation.
+    deps =
     skip_install = true
-    changedir = {tox_root}/docs
+    changedir = {tox_root}{/}docs
     allowlist_externals = make
     commands =
         make clean
@@ -233,7 +238,16 @@ legacy_tox_ini = """
         python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
         twine check {tox_root}{/}dist{/}*
     commands_post =
-        python -c 'import pathlib; print(f"Package is under:", pathlib.Path(f"{tox_root}") / "dist")'
+        python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
+
+    [testenv:format-references]
+    description = Format references.bib.
+    skip_install = true
+    allowlist_externals = biber
+    commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
+        --output_align --output_indent=2 --output_fieldcase=lower \
+        --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
+        {tox_root}{/}docs{/}references.bib
 """
 
 [tool.ruff]
@@ -245,66 +259,44 @@ exclude = [
     "dist"
 ]
 ignore = [
-    # line too long -> we accept long comment lines; black gets rid of long code lines
-    "E501",
     # Do not assign a lambda expression, use a def -> lambda expression assignments are convenient
     "E731",
     # allow I, O, l as variable names -> I is the identity matrix, i, j, k, l is reasonable indexing notation
     "E741",
     # Missing docstring in public package
     "D104",
-    # ... imported but unused
-    "F401",
     # Missing docstring in public module
     "D100",
     # Missing docstring in __init__
     "D107",
-    # Do not perform function calls in argument defaults.
-    "B008",
     # Missing docstring in magic method
     "D105",
-    # Missing blank line before section
-    "D411",
-    ## Flake8 rules not supported by ruff:
-    # line break before a binary operator -> black does not adhere to PEP8
-    # "W503",
-    # line break occured after a binary operator -> black does not adhere to PEP8
-    # "W504",
-    # whitespace before : -> black does not adhere to PEP8
-    # "E203",
-    # whitespace before : -> black does not adhere to PEP8
-    # "E203",
-    # missing whitespace after ,', ';', or ':' -> black does not adhere to PEP8
-    # "E231",
-    # continuation line over-indented for hanging indent -> black does not adhere to PEP8
-    # "E126",
-    # inline comment should start with '#' -> Scanpy allows them for specific explanations
-    # "E266",
-    # format string does contain unindexed parameters
-    # "P101",
-    # indentation is not a multiple of 4
-    # "E111",
-    # "E114",
 ]
 line-length = 80
 select = [
+    "D", # flake8-docstrings
     "I", # isort
     "E", # pycodestyle
     "F", # pyflakes
     "W", # pycodestyle
-    # below are not autofixed
+    "Q", # flake8-quotes
+    "SIM", # flake8-simplify
+    "TID",  # flake-8-tidy-imports
+    "NPY",  # NumPy-specific rules
+    "PT",  # flake8-pytest-style
+    "B", # flake8-bugbear
     "UP", # pyupgrade
     "C4", # flake8-comprehensions
-    "B", # flake8-bugbear
     "BLE", # flake8-blind-except
+    "T20",  # flake8-print
+    "RET", # flake8-raise
 ]
-unfixable = ["B", "UP", "C4", "BLE"]
+unfixable = ["B", "UP", "C4", "BLE", "T20", "RET"]
 target-version = "py38"
 [tool.ruff.per-file-ignores]
-    "tests/*" = ["D", "E", "F", "W", "I", "C408"]
+    "tests/*" = ["D", "PT004"]  # TODO(michalk8): remove `self.initialize` in `tests/`
     "*/__init__.py" = ["F401"]
-    "examples/*" = ["D101", "D102", "D103"]
-    "docs/*" = ["E", "F", "W", "I", "D101", "D102"]
+    "docs/*" = ["D"]
     "src/ott/types.py" = ["D102"]
 [tool.ruff.pydocstyle]
 convention = "google"
@@ -314,3 +306,5 @@ keep-runtime-typing = true
 [tool.ruff.flake8-tidy-imports]
 # Disallow all relative imports.
 ban-relative-imports = "parents"
+[tool.ruff.flake8-quotes]
+inline-quotes = "double"

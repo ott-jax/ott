@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 import jax
-import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.scipy as jsp
 
 if TYPE_CHECKING:
   from ott.geometry import costs
 
 __all__ = [
-    "safe_log", "kl", "js", "sparse_scale", "logsumexp",
+    "safe_log", "kl", "gen_kl", "js", "logsumexp", "softmin",
     "barycentric_projection"
 ]
-
-# TODO(michalk8): move to typing.py when refactoring types
-Sparse_t = Union[jesp.CSR, jesp.CSC, jesp.COO, jesp.BCOO]
 
 
 def safe_log(  # noqa: D103
@@ -40,23 +37,21 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
+# TODO(michalk8): add axis argument
 def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
-  """Kullback-Leilbler divergence."""
+  """Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
 
 
-def js(p: jnp.ndarray, q: jnp.ndarray, *, c: float = 0.5) -> float:
+def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+  """Generalized Kullback-Leibler divergence."""
+  return jnp.vdot(p, (safe_log(p) - safe_log(q))) + jnp.sum(q) - jnp.sum(p)
+
+
+# TODO(michalk8): add axis argument
+def js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
   return c * (kl(p, q) + kl(q, p))
-
-
-def sparse_scale(c: float, mat: Sparse_t) -> Sparse_t:
-  """Scale a sparse matrix by a constant."""
-  if isinstance(mat, jesp.BCOO):
-    # most feature complete, defer to original impl.
-    return c * mat
-  (data, *children), aux_data = mat.tree_flatten()
-  return type(mat).tree_unflatten(aux_data, [c * data] + children)
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))
@@ -109,8 +104,24 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
     res += jnp.sum(tan_b * centered_exp, axis=axis, keepdims=keepdims)
   if return_sign:
     return (lse, sign), (sign * res, jnp.zeros_like(sign))
-  else:
-    return lse, res
+  return lse, res
+
+
+@functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
+def softmin(
+    x: jnp.ndarray, gamma: float, axis: Optional[int] = None
+) -> jnp.ndarray:
+  r"""Soft-min operator.
+
+  Args:
+    x: Input data.
+    gamma: Smoothing parameter :math:`> 0`.
+    axis: Axis or axes over which to operate. If ``None``, use flattened input.
+
+  Returns:
+    The soft minimum.
+  """
+  return -gamma * jsp.special.logsumexp(x / -gamma, axis=axis)
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
@@ -127,4 +138,18 @@ def barycentric_projection(
   Returns:
     a vector of shape (n,) containing the barycentric projection of matrix.
   """
-  return jax.vmap(cost_fn.barycenter, in_axes=[0, None])(matrix, y)
+  return jax.vmap(
+      lambda m, y: cost_fn.barycenter(m, y)[0], in_axes=[0, None]
+  )(matrix, y)
+
+
+softmin.defvjp(
+    lambda x, gamma, axis: (softmin(x, gamma, axis), (x / -gamma, axis)),
+    lambda axis, res, g: (
+        jnp.where(
+            jnp.isinf(res[0]), 0.0,
+            jax.nn.softmax(res[0], axis=axis) *
+            (g if axis is None else jnp.expand_dims(g, axis=axis))
+        ), None
+    )
+)

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Implements the sinkhorn divergence."""
 from types import MappingProxyType
 from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
 
@@ -70,7 +69,7 @@ def sinkhorn_divergence(
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
     sinkhorn_kwargs: keywords arguments for
-      :func:`~ott.solvers.linear.sinkhorn.sinkhorn` that is called twice
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` that is called twice
       if ``static_b = True`` else 3 times.
     static_b: if True, divergence of measure `b` against itself is **not**
       computed.
@@ -120,7 +119,7 @@ def _sinkhorn_divergence(
     symmetric_sinkhorn: bool,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
-  """Compute the (unbalanced) sinkhorn divergence for the wrapper function.
+  """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
     measure, as defined in :sejourne:19:, eq. 15.
@@ -159,13 +158,19 @@ def _sinkhorn_divergence(
         parallel_dual_updates=True,
         momentum=acceleration.Momentum(start=0, value=0.5),
         anderson=None,
-        # TODO(michalk8): implicit_diff
     )
+    implicit_diff = kwargs.get("implicit_diff", None)
+    if implicit_diff is not None:
+      kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 
   out_xy = sinkhorn.solve(geometry_xy, a, b, **kwargs)
   out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
-    out_yy = sinkhorn.SinkhornOutput(errors=jnp.array([]), reg_ot_cost=0.0)
+    # Create dummy output, corresponds to scenario where static_b is True.
+    # This choice ensures that `converged`` of this dummy output is True.
+    out_yy = sinkhorn.SinkhornOutput(
+        errors=jnp.array([-jnp.inf]), reg_ot_cost=0.0, threshold=0.0
+    )
   else:
     out_yy = sinkhorn.solve(geometry_yy, b, b, **kwargs_symmetric)
 
@@ -200,7 +205,7 @@ def segment_sinkhorn_divergence(
     symmetric_sinkhorn: bool = False,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Compute sinkhorn divergence between subsets of vectors given in `x` & `y`.
+  """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
   clouds of varying size, in parallel, using padding for efficiency.
@@ -215,7 +220,7 @@ def segment_sinkhorn_divergence(
 
   For both interfaces, both `x` and `y` should contain the same total number of
   segments. Each segment will be padded as necessary, all segments rearranged as
-  a tensor, and `vmap` used to evaluate sinkhorn divergences in parallel.
+  a tensor, and `vmap` used to evaluate Sinkhorn divergences in parallel.
 
   Args:
     x: Array of input points, of shape `[num_x, feature]`.
@@ -247,7 +252,7 @@ def segment_sinkhorn_divergence(
       order as `y`.
     sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
       calls to the `sinkhorn` function, called three times to evaluate for each
-      segment the sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
+      segment the Sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
       `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
       evaluated)
     static_b: if True, divergence of measure b against itself is NOT computed
@@ -263,8 +268,9 @@ def segment_sinkhorn_divergence(
       :class:`~ott.geometry.pointcloud.PointCloud` geometry objects from the
       subsets of points and masses selected in `x` and `y`, this could be for
       instance entropy regularization float, scheduler or normalization.
+
   Returns:
-    An array of sinkhorn divergence values for each segment.
+    An array of Sinkhorn divergences for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]

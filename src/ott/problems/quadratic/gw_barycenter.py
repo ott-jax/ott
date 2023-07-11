@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
@@ -14,7 +27,7 @@ __all__ = ["GWBarycenterProblem"]
 
 # TODO(michalk8): better abstraction (common superclass for Wasserstein bary)
 @jax.tree_util.register_pytree_node_class
-class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
+class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   """(Fused) Gromov-Wasserstein barycenter problem :cite:`peyre:16,vayer:19`.
 
   Args:
@@ -53,7 +66,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       costs: Optional[jnp.ndarray] = None,
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
-      gw_loss: Literal['sqeucl', 'kl'] = 'sqeucl',
+      gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
       scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
   ):
@@ -119,7 +132,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       )
       return transport @ tmp
 
-    fn = None if self._loss_name == 'sqeucl' else self.gw_loss.h2
+    fn = None if self._loss_name == "sqeucl" else self.gw_loss.h2
     y, b = self.segmented_y_b
     weights = self.weights[:, None, None]
 
@@ -129,8 +142,8 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
 
     # TODO(michalk8): in future, use `isinstanceof(self.gw_loss, ...)`
     # once refactoring has been done
-    if self._loss_name == 'kl':
-      barycenter = jnp.exp(barycenter)
+    if self._loss_name == "kl":
+      return jnp.exp(barycenter)
     return barycenter
 
   def update_features(self, transports: jnp.ndarray,
@@ -221,7 +234,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
 
   def _create_problem(
       self,
-      state: 'GWBarycenterState',  # noqa: F821
+      state: "GWBarycenterState",  # noqa: F821
       y: jnp.ndarray,
       b: jnp.ndarray,
       f: Optional[jnp.ndarray] = None
@@ -257,8 +270,7 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
-    """Feature array of shape ``[num_measures, max_measure_size, ndim_fused]`` \
-    used in the fused case."""
+    """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
     y_fused, _ = segment.segment_point_cloud(
@@ -284,9 +296,9 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
     # `https://jax.readthedocs.io/en/latest/notebooks/ some fns;
     # Writing_custom_interpreters_in_Jax.html#your-first-interpreter-invert`
     # might be useful
-    if self._loss_name == 'sqeucl':
+    if self._loss_name == "sqeucl":
       return quadratic_costs.make_square_loss()
-    if self._loss_name == 'kl':
+    if self._loss_name == "kl":
       return quadratic_costs.make_kl_loss()
     raise NotImplementedError(
         f"Loss `{self._loss_name}` is not yet implemented."
@@ -298,9 +310,9 @@ class GWBarycenterProblem(barycenter_problem.BarycenterProblem):
       children = [None, b, weights, y]
     else:
       children = [y, b, weights, None]
-    aux['fused_penalty'] = self.fused_penalty
-    aux['gw_loss'] = self._loss_name
-    aux['scale_cost'] = self.scale_cost
+    aux["fused_penalty"] = self.fused_penalty
+    aux["gw_loss"] = self._loss_name
+    aux["scale_cost"] = self.scale_cost
     return children + [self._y_fused], aux
 
   @classmethod

@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Functions entering the implicit differentiation of Sinkhorn."""
-
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+import dataclasses
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -24,6 +23,10 @@ from ott.math import unbalanced_functions as uf
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
 
+LinOp_t = Callable[[jnp.ndarray], jnp.ndarray]
+Solver_t = Callable[[LinOp_t, jnp.ndarray, Optional[LinOp_t], bool],
+                    jnp.ndarray]
+
 __all__ = ["ImplicitDiff"]
 
 
@@ -32,30 +35,50 @@ class ImplicitDiff:
   """Implicit differentiation of Sinkhorn algorithm.
 
   Args:
-    solver_fun: Callable, should return (solution, ...)
-    ridge_kernel: promotes zero-sum solutions. only used if tau_a = tau_b = 1.0
-    ridge_identity: handles rank deficient transport matrices (this happens
-      typically when rows/cols in cost/kernel matrices are collinear, or,
-      equivalently when two points from either measure are close).
+    solver: Callable to compute the solution to a linear problem. The callable
+      expects a linear function, a vector, optionally another linear function
+      that implements the transpose of that function, and a boolean flag to
+      specify symmetry. This solver is by default one of :class:`lineax.CG` or
+      :class:`lineax.NormalCG` solvers, if the package can be imported, as
+      described in :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
+      The :mod:`jax` alternative is described in
+      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
+      Note that `lineax` solvers handle better poorly conditioned problems,
+      which arise typically when differentiating the solutions of balanced OT
+      problems (when ``tau_a==tau_b==1.0``). Relying on
+      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
+      for such cases might require hand-tuning ridge parameters,
+      in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
+      doc. These parameters can be passed using ``solver_kwargs`` below.
+    solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
-      implicit function theorem is symmetric or not. This happens when either
-      ``a == b`` or the precondition_fun is the identity. False by default, and,
-      at the moment, needs to be set manually by the user in the more favorable
-      case where the system is guaranteed to be symmetric.
-    precondition_fun: TODO(marcocuturi)
+      implicit function theorem is symmetric or not. This happens when
+      ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
+      is the identity. The flag is False by default, and is also tested against
+      ``tau_a==tau_b``. It needs to be set manually by the user in the more
+      favorable case where the system is guaranteed to be symmetric.
+    precondition_fun: Function used to precondition, on both sides, the linear
+      system derived from first-order conditions of the regularized OT problem.
+      That linear system typically involves an equality between marginals (or
+      simple transform of these marginals when the problem is unbalanced) and
+      another function of the potentials. When that function is specified, that
+      function is applied on both sides of the equality, before being further
+      differentiated to provide the Jacobians needed for implicit function
+      theorem differentiation.
   """
 
-  solver_fun: Callable[[jnp.ndarray, jnp.ndarray],
-                       Tuple[jnp.ndarray, ...]] = jax.scipy.sparse.linalg.cg
-  ridge_kernel: float = 0.0
-  ridge_identity: float = 0.0
+  solver: Optional[Solver_t] = None
+  solver_kwargs: Optional[Dict[str, Any]] = None
   symmetric: bool = False
   precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
 
   def solve(
-      self, gr: Tuple[jnp.ndarray,
-                      jnp.ndarray], ot_prob: "linear_problem.LinearProblem",
-      f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
+      self,
+      gr: Tuple[jnp.ndarray, jnp.ndarray],
+      ot_prob: "linear_problem.LinearProblem",
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      lse_mode: bool,
   ) -> jnp.ndarray:
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
@@ -111,20 +134,9 @@ class ImplicitDiff:
     instantiate the Schur complement of the first or of the second diagonal
     block.
 
-    In either case, the Schur complement is rank deficient, with a 0 eigenvalue
-    for the vector of ones in the balanced case, which is why we add a ridge on
-    that subspace to enforce solutions have zero sum.
-
-    The Schur complement can also be rank deficient if two lines or columns of T
-    are collinear. This will typically happen it two rows or columns of the cost
-    or kernel matrix are numerically close. To avoid this, we add a more global
-    ``ridge_identity * z`` regularizer to achieve better conditioning.
-
-    These linear systems are solved using the user defined ``solver_fun``,
-    which is set by default to ``cg``. When the system is symmetric (as detected
-    by the corresponding flag ``symmetric``), ``cg`` is applied directly. When
-    it is not, normal equations are used (i.e. the Schur complement is
-    multiplied by its transpose before solving the system).
+    These linear systems are solved using the user-defined ``solver``, using
+    by default :mod:`lineax` solvers when available, or falling back on
+    :mod:`jax` when not.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
@@ -136,17 +148,19 @@ class ImplicitDiff:
     Returns:
       A tuple of two vectors, of the same size as ``gr``.
     """
+    solver = _get_solver() if self.solver is None else self.solver
+    solver_kwargs = {} if self.solver_kwargs is None else self.solver_kwargs
     geom = ot_prob.geom
     marginal_a, marginal_b, app_transport = (
         ot_prob.get_transport_functions(lse_mode)
     )
-
-    # elementwise vmap apply of derivative of precondition_fun. No vmapping
-    # can be problematic here.
     if self.precondition_fun is None:
       precond_fun = lambda x: geom.epsilon * jnp.log(x)
+      symmetric = False
     else:
       precond_fun = self.precondition_fun
+      symmetric = self.symmetric
+
     derivative = jax.vmap(jax.grad(precond_fun))
 
     n, m = geom.shape
@@ -158,7 +172,7 @@ class ImplicitDiff:
         f, g, z * derivative(marginal_a(f, g)), axis=0
     ) / geom.epsilon
 
-    if not self.symmetric:
+    if not symmetric:
       vjp_fgt = lambda z: app_transport(
           f, g, z, axis=0
       ) * derivative(marginal_b(f, g)) / geom.epsilon
@@ -178,52 +192,32 @@ class ImplicitDiff:
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
         )
     )
-
     n, m = geom.shape
-    # Remove ridge on kernel space if problem is balanced.
-    ridge_kernel = jnp.where(ot_prob.is_balanced, self.ridge_kernel, 0.0)
-
+    # TODO(cuturi) consider materializing linear operator schur if size allows.
     # Forks on using Schur complement of either A or D, depending on size.
     if n > m:  #  if n is bigger, run m x m linear system.
       inv_vjp_ff = lambda z: z / diag_hess_a
       vjp_gg = lambda z: z * diag_hess_b
-      schur_ = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
-      res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
-
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
+      schur = lambda z: vjp_gg(z) - vjp_gf(inv_vjp_ff(vjp_fg(z)))
+      if not symmetric:
         schur_t = lambda z: vjp_gg(z) - vjp_fgt(inv_vjp_ff(vjp_gft(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
-
-      sch = self.solver_fun(schur, res)[0]
+      else:
+        schur_t = None
+      res = gr[1] - vjp_gf(inv_vjp_ff(gr[0]))
+      sch = solver(schur, res, schur_t, symmetric, **solver_kwargs)
       vjp_gr_f = inv_vjp_ff(gr[0] - vjp_fg(sch))
       vjp_gr_g = sch
     else:
       vjp_ff = lambda z: z * diag_hess_a
       inv_vjp_gg = lambda z: z / diag_hess_b
-      schur_ = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
-      res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
+      schur = lambda z: vjp_ff(z) - vjp_fg(inv_vjp_gg(vjp_gf(z)))
 
-      if self.symmetric:
-        schur = lambda z: (
-            schur_(z) + ridge_kernel * jnp.sum(z) + self.ridge_identity * z
-        )
-      else:
+      if not symmetric:
         schur_t = lambda z: vjp_ff(z) - vjp_gft(inv_vjp_gg(vjp_fgt(z)))
-        res = schur_t(res)
-        schur = lambda z: (
-            schur_t(schur_(z)) + ridge_kernel * jnp.sum(z) + self.ridge_identity
-            * z
-        )
-
-      sch = self.solver_fun(schur, res)[0]
+      else:
+        schur_t = None
+      res = gr[0] - vjp_fg(inv_vjp_gg(gr[1]))
+      sch = solver(schur, res, schur_t, symmetric, **solver_kwargs)
       vjp_gr_g = inv_vjp_gg(gr[1] - vjp_gf(sch))
       vjp_gr_f = sch
 
@@ -275,7 +269,7 @@ class ImplicitDiff:
       self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
       g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> "linear_problem.LinearProblem":
-    """Apply vjp to recover gradient in reverse mode differentiation."""
+    """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
     vjp_gr = self.solve(gr, prob, f, g, lse_mode)
 
@@ -286,3 +280,45 @@ class ImplicitDiff:
     # Carries pullback onto original inputs, here geom, a and b.
     _, pull_prob = jax.vjp(foc_prob, prob)
     return pull_prob(vjp_gr)
+
+  def replace(self, **kwargs: Any) -> "ImplicitDiff":  # noqa: D102
+    return dataclasses.replace(self, **kwargs)
+
+
+def solve_jax_cg(
+    lin: LinOp_t,
+    b: jnp.ndarray,
+    lin_t: Optional[LinOp_t] = None,
+    symmetric: bool = False,
+    ridge_identity: float = 0.0,
+    ridge_kernel: float = 0.0,
+    **kwargs: Any
+) -> jnp.ndarray:
+  """Wrapper around JAX native linear solvers.
+
+  Args:
+    lin: Linear operator
+    b: vector. Returned `x` is such that `lin(x)=b`
+    lin_t: Linear operator, corresponding to transpose of `lin`.
+    symmetric: whether `lin` is symmetric.
+    ridge_kernel: promotes zero-sum solutions. Only use if `tau_a = tau_b = 1.0`
+    ridge_identity: handles rank deficient transport matrices (this happens
+      typically when rows/cols in cost/kernel matrices are collinear, or,
+      equivalently when two points from either measure are close).
+    kwargs: arguments passed to :func:`~jax.scipy.sparse.linalg.cg`
+  """
+  op = lin if symmetric else lambda x: lin_t(lin(x))
+  if ridge_kernel > 0.0 or ridge_identity > 0.0:
+    lin_reg = lambda x: op(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
+  else:
+    lin_reg = op
+  return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
+
+
+def _get_solver() -> Solver_t:
+  """Get lineax solver when possible, default to jax.scipy else."""
+  try:
+    from ott.solvers.linear import lineax_implicit
+    return lineax_implicit.solve_lineax
+  except ImportError:
+    return solve_jax_cg

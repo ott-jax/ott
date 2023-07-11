@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the soft sort tools."""
 import functools
 from typing import Tuple
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.tools import soft_sort
@@ -29,14 +26,16 @@ from ott.tools import soft_sort
 class TestSoftSort:
 
   @pytest.mark.parametrize("shape", [(20,), (20, 1)])
-  def test_sort_one_array(self, rng: jnp.ndarray, shape: Tuple[int, ...]):
+  def test_sort_one_array(
+      self, rng: jax.random.PRNGKeyArray, shape: Tuple[int, ...]
+  ):
     x = jax.random.uniform(rng, shape)
     xs = soft_sort.sort(x, axis=0)
 
     np.testing.assert_array_equal(x.shape, xs.shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=0) >= 0.0, True)
 
-  def test_sort_array_squashing_momentum(self, rng: jnp.ndarray):
+  def test_sort_array_squashing_momentum(self, rng: jax.random.PRNGKeyArray):
     shape = (33, 1)
     x = jax.random.uniform(rng, shape)
     xs_lin = soft_sort.sort(
@@ -61,9 +60,9 @@ class TestSoftSort:
     np.testing.assert_array_equal(jnp.diff(xs_lin, axis=0) >= -1e-8, True)
     np.testing.assert_array_equal(jnp.diff(xs_sig, axis=0) >= -1e-8, True)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [-1, 4, 100])
-  def test_topk_one_array(self, rng: jnp.ndarray, k: int):
+  def test_topk_one_array(self, rng: jax.random.PRNGKeyArray, k: int):
     n = 20
     x = jax.random.uniform(rng, (n,))
     axis = 0
@@ -77,7 +76,7 @@ class TestSoftSort:
     np.testing.assert_allclose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
 
   @pytest.mark.fast.with_args("topk", [-1, 2, 5, 11], only_fast=-1)
-  def test_sort_batch(self, rng: jnp.ndarray, topk: int):
+  def test_sort_batch(self, rng: jax.random.PRNGKeyArray, topk: int):
     x = jax.random.uniform(rng, (32, 10, 6, 4))
     axis = 1
     xs = soft_sort.sort(x, axis=axis, topk=topk)
@@ -87,7 +86,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  def test_rank_one_array(self, rng: jnp.ndarray):
+  def test_rank_one_array(self, rng: jax.random.PRNGKeyArray):
     x = jax.random.uniform(rng, (20,))
     expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
 
@@ -96,21 +95,19 @@ class TestSoftSort:
     np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.9, rtol=0.1)
 
-  @pytest.mark.fast
-  @pytest.mark.parametrize("level", [0.2, 0.9])
-  def test_quantile(self, level: float):
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("q", [0.2, 0.9])
+  def test_quantile(self, q: float):
     x = jnp.linspace(0.0, 1.0, 100)
-    q = soft_sort.quantile(
-        x, level=level, weight=0.05, epsilon=1e-3, lse_mode=True
-    )
+    x_q = soft_sort.quantile(x, q=q, weight=0.05, epsilon=1e-3, lse_mode=True)
 
-    np.testing.assert_approx_equal(q, level, significant=1)
+    np.testing.assert_approx_equal(x_q, q, significant=1)
 
-  def test_quantile_on_several_axes(self, rng: jnp.ndarray):
+  def test_quantile_on_several_axes(self, rng: jax.random.PRNGKeyArray):
     batch, height, width, channels = 16, 100, 100, 3
     x = jax.random.uniform(rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
-        x, axis=(1, 2), level=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
+        x, axis=(1, 2), q=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
     )
 
     np.testing.assert_array_equal(q.shape, (batch, 1, channels))
@@ -118,7 +115,14 @@ class TestSoftSort:
         q, 0.5 * np.ones((batch, 1, channels)), atol=3e-2
     )
 
-  def test_soft_quantile_normalization(self, rng: jnp.ndarray):
+  @pytest.mark.fast()
+  def test_quantiles(self, rng: jax.random.PRNGKeyArray):
+    inputs = jax.random.uniform(rng, (200, 2, 3))
+    q = jnp.array([.1, .8, .4])
+    m1 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
+    np.testing.assert_allclose(m1.mean(axis=[1, 2]), q, atol=5e-2)
+
+  def test_soft_quantile_normalization(self, rng: jax.random.PRNGKeyArray):
     rngs = jax.random.split(rng, 2)
     x = jax.random.uniform(rngs[0], shape=(100,))
     mu, sigma = 2.0, 1.2
@@ -131,7 +135,7 @@ class TestSoftSort:
                                [mu_target, sigma_target],
                                rtol=0.05)
 
-  def test_sort_with(self, rng: jnp.ndarray):
+  def test_sort_with(self, rng: jax.random.PRNGKeyArray):
     n, d = 20, 4
     inputs = jax.random.uniform(rng, shape=(n, d))
     criterion = jnp.linspace(0.1, 1.2, n)
@@ -147,7 +151,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(output.shape, [k, d])
     np.testing.assert_allclose(output, inputs[-k:], atol=0.05)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_quantize(self):
     n = 100
     inputs = jnp.linspace(0.0, 1.0, n)[..., None]
@@ -158,20 +162,33 @@ class TestSoftSort:
     np.testing.assert_allclose(min_distances, min_distances, atol=0.05)
 
   @pytest.mark.parametrize("implicit", [False, True])
-  def test_soft_sort_jacobian(self, rng: jnp.ndarray, implicit: bool):
+  def test_soft_sort_jacobian(
+      self, rng: jax.random.PRNGKeyArray, implicit: bool
+  ):
+    ## Add a ridge when using JAX solvers.
+    try:
+      from ott.solvers.linear import lineax_implicit  # noqa: F401
+      solver_kwargs = {}
+    except ImportError:
+      solver_kwargs = {"ridge_identity": 1e-1, "ridge_kernel": 1e-1}
     b, n = 10, 40
+    num_targets = n // 2
     idx_column = 5
     rngs = jax.random.split(rng, 3)
     z = jax.random.uniform(rngs[0], ((b, n)))
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
     def loss_fn(logits: jnp.ndarray) -> float:
-      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+      im_d = None
+      if implicit:
+        # Ridge parameters are only used when using JAX's CG.
+        im_d = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
+
       ranks_fn = functools.partial(
           soft_sort.ranks,
           axis=-1,
-          num_targets=167,
-          implicit_diff=implicit_diff,
+          num_targets=num_targets,
+          implicit_diff=im_d,
       )
       return jnp.sum(ranks_fn(logits)[:, idx_column] * random_dir)
 

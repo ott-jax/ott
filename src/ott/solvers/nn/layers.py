@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Layers used in input convex neural networks :cite:`amos:17,bunne:22`."""
-
 from typing import Any, Callable, Tuple
 
 import flax.linen as nn
@@ -58,23 +56,25 @@ class PositiveDense(nn.Module):
 
     Args:
       inputs: Array to be transformed.
+
     Returns:
       The transformed input.
     """
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        'kernel', self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
+    kernel = jnp.asarray(kernel, self.dtype)
     y = jax.lax.dot_general(
         inputs,
         kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
         precision=self.precision
     )
     if self.use_bias:
-      bias = self.param('bias', self.bias_init, (self.dim_hidden,))
+      bias = self.param("bias", self.bias_init, (self.dim_hidden,))
       bias = jnp.asarray(bias, self.dtype)
-      y = y + bias
+      return y + bias
     return y
 
 
@@ -133,5 +133,4 @@ class PosDefPotentials(nn.Module):
       )
 
     y = 0.5 * y * y
-    out = jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)
-    return out
+    return jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)

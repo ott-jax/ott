@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Neural potential models."""
-
 import abc
-from typing import Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -37,7 +35,7 @@ PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 class NeuralTrainState(train_state.TrainState):
   """Adds information about the model's value and gradient to the state.
 
-  This extends :class:`flax.training.train_state.TrainState` to include
+  This extends :class:`~flax.training.train_state.TrainState` to include
   the potential methods from :class:`~ott.solvers.nn.models.ModelBase`
   used during training.
 
@@ -60,11 +58,11 @@ class ModelBase(abc.ABC, nn.Module):
   @property
   @abc.abstractmethod
   def is_potential(self) -> bool:
-    """Indicates if the module defines the potential's value or the gradient.
+    """Indicates if the module implements a potential value or a vector field.
 
     Returns:
-      ``True`` if the module defines the potential's value, ``False``
-      if it defines the gradient.
+      ``True`` if the module defines a potential, ``False`` if it defines a
+       vector field.
     """
 
   def potential_value_fn(
@@ -78,6 +76,7 @@ class ModelBase(abc.ABC, nn.Module):
     constructs the value of the potential from the gradient with
 
     .. math::
+
       g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
 
     where :math:`\nabla_y g(y)` is detached for the envelope theorem
@@ -86,35 +85,36 @@ class ModelBase(abc.ABC, nn.Module):
 
     Args:
       params: parameters of the module
-      x: point to evaluate the value at
-      other_potential_value: function giving the value of the other potential.
-        Only needed when :attr:`is_potential` is ``False``.
+      other_potential_value_fn: function giving the value of the other
+        potential. Only needed when :attr:`is_potential` is ``False``.
 
     Returns:
-      A function that can be evaluated to obtain the potential's value
+      A function that can be evaluated to obtain a potential value, or a linear
+      interpolation of a potential.
     """
     if self.is_potential:
       return lambda x: self.apply({"params": params}, x)
-    else:
-      assert other_potential_value_fn is not None, \
-          "The value of the gradient-based potential depends on the value of the other potential"
 
-      def value_fn(x: jnp.ndarray) -> jnp.ndarray:
-        squeeze = x.ndim == 1
-        if squeeze:
-          x = jnp.expand_dims(x, 0)
-        grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
-        value = -other_potential_value_fn(grad_g_x) + \
-            jax.vmap(jnp.dot)(grad_g_x, x)
-        return value.squeeze(0) if squeeze else value
+    assert other_potential_value_fn is not None, \
+        "The value of the gradient-based potential depends " \
+        "on the value of the other potential."
 
-      return value_fn
+    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+      squeeze = x.ndim == 1
+      if squeeze:
+        x = jnp.expand_dims(x, 0)
+      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+      value = -other_potential_value_fn(grad_g_x) + \
+          jax.vmap(jnp.dot)(grad_g_x, x)
+      return value.squeeze(0) if squeeze else value
+
+    return value_fn
 
   def potential_gradient_fn(
       self,
       params: frozen_dict.FrozenDict[str, jnp.ndarray],
   ) -> PotentialGradientFn_t:
-    """Return a function giving the gradient of the potential.
+    """Return a function returning a vector or the gradient of the potential.
 
     Args:
       params: parameters of the module
@@ -124,8 +124,26 @@ class ModelBase(abc.ABC, nn.Module):
     """
     if self.is_potential:
       return jax.vmap(jax.grad(self.potential_value_fn(params)))
-    else:
-      return lambda x: self.apply({'params': params}, x)
+    return lambda x: self.apply({"params": params}, x)
+
+  def create_train_state(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      optimizer: optax.OptState,
+      input: Union[int, Tuple[int, ...]],
+      **kwargs: Any,
+  ) -> NeuralTrainState:
+    """Create initial training state."""
+    params = self.init(rng, jnp.ones(input))["params"]
+
+    return NeuralTrainState.create(
+        apply_fn=self.apply,
+        params=params,
+        tx=optimizer,
+        potential_value_fn=self.potential_value_fn,
+        potential_gradient_fn=self.potential_gradient_fn,
+        **kwargs,
+    )
 
 
 class ICNN(ModelBase):
@@ -146,18 +164,19 @@ class ICNN(ModelBase):
     pos_weights: Enforce positive weights with a projection.
       If ``False``, the positive weights should be enforced with clipping
       or regularization in the loss.
-    gaussian_map: data inputs of source and target measures for
-      initialization scheme based on Gaussian approximation of input and
-      target measure (if ``None``, identity initialization is used).
+    gaussian_map_samples: Tuple of source and target points, used to initialize
+      the ICNN to mimic the linear Bures map that morphs the (Gaussian
+      approximation) of the input measure to that of the target measure. If
+      ``None``, the identity initialization is used, and ICNN mimics half the
+      squared Euclidean norm.
   """
-
   dim_data: int
   dim_hidden: Sequence[int]
   init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable = nn.relu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map: Tuple[jnp.ndarray, jnp.ndarray] = None
+  gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -176,10 +195,12 @@ class ICNN(ModelBase):
       rescale = lambda x: x
     self.use_init = False
     # check if Gaussian map was provided
-    if self.gaussian_map is not None:
-      factor, mean = self._compute_gaussian_map(self.gaussian_map)
+    if self.gaussian_map_samples is not None:
+      factor, mean = self._compute_gaussian_map_params(
+          self.gaussian_map_samples
+      )
     else:
-      factor, mean = self._compute_identity_map(self.dim_data)
+      factor, mean = self._compute_identity_map_params(self.dim_data)
 
     w_zs = []
     # keep track of previous size to normalize accordingly
@@ -213,7 +234,7 @@ class ICNN(ModelBase):
         use_bias=True,
     )
 
-    # subsequent layers reinjected into convex functions
+    # subsequent layers re-injected into convex functions
     w_xs = []
     for i in range(self.num_hidden):
       w_xs.append(
@@ -236,46 +257,26 @@ class ICNN(ModelBase):
     self.w_xs = w_xs
 
   @staticmethod
-  def _compute_gaussian_map(
-      inputs: Tuple[jnp.ndarray, jnp.ndarray]
+  def _compute_gaussian_map_params(
+      samples: Tuple[jnp.ndarray, jnp.ndarray]
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-
-    def compute_moments(x, reg=1e-4, sqrt_inv=False):
-      shape = x.shape
-      z = x.reshape(shape[0], -1)
-      mu = jnp.expand_dims(jnp.mean(z, axis=0), 0)
-      z = z - mu
-      matmul = lambda a, b: jnp.matmul(a, b)
-      sigma = jax.vmap(matmul)(jnp.expand_dims(z, 2), jnp.expand_dims(z, 1))
-      # unbiased estimate
-      sigma = jnp.sum(sigma, axis=0) / (shape[0] - 1)
-      # regularize
-      sigma = sigma + reg * jnp.eye(shape[1])
-
-      if sqrt_inv:
-        sigma_sqrt, sigma_inv_sqrt, _ = matrix_square_root.sqrtm(sigma)
-        return sigma, sigma_sqrt, sigma_inv_sqrt, mu
-      else:
-        return sigma, mu
-
-    source, target = inputs
-    _, covs_sqrt, covs_inv_sqrt, mus = compute_moments(source, sqrt_inv=True)
-    covt, mut = compute_moments(target, sqrt_inv=False)
-
-    mo = matrix_square_root.sqrtm_only(
-        jnp.dot(jnp.dot(covs_sqrt, covt), covs_sqrt)
-    )
-    A = jnp.dot(jnp.dot(covs_inv_sqrt, mo), covs_inv_sqrt)
-    b = jnp.squeeze(mus) - jnp.linalg.solve(A, jnp.squeeze(mut))
-    A = matrix_square_root.sqrtm_only(A)
-
-    return jnp.expand_dims(A, 0), jnp.expand_dims(b, 0)
+    from ott.tools.gaussian_mixture import gaussian
+    source, target = samples
+    # print(source)
+    # print(type(source))
+    g_s = gaussian.Gaussian.from_samples(source)
+    g_t = gaussian.Gaussian.from_samples(target)
+    lin_op = g_s.scale.gaussian_map(g_t.scale)
+    b = jnp.squeeze(g_t.loc) - jnp.linalg.solve(lin_op, jnp.squeeze(g_t.loc))
+    lin_op = matrix_square_root.sqrtm_only(lin_op)
+    return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
 
   @staticmethod
-  def _compute_identity_map(input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  def _compute_identity_map_params(
+      input_dim: int
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
-
     return A, b
 
   @nn.compact
@@ -287,26 +288,9 @@ class ICNN(ModelBase):
     z += self.pos_def_potential(x)
     return z.squeeze()
 
-  def create_train_state(
-      self,
-      rng: jnp.ndarray,
-      optimizer: optax.OptState,
-      input: Union[int, Tuple[int, ...]],
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-  ) -> NeuralTrainState:
-    """Create initial `TrainState`."""
-    params = self.init(rng, jnp.ones(input))["params"]
-    return NeuralTrainState.create(
-        apply_fn=self.apply,
-        params=params,
-        tx=optimizer,
-        potential_value_fn=self.potential_value_fn,
-        potential_gradient_fn=self.potential_gradient_fn,
-    )
-
 
 class MLP(ModelBase):
-  """A non-convex MLP.
+  """A generic, typically not-convex (w.r.t input) MLP.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The output
@@ -345,21 +329,3 @@ class MLP(ModelBase):
       z = x + Wx(z)
 
     return z.squeeze(0) if squeeze else z
-
-  def create_train_state(
-      self,
-      rng: jnp.ndarray,
-      optimizer: optax.OptState,
-      input: Union[int, Tuple[int, ...]],
-      params: Optional[frozen_dict.FrozenDict[str, jnp.ndarray]] = None,
-  ) -> NeuralTrainState:
-    """Create initial `TrainState`."""
-    if params is None:
-      params = self.init(rng, jnp.ones(input))["params"]
-    return NeuralTrainState.create(
-        apply_fn=self.apply,
-        params=params,
-        tx=optimizer,
-        potential_value_fn=self.potential_value_fn,
-        potential_gradient_fn=self.potential_gradient_fn,
-    )

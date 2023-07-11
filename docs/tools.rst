@@ -1,7 +1,7 @@
 ott.tools
 =========
+.. module:: ott.tools
 .. currentmodule:: ott.tools
-.. automodule:: ott.tools
 
 The tools package contains high level functions that build on outputs produced
 by core functions. They can be used to compute Sinkhorn divergences
@@ -50,12 +50,24 @@ Clustering
     k_means.k_means
     k_means.KMeansOutput
 
+Mapping Estimation
+------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    map_estimator.MapEstimator
+
 ott.tools.gaussian_mixture package
 ----------------------------------
 .. currentmodule:: ott.tools.gaussian_mixture
 .. automodule:: ott.tools.gaussian_mixture
 
-.. TODO(cuturi): add a description
+This package implements various tools to manipulate Gaussian mixtures with a
+slightly modified Wasserstein geometry: here a Gaussian mixture is no longer
+strictly regarded as a density :math:`\mathbb{R}^d`, but instead as a point
+cloud in the space of Gaussians in :math:`\mathbb{R}^d`. This viewpoint provides
+a new approach to compare, and fit Gaussian mixtures, as described for instance
+in :cite:`delon:20` and references therein.
 
 Gaussian Mixtures
 ^^^^^^^^^^^^^^^^^

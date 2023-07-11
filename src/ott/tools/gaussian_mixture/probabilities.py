@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pytree for a vector of probabilities."""
-
 from typing import Optional
 
 import jax
@@ -37,19 +35,19 @@ class Probabilities:
   @classmethod
   def from_random(
       cls,
-      key: jnp.ndarray,
+      rng: jax.random.PRNGKeyArray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: Optional[jnp.dtype] = None
-  ) -> 'Probabilities':
+  ) -> "Probabilities":
     """Construct a random Probabilities."""
     return cls(
         params=jax.random
-        .normal(key=key, shape=(n_dimensions - 1,), dtype=dtype) * stdev
+        .normal(key=rng, shape=(n_dimensions - 1,), dtype=dtype) * stdev
     )
 
   @classmethod
-  def from_probs(cls, probs: jnp.ndarray) -> 'Probabilities':
+  def from_probs(cls, probs: jnp.ndarray) -> "Probabilities":
     """Construct Probabilities from a vector of probabilities."""
     log_probs = jnp.log(probs)
     log_probs_normalized, norm = log_probs[:-1], log_probs[-1]
@@ -78,10 +76,10 @@ class Probabilities:
     """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
-  def sample(self, key: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
     """Sample from the distribution."""
     return jax.random.categorical(
-        key=key, logits=self.unnormalized_log_probs(), shape=(size,)
+        key=rng, logits=self.unnormalized_log_probs(), shape=(size,)
     )
 
   def tree_flatten(self):  # noqa: D102
@@ -96,9 +94,9 @@ class Probabilities:
   def __repr__(self):
     class_name = type(self).__name__
     children, aux = self.tree_flatten()
-    return '{}({})'.format(
-        class_name, ', '.join([repr(c) for c in children] +
-                              [f'{k}: {repr(v)}' for k, v in aux.items()])
+    return "{}({})".format(
+        class_name, ", ".join([repr(c) for c in children] +
+                              [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
 
   def __hash__(self):

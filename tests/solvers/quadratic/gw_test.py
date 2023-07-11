@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Gromov Wasserstein."""
 from typing import Tuple, Union
-
-import pytest
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -27,20 +24,21 @@ from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestQuadraticProblem:
 
   @pytest.mark.parametrize("as_pc", [False, True])
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
-      self, rng: jnp.ndarray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+      self, rng: jax.random.PRNGKeyArray, as_pc: bool,
+      rank: Union[int, Tuple[int, ...]]
   ):
-    n, m, d1, d2, d = 200, 300, 20, 25, 30
-    k1, k2, k3, k4 = jax.random.split(rng, 4)
-    x = jax.random.normal(k1, (n, d1))
-    y = jax.random.normal(k2, (m, d2))
-    xx = jax.random.normal(k3, (n, d))
-    yy = jax.random.normal(k4, (m, d))
+    n, m, d1, d2, d = 100, 120, 4, 6, 10
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    x = jax.random.normal(rng1, (n, d1))
+    y = jax.random.normal(rng2, (m, d2))
+    xx = jax.random.normal(rng3, (n, d))
+    yy = jax.random.normal(rng4, (m, d))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
@@ -89,11 +87,13 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
-  def test_gw_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
-    n, m, d1, d2 = 200, 300, 20, 25
-    k1, k2 = jax.random.split(rng, 2)
-    x = jax.random.normal(k1, (n, d1))
-    y = jax.random.normal(k2, (m, d2))
+  def test_gw_implicit_conversion_mixed_input(
+      self, rng: jax.random.PRNGKeyArray
+  ):
+    n, m, d1, d2 = 13, 77, 3, 4
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (n, d1))
+    y = jax.random.normal(rng2, (m, d2))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y).to_LRCGeometry()
@@ -109,19 +109,19 @@ class TestQuadraticProblem:
 class TestGromovWasserstein:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.random.PRNGKeyArray):
     d_x = 2
     d_y = 3
     self.n, self.m = 6, 7
-    keys = jax.random.split(rng, 6)
-    self.x = jax.random.uniform(keys[0], (self.n, d_x))
-    self.y = jax.random.uniform(keys[1], (self.m, d_y))
-    a = jax.random.uniform(keys[2], (self.n,)) + 1e-1
-    b = jax.random.uniform(keys[3], (self.m,)) + 1e-1
+    rngs = jax.random.split(rng, 6)
+    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
+    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
+    a = jax.random.uniform(rngs[2], (self.n,)) + 1e-1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 1e-1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(keys[4], (self.n, self.n))
-    self.cy = jax.random.uniform(keys[5], (self.m, self.m))
+    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
+    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
     self.tau_a = 0.8
     self.tau_b = 0.9
 
@@ -195,10 +195,9 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
     )
 
-  @pytest.mark.fast
-  @pytest.mark.parametrize(
-      "balanced,rank", [(True, -1), (False, -1), (True, 3)]
-  )
+  @pytest.mark.fast()
+  @pytest.mark.parametrize(("balanced", "rank"), [(True, -1), (False, -1),
+                                                  (True, 3)])
   def test_gw_pointcloud(self, balanced: bool, rank: int):
     """Test basic computations pointclouds."""
     geom_x = pointcloud.PointCloud(self.x)
@@ -225,15 +224,12 @@ class TestGromovWasserstein:
 
     assert not jnp.isnan(out.reg_gw_cost)
 
-  @pytest.mark.parametrize(
-      "unbalanced,unbalanced_correction", [(False, False), (True, False),
-                                           (True, True)],
-      ids=["bal", "unbal-nocorr", "unbal-corr"]
-  )
-  @pytest.mark.parametrize(
-      "lse_mode,is_cost", [(True, False), (False, True)],
-      ids=["lse-pc", "kernel-cost-mat"]
-  )
+  @pytest.mark.parametrize(("unbalanced", "unbalanced_correction"),
+                           [(False, False), (True, False), (True, True)],
+                           ids=["bal", "unbal-nocorr", "unbal-corr"])
+  @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
+                                                     (False, True)],
+                           ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_gw_geometry(
       self, lse_mode: bool, is_cost: bool, unbalanced: bool,
       unbalanced_correction: bool
@@ -305,8 +301,8 @@ class TestGromovWasserstein:
     assert loss_thre(1e-1) >= loss_thre(1e-4)
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
-  @pytest.mark.fast
-  def test_gw_lr(self, rng: jnp.ndarray):
+  @pytest.mark.fast()
+  def test_gw_lr(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same problem."""
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -324,9 +320,11 @@ class TestGromovWasserstein:
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
-    np.testing.assert_allclose(ot_gwlr.costs, ot_gw.costs, rtol=5e-2)
+    np.testing.assert_allclose(
+        ot_gwlr.primal_cost, ot_gw.primal_cost, rtol=5e-2
+    )
 
-  def test_gw_lr_matches_fused(self, rng: jnp.ndarray):
+  def test_gw_lr_matches_fused(self, rng: jax.random.PRNGKeyArray):
     """Checking LR and Entropic have similar outputs on same fused problem."""
     rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -352,8 +350,8 @@ class TestGromovWasserstein:
     ot_gw = solver(prob)
 
     # Test solutions look alike
-    assert 0.11 > jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix)
-    assert 0.15 > jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix)
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gw.matrix) < 0.11
+    assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) < 0.15
     # Test at least some difference when adding bigger entropic regularization
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
@@ -373,11 +371,11 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
-  def test_gw_lr_warm_start_helps(self, rng: jnp.ndarray):
+  def test_gw_lr_warm_start_helps(self, rng: jax.random.PRNGKeyArray):
     rank = 3
-    key1, key2 = jax.random.split(rng, 2)
-    geom_x = pointcloud.PointCloud(jax.random.normal(key1, (100, 5)))
-    geom_y = pointcloud.PointCloud(jax.random.normal(key2, (110, 6)))
+    rng1, rng2 = jax.random.split(rng, 2)
+    geom_x = pointcloud.PointCloud(jax.random.normal(rng1, (100, 5)))
+    geom_y = pointcloud.PointCloud(jax.random.normal(rng2, (110, 6)))
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
     solver_cold = gromov_wasserstein.GromovWasserstein(
@@ -395,3 +393,37 @@ class TestGromovWasserstein:
     assert (cost_warm_start + 5.0) < cost
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(out_cold.matrix, out_warm.matrix)
+
+  @pytest.mark.parametrize("scale_cost", [1.15, 2.3])
+  def test_unscale_last_linearization(
+      self, rng: jax.random.PRNGKeyArray, scale_cost: float
+  ):
+    rng1, rng2 = jax.random.split(rng, 2)
+    n, m = 7, 16
+    rtol = atol = 1e-3
+
+    geom_x = pointcloud.PointCloud(
+        jax.random.normal(rng1, (n, 2)), scale_cost=scale_cost
+    )
+    geom_y = pointcloud.PointCloud(
+        jax.random.normal(rng2, (m, 6)), scale_cost=scale_cost
+    )
+    # hold true only when `scale_cost` is the same for both geometries
+    expected = 1.0 / (geom_x.inv_scale_cost * geom_y.inv_scale_cost)
+
+    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
+    solver_scaled = gromov_wasserstein.GromovWasserstein(
+        unscale_last_linearization=False
+    )
+    solver_unscaled = gromov_wasserstein.GromovWasserstein(
+        unscale_last_linearization=True
+    )
+
+    out_scaled = solver_scaled(prob)
+    out_unscaled = solver_unscaled(prob)
+    actual = out_unscaled.primal_cost / out_scaled.primal_cost
+
+    np.testing.assert_allclose(
+        out_scaled.matrix, out_unscaled.matrix, rtol=rtol, atol=atol
+    )
+    np.testing.assert_allclose(expected, actual, rtol=rtol, atol=atol)

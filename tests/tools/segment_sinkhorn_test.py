@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for Segmented Sinkhorn."""
-
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+import pytest
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
@@ -29,7 +25,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 class TestSegmentSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def setUp(self, rng: jnp.ndarray):
+  def setUp(self, rng: jax.random.PRNGKeyArray):
     self._dim = 4
     self._num_points = 13, 17
     self._max_measure_size = 20
@@ -102,7 +98,7 @@ class TestSegmentSinkhorn:
 
     sink = jax.jit(
         segment_sinkhorn.segment_sinkhorn,
-        static_argnames=['num_segments', 'max_measure_size'],
+        static_argnames=["num_segments", "max_measure_size"],
     )
     segmented_regotcost = sink(
         jnp.concatenate((x1, x2)),
@@ -167,7 +163,7 @@ class TestSegmentSinkhorn:
         cost_fn=b_cost,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={'lse_mode': True},
+        sinkhorn_kwargs={"lse_mode": True},
         epsilon=0.1,
     )
     np.testing.assert_allclose(segmented_reg_ot_cost, true_reg_ot_cost)
