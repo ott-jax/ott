@@ -1,17 +1,15 @@
 from typing import Any
 
-import pytest
-
 import jax
 import jax.numpy as jnp
+import pytest
 from jax.experimental import sparse
-
 from ott.math import decomposition
 
 sksparse = pytest.importorskip("sksparse")
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestDecomposition:
 
   def test_dense_cholesky_solver(self, rng: jnp.ndarray):
