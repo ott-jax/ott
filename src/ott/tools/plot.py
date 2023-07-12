@@ -39,7 +39,9 @@ def bidimensional(x: jnp.ndarray,
   if x.shape[1] < 3:
     return x, y
 
-  u, s, _ = scipy.sparse.linalg.svds(jnp.concatenate([x, y], axis=0), k=2)
+  u, s, _ = scipy.sparse.linalg.svds(
+      np.array(jnp.concatenate([x, y], axis=0)), k=2
+  )
   proj = u * s
   k = x.shape[0]
   return proj[:k], proj[k:]
@@ -56,6 +58,8 @@ class Plot:
   #. we do not rely on saving to/loading from disk to create animations
   #. we try as much as possible to disentangle the transport problem from
      its visualization.
+  #. we rely on PCA visualization for d>3 data. this requires a conversion to
+     a numpy array, which can be slow for large samples.
   """
 
   def __init__(
