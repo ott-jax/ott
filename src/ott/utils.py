@@ -60,7 +60,7 @@ def is_jax_array(obj: Any) -> bool:
   """Check if an object is a Jax array."""
   if hasattr(jax, "Array"):
     # https://jax.readthedocs.io/en/latest/jax_array_migration.html
-    return isinstance(obj, (jax.Array, jnp.DeviceArray))
+    return isinstance(obj, jax.Array)
   return isinstance(obj, jnp.DeviceArray)
 
 
@@ -70,8 +70,7 @@ def default_prng_key(
   """Get the default PRNG key.
 
   Args:
-    rng:
-      PRNG key.
+    rng: PRNG key.
 
   Returns:
     If ``rng = None``, returns the default PRNG key.
