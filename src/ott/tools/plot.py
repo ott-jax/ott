@@ -17,7 +17,6 @@ import jax.numpy as jnp
 import numpy as np
 import scipy
 
-from ott import utils
 from ott.geometry import pointcloud
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
@@ -39,7 +38,9 @@ def bidimensional(x: jnp.ndarray,
   if x.shape[1] < 3:
     return x, y
 
-  u, s, _ = scipy.sparse.linalg.svds(jnp.concatenate([x, y], axis=0), k=2)
+  u, s, _ = scipy.sparse.linalg.svds(
+      np.array(jnp.concatenate([x, y], axis=0)), k=2
+  )
   proj = u * s
   k = x.shape[0]
   return proj[:k], proj[k:]
@@ -48,14 +49,18 @@ def bidimensional(x: jnp.ndarray,
 class Plot:
   """Plot an optimal transport map between two point clouds.
 
-  It enables to either plot or update a plot in a single object, offering the
-  possibilities to create animations as a
+  This object can either plot or update a plot, to create animations as a
   :class:`~matplotlib.animation.FuncAnimation`, which can in turned be saved to
   disk at will. There are two design principles here:
 
   #. we do not rely on saving to/loading from disk to create animations
   #. we try as much as possible to disentangle the transport problem from
      its visualization.
+
+  We use 2D scatter plots by default, relying on PCA visualization for d>3 data.
+  This step requires a conversion to a numpy array, in order to compute leading
+  singular values. This tool is therefore not designed having performance in
+  mind.
   """
 
   def __init__(
@@ -135,7 +140,7 @@ class Plot:
     return result
 
   def __call__(self, ot: Transport) -> List["plt.Artist"]:
-    """Plot 2-D couplings. Projects via PCA if data is higher dimensional."""
+    """Plot couplings in 2-D, using PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
         *x.T, s=sx, edgecolors="k", marker="o", label="x"
@@ -214,47 +219,3 @@ class Plot:
         interval=1000 / frame_rate,
         blit=True
     )
-
-
-def _barycenters(
-    ax: "plt.Axes",
-    y: jnp.ndarray,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
-    matrix: jnp.ndarray,
-    scale: int = 200
-) -> None:
-  """Plot 2-D sinkhorn barycenters."""
-  sa, sb = jnp.min(a) / scale, jnp.min(b) / scale
-  ax.scatter(*y.T, s=b / sb, edgecolors="k", marker="X", label="y")
-  tx = 1 / a[:, None] * jnp.matmul(matrix, y)
-  ax.scatter(*tx.T, s=a / sa, edgecolors="k", marker="X", label="T(x)")
-  ax.legend(fontsize=15)
-
-
-def barycentric_projections(
-    arg: Union[Transport, jnp.ndarray],
-    a: jnp.ndarray = None,
-    b: jnp.ndarray = None,
-    matrix: jnp.ndarray = None,
-    ax: Optional["plt.Axes"] = None,
-    **kwargs
-):
-  """Plot the barycenters, from the Transport object or from arguments."""
-  if ax is None:
-    _, ax = plt.subplots(1, 1, figsize=(8, 5))
-
-  if utils.is_jax_array(arg):
-    if matrix is None:
-      raise ValueError("The `matrix` argument cannot be None.")
-
-    a = jnp.ones(matrix.shape[0]) / matrix.shape[0] if a is None else a
-    b = jnp.ones(matrix.shape[1]) / matrix.shape[1] if b is None else b
-    return _barycenters(ax, arg, a, b, matrix, **kwargs)
-
-  if isinstance(arg, gromov_wasserstein.GWOutput):
-    geom = arg.linear_state.geom
-  else:
-    geom = arg.geom
-
-  return _barycenters(ax, geom.y, arg.a, arg.b, arg.matrix, **kwargs)
