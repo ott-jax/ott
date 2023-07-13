@@ -304,8 +304,8 @@ def ranks(
       returned in the output will be a convex combination of
       ``{1, .., num_targets}/num_targets``. The weight of each of these points
       is assumed to be uniform. If neither ``num_targets`` nor
-        ``target_weights`` are specified, ``num_targets`` defaults to the size
-        of the slices of the input that are sorted, i.e. ``inputs.shape[axis]``.
+      ``target_weights`` are specified, ``num_targets`` defaults to the size
+      of the slices of the input that are sorted, i.e. ``inputs.shape[axis]``.
     kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
