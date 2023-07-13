@@ -86,14 +86,52 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  def test_rank_one_array(self, rng: jax.random.PRNGKeyArray):
-    x = jax.random.uniform(rng, (20,))
-    expected_ranks = jnp.argsort(jnp.argsort(x, axis=0), axis=0).astype(float)
+  @pytest.mark.fast.with_args("axis", [0, 1], only_fast0=0)
+  def test_ranks(self, axis, rng: jax.random.PRNGKeyArray):
+    rng1, rng2 = jax.random.split(rng, 2)
+    num_targets = 13
+    x = jax.random.uniform(rng1, (8, 1, 1))
 
-    ranks = soft_sort.ranks(x, epsilon=0.001)
-
+    # Define a custom version of ranks suited to recover closely true ranks
+    my_ranks = functools.partial(
+        soft_sort.ranks, squashing_fun=lambda x: x, epsilon=1e-4, axis=axis
+    )
+    expected_ranks = jnp.argsort(
+        jnp.argsort(x, axis=axis), axis=axis
+    ).astype(float)
+    ranks = my_ranks(x)
     np.testing.assert_array_equal(x.shape, ranks.shape)
-    np.testing.assert_allclose(ranks, expected_ranks, atol=0.9, rtol=0.1)
+    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
+
+    ranks = my_ranks(x, num_targets=num_targets)
+    np.testing.assert_array_equal(x.shape, ranks.shape)
+    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
+
+    target_weights = jax.random.uniform(rng2, (num_targets,))
+    ranks = my_ranks(x, target_weights=target_weights)
+    np.testing.assert_array_equal(x.shape, ranks.shape)
+    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
+
+  @pytest.mark.fast.with_args("axis", [0, 1], only_fast=0)
+  def test_topk_mask(self, axis, rng: jax.random.PRNGKeyArray):
+    k = 3
+    x = jax.random.uniform(rng, (13, 7, 1))
+    my_topk_mask = functools.partial(
+        soft_sort.topk_mask,
+        squashing_fun=lambda x: x,
+        epsilon=1e-4,  # needed to recover a sharp mask given close ties
+        max_iterations=20000,  # needed to recover a sharp mask given close ties
+        axis=axis
+    )
+    mask = my_topk_mask(x, k=k, axis=axis)
+
+    def boolean_topk_mask(u, k):
+      return u >= jnp.flip(jax.numpy.sort(u))[k - 1]
+
+    expected_mask = soft_sort.apply_on_axis(boolean_topk_mask, x, axis, k)
+
+    np.testing.assert_array_equal(x.shape, mask.shape)
+    np.testing.assert_allclose(mask, expected_mask, atol=0.01, rtol=0.1)
 
   @pytest.mark.fast()
   @pytest.mark.parametrize("q", [0.2, 0.9])
