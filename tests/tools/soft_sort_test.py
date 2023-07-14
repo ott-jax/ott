@@ -99,7 +99,7 @@ class TestSoftSort:
         squashing_fun=lambda x: x,
         epsilon=1e-4,
         axis=axis,
-        max_iterations=10000
+        max_iterations=5000
     )
     expected_ranks = jnp.argsort(
         jnp.argsort(x, axis=axis), axis=axis
@@ -113,6 +113,7 @@ class TestSoftSort:
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
     target_weights = jax.random.uniform(rng2, (num_targets,))
+    target_weights /= jnp.sum(target_weights)
     ranks = my_ranks(x, target_weights=target_weights)
     np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
@@ -125,7 +126,7 @@ class TestSoftSort:
         soft_sort.topk_mask,
         squashing_fun=lambda x: x,
         epsilon=1e-4,  # needed to recover a sharp mask given close ties
-        max_iterations=20000,  # needed to recover a sharp mask given close ties
+        max_iterations=15000,  # needed to recover a sharp mask given close ties
         axis=axis
     )
     mask = my_topk_mask(x, k=k, axis=axis)

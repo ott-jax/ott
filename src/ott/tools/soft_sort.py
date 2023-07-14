@@ -212,63 +212,6 @@ def _ranks(
   return jnp.reshape(out, inputs.shape)
 
 
-def topk_mask(
-    inputs: jnp.ndarray,
-    axis: int = -1,
-    k: int = 1,
-    **kwargs: Any,
-) -> jnp.ndarray:
-  r"""Soft top-$k$ selection mask.
-
-  For instance:
-
-  .. code-block:: python
-
-    k = 5
-    x = jax.random.uniform(rng, (100,))
-    mask = top_k_mask(x, k=k)
-
-  will output a vector of shape ``x.shape``, with values in :math:`[0,1]`, that
-  are differentiable approximations to the binary mask selecting the top $k$
-  entries in ``x``. These should be compared to the non-differentiable mask
-  obtained with :func:`jax.numpy.argsort`, which can be obtained as:
-
-  .. code-block:: python
-
-    mask = x >= jax.numpy.sort(x).flip()[k-1]
-
-  Args:
-    inputs: Array of any shape.
-    axis: the axis on which to apply the soft-sorting operator.
-    k : topk parameter. Should be smaller than ``inputs.shape[axis]``.
-    kwargs: keyword arguments passed on to lower level functions. Of interest
-      to the user are ``squashing_fun``, which will redistribute the values in
-      ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
-      to solve the optimal transport problem;
-      :class:`cost_fn <ott.geometry.costs.CostFn>` object of
-      :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
-      1D cost function to transport from ``inputs`` to the ``num_targets``
-      target values ; ``epsilon`` regularization parameter. Remaining ``kwargs``
-      are passed on to parameterize the
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
-
-  """
-  num_points = inputs.shape[axis]
-  assert k < num_points, (
-      f"`k` must be smaller than `inputs.shape[axis]`, yet {k} >= {num_points}."
-  )
-  target_weights = jnp.array([1.0 - k / num_points, k / num_points])
-  out = apply_on_axis(
-      _ranks,
-      inputs,
-      axis,
-      num_targets=None,
-      target_weights=target_weights,
-      **kwargs
-  )
-  return out / (num_points - 1)
-
-
 def ranks(
     inputs: jnp.ndarray,
     axis: int = -1,
@@ -325,6 +268,63 @@ def ranks(
   return apply_on_axis(
       _ranks, inputs, axis, num_targets, target_weights, **kwargs
   )
+
+
+def topk_mask(
+    inputs: jnp.ndarray,
+    axis: int = -1,
+    k: int = 1,
+    **kwargs: Any,
+) -> jnp.ndarray:
+  r"""Soft top-$k$ selection mask.
+
+  For instance:
+
+  .. code-block:: python
+
+    k = 5
+    x = jax.random.uniform(rng, (100,))
+    mask = top_k_mask(x, k=k)
+
+  will output a vector of shape ``x.shape``, with values in :math:`[0,1]`, that
+  are differentiable approximations to the binary mask selecting the top $k$
+  entries in ``x``. These should be compared to the non-differentiable mask
+  obtained with :func:`jax.numpy.argsort`, which can be obtained as:
+
+  .. code-block:: python
+
+    mask = x >= jax.numpy.sort(x).flip()[k-1]
+
+  Args:
+    inputs: Array of any shape.
+    axis: the axis on which to apply the soft-sorting operator.
+    k : topk parameter. Should be smaller than ``inputs.shape[axis]``.
+    kwargs: keyword arguments passed on to lower level functions. Of interest
+      to the user are ``squashing_fun``, which will redistribute the values in
+      ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
+      to solve the optimal transport problem;
+      :class:`cost_fn <ott.geometry.costs.CostFn>` object of
+      :class:`~ott.geometry.pointcloud.PointCloud`, which defines the ground
+      1D cost function to transport from ``inputs`` to the ``num_targets``
+      target values ; ``epsilon`` regularization parameter. Remaining ``kwargs``
+      are passed on to parameterize the
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+
+  """
+  num_points = inputs.shape[axis]
+  assert k < num_points, (
+      f"`k` must be smaller than `inputs.shape[axis]`, yet {k} >= {num_points}."
+  )
+  target_weights = jnp.array([1.0 - k / num_points, k / num_points])
+  out = apply_on_axis(
+      _ranks,
+      inputs,
+      axis,
+      num_targets=None,
+      target_weights=target_weights,
+      **kwargs
+  )
+  return out / (num_points - 1)
 
 
 def quantile(
