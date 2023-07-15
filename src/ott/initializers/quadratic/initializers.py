@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -121,7 +121,11 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   """
 
   def _create_geometry(
-      self, quad_prob: "quadratic_problem.QuadraticProblem", *, epsilon: float,
+      self,
+      quad_prob: "quadratic_problem.QuadraticProblem",
+      *,
+      epsilon: float,
+      relative_epsilon: Optional[bool] = None,
       **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
@@ -129,7 +133,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     Args:
       quad_prob: Quadratic OT problem.
       epsilon: Epsilon regularization.
-      kwargs: Additional keyword arguments, unused.
+      relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+      kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
 
     Returns:
       The initial geometry used to initialize the linearized problem.
@@ -160,8 +165,12 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       )
       cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
 
-    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix()
-    return geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    return geometry.Geometry(
+        cost_matrix=cost_matrix,
+        epsilon=epsilon,
+        relative_epsilon=relative_epsilon
+    )
 
 
 class LRQuadraticInitializer(BaseQuadraticInitializer):
@@ -176,12 +185,16 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
-      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
+      self,
+      quad_prob: "quadratic_problem.QuadraticProblem",
+      relative_epsilon: Optional[bool] = False,
+      **kwargs: Any
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
     Args:
       quad_prob: Quadratic OT problem.
+      relative_epsilon: Whether to use relative epsilon in the geometry.
       kwargs: Keyword arguments for
         :meth:`~ott.initializers.linear.initializers_lr.LRInitializer.__call__`.
 
@@ -201,7 +214,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
         epsilon=None,
     )
 
-    return quad_prob.update_lr_geom(tmp_out)
+    return quad_prob.update_lr_geom(tmp_out, relative_epsilon=relative_epsilon)
 
   @property
   def rank(self) -> int:

@@ -394,36 +394,31 @@ class TestGromovWasserstein:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(out_cold.matrix, out_warm.matrix)
 
-  @pytest.mark.parametrize("scale_cost", [1.15, 2.3])
-  def test_unscale_last_linearization(
-      self, rng: jax.random.PRNGKeyArray, scale_cost: float
+  @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
+  def test_relative_epsilon(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      scale_cost: Union[float, str],
   ):
+    eps = 1e-2
     rng1, rng2 = jax.random.split(rng, 2)
-    n, m = 7, 16
-    rtol = atol = 1e-3
-
     geom_x = pointcloud.PointCloud(
-        jax.random.normal(rng1, (n, 2)), scale_cost=scale_cost
+        jax.random.normal(rng1, (49, 5)), scale_cost=scale_cost
     )
     geom_y = pointcloud.PointCloud(
-        jax.random.normal(rng2, (m, 6)), scale_cost=scale_cost
+        jax.random.normal(rng2, (78, 6)), scale_cost=scale_cost
     )
-    # hold true only when `scale_cost` is the same for both geometries
-    expected = 1.0 / (geom_x.inv_scale_cost * geom_y.inv_scale_cost)
-
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
-    solver_scaled = gromov_wasserstein.GromovWasserstein(
-        unscale_last_linearization=False
-    )
-    solver_unscaled = gromov_wasserstein.GromovWasserstein(
-        unscale_last_linearization=True
+
+    solver = gromov_wasserstein.GromovWasserstein(
+        epsilon=eps, relative_epsilon=True
     )
 
-    out_scaled = solver_scaled(prob)
-    out_unscaled = solver_unscaled(prob)
-    actual = out_unscaled.primal_cost / out_scaled.primal_cost
+    out = solver(prob)
 
-    np.testing.assert_allclose(
-        out_scaled.matrix, out_unscaled.matrix, rtol=rtol, atol=atol
-    )
-    np.testing.assert_allclose(expected, actual, rtol=rtol, atol=atol)
+    if scale_cost == 1.0:
+      assert 40 < out.reg_gw_cost < 41
+      assert 38 < out.primal_cost < 39
+    else:
+      assert 0.215 < out.reg_gw_cost < 0.22
+      assert 0.19 < out.primal_cost < 0.20

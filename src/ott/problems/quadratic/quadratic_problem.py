@@ -134,8 +134,6 @@ class QuadraticProblem:
       self,
       marginal_1: jnp.ndarray,
       marginal_2: jnp.ndarray,
-      *,
-      remove_scale: bool = False,
   ) -> low_rank.LRCGeometry:
     r"""Initialize cost term that depends on the marginals of the transport.
 
@@ -160,17 +158,11 @@ class QuadraticProblem:
     Args:
       marginal_1: [n,], first marginal of transport matrix.
       marginal_2: [m,], second marginal of transport matrix.
-      remove_scale: Whether to remove any scaling from the cost matrices before
-        computing the linearization.
 
     Returns:
       Low-rank geometry of rank 2, storing normalization constants.
     """
     geom_xx, geom_yy = self.geom_xx, self.geom_yy
-    if remove_scale:
-      geom_xx = geom_xx.set_scale_cost(1.0)
-      geom_yy = geom_yy.set_scale_cost(1.0)
-
     if self._loss_name == "sqeucl":  # quadratic apply, efficient for LR
       tmp1 = geom_xx.apply_square_cost(marginal_1, axis=1)
       tmp2 = geom_yy.apply_square_cost(marginal_2, axis=1)
@@ -251,14 +243,12 @@ class QuadraticProblem:
   def update_lr_geom(
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
-      remove_scale: bool = False,
+      relative_epsilon: Optional[bool] = None,
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
     marginal_2 = lr_sink.marginal(0)
-    marginal_cost = self.marginal_dependent_cost(
-        marginal_1, marginal_2, remove_scale=remove_scale
-    )
+    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
 
     # Extract factors from LR Sinkhorn output
     q, r, inv_sqg = lr_sink.q, lr_sink.r, 1.0 / jnp.sqrt(lr_sink.g)
@@ -268,20 +258,20 @@ class QuadraticProblem:
     # Handle LRC Geometry case.
     h1, h2 = self.quad_loss
     geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
-    if remove_scale:
-      geom_xx = geom_xx.set_scale_cost(1.0)
-      geom_yy = geom_yy.set_scale_cost(1.0)
-      geom_xy = geom_xy.set_scale_cost(1.0) if self.is_fused else None
     tmp1 = apply_cost(geom_xx, q, axis=1, fn=h1)
     tmp2 = apply_cost(geom_yy, r, axis=1, fn=h2)
     if self.is_low_rank:
-      geom = low_rank.LRCGeometry(cost_1=tmp1, cost_2=-tmp2) + marginal_cost
+      geom = low_rank.LRCGeometry(
+          cost_1=tmp1, cost_2=-tmp2, relative_epsilon=relative_epsilon
+      ) + marginal_cost
       if self.is_fused:
         geom = geom + geom_xy
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
-      cost_matrix += self.fused_penalty * self._fused_cost_matrix(remove_scale)
-      geom = geometry.Geometry(cost_matrix=cost_matrix)
+      cost_matrix += self.fused_penalty * self._fused_cost_matrix
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix, relative_epsilon=relative_epsilon
+      )
     return geom  # noqa: RET504
 
   def update_linearization(
@@ -289,7 +279,7 @@ class QuadraticProblem:
       transport: Transport,
       epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
       old_transport_mass: float = 1.0,
-      remove_scale: bool = False,
+      relative_epsilon: Optional[bool] = None,
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -307,11 +297,8 @@ class QuadraticProblem:
       epsilon: An epsilon scheduler or a float passed on to the linearization.
       old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
-      remove_scale: Whether to remove any scaling from the cost matrices when
-        computing the linearization of the quadratic cost. At the moment, this
-        is only used when doing this update at the last outer iteration of the
-        :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
-        solver.
+      relative_epsilon: Whether to use relative epsilon in the linearized
+        geometry.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
@@ -326,9 +313,7 @@ class QuadraticProblem:
 
     marginal_1 = transport.marginal(axis=1) * rescale_factor
     marginal_2 = transport.marginal(axis=0) * rescale_factor
-    marginal_cost = self.marginal_dependent_cost(
-        marginal_1, marginal_2, remove_scale=remove_scale
-    )
+    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
 
     transport_matrix = transport.matrix * rescale_factor
 
@@ -342,18 +327,18 @@ class QuadraticProblem:
 
     h1, h2 = self.quad_loss
     geom_xx, geom_yy = self.geom_xx, self.geom_yy
-    if remove_scale:
-      geom_xx = geom_xx.set_scale_cost(1.0)
-      geom_yy = geom_yy.set_scale_cost(1.0)
 
     tmp = apply_cost(geom_xx, transport_matrix, axis=1, fn=h1)
     tmp = apply_cost(geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-    cost_matrix += self.fused_penalty * rescale_factor * \
-                   self._fused_cost_matrix(remove_scale)
+    cost_matrix += self.fused_penalty * rescale_factor * self._fused_cost_matrix
 
-    geom = geometry.Geometry(cost_matrix=cost_matrix, epsilon=epsilon)
+    geom = geometry.Geometry(
+        cost_matrix=cost_matrix,
+        epsilon=epsilon,
+        relative_epsilon=relative_epsilon
+    )
 
     return linear_problem.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
@@ -363,24 +348,22 @@ class QuadraticProblem:
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
       *,
-      remove_scale: bool = False,
+      relative_epsilon: Optional[bool] = None,
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(
-        self.update_lr_geom(lr_sink, remove_scale=remove_scale),
+        self.update_lr_geom(lr_sink, relative_epsilon=relative_epsilon),
         self.a,
         self.b,
         tau_a=self.tau_a,
         tau_b=self.tau_b
     )
 
-  def _fused_cost_matrix(self,
-                         unscale: bool = False) -> Union[float, jnp.ndarray]:
+  @property
+  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
     if not self.is_fused:
       return 0.0
     geom_xy = self.geom_xy
-    if unscale:
-      geom_xy = geom_xy.set_scale_cost(1.0)
 
     if isinstance(geom_xy, pointcloud.PointCloud) and geom_xy.is_online:
       return geom_xy._compute_cost_matrix() * geom_xy.inv_scale_cost
