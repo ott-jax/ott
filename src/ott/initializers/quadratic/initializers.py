@@ -133,7 +133,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     Args:
       quad_prob: Quadratic OT problem.
       epsilon: Epsilon regularization.
-      relative_epsilon: Whether to use relative epsilon in the geometry.
+      relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
       kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
 
     Returns:
