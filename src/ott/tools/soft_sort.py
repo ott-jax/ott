@@ -284,12 +284,12 @@ def topk_mask(
 
     k = 5
     x = jax.random.uniform(rng, (100,))
-    mask = top_k_mask(x, k=k)
+    mask = topk_mask(x, k=k)
 
   will output a vector of shape ``x.shape``, with values in :math:`[0,1]`, that
   are differentiable approximations to the binary mask selecting the top $k$
   entries in ``x``. These should be compared to the non-differentiable mask
-  obtained with :func:`jax.numpy.argsort`, which can be obtained as:
+  obtained with :func:`jax.numpy.sort`, which can be obtained as:
 
   .. code-block:: python
 
@@ -341,7 +341,7 @@ def quantile(
   .. code-block:: python
 
     x = jax.random.uniform(rng, (100,))
-    x_quantiles = quantiles(x, q=jnp.array([0.2, 0.8]))
+    x_quantiles = quantile(x, q=jnp.array([0.2, 0.8]))
 
   ``x_quantiles`` will hold an approximation to the 20 and 80 percentiles in
   ``x``, computed as a convex combination (a weighted mean, with weights summing
