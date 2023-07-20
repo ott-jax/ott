@@ -246,8 +246,8 @@ def ranks(
       amount of mass shipped to targets.
     num_targets: If ``target_weights`  is ``None``, ``num_targets`` is
       considered to define the number of targets used to rank inputs. Each
-      normalized rank in the output will be a convex combination of
-      ``{1, .., num_targets}/num_targets``. The weight of each of these points
+      rank in the output will be a convex combination of
+      ``{1, .., num_targets}``. The weight of each of these points
       is assumed to be uniform. If neither ``num_targets`` nor
       ``target_weights`` are specified, ``num_targets`` defaults to the size
       of the slices of the input that are sorted, i.e. ``inputs.shape[axis]``.
