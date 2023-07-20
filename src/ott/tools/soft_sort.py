@@ -22,7 +22,10 @@ from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["sort", "ranks", "quantile"]
+__all__ = [
+    "sort", "ranks", "sort_with", "quantile", "quantile_normalization",
+    "quantize", "topk_mask"
+]
 
 
 def transport_for_sort(
@@ -263,7 +266,6 @@ def ranks(
   Returns:
     An Array of the same shape as the input with soft-rank values
     normalized to be in `[0, n-1]` where `n` is `inputs.shape[axis]`.
-
   """
   return apply_on_axis(
       _ranks, inputs, axis, num_targets, target_weights, **kwargs
@@ -298,7 +300,7 @@ def topk_mask(
   Args:
     inputs: Array of any shape.
     axis: the axis on which to apply the soft-sorting operator.
-    k : topk parameter. Should be smaller than ``inputs.shape[axis]``.
+    k: topk parameter. Should be smaller than ``inputs.shape[axis]``.
     kwargs: keyword arguments passed on to lower level functions. Of interest
       to the user are ``squashing_fun``, which will redistribute the values in
       ``inputs`` to lie in :math:`[0,1]` (sigmoid of whitened values by default)
@@ -310,6 +312,8 @@ def topk_mask(
       are passed on to parameterize the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
+  Returns:
+    The soft mask.
   """
   num_points = inputs.shape[axis]
   assert k < num_points, (
@@ -356,7 +360,6 @@ def quantile(
   .. code-block:: python
 
     x_quantiles = jax.numpy.quantile(x, q=jnp.array([0.2, 0.8]))
-
 
   Args:
    inputs: an Array of any shape.
@@ -462,7 +465,7 @@ def quantile_normalization(
     targets: jnp.ndarray,
     weights: Optional[jnp.ndarray] = None,
     axis: int = -1,
-    **kwargs
+    **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Renormalize inputs so that its quantiles match those of targets/weights.
 
@@ -477,7 +480,7 @@ def quantile_normalization(
     targets: sorted array (in ascending order) of dimension 1 describing a
       discrete distribution. Note: the ``targets`` values must be provided as
       a sorted vector.
-    weights: vector of nonnegative weights, summing to :math:`1`, of the same
+    weights: vector of non-negative weights, summing to :math:`1`, of the same
       size as ``targets``. When not set, this defaults to the uniform
       distribution.
     axis: the axis along which the quantile transformation is applied.
@@ -612,7 +615,6 @@ def quantize(
       target values ; ``epsilon`` regularization parameter. Remaining ``kwargs``
       are passed on to parameterize the
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
-
 
   Returns:
     An Array of the same size as ``inputs``.
