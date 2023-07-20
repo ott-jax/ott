@@ -61,13 +61,25 @@ class Plot:
   This step requires a conversion to a numpy array, in order to compute leading
   singular values. This tool is therefore not designed having performance in
   mind.
+
+  Args:
+    fig: Specify figure object. Created by default
+    ax: Specify axes objects. Created by default
+    threshold: value below which links in transportation matrix won't be
+      plotted. This value should be negative when using animations.
+    scale: scale used for marker plots.
+    show_lines: whether to show OT lines, as described in ``ot.matrix`` argument
+    cmap: cmap used to plot line colors.
+    scale_alpha_by_coupling: use or not the coupling's value as proxy for alpha
+    alpha: default alpha value for lines.
+    title: title of the plot.
   """
 
   def __init__(
       self,
       fig: Optional["plt.Figure"] = None,
       ax: Optional["plt.Axes"] = None,
-      cost_threshold: float = -1.0,  # should be negative for animations.
+      threshold: float = -1.0,
       scale: int = 200,
       show_lines: bool = True,
       cmap: str = "cool",
@@ -90,7 +102,7 @@ class Plot:
     self._lines = []
     self._points_x = None
     self._points_y = None
-    self._threshold = cost_threshold
+    self._threshold = threshold
     self._scale = scale
     self._cmap = cmap
     self._scale_alpha_by_coupling = scale_alpha_by_coupling
