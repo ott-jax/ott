@@ -69,7 +69,7 @@ class Plot:
       plotted. This value should be negative when using animations.
     scale: scale used for marker plots.
     show_lines: whether to show OT lines, as described in ``ot.matrix`` argument
-    cmap: cmap used to plot line colors.
+    cmap: color map used to plot line colors.
     scale_alpha_by_coupling: use or not the coupling's value as proxy for alpha
     alpha: default alpha value for lines.
     title: title of the plot.
