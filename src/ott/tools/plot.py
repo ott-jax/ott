@@ -235,7 +235,7 @@ class Plot:
     if titles is None:
       titles = [None for _ in np.range(0, len(transports))]
     assert len(titles) == len(transports), (
-        "titles and transports have different lengths"
+        f"titles/transports lengths differ `{len(titles)}`/`{len(transports)}`."
     )
     return animation.FuncAnimation(
         self.fig,
