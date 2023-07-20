@@ -167,6 +167,8 @@ class Plot:
           alpha=alpha
       )
       self._lines.append(line)
+    if self._title is not None:
+      self.ax.set_title(self._title)
     return [self._points_x, self._points_y] + self._lines
 
   def update(self,

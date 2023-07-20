@@ -42,5 +42,5 @@ class TestSoftSort:
     plott = plot.Plot()
     _ = plott(ots[0])
     fig = plt.figure(figsize=(8, 5))
-    plott = ott.tools.plot.Plot(fig=fig)
-    plott.animate(ots, frame_rate=2)
+    plott = ott.tools.plot.Plot(fig=fig, title="test")
+    plott.animate(ots, frame_rate=2, titles=["test1", "test2"])
