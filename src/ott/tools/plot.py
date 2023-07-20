@@ -73,6 +73,7 @@ class Plot:
       cmap: str = "cool",
       scale_alpha_by_coupling: bool = False,
       alpha: float = 0.7,
+      title: Optional[str] = None
   ):
     if plt is None:
       raise RuntimeError("Please install `matplotlib` first.")
@@ -94,6 +95,7 @@ class Plot:
     self._cmap = cmap
     self._scale_alpha_by_coupling = scale_alpha_by_coupling
     self._alpha = alpha
+    self._title = title
 
   def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
@@ -167,7 +169,9 @@ class Plot:
       self._lines.append(line)
     return [self._points_x, self._points_y] + self._lines
 
-  def update(self, ot: Transport) -> List["plt.Artist"]:
+  def update(self,
+             ot: Transport,
+             title: Optional[str] = None) -> List["plt.Artist"]:
     """Update a plot with a transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
@@ -202,20 +206,28 @@ class Plot:
       self._lines.append(line)
 
     self._lines = self._lines[:num_to_plot]  # Maybe remove some
+    if title is not None:
+      self.ax.set_title(title)
     return [self._points_x, self._points_y] + self._lines
 
   def animate(
       self,
       transports: Sequence[Transport],
+      titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0
   ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
     _ = self(transports[0])
+    if titles is None:
+      titles = [None for _ in np.range(0, len(transports))]
+    assert len(titles) == len(transports), (
+        "titles and transports have different lengths"
+    )
     return animation.FuncAnimation(
         self.fig,
-        lambda i: self.update(transports[i]),
+        lambda i: self.update(transports[i], titles[i]),
         np.arange(0, len(transports)),
-        init_func=lambda: self.update(transports[0]),
+        init_func=lambda: self.update(transports[0], titles[0]),
         interval=1000 / frame_rate,
         blit=True
     )
