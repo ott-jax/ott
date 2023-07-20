@@ -116,7 +116,8 @@ Packages
     :maxdepth: 1
     :caption: References
 
-    references
+    bibliography
+    contributing
 
 .. |Downloads| image:: https://static.pepy.tech/badge/ott-jax
     :target: https://pypi.org/project/ott-jax/

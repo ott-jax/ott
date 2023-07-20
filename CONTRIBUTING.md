@@ -5,12 +5,11 @@ There are many ways to contribute to OTT, with the most common ones being contri
 to the project, participating in discussions or raising issues.
 
 ## Contributing code or documentation
-1. fork the repository using the **Fork** button on GitHub or the following
-   [link](https://github.com/ott-jax/ott/fork)
+1. fork the repository using the [Fork](https://github.com/ott-jax/ott/fork) button on GitHub.
 2. ```shell
-   git clone https://github.com/<YOUR_USERNAME>/ott
-   cd ott
-   pip install -e .'[dev]'
+   git clone https://github.com/<YOUR_USERNAME>/ott.git ott && \
+   cd ott && \
+   pip install -e '.[dev]' && \
    pre-commit install
    ```
 
@@ -38,15 +37,13 @@ This requires the `'[test]'` extra requirements to be installed as `pip install 
 ## Documentation
 From the root of the repository, run:
 ```shell
-tox -e build-docs  # build documentation
-tox -e clean-docs  # remove documentation
-tox -e lint-docs  # run spellchecker and linkchecker
+tox -e clean-docs,build-docs,lint-docs  # remove, build and lint the documentation
 ```
 Installing `PyEnchant` is required to run spellchecker, please refer to the
 [installation instructions](https://pyenchant.github.io/pyenchant/install.html). On macOS Silicon, it may be necessary
 to also set `PYENCHANT_LIBRARY_PATH` environment variable, as, e.g.,
 `export PYENCHANT_LIBRARY_PATH=/opt/homebrew/lib/libenchant-2.2.dylib`. False positives and correctly spelled words can
-be added to one of the files in [docs/spelling](docs/spelling).
+be added to one of the files in [docs/spelling](https://github.com/ott-jax/ott/tree/main/docs/spelling).
 
 ## Building the package
 The package can be built using:
@@ -60,6 +57,6 @@ All submissions, including submissions by project members, require review. We us
 [pull requests](https://github.com/ott-jax/ott/pulls) for this purpose. Consult
 [GitHub Help](https://help.github.com/articles/about-pull-requests/) for more information on using pull requests.
 
-# Community Guidelines
+# Community guidelines
 We abide by the principles of openness, respect, and consideration of others of the Python Software Foundation's
 [code of conduct](https://www.python.org/psf/codeofconduct/).
