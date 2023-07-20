@@ -41,6 +41,7 @@ Soft Sorting Algorithms
     soft_sort.ranks
     soft_sort.sort
     soft_sort.sort_with
+    soft_sort.topk_mask
 
 Clustering
 ----------
