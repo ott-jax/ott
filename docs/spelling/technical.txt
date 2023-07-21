@@ -74,6 +74,7 @@ jit
 jitting
 linearization
 logit
+macOS
 methylation
 neuroimaging
 numerics
