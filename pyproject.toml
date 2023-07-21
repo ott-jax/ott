@@ -150,6 +150,7 @@ coalesce_brackets = true
 
 [tool.rstcheck]
 ignore_directives = [
+    "include",
     "toctree",
     "module",
     "currentmodule",
@@ -167,7 +168,8 @@ ignore_roles = [
 
 [tool.doc8]
 max_line_length = 80
-ignore_path = ['docs/**/_autosummary']
+# Parser "myst_parser.sphinx_" not found. No module named 'myst_parser'.
+ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 
 [tool.tox]
 legacy_tox_ini = """

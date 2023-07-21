@@ -107,7 +107,7 @@ spelling_add_pypi_package_names = True
 # flax misspelled words; `flax.linen.Module.bind` is ignored in `class.rst`
 # because of indentation error that cannot be suppressed
 spelling_exclude_patterns = [
-    "references.rst",
+    "bibliography.rst",
     "**setup.rst",
     "**lazy_init.rst",
     "**is_initializing.rst",
