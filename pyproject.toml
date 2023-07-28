@@ -18,7 +18,7 @@ dependencies = [
     "jaxopt>=0.5.5",
     # numba/numpy compatibility issue in JAXOPT.
     "numpy>=1.18.4, <1.25.0",
-    "flax>=0.5.2",
+    "flax>=0.6.6",
     "optax>=0.1.1",
     "lineax>=0.0.1; python_version >= '3.9'"
 ]
