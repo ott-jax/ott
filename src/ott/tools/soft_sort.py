@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -333,8 +333,8 @@ def topk_mask(
 
 def quantile(
     inputs: jnp.ndarray,
-    q: jnp.ndarray,
-    axis: int = -1,
+    q: Union[float, jnp.ndarray],
+    axis: Union[int, Tuple[int, ...]] = -1,
     weight: Optional[Union[float, jnp.ndarray]] = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
@@ -440,11 +440,11 @@ def quantile(
     out = 1.0 / weights * ot.apply(jnp.squeeze(inputs), axis=0)
 
     # Recover odd indices corresponding to the desired quantiles.
-    odds = jnp.concatenate([
-        jnp.zeros((num_quantiles + 1, 1), dtype=bool),
-        jnp.ones((num_quantiles + 1, 1), dtype=bool)
+    odds = np.concatenate([
+        np.zeros((num_quantiles + 1, 1), dtype=bool),
+        np.ones((num_quantiles + 1, 1), dtype=bool)
     ],
-                           axis=1).ravel()[:-1]
+                          axis=1).ravel()[:-1]
     return out[odds][idx]
 
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
