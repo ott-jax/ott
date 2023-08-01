@@ -86,12 +86,14 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  @pytest.mark.fast.with_args("axis", [0, 1], only_fast0=0)
-  def test_ranks(self, axis, rng: jax.random.PRNGKeyArray):
+  @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
+  def test_ranks(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
     rng1, rng2 = jax.random.split(rng, 2)
     num_targets = 13
     x = jax.random.uniform(rng1, (8, 5, 2))
-
+    expected_ranks = jnp.argsort(
+        jnp.argsort(x, axis=axis), axis=axis
+    ).astype(float)
     # Define a custom version of ranks suited to recover ranks that are
     # close to true ranks. This requires notably small epsilon and large # iter.
     my_ranks = functools.partial(
@@ -101,10 +103,11 @@ class TestSoftSort:
         axis=axis,
         max_iterations=5000
     )
-    expected_ranks = jnp.argsort(
-        jnp.argsort(x, axis=axis), axis=axis
-    ).astype(float)
+    if jit:
+      my_ranks = jax.jit(my_ranks, static_argnames="num_targets")
+
     ranks = my_ranks(x)
+
     np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
@@ -118,8 +121,12 @@ class TestSoftSort:
     np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
-  @pytest.mark.fast.with_args("axis", [0, 1], only_fast=0)
-  def test_topk_mask(self, axis, rng: jax.random.PRNGKeyArray):
+  @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
+  def test_topk_mask(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
+
+    def boolean_topk_mask(u, k):
+      return u >= jnp.flip(jax.numpy.sort(u))[k - 1]
+
     k = 3
     x = jax.random.uniform(rng, (13, 7, 1))
     my_topk_mask = functools.partial(
@@ -129,13 +136,12 @@ class TestSoftSort:
         max_iterations=15000,  # needed to recover a sharp mask given close ties
         axis=axis
     )
+    if jit:
+      my_topk_mask = jax.jit(my_topk_mask, static_argnames=("k", "axis"))
+
     mask = my_topk_mask(x, k=k, axis=axis)
 
-    def boolean_topk_mask(u, k):
-      return u >= jnp.flip(jax.numpy.sort(u))[k - 1]
-
     expected_mask = soft_sort.apply_on_axis(boolean_topk_mask, x, axis, k)
-
     np.testing.assert_array_equal(x.shape, mask.shape)
     np.testing.assert_allclose(mask, expected_mask, atol=0.01, rtol=0.1)
 
@@ -160,21 +166,34 @@ class TestSoftSort:
     )
 
   @pytest.mark.fast()
-  def test_quantiles(self, rng: jax.random.PRNGKeyArray):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_quantiles(self, rng: jax.random.PRNGKeyArray, jit: bool):
     inputs = jax.random.uniform(rng, (200, 2, 3))
     q = jnp.array([.1, .8, .4])
-    m1 = soft_sort.quantile(inputs, q=q, weight=None, axis=0)
+    quantile_fn = soft_sort.quantile
+    if jit:
+      quantile_fn = jax.jit(quantile_fn, static_argnames="axis")
+
+    m1 = quantile_fn(inputs, q=q, weight=None, axis=0)
+
     np.testing.assert_allclose(m1.mean(axis=[1, 2]), q, atol=5e-2)
 
-  def test_soft_quantile_normalization(self, rng: jax.random.PRNGKeyArray):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_soft_quantile_normalization(
+      self, rng: jax.random.PRNGKeyArray, jit: bool
+  ):
     rngs = jax.random.split(rng, 2)
     x = jax.random.uniform(rngs[0], shape=(100,))
     mu, sigma = 2.0, 1.2
     y = mu + sigma * jax.random.normal(rng, shape=(48,))
     mu_target, sigma_target = y.mean(), y.std()
-    qn = soft_sort.quantile_normalization(x, jnp.sort(y), epsilon=1e-4)
-    mu_transform, sigma_transform = qn.mean(), qn.std()
+    quantize_fn = soft_sort.quantile_normalization
+    if jit:
+      quantize_fn = jax.jit(quantize_fn)
 
+    qn = quantize_fn(x, jnp.sort(y), epsilon=1e-4)
+
+    mu_transform, sigma_transform = qn.mean(), qn.std()
     np.testing.assert_allclose([mu_transform, sigma_transform],
                                [mu_target, sigma_target],
                                rtol=0.05)
@@ -196,20 +215,25 @@ class TestSoftSort:
     np.testing.assert_allclose(output, inputs[-k:], atol=0.05)
 
   @pytest.mark.fast()
-  def test_quantize(self):
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_quantize(self, jit: bool):
     n = 100
     inputs = jnp.linspace(0.0, 1.0, n)[..., None]
-    q = soft_sort.quantize(inputs, num_levels=4, axis=0, epsilon=1e-4)
+    quantize_fn = soft_sort.quantize
+    if jit:
+      quantize_fn = jax.jit(quantize_fn, static_argnames=("num_levels", "axis"))
+
+    q = quantize_fn(inputs, num_levels=4, axis=0, epsilon=1e-4)
+
     delta = jnp.abs(q - jnp.array([0.12, 0.34, 0.64, 0.86]))
     min_distances = jnp.min(delta, axis=1)
-
     np.testing.assert_allclose(min_distances, min_distances, atol=0.05)
 
   @pytest.mark.parametrize("implicit", [False, True])
   def test_soft_sort_jacobian(
       self, rng: jax.random.PRNGKeyArray, implicit: bool
   ):
-    ## Add a ridge when using JAX solvers.
+    # Add a ridge when using JAX solvers.
     try:
       from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
