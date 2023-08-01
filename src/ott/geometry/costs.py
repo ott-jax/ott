@@ -315,13 +315,14 @@ class RegTICost(TICost, abc.ABC):
   r"""Base class for regularized translation-invariant costs.
 
   .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} reg\left(\cdot\right)
+    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} reg\left(matrix \cdot\right)
 
   where :func:`reg` is the regularization function.
 
   Args:
     scaling_reg: Strength of the :meth:`regularization <reg>`.
-    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
+    matrix: :math:`p \times d` projection matrix in the Stiefel manifold,
+      namely with **orthonormalized rows**.
     orthogonal: Whether to regularize in the orthogonal complement
       to promote displacements in the span of ``matrix``.
   """
