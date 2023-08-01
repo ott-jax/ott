@@ -21,7 +21,8 @@ import jax.numpy as jnp
 import numpy as np
 
 __all__ = [
-    "register_pytree_node", "deprecate", "is_jax_array", "default_progress_fn"
+    "register_pytree_node", "deprecate", "is_jax_array", "default_prng_key",
+    "default_progress_fn"
 ]
 
 
