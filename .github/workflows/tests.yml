@@ -60,7 +60,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "orbax-checkpoint" "orbax-export" "flax" "chex<0.1.7"
+        python3 -m pip install "orbax-checkpoint" "orbax-export" "flax<0.7" "chex<0.1.7"
         python3 -m pip install "jax[cuda]<0.4" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
     - name: Nvidia SMI
