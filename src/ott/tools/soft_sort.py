@@ -333,7 +333,7 @@ def topk_mask(
 
 def quantile(
     inputs: jnp.ndarray,
-    q: Union[float, jnp.ndarray],
+    q: Optional[Union[float, jnp.ndarray]],
     axis: Union[int, Tuple[int, ...]] = -1,
     weight: Optional[Union[float, jnp.ndarray]] = None,
     **kwargs: Any,
