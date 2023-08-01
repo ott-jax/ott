@@ -56,11 +56,12 @@ jobs:
     - name: Install dependencies
       # `jax[cuda]<0.4` because of Docker issues: https://github.com/google/jax/issues/13758
       # `chex<0.1.7` because it requires `jax>=0.4.6`
-      # `flax<0.6.5` because it requires `jax>=0.4.2`
+      # `flax<0.6.5` because it requires `jax>=0.4.2`, --no-deps because of `orbax`
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "orbax-checkpoint" "orbax-export" "flax<0.7" "chex<0.1.7"
+        python3 -m pip install "orbax-checkpoint" "orbax-export" "chex<0.1.7"
+        python3 -m pip install --no-deps "flax<0.6.5"
         python3 -m pip install "jax[cuda]<0.4" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
     - name: Nvidia SMI
