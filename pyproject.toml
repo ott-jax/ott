@@ -124,7 +124,7 @@ source = ["src/"]
 omit = [
     "*/__init__.py",
     "*/_version.py",
-    "src/ott/types.py",
+    "*/types.py",
 ]
 
 [tool.coverage.report]
