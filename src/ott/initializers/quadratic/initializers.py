@@ -185,22 +185,13 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     self._linear_lr_initializer = lr_linear_initializer
 
   def _create_geometry(
-      self,
-      quad_prob: "quadratic_problem.QuadraticProblem",
-      relative_epsilon: Optional[bool] = False,
-      **kwargs: Any
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
   ) -> geometry.Geometry:
-    """Compute initial geometry for linearization.
+    raise NotImplementedError("Unreachable.")
 
-    Args:
-      quad_prob: Quadratic OT problem.
-      relative_epsilon: Whether to use relative epsilon in the geometry.
-      kwargs: Keyword arguments for
-        :meth:`~ott.initializers.linear.initializers_lr.LRInitializer.__call__`.
-
-    Returns:
-      The initial geometry used to initialize a linear problem.
-    """
+  def __call__(
+      self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
+  ) -> "sinkhorn_lr.LRSinkhornOutput":
     from ott.solvers.linear import sinkhorn_lr
 
     q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
