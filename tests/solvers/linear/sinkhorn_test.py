@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from ott import utils
 from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import acceleration, sinkhorn
@@ -561,8 +562,22 @@ class TestSinkhorn:
 
     np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)
 
+  def test_default_progress_fn(self, capsys):
+    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-1)
+
+    _ = sinkhorn.solve(
+        geom,
+        progress_fn=utils.default_progress_fn,
+        min_iterations=0,
+        inner_iterations=7,
+        max_iterations=13,
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out.startswith("7 / 13 -- "), captured
+
   @pytest.mark.fast.with_args("num_iterations", [30, 60])
-  def test_callback_fn(self, num_iterations: int):
+  def test_custom_callback_fn(self, num_iterations: int):
     """Check that the callback function is actually called."""
 
     def progress_fn(
