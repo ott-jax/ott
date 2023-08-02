@@ -204,7 +204,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
     from ott.solvers.linear import sinkhorn_lr
 
     q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
-    tmp_out = sinkhorn_lr.LRSinkhornOutput(
+    return sinkhorn_lr.LRSinkhornOutput(
         q=q,
         r=r,
         g=g,
@@ -213,8 +213,6 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
         ot_prob=None,
         epsilon=None,
     )
-
-    return quad_prob.update_lr_geom(tmp_out, relative_epsilon=relative_epsilon)
 
   @property
   def rank(self) -> int:
