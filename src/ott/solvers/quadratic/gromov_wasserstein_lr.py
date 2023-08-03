@@ -376,8 +376,23 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
     grad_r = grad_r + 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
 
-    omega = jnp.sum(q * tmp3, axis=0)
-    grad_g = -omega / (g ** 2)
+    omega_quad = jnp.sum(q * tmp3, axis=0)
+    grad_g = -omega_quad / (g ** 2)
+
+    if ot_prob.is_fused:
+      alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
+      norm_g = jnp.linalg.norm(g, ord=1)
+
+      tmp4 = ot_prob.geom_xy.apply_cost(r, axis=1)
+      lin_grad_q = tmp4 * inv_g * norm_g
+      lin_grad_r = ot_prob.geom_xy.apply_cost(q) * inv_g * norm_g
+
+      omega_lin = jnp.sum(q * tmp4, axis=0)
+      lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp4 * inv_g)
+
+      grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
+      grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
+      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
