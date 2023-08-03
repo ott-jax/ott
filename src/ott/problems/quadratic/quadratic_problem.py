@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,6 +22,9 @@ from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
 from ott.types import Transport
+
+if TYPE_CHECKING:
+  from ott.solvers.linear import sinkhorn_lr
 
 __all__ = ["QuadraticProblem"]
 
@@ -237,6 +240,40 @@ class QuadraticProblem:
     b = jax.lax.stop_gradient(self.b)
     return a.sum() * b.sum()
 
+  def update_lr_geom(
+      self,
+      lr_sink: "sinkhorn_lr.LRSinkhornOutput",
+      relative_epsilon: Optional[bool] = None,
+  ) -> geometry.Geometry:
+    """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
+    marginal_1 = lr_sink.marginal(1)
+    marginal_2 = lr_sink.marginal(0)
+    marginal_cost = self.marginal_dependent_cost(marginal_1, marginal_2)
+
+    # Extract factors from LR Sinkhorn output
+    q, r, inv_sqg = lr_sink.q, lr_sink.r, 1.0 / jnp.sqrt(lr_sink.g)
+    # Distribute middle marginal evenly across both factors.
+    q, r = q * inv_sqg[None, :], r * inv_sqg[None, :]
+
+    # Handle LRC Geometry case.
+    h1, h2 = self.quad_loss
+    geom_xx, geom_yy, geom_xy = self.geom_xx, self.geom_yy, self.geom_xy
+    tmp1 = apply_cost(geom_xx, q, axis=1, fn=h1)
+    tmp2 = apply_cost(geom_yy, r, axis=1, fn=h2)
+    if self.is_low_rank:
+      geom = low_rank.LRCGeometry(
+          cost_1=tmp1, cost_2=-tmp2, relative_epsilon=relative_epsilon
+      ) + marginal_cost
+      if self.is_fused:
+        geom = geom + geom_xy
+    else:
+      cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
+      cost_matrix += self.fused_penalty * self._fused_cost_matrix
+      geom = geometry.Geometry(
+          cost_matrix=cost_matrix, relative_epsilon=relative_epsilon
+      )
+    return geom  # noqa: RET504
+
   def update_linearization(
       self,
       transport: Transport,
@@ -305,6 +342,21 @@ class QuadraticProblem:
 
     return linear_problem.LinearProblem(
         geom, self.a, self.b, tau_a=self.tau_a, tau_b=self.tau_b
+    )
+
+  def update_lr_linearization(
+      self,
+      lr_sink: "sinkhorn_lr.LRSinkhornOutput",
+      *,
+      relative_epsilon: Optional[bool] = None,
+  ) -> linear_problem.LinearProblem:
+    """Update a Quad problem linearization using a LR Sinkhorn."""
+    return linear_problem.LinearProblem(
+        self.update_lr_geom(lr_sink, relative_epsilon=relative_epsilon),
+        self.a,
+        self.b,
+        tau_a=self.tau_a,
+        tau_b=self.tau_b
     )
 
   @property
