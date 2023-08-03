@@ -115,13 +115,14 @@ def compute_reg_ot_cost(
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
-  # TODO(michalk8): extract to a function
+  # TODO(michalk8): extract to a common function
   inv_g = 1.0 / g[None, :]
   inv_sqrt_g = jnp.sqrt(inv_g)
   tmp1 = -4.0 * ot_prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
   tmp2 = ot_prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
   lin_geom = low_rank.LRCGeometry(tmp1, tmp2)
 
+  # TODO(michalk8): include the fused case
   cost = jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
   cost -= epsilon * (ent(q) + ent(r) + ent(g))
   if tau_a != 1.0:
@@ -181,7 +182,7 @@ class LRGWOutput(NamedTuple):
   @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     """Linearized geometry."""
-    # TODO(michalk8): extract to a common function
+    # TODO(michalk8): extract to a common function (also in other places)
     inv_sqrt_g = jnp.sqrt(self._inv_g)
     tmp1 = -4.0 * self.ot_prob.geom_xx.apply_cost(self.q, axis=1) * inv_sqrt_g
     tmp2 = self.ot_prob.geom_yy.apply_cost(self.r, axis=1) * inv_sqrt_g
