@@ -14,6 +14,7 @@ gv
 init
 iter
 jnp
+jvp
 kwargs
 laplacian
 loc
@@ -30,6 +31,7 @@ rngs
 sqeucl
 topk
 vec
+vjp
 wolfe
 xy
 yy
