@@ -13,11 +13,9 @@
 # limitations under the License.
 import jax
 import jax.numpy as jnp
-import pytest
 from ott.math import utils as mu
 
 
-@pytest.mark.fast()
 class TestNorm:
 
   def test_norm(self, rng: jax.random.PRNGKeyArray):

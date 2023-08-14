@@ -22,8 +22,14 @@ if TYPE_CHECKING:
   from ott.geometry import costs
 
 __all__ = [
-    "safe_log", "kl", "gen_kl", "js", "logsumexp", "softmin",
-    "barycentric_projection"
+    "safe_log",
+    "norm",
+    "kl",
+    "gen_kl",
+    "js",
+    "logsumexp",
+    "softmin",
+    "barycentric_projection",
 ]
 
 
