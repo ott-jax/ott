@@ -37,6 +37,41 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
+@functools.partial(jax.custom_jvp, nondiff_argnums=[1])
+def norm(x, ord=2.0):
+  """Computes order ord norm of vector, using `jnp.linalg` in forward pass."""
+  return jnp.linalg.norm(x, ord)
+
+
+@norm.defjvp
+def norm_jvp(ord, primals, tangents):
+  """Custom_jvp for norm, that returns 0.0 when evaluated at 0.
+
+  Evaluations of distances between a vector and itself using translation
+  invariant costs, typically  norms, result in functions of the form
+  ``lambda x : jnp.linalg.norm(x-x)``. Such functions output `NaN` gradients,
+  because they typically involve derivating an exponent of 0 (e.g. when
+  differentiating the Euclidean norm, one gets a 0-denominator in the
+  expression, see e.g. https://github.com/google/jax/issues/6484 for context.
+
+  While this makes sense mathematically, in the context of optimal transport
+  such distances between a point and itself can be safely ignored when they
+  contribute to an OT cost (when, for instance, computing Sinkhorn divergences,
+  involving computing the OT cost of a point cloud with itself).
+
+  To avoid such `NaN` values, this custom norm implementation uses the
+  double-where trick, to avoid having branches that output any `NaN`, and
+  safely output a 0 instead.
+  """
+  x, = primals
+  x_is_zero = jnp.all(jnp.logical_not(x))
+  clean_x = jnp.where(x_is_zero, jnp.ones(x.shape), x)
+  orig_jvp = jax.jvp(
+      functools.partial(jnp.linalg.norm, ord=ord), (clean_x,), tangents
+  )
+  return orig_jvp[0], jnp.where(x_is_zero, orig_jvp[1], 0.0)
+
+
 # TODO(michalk8): add axis argument
 def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   """Kullback-Leibler divergence."""

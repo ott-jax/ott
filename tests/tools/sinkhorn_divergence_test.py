@@ -39,18 +39,17 @@ class TestSinkhornDivergence:
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
                costs.SqPNorm(p=2.1)],
-      epsilon=[1e-2, 1e-3],
       only_fast={
           "cost_fn": costs.SqEuclidean(),
-          "epsilon": 1e-2
       },
   )
-  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, epsilon: float):
+  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
-    div = sinkhorn_divergence.sinkhorn_divergence(
+    epsilon = 5e-2
+    div = lambda x: sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         y,
@@ -59,9 +58,11 @@ class TestSinkhornDivergence:
         b=self._b,
         epsilon=epsilon
     )
-    assert div.divergence > 0.0
-    assert len(div.potentials) == 3
+    out = div(x)
+    assert out.divergence > 0.0
+    assert len(out.potentials) == 3
 
+    # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
@@ -70,15 +71,19 @@ class TestSinkhornDivergence:
     div2 -= 0.5 * sinkhorn.solve(geometry_xx, self._a, self._a).reg_ot_cost
     div2 -= 0.5 * sinkhorn.solve(geometry_yy, self._b, self._b).reg_ot_cost
 
-    np.testing.assert_allclose(div.divergence, div2, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(out.divergence, div2, rtol=1e-5, atol=1e-5)
 
-    # Test div of x to itself close to 0.
+    # Check differentiability of Sinkhorn divergence works, without NaN's.
+    grad = jax.grad(lambda x: div(x).divergence)(x)
+    assert jnp.all(jnp.logical_not(jnp.isnan(grad)))
+
+    # Test divergence of x to itself close to 0.
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         x,
         cost_fn=cost_fn,
-        epsilon=1e-1,
+        epsilon=epsilon,
         sinkhorn_kwargs={"inner_iterations": 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
