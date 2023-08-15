@@ -296,7 +296,7 @@ class TestSinkhornDivergence:
     rngs = jax.random.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
-
+    epsilon = 0.2
     num_segments = 2
 
     num_per_segment_x = (5, 2)
@@ -317,14 +317,7 @@ class TestSinkhornDivergence:
 
     true_divergences = jnp.array([
         sinkhorn_divergence.sinkhorn_divergence(
-            pointcloud.PointCloud,
-            x,
-            y,
-            sinkhorn_kwargs={
-                "lse_mode": True
-            },
-            epsilon=0.1,
-            cost_fn=b_cost
+            pointcloud.PointCloud, x, y, epsilon=epsilon, cost_fn=b_cost
         ).divergence for x, y in zip((x1, x2), (y1, y2))
     ])
 
@@ -338,8 +331,7 @@ class TestSinkhornDivergence:
         max_measure_size=5,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={"lse_mode": True},
-        epsilon=0.1,
+        epsilon=epsilon,
         cost_fn=b_cost
     )
 
