@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -43,14 +43,43 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
 
 
-@functools.partial(jax.custom_jvp, nondiff_argnums=[1])
-def norm(x, ord=2.0):
-  """Computes order ord norm of vector, using `jnp.linalg` in forward pass."""
-  return jnp.linalg.norm(x, ord)
+@functools.partial(jax.custom_jvp, nondiff_argnums=[1, 2, 3])
+@functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
+def norm(
+    x: jnp.ndarray,
+    ord: Union[int, str, None] = None,
+    axis: Union[None, tuple[int, ...], int] = None,
+    keepdims: bool = False
+) -> jnp.ndarray:
+  """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
+
+  Args:
+    x : Input array.  If `axis` is None, `x` must be 1-D or 2-D, unless `ord`
+      is None. If both `axis` and `ord` are None, the 2-norm of ``x.ravel``
+      will be returned.
+    ord : {non-zero int, inf, -inf, 'fro', 'nuc'}, optional
+      Order of the norm (see table under ``Notes``). inf means numpy's
+      `inf` object. The default is None.
+    axis : {None, int, 2-tuple of ints}, optional. If `axis` is an integer, it
+      specifies the axis of `x` along which to compute the vector norms.
+      If `axis` is a 2-tuple, it specifies the axes that hold 2-D matrices, and
+      the matrix norms of these matrices are computed.  If `axis` is None then
+      either a vector norm (when `x` is 1-D) or a matrix norm (when `x` is 2-D)
+      is returned. The default is None.
+
+    keepdims : bool, optional
+      If this is set to True, the axes which are normed over are left in the
+      result as dimensions with size one.  With this option the result will
+      broadcast correctly against the original `x`.
+
+  Returns:
+    float or ndarray, Norm of the matrix or vector(s).
+  """
+  return jnp.linalg.norm(x, ord=ord, axis=axis, keepdims=keepdims)
 
 
 @norm.defjvp
-def norm_jvp(ord, primals, tangents):
+def norm_jvp(ord, axis, keepdims, primals, tangents):
   """Custom_jvp for norm, that returns 0.0 when evaluated at 0.
 
   Evaluations of distances between a vector and itself using translation
@@ -71,11 +100,12 @@ def norm_jvp(ord, primals, tangents):
   """
   x, = primals
   x_is_zero = jnp.all(jnp.logical_not(x))
-  clean_x = jnp.where(x_is_zero, jnp.ones(x.shape), x)
-  orig_jvp = jax.jvp(
-      functools.partial(jnp.linalg.norm, ord=ord), (clean_x,), tangents
+  clean_x = jnp.where(x_is_zero, jnp.ones_like(x), x)
+  primals, tangents = jax.jvp(
+      functools.partial(jnp.linalg.norm, ord=ord, axis=axis, keepdims=keepdims),
+      (clean_x,), tangents
   )
-  return orig_jvp[0], jnp.where(x_is_zero, orig_jvp[1], 0.0)
+  return primals, jnp.where(x_is_zero, 0.0, tangents)
 
 
 # TODO(michalk8): add axis argument

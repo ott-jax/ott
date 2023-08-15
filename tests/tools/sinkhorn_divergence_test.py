@@ -49,14 +49,16 @@ class TestSinkhornDivergence:
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
     epsilon = 5e-2
-    div = lambda x: sinkhorn_divergence.sinkhorn_divergence(
-        pointcloud.PointCloud,
-        x,
-        y,
-        cost_fn=cost_fn,
-        a=self._a,
-        b=self._b,
-        epsilon=epsilon
+    div = jax.jit(
+        lambda x: sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud,
+            x,
+            y,
+            cost_fn=cost_fn,
+            a=self._a,
+            b=self._b,
+            epsilon=epsilon
+        )
     )
     out = div(x)
     assert out.divergence > 0.0
