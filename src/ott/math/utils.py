@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
@@ -48,7 +48,7 @@ def safe_log(  # noqa: D103
 def norm(
     x: jnp.ndarray,
     ord: Union[int, str, None] = None,
-    axis: Union[None, tuple[int, ...], int] = None,
+    axis: Union[None, Sequence[int], int] = None,
     keepdims: bool = False
 ) -> jnp.ndarray:
   """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
