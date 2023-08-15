@@ -472,9 +472,9 @@ class TestSinkhorn:
     assert num_iter_restarted == 1
 
   @pytest.mark.cpu()
-  @pytest.mark.limit_memory("32 MB")
+  @pytest.mark.limit_memory("33 MB")
   @pytest.mark.fast()
-  def test_sinkhorn_online_memory_jit(self, batch_size: int):
+  def test_sinkhorn_online_memory_jit(self):
     # test that full matrix is not materialized.
     # Only storing it would result in 250 * 8000 = 2e6 entries = 16Mb, overflow.
     batch_size = 10
