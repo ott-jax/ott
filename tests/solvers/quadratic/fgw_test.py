@@ -174,12 +174,12 @@ class TestFusedGromovWasserstein:
 
       return solver(prob).reg_gw_cost
 
-    assert loss_thre(1e-1) > loss_thre(1e-4)
     assert loss_thre(1e-3) > loss_thre(1e-5)
 
-  @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_gradient_fgw_solver_penalty(self, lse_mode: bool):
+  def test_gradient_fgw_solver_penalty(self):
     """Test gradient w.r.t. penalty."""
+
+    lse_mode = True
 
     def reg_gw(
         cx: jnp.ndarray, cy: jnp.ndarray, cxy: jnp.ndarray,

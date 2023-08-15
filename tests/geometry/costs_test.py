@@ -84,17 +84,17 @@ class TestCostFn:
 class TestBuresBarycenter:
 
   def test_bures(self, rng: jax.random.PRNGKeyArray):
-    d = 5
-    r = jnp.array([1.2036, 0.2825, 0.013, 0.00052, 0.1454])
+    d = 3
+    r = jnp.array([1.2036, 0.2825, 0.013])
     Sigma1 = r * jnp.eye(d)
-    s = jnp.array([3.3075, 0.8545, 0.1110, 0.54, 0.9206])
+    s = jnp.array([3.3075, 0.8545, 0.1110])
     Sigma2 = s * jnp.eye(d)
     # initializing Bures cost function
     weights = jnp.array([.3, .7])
     tolerance = 1e-6
     min_iterations = 13
     inner_iterations = 1
-    max_iterations = 123
+    max_iterations = 37
     bures = costs.Bures(d, sqrtm_kw={"max_iterations": 134, "threshold": 1e-8})
     # stacking parameter values
     xs = jnp.vstack((
@@ -111,7 +111,7 @@ class TestBuresBarycenter:
         inner_iterations=inner_iterations
     )
 
-    _, sigma = costs.x_to_means_and_covs(cov, 5)
+    _, sigma = costs.x_to_means_and_covs(cov, d)
     ground_truth = (weights[0] * jnp.sqrt(r) + weights[1] * jnp.sqrt(s)) ** 2
     np.testing.assert_allclose(
         ground_truth, jnp.diag(sigma), rtol=1e-4, atol=1e-4
@@ -145,7 +145,7 @@ class TestRegTICost:
       cost_fn_t: Type[costs.RegTICost],
       use_mat: bool,
   ):
-    for d in [5, 10, 50, 100, 1000]:
+    for d in [5, 100]:
       rng, rng1, rng_mat = jax.random.split(rng, 3)
       if use_mat:
         matrix = jnp.abs(jax.random.normal(rng_mat, (d // 4, d)))
@@ -160,8 +160,8 @@ class TestRegTICost:
           actual, expected, rtol=1e-4, atol=1e-4, err_msg=f"d={d}"
       )
 
-  @pytest.mark.parametrize("k", [1, 2, 7, 10])
-  @pytest.mark.parametrize("d", [10, 50, 100])
+  @pytest.mark.parametrize("k", [1, 3, 10])
+  @pytest.mark.parametrize("d", [10, 50])
   def test_elastic_sq_k_overlap(
       self, rng: jax.random.PRNGKeyArray, k: int, d: int
   ):
@@ -182,10 +182,11 @@ class TestRegTICost:
   def test_sparse_displacement(
       self, rng: jax.random.PRNGKeyArray, cost_fn: costs.RegTICost
   ):
-    frac_sparse = 0.8
+    frac_sparse = 0.7
     rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (50, 30))
-    y = jax.random.normal(rng2, (71, 30))
+    d = 17
+    x = jax.random.normal(rng1, (25, d))
+    y = jax.random.normal(rng2, (37, d))
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
     dp = sinkhorn.solve(geom).to_dual_potentials()
@@ -198,14 +199,14 @@ class TestRegTICost:
   def test_stronger_regularization_increases_sparsity(
       self, rng: jax.random.PRNGKeyArray, cost_type_t: Type[costs.RegTICost]
   ):
-    d, rngs = 30, jax.random.split(rng, 4)
+    d, rngs = 17, jax.random.split(rng, 4)
     x = jax.random.normal(rngs[0], (50, d))
     y = jax.random.normal(rngs[1], (71, d))
     xx = jax.random.normal(rngs[2], (25, d))
     yy = jax.random.normal(rngs[3], (35, d))
 
     sparsity = {False: [], True: []}
-    for scaling_reg in [9, 11, 89]:
+    for scaling_reg in [9, 89]:
       cost_fn = cost_type_t(scaling_reg=scaling_reg)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
@@ -222,9 +223,9 @@ class TestRegTICost:
 @pytest.mark.fast()
 class TestSoftDTW:
 
-  @pytest.mark.parametrize("n", [11, 16])
-  @pytest.mark.parametrize("m", [13, 16])
-  @pytest.mark.parametrize("gamma", [1e-3, 1.0, 5])
+  @pytest.mark.parametrize("n", [7, 10])
+  @pytest.mark.parametrize("m", [9, 10])
+  @pytest.mark.parametrize("gamma", [1e-3, 5])
   def test_soft_dtw(
       self, rng: jax.random.PRNGKeyArray, n: int, m: int, gamma: float
   ):

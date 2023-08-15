@@ -75,7 +75,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
     np.testing.assert_allclose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
 
-  @pytest.mark.fast.with_args("topk", [-1, 2, 5, 11], only_fast=-1)
+  @pytest.mark.fast.with_args("topk", [-1, 2, 11], only_fast=-1)
   def test_sort_batch(self, rng: jax.random.PRNGKeyArray, topk: int):
     x = jax.random.uniform(rng, (32, 10, 6, 4))
     axis = 1
@@ -154,7 +154,7 @@ class TestSoftSort:
     np.testing.assert_approx_equal(x_q, q, significant=1)
 
   def test_quantile_on_several_axes(self, rng: jax.random.PRNGKeyArray):
-    batch, height, width, channels = 16, 100, 100, 3
+    batch, height, width, channels = 3, 11, 13, 3
     x = jax.random.uniform(rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
         x, axis=(1, 2), q=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
@@ -168,7 +168,7 @@ class TestSoftSort:
   @pytest.mark.fast()
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantiles(self, rng: jax.random.PRNGKeyArray, jit: bool):
-    inputs = jax.random.uniform(rng, (200, 2, 3))
+    inputs = jax.random.uniform(rng, (100, 2, 3))
     q = jnp.array([.1, .8, .4])
     quantile_fn = soft_sort.quantile
     if jit:

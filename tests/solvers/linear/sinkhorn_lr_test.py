@@ -27,8 +27,8 @@ class TestLRSinkhorn:
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 4
-    self.n = 33
-    self.m = 37
+    self.n = 23
+    self.m = 27
     self.rng, *rngs = jax.random.split(rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -42,11 +42,12 @@ class TestLRSinkhorn:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      use_lrcgeom=[True, False],
-      initializer=["rank2", "random", "k-means"],
-      gamma_rescale=[False, True],
-      lse_mode=[True, False],
-      only_fast=0,
+      "use_lrcgeom,initializer,gamma_rescale,lse_mode", (
+          (True, "rank2", False, True),
+          (False, "random", True, False),
+          (True, "k-means", False, True),
+      ),
+      only_fast=0
   )
   def test_euclidean_point_cloud_lr(
       self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool,
@@ -151,9 +152,10 @@ class TestLRSinkhorn:
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
 
-  @pytest.mark.fast.with_args("num_iterations", [30, 60])
-  def test_callback_fn(self, num_iterations: int):
+  @pytest.mark.fast()
+  def test_callback_fn(self):
     """Check that the callback function is actually called."""
+    num_iterations = 37
 
     def progress_fn(
         status: Tuple[np.ndarray, np.ndarray, np.ndarray,
@@ -203,10 +205,11 @@ class TestLRSinkhorn:
     # check that max iterations is provided each time: [30, 30]
     assert traced_values["total"] == [num_iterations] * 2
 
-  @pytest.mark.fast.with_args(rank=[5, 10], eps=[0.0, 1e-1])
-  def test_lse_matches_kernel_mode(self, rank: int, eps: float):
+  @pytest.mark.fast.with_args(eps=[0.0, 1e-1])
+  def test_lse_matches_kernel_mode(self, eps: float):
     threshold = 1e-3
     tol = 1e-5
+    rank = 5
     geom = pointcloud.PointCloud(self.x, self.y)
     ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
 

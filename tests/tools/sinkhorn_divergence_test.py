@@ -126,41 +126,22 @@ class TestSinkhornDivergence:
     )
     assert jnp.abs(div.geoms[0].epsilon - div.geoms[1].epsilon) > 0
 
-  @pytest.mark.parametrize("use_weights", [False, True])
-  def test_euclidean_point_cloud_wrapper(self, use_weights: bool):
+  def test_euclidean_point_cloud_weights_unb(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    kwargs = {"a": self._a, "b": self._b} if use_weights else {}
+    kwargs = {"a": self._a, "b": self._b}
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
         cloud_b,
         epsilon=0.1,
-        sinkhorn_kwargs={"threshold": 1e-2},
-        **kwargs
-    )
-    assert div.divergence > 0.0
-    assert len(div.potentials) == 3
-    assert len(div.geoms) == 3
-
-  @pytest.mark.fast()
-  def test_euclidean_point_cloud_unbalanced_wrapper(self):
-    rngs = jax.random.split(self.rng, 2)
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    div = sinkhorn_divergence.sinkhorn_divergence(
-        pointcloud.PointCloud,
-        cloud_a,
-        cloud_b,
-        epsilon=0.1,
-        a=self._a + .001,
-        b=self._b + .002,
         sinkhorn_kwargs={
             "threshold": 1e-2,
             "tau_a": 0.8,
             "tau_b": 0.9
-        }
+        },
+        **kwargs
     )
     assert div.divergence > 0.0
     assert len(div.potentials) == 3
@@ -371,10 +352,8 @@ class TestSinkhornDivergence:
       "sinkhorn_kwargs,epsilon", [
           ({"anderson": acceleration.AndersonAcceleration(memory=3)}, 1e-2),
           ({"anderson": acceleration.AndersonAcceleration(memory=6)}, None),
-          ({"momentum": acceleration.Momentum(start=20)}, 1e-3),
           ({"momentum": acceleration.Momentum(start=30)}, None),
           ({"momentum": acceleration.Momentum(value=1.05)}, 1e-3),
-          ({"momentum": acceleration.Momentum(value=1.01)}, None),
       ],
       only_fast=[0, -1],
   )

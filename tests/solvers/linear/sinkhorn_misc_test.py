@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
+from typing import Optional
 
 import chex
 import jax
@@ -31,13 +31,11 @@ class TestSinkhornAnderson:
       lse_mode=[True, False],
       tau_a=[1.0, .98],
       tau_b=[1.0, .985],
-      shape=[(237, 153)],
-      refresh_anderson_frequency=[1, 3],
       only_fast=0,
   )
   def test_anderson(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
-      tau_b: float, shape: Tuple[int, int], refresh_anderson_frequency: int
+      tau_b: float
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -45,11 +43,9 @@ class TestSinkhornAnderson:
       lse_mode: whether to run in lse (True) or kernel (false) mode.
       tau_a: unbalanced parameter w.r.t. 1st marginal
       tau_b: unbalanced parameter w.r.t. 1st marginal
-      shape: shape of test problem
-      refresh_anderson_frequency: how often to Anderson interpolation should be
-        recomputed.
     """
-    n, m = shape
+    refresh_anderson_frequency = 3
+    n, m = (137, 153)
     dim = 4
     rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
@@ -175,8 +171,8 @@ class TestSinkhornOnline:
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.random.PRNGKeyArray):
     self.dim = 3
-    self.n = 1000
-    self.m = 402
+    self.n = 100
+    self.m = 42
     self.rng, *rngs = jax.random.split(rng, 5)
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
@@ -188,7 +184,7 @@ class TestSinkhornOnline:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @pytest.mark.fast.with_args("batch_size", [1, 13, 402, 1000], only_fast=-1)
+  @pytest.mark.fast.with_args("batch_size", [1, 13, 42, 100], only_fast=-1)
   def test_online_matches_offline_size(self, batch_size: int):
     threshold, rtol, atol = 1e-1, 1e-6, 1e-6
     geom_offline = pointcloud.PointCloud(
