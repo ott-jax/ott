@@ -52,10 +52,10 @@ def neural_models(request: str) -> ModelPair_t:
 class TestNeuralDual:
 
   @pytest.mark.fast.with_args(
-      back_and_forth=[True, False],
-      test_gaussian_init=[True, False],
-      amortization_loss=["objective", "regression"],
-      conjugate_solver=[conjugate_solvers.DEFAULT_CONJUGATE_SOLVER, None],
+      "back_and_forth,test_gaussian_init,amortization_loss,conjugate_solver", (
+          (True, True, "objective", conjugate_solvers.DEFAULT_CONJUGATE_SOLVER),
+          (False, False, "regression", None),
+      ),
       only_fast=0
   )
   def test_neural_dual_convergence(

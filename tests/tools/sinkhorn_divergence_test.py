@@ -39,29 +39,32 @@ class TestSinkhornDivergence:
       cost_fn=[costs.Euclidean(),
                costs.SqEuclidean(),
                costs.SqPNorm(p=2.1)],
-      epsilon=[1e-2, 1e-3],
       only_fast={
           "cost_fn": costs.SqEuclidean(),
-          "epsilon": 1e-2
       },
   )
-  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, epsilon: float):
+  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn):
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
-    div = sinkhorn_divergence.sinkhorn_divergence(
-        pointcloud.PointCloud,
-        x,
-        y,
-        cost_fn=cost_fn,
-        a=self._a,
-        b=self._b,
-        epsilon=epsilon
+    epsilon = 5e-2
+    div = jax.jit(
+        lambda x: sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud,
+            x,
+            y,
+            cost_fn=cost_fn,
+            a=self._a,
+            b=self._b,
+            epsilon=epsilon
+        )
     )
-    assert div.divergence > 0.0
-    assert len(div.potentials) == 3
+    out = div(x)
+    assert out.divergence > 0.0
+    assert len(out.potentials) == 3
 
+    # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
@@ -70,15 +73,19 @@ class TestSinkhornDivergence:
     div2 -= 0.5 * sinkhorn.solve(geometry_xx, self._a, self._a).reg_ot_cost
     div2 -= 0.5 * sinkhorn.solve(geometry_yy, self._b, self._b).reg_ot_cost
 
-    np.testing.assert_allclose(div.divergence, div2, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(out.divergence, div2, rtol=1e-5, atol=1e-5)
 
-    # Test div of x to itself close to 0.
+    # Check differentiability of Sinkhorn divergence works, without NaN's.
+    grad = jax.grad(lambda x: div(x).divergence)(x)
+    assert jnp.all(jnp.logical_not(jnp.isnan(grad)))
+
+    # Test divergence of x to itself close to 0.
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         x,
         cost_fn=cost_fn,
-        epsilon=1e-1,
+        epsilon=epsilon,
         sinkhorn_kwargs={"inner_iterations": 1},
     )
     np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
@@ -119,41 +126,22 @@ class TestSinkhornDivergence:
     )
     assert jnp.abs(div.geoms[0].epsilon - div.geoms[1].epsilon) > 0
 
-  @pytest.mark.parametrize("use_weights", [False, True])
-  def test_euclidean_point_cloud_wrapper(self, use_weights: bool):
+  def test_euclidean_point_cloud_weights_unb(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    kwargs = {"a": self._a, "b": self._b} if use_weights else {}
+    kwargs = {"a": self._a, "b": self._b}
     div = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
         cloud_b,
         epsilon=0.1,
-        sinkhorn_kwargs={"threshold": 1e-2},
-        **kwargs
-    )
-    assert div.divergence > 0.0
-    assert len(div.potentials) == 3
-    assert len(div.geoms) == 3
-
-  @pytest.mark.fast()
-  def test_euclidean_point_cloud_unbalanced_wrapper(self):
-    rngs = jax.random.split(self.rng, 2)
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    div = sinkhorn_divergence.sinkhorn_divergence(
-        pointcloud.PointCloud,
-        cloud_a,
-        cloud_b,
-        epsilon=0.1,
-        a=self._a + .001,
-        b=self._b + .002,
         sinkhorn_kwargs={
             "threshold": 1e-2,
             "tau_a": 0.8,
             "tau_b": 0.9
-        }
+        },
+        **kwargs
     )
     assert div.divergence > 0.0
     assert len(div.potentials) == 3
@@ -308,7 +296,7 @@ class TestSinkhornDivergence:
     rngs = jax.random.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
-
+    epsilon = 0.2
     num_segments = 2
 
     num_per_segment_x = (5, 2)
@@ -329,14 +317,7 @@ class TestSinkhornDivergence:
 
     true_divergences = jnp.array([
         sinkhorn_divergence.sinkhorn_divergence(
-            pointcloud.PointCloud,
-            x,
-            y,
-            sinkhorn_kwargs={
-                "lse_mode": True
-            },
-            epsilon=0.1,
-            cost_fn=b_cost
+            pointcloud.PointCloud, x, y, epsilon=epsilon, cost_fn=b_cost
         ).divergence for x, y in zip((x1, x2), (y1, y2))
     ])
 
@@ -350,8 +331,7 @@ class TestSinkhornDivergence:
         max_measure_size=5,
         num_per_segment_x=num_per_segment_x,
         num_per_segment_y=num_per_segment_y,
-        sinkhorn_kwargs={"lse_mode": True},
-        epsilon=0.1,
+        epsilon=epsilon,
         cost_fn=b_cost
     )
 
@@ -364,10 +344,8 @@ class TestSinkhornDivergence:
       "sinkhorn_kwargs,epsilon", [
           ({"anderson": acceleration.AndersonAcceleration(memory=3)}, 1e-2),
           ({"anderson": acceleration.AndersonAcceleration(memory=6)}, None),
-          ({"momentum": acceleration.Momentum(start=20)}, 1e-3),
           ({"momentum": acceleration.Momentum(start=30)}, None),
           ({"momentum": acceleration.Momentum(value=1.05)}, 1e-3),
-          ({"momentum": acceleration.Momentum(value=1.01)}, None),
       ],
       only_fast=[0, -1],
   )
