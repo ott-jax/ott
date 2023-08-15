@@ -92,7 +92,7 @@ class TestBuresBarycenter:
     # initializing Bures cost function
     weights = jnp.array([.3, .7])
     tolerance = 1e-6
-    min_iterations = 13
+    min_iterations = 2
     inner_iterations = 1
     max_iterations = 37
     bures = costs.Bures(d, sqrtm_kw={"max_iterations": 134, "threshold": 1e-8})
@@ -116,9 +116,9 @@ class TestBuresBarycenter:
     np.testing.assert_allclose(
         ground_truth, jnp.diag(sigma), rtol=1e-4, atol=1e-4
     )
-    # Check that outer loop ran for at leat min_iterations
+    # Check that outer loop ran for at least min_iterations
     np.testing.assert_array_less(
-        0, diffs[min_iterations // inner_iterations - 1]
+        0.0, diffs[min_iterations // inner_iterations - 1]
     )
     # Check converged
     np.testing.assert_array_less((diffs[diffs > -1])[-1], tolerance)

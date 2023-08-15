@@ -45,10 +45,10 @@ class TestNorm:
     # Check native jax's norm still returns NaNs when ord is float.
     if ord != jnp.inf:
       g = lambda x: jnp.linalg.norm(x - x, ord=ord)
-      assert jnp.all(jnp.isnan(jax.grad(g)(x)))
+      np.testing.assert_array_equal(jnp.isnan(jax.grad(g)(x)), True)
       h = lambda x: jnp.linalg.norm(x - x, ord=ord, axis=1)
       jac = jax.jacobian(h)(z)
-      assert jnp.all(jnp.isnan(jac))
+      np.testing.assert_array_equal(jnp.isnan(jac), True)
 
     # Check both coincide outside of 0.
     f = functools.partial(mu.norm, ord=ord)
