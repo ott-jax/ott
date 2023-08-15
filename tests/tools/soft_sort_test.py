@@ -154,10 +154,10 @@ class TestSoftSort:
     np.testing.assert_approx_equal(x_q, q, significant=1)
 
   def test_quantile_on_several_axes(self, rng: jax.random.PRNGKeyArray):
-    batch, height, width, channels = 3, 11, 13, 3
+    batch, height, width, channels = 4, 47, 45, 3
     x = jax.random.uniform(rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
-        x, axis=(1, 2), q=0.5, weight=0.05, epsilon=1e-3, lse_mode=True
+        x, axis=(1, 2), q=0.5, weight=0.05, epsilon=1e-2, lse_mode=True
     )
 
     np.testing.assert_array_equal(q.shape, (batch, 1, channels))
