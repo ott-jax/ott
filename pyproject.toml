@@ -15,12 +15,9 @@ authors = [
 dependencies = [
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
-    "jaxopt>=0.5.5",
-    # numba/numpy compatibility issue in JAXOPT.
-    "numpy>=1.18.4, <1.25.0",
-    "flax>=0.6.6",
-    "optax>=0.1.1",
-    "lineax>=0.0.1; python_version >= '3.9'"
+    "jaxopt>=0.8",
+    "lineax>=0.0.1; python_version >= '3.9'",
+    "numpy>=1.18.4",
 ]
 keywords = [
     "optimal transport",
@@ -59,6 +56,10 @@ Documentation = "https://ott-jax.readthedocs.io"
 Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
+neural = [
+    "flax>=0.6.6",
+    "optax>=0.1.1",
+]
 dev = [
     "pre-commit>=2.16.0",
     "tox>=4",
@@ -180,7 +181,7 @@ legacy_tox_ini = """
     skip_missing_interpreters = true
 
     [testenv]
-    extras = test
+    extras = neural,test
     pass_env = CUDA_*,PYTEST_*,CI
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
