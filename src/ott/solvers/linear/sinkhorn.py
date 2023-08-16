@@ -298,7 +298,7 @@ class SinkhornOutput(NamedTuple):
       ``max_iterations // inner_iterations`` where those were the parameters
       passed on to the :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver.
       For each entry indexed at ``i``, ``errors[i]`` can be either a real
-      nonnegative value (meaning the algorithm recorded that error at the
+      non-negative value (meaning the algorithm recorded that error at the
       ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
       algorithm computed that iteration but did not compute its error, because,
       for instance, ``i < min_iterations // inner_iterations``), or a ``-1``,
