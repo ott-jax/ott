@@ -13,6 +13,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import io
 import warnings
 from typing import Any, Callable, NamedTuple, Optional, Tuple
 
@@ -20,10 +21,22 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+try:
+  from tqdm import tqdm
+except ImportError:
+  tqdm = Any
+
 __all__ = [
-    "register_pytree_node", "deprecate", "is_jax_array", "default_prng_key",
-    "default_progress_fn"
+    "register_pytree_node",
+    "deprecate",
+    "is_jax_array",
+    "default_prng_key",
+    "default_progress_fn",
+    "tqdm_progress_fn",
 ]
+
+IOCallback_t = Callable[[Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]],
+                        None]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -81,80 +94,110 @@ def default_prng_key(
 
 
 def default_progress_fn(
-    status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args: Any
-) -> None:
-  """Callback function that reports progress of
-  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` by printing to the console.
+    fmt: str = "{iter} / {max_iter} -- {error}",
+    stream: Optional[io.TextIOBase] = None,
+) -> IOCallback_t:
+  """Return a callback that prints the progress when solving
+  :mod:`linear problems <ott.problems.linear>`.
 
   It prints the progress only when the error is computed, that is every
   :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
 
-  Note:
-    This function is called during solver iterations via
-    :func:`~jax.experimental.host_callback.id_tap` so the solver execution
-    remains :func:`jittable <jax.jit>`.
+  .. seealso::
+    - TODO.
 
   Args:
-    status: status consisting of:
-
-      - the current iteration number
-      - the number of inner iterations after which the error is computed
-      - the total number of iterations
-      - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`
-
-    args: unused, see :mod:`jax.experimental.host_callback`.
+    fmt: Format used to print.
+    stream: Output IO stream.
 
   Returns:
-    Nothing, just prints.
+    A callback function accepting the following arguments
+
+    - the current iteration number
+    - the number of inner iterations after which the error is computed
+    - the total number of iterations
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`
 
   Examples:
-    If instead of printing you want to report progress using a progress bar such
-    as `tqdm <https://tqdm.github.io>`_, then simply provide a slightly modified
-    version of this callback, for instance:
-
     .. code-block:: python
 
-      import jax
-      import numpy as np
-      from tqdm import tqdm
-
-      from ott.problems.linear import linear_problem
-      from ott.solvers.linear import sinkhorn
-
-      def progress_fn(status, *args):
-        iteration, inner_iterations, total_iter, state = status
-        iteration = int(iteration) + 1
-        inner_iterations = int(inner_iterations)
-        total_iter = int(total_iter)
-        errors = np.asarray(state.errors).ravel()
-
-        # Avoid reporting error on each iteration,
-        # because errors are only computed every `inner_iterations`.
-        if iteration % inner_iterations == 0:
-          error_idx = max(0, iteration // inner_iterations - 1)
-          error = errors[error_idx]
-
-          pbar.set_postfix_str(f"error: {error:0.6e}")
-          pbar.total = total_iter // inner_iterations
-          pbar.update()
-
-      prob = linear_problem.LinearProblem(...)
-      solver = sinkhorn.Sinkhorn(progress_fn=progress_fn)
-
-      with tqdm() as pbar:
-        out_sink = jax.jit(solver)(prob)
+      # TODO
   """  # noqa: D205
-  # Convert arguments.
+
+  def progress_callback(
+      status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args
+  ) -> None:
+    iteration, inner_iterations, total_iter, errors = _prepare_info(status)
+    # Avoid reporting error on each iteration,
+    # because errors are only computed every `inner_iterations`.
+    if iteration % inner_iterations == 0:
+      error_idx = max(0, iteration // inner_iterations - 1)
+      error = errors[error_idx]
+
+      print(
+          fmt.format(iter=iteration, max_iter=total_iter, error=error),
+          file=stream
+      )
+
+  return progress_callback
+
+
+def tqdm_progress_fn(
+    pbar: tqdm,
+    fmt: str = "error: {error:0.6e}",
+) -> IOCallback_t:
+  """Return a callback that updates a progress bar when solving
+  :mod:`linear problems <ott.problems.linear>`.
+
+  It updated the progress bar only when the error is computed, that is every
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+
+  .. seealso::
+    - TODO.
+
+  Args:
+    pbar: `tqdm <https://tqdm.github.io/docs/tqdm/>`_ progress bar.
+    fmt: Format used to update the postfix.
+
+  Returns:
+    A callback function accepting the following arguments
+
+    - the current iteration number
+    - the number of inner iterations after which the error is computed
+    - the total number of iterations
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`
+
+  Examples:
+    .. code-block:: python
+
+      # TODO
+  """  # noqa: D205
+
+  def progress_callback(
+      status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple],
+  ) -> None:
+    iteration, inner_iterations, total_iter, errors = _prepare_info(status)
+    # Avoid reporting error on each iteration,
+    # because errors are only computed every `inner_iterations`.
+    if iteration % inner_iterations == 0:
+      error_idx = max(0, iteration // inner_iterations - 1)
+      error = errors[error_idx]
+
+      postfix = fmt.format(iter=iteration, max_iter=total_iter, error=error)
+      pbar.set_postfix_str(postfix)
+      pbar.total = total_iter // inner_iterations
+      pbar.update()
+
+  return progress_callback
+
+
+def _prepare_info(status) -> Tuple[int, int, int, np.ndarray]:
   iteration, inner_iterations, total_iter, state = status
   iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
   total_iter = int(total_iter)
   errors = np.array(state.errors).ravel()
 
-  # Avoid reporting error on each iteration,
-  # because errors are only computed every `inner_iterations`.
-  if iteration % inner_iterations == 0:
-    error_idx = max(0, iteration // inner_iterations - 1)
-    error = errors[error_idx]
-
-    print(f"{iteration} / {total_iter} -- {error}")  # noqa: T201
+  return iteration, inner_iterations, total_iter, errors
