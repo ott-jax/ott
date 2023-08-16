@@ -38,7 +38,6 @@ or with the :mod:`neural OT solvers <ott.solvers.nn>` dependencies:
 
     pip install 'ott-jax[neural]'
 
-
 or using `conda`_ as:
 
 .. code-block:: bash
