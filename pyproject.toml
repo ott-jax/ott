@@ -181,7 +181,7 @@ legacy_tox_ini = """
     skip_missing_interpreters = true
 
     [testenv]
-    extras = neural,test
+    extras = test,neural
     pass_env = CUDA_*,PYTEST_*,CI
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
@@ -201,7 +201,7 @@ legacy_tox_ini = """
     [testenv:lint-docs]
     description = Lint the documentation.
     deps =
-    extras = docs
+    extras = docs,neural
     ignore_errors = true
     allowlist_externals = make
     pass_env = PYENCHANT_LIBRARY_PATH
@@ -215,7 +215,7 @@ legacy_tox_ini = """
     description = Build the documentation.
     use_develop = true
     deps =
-    extras = docs
+    extras = docs,neural
     allowlist_externals = make
     changedir = {tox_root}{/}docs
     commands =

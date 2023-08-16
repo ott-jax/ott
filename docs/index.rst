@@ -32,7 +32,14 @@ Install ``OTT`` from `PyPI <https://pypi.org/project/ott-jax/>`_ as:
 
     pip install ott-jax
 
-or with ``conda`` via `conda-forge`_ as:
+or with the :mod:`neural OT solvers <ott.solvers.nn>` dependencies:
+
+.. code-block:: bash
+
+    pip install 'ott-jax[neural]'
+
+
+or using `conda`_ as:
 
 .. code-block:: bash
 
@@ -139,4 +146,4 @@ Packages
 .. _auto-vectorization (VMAP): https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap
 .. _automatic: https://jax.readthedocs.io/en/latest/jax.html#automatic-differentiation
 .. _implicit: https://jax.readthedocs.io/en/latest/_autosummary/jax.custom_jvp.html#jax.custom_jvp
-.. _conda-forge: https://anaconda.org/conda-forge/ott-jax
+.. _conda: https://anaconda.org/conda-forge/ott-jax
