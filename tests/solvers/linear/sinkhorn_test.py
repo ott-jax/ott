@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
+import sys
 from typing import Optional, Tuple
 
 import jax
@@ -562,19 +564,41 @@ class TestSinkhorn:
 
     np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)
 
-  def test_default_progress_fn(self, capsys):
+  @pytest.mark.parametrize(("use_tqdm", "custom_buffer"), [(False, False),
+                                                           (False, True),
+                                                           (True, False)])
+  def test_progress_fn(self, capsys, use_tqdm: bool, custom_buffer: bool):
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-1)
+
+    if use_tqdm:
+      tqdm = pytest.importorskip("tqdm")
+      pbar = tqdm.tqdm()
+      progress_fn = utils.tqdm_progress_fn(pbar, fmt="err: {error}")
+    else:
+      stream = io.StringIO() if custom_buffer else sys.stdout
+      progress_fn = utils.default_progress_fn(
+          fmt="foo {iter}/{max_iter}", stream=stream
+      )
 
     _ = sinkhorn.solve(
         geom,
-        progress_fn=utils.default_progress_fn(),
+        progress_fn=progress_fn,
         min_iterations=0,
         inner_iterations=7,
-        max_iterations=13,
+        max_iterations=14,
     )
 
-    captured = capsys.readouterr()
-    assert captured.out.startswith("7 / 13 -- "), captured
+    if use_tqdm:
+      pbar.close()
+      assert pbar.postfix.startswith("err: ")
+    elif custom_buffer:
+      val = stream.getvalue()
+      assert val.startswith("foo 7/14"), val
+      captured = capsys.readouterr()
+      assert captured.out == "", captured.out
+    else:
+      captured = capsys.readouterr()
+      assert captured.out.startswith("foo 7/14"), captured
 
   @pytest.mark.fast.with_args("num_iterations", [30, 60])
   def test_custom_progress_fn(self, num_iterations: int):
