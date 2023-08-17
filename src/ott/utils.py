@@ -35,8 +35,8 @@ __all__ = [
     "tqdm_progress_fn",
 ]
 
-IOCallback_t = Callable[[Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]],
-                        None]
+Status_t = Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]
+IOCallback_t = Callable[[Status_t], None]
 
 
 def register_pytree_node(cls: type) -> type:
@@ -103,9 +103,6 @@ def default_progress_fn(
   It prints the progress only when the error is computed, that is every
   :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
 
-  .. seealso::
-    - TODO.
-
   Args:
     fmt: Format used to print.
     stream: Output IO stream.
@@ -113,21 +110,31 @@ def default_progress_fn(
   Returns:
     A callback function accepting the following arguments
 
-    - the current iteration number
-    - the number of inner iterations after which the error is computed
-    - the total number of iterations
+    - the current iteration number,
+    - the number of inner iterations after which the error is computed,
+    - the total number of iterations, and
     - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
 
   Examples:
     .. code-block:: python
 
-      # TODO
+      import jax
+      import jax.numpy as jnp
+
+      from ott import utils
+      from ott.geometry import pointcloud
+      from ott.solvers.linear import sinkhorn
+
+      x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
+      geom = pointcloud.PointCloud(x)
+
+      progress_fn = utils.default_progress_fn()
+      solve_fn = jax.jit(sinkhorn.solve, static_argnames=["progress_fn"])
+      out = solve_fn(geom, progress_fn=progress_fn)
   """  # noqa: D205
 
-  def progress_callback(
-      status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple], *args
-  ) -> None:
+  def progress_callback(status: Status_t) -> None:
     iteration, inner_iterations, total_iter, errors = _prepare_info(status)
     # Avoid reporting error on each iteration,
     # because errors are only computed every `inner_iterations`.
@@ -150,34 +157,44 @@ def tqdm_progress_fn(
   """Return a callback that updates a progress bar when solving
   :mod:`linear problems <ott.problems.linear>`.
 
-  It updated the progress bar only when the error is computed, that is every
+  It updates the progress bar only when the error is computed, that is every
   :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
-
-  .. seealso::
-    - TODO.
 
   Args:
     pbar: `tqdm <https://tqdm.github.io/docs/tqdm/>`_ progress bar.
-    fmt: Format used to update the postfix.
+    fmt: Format used for the postfix.
 
   Returns:
     A callback function accepting the following arguments
 
-    - the current iteration number
-    - the number of inner iterations after which the error is computed
-    - the total number of iterations
+    - the current iteration number,
+    - the number of inner iterations after which the error is computed,
+    - the total number of iterations, and
     - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
 
   Examples:
     .. code-block:: python
 
-      # TODO
+      import tqdm
+
+      import jax
+      import jax.numpy as jnp
+
+      from ott import utils
+      from ott.geometry import pointcloud
+      from ott.solvers.linear import sinkhorn
+
+      x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
+      geom = pointcloud.PointCloud(x)
+
+      with tqdm.tqdm() as pbar:
+        progress_fn = utils.tqdm_progress_fn(pbar)
+        solve_fn = jax.jit(sinkhorn.solve, static_argnames=["progress_fn"])
+        out = solve_fn(geom, progress_fn=progress_fn)
   """  # noqa: D205
 
-  def progress_callback(
-      status: Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple],
-  ) -> None:
+  def progress_callback(status: Status_t) -> None:
     iteration, inner_iterations, total_iter, errors = _prepare_info(status)
     # Avoid reporting error on each iteration,
     # because errors are only computed every `inner_iterations`.
@@ -193,7 +210,7 @@ def tqdm_progress_fn(
   return progress_callback
 
 
-def _prepare_info(status) -> Tuple[int, int, int, np.ndarray]:
+def _prepare_info(status: Status_t) -> Tuple[int, int, int, np.ndarray]:
   iteration, inner_iterations, total_iter, state = status
   iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
