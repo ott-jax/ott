@@ -12,6 +12,10 @@ be of more general interest to other `JAX` users.
 matrix square-root using the Newton-Schulz iterations. That implementation is
 itself differentiable using either implicit differentiation or unrolling of the
 updates of these iterations.
+:mod:`ott.math.utils` contains various low-level routines re-implemented for
+their usage in `JAX`. Of particular interest are the custom jvp/vjp
+re-implementations for `logsumexp` and `norm` that have a behavior that differs,
+in terms of differentiability, from the standard `JAX` implementations.
 
 
 Fixed-point Iteration
@@ -27,3 +31,12 @@ Matrix Square Root
     :toctree: _autosummary
 
     matrix_square_root.sqrtm
+
+Miscellaneous
+-------------
+.. autosummary::
+    :toctree: _autosummary
+
+    utils.norm
+    utils.logsumexp
+    utils.softmin

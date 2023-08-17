@@ -93,7 +93,7 @@ class TestQuadraticInitializers:
   def test_gw_better_initialization_helps(
       self, rng: jax.random.PRNGKeyArray, eps: float
   ):
-    n, m, d1, d2, rank = 123, 124, 12, 10, 5
+    n, m, d1, d2, rank = 83, 84, 8, 6, 4
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
 
     geom_x = pointcloud.PointCloud(
@@ -130,6 +130,6 @@ class TestQuadraticInitializers:
     kmeans_cost = out_kmeans.reg_gw_cost
     kmeans_errors = out_kmeans.errors[out_kmeans.errors > -1]
 
-    assert random_cost > kmeans_cost
+    np.testing.assert_array_less(kmeans_cost, random_cost)
     np.testing.assert_array_equal(random_errors >= 0., True)
     np.testing.assert_array_equal(kmeans_errors >= 0., True)

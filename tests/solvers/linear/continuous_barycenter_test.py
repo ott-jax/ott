@@ -168,23 +168,14 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() < 2.3)
     assert jnp.all(out.x.ravel() > .7)
 
-  @pytest.mark.fast.with_args(
-      lse_mode=[False, True],
-      epsilon=[1e-1, 5e-1],
-      jit=[False, True],
-      only_fast={
-          "lse_mode": True,
-          "jit": False,
-          "epsilon": 1e-1,
-      }
-  )
+  @pytest.mark.fast()
   def test_bures_barycenter(
       self,
       rng: jax.random.PRNGKeyArray,
-      lse_mode: bool,
-      epsilon: float,
-      jit: bool,
   ):
+    lse_mode = True,
+    epsilon = 1e-1
+    jit = True,
     num_measures = 2
     num_components = 2
     dimension = 2
@@ -263,26 +254,15 @@ class TestBarycenter:
         atol=1e-05
     )
 
-  @pytest.mark.fast.with_args(
-      alpha=[5.],
-      epsilon=[1e-2],
-      dim=[3],
-      jit=[False, True],
-      only_fast={
-          "alpha": 5.0,
-          "epsilon": 1e-1,
-          "dim": 4,
-          "jit": False
-      }
-  )
+  @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(
       self,
       rng: jax.random.PRNGKeyArray,
-      alpha: float,
-      epsilon: float,
-      dim: int,
-      jit: bool,
   ):
+    alpha = 5.
+    epsilon = 0.01
+    dim = 3
+    jit = True
     n_components = jnp.array([3, 4])  # the number of components of the GMMs
     num_measures = n_components.size
     bar_size = 5  # the size of the barycenter

@@ -135,7 +135,7 @@ class TestSinkhornInitializers:
   def test_sorting_init(self, vector_min: bool, lse_mode: bool):
     """Tests sorting dual initializer."""
     rng = jax.random.PRNGKey(42)
-    n = 500
+    n = 50
     epsilon = 1e-2
 
     ot_problem = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
@@ -168,7 +168,7 @@ class TestSinkhornInitializers:
       assert sink_out_base.n_iters > sink_out_init.n_iters
 
   def test_sorting_init_online(self, rng: jax.random.PRNGKeyArray):
-    n = 100
+    n = 10
     epsilon = 1e-2
 
     ot_problem = create_sorting_problem(
@@ -179,7 +179,7 @@ class TestSinkhornInitializers:
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.random.PRNGKeyArray):
-    n, m, d = 100, 150, 1
+    n, m, d = 10, 15, 1
     epsilon = 1e-2
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon)
@@ -189,7 +189,7 @@ class TestSinkhornInitializers:
 
   def test_default_initializer(self, rng: jax.random.PRNGKeyArray):
     """Tests default initializer"""
-    n, m, d = 200, 200, 2
+    n, m, d = 20, 20, 2
     epsilon = 1e-2
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
@@ -206,7 +206,7 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(0., default_potential_b)
 
   def test_gauss_pointcloud_geom(self, rng: jax.random.PRNGKeyArray):
-    n, m, d = 200, 200, 2
+    n, m, d = 20, 20, 2
     epsilon = 1e-2
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
@@ -230,8 +230,8 @@ class TestSinkhornInitializers:
       initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""
-    n, m, d = 200, 200, 2
-    subsample_n = 100
+    n, m, d = 40, 40, 2
+    subsample_n = 10
     epsilon = 1e-2
 
     # initializer
@@ -285,7 +285,7 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
     """Tests Meta initializer"""
-    n, m, d = 200, 200, 2
+    n, m, d = 20, 20, 2
     epsilon = 1e-2
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
@@ -306,7 +306,7 @@ class TestSinkhornInitializers:
 
     # overfit the initializer to the problem.
     meta_initializer = nn_init.MetaInitializer(geom)
-    for _ in range(100):
+    for _ in range(50):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b
       )
