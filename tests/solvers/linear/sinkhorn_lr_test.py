@@ -153,7 +153,11 @@ class TestLRSinkhorn:
     )
 
   @pytest.mark.fast()
-  def test_callback_fn(self):
+  @pytest.mark.skipif(
+      jax.__version_info__ < (0, 4, 0),
+      reason="`jax.experimental.io_callback` doesn't exist"
+  )
+  def test_progress_fn(self):
     """Check that the callback function is actually called."""
     num_iterations = 37
 
