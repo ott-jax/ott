@@ -441,6 +441,7 @@ class SinkhornOutput(NamedTuple):
   # TODO(michalk8): this should be always present
   @property
   def n_iters(self) -> int:  # noqa: D102
+    """Returns the number of inner iterations that were needed to terminate."""
     if self.errors is None:
       return -1
     return jnp.sum(self.errors > -1)

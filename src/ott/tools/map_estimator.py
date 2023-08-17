@@ -14,7 +14,16 @@
 
 import collections
 import functools
-from typing import Any, Callable, Dict, Iterator, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -34,16 +43,18 @@ class MapEstimator:
 
   .. math::
     \text{min}_{\theta}\; \Delta(T_\theta \sharp \mu, \theta)
-    + \lambda R(T_\theta)
+    + \lambda R(T_\theta \sharp \rho, \rho)
 
   where :math:`\Delta` is a fitting loss and :math:`R` is a regularizer.
   :math:`\Delta` allows to fit the marginal constraint, i.e. transport
   :math:`\mu` to  :math:`\nu` via :math:`T`, while :math:`R`
-  is a regularizer imposing an inductive bias on the learned map.
+  is a regularizer imposing an inductive bias on the learned map. The
+  regularizer in this case is a function used to compute a metric between two
+  sets of points.
 
   For instance, :math:`\Delta` can be the
   :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the :func:`~ott.solvers.nn.losses.monge_gap`
+  and :math:`R` the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`
   :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
@@ -53,8 +64,8 @@ class MapEstimator:
     model: network architecture for map :math:`T`.
     optimizer: optimizer function for map :math:`T`.
     fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint.
-    regularizer: regularizer :math:`R` to impose an inductive bias
-      on the map :math:`T`.
+    regularizer: function scoring a property between two familites of points,
+      here assumed to be of the same size.
     regularizer_strength: strength of the :attr:`regularizer`.
     num_train_iters: number of total training iterations.
     logging: option to return logs.
@@ -70,7 +81,7 @@ class MapEstimator:
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       float]] = None,
       regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray], float]] = None,
-      regularizer_strength: float = 1.,
+      regularizer_strength: Union[float, Sequence[float]] = 1.,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
@@ -78,7 +89,13 @@ class MapEstimator:
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
-    self.regularizer_strength = regularizer_strength
+    # Can use either a fixed strength, or generalize to a schedule.
+    self.regularizer_strength = jnp.repeat(
+        jnp.atleast_2d(regularizer_strength),
+        num_train_iters,
+        total_repeat_length=num_train_iters,
+        axis=0
+    ).ravel()
     self.num_train_iters = num_train_iters
     self.logging = logging
     self.valid_freq = valid_freq
@@ -86,7 +103,7 @@ class MapEstimator:
 
     # set default optimizer
     if optimizer is None:
-      optimizer = optax.adam(learning_rate=0.001, b1=0.5, b2=0.9, eps=1e-8)
+      optimizer = optax.adam(learning_rate=0.001)
 
     # setup training
     self.setup(dim_data, model, optimizer)
@@ -110,14 +127,14 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be for instance the :func:`~ott.solvers.nn.losses.monge_gap`.
+    Can be e.g. the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
-    return 0 by default.
+    return 0 by default along with an empty set of log values.
     """
     if self._regularizer is not None:
       return self._regularizer
-    return lambda *args, **kwargs: 0.
+    return lambda *args, **kwargs: (0., None)
 
   @property
   def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
@@ -125,11 +142,12 @@ class MapEstimator:
 
     Can be for instance the
     :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
-    If no fitting_loss is passed for solver instantiation, return 0 by default.
+    If no fitting_loss is passed for solver instantiation, return 0 by default,
+    and no log values.
     """
     if self._fitting_loss is not None:
       return self._fitting_loss
-    return lambda *args, **kwargs: 0.
+    return lambda *args, **kwargs: (0., None)
 
   @staticmethod
   def _generate_batch(
@@ -165,7 +183,6 @@ class MapEstimator:
       tbar = range(self.num_train_iters)
 
     for step in tbar:
-
       #  update step
       is_logging_step = (
           self.logging and ((step % self.valid_freq == 0) or
@@ -182,7 +199,7 @@ class MapEstimator:
           )
       )
       self.state_neural_net, current_logs = self.step_fn(
-          self.state_neural_net, train_batch, valid_batch, is_logging_step
+          self.state_neural_net, train_batch, valid_batch, is_logging_step, step
       )
 
       # store and print metrics if logging step
@@ -194,12 +211,13 @@ class MapEstimator:
         # update the tqdm bar if tqdm is available
         if not isinstance(tbar, range):
           reg_msg = (
-              "not computed" if current_logs["eval"]["regularizer"] == 0. else
+              "NA" if current_logs["eval"]["regularizer"] == 0. else
               f"{current_logs['eval']['regularizer']:.4f}"
           )
           postfix_str = (
               f"fitting_loss: {current_logs['eval']['fitting_loss']:.4f}, "
-              f"regularizer: {reg_msg}."
+              f"regularizer: {reg_msg} ,"
+              f"total: {current_logs['eval']['total_loss']:.4f}"
           )
           tbar.set_postfix_str(postfix_str)
 
@@ -209,26 +227,31 @@ class MapEstimator:
     """Create a one step training and evaluation function."""
 
     def loss_fn(
-        params: frozen_dict.FrozenDict,
-        apply_fn: Callable,
-        batch: Dict[str, jnp.ndarray],
+        params: frozen_dict.FrozenDict, apply_fn: Callable,
+        batch: Dict[str, jnp.ndarray], step: int
     ) -> Tuple[float, Dict[str, float]]:
       """Loss function."""
       # map samples with the fitted map
       mapped_samples = apply_fn({"params": params}, batch["source"])
 
       # compute the loss
-      val_fitting_loss = self.fitting_loss(batch["target"], mapped_samples)
-      val_regularizer = self.regularizer(batch["source"], mapped_samples)
+      val_fitting_loss, log_fitting_loss = self.fitting_loss(
+          mapped_samples, batch["target"]
+      )
+      val_regularizer, log_regularizer = self.regularizer(
+          batch["source"], mapped_samples
+      )
       val_tot_loss = (
-          val_fitting_loss + self.regularizer_strength * val_regularizer
+          val_fitting_loss + self.regularizer_strength[step] * val_regularizer
       )
 
       # store training logs
       loss_logs = {
           "total_loss": val_tot_loss,
           "fitting_loss": val_fitting_loss,
-          "regularizer": val_regularizer
+          "regularizer": val_regularizer,
+          "log_regularizer": log_regularizer,
+          "log_fitting": log_fitting_loss,
       }
 
       return val_tot_loss, loss_logs
@@ -239,12 +262,13 @@ class MapEstimator:
         train_batch: Dict[str, jnp.ndarray],
         valid_batch: Optional[Dict[str, jnp.ndarray]] = None,
         is_logging_step: bool = False,
+        step: int = 0
     ) -> Tuple[train_state.TrainState, Dict[str, float]]:
-      """Step function."""
+      """One step function."""
       # compute loss and gradients
       grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
       (_, current_train_logs), grads = grad_fn(
-          state_neural_net.params, state_neural_net.apply_fn, train_batch
+          state_neural_net.params, state_neural_net.apply_fn, train_batch, step
       )
 
       # logging step
@@ -253,7 +277,8 @@ class MapEstimator:
         _, current_eval_logs = loss_fn(
             params=state_neural_net.params,
             apply_fn=state_neural_net.apply_fn,
-            batch=valid_batch
+            batch=valid_batch,
+            step=step
         )
         current_logs["eval"] = current_eval_logs
 
