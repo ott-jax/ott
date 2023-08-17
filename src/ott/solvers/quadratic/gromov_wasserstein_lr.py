@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Low-Rank Sinkhorn algorithm."""
+"""A Jax implementation of the unbalanced low-rank GW algorithm."""
 from typing import (
     Any,
     Callable,
@@ -43,7 +43,7 @@ ProgressCallbackFn_t = Callable[
 
 
 class LRGWState(NamedTuple):
-  """State of the Low Rank Sinkhorn algorithm."""
+  """State of the low-rank GW algorithm."""
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -68,7 +68,6 @@ class LRGWState(NamedTuple):
     epsilon: float,
     use_danskin: bool = False
   ) -> float:
-    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
     return compute_reg_ot_cost(
         self.q,
         self.r,
@@ -134,8 +133,7 @@ def compute_reg_ot_cost(
 
 
 class LRGWOutput(NamedTuple):
-  """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
-
+  """Transport interface for a low-rank GW solution."""
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -246,15 +244,16 @@ class LRGWOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class LRGromovWasserstein(sinkhorn.Sinkhorn):
-  r"""A Low-Rank Sinkhorn solver for linear reg-OT problems.
-
-  The algorithm is described in :cite:`scetbon:21` and the implementation
-  contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
+  r"""A low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Convergence is evaluated on successive
-  evaluations of the objective. The algorithm is only provided for the balanced
-  case.
+  evaluations of the objective.
+
+  .. warning::
+    This solver only for the **unbalanced** case. Balanced case is implemented
+    in :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
+    and will be unified here in the future release.
 
   Args:
     rank: Rank constraint on the coupling to minimize the linear OT problem
@@ -277,14 +276,13 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
-    progress_fn: callback function which gets called during the Sinkhorn
+    progress_fn: callback function which gets called during the GW
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
       :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on whether the problem
-      is balanced and on the ``lse_mode``.
+      :mod:`ott.solvers.linear`, depending on the ``lse_mode``.
     kwargs_init: Keyword arguments for
       :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for
@@ -335,7 +333,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
   ) -> LRGWOutput:
-    """Run low-rank Sinkhorn.
+    """Run low-rank Gromov-Wasserstein solver.
 
     Args:
       ot_prob: Linear OT problem.
@@ -350,8 +348,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       kwargs: Additional arguments when calling the initializer.
 
     Returns:
-      The low-rank Sinkhorn output.
+      The low-rank GW output.
     """
+    assert not ot_prob.is_balanced, \
+      "Balanced case is not yet implemented here, please use " \
+      "`ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein` instead."
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
@@ -416,7 +417,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     return c_q, c_r, c_g, gamma
 
-  # TODO(michalk8): move to `lr_utils` when refactoring this
+  # TODO(michalk8): move to `lr_utils` when refactoring this the future
   def dykstra_update_lse(
       self,
       c_q: jnp.ndarray,
@@ -550,6 +551,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
+    del gamma
     rank = self.rank
     n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
     a, b = ot_prob.a, ot_prob.b
@@ -637,7 +639,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int
   ) -> LRGWState:
-    """LR Sinkhorn LSE update."""
+    """Low-rank GW LSE update."""
     c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
 
     if ot_prob.is_balanced:
@@ -655,7 +657,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int
   ) -> LRGWState:
-    """LR Sinkhorn Kernel update."""
+    """Low-rank GW kernel update."""
     c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
     c_q, c_r, c_g = jnp.exp(c_q), jnp.exp(c_r), jnp.exp(c_g)
 
@@ -667,13 +669,13 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       q, r, g = lr_utils.unbalanced_dykstra_kernel(
           c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
       )
-    return state.set(q=q, g=g, r=r, gamma=gamma)  #, (c_q, c_r, c_g)
+    return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
       self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int, compute_error: bool
   ) -> LRGWState:
-    """Carries out one low-rank Sinkhorn iteration.
+    """Carries out one low-rank GW iteration.
 
     Depending on lse_mode, these iterations can be either in:
 
@@ -682,8 +684,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     Args:
       ot_prob: the transport problem definition
-      state: LRGWState named tuple.
-      iteration: the current iteration of the Sinkhorn outer loop.
+      state: the current state.
+      iteration: the current iteration of the GW outer loop.
       compute_error: flag to indicate this iteration computes/stores an error
 
     Returns:
@@ -732,10 +734,10 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       self,
       prob: quadratic_problem.QuadraticProblem,
   ) -> init_lib.LRInitializer:
-    """Create a low-rank Sinkhorn initializer.
+    """Create a low-rank GW initializer.
 
     Args:
-      prob: Linear OT problem used to determine the initializer.
+      prob: Quadratic OT problem used to determine the initializer.
 
     Returns:
       Low-rank initializer.
@@ -783,7 +785,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     Args:
       ot_prob: the transport problem.
-      state: a LRGWState.
+      state: GW state.
 
     Returns:
       A LRGWOutput.

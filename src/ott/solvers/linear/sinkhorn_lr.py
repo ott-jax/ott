@@ -165,7 +165,7 @@ def solution_error(
 
 
 class LRSinkhornOutput(NamedTuple):
-  """Implement the problems.Transport interface, for a LR Sinkhorn solution."""
+  """Transport interface for a low-rank Sinkhorn solution."""
 
   q: jnp.ndarray
   r: jnp.ndarray
@@ -279,8 +279,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Convergence is evaluated on successive
-  evaluations of the objective. The algorithm is only provided for the balanced
-  case.
+  evaluations of the objective.
 
   Args:
     rank: Rank constraint on the coupling to minimize the linear OT problem
