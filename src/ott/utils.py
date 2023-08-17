@@ -104,7 +104,8 @@ def default_progress_fn(
   :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
 
   Args:
-    fmt: Format used to print.
+    fmt: Format used to print. It can format ``iter``, ``max_iter`` and
+      ``error`` values.
     stream: Output IO stream.
 
   Returns:
@@ -162,7 +163,8 @@ def tqdm_progress_fn(
 
   Args:
     pbar: `tqdm <https://tqdm.github.io/docs/tqdm/>`_ progress bar.
-    fmt: Format used for the postfix.
+    fmt: Format used for the postfix. It can format ``iter``, ``max_iter`` and
+      ``error`` values.
 
   Returns:
     A callback function accepting the following arguments
