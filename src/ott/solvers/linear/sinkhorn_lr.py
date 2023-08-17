@@ -718,7 +718,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
     if self.progress_fn is not None:
-      jax.experimenta.io_callback(
+      jax.experimental.io_callback(
           self.progress_fn, None,
           (iteration, self.inner_iterations, self.max_iterations, state)
       )
