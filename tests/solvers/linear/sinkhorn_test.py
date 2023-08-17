@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -567,7 +567,7 @@ class TestSinkhorn:
 
     _ = sinkhorn.solve(
         geom,
-        progress_fn=utils.default_progress_fn,
+        progress_fn=utils.default_progress_fn(),
         min_iterations=0,
         inner_iterations=7,
         max_iterations=13,
@@ -577,12 +577,12 @@ class TestSinkhorn:
     assert captured.out.startswith("7 / 13 -- "), captured
 
   @pytest.mark.fast.with_args("num_iterations", [30, 60])
-  def test_custom_callback_fn(self, num_iterations: int):
+  def test_custom_progress_fn(self, num_iterations: int):
     """Check that the callback function is actually called."""
 
     def progress_fn(
         status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                      sinkhorn.SinkhornState], *args: Any
+                      sinkhorn.SinkhornState],
     ) -> None:
       # Convert arguments.
       iteration, inner_iterations, total_iter, state = status
