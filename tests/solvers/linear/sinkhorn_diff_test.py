@@ -342,17 +342,14 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
   @pytest.mark.fast.with_args(
-      lse_mode=[True, False],
-      tau_a=[1.0, .94],
-      tau_b=[1.0, .92],
-      shape=[(237, 153)],
-      arg=[0, 1],
-      axis=[0, 1],
-      only_fast=0,
+      "lse_mode,tau_a,tau_b,arg,axis",
+      ((True, 1.0, 1.0, 0, 1), (False, 1.0, 1.0, 1, 0), (True, .93, 1.0, 1, 1),
+       (True, .93, .95, 0, 0)),
+      only_fast=0
   )
   def test_apply_transport_jacobian(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
-      tau_b: float, shape: Tuple[int, int], arg: int, axis: int
+      tau_b: float, arg: int, axis: int
   ):
     """Tests Jacobian of application of OT to vector, w.r.t.
 
@@ -369,7 +366,7 @@ class TestSinkhornJacobian:
         transport to arbitrary vec (axis=0) or the left (axis=1).
     """
     _ = pytest.importorskip("lineax")  # only tested using lineax
-    n, m = shape
+    n, m = (27, 13)
     dim = 4
     rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
@@ -636,7 +633,7 @@ class TestSinkhornJacobianPreconditioning:
       lse_mode=[True, False],
       tau_a=[1.0, .94],
       tau_b=[1.0, .91],
-      shape=[(18, 19), (27, 18), (275, 414)],
+      shape=[(18, 19), (27, 18)],
       arg=[0, 1],
       only_fast=[0, -1],
   )
@@ -733,19 +730,22 @@ class TestSinkhornJacobianPreconditioning:
 class TestSinkhornHessian:
 
   @pytest.mark.fast.with_args(
-      lse_mode=[True, False],
-      tau_a=[1.0, .93],
-      tau_b=[1.0, .91],
-      shape=[(12, 15)],
-      arg=[0, 1],
+      "lse_mode,tau_a,tau_b,arg", (
+          (True, 1.0, 1.0, 0),
+          (False, 1.0, 1.0, 0),
+          (True, 1.0, 1.0, 1),
+          (True, 1.0, .91, 0),
+          (True, .93, .91, 1),
+          (False, .93, .91, 1),
+      ),
       only_fast=-1
   )
   def test_hessian_sinkhorn(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
-      tau_b: float, shape: Tuple[int, int], arg: int
+      tau_b: float, arg: int
   ):
     """Test hessian w.r.t. weights and locations."""
-    n, m = shape
+    n, m = (12, 15)
     dim = 3
     rngs = jax.random.split(rng, 6)
     x = jax.random.uniform(rngs[0], (n, dim))

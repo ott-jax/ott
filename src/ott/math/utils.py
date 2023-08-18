@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,8 +22,14 @@ if TYPE_CHECKING:
   from ott.geometry import costs
 
 __all__ = [
-    "safe_log", "kl", "gen_kl", "js", "logsumexp", "softmin",
-    "barycentric_projection"
+    "safe_log",
+    "norm",
+    "kl",
+    "gen_kl",
+    "js",
+    "logsumexp",
+    "softmin",
+    "barycentric_projection",
 ]
 
 
@@ -35,6 +41,67 @@ def safe_log(  # noqa: D103
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
+
+
+@functools.partial(jax.custom_jvp, nondiff_argnums=[1, 2, 3])
+@functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
+def norm(
+    x: jnp.ndarray,
+    ord: Union[int, str, None] = None,
+    axis: Union[None, Sequence[int], int] = None,
+    keepdims: bool = False
+) -> jnp.ndarray:
+  """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
+
+  Evaluations of distances between a vector and itself using translation
+  invariant costs, typically  norms, result in functions of the form
+  ``lambda x : jnp.linalg.norm(x-x)``. Such functions output `NaN` gradients,
+  because they involve computing the derivative of a negative exponent of 0
+  (e.g. when differentiating the Euclidean norm, one gets a 0-denominator in the
+  expression, see e.g. https://github.com/google/jax/issues/6484 for context).
+
+  While this makes sense mathematically, in the context of optimal transport
+  such distances between a point and itself can be safely ignored when they
+  contribute to an OT cost (when, for instance, computing Sinkhorn divergences,
+  involving computing the OT cost of a point cloud with itself).
+
+  To avoid such `NaN` values, this custom norm implementation uses the
+  double-where trick, to avoid having branches that output any `NaN`, and
+  safely output a 0 instead.
+
+  Args:
+    x: Input array.  If `axis` is None, `x` must be 1-D or 2-D, unless `ord`
+      is None. If both `axis` and `ord` are None, the 2-norm of ``x.ravel``
+      will be returned.
+    ord: `{non-zero int, jnp.inf, -jnp.inf, 'fro', 'nuc'}`, Order of the norm.
+      The default is `None`, which is equivalent to `2.0` for vectors.
+    axis: `{None, int, 2-tuple of ints}`, optional. If `axis` is an integer, it
+      specifies the axis of `x` along which to compute the vector norms.
+      If `axis` is a 2-tuple, it specifies the axes that hold 2-D matrices, and
+      the matrix norms of these matrices are computed.  If `axis` is None then
+      either a vector norm (when `x` is 1-D) or a matrix norm (when `x` is 2-D)
+      is returned. The default is None.
+    keepdims: If set to True, the axes which are normed over are left in the
+      result as dimensions with size one.  With this option the result will
+      broadcast correctly against the original `x`.
+
+  Returns:
+    float or ndarray, Norm of the matrix or vector(s).
+  """
+  return jnp.linalg.norm(x, ord=ord, axis=axis, keepdims=keepdims)
+
+
+@norm.defjvp
+def norm_jvp(ord, axis, keepdims, primals, tangents):
+  """Custom_jvp for norm, that returns 0.0 when evaluated at 0."""
+  x, = primals
+  x_is_zero = jnp.all(jnp.logical_not(x))
+  clean_x = jnp.where(x_is_zero, jnp.ones_like(x), x)
+  primals, tangents = jax.jvp(
+      functools.partial(jnp.linalg.norm, ord=ord, axis=axis, keepdims=keepdims),
+      (clean_x,), tangents
+  )
+  return primals, jnp.where(x_is_zero, 0.0, tangents)
 
 
 # TODO(michalk8): add axis argument
@@ -124,6 +191,18 @@ def softmin(
   return -gamma * jsp.special.logsumexp(x / -gamma, axis=axis)
 
 
+softmin.defvjp(
+    lambda x, gamma, axis: (softmin(x, gamma, axis), (x / -gamma, axis)),
+    lambda axis, res, g: (
+        jnp.where(
+            jnp.isinf(res[0]), 0.0,
+            jax.nn.softmax(res[0], axis=axis) *
+            (g if axis is None else jnp.expand_dims(g, axis=axis))
+        ), None
+    )
+)
+
+
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(
     matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
@@ -141,15 +220,3 @@ def barycentric_projection(
   return jax.vmap(
       lambda m, y: cost_fn.barycenter(m, y)[0], in_axes=[0, None]
   )(matrix, y)
-
-
-softmin.defvjp(
-    lambda x, gamma, axis: (softmin(x, gamma, axis), (x / -gamma, axis)),
-    lambda axis, res, g: (
-        jnp.where(
-            jnp.isinf(res[0]), 0.0,
-            jax.nn.softmax(res[0], axis=axis) *
-            (g if axis is None else jnp.expand_dims(g, axis=axis))
-        ), None
-    )
-)

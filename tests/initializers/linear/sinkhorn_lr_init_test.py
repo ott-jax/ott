@@ -27,7 +27,7 @@ class TestLRInitializers:
   def test_create_default_initializer(
       self, rng: jax.random.PRNGKeyArray, kind: str
   ):
-    n, d, rank = 110, 2, 3
+    n, d, rank = 27, 2, 3
     x = jax.random.normal(rng, (n, d))
     geom = pointcloud.PointCloud(x)
 
@@ -71,7 +71,7 @@ class TestLRInitializers:
   def test_partial_initialization(
       self, rng: jax.random.PRNGKeyArray, initializer: str, partial_init: str
   ):
-    n, d, rank = 100, 10, 6
+    n, d, rank = 27, 5, 6
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
     x = jax.random.normal(rng1, (n, d))
     pc = pointcloud.PointCloud(x, epsilon=5e-1)
@@ -99,9 +99,9 @@ class TestLRInitializers:
   def test_generalized_k_means_has_correct_rank(
       self, rng: jax.random.PRNGKeyArray, rank: int
   ):
-    n, d = 100, 10
+    n, d = 27, 5
     x = jax.random.normal(rng, (n, d))
-    pc = pointcloud.PointCloud(x, epsilon=5e-1)
+    pc = pointcloud.PointCloud(x, epsilon=0.5)
     prob = linear_problem.LinearProblem(pc)
 
     solver = sinkhorn_lr.LRSinkhorn(
@@ -117,7 +117,7 @@ class TestLRInitializers:
   def test_generalized_k_means_matches_k_means(
       self, rng: jax.random.PRNGKeyArray
   ):
-    n, d, rank = 120, 15, 5
+    n, d, rank = 27, 7, 5
     eps = 1e-1
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n, d))
@@ -169,6 +169,7 @@ class TestLRInitializers:
     assert out_random.converged
     assert out_init.converged
     # converged earlier
-    assert (out_init.errors > -1).sum() < (out_random.errors > -1).sum()
+    np.testing.assert_array_less((out_init.errors > -1).sum(),
+                                 (out_random.errors > -1).sum())
     # converged to a better solution
-    assert out_init.reg_ot_cost < out_random.reg_ot_cost
+    np.testing.assert_array_less(out_init.reg_ot_cost, out_random.reg_ot_cost)

@@ -10,3 +10,4 @@ function for :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
     :toctree: _autosummary
 
     default_progress_fn
+    tqdm_progress_fn

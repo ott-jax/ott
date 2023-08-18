@@ -24,10 +24,10 @@ from typing import (
 )
 
 import jax
+import jax.experimental
 import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
-from jax.experimental import host_callback
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.initializers.linear import initializers_lr as init_lib
@@ -717,8 +717,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
     if self.progress_fn is not None:
-      host_callback.id_tap(
-          self.progress_fn,
+      jax.experimental.io_callback(
+          self.progress_fn, None,
           (iteration, self.inner_iterations, self.max_iterations, state)
       )
 
