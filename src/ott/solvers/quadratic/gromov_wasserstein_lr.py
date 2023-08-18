@@ -109,20 +109,24 @@ def compute_reg_ot_cost(
     # generalized entropy
     return jnp.sum(jsp.special.entr(x) + x)
 
-  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
-  # TODO(michalk8): extract to a common function
+  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
   inv_g = 1.0 / g[None, :]
-  inv_sqrt_g = jnp.sqrt(inv_g)
-  tmp1 = -4.0 * ot_prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
-  tmp2 = ot_prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
-  lin_geom = low_rank.LRCGeometry(tmp1, tmp2)
 
-  # TODO(michalk8): include the fused case
-  cost = jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
+  lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
+
+  quad_cost = 0.5 * jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
+  if ot_prob.is_fused:
+    alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
+    norm_g = jnp.linalg.norm(g, ord=1)
+    lin_cost = jnp.sum(q * ot_prob.geom_xy.apply_cost(r, axis=1) * inv_g)
+    cost = alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
+  else:
+    cost = quad_cost
+
   cost -= epsilon * (ent(q) + ent(r) + ent(g))
   if tau_a != 1.0:
     cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
@@ -180,11 +184,7 @@ class LRGWOutput(NamedTuple):
   @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     """Linearized geometry."""
-    # TODO(michalk8): extract to a common function (also in other places)
-    inv_sqrt_g = jnp.sqrt(self._inv_g)
-    tmp1 = -4.0 * self.ot_prob.geom_xx.apply_cost(self.q, axis=1) * inv_sqrt_g
-    tmp2 = self.ot_prob.geom_yy.apply_cost(self.r, axis=1) * inv_sqrt_g
-    return low_rank.LRCGeometry(tmp1, tmp2)
+    return _linearized_geometry(self.ot_prob, q=self.q, r=self.r, g=self.g)
 
   @property
   def a(self) -> jnp.ndarray:  # noqa: D102
@@ -365,16 +365,14 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     q, r, g = state.q, state.r, state.g
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
-    inv_sqrt_g = jnp.sqrt(inv_g)
 
-    tmp1 = -4.0 * ot_prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
-    tmp2 = ot_prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
-    lin_geom = low_rank.LRCGeometry(tmp1, tmp2)
+    lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
 
     tmp3 = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp3 * inv_g + 2.0 * ot_prob.geom_xx.apply_square_cost(
         q.sum(1), axis=1
     )
+
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
     grad_r = grad_r + 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
 
@@ -880,3 +878,13 @@ def dykstra_solution_error(
   ) ** (1.0 / norm_error)
 
   return err
+
+
+def _linearized_geometry(
+    prob: quadratic_problem.QuadraticProblem, q: jnp.ndarray, r: jnp.ndarray,
+    g: jnp.ndarray
+) -> low_rank.LRCGeometry:
+  inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
+  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
+  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
+  return low_rank.LRCGeometry(tmp1, tmp2)
