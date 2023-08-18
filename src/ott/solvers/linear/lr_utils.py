@@ -14,7 +14,6 @@
 from typing import NamedTuple, Optional, Tuple
 
 import jax
-import jax.experimental
 import jax.numpy as jnp
 import jax.scipy as jsp
 
