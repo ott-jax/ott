@@ -19,6 +19,7 @@ Kullback
 Leibler
 Mahalanobis
 Monge
+Moreau
 SGD
 Schur
 Seidel
@@ -73,6 +74,7 @@ jax
 jit
 jitting
 linearization
+linearized
 logit
 macOS
 methylation
@@ -95,6 +97,7 @@ preconditioner
 preprocess
 preprocessing
 proteome
+prox
 quantile
 quantiles
 quantizes
@@ -105,6 +108,7 @@ renormalize
 reproducibility
 rescale
 rescaled
+rescaling
 reweighted
 reweighting
 reweightings

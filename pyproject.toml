@@ -15,12 +15,10 @@ authors = [
 dependencies = [
     "jax>=0.1.67",
     "jaxlib>=0.1.47",
-    "jaxopt>=0.5.5",
-    # numba/numpy compatibility issue in JAXOPT.
+    "jaxopt>=0.8",
+    "lineax>=0.0.1; python_version >= '3.9'",
+    # https://github.com/numba/numba/issues/9130
     "numpy>=1.18.4, <1.25.0",
-    "flax>=0.6.6",
-    "optax>=0.1.1",
-    "lineax>=0.0.1; python_version >= '3.9'"
 ]
 keywords = [
     "optimal transport",
@@ -59,6 +57,10 @@ Documentation = "https://ott-jax.readthedocs.io"
 Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
+neural = [
+    "flax>=0.6.6",
+    "optax>=0.1.1",
+]
 dev = [
     "pre-commit>=2.16.0",
     "tox>=4",
@@ -72,6 +74,7 @@ test = [
     "chex",
     "networkx>=2.5",
     "scikit-learn>=1.0",
+    "tqdm",
     # tslearn needs numba, which isn't supported for 3.11
     "tslearn>=0.5; python_version < '3.11'",
     "lineax; python_version >= '3.9'",
@@ -180,7 +183,7 @@ legacy_tox_ini = """
     skip_missing_interpreters = true
 
     [testenv]
-    extras = test
+    extras = test,neural
     pass_env = CUDA_*,PYTEST_*,CI
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
@@ -200,7 +203,7 @@ legacy_tox_ini = """
     [testenv:lint-docs]
     description = Lint the documentation.
     deps =
-    extras = docs
+    extras = docs,neural
     ignore_errors = true
     allowlist_externals = make
     pass_env = PYENCHANT_LIBRARY_PATH
@@ -214,7 +217,7 @@ legacy_tox_ini = """
     description = Build the documentation.
     use_develop = true
     deps =
-    extras = docs
+    extras = docs,neural
     allowlist_externals = make
     changedir = {tox_root}{/}docs
     commands =

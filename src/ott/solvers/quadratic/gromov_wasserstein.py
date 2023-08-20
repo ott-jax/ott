@@ -25,9 +25,9 @@ from typing import (
 )
 
 import jax
+import jax.experimental
 import jax.numpy as jnp
 import numpy as np
-from jax.experimental import host_callback
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
@@ -427,8 +427,8 @@ def iterations(
     # Inner iterations is currently fixed to 1.
     inner_iterations = 1
     if solver.progress_fn is not None:
-      host_callback.id_tap(
-          solver.progress_fn,
+      jax.experimental.io_callback(
+          solver.progress_fn, None,
           (iteration, inner_iterations, solver.max_iterations, state)
       )
 
