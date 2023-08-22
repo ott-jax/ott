@@ -155,8 +155,9 @@ class ScaleTriL:
     x0 = _flatten_cov(self.covariance())
     x1 = _flatten_cov(other.covariance())
     cost_fn = costs.Bures(dimension=dimension)
-    return (cost_fn.norm(x0) + cost_fn.norm(x1) +
-            cost_fn.pairwise(x0, x1))[...,]
+    return (cost_fn.norm(x0) + cost_fn.norm(x1) + cost_fn.pairwise(x0, x1))[
+        ...,
+    ]
 
   def gaussian_map(self, dest_scale: "ScaleTriL") -> jnp.ndarray:
     """Scaling matrix used in transport between 0-mean Gaussians.
