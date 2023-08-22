@@ -175,82 +175,82 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 
 [tool.tox]
 legacy_tox_ini = """
-    [tox]
-    min_version = 4.0
-    env_list = lint-code,py{3.8,3.9,3.10,3.11}
-    skip_missing_interpreters = true
+[tox]
+min_version = 4.0
+env_list = lint-code,py{3.8,3.9,3.10,3.11}
+skip_missing_interpreters = true
 
-    [testenv]
-    extras = test
-    pass_env = CUDA_*,PYTEST_*,CI
-    commands_pre =
-        gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-        jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
-    commands =
-        python -m pytest {tty:--color=yes} {posargs: \
-            --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
-            --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
+[testenv]
+extras = test
+pass_env = CUDA_*,PYTEST_*,CI
+commands_pre =
+    gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
+commands =
+    python -m pytest {tty:--color=yes} {posargs: \
+        --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
+        --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
 
-    [testenv:lint-code]
-    description = Lint the code.
-    deps = pre-commit>=2.16.0
-    skip_install = true
-    commands =
-        pre-commit run --all-files --show-diff-on-failure
+[testenv:lint-code]
+description = Lint the code.
+deps = pre-commit>=2.16.0
+skip_install = true
+commands =
+    pre-commit run --all-files --show-diff-on-failure
 
-    [testenv:lint-docs]
-    description = Lint the documentation.
-    deps =
-    extras = docs
-    ignore_errors = true
-    allowlist_externals = make
-    pass_env = PYENCHANT_LIBRARY_PATH
-    set_env = SPHINXOPTS = -W -q --keep-going
-    changedir = {tox_root}{/}docs
-    commands =
-        make linkcheck {posargs}
-        make spelling {posargs}
+[testenv:lint-docs]
+description = Lint the documentation.
+deps =
+extras = docs
+ignore_errors = true
+allowlist_externals = make
+pass_env = PYENCHANT_LIBRARY_PATH
+set_env = SPHINXOPTS = -W -q --keep-going
+changedir = {tox_root}{/}docs
+commands =
+    make linkcheck {posargs}
+    make spelling {posargs}
 
-    [testenv:build-docs]
-    description = Build the documentation.
-    use_develop = true
-    deps =
-    extras = docs
-    allowlist_externals = make
-    changedir = {tox_root}{/}docs
-    commands =
-        make html {posargs}
-    commands_post =
-        python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
+[testenv:build-docs]
+description = Build the documentation.
+use_develop = true
+deps =
+extras = docs
+allowlist_externals = make
+changedir = {tox_root}{/}docs
+commands =
+    make html {posargs}
+commands_post =
+    python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
 
-    [testenv:clean-docs]
-    description = Remove the documentation.
-    deps =
-    skip_install = true
-    changedir = {tox_root}{/}docs
-    allowlist_externals = make
-    commands =
-        make clean
+[testenv:clean-docs]
+description = Remove the documentation.
+deps =
+skip_install = true
+changedir = {tox_root}{/}docs
+allowlist_externals = make
+commands =
+    make clean
 
-    [testenv:build-package]
-    description = Build the package.
-    deps =
-        build
-        twine
-    commands =
-        python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
-        twine check {tox_root}{/}dist{/}*
-    commands_post =
-        python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
+[testenv:build-package]
+description = Build the package.
+deps =
+    build
+    twine
+commands =
+    python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
+    twine check {tox_root}{/}dist{/}*
+commands_post =
+    python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
 
-    [testenv:format-references]
-    description = Format references.bib.
-    skip_install = true
-    allowlist_externals = biber
-    commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
-        --output_align --output_indent=2 --output_fieldcase=lower \
-        --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
-        {tox_root}{/}docs{/}references.bib
+[testenv:format-references]
+description = Format references.bib.
+skip_install = true
+allowlist_externals = biber
+commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
+    --output_align --output_indent=2 --output_fieldcase=lower \
+    --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
+    {tox_root}{/}docs{/}references.bib
 """
 
 [tool.ruff]
