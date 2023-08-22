@@ -613,8 +613,8 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       crossed_threshold = jnp.logical_or(
           state.crossed_threshold,
           jnp.logical_and(
-              state.criterions[it - 1] >= consts.threshold,
-              criterion < consts.threshold
+              state.criterions[it - 1] >= consts.threshold, criterion
+              < consts.threshold
           )
       )
 

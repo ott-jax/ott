@@ -493,9 +493,7 @@ class TestSinkhorn:
     assert out.converged
     assert out.primal_cost > 0.0
 
-  @pytest.mark.fast.with_args(
-      cost_fn=[None, costs.SqPNorm(1.6)],
-  )
+  @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)])
   def test_primal_cost_grid(self, cost_fn: Optional[costs.CostFn]):
     """Test computation of primal / costs for Grids."""
     ns = [6, 7, 11]
