@@ -83,7 +83,6 @@ from typing import Callable, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import optax
 
 from ott.tools.gaussian_mixture import (
     fit_gmm,
@@ -235,6 +234,7 @@ def get_m_step_fn(learning_rate: float, objective_fn, jit: bool):
   Returns:
     A function that performs the M-step of EM.
   """
+  import optax
 
   def _m_step_fn(
       pair: gaussian_mixture_pair.GaussianMixturePair,
