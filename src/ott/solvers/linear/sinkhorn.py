@@ -41,7 +41,7 @@ from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
 if TYPE_CHECKING:
-  from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
+  from ott.solvers.linear.sinkhorn_lr import LRSinkhornOutput
 
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
@@ -1214,36 +1214,17 @@ _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
 
 
-def solve(
-    geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    rank: int = -1,
-    **kwargs: Any
-) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
+@utils.deprecate(alt="Please use `ott.solvers.linear.solve()` instead.")
+def solve(*args: Any,
+          **kwargs: Any) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:
-    geom: The ground geometry cost of the linear problem.
-    a: The first marginal. If `None`, it will be uniform.
-    b: The second marginal. If `None`, it will be uniform.
-    tau_a: If `< 1`, defines how much unbalanced the problem is
-      on the first marginal.
-    tau_b: If `< 1`, defines how much unbalanced the problem is
-      on the second marginal.
-    rank:
-      Rank constraint on the coupling to minimize the linear OT problem
-      :cite:`scetbon:21`. If `-1`, no rank constraint is used.
-    kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
-      depending on ``rank``.
+    args: Position arguments for :func:`ott.solvers.linear.solve`.
+    kwargs: Keyword arguments for :func:`ott.solvers.linear.solve`.
 
   Returns:
     The Sinkhorn output.
   """
-  prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-  solver = LRSinkhorn(rank=rank, **kwargs) if rank > 0 else Sinkhorn(**kwargs)
-  return solver(prob)
+  from ott.solvers.linear import solve
+  return solve(*args, **kwargs)

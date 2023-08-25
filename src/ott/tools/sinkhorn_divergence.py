@@ -18,7 +18,8 @@ import jax.numpy as jnp
 
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
-from ott.solvers.linear import acceleration, sinkhorn
+from ott.solvers import linear
+from ott.solvers.linear import acceleration
 
 __all__ = [
     "sinkhorn_divergence", "segment_sinkhorn_divergence",
@@ -163,16 +164,16 @@ def _sinkhorn_divergence(
     if implicit_diff is not None:
       kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 
-  out_xy = sinkhorn.solve(geometry_xy, a, b, **kwargs)
-  out_xx = sinkhorn.solve(geometry_xx, a, a, **kwargs_symmetric)
+  out_xy = linear.solve(geometry_xy, a, b, **kwargs)
+  out_xx = linear.solve(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
     # Create dummy output, corresponds to scenario where static_b is True.
     # This choice ensures that `converged`` of this dummy output is True.
-    out_yy = sinkhorn.SinkhornOutput(
+    out_yy = linear.SinkhornOutput(
         errors=jnp.array([-jnp.inf]), reg_ot_cost=0.0, threshold=0.0
     )
   else:
-    out_yy = sinkhorn.solve(geometry_yy, b, b, **kwargs_symmetric)
+    out_yy = linear.solve(geometry_yy, b, b, **kwargs_symmetric)
 
   div = (
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +

@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 from ott.geometry import costs, geometry, pointcloud
 from ott.problems.linear import linear_problem
+from ott.solvers import linear
 from ott.solvers.linear import acceleration, sinkhorn
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
@@ -194,12 +195,12 @@ class TestSinkhornOnline:
         self.x, self.y, epsilon=1, batch_size=batch_size
     )
 
-    sol_online = sinkhorn.solve(geom_online)
+    sol_online = linear.solve(geom_online)
     errors_online = sol_online.errors
     err_online = errors_online[errors_online > -1][-1]
     assert threshold > err_online
 
-    sol_offline = sinkhorn.solve(geom_offline)
+    sol_offline = linear.solve(geom_offline)
 
     np.testing.assert_allclose(
         sol_online.matrix, sol_offline.matrix, rtol=rtol, atol=atol
@@ -350,8 +351,8 @@ class TestSinkhornJIT:
       return chex.assert_trees_all_close(x, y, atol=1e-6, rtol=0)
 
     geom = self.geometry
-    jitted_result = jax.jit(sinkhorn.solve)(geom, a=self.a, b=self.b)
-    non_jitted_result = sinkhorn.solve(geom, a=self.a, b=self.b)
+    jitted_result = jax.jit(linear.solve)(geom, a=self.a, b=self.b)
+    non_jitted_result = linear.solve(geom, a=self.a, b=self.b)
     assert_output_close(non_jitted_result, jitted_result)
 
   @pytest.mark.parametrize("implicit", [False, True])

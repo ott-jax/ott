@@ -18,7 +18,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from ott.geometry import costs, geometry, pointcloud
-from ott.solvers.linear import acceleration, sinkhorn
+from ott.solvers import linear
+from ott.solvers.linear import acceleration
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
 
@@ -69,9 +70,9 @@ class TestSinkhornDivergence:
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
-    div2 = sinkhorn.solve(geometry_xy, self._a, self._b).reg_ot_cost
-    div2 -= 0.5 * sinkhorn.solve(geometry_xx, self._a, self._a).reg_ot_cost
-    div2 -= 0.5 * sinkhorn.solve(geometry_yy, self._b, self._b).reg_ot_cost
+    div2 = linear.solve(geometry_xy, self._a, self._b).reg_ot_cost
+    div2 -= 0.5 * linear.solve(geometry_xx, self._a, self._a).reg_ot_cost
+    div2 -= 0.5 * linear.solve(geometry_yy, self._b, self._b).reg_ot_cost
 
     np.testing.assert_allclose(out.divergence, div2, rtol=1e-5, atol=1e-5)
 
