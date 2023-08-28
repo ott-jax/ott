@@ -306,9 +306,9 @@ class SinkhornOutput(NamedTuple):
       criterion was found to be smaller than ``threshold``.
     reg_ot_cost: the regularized optimal transport cost. By default this is
       the linear contribution + KL term. See
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.primal_cost` and
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.dual_cost` for other
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.primal_cost` and
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.dual_cost` for other
       objective values.
     ot_prob: stores the definition of the OT problem, including geometry,
       marginals, unbalanced regularizers, etc.
