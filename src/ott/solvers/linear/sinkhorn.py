@@ -356,6 +356,7 @@ class SinkhornOutput(NamedTuple):
     r"""Entropy regularized cost.
 
     This outputs
+
     .. math::
 
       \langle P^{\star},C\rangle - \varepsilon H(P^{\star}) +
@@ -377,6 +378,7 @@ class SinkhornOutput(NamedTuple):
     r"""KL regularized OT transport cost.
 
     This outputs
+
     .. math::
 
       \langle P^{\star}, C \rangle + \varepsilon KL(P^{\star},ab^T) +
