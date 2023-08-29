@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs, pointcloud
+from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
 __all__ = ["monge_gap", "monge_gap_from_samples"]
@@ -147,6 +148,6 @@ def monge_gap_from_samples(
       scale_cost=scale_cost,
   )
   gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(source, target))
-  out = sinkhorn.solve(geom=geom, **kwargs)
+  out = linear.solve(geom=geom, **kwargs)
   loss = gt_displacement_cost - out.ent_reg_cost
   return (loss, out) if return_output else loss

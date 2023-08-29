@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from ott.geometry import costs, pointcloud
-from ott.solvers.linear import sinkhorn
+from ott.solvers import linear
 
 try:
   from tslearn import metrics as ts_metrics
@@ -189,7 +189,7 @@ class TestRegTICost:
     y = jax.random.normal(rng2, (37, d))
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
-    dp = sinkhorn.solve(geom).to_dual_potentials()
+    dp = linear.solve(geom).to_dual_potentials()
 
     for arr, fwd in zip([x, y], [True, False]):
       arr_t = dp.transport(arr, forward=fwd)
@@ -210,7 +210,7 @@ class TestRegTICost:
       cost_fn = cost_type_t(scaling_reg=scaling_reg)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
-      dp = sinkhorn.solve(geom).to_dual_potentials()
+      dp = linear.solve(geom).to_dual_potentials()
       for arr, fwd in zip([xx, yy], [True, False]):
         arr_t = dp.transport(arr, forward=True)
         sparsity[fwd].append(np.sum(np.isclose(arr, arr_t)))
