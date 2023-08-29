@@ -16,7 +16,7 @@ Sinkhorn Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    sinkhorn.solve
+    solve
     sinkhorn.Sinkhorn
     sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
