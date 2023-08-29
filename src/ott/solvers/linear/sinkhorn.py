@@ -296,7 +296,7 @@ class SinkhornOutput(NamedTuple):
     g: dual variables vector of size ``ot.prob.shape[1]`` returned by Sinkhorn
     errors: vector or errors, along iterations. This vector is of size
       ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+      passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
       For each entry indexed at ``i``, ``errors[i]`` can be either a real
       non-negative value (meaning the algorithm recorded that error at the
       ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
