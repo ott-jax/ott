@@ -30,8 +30,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott import utils
-from ott.geometry import geometry, low_rank, pointcloud
-from ott.initializers.linear import initializers_lr
+from ott.geometry import geometry
 from ott.initializers.quadratic import initializers as quad_initializers
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
@@ -333,29 +332,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     if isinstance(
         self.quad_initializer, quad_initializers.BaseQuadraticInitializer
     ):
-      if self.is_low_rank:
-        assert isinstance(
-            self.quad_initializer, quad_initializers.LRQuadraticInitializer
-        ), f"Expected quadratic initializer to be low rank, " \
-           f"found `{type(self.quad_initializer).__name__}`."
-        assert self.quad_initializer.rank == self.rank, \
-            f"Expected quadratic initializer of rank `{self.rank}`, " \
-            f"found `{self.quad_initializer.rank}`."
       return self.quad_initializer
-
-    if self.is_low_rank:
-      if self.quad_initializer is None:
-        types = (pointcloud.PointCloud, low_rank.LRCGeometry)
-        kind = "k-means" if isinstance(prob.geom_xx, types) and isinstance(
-            prob.geom_yy, types
-        ) else "random"
-      else:
-        kind = self.quad_initializer
-      linear_lr_init = initializers_lr.LRInitializer.from_solver(
-          self, kind=kind, **self.kwargs_init
-      )
-      return quad_initializers.LRQuadraticInitializer(linear_lr_init)
-
+    # no other options implemented, use the default
     return quad_initializers.QuadraticInitializer(**self.kwargs_init)
 
   @property
