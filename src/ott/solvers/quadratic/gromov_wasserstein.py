@@ -198,6 +198,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
+    assert not self.is_low_rank, \
+      "For low-rank GW, use " \
+      "`ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`."
     self._warm_start = warm_start
     self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
