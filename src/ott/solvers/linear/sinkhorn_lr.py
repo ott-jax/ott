@@ -402,9 +402,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
-      norm_g = jnp.max(jnp.abs(grad_g)) ** 2
+      norm_q = jnp.linalg.norm(grad_q, ord=jnp.inf) ** 2
+      norm_r = jnp.linalg.norm(grad_r, ord=jnp.inf) ** 2
+      norm_g = jnp.linalg.norm(grad_g, ord=jnp.inf) ** 2
       gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
     else:
       gamma = self.gamma
