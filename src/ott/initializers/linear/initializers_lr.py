@@ -373,9 +373,7 @@ class KMeansInitializer(LRInitializer):
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
   @staticmethod
-  def _extract_array(
-      geom: Union[pointcloud.PointCloud, low_rank.LRCGeometry], *, first: bool
-  ) -> jnp.ndarray:
+  def _extract_array(geom: geometry.Geometry, *, first: bool) -> jnp.ndarray:
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
@@ -407,7 +405,11 @@ class KMeansInitializer(LRInitializer):
     )
 
     if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
-      geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
+      if ot_prob.fused_penalty >= 1.0:
+        # prefer the linear term if it has a higher weight
+        geom = ot_prob.geom_xy
+      else:
+        geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
     arr = self._extract_array(geom, first=which == "q")
@@ -415,7 +417,7 @@ class KMeansInitializer(LRInitializer):
 
     centroids = fn(arr, self.rank, rng=rng).centroids
     geom = pointcloud.PointCloud(
-        arr, centroids, epsilon=0.1, scale_cost="max_cost"
+        arr, centroids, epsilon=1e-1, scale_cost="max_cost"
     )
 
     prob = linear_problem.LinearProblem(geom, marginals, init_g)
