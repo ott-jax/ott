@@ -106,8 +106,8 @@ def unbalanced_dykstra_lse(
     log_a, log_b = jnp.log(const.a), jnp.log(const.b)
     rho_a, rho_b = const.rho_a, const.rho_b
 
-    c_a = _foo(const.rho_a, gamma)
-    c_b = _foo(const.rho_b, gamma)
+    c_a = _get_ratio(const.rho_a, gamma)
+    c_b = _get_ratio(const.rho_b, gamma)
 
     if translation_invariant:
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=c_g, lse_mode=True)
@@ -242,8 +242,8 @@ def unbalanced_dykstra_kernel(
   def body_fn(
       iteration: int, const: Constants, state: State, compute_error: bool
   ) -> State:
-    c_a = _foo(const.rho_a, gamma)
-    c_b = _foo(const.rho_b, gamma)
+    c_a = _get_ratio(const.rho_a, gamma)
+    c_b = _get_ratio(const.rho_b, gamma)
 
     if translation_invariant:
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=k_g, lse_mode=False)
@@ -332,8 +332,8 @@ def compute_lambdas(
     const_1 = num_1 - den
     const_2 = num_2 - den
 
-    ratio_1 = _foo(rho_a, gamma)
-    ratio_2 = _foo(rho_b, gamma)
+    ratio_1 = _get_ratio(rho_a, gamma)
+    ratio_2 = _get_ratio(rho_b, gamma)
     harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
     lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
     lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
@@ -353,8 +353,8 @@ def compute_lambdas(
   const_1 = jnp.log(num_1 / den)
   const_2 = jnp.log(num_2 / den)
 
-  ratio_1 = _foo(rho_a, gamma)
-  ratio_2 = _foo(rho_b, gamma)
+  ratio_1 = _get_ratio(rho_a, gamma)
+  ratio_2 = _get_ratio(rho_b, gamma)
   harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
   lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
   lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
@@ -366,7 +366,6 @@ def _rho(tau: float) -> float:
   return tau / (1.0 - tau)
 
 
-# TODO(michalk8): rename
-def _foo(rho: float, gamma: float) -> float:
+def _get_ratio(rho: float, gamma: float) -> float:
   gamma_inv = 1.0 / gamma
   return jnp.where(jnp.isfinite(rho), rho / (rho + gamma_inv), 1.0)
