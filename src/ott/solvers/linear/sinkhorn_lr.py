@@ -396,10 +396,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
     )
     grad_g = -diag_qcr / (state.g ** 2)
-    if self.is_entropic:
-      grad_q += self.epsilon * log_q
-      grad_r += self.epsilon * log_r
-      grad_g += self.epsilon * log_g
+
+    grad_q += self.epsilon * log_q
+    grad_r += self.epsilon * log_r
+    grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
       norm_q = jnp.max(jnp.abs(grad_q)) ** 2
@@ -727,11 +727,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   @property
   def norm_error(self) -> Tuple[int]:  # noqa: D102
     return self._norm_error,
-
-  @property
-  def is_entropic(self) -> bool:
-    """Whether entropy regularization is used."""
-    return self.epsilon > 0.
 
   def create_initializer(
       self, prob: linear_problem.LinearProblem
