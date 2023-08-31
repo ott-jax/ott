@@ -29,8 +29,9 @@ import jax.scipy as jsp
 import numpy as np
 from jax.experimental import host_callback
 
-from ott.geometry import geometry, low_rank, pointcloud
-from ott.initializers.linear import initializers_lr as init_lib
+from ott.geometry import geometry, low_rank
+from ott.initializers.linear import initializers_lr as lin_init
+from ott.initializers.quadratic import initializers
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.quadratic import quadratic_problem
@@ -263,13 +264,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
-      `'generalized-k-means`. If `None`,
-      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
-      is used when the linear problem's geometry is
-      :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
-      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-    lse_mode: Whether to run computations in lse or kernel mode.
+      `'generalized-k-means'`.
+    lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
@@ -295,9 +291,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      initializer: Optional[Union[Literal["random", "rank2", "k-means",
-                                          "generalized-k-means"],
-                                  init_lib.LRInitializer]] = "random",
+      initializer: Union[Literal["random", "rank2", "k-means",
+                                 "generalized-k-means"],
+                         initializers.LRQuadraticInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -731,7 +727,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   def create_initializer(
       self,
       prob: quadratic_problem.QuadraticProblem,
-  ) -> init_lib.LRInitializer:
+  ) -> initializers.LRQuadraticInitializer:
     """Create a low-rank GW initializer.
 
     Args:
@@ -740,25 +736,16 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       Low-rank initializer.
     """
-    if isinstance(self.initializer, init_lib.LRInitializer):
-      initializer = self.initializer
-    elif self.initializer is None:
-      raise NotImplementedError("TODO")
-      kind = "k-means" if isinstance(
-          prob.geom, (pointcloud.PointCloud, low_rank.LRCGeometry)
-      ) else "random"
-      initializer = init_lib.LRInitializer.from_solver(
-          self, kind=kind, **self.kwargs_init
-      )
-    else:
-      initializer = init_lib.LRInitializer.from_solver(
-          self, kind=self.initializer, **self.kwargs_init
-      )
+    if isinstance(self.initializer, initializers.LRQuadraticInitializer):
+      assert self.initializer.rank == self.rank, \
+        f"Expected initializer's rank to be `{self.rank}`," \
+        f"found `{self.initializer.rank}`."
+      return self.initializer
 
-    assert initializer.rank == self.rank, \
-      f"Expected initializer of rank `{self.rank}`, " \
-      f"found `{initializer.rank}`."
-    return initializer
+    init = lin_init.LRInitializer.from_solver(
+        self, kind=self.initializer, **self.kwargs_init
+    )
+    return initializers.LRQuadraticInitializer(init)
 
   def init_state(
       self, ot_prob: quadratic_problem.QuadraticProblem,

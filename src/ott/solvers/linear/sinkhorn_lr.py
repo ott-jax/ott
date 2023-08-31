@@ -29,8 +29,8 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
-from ott.geometry import geometry, low_rank, pointcloud
-from ott.initializers.linear import initializers_lr as init_lib
+from ott.geometry import geometry
+from ott.initializers.linear import initializers_lr
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
@@ -289,13 +289,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
       factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
-      `'generalized-k-means`. If `None`,
-      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`
-      is used when the linear problem's geometry is
-      :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`. Otherwise, use
-      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
-    lse_mode: Whether to run computations in lse or kernel mode.
+      `'generalized-k-means'`.
+    lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
@@ -322,9 +317,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.,
       gamma_rescale: bool = True,
       epsilon: float = 0.,
-      initializer: Optional[Union[Literal["random", "rank2", "k-means",
-                                          "generalized-k-means"],
-                                  init_lib.LRInitializer]] = "random",
+      initializer: Union[Literal["random", "rank2", "k-means",
+                                 "generalized-k-means"],
+                         initializers_lr.LRInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -730,7 +725,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def create_initializer(
       self, prob: linear_problem.LinearProblem
-  ) -> init_lib.LRInitializer:
+  ) -> initializers_lr.LRInitializer:
     """Create a low-rank Sinkhorn initializer.
 
     Args:
@@ -739,24 +734,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       Low-rank initializer.
     """
-    if isinstance(self.initializer, init_lib.LRInitializer):
-      initializer = self.initializer
-    elif self.initializer is None:
-      kind = "k-means" if isinstance(
-          prob.geom, (pointcloud.PointCloud, low_rank.LRCGeometry)
-      ) else "random"
-      initializer = init_lib.LRInitializer.from_solver(
-          self, kind=kind, **self.kwargs_init
-      )
-    else:
-      initializer = init_lib.LRInitializer.from_solver(
-          self, kind=self.initializer, **self.kwargs_init
-      )
-
-    assert initializer.rank == self.rank, \
-        f"Expected initializer of rank `{self.rank}`, " \
-        f"found `{initializer.rank}`."
-    return initializer
+    if isinstance(self.initializer, initializers_lr.LRInitializer):
+      assert self.initializer.rank == self.rank, \
+        f"Expected initializer's rank to be `{self.rank}`," \
+        f"found `{self.initializer.rank}`."
+      return self.initializer
+    return initializers_lr.LRInitializer.from_solver(
+        self, kind=self.initializer, **self.kwargs_init
+    )
 
   def init_state(
       self, ot_prob: linear_problem.LinearProblem,

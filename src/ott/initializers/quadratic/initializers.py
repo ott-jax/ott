@@ -23,6 +23,7 @@ if TYPE_CHECKING:
   from ott.initializers.linear import initializers_lr
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
+  from ott.solvers.linear import sinkhorn_lr
 
 __all__ = ["QuadraticInitializer", "LRQuadraticInitializer"]
 
@@ -189,7 +190,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
       quad_prob: "quadratic_problem.QuadraticProblem",
       relative_epsilon: Optional[bool] = False,
       **kwargs: Any
-  ) -> geometry.Geometry:
+  ) -> "sinkhorn_lr.LRSinkhornOutput":
     """Compute initial geometry for linearization.
 
     Args:
@@ -199,7 +200,7 @@ class LRQuadraticInitializer(BaseQuadraticInitializer):
         :meth:`~ott.initializers.linear.initializers_lr.LRInitializer.__call__`.
 
     Returns:
-      The initial geometry used to initialize a linear problem.
+      The initial :math:`Q`, :math:`R`, and :math:`g` factors.
     """
     from ott.solvers.linear import sinkhorn_lr
 
