@@ -32,6 +32,7 @@ import numpy as np
 from ott.geometry import geometry, low_rank
 from ott.initializers.linear import initializers_lr
 from ott.math import fixed_point_loop
+from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import lr_utils, sinkhorn
@@ -113,26 +114,17 @@ def compute_reg_gw_cost(
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
-  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
-  inv_g = 1.0 / g[None, :]
+  out = LRGWOutput(
+      q=q, r=r, g=g, ot_prob=ot_prob, costs=None, errors=None, epsilon=None
+  )
 
-  lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
-  # `2 * ` missing here because it's already present in the geometry
-  quad_cost = jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
-
-  if ot_prob.is_fused:
-    alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
-    norm_g = jnp.linalg.norm(g, ord=1)
-    lin_cost = jnp.sum(q * ot_prob.geom_xy.apply_cost(r, axis=1) * inv_g)
-    cost = alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
-  else:
-    cost = quad_cost
-
-  cost -= epsilon * (ent(q) + ent(r) + ent(g))
-  if tau_a != 1.0:
-    cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
-  if tau_b != 1.0:
-    cost += tau_b / (1.0 - tau_b) * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
+  cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
+  if ot_prob.tau_a != 1.0:
+    rho_a = uf.rho(1.0, ot_prob.tau_a)
+    cost += rho_a * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
+  if ot_prob.tau_b != 1.0:
+    rho_b = uf.rho(1.0, ot_prob.tau_b)
+    cost += rho_b * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
 
   return cost
 
@@ -148,7 +140,6 @@ class LRGWOutput(NamedTuple):
   errors: jnp.ndarray
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
-  # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
@@ -231,7 +222,24 @@ class LRGWOutput(NamedTuple):
   @property
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
-    return self.transport_cost_at_geom(other_geom=self.geom)
+    geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
+
+    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
+    if self.ot_prob.is_fused:
+      alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
+      norm_g = jnp.linalg.norm(self.g, ord=1)
+
+      lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
+      cost = alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
+    else:
+      cost = quad_cost
+
+    marginal_a = self.q.sum(1)
+    marginal_b = self.r.sum(1)
+    cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
+    cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
+
+    return cost
 
   @property
   def transport_mass(self) -> float:
@@ -358,32 +366,28 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     q, r, g = state.q, state.r, state.g
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
-
     lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
 
-    # TODO
-    tmp3 = 2.0 * lin_geom.apply_cost(r, axis=1)
-    grad_q = tmp3 * inv_g + 2.0 * ot_prob.geom_xx.apply_square_cost(
-        q.sum(1), axis=1
-    )
+    tmp = lin_geom.apply_cost(r, axis=1)
+    grad_q = tmp * inv_g
+    grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(q.sum(1), axis=1)
 
-    # TODO
-    grad_r = 2.0 * lin_geom.apply_cost(q, axis=0) * inv_g
-    grad_r = grad_r + 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
+    grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
+    grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
 
-    omega_quad = jnp.sum(q * tmp3, axis=0)
+    omega_quad = jnp.sum(q * tmp, axis=0)
     grad_g = -omega_quad / (g ** 2)
 
     if ot_prob.is_fused:
       alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
       norm_g = jnp.linalg.norm(g, ord=1)
 
-      tmp4 = ot_prob.geom_xy.apply_cost(r, axis=1)
-      lin_grad_q = tmp4 * inv_g * norm_g
+      tmp = ot_prob.geom_xy.apply_cost(r, axis=1)
+      lin_grad_q = tmp * inv_g * norm_g
       lin_grad_r = ot_prob.geom_xy.apply_cost(q) * inv_g * norm_g
 
-      omega_lin = jnp.sum(q * tmp4, axis=0)
-      lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp4 * inv_g)
+      omega_lin = jnp.sum(q * tmp, axis=0)
+      lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp * inv_g)
 
       grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
       grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
@@ -872,9 +876,10 @@ def _linearized_geometry(
     r: jnp.ndarray,
     g: jnp.ndarray,
 ) -> low_rank.LRCGeometry:
-  h1, h2 = prob.loss.h1, prob.loss.h2
   inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
 
-  tmp1 = prob.geom_xx.apply_cost(q, axis=1, fn=h1.func, is_linear=h1.is_linear)
-  tmp2 = prob.geom_yy.apply_cost(r, axis=1, fn=h2.func, is_linear=h2.is_linear)
-  return low_rank.LRCGeometry(-tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)
+  # TODO(michalk8): below is for squared loss, handle KL loss in the future;
+  # will need to be updated in many other places as well
+  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
+  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
+  return low_rank.LRCGeometry(tmp1, tmp2)
