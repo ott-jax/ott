@@ -22,7 +22,6 @@ from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
-from ott.solvers.quadratic import gromov_wasserstein as gw_solver
 
 
 class TestFusedGromovWasserstein:
@@ -264,7 +263,7 @@ class TestFusedGromovWasserstein:
     lr_prob = prob.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gw_solver.GromovWasserstein(rank=5, epsilon=10.0)
+    solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=10.0)
     out = solver(prob)
 
     assert solver.rank == 5
