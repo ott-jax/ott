@@ -30,8 +30,7 @@ import numpy as np
 from jax.experimental import host_callback
 
 from ott.geometry import geometry, low_rank
-from ott.initializers.linear import initializers_lr as lin_init
-from ott.initializers.quadratic import initializers
+from ott.initializers.linear import initializers_lr
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.quadratic import quadratic_problem
@@ -62,14 +61,14 @@ class LRGWState(NamedTuple):
 
     return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
-  def reg_ot_cost(  # noqa: D102
+  def reg_gw_cost(  # noqa: D102
     self,
     ot_prob: quadratic_problem.QuadraticProblem,
     *,
     epsilon: float,
     use_danskin: bool = False
   ) -> float:
-    return compute_reg_ot_cost(
+    return compute_reg_gw_cost(
         self.q,
         self.r,
         self.g,
@@ -83,7 +82,7 @@ class LRGWState(NamedTuple):
     return self._replace(**kwargs)
 
 
-def compute_reg_ot_cost(
+def compute_reg_gw_cost(
     q: jnp.ndarray,
     r: jnp.ndarray,
     g: jnp.ndarray,
@@ -149,7 +148,7 @@ class LRGWOutput(NamedTuple):
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
-  reg_ot_cost: Optional[float] = None
+  reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
     """Return a copy of self, with potential overwrites."""
@@ -162,14 +161,14 @@ class LRGWOutput(NamedTuple):
     use_danskin: bool = False
   ) -> "LRGWOutput":
     del lse_mode
-    return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
+    return self.set(reg_gw_cost=self.compute_reg_gw_cost(ot_prob, use_danskin))
 
-  def compute_reg_ot_cost(  # noqa: D102
+  def compute_reg_gw_cost(  # noqa: D102
     self,
     ot_prob: quadratic_problem.QuadraticProblem,
     use_danskin: bool = False,
   ) -> float:
-    return compute_reg_ot_cost(
+    return compute_reg_gw_cost(
         self.q,
         self.r,
         self.g,
@@ -293,7 +292,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       epsilon: float = 0.0,
       initializer: Union[Literal["random", "rank2", "k-means",
                                  "generalized-k-means"],
-                         initializers.LRQuadraticInitializer] = "random",
+                         initializers_lr.LRInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
@@ -346,9 +345,6 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       The low-rank GW output.
     """
-    assert not ot_prob.is_balanced, \
-      "Balanced case is not yet implemented here, please use " \
-      "`ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein` instead."
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
@@ -695,7 +691,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     # re-computes error if compute_error is True, else set it to inf.
     cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
         lambda: jnp.inf
     )
     error = state.compute_error(previous_state)
@@ -727,7 +723,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   def create_initializer(
       self,
       prob: quadratic_problem.QuadraticProblem,
-  ) -> initializers.LRQuadraticInitializer:
+  ) -> initializers_lr.LRInitializer:
     """Create a low-rank GW initializer.
 
     Args:
@@ -736,16 +732,15 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       Low-rank initializer.
     """
-    if isinstance(self.initializer, initializers.LRQuadraticInitializer):
+    if isinstance(self.initializer, initializers_lr.LRInitializer):
       assert self.initializer.rank == self.rank, \
         f"Expected initializer's rank to be `{self.rank}`," \
         f"found `{self.initializer.rank}`."
       return self.initializer
 
-    init = lin_init.LRInitializer.from_solver(
+    return initializers_lr.LRInitializer.from_solver(
         self, kind=self.initializer, **self.kwargs_init
     )
-    return initializers.LRQuadraticInitializer(init)
 
   def init_state(
       self, ot_prob: quadratic_problem.QuadraticProblem,

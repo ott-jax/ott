@@ -20,12 +20,10 @@ import jax.numpy as jnp
 from ott.geometry import geometry
 
 if TYPE_CHECKING:
-  from ott.initializers.linear import initializers_lr
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
-  from ott.solvers.linear import sinkhorn_lr
 
-__all__ = ["QuadraticInitializer", "LRQuadraticInitializer"]
+__all__ = ["BaseQuadraticInitializer", "QuadraticInitializer"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -172,56 +170,3 @@ class QuadraticInitializer(BaseQuadraticInitializer):
         epsilon=epsilon,
         relative_epsilon=relative_epsilon
     )
-
-
-class LRQuadraticInitializer(BaseQuadraticInitializer):
-  """Wrapper that wraps low-rank Sinkhorn initializers.
-
-  Args:
-    lr_linear_initializer: Low-rank linear initializer.
-  """
-
-  def __init__(self, lr_linear_initializer: "initializers_lr.LRInitializer"):
-    super().__init__()
-    self._linear_lr_initializer = lr_linear_initializer
-
-  def _create_geometry(
-      self,
-      quad_prob: "quadratic_problem.QuadraticProblem",
-      relative_epsilon: Optional[bool] = False,
-      **kwargs: Any
-  ) -> "sinkhorn_lr.LRSinkhornOutput":
-    """Compute initial geometry for linearization.
-
-    Args:
-      quad_prob: Quadratic OT problem.
-      relative_epsilon: Whether to use relative epsilon in the geometry.
-      kwargs: Keyword arguments for
-        :meth:`~ott.initializers.linear.initializers_lr.LRInitializer.__call__`.
-
-    Returns:
-      The initial :math:`Q`, :math:`R`, and :math:`g` factors.
-    """
-    from ott.solvers.linear import sinkhorn_lr
-
-    q, r, g = self._linear_lr_initializer(quad_prob, **kwargs)
-    tmp_out = sinkhorn_lr.LRSinkhornOutput(
-        q=q,
-        r=r,
-        g=g,
-        costs=None,
-        errors=None,
-        ot_prob=None,
-        epsilon=None,
-    )
-
-    return quad_prob.update_lr_geom(tmp_out, relative_epsilon=relative_epsilon)
-
-  @property
-  def rank(self) -> int:
-    """Rank of the transport matrix factorization."""
-    return self._linear_lr_initializer.rank
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    children, aux_data = super().tree_flatten()
-    return children + [self._linear_lr_initializer], aux_data
