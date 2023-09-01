@@ -223,23 +223,21 @@ class LRGWOutput(NamedTuple):
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
     geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
-
-    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
-    if self.ot_prob.is_fused:
-      alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
-      norm_g = jnp.linalg.norm(self.g, ord=1)
-
-      lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
-      cost = alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
-    else:
-      cost = quad_cost
-
     marginal_a = self.q.sum(1)
     marginal_b = self.r.sum(1)
-    cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
-    cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
 
-    return cost
+    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
+    quad_cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
+    quad_cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
+
+    if not self.ot_prob.is_fused:
+      return quad_cost
+
+    alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
+    norm_g = jnp.linalg.norm(self.g, ord=1)
+
+    lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
+    return alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
 
   @property
   def transport_mass(self) -> float:
