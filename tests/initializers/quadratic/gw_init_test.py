@@ -38,8 +38,7 @@ class TestQuadraticInitializers:
 
   def test_explicit_initializer_lr(self):
     rank = 10
-    linear_init = initializers_lr.Rank2Initializer(rank)
-    q_init = quad_init.LRQuadraticInitializer(linear_init)
+    q_init = initializers_lr.Rank2Initializer(rank)
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank, initializer=q_init
     )
@@ -66,19 +65,15 @@ class TestQuadraticInitializers:
         epsilon=eps,
     )
     problem = quadratic_problem.QuadraticProblem(geom_x, geom_y)
-    solver_random = gromov_wasserstein.GromovWasserstein(
+    solver_random = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank,
         initializer="random",
-        quad_initializer="random",
         epsilon=eps,
-        store_inner_errors=True,
     )
-    solver_kmeans = gromov_wasserstein.GromovWasserstein(
+    solver_kmeans = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank,
         initializer="k-means",
-        quad_initializer="k-means",
         epsilon=eps,
-        store_inner_errors=True
     )
 
     out_random = solver_random(problem)
