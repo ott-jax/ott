@@ -223,8 +223,8 @@ class LRGWOutput(NamedTuple):
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
     geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
-    marginal_a = self.q.sum(1)
-    marginal_b = self.r.sum(1)
+    marginal_a = self.ot_prob.a if self.ot_prob.tau_a == 1.0 else self.q.sum(1)
+    marginal_b = self.ot_prob.b if self.ot_prob.tau_b == 1.0 else self.r.sum(1)
 
     quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
     quad_cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
