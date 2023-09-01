@@ -117,8 +117,9 @@ def compute_reg_gw_cost(
   inv_g = 1.0 / g[None, :]
 
   lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
+  # `2 * ` missing here because it's already present in the geometry
+  quad_cost = jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
 
-  quad_cost = 0.5 * jnp.sum(q * lin_geom.apply_cost(r, axis=1) * inv_g)
   if ot_prob.is_fused:
     alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
     norm_g = jnp.linalg.norm(g, ord=1)
@@ -360,12 +361,14 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
 
-    tmp3 = lin_geom.apply_cost(r, axis=1)
+    # TODO
+    tmp3 = 2.0 * lin_geom.apply_cost(r, axis=1)
     grad_q = tmp3 * inv_g + 2.0 * ot_prob.geom_xx.apply_square_cost(
         q.sum(1), axis=1
     )
 
-    grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
+    # TODO
+    grad_r = 2.0 * lin_geom.apply_cost(q, axis=0) * inv_g
     grad_r = grad_r + 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
 
     omega_quad = jnp.sum(q * tmp3, axis=0)
@@ -863,10 +866,15 @@ def dykstra_solution_error(
 
 
 def _linearized_geometry(
-    prob: quadratic_problem.QuadraticProblem, q: jnp.ndarray, r: jnp.ndarray,
-    g: jnp.ndarray
+    prob: quadratic_problem.QuadraticProblem,
+    *,
+    q: jnp.ndarray,
+    r: jnp.ndarray,
+    g: jnp.ndarray,
 ) -> low_rank.LRCGeometry:
+  h1, h2 = prob.loss.h1, prob.loss.h2
   inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
-  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
-  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
-  return low_rank.LRCGeometry(tmp1, tmp2)
+
+  tmp1 = prob.geom_xx.apply_cost(q, axis=1, fn=h1.func, is_linear=h1.is_linear)
+  tmp2 = prob.geom_yy.apply_cost(r, axis=1, fn=h2.func, is_linear=h2.is_linear)
+  return low_rank.LRCGeometry(-tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)
