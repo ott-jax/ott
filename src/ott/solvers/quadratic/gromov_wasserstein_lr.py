@@ -368,10 +368,12 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     tmp = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp * inv_g
-    grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(q.sum(1), axis=1)
+    if ot_prob.tau_a != 1.0:  # unbalanced grad
+      grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(q.sum(1), axis=1)
 
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
-    grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
+    if ot_prob.tau_b != 1.0:  # unbalanced grad
+      grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
 
     omega_quad = jnp.sum(q * tmp, axis=0)
     grad_g = -omega_quad / (g ** 2)
