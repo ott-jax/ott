@@ -21,7 +21,7 @@ from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 @pytest.mark.fast()
@@ -199,16 +199,21 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize(("balanced", "rank"), [(True, -1), (False, -1),
                                                   (True, 3)])
   def test_gw_pointcloud(self, balanced: bool, rank: int):
-    """Test basic computations pointclouds."""
+    """Test basic computations point clouds."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     tau_a, tau_b = (1.0, 1.0) if balanced else (self.tau_a, self.tau_b)
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
-    solver = gromov_wasserstein.GromovWasserstein(
-        rank=rank, epsilon=0.0 if rank > 0 else 1.0, max_iterations=10
-    )
+    if rank > 0:
+      solver = gromov_wasserstein_lr.LRGromovWasserstein(
+          rank=rank, epsilon=0.0, max_iterations=10
+      )
+    else:
+      solver = gromov_wasserstein.GromovWasserstein(
+          rank=rank, epsilon=1.0, max_iterations=10
+      )
 
     out = solver(prob)
     # TODO(cuturi): test primal cost for un-balanced case as well.
@@ -316,10 +321,12 @@ class TestGromovWasserstein:
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
     prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
-    solver = gromov_wasserstein.GromovWasserstein(rank=5, epsilon=0.2)
+
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=5, epsilon=0.2)
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
+
     np.testing.assert_allclose(
         ot_gwlr.primal_cost, ot_gw.primal_cost, rtol=5e-2
     )
@@ -342,9 +349,10 @@ class TestGromovWasserstein:
     prob = quadratic_problem.QuadraticProblem(
         geom_xx, geom_yy, geom_xy=geom_xy, fused_penalty=1.3, a=a, b=b
     )
-    solver = gromov_wasserstein.GromovWasserstein(rank=6)
+
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=6)
     ot_gwlr = solver(prob)
-    solver = gromov_wasserstein.GromovWasserstein(rank=6, epsilon=1e-1)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=6, epsilon=1e-1)
     ot_gwlreps = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
     ot_gw = solver(prob)
@@ -362,7 +370,7 @@ class TestGromovWasserstein:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b
     )
-    solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-1, rank=2)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=2, epsilon=1e-1)
     out = solver(prob)
 
     arr, matrix = (self.x, out.matrix) if axis == 0 else (self.y, out.matrix.T)
@@ -370,29 +378,6 @@ class TestGromovWasserstein:
     res_matrix = arr.T @ matrix
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
-
-  def test_gw_lr_warm_start_helps(self, rng: jax.random.PRNGKeyArray):
-    rank = 3
-    rng1, rng2 = jax.random.split(rng, 2)
-    geom_x = pointcloud.PointCloud(jax.random.normal(rng1, (100, 5)))
-    geom_y = pointcloud.PointCloud(jax.random.normal(rng2, (110, 6)))
-    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
-
-    solver_cold = gromov_wasserstein.GromovWasserstein(
-        rank=rank, warm_start=False
-    )
-    solver_warm = gromov_wasserstein.GromovWasserstein(
-        rank=rank, warm_start=True
-    )
-
-    out_cold = solver_cold(prob)
-    out_warm = solver_warm(prob)
-
-    cost = out_cold.reg_gw_cost
-    cost_warm_start = out_warm.reg_gw_cost
-    assert (cost_warm_start + 5.0) < cost
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(out_cold.matrix, out_warm.matrix)
 
   @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
   def test_relative_epsilon(
