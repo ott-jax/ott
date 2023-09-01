@@ -23,7 +23,7 @@ from ott.solvers.linear import sinkhorn_lr
 
 class TestLRInitializers:
 
-  def test_explicitly_passing_initializer(self):
+  def test_explicit_initializer(self):
     rank = 2
     initializer = initializers_lr.RandomInitializer(rank=rank)
     solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
