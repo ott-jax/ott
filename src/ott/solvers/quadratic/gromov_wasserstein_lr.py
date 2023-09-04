@@ -29,6 +29,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
+from ott import utils
 from ott.geometry import geometry, low_rank
 from ott.initializers.linear import initializers_lr
 from ott.math import fixed_point_loop
@@ -352,10 +353,14 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       The low-rank GW output.
     """
+    rng = utils.default_prng_key(rng)
+    rng_lrc, rng_init = jax.random.split(rng)
+
     if ot_prob._is_low_rank_convertible:
-      ot_prob = ot_prob.to_low_rank()
+      ot_prob = ot_prob.to_low_rank(rng=rng_lrc)
+
     initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, rng=rng, **kwargs)
+    init = initializer(ot_prob, *init, rng=rng_init, **kwargs)
     return run(ot_prob, self, init)
 
   def _get_costs(
