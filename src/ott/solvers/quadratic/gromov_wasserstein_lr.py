@@ -352,6 +352,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       The low-rank GW output.
     """
+    if ot_prob._is_low_rank_convertible:
+      ot_prob = ot_prob.to_low_rank()
     initializer = self.create_initializer(ot_prob)
     init = initializer(ot_prob, *init, rng=rng, **kwargs)
     return run(ot_prob, self, init)
