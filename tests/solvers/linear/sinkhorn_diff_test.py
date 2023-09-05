@@ -730,43 +730,45 @@ class TestSinkhornJacobianPreconditioning:
 class TestSinkhornHessian:
 
   @pytest.mark.fast.with_args(
-      "lse_mode,tau_a,tau_b,arg", (
-          (True, 1.0, 1.0, 0),
-          (False, 1.0, 1.0, 0),
-          (True, 1.0, 1.0, 1),
-          (True, 1.0, .91, 0),
-          (True, .93, .91, 1),
-          (False, .93, .91, 1),
+      "lse_mode,tau_a,tau_b,arg,lineax_ridge", (
+          (True, 1.0, 1.0, 0, 0.0),
+          (False, 1.0, 1.0, 0, 1e-8),
+          (True, 1.0, 1.0, 1, 0.0),
+          (True, 1.0, 0.91, 0, 1e-7),
+          (True, 0.93, 0.91, 1, 0.0),
+          (False, 0.93, 0.91, 1, 1e-5),
       ),
       only_fast=-1
   )
   def test_hessian_sinkhorn(
       self, rng: jax.random.PRNGKeyArray, lse_mode: bool, tau_a: float,
-      tau_b: float, arg: int
+      tau_b: float, arg: int, lineax_ridge: float
   ):
     """Test hessian w.r.t. weights and locations."""
+    try:
+      from ott.solvers.linear import lineax_implicit  # noqa: F401
+      test_back = True
+      ridge = lineax_ridge
+    except ImportError:
+      test_back = False
+      ridge = 1e-5
+
     n, m = (12, 15)
     dim = 3
     rngs = jax.random.split(rng, 6)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + .1
-    b = jax.random.uniform(rngs[3], (m,)) + .1
+    a = jax.random.uniform(rngs[2], (n,)) + 0.1
+    b = jax.random.uniform(rngs[3], (m,)) + 0.1
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.1
 
-    ## Add a ridge when using JAX solvers.
-    try:
-      from ott.solvers.linear import lineax_implicit  # noqa: F401
-      solver_kwargs = {}
-      test_back = True
-    except ImportError:
-      solver_kwargs = {
-          "ridge_identity": 1e-5,
-          "ridge_kernel": 1e-5 if tau_a == tau_b == 1.0 else 0.0
-      }
-      test_back = False
+    # Add a ridge when using JAX solvers, smaller ridge for lineax solvers
+    solver_kwargs = {
+        "ridge_identity": ridge,
+        "ridge_kernel": ridge if tau_a == tau_b == 1.0 else 0.0
+    }
 
     imp_dif = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 

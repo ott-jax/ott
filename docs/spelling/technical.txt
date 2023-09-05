@@ -19,6 +19,7 @@ Kullback
 Leibler
 Mahalanobis
 Monge
+Moreau
 SGD
 Schur
 Seidel
@@ -73,10 +74,12 @@ jax
 jit
 jitting
 linearization
+linearized
 logit
 macOS
 methylation
 neuroimaging
+normed
 numerics
 omics
 optimality
@@ -87,6 +90,7 @@ parameterizing
 piecewise
 pluripotent
 positivity
+postfix
 potentials
 precompile
 precompute
@@ -95,6 +99,7 @@ preconditioner
 preprocess
 preprocessing
 proteome
+prox
 quantile
 quantiles
 quantizes
@@ -105,6 +110,7 @@ renormalize
 reproducibility
 rescale
 rescaled
+rescaling
 reweighted
 reweighting
 reweightings

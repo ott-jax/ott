@@ -144,8 +144,8 @@ class Momentum:
 
     return jax.lax.cond(
         jnp.logical_and(
-            iteration >= self.start,
-            state.errors[idx - 1, -1] < self.error_threshold
+            iteration >= self.start, state.errors[idx - 1, -1]
+            < self.error_threshold
         ), lambda state: self.lehmann(state), lambda state: self.value, state
     )
 

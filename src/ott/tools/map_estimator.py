@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import collections
 import functools
 from typing import Any, Callable, Dict, Iterator, Optional, Tuple
@@ -22,7 +21,7 @@ import optax
 from flax.core import frozen_dict
 from flax.training import train_state
 
-from ott.solvers.nn.models import ModelBase
+from ott.solvers.nn import models
 
 __all__ = ["MapEstimator"]
 
@@ -65,7 +64,7 @@ class MapEstimator:
   def __init__(
       self,
       dim_data: int,
-      model: ModelBase,
+      model: models.ModelBase,
       optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       float]] = None,
@@ -94,7 +93,7 @@ class MapEstimator:
   def setup(
       self,
       dim_data: int,
-      neural_net: ModelBase,
+      neural_net: models.ModelBase,
       optimizer: optax.OptState,
   ):
     """Setup all components required to train the network."""

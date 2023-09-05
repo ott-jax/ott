@@ -614,8 +614,8 @@ class ElasticSqKOverlap(RegTICost):
     # Choose first index satisfying constraint in Prop 2.1
     lower_bound = cesaro - top_w >= 0
     # Last upper bound is always True.
-    upper_bound = jnp.concatenate(((top_w[1:] - cesaro[:-1] > 0),
-                                   jnp.array((True,))))
+    upper_bound = jnp.concatenate(((top_w[1:] - cesaro[:-1]
+                                    > 0), jnp.array((True,))))
     r = jnp.argmax(lower_bound * upper_bound)
     s = jnp.sum(jnp.where(jnp.arange(k) < k - r - 1, jnp.flip(top_w) ** 2, 0))
 

@@ -326,7 +326,7 @@ class SubsampleInitializer(DefaultInitializer):
       lse_mode: bool,
       rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> jnp.ndarray:
-    from ott.solvers.linear import sinkhorn
+    from ott.solvers import linear
 
     assert isinstance(
         ot_prob.geom, pointcloud.PointCloud
@@ -355,7 +355,7 @@ class SubsampleInitializer(DefaultInitializer):
     )
 
     # run sinkhorn
-    subsample_sink_out = sinkhorn.solve(sub_geom, **self.sinkhorn_kwargs)
+    subsample_sink_out = linear.solve(sub_geom, **self.sinkhorn_kwargs)
 
     # interpolate potentials
     dual_potentials = subsample_sink_out.to_dual_potentials()
