@@ -12,24 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple, List
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
-from jax.experimental.sparse.linalg import lobpcg_standard
-
 import numpy as np
+from jax.experimental.sparse.linalg import lobpcg_standard
 from scipy.special import ive
 
 from ott.geometry import geometry
 from ott.math import utils as mu
 
-
 __all__ = ["Geodesic"]
 
 
 @jax.tree_util.register_pytree_node_class
-class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
+class Geodesic(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
 
   Approximates the heat kernel for large ``n_steps``, which for small ``t``
@@ -94,7 +92,7 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
       The graph geometry.
     """
     assert G.shape[0] == G.shape[1], G.shape
-    print(G.shape)
+
     if directed:
       G = G + G.T
 
@@ -112,42 +110,38 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
 
     return cls(laplacian, t=t, **kwargs)
 
-
-
   def apply_kernel(
-            self,
-            scaling: jnp.ndarray,
-            eps: Optional[float] = None,
-            axis: int = 0,
-    ) -> jnp.ndarray:
+      self,
+      scaling: jnp.ndarray,
+      eps: Optional[float] = None,
+      axis: int = 0,
+  ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
-      Args:
-          scaling: Scaling to apply the kernel to.
-          eps: passed for consistency, not used yet.
-          axis: passed for consistency, not used yet.
+    Args:
+    scaling: Scaling to apply the kernel to.
+    eps: passed for consistency, not used yet.
+    axis: passed for consistency, not used yet.
 
-      Returns:
-          Kernel applied to ``scaling``.
-      """
+    Returns:
+    Kernel applied to ``scaling``.
+    """
 
     def compute_laplacian(adjacency_matrix: jnp.ndarray) -> jnp.ndarray:
-      """
-      Compute the Laplacian matrix from the adjacency matrix.
+      """Compute the Laplacian matrix from the adjacency matrix.
 
       Args:
-          adjacency_matrix: An (n, n) array representing the adjacency matrix of a graph.
+          adjacency_matrix: An (n, n) array representing the
+          adjacency matrix of a graph.
 
       Returns:
           An (n, n) array representing the Laplacian matrix.
       """
       degree_matrix = jnp.diag(jnp.sum(adjacency_matrix, axis=0))
-      laplacian_matrix = degree_matrix - adjacency_matrix
-      return laplacian_matrix
+      return degree_matrix - adjacency_matrix
 
     def compute_largest_eigenvalue(laplacian_matrix, k):
-      """
-      Compute the largest eigenvalue of the Laplacian matrix.
+      """Compute the largest eigenvalue of the Laplacian matrix.
 
       Args:
           laplacian_matrix: An (n, n) array representing the Laplacian matrix.
@@ -161,12 +155,11 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
       # Convert the Laplacian matrix to a dense array
       #laplacian_array = laplacian_matrix.toarray()
       eigvals, _, _ = lobpcg_standard(laplacian_matrix, initial_directions, m=k)
-      largest_eigenvalue = np.max(eigvals)
-      return largest_eigenvalue
+
+      return np.max(eigvals)
 
     def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      """
-      Rescale the Laplacian matrix.
+      """Rescale the Laplacian matrix.
 
       Args:
           laplacian_matrix: An (n, n) array representing the Laplacian matrix.
@@ -178,12 +171,10 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
       if largest_eigenvalue > 2:
         rescaled_laplacian = laplacian_matrix.copy()
         rescaled_laplacian /= largest_eigenvalue
-        laplacian_matrix = 2 * rescaled_laplacian
-      return laplacian_matrix
+      return 2 * rescaled_laplacian
 
     def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      """
-      Define the scaled Laplacian matrix.
+      """Define the scaled Laplacian matrix.
 
       Args:
           laplacian_matrix: An (n, n) array representing the Laplacian matrix.
@@ -193,12 +184,10 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
       """
       n = laplacian_matrix.shape[0]
       identity = jnp.eye(n)
-      scaled_laplacian = laplacian_matrix - identity
-      return scaled_laplacian
+      return laplacian_matrix - identity
 
     def chebyshev_coefficients(t: float, max_order: int) -> List[float]:
-      """
-      Compute the coefficients of the Chebyshev polynomial approximation using Bessel functions.
+      """Compute the coeffs of the Chebyshev pols approx using Bessel functs.
 
       Args:
           t: Time parameter.
@@ -210,10 +199,9 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
       return (2 * ive(jnp.arange(0, max_order + 1), -t)).tolist()
 
     def compute_chebyshev_approximation(
-            x: jnp.ndarray, coeffs: List[float]
+        x: jnp.ndarray, coeffs: List[float]
     ) -> jnp.ndarray:
-      """
-      Compute the Chebyshev polynomial approximation for the given input and coefficients.
+      """Compute the Chebyshev polynomial approx for the given input and coeffs.
 
       Args:
           x: Input to evaluate the polynomial at.
@@ -231,10 +219,9 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
 
     laplacian_times_signal = scaled_laplacian.dot(scaling)  # Apply the kernel
 
-    chebyshev_approx_on_signal = compute_chebyshev_approximation(
-      laplacian_times_signal, chebyshev_coeffs)
-
-    return chebyshev_approx_on_signal
+    return compute_chebyshev_approximation(
+        laplacian_times_signal, chebyshev_coeffs
+    )
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
@@ -317,5 +304,5 @@ class Geodesic(geometry.Geometry): #TODO: Rewrite docstring
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "Graph":
+  ) -> "Geodesic":
     return cls(*children, **aux_data)
