@@ -398,7 +398,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
       grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
       grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
-      grad_g = alpha * lin_grad_g + (1.0 - alpha) * 4.0 * grad_g
+      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
