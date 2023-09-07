@@ -57,9 +57,9 @@ class LRGWState(NamedTuple):
   def compute_error(  # noqa: D102
       self, previous_state: "LRGWState"
   ) -> float:
-    err_q = mu.js(self.q, previous_state.q, c=1.0)
-    err_r = mu.js(self.r, previous_state.r, c=1.0)
-    err_g = mu.js(self.g, previous_state.g, c=1.0)
+    err_q = mu.gen_js(self.q, previous_state.q, c=1.0)
+    err_r = mu.gen_js(self.r, previous_state.r, c=1.0)
+    err_g = mu.gen_js(self.g, previous_state.g, c=1.0)
 
     return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
@@ -398,7 +398,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
       grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
       grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
-      grad_g = alpha * lin_grad_g + 4.0 * (1.0 - alpha) * grad_g
+      # TODO(michalk8): check
+      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
@@ -696,6 +697,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       The updated state.
     """
     previous_state = state
+
     it = iteration // self.inner_iterations
     if self.lse_mode:  # In lse_mode, run additive updates.
       state = self.lse_step(ot_prob, state, iteration)

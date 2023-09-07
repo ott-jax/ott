@@ -55,9 +55,9 @@ class LRSinkhornState(NamedTuple):
   def compute_error(  # noqa: D102
       self, previous_state: "LRSinkhornState"
   ) -> float:
-    err_q = mu.js(self.q, previous_state.q, c=1.0)
-    err_r = mu.js(self.r, previous_state.r, c=1.0)
-    err_g = mu.js(self.g, previous_state.g, c=1.0)
+    err_q = mu.gen_js(self.q, previous_state.q, c=1.0)
+    err_r = mu.gen_js(self.r, previous_state.r, c=1.0)
+    err_g = mu.gen_js(self.g, previous_state.g, c=1.0)
 
     return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
@@ -385,12 +385,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
     )
 
-    grad_q = ot_prob.geom.apply_cost(state.r, axis=1) / state.g[None, :]
-    grad_r = ot_prob.geom.apply_cost(state.q) / state.g[None, :]
-    diag_qcr = jnp.sum(
-        state.q * ot_prob.geom.apply_cost(state.r, axis=1), axis=0
-    )
-    grad_g = -diag_qcr / (state.g ** 2)
+    inv_g = 1.0 / state.g[None, :]
+    tmp = ot_prob.geom.apply_cost(state.r, axis=1)
+
+    grad_q = tmp * inv_g
+    grad_r = ot_prob.geom.apply_cost(state.q) * inv_g
+    grad_g = -jnp.sum(state.q * tmp, axis=0) / (state.g ** 2)
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
