@@ -21,30 +21,22 @@ from jax.experimental.sparse.linalg import lobpcg_standard
 from scipy.special import ive
 
 from ott.geometry import geometry
-from ott.math import utils as mu
 
 __all__ = ["Geodesic"]
 
 
 @jax.tree_util.register_pytree_node_class
 class Geodesic(geometry.Geometry):
-  r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
+  r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
 
-  Approximates the heat kernel for large ``n_steps``, which for small ``t``
-  approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
+  Approximates the heat-geodesic kernel using thee Chebyshev polynomials of the
+  first kind of max order ``order``, which for small ``t`` approximates the
+  geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
-    laplacian: Symmetric graph Laplacian. The check for symmetry is **NOT**
-      performed. See also :meth:`from_graph`.
-    n_steps: Maximum number of steps used to approximate the heat kernel.
-    numerical_scheme: Numerical scheme used to solve the heat diffusion.
-    normalize: Whether to normalize the Laplacian as
-      :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
-      \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
-      non-normalized Laplacian and :math:`D` is the degree matrix.
-    tol: Relative tolerance with respect to the Hilbert metric, see
-      :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
-      If negative, this option is ignored and only ``n_steps`` is used.
+    laplacian: Symmetric graph Laplacian.
+    t: Time parameter for heat kernel.
+    order: Max order of Chebyshev polynomial.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -52,15 +44,13 @@ class Geodesic(geometry.Geometry):
       self,
       laplacian: jnp.ndarray,
       t: float = 1e-3,
-      n_steps: int = 100,
-      tol: float = -1.0,
+      order: int = 100,
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
     self.laplacian = laplacian
     self.t = t
-    self.n_steps = n_steps
-    self.tol = tol
+    self.order = order
 
   @classmethod
   def from_graph(
@@ -71,25 +61,25 @@ class Geodesic(geometry.Geometry):
       normalize: bool = False,
       **kwargs: Any
   ) -> "Geodesic":
-    r"""Construct :class:`~ott.geometry.graph.Graph` from an adjacency matrix.
+    r"""Construct a Geodesic geometry from an adjacency matrix.
 
     Args:
       G: Adjacency matrix.
-      t: Constant used when approximating the geodesic exponential kernel.
-        If `None`, use :math:`\frac{1}{|E|} \sum_{(u, v) \in E} weight(u, v)`
-        :cite:`crane:13`. In this case, the ``graph`` must be specified
-        and the edge weights are all assumed to be positive.
-      directed: Whether the ``graph`` is directed. If not, it will be made
-        undirected as :math:`G + G^T`. This parameter is ignored when  directly
-        passing the Laplacian, which is assumed to be symmetric.
+      t: Time parameter for approximating the geodesic exponential kernel.
+        If `None`, it defaults to :math:`\frac{1}{|E|} \sum_{(u, v) \in E}
+        \text{weight}(u, v)` :cite:`crane:13`. In this case, the ``graph``
+        must be specified and the edge weights are assumed to be positive.
+      directed: Whether the ``graph`` is directed. If not, it's made
+        undirected as :math:`G + G^T`. This parameter is ignored when passing
+        the Laplacian directly, assumed to be symmetric.
       normalize: Whether to normalize the Laplacian as
         :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
         \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
         non-normalized Laplacian and :math:`D` is the degree matrix.
-      kwargs: Keyword arguments for :class:`~ott.geometry.graph.Graph`.
+      kwargs: Keyword arguments for the Geodesic class.
 
     Returns:
-      The graph geometry.
+      The Geodesic geometry.
     """
     assert G.shape[0] == G.shape[1], G.shape
 
@@ -150,7 +140,7 @@ class Geodesic(geometry.Geometry):
       Returns:
           The largest eigenvalue of the Laplacian matrix.
       """
-      n = laplacian_matrix.shape[0]
+      n, _ = self.shape
       initial_directions = jax.random.normal(jax.random.PRNGKey(0), (n, k))
       # Convert the Laplacian matrix to a dense array
       #laplacian_array = laplacian_matrix.toarray()
@@ -215,7 +205,7 @@ class Geodesic(geometry.Geometry):
     #laplacian_matrix = compute_laplacian(self.adjacency_matrix)
     rescaled_laplacian = rescale_laplacian(self.laplacian)
     scaled_laplacian = define_scaled_laplacian(rescaled_laplacian)
-    chebyshev_coeffs = chebyshev_coefficients(self.t, self.n_steps)
+    chebyshev_coeffs = chebyshev_coefficients(self.t, self.order)
 
     laplacian_times_signal = scaled_laplacian.dot(scaling)  # Apply the kernel
 
@@ -226,35 +216,18 @@ class Geodesic(geometry.Geometry):
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
-    kernel = self.apply_kernel(jnp.eye(n))
-    # force symmetry because of numerical imprecision
-    # happens when `numerical_scheme='backward_euler'` and small `t`
-    return (kernel + kernel.T) * 0.5
-
-  @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
-    return -self.t * mu.safe_log(self.kernel_matrix)
+    return self.apply_kernel(jnp.eye(n))
 
   @property
   def _scale(self) -> float:
     """Constant used to scale the Laplacian."""
     if self.numerical_scheme == "backward_euler":
-      return self.t / (4. * self.n_steps)
+      return self.t / (4. * self.order)
     if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2. * self.n_steps)
+      return self.t / (2. * self.order)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )
-
-  @property
-  def _scaled_laplacian(self) -> jnp.ndarray:
-    """Laplacian scaled by a constant, depending on the numerical scheme."""
-    return self._scale * self.laplacian
-
-  @property
-  def _M(self) -> jnp.ndarray:
-    n, _ = self.shape
-    return self._scaled_laplacian + jnp.eye(n)
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
@@ -296,7 +269,7 @@ class Geodesic(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.laplacian, self.t], {
-        "n_steps": self.n_steps,
+        "order": self.order,
         "numerical_scheme": self.numerical_scheme,
         "tol": self.tol,
     }
