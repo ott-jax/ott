@@ -316,6 +316,9 @@ class SinkhornOutput(NamedTuple):
       algorithm.
     converged: whether the output corresponds to a solution whose error is
       below the convergence threshold.
+    inner_iterations: number of iterations that were run between two
+      computations of errors.
+
   """
 
   f: Optional[jnp.ndarray] = None
@@ -325,6 +328,7 @@ class SinkhornOutput(NamedTuple):
   ot_prob: Optional[linear_problem.LinearProblem] = None
   threshold: Optional[jnp.ndarray] = None
   converged: Optional[bool] = None
+  inner_iterations: Optional[int] = None
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -443,10 +447,10 @@ class SinkhornOutput(NamedTuple):
   # TODO(michalk8): this should be always present
   @property
   def n_iters(self) -> int:  # noqa: D102
-    """Returns the number of inner iterations that were needed to terminate."""
+    """Returns the total number of iterations that were needed to terminate."""
     if self.errors is None:
       return -1
-    return jnp.sum(self.errors > -1)
+    return jnp.sum(self.errors > -1) * self.inner_iterations
 
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
@@ -1089,7 +1093,8 @@ class Sinkhorn:
         g=g,
         errors=state.errors[:, 0],
         threshold=jnp.array(self.threshold),
-        converged=converged
+        converged=converged,
+        inner_iterations=self.inner_iterations
     )
 
   @property
