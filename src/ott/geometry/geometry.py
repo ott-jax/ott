@@ -51,9 +51,10 @@ class Geometry:
        to the value computed in :attr:`mean_cost_matrix` / 20. If passed as a
        ``float``, then the regularizer that is ultimately used is either that
        ``float`` value (if ``relative_epsilon = False`` or ``None``) or that
-       ``float`` times the :attr:`mean_cost_matrix`.
-       Look for :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as
-       a scheduler.
+       ``float`` times the :attr:`mean_cost_matrix`
+       (if ``relative_epsilon = True``). Look for
+       :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
+       scheduler.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
