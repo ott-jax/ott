@@ -118,29 +118,8 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
 
-    def compute_laplacian(adjacency_matrix: jnp.ndarray) -> jnp.ndarray:
-      """Compute the Laplacian matrix from the adjacency matrix.
-
-      Args:
-          adjacency_matrix: An (n, n) array representing the
-          adjacency matrix of a graph.
-
-      Returns:
-          An (n, n) array representing the Laplacian matrix.
-      """
-      degree_matrix = jnp.diag(jnp.sum(adjacency_matrix, axis=0))
-      return degree_matrix - adjacency_matrix
-
     def compute_largest_eigenvalue(laplacian_matrix, k):
-      """Compute the largest eigenvalue of the Laplacian matrix.
-
-      Args:
-          laplacian_matrix: An (n, n) array representing the Laplacian matrix.
-          k: Number of eigenvalues/vectors to compute.
-
-      Returns:
-          The largest eigenvalue of the Laplacian matrix.
-      """
+      # Compute the largest eigenvalue of the Laplacian matrix.
       n, _ = self.shape
       prng_key = default_prng_key()
       initial_directions = jax.random.normal(prng_key, (n, k))
@@ -149,14 +128,7 @@ class Geodesic(geometry.Geometry):
       return np.max(eigvals)
 
     def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      """Rescale the Laplacian matrix.
-
-      Args:
-          laplacian_matrix: An (n, n) array representing the Laplacian matrix.
-
-      Returns:
-          The rescaled Laplacian matrix.
-      """
+      # Rescale the Laplacian matrix.
       largest_eigenvalue = compute_largest_eigenvalue(laplacian_matrix, k=1)
       if largest_eigenvalue > 2:
         rescaled_laplacian = laplacian_matrix.copy()
@@ -164,45 +136,21 @@ class Geodesic(geometry.Geometry):
       return 2 * rescaled_laplacian
 
     def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      """Define the scaled Laplacian matrix.
-
-      Args:
-          laplacian_matrix: An (n, n) array representing the Laplacian matrix.
-
-      Returns:
-          The scaled Laplacian matrix.
-      """
+      # Define the scaled Laplacian matrix.
       n = laplacian_matrix.shape[0]
       identity = jnp.eye(n)
       return laplacian_matrix - identity
 
     def chebyshev_coefficients(t: float, max_order: int) -> List[float]:
-      """Compute the coeffs of the Chebyshev pols approx using Bessel functs.
-
-      Args:
-          t: Time parameter.
-          max_order: Maximum order of the Chebyshev polynomial approximation.
-
-      Returns:
-          A list of coefficients.
-      """
+      # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
       return (2 * ive(jnp.arange(0, max_order + 1), -t)).tolist()
 
     def compute_chebyshev_approximation(
         x: jnp.ndarray, coeffs: List[float]
     ) -> jnp.ndarray:
-      """Compute the Chebyshev polynomial approx for the given input and coeffs.
-
-      Args:
-          x: Input to evaluate the polynomial at.
-          coeffs: List of Chebyshev polynomial coefficients.
-
-      Returns:
-          The Chebyshev polynomial approximation evaluated at x.
-      """
+      # Compute the Chebyshev polynomial approx for the given input and coeffs.
       return self.apply_kernel(x, coeffs)
 
-    #laplacian_matrix = compute_laplacian(self.adjacency_matrix)
     rescaled_laplacian = rescale_laplacian(self.laplacian)
     scaled_laplacian = define_scaled_laplacian(rescaled_laplacian)
     chebyshev_coeffs = chebyshev_coefficients(self.t, self.order)
