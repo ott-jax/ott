@@ -64,7 +64,7 @@ class MapEstimator:
     optimizer: optimizer function for map :math:`T`.
     fitting_loss: function that outputs a fitting loss :math:`\Delta` between
       two families of points, as well as any log object.
-    regularizer: function that outputs a score from two familites of points,
+    regularizer: function that outputs a score from two families of points,
       here assumed to be of the same size, as well as any log object.
     regularizer_strength: strength of the :attr:`regularizer`.
     num_train_iters: number of total training iterations.
