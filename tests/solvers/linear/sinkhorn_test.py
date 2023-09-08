@@ -22,6 +22,7 @@ import pytest
 from ott import utils
 from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
+from ott.solvers import linear
 from ott.solvers.linear import acceleration, sinkhorn
 
 
@@ -576,7 +577,7 @@ class TestSinkhorn:
           fmt="foo {iter}/{max_iter}", stream=stream
       )
 
-    _ = sinkhorn.solve(
+    _ = linear.solve(
         geom,
         progress_fn=progress_fn,
         min_iterations=0,
