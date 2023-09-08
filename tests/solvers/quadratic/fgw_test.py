@@ -21,8 +21,7 @@ from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein
-from ott.solvers.quadratic import gromov_wasserstein as gw_solver
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 class TestFusedGromovWasserstein:
@@ -228,9 +227,9 @@ class TestFusedGromovWasserstein:
     geom_xy = pointcloud.PointCloud(xx, yy)
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, geom_xy)
 
-    solver = gromov_wasserstein.GromovWasserstein(rank=2)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=2)
     if jit:
-      solver = jax.jit(solver, static_argnames="rank")
+      solver = jax.jit(solver)
 
     ot_gwlr = solver(prob)
 
@@ -264,7 +263,7 @@ class TestFusedGromovWasserstein:
     lr_prob = prob.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gw_solver.GromovWasserstein(rank=5, epsilon=10.0)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=5, epsilon=10.0)
     out = solver(prob)
 
     assert solver.rank == 5
@@ -278,7 +277,6 @@ class TestFusedGromovWasserstein:
       assert geom.cost_rank == rank
 
     assert out.converged
-    assert out.primal_cost > 0
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
 
   @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])

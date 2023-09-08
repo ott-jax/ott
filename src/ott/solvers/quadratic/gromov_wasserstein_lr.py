@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Low-Rank Sinkhorn algorithm."""
+"""A Jax implementation of the unbalanced low-rank GW algorithm."""
 from typing import (
     Any,
     Callable,
@@ -29,21 +29,23 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
-from ott.geometry import geometry
+from ott import utils
+from ott.geometry import geometry, low_rank
 from ott.initializers.linear import initializers_lr
 from ott.math import fixed_point_loop
+from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
-from ott.problems.linear import linear_problem
+from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import lr_utils, sinkhorn
 
-__all__ = ["LRSinkhorn", "LRSinkhornOutput"]
+__all__ = ["LRGromovWasserstein", "LRGWOutput"]
 
 ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRSinkhornState"]], None]
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRGWState"]], None]
 
 
-class LRSinkhornState(NamedTuple):
-  """State of the Low Rank Sinkhorn algorithm."""
+class LRGWState(NamedTuple):
+  """State of the low-rank GW algorithm."""
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -53,7 +55,7 @@ class LRSinkhornState(NamedTuple):
   crossed_threshold: bool
 
   def compute_error(  # noqa: D102
-      self, previous_state: "LRSinkhornState"
+      self, previous_state: "LRGWState"
   ) -> float:
     err_q = mu.gen_js(self.q, previous_state.q, c=1.0)
     err_r = mu.gen_js(self.r, previous_state.r, c=1.0)
@@ -61,15 +63,14 @@ class LRSinkhornState(NamedTuple):
 
     return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
 
-  def reg_ot_cost(  # noqa: D102
-      self,
-      ot_prob: linear_problem.LinearProblem,
-      *,
-      epsilon: float,
-      use_danskin: bool = False
+  def reg_gw_cost(  # noqa: D102
+    self,
+    ot_prob: quadratic_problem.QuadraticProblem,
+    *,
+    epsilon: float,
+    use_danskin: bool = False
   ) -> float:
-    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
-    return compute_reg_ot_cost(
+    return compute_reg_gw_cost(
         self.q,
         self.r,
         self.g,
@@ -78,21 +79,16 @@ class LRSinkhornState(NamedTuple):
         use_danskin=use_danskin
     )
 
-  def solution_error(  # noqa: D102
-      self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
-  ) -> jnp.ndarray:
-    return solution_error(self.q, self.r, ot_prob, norm_error)
-
-  def set(self, **kwargs: Any) -> "LRSinkhornState":
+  def set(self, **kwargs: Any) -> "LRGWState":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
 
-def compute_reg_ot_cost(
+def compute_reg_gw_cost(
     q: jnp.ndarray,
     r: jnp.ndarray,
     g: jnp.ndarray,
-    ot_prob: linear_problem.LinearProblem,
+    ot_prob: quadratic_problem.QuadraticProblem,
     epsilon: float,
     use_danskin: bool = False
 ) -> float:
@@ -115,58 +111,27 @@ def compute_reg_ot_cost(
     # generalized entropy
     return jnp.sum(jsp.special.entr(x) + x)
 
-  tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
-
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
-  cost = jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
-  cost -= epsilon * (ent(q) + ent(r) + ent(g))
-  if tau_a != 1.0:
-    cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
-  if tau_b != 1.0:
-    cost += tau_b / (1.0 - tau_b) * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
+  out = LRGWOutput(
+      q=q, r=r, g=g, ot_prob=ot_prob, costs=None, errors=None, epsilon=None
+  )
+
+  cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
+  if ot_prob.tau_a != 1.0:
+    rho_a = uf.rho(1.0, ot_prob.tau_a)
+    cost += rho_a * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
+  if ot_prob.tau_b != 1.0:
+    rho_b = uf.rho(1.0, ot_prob.tau_b)
+    cost += rho_b * mu.gen_kl(jnp.sum(r, axis=1), ot_prob.b)
 
   return cost
 
 
-def solution_error(
-    q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
-    norm_error: Tuple[int, ...]
-) -> jnp.ndarray:
-  """Compute solution error.
-
-  Since only balanced case is available for LR, this is marginal deviation.
-
-  Args:
-    q: first factor of solution.
-    r: second factor of solution.
-    ot_prob: linear problem.
-    norm_error: int, p-norm used to compute error.
-
-  Returns:
-    one or possibly many numbers quantifying deviation to true marginals.
-  """
-  norm_error = jnp.array(norm_error)
-  # Update the error
-  err = jnp.sum(
-      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
-      axis=1
-  ) ** (1.0 / norm_error)
-
-  return err
-
-
-class LRSinkhornOutput(NamedTuple):
-  """Transport interface for a low-rank Sinkhorn solution."""
-
+class LRGWOutput(NamedTuple):
+  """Transport interface for a low-rank GW solution."""
   q: jnp.ndarray
   r: jnp.ndarray
   g: jnp.ndarray
@@ -174,30 +139,29 @@ class LRSinkhornOutput(NamedTuple):
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
   # in future, enforce via class hierarchy
   errors: jnp.ndarray
-  ot_prob: linear_problem.LinearProblem
+  ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
-  # TODO(michalk8): Optional is an artifact of the current impl., refactor
-  reg_ot_cost: Optional[float] = None
+  reg_gw_cost: Optional[float] = None
 
-  def set(self, **kwargs: Any) -> "LRSinkhornOutput":
+  def set(self, **kwargs: Any) -> "LRGWOutput":
     """Return a copy of self, with potential overwrites."""
     return self._replace(**kwargs)
 
   def set_cost(  # noqa: D102
-      self,
-      ot_prob: linear_problem.LinearProblem,
-      lse_mode: bool,
-      use_danskin: bool = False
-  ) -> "LRSinkhornOutput":
+    self,
+    ot_prob: quadratic_problem.QuadraticProblem,
+    lse_mode: bool,
+    use_danskin: bool = False
+  ) -> "LRGWOutput":
     del lse_mode
-    return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
+    return self.set(reg_gw_cost=self.compute_reg_gw_cost(ot_prob, use_danskin))
 
-  def compute_reg_ot_cost(  # noqa: D102
-      self,
-      ot_prob: linear_problem.LinearProblem,
-      use_danskin: bool = False,
+  def compute_reg_gw_cost(  # noqa: D102
+    self,
+    ot_prob: quadratic_problem.QuadraticProblem,
+    use_danskin: bool = False,
   ) -> float:
-    return compute_reg_ot_cost(
+    return compute_reg_gw_cost(
         self.q,
         self.r,
         self.g,
@@ -208,11 +172,12 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def linear(self) -> bool:  # noqa: D102
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
+    return False
 
   @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
-    return self.ot_prob.geom
+    """Linearized geometry."""
+    return _linearized_geometry(self.ot_prob, q=self.q, r=self.r, g=self.g)
 
   @property
   def a(self) -> jnp.ndarray:  # noqa: D102
@@ -224,7 +189,7 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def linear_output(self) -> bool:  # noqa: D102
-    return True
+    return False
 
   @property
   def converged(self) -> bool:  # noqa: D102
@@ -258,7 +223,22 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
-    return self.transport_cost_at_geom(other_geom=self.geom)
+    geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
+    marginal_a = self.ot_prob.a if self.ot_prob.tau_a == 1.0 else self.q.sum(1)
+    marginal_b = self.ot_prob.b if self.ot_prob.tau_b == 1.0 else self.r.sum(1)
+
+    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
+    quad_cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
+    quad_cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
+
+    if not self.ot_prob.is_fused:
+      return quad_cost
+
+    alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
+    norm_g = jnp.linalg.norm(self.g, ord=1)
+
+    lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
+    return alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
 
   @property
   def transport_mass(self) -> float:
@@ -267,19 +247,21 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def _inv_g(self) -> jnp.ndarray:
-    return 1. / self.g
+    return 1.0 / self.g
 
 
 @jax.tree_util.register_pytree_node_class
-class LRSinkhorn(sinkhorn.Sinkhorn):
-  r"""A Low-Rank Sinkhorn solver for linear reg-OT problems.
-
-  The algorithm is described in :cite:`scetbon:21` and the implementation
-  contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
+class LRGromovWasserstein(sinkhorn.Sinkhorn):
+  r"""A low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Convergence is evaluated on successive
   evaluations of the objective.
+
+  .. warning::
+    This solver only for the **unbalanced** case. Balanced case is implemented
+    in :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
+    and will be unified here in the future release.
 
   Args:
     rank: Rank constraint on the coupling to minimize the linear OT problem
@@ -297,14 +279,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
-    progress_fn: callback function which gets called during the Sinkhorn
+    progress_fn: callback function which gets called during the GW
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
       :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on whether the problem
-      is balanced and on the ``lse_mode``.
+      :mod:`ott.solvers.linear`, depending on the ``lse_mode``.
     kwargs_init: Keyword arguments for
       :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for
@@ -314,9 +295,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __init__(
       self,
       rank: int,
-      gamma: float = 10.,
+      gamma: float = 10.0,
       gamma_rescale: bool = True,
-      epsilon: float = 0.,
+      epsilon: float = 0.0,
       initializer: Union[Literal["random", "rank2", "k-means",
                                  "generalized-k-means"],
                          initializers_lr.LRInitializer] = "random",
@@ -349,48 +330,75 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def __call__(
       self,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: quadratic_problem.QuadraticProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                   Optional[jnp.ndarray]] = (None, None, None),
       rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
-  ) -> LRSinkhornOutput:
-    """Run low-rank Sinkhorn.
+  ) -> LRGWOutput:
+    """Run low-rank Gromov-Wasserstein solver.
 
     Args:
       ot_prob: Linear OT problem.
       init: Initial values for the low-rank factors:
 
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.q`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.r`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.g`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.q`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.r`.
+        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.g`.
 
         Any `None` values will be initialized using the initializer.
       rng: Random key for seeding.
       kwargs: Additional arguments when calling the initializer.
 
     Returns:
-      The low-rank Sinkhorn output.
+      The low-rank GW output.
     """
+    rng = utils.default_prng_key(rng)
+    rng_lrc, rng_init = jax.random.split(rng)
+
+    if ot_prob._is_low_rank_convertible:
+      ot_prob = ot_prob.to_low_rank(rng=rng_lrc)
+
     initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, rng=rng, **kwargs)
+    init = initializer(ot_prob, *init, rng=rng_init, **kwargs)
     return run(ot_prob, self, init)
 
   def _get_costs(
       self,
-      ot_prob: linear_problem.LinearProblem,
-      state: LRSinkhornState,
+      ot_prob: quadratic_problem.QuadraticProblem,
+      state: LRGWState,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
-    log_q, log_r, log_g = (
-        mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
-    )
+    q, r, g = state.q, state.r, state.g
+    log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
+    inv_g = 1.0 / g[None, :]
+    lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
 
-    inv_g = 1.0 / state.g[None, :]
-    tmp = ot_prob.geom.apply_cost(state.r, axis=1)
-
+    tmp = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp * inv_g
-    grad_r = ot_prob.geom.apply_cost(state.q) * inv_g
-    grad_g = -jnp.sum(state.q * tmp, axis=0) / (state.g ** 2)
+    if ot_prob.tau_a != 1.0:  # unbalanced grad
+      grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(q.sum(1), axis=1)
+
+    grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
+    if ot_prob.tau_b != 1.0:  # unbalanced grad
+      grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(r.sum(1), axis=1)
+
+    omega_quad = jnp.sum(q * tmp, axis=0)
+    grad_g = -omega_quad / (g ** 2)
+
+    if ot_prob.is_fused:
+      alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
+      norm_g = jnp.linalg.norm(g, ord=1)
+
+      tmp = ot_prob.geom_xy.apply_cost(r, axis=1)
+      lin_grad_q = tmp * inv_g * norm_g
+      lin_grad_r = ot_prob.geom_xy.apply_cost(q) * inv_g * norm_g
+
+      omega_lin = jnp.sum(q * tmp, axis=0)
+      lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp * inv_g)
+
+      grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
+      grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
+      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
@@ -413,14 +421,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     return c_q, c_r, c_g, gamma
 
-  # TODO(michalk8): move to `lr_utils` when refactoring this
+  # TODO(michalk8): move to `lr_utils` when refactoring this the future
   def dykstra_update_lse(
       self,
       c_q: jnp.ndarray,
       c_r: jnp.ndarray,
       h: jnp.ndarray,
       gamma: float,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: quadratic_problem.QuadraticProblem,
       min_entry_value: float = 1e-6,
       tolerance: float = 1e-3,
       min_iter: int = 0,
@@ -430,7 +438,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
-    n, m = ot_prob.geom.shape
+    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
     loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
 
     h_old = h
@@ -504,7 +512,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
+          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
+          lambda: err
       )
 
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
@@ -537,7 +546,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       k_r: jnp.ndarray,
       k_g: jnp.ndarray,
       gamma: float,
-      ot_prob: linear_problem.LinearProblem,
+      ot_prob: quadratic_problem.QuadraticProblem,
       min_entry_value: float = 1e-6,
       tolerance: float = 1e-3,
       min_iter: int = 0,
@@ -546,8 +555,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
+    del gamma
     rank = self.rank
-    n, m = ot_prob.geom.shape
+    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
     a, b = ot_prob.a, ot_prob.b
     supp_a, supp_b = a > 0, b > 0
 
@@ -603,7 +613,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
       err = jax.lax.cond(
           jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
+          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
+          lambda: err
       )
 
       return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
@@ -629,10 +640,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
 
   def lse_step(
-      self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int
-  ) -> LRSinkhornState:
-    """LR Sinkhorn LSE update."""
+  ) -> LRGWState:
+    """Low-rank GW LSE update."""
     c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
 
     if ot_prob.is_balanced:
@@ -644,13 +655,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       q, r, g = lr_utils.unbalanced_dykstra_lse(
           c_q, c_r, c_g, gamma, ot_prob, **self.kwargs_dys
       )
-    return state.set(q=q, g=g, r=r, gamma=gamma)
+    return state.set(q=q, g=g, r=r, gamma=gamma)  #, (c_q, c_r, c_g)
 
   def kernel_step(
-      self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int
-  ) -> LRSinkhornState:
-    """LR Sinkhorn Kernel update."""
+  ) -> LRGWState:
+    """Low-rank GW kernel update."""
     c_q, c_r, c_g, gamma = self._get_costs(ot_prob, state)
     c_q, c_r, c_g = jnp.exp(c_q), jnp.exp(c_r), jnp.exp(c_g)
 
@@ -665,10 +676,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return state.set(q=q, g=g, r=r, gamma=gamma)
 
   def one_iteration(
-      self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState,
+      self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
       iteration: int, compute_error: bool
-  ) -> LRSinkhornState:
-    """Carries out one low-rank Sinkhorn iteration.
+  ) -> LRGWState:
+    """Carries out one low-rank GW iteration.
 
     Depending on lse_mode, these iterations can be either in:
 
@@ -677,14 +688,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
     Args:
       ot_prob: the transport problem definition
-      state: LRSinkhornState named tuple.
-      iteration: the current iteration of the Sinkhorn outer loop.
+      state: the current state.
+      iteration: the current iteration of the GW outer loop.
       compute_error: flag to indicate this iteration computes/stores an error
 
     Returns:
       The updated state.
     """
     previous_state = state
+
     it = iteration // self.inner_iterations
     if self.lse_mode:  # In lse_mode, run additive updates.
       state = self.lse_step(ot_prob, state, iteration)
@@ -694,7 +706,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # re-computes error if compute_error is True, else set it to inf.
     cost = jax.lax.cond(
         jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
         lambda: jnp.inf
     )
     error = state.compute_error(previous_state)
@@ -724,12 +736,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return self._norm_error,
 
   def create_initializer(
-      self, prob: linear_problem.LinearProblem
+      self,
+      prob: quadratic_problem.QuadraticProblem,
   ) -> initializers_lr.LRInitializer:
-    """Create a low-rank Sinkhorn initializer.
+    """Create a low-rank GW initializer.
 
     Args:
-      prob: Linear OT problem used to determine the initializer.
+      prob: Quadratic OT problem used to determine the initializer.
 
     Returns:
       Low-rank initializer.
@@ -739,17 +752,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         f"Expected initializer's rank to be `{self.rank}`," \
         f"found `{self.initializer.rank}`."
       return self.initializer
+
     return initializers_lr.LRInitializer.from_solver(
         self, kind=self.initializer, **self.kwargs_init
     )
 
   def init_state(
-      self, ot_prob: linear_problem.LinearProblem,
+      self, ot_prob: quadratic_problem.QuadraticProblem,
       init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
-  ) -> LRSinkhornState:
+  ) -> LRGWState:
     """Return the initial state of the loop."""
     q, r, g = init
-    return LRSinkhornState(
+    return LRGWState(
         q=q,
         r=r,
         g=g,
@@ -760,18 +774,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def output_from_state(
-      self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState
-  ) -> LRSinkhornOutput:
+      self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState
+  ) -> LRGWOutput:
     """Create an output from a loop state.
 
     Args:
       ot_prob: the transport problem.
-      state: a LRSinkhornState.
+      state: GW state.
 
     Returns:
-      A LRSinkhornOutput.
+      A LRGWOutput.
     """
-    return LRSinkhornOutput(
+    return LRGWOutput(
         q=state.q,
         r=state.r,
         g=state.g,
@@ -781,7 +795,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         epsilon=self.epsilon,
     )
 
-  def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
+  def _converged(self, state: LRGWState, iteration: int) -> bool:
 
     def conv_crossed(prev_err: float, curr_err: float) -> bool:
       return jnp.logical_and(
@@ -808,7 +822,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         state.errors[it - 2], state.errors[it - 1]
     )
 
-  def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
+  def _diverged(self, state: LRGWState, iteration: int) -> bool:
     it = iteration // self.inner_iterations
     return jnp.logical_and(
         jnp.logical_not(jnp.isfinite(state.errors[it - 1])),
@@ -817,14 +831,63 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
 
 def run(
-    ot_prob: linear_problem.LinearProblem,
-    solver: LRSinkhorn,
+    ot_prob: quadratic_problem.QuadraticProblem,
+    solver: LRGromovWasserstein,
     init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]],
-) -> LRSinkhornOutput:
+) -> LRGWOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
   out = out.set_cost(
       ot_prob, lse_mode=solver.lse_mode, use_danskin=solver.use_danskin
   )
   return out.set(ot_prob=ot_prob)
+
+
+def dykstra_solution_error(
+    q: jnp.ndarray, r: jnp.ndarray, ot_prob: quadratic_problem.QuadraticProblem,
+    norm_error: Tuple[int, ...]
+) -> jnp.ndarray:
+  """Compute solution error.
+
+  Since only balanced case is available for LR, this is marginal deviation.
+
+  Args:
+    q: first factor of solution.
+    r: second factor of solution.
+    ot_prob: linear problem.
+    norm_error: int, p-norm used to compute error.
+
+  Returns:
+    one or possibly many numbers quantifying deviation to true marginals.
+  """
+  norm_error = jnp.array(norm_error)
+  # Update the error
+  err = jnp.sum(
+      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
+  ) ** (1.0 / norm_error)
+  err += jnp.sum(
+      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
+  ) ** (1.0 / norm_error)
+  err += jnp.sum(
+      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
+      axis=1
+  ) ** (1.0 / norm_error)
+
+  return err
+
+
+def _linearized_geometry(
+    prob: quadratic_problem.QuadraticProblem,
+    *,
+    q: jnp.ndarray,
+    r: jnp.ndarray,
+    g: jnp.ndarray,
+) -> low_rank.LRCGeometry:
+  inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
+
+  # TODO(michalk8): below is for squared loss, handle KL loss in the future;
+  # will need to be updated in many other places as well
+  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
+  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
+  return low_rank.LRCGeometry(tmp1, tmp2)

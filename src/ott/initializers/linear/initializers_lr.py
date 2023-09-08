@@ -39,7 +39,7 @@ if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
   from ott.solvers.linear import sinkhorn, sinkhorn_lr
-  from ott.solvers.quadratic import gromov_wasserstein
+  from ott.solvers.quadratic import gromov_wasserstein_lr
 
 Problem_t = Union["linear_problem.LinearProblem",
                   "quadratic_problem.QuadraticProblem"]
@@ -127,7 +127,7 @@ class LRInitializer(abc.ABC):
   def from_solver(
       cls,
       solver: Union["sinkhorn_lr.LRSinkhorn",
-                    "gromov_wasserstein.GromovWasserstein"],
+                    "gromov_wasserstein_lr.LRGromovWasserstein"],
       *,
       kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
       **kwargs: Any,
@@ -140,22 +140,14 @@ class LRInitializer(abc.ABC):
       kwargs: Keyword arguments when creating the initializer.
 
     Returns:
-      The low-rank initializer.
+      Low-rank initializer.
     """
-    from ott.solvers.quadratic import gromov_wasserstein
-
-    if isinstance(solver, gromov_wasserstein.GromovWasserstein):
-      assert solver.is_low_rank, "GW solver is not low-rank."
-      lin_sol = solver.linear_ot_solver
-    else:
-      lin_sol = solver
-
     rank = solver.rank
     sinkhorn_kwargs = {
-        "norm_error": lin_sol._norm_error,
-        "lse_mode": lin_sol.lse_mode,
-        "implicit_diff": lin_sol.implicit_diff,
-        "use_danskin": lin_sol.use_danskin
+        "norm_error": solver._norm_error,
+        "lse_mode": solver.lse_mode,
+        "implicit_diff": solver.implicit_diff,
+        "use_danskin": solver.use_danskin
     }
 
     if kind == "random":
@@ -373,9 +365,7 @@ class KMeansInitializer(LRInitializer):
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
   @staticmethod
-  def _extract_array(
-      geom: Union[pointcloud.PointCloud, low_rank.LRCGeometry], *, first: bool
-  ) -> jnp.ndarray:
+  def _extract_array(geom: geometry.Geometry, *, first: bool) -> jnp.ndarray:
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
@@ -407,7 +397,11 @@ class KMeansInitializer(LRInitializer):
     )
 
     if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
-      geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
+      if ot_prob.geom_xy is not None and ot_prob.fused_penalty >= 1.0:
+        # prefer the linear term if it has a higher weight
+        geom = ot_prob.geom_xy
+      else:
+        geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy
     else:
       geom = ot_prob.geom
     arr = self._extract_array(geom, first=which == "q")
@@ -415,7 +409,7 @@ class KMeansInitializer(LRInitializer):
 
     centroids = fn(arr, self.rank, rng=rng).centroids
     geom = pointcloud.PointCloud(
-        arr, centroids, epsilon=0.1, scale_cost="max_cost"
+        arr, centroids, epsilon=1e-1, scale_cost="max_cost"
     )
 
     prob = linear_problem.LinearProblem(geom, marginals, init_g)

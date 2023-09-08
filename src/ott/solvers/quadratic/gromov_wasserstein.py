@@ -30,8 +30,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott import utils
-from ott.geometry import geometry, low_rank, pointcloud
-from ott.initializers.linear import initializers_lr
+from ott.geometry import geometry
 from ott.initializers.quadratic import initializers as quad_initializers
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
@@ -164,24 +163,21 @@ class GWState(NamedTuple):
 class GromovWasserstein(was_solver.WassersteinSolver):
   """Gromov-Wasserstein solver :cite:`peyre:16`.
 
+  .. seealso::
+    Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in
+    :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`.
+
   Args:
     args: Positional arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
-    warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
-      from the previous iteration. If `None`, warm starts are not used for
-      standard Sinkhorn, but used for low-rank Sinkhorn.
+    warm_start: Whether to initialize Sinkhorn calls using values
+      from the previous iteration. If :obj:`None`, warm starts are not used for
+      standard Sinkhorn.
     relative_epsilon: Whether to use relative epsilon in the linearized
       geometry.
     quad_initializer: Quadratic initializer. If the solver is entropic,
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
-      is always used. Otherwise, the quadratic initializer wraps the low-rank
-      Sinkhorn initializers. If `None`, the low-rank initializer will be
-      selected in a problem-specific manner. If both ``geom_xx`` and ``geom_yy``
-      are :class:`~ott.geometry.pointcloud.PointCloud` or
-      :class:`~ott.geometry.low_rank.LRCGeometry`, use
-      :class:`~ott.initializers.linear.initializers_lr.KMeansInitializer`.
-      Otherwise, use
-      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
+      is always used.
     progress_fn: callback function which gets called during the
       Gromov-Wasserstein iterations, so the user can display the error at each
       iteration, e.g., using a progress bar.
@@ -204,6 +200,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       **kwargs: Any
   ):
     super().__init__(*args, **kwargs)
+    assert not self.is_low_rank, \
+      "For low-rank GW, use " \
+      "`ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`."
     self._warm_start = warm_start
     self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
@@ -339,34 +338,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     if isinstance(
         self.quad_initializer, quad_initializers.BaseQuadraticInitializer
     ):
-      if self.is_low_rank:
-        assert isinstance(
-            self.quad_initializer, quad_initializers.LRQuadraticInitializer
-        ), f"Expected quadratic initializer to be low rank, " \
-           f"found `{type(self.quad_initializer).__name__}`."
-        assert self.quad_initializer.rank == self.rank, \
-            f"Expected quadratic initializer of rank `{self.rank}`, " \
-            f"found `{self.quad_initializer.rank}`."
       return self.quad_initializer
-
-    if self.is_low_rank:
-      if self.quad_initializer is None:
-        types = (pointcloud.PointCloud, low_rank.LRCGeometry)
-        kind = "k-means" if isinstance(prob.geom_xx, types) and isinstance(
-            prob.geom_yy, types
-        ) else "random"
-      else:
-        kind = self.quad_initializer
-      linear_lr_init = initializers_lr.LRInitializer.from_solver(
-          self, kind=kind, **self.kwargs_init
-      )
-      return quad_initializers.LRQuadraticInitializer(linear_lr_init)
-
+    # no other options implemented, use the default
     return quad_initializers.QuadraticInitializer(**self.kwargs_init)
 
   @property
   def warm_start(self) -> bool:
-    """Whether to initialize (low-rank) Sinkhorn using previous solutions."""
+    """Whether to initialize Sinkhorn using previous solutions."""
     return self.is_low_rank if self._warm_start is None else self._warm_start
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
