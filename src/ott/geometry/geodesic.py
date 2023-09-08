@@ -21,6 +21,7 @@ from jax.experimental.sparse.linalg import lobpcg_standard
 from scipy.special import ive
 
 from ott.geometry import geometry
+from ott.utils import default_prng_key
 
 __all__ = ["Geodesic"]
 
@@ -141,9 +142,8 @@ class Geodesic(geometry.Geometry):
           The largest eigenvalue of the Laplacian matrix.
       """
       n, _ = self.shape
-      initial_directions = jax.random.normal(jax.random.PRNGKey(0), (n, k))
-      # Convert the Laplacian matrix to a dense array
-      #laplacian_array = laplacian_matrix.toarray()
+      prng_key = default_prng_key()
+      initial_directions = jax.random.normal(prng_key, (n, k))
       eigvals, _, _ = lobpcg_standard(laplacian_matrix, initial_directions, m=k)
 
       return np.max(eigvals)
