@@ -41,7 +41,7 @@ from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
 if TYPE_CHECKING:
-  from ott.solvers.linear.sinkhorn_lr import LRSinkhorn, LRSinkhornOutput
+  from ott.solvers.linear.sinkhorn_lr import LRSinkhornOutput
 
 __all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
 
@@ -296,7 +296,7 @@ class SinkhornOutput(NamedTuple):
     g: dual variables vector of size ``ot.prob.shape[1]`` returned by Sinkhorn
     errors: vector or errors, along iterations. This vector is of size
       ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+      passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
       For each entry indexed at ``i``, ``errors[i]`` can be either a real
       non-negative value (meaning the algorithm recorded that error at the
       ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
@@ -306,9 +306,9 @@ class SinkhornOutput(NamedTuple):
       criterion was found to be smaller than ``threshold``.
     reg_ot_cost: the regularized optimal transport cost. By default this is
       the linear contribution + KL term. See
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.primal_cost` and
-      :meth:`ott.solvers.linear.sinkhorn.SinkhornOutput.dual_cost` for other
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.primal_cost` and
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.dual_cost` for other
       objective values.
     ot_prob: stores the definition of the OT problem, including geometry,
       marginals, unbalanced regularizers, etc.
@@ -356,6 +356,7 @@ class SinkhornOutput(NamedTuple):
     r"""Entropy regularized cost.
 
     This outputs
+
     .. math::
 
       \langle P^{\star},C\rangle - \varepsilon H(P^{\star}) +
@@ -377,6 +378,7 @@ class SinkhornOutput(NamedTuple):
     r"""KL regularized OT transport cost.
 
     This outputs
+
     .. math::
 
       \langle P^{\star}, C \rangle + \varepsilon KL(P^{\star},ab^T) +
@@ -1078,8 +1080,8 @@ class Sinkhorn:
     # position) is lower than the threshold.
 
     converged = jnp.logical_and(
-        jnp.logical_not(jnp.any(jnp.isnan(state.errors))),
-        state.errors[-1] < self.threshold
+        jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1]
+        < self.threshold
     )[0]
 
     return SinkhornOutput(
@@ -1215,36 +1217,17 @@ _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
 
 
-def solve(
-    geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    tau_a: float = 1.0,
-    tau_b: float = 1.0,
-    rank: int = -1,
-    **kwargs: Any
-) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
+@utils.deprecate(alt="Please use `ott.solvers.linear.solve()` instead.")
+def solve(*args: Any,
+          **kwargs: Any) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:
-    geom: The ground geometry cost of the linear problem.
-    a: The first marginal. If `None`, it will be uniform.
-    b: The second marginal. If `None`, it will be uniform.
-    tau_a: If `< 1`, defines how much unbalanced the problem is
-      on the first marginal.
-    tau_b: If `< 1`, defines how much unbalanced the problem is
-      on the second marginal.
-    rank:
-      Rank constraint on the coupling to minimize the linear OT problem
-      :cite:`scetbon:21`. If `-1`, no rank constraint is used.
-    kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
-      depending on ``rank``.
+    args: Position arguments for :func:`ott.solvers.linear.solve`.
+    kwargs: Keyword arguments for :func:`ott.solvers.linear.solve`.
 
   Returns:
     The Sinkhorn output.
   """
-  prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b)
-  solver = LRSinkhorn(rank=rank, **kwargs) if rank > 0 else Sinkhorn(**kwargs)
-  return solver(prob)
+  from ott.solvers.linear import solve
+  return solve(*args, **kwargs)

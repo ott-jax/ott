@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from . import (
     acceleration,
     continuous_barycenter,
@@ -21,3 +20,9 @@ from . import (
     sinkhorn,
     sinkhorn_lr,
 )
+from ._solve import solve
+
+__all__ = [
+    "acceleration", "continuous_barycenter", "discrete_barycenter",
+    "implicit_differentiation", "lr_utils", "sinkhorn", "sinkhorn_lr", "solve"
+]
