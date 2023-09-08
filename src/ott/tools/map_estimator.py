@@ -62,9 +62,10 @@ class MapEstimator:
     dim_data: input dimensionality of data required for network init.
     model: network architecture for map :math:`T`.
     optimizer: optimizer function for map :math:`T`.
-    fitting_loss: fitting loss :math:`\Delta` to fit the marginal constraint.
-    regularizer: function scoring a property between two familites of points,
-      here assumed to be of the same size.
+    fitting_loss: function that outputs a fitting loss :math:`\Delta` between
+      two families of points, as well as any log object.
+    regularizer: function that outputs a score from two familites of points,
+      here assumed to be of the same size, as well as any log object.
     regularizer_strength: strength of the :attr:`regularizer`.
     num_train_iters: number of total training iterations.
     logging: option to return logs.
@@ -78,8 +79,9 @@ class MapEstimator:
       model: models.ModelBase,
       optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
-                                      float]] = None,
-      regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray], float]] = None,
+                                      Tuple[float, Optional[Any]]]] = None,
+      regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray],
+                                     Tuple[float, Optional[Any]]]] = None,
       regularizer_strength: Union[float, Sequence[float]] = 1.,
       num_train_iters: int = 10_000,
       logging: bool = False,

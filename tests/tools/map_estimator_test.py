@@ -37,13 +37,16 @@ class TestMapEstimator:
         mapped_samples: jnp.ndarray,
     ) -> Optional[float]:
       r"""Sinkhorn divergence fitting loss."""
-      return sinkhorn_divergence.sinkhorn_divergence(
+      div = sinkhorn_divergence.sinkhorn_divergence(
           pointcloud.PointCloud,
           x=samples,
           y=mapped_samples,
       ).divergence
+      return (div, None)
 
-    regularizer = losses.monge_gap_from_samples
+    def regularizer(x, y):
+      gap, out = losses.monge_gap_from_samples(x, y, return_output=True)
+      return gap, out.n_iters
 
     # define the model
     model = models.MLP(dim_hidden=[16, 8], is_potential=False)
