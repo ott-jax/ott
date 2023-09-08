@@ -18,7 +18,6 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 from ott.math import fixed_point_loop
-from ott.math import unbalanced_functions as uf
 from ott.problems.linear import linear_problem
 
 __all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
@@ -36,8 +35,8 @@ class State(NamedTuple):  # noqa: D101
 class Constants(NamedTuple):  # noqa: D101
   a: jnp.ndarray
   b: jnp.ndarray
-  tau_a: float
-  tau_b: float
+  rho_a: float
+  rho_b: float
   supp_a: Optional[jnp.ndarray] = None
   supp_b: Optional[jnp.ndarray] = None
 
@@ -105,16 +104,17 @@ def unbalanced_dykstra_lse(
       iteration: int, const: Constants, state: State, compute_error: bool
   ) -> State:
     log_a, log_b = jnp.log(const.a), jnp.log(const.b)
+    rho_a, rho_b = const.rho_a, const.rho_b
+
+    c_a = _get_ratio(const.rho_a, gamma)
+    c_b = _get_ratio(const.rho_b, gamma)
 
     if translation_invariant:
-      rho_a = uf.rho(1.0 / gamma, const.tau_a)
-      rho_b = uf.rho(1.0 / gamma, const.tau_b)
-
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=c_g, lse_mode=True)
 
-      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))
+      u1 = c_a * (log_a - _softm(state.v1, c_q, axis=1))
       u1 = u1 - lam_a / ((1.0 / gamma) + rho_a)
-      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))
+      u2 = c_b * (log_b - _softm(state.v2, c_r, axis=1))
       u2 = u2 - lam_b / ((1.0 / gamma) + rho_b)
 
       state_lam = State(
@@ -129,8 +129,8 @@ def unbalanced_dykstra_lse(
 
       g_trans = gamma * (lam_a + lam_b) + c_g
     else:
-      u1 = const.tau_a * (log_a - _softm(state.v1, c_q, axis=1))
-      u2 = const.tau_b * (log_b - _softm(state.v2, c_r, axis=1))
+      u1 = c_a * (log_a - _softm(state.v1, c_q, axis=1))
+      u2 = c_b * (log_b - _softm(state.v2, c_r, axis=1))
 
       v1_trans = _softm(u1, c_q, axis=0)
       v2_trans = _softm(u2, c_r, axis=0)
@@ -155,8 +155,8 @@ def unbalanced_dykstra_lse(
   constants = Constants(
       a=ot_prob.a,
       b=ot_prob.b,
-      tau_a=ot_prob.tau_a,
-      tau_b=ot_prob.tau_b,
+      rho_a=_rho(ot_prob.tau_a),
+      rho_b=_rho(ot_prob.tau_b),
       supp_a=ot_prob.a > 0,
       supp_b=ot_prob.b > 0,
   )
@@ -242,18 +242,16 @@ def unbalanced_dykstra_kernel(
   def body_fn(
       iteration: int, const: Constants, state: State, compute_error: bool
   ) -> State:
-    if translation_invariant:
-      rho_a = uf.rho(1.0 / gamma, const.tau_a)
-      rho_b = uf.rho(1.0 / gamma, const.tau_b)
-      c_a = const.tau_a
-      c_b = const.tau_b
+    c_a = _get_ratio(const.rho_a, gamma)
+    c_b = _get_ratio(const.rho_b, gamma)
 
+    if translation_invariant:
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=k_g, lse_mode=False)
 
       u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
-      u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + rho_a))
+      u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + const.rho_a))
       u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
-      u2 = u2 * jnp.exp(-lam_b / ((1.0 / gamma) + rho_b))
+      u2 = u2 * jnp.exp(-lam_b / ((1.0 / gamma) + const.rho_b))
 
       state_lam = State(
           v1=state.v1, v2=state.v2, u1=u1, u2=u2, g=state.g, err=state.err
@@ -268,12 +266,8 @@ def unbalanced_dykstra_kernel(
       k_trans = jnp.exp(gamma * (lam_a + lam_b)) * k_g
       g = (k_trans * v1_trans * v2_trans) ** (1.0 / 3.0)
     else:
-      u1 = jnp.where(
-          const.supp_a, (const.a / (k_q @ state.v1)) ** const.tau_a, 0.0
-      )
-      u2 = jnp.where(
-          const.supp_b, (const.b / (k_r @ state.v2)) ** const.tau_b, 0.0
-      )
+      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
+      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
 
       v1_trans = k_q.T @ u1
       v2_trans = k_r.T @ u2
@@ -298,8 +292,8 @@ def unbalanced_dykstra_kernel(
   constants = Constants(
       a=ot_prob.a,
       b=ot_prob.b,
-      tau_a=ot_prob.tau_a,
-      tau_b=ot_prob.tau_b,
+      rho_a=_rho(ot_prob.tau_a),
+      rho_b=_rho(ot_prob.tau_b),
       supp_a=ot_prob.a > 0.0,
       supp_b=ot_prob.b > 0.0,
   )
@@ -328,8 +322,8 @@ def compute_lambdas(
 ) -> Tuple[float, float]:
   """TODO."""
   gamma_inv = 1.0 / gamma
-  rho_a = uf.rho(gamma_inv, const.tau_a)
-  rho_b = uf.rho(gamma_inv, const.tau_b)
+  rho_a = const.rho_a
+  rho_b = const.rho_b
 
   if lse_mode:
     num_1 = jsp.special.logsumexp((-gamma_inv / rho_a) * state.u1, b=const.a)
@@ -338,8 +332,8 @@ def compute_lambdas(
     const_1 = num_1 - den
     const_2 = num_2 - den
 
-    ratio_1 = const.tau_a  # rho_a / (rho_a + gamma_inv)
-    ratio_2 = const.tau_b  # rho_b / (rho_b + gamma_inv)
+    ratio_1 = _get_ratio(rho_a, gamma)
+    ratio_2 = _get_ratio(rho_b, gamma)
     harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
     lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
     lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
@@ -359,9 +353,19 @@ def compute_lambdas(
   const_1 = jnp.log(num_1 / den)
   const_2 = jnp.log(num_2 / den)
 
-  ratio_1 = const.tau_a  # rho_a / (rho_a + gamma_inv)
-  ratio_2 = const.tau_b  # rho_b / (rho_b + gamma_inv)
+  ratio_1 = _get_ratio(rho_a, gamma)
+  ratio_2 = _get_ratio(rho_b, gamma)
   harmonic = 1.0 / (1.0 - (ratio_1 * ratio_2))
   lam_1 = harmonic * gamma_inv * ratio_1 * (const_1 - ratio_2 * const_2)
   lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
   return lam_1, lam_2
+
+
+def _rho(tau: float) -> float:
+  tau = jnp.asarray(tau)  # avoid division by 0 in Python, get NaN instead
+  return tau / (1.0 - tau)
+
+
+def _get_ratio(rho: float, gamma: float) -> float:
+  gamma_inv = 1.0 / gamma
+  return jnp.where(jnp.isfinite(rho), rho / (rho + gamma_inv), 1.0)

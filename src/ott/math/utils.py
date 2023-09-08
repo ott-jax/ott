@@ -26,7 +26,7 @@ __all__ = [
     "norm",
     "kl",
     "gen_kl",
-    "js",
+    "gen_js",
     "logsumexp",
     "softmin",
     "barycentric_projection",
@@ -116,9 +116,9 @@ def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
 
 
 # TODO(michalk8): add axis argument
-def js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
+def gen_js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
-  return c * (kl(p, q) + kl(q, p))
+  return c * (gen_kl(p, q) + gen_kl(q, p))
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))

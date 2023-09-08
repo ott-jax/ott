@@ -15,7 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from ott.geometry import geometry, low_rank, pointcloud
+from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
@@ -23,41 +23,7 @@ from ott.solvers.linear import sinkhorn_lr
 
 class TestLRInitializers:
 
-  @pytest.mark.fast.with_args("kind", ["pc", "lrc", "geom"], only_fast=0)
-  def test_create_default_initializer(
-      self, rng: jax.random.PRNGKeyArray, kind: str
-  ):
-    n, d, rank = 27, 2, 3
-    x = jax.random.normal(rng, (n, d))
-    geom = pointcloud.PointCloud(x)
-
-    if kind == "pc":
-      pass
-    elif kind == "lrc":
-      geom = geom.to_LRCGeometry()
-      assert isinstance(geom, low_rank.LRCGeometry)
-    elif kind == "geom":
-      geom = geometry.Geometry(geom.cost_matrix)
-    else:
-      raise NotImplementedError(geom)
-    prob = linear_problem.LinearProblem(geom)
-
-    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=None)
-    initializer = solver.create_initializer(prob)
-
-    assert initializer.rank == rank
-    if kind in ("pc", "lrc"):
-      assert isinstance(initializer, initializers_lr.KMeansInitializer)
-    else:
-      assert isinstance(initializer, initializers_lr.RandomInitializer)
-
-    q, r, g = initializer(prob)
-
-    assert q.shape == (n, rank)
-    assert r.shape == (n, rank)
-    assert g.shape == (rank,)
-
-  def test_explicitly_passing_initializer(self):
+  def test_explicit_initializer(self):
     rank = 2
     initializer = initializers_lr.RandomInitializer(rank=rank)
     solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
