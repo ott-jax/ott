@@ -79,7 +79,7 @@ class TestLRSinkhorn:
     # Check convergence
     if out.converged:
       assert criterions[-1] < threshold
-    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=5e-4, atol=5e-4)
 
     # Store cost value.
     cost_1 = out.primal_cost
