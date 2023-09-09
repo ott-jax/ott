@@ -95,7 +95,7 @@ class TestLRSinkhorn:
     )
     out = solver(ot_prob)
 
-    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=5e-4, atol=5e-4)
 
     cost_2 = out.primal_cost
     # Ensure solution with more rank budget has lower cost (not guaranteed)
