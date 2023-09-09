@@ -80,11 +80,12 @@ class TestSinkhorn:
     )
     errors = out.errors
     err = errors[errors > -1][-1]
-    assert threshold > err
+    np.testing.assert_array_less(err, threshold)
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-5, atol=1e-5)
 
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
     cost_other = out.transport_cost_at_geom(other_geom)
-    assert not jnp.isnan(cost_other)
+    np.testing.assert_array_equal(jnp.isnan(cost_other), False)
 
   def test_autoepsilon(self):
     """Check that with auto-epsilon, dual potentials scale."""

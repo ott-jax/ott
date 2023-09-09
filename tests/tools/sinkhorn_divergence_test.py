@@ -62,8 +62,12 @@ class TestSinkhornDivergence:
         )
     )
     out = div(x)
-    assert out.divergence > 0.0
-    assert len(out.potentials) == 3
+    np.testing.assert_array_less(0.0, out.divergence)
+    np.testing.assert_equal(len(out.potentials), 3)
+    # Less iterations for (x,y) comparison, vs. (x,x) and (y,y)
+    iters_xy, iters_xx, iters_yy = out.n_iters
+    np.testing.assert_array_less(iters_xx, iters_xy)
+    np.testing.assert_array_less(iters_yy, iters_xy)
 
     # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
@@ -81,18 +85,21 @@ class TestSinkhornDivergence:
     assert jnp.all(jnp.logical_not(jnp.isnan(grad)))
 
     # Test divergence of x to itself close to 0.
-    div = sinkhorn_divergence.sinkhorn_divergence(
+    epsilon = 1e-1
+    out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         x,
         cost_fn=cost_fn,
         epsilon=epsilon,
-        sinkhorn_kwargs={"inner_iterations": 1},
+        sinkhorn_kwargs={
+            "inner_iterations": 1,
+            "threshold": 1e-5
+        },
     )
-    np.testing.assert_allclose(div.divergence, 0.0, rtol=1e-5, atol=1e-5)
-    iters_xx = jnp.sum(div.errors[0] > 0)
-    iters_xx_sym = jnp.sum(div.errors[1] > 0)
-    assert iters_xx >= iters_xx_sym
+    np.testing.assert_allclose(out.divergence, 0.0, rtol=1e-5, atol=1e-5)
+    iters_xx, iters_xx_sym, _ = out.n_iters
+    np.testing.assert_array_less(iters_xx_sym, iters_xx)
 
   @pytest.mark.fast()
   def test_euclidean_autoepsilon(self):

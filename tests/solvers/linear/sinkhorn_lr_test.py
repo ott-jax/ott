@@ -79,6 +79,7 @@ class TestLRSinkhorn:
     # Check convergence
     if out.converged:
       assert criterions[-1] < threshold
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-6, atol=1e-6)
 
     # Store cost value.
     cost_1 = out.primal_cost
@@ -93,6 +94,8 @@ class TestLRSinkhorn:
         initializer=initializer,
     )
     out = solver(ot_prob)
+
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-6, atol=1e-6)
 
     cost_2 = out.primal_cost
     # Ensure solution with more rank budget has lower cost (not guaranteed)
