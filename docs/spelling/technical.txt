@@ -27,6 +27,7 @@ Sinkhorn
 Unbalancedness
 Wasserstein
 adaptively
+backend
 backpropagates
 backpropagation
 barycenter
@@ -36,6 +37,7 @@ binarized
 boolean
 centroids
 checkpointing
+chromatin
 collinear
 covariance
 covariances
@@ -57,6 +59,7 @@ entropic
 epigenetic
 featurized
 grayscale
+heterogeneous
 histone
 hyperparameter
 hyperparameters
@@ -134,5 +137,6 @@ thresholding
 transcriptome
 undirected
 unscaled
+url
 vectorized
 voxel
