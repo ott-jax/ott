@@ -46,11 +46,15 @@ class Geometry:
   Args:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
-    epsilon: Regularization parameter. If ``scale_epsilon = None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None`` and
-      ``epsilon = None`` in :class:`~ott.geometry.epsilon_scheduler.Epsilon`
-      is used, ``scale_epsilon`` is the :attr:`mean_cost_matrix`. If
-      ``epsilon = None``, use :math:`0.05`.
+    epsilon: Regularization parameter. If ``None`` and either
+      ``relative_epsilon = True`` or ``relative_epsilon = None``, this defaults
+      to the value computed in :attr:`mean_cost_matrix` / 20. If passed as a
+      ``float``, then the regularizer that is ultimately used is either that
+      ``float`` value (if ``relative_epsilon = False`` or ``None``) or that
+      ``float`` times the :attr:`mean_cost_matrix`
+      (if ``relative_epsilon = True``). Look for
+      :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
+      scheduler.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the :attr:`mean_cost_matrix`, which is computed

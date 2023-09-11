@@ -99,6 +99,12 @@ class GWOutput(NamedTuple):
     """Return transport cost of current linear OT solution at geometry."""
     return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
 
+  @property
+  def n_iters(self) -> int:  # noqa: D102
+    if self.errors is None:
+      return -1
+    return jnp.sum(self.errors > -1)
+
 
 class GWState(NamedTuple):
   """State of the Gromov-Wasserstein solver.

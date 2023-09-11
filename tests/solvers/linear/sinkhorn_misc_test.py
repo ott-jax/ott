@@ -346,8 +346,14 @@ class TestSinkhornJIT:
         x: sinkhorn.SinkhornOutput, y: sinkhorn.SinkhornOutput
     ) -> None:
       """Assert SinkhornOutputs are close."""
-      x = tuple(a for a in x if (a is not None and isinstance(a, jnp.ndarray)))
-      y = tuple(a for a in y if (a is not None and isinstance(a, jnp.ndarray)))
+      x = tuple(
+          a for a in x
+          if (a is not None and (isinstance(a, (jnp.ndarray, int))))
+      )
+      y = tuple(
+          a for a in y
+          if (a is not None and (isinstance(a, (jnp.ndarray, int))))
+      )
       return chex.assert_trees_all_close(x, y, atol=1e-6, rtol=0)
 
     geom = self.geometry

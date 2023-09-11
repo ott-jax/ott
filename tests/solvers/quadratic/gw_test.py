@@ -137,17 +137,22 @@ class TestGromovWasserstein:
     solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-1, store_inner_errors=False
     )
-    assert solver(prob).errors is None
+    np.testing.assert_equal(solver(prob).errors, None)
 
     solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-1, store_inner_errors=True
     )
-    errors = solver(prob).errors
+    out = solver(prob)
+    np.testing.assert_array_less(out.n_iters, 10)
+    np.testing.assert_array_less(1, out.n_iters)
+    errors = out.errors
 
-    assert errors.ndim == 2
+    np.testing.assert_array_equal(errors.ndim, 2)
     errors = errors[jnp.sum(errors > 0, axis=1) > 0, :]
     last_errors = errors[-1, :]
-    assert threshold_sinkhorn > last_errors[last_errors > -1][-1]
+    np.testing.assert_array_less(
+        last_errors[last_errors > -1][-1], threshold_sinkhorn
+    )
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_gradient_marginals_gw(self, jit: bool):
