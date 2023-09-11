@@ -252,7 +252,7 @@ class LRGWOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class LRGromovWasserstein(sinkhorn.Sinkhorn):
-  r"""A low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
+  r"""Low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Convergence is evaluated on successive

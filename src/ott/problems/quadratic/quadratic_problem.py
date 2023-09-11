@@ -48,9 +48,9 @@ class QuadraticProblem:
     geom_xx: Ground geometry of the first space.
     geom_yy: Ground geometry of the second space.
     geom_xy: Geometry defining the linear penalty term for
-      Fused Gromov-Wasserstein. If `None`, the problem reduces to a plain
+      fused Gromov-Wasserstein. If `None`, the problem reduces to a plain
       Gromov-Wasserstein problem.
-    fused_penalty: multiplier of the linear term in Fused Gromov-Wasserstein,
+    fused_penalty: multiplier of the linear term in fused Gromov-Wasserstein,
       i.e. problem = purely quadratic + fused_penalty * linear problem.
       Ignored if ``geom_xy`` is not specified.
     scale_cost: option to rescale the cost matrices:
@@ -101,8 +101,8 @@ class QuadraticProblem:
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
-      tau_a: Optional[float] = 1.0,
-      tau_b: Optional[float] = 1.0,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
       gw_unbalanced_correction: bool = True,
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
