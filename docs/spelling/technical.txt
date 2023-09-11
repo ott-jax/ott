@@ -37,7 +37,7 @@ binarized
 boolean
 centroids
 checkpointing
-chromatine
+chromatin
 collinear
 covariance
 covariances
@@ -81,7 +81,6 @@ linearized
 logit
 macOS
 methylation
-mininum
 neuroimaging
 normed
 numerics
