@@ -329,7 +329,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         lse_mode=lse_mode,
         inner_iterations=inner_iterations,
         use_danskin=use_danskin,
-        implicit_diff=False,
         **kwargs
     )
     self.rank = rank
