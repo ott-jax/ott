@@ -270,8 +270,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
-      `'generalized-k-means'`.
+      factors.
     lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
