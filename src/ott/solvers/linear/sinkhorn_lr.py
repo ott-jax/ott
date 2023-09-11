@@ -324,6 +324,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
+    kwargs["implicit_diff"] = None  # not yet implemented
     super().__init__(
         lse_mode=lse_mode,
         inner_iterations=inner_iterations,
