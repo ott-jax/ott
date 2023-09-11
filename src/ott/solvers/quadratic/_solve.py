@@ -53,15 +53,13 @@ def solve(
       on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
       on the second marginal.
-    loss: A 2-tuple of 2-tuples of Callable. The first tuple is the linear
-      part of the loss. The second one is the quadratic part (quad1, quad2).
-      By default, the loss is set as the 4 functions representing the squared
-      Euclidean loss, and this property is taken advantage of in subsequent
-      computations. Alternatively, KL loss can be specified in no less optimized
-      way. Only used when ``rank = -1``.
+    loss: Gromov-Wasserstein loss function, see
+      :class:`~ott.problems.quadratic.quadratic_costs.GWLoss` for more
+      information. If ``rank > 0``, ``'sqeucl'`` is always used.
     gw_unbalanced_correction: Whether the unbalanced version of
       :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
-      only affect the inner Sinkhorn loop. Only used when ``rank = -1``.
+      only affect the resolution of the linearization of the GW problem
+      in the inner loop. Only used when ``rank = -1``.
     rank: Rank constraint on the coupling to minimize the quadratic OT problem
       :cite:`scetbon:22`. If :math:`-1`, no rank constraint is used.
     kwargs: Keyword arguments for
