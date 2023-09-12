@@ -317,9 +317,7 @@ class SinkhornOutput(NamedTuple):
       algorithm.
     converged: whether the output corresponds to a solution whose error is
       below the convergence threshold.
-    inner_iterations: number of iterations that were run between two
-      computations of errors.
-
+    n_iters: Total number of Sinkhorn iterations.
   """
 
   f: Optional[jnp.ndarray] = None
@@ -329,7 +327,6 @@ class SinkhornOutput(NamedTuple):
   ot_prob: Optional[linear_problem.LinearProblem] = None
   threshold: Optional[jnp.ndarray] = None
   converged: Optional[bool] = None
-  inner_iterations: Optional[int] = None
   n_iters: int = -1
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
@@ -1088,7 +1085,6 @@ class Sinkhorn:
         errors=state.errors[:, 0],
         threshold=jnp.array(self.threshold),
         converged=converged,
-        inner_iterations=self.inner_iterations,
         n_iters=state.iteration + 1,
     )
 

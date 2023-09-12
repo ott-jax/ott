@@ -173,7 +173,7 @@ class LRSinkhornOutput(NamedTuple):
   g: jnp.ndarray
   costs: jnp.ndarray
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
-  # in future, enforce via class hierarchy
+  # in the future, enforce via class hierarchy
   errors: jnp.ndarray
   ot_prob: linear_problem.LinearProblem
   epsilon: float
