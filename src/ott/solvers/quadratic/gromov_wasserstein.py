@@ -34,11 +34,11 @@ from ott.geometry import geometry
 from ott.initializers.quadratic import initializers as quad_initializers
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
-from ott.problems.quadratic import quadratic_costs, quadratic_problem
+from ott.problems.quadratic import quadratic_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
-__all__ = ["GWOutput", "GromovWasserstein", "solve"]
+__all__ = ["GromovWasserstein", "GWOutput"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -423,102 +423,3 @@ def iterations(
   )
 
   return solver.output_from_state(state)
-
-
-def solve(
-    geom_xx: geometry.Geometry,
-    geom_yy: geometry.Geometry,
-    geom_xy: Optional[geometry.Geometry] = None,
-    fused_penalty: float = 1.0,
-    scale_cost: Optional[Union[bool, float, str]] = False,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
-    tau_a: Optional[float] = 1.0,
-    tau_b: Optional[float] = 1.0,
-    gw_unbalanced_correction: bool = True,
-    ranks: Union[int, Tuple[int, ...]] = -1,
-    tolerances: Union[float, Tuple[float, ...]] = 1e-2,
-    **kwargs: Any,
-) -> GWOutput:
-  r"""Solve quadratic regularized OT problem.
-
-  The quadratic loss of a single OT matrix is assumed to
-  have the form given in :cite:`peyre:16`, eq. 4.
-
-  The two geometries below parameterize matrices :math:`C` and :math:`\bar{C}`
-  in that equation. The function :math:`L` (of two real values) in that equation
-  is assumed to match the form given in eq. 5., with our notations:
-
-  .. math::
-
-    L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
-
-  Args:
-    geom_xx: Ground geometry of the first space.
-    geom_yy: Ground geometry of the second space.
-    geom_xy: Geometry defining the linear penalty term for
-      Fused Gromov-Wasserstein. If `None`, the problem reduces to
-      a plain Gromov-Wasserstein problem.
-    fused_penalty: multiplier of the linear term in Fused Gromov-Wasserstein,
-      i.e. problem = purely quadratic + fused_penalty * linear problem.
-      Ignored if ``geom_xy`` is not specified.
-    scale_cost: option to rescale the cost matrices:
-
-      - if :obj:`True`, use the default for each geometry.
-      - if :obj:`False`, keep the original scaling in geometries.
-      - if :class:`str`, use a specific method available in
-        :class:`~ott.geometry.geometry.Geometry` or
-        :class:`~ott.geometry.pointcloud.PointCloud`.
-      - if :obj:`None`, do not scale the cost matrices.
-
-    a: array representing the probability weights of the samples
-      from ``geom_xx``. If `None`, it will be uniform.
-    b: array representing the probability weights of the samples
-      from ``geom_yy``. If `None`, it will be uniform.
-    loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
-      part of the loss. The second one is the quadratic part (quad1, quad2).
-      By default, the loss is set as the 4 functions representing the squared
-      Euclidean loss, and this property is taken advantage of in subsequent
-      computations. Alternatively, KL loss can be specified in no less optimized
-      way.
-    tau_a: if `< 1.0`, defines how much unbalanced the problem is on
-      the first marginal.
-    tau_b: if `< 1.0`, defines how much unbalanced the problem is on
-      the second marginal.
-    gw_unbalanced_correction: Whether the unbalanced version of
-      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b`` only
-      affect the inner Sinkhorn loop.
-    ranks: Ranks of the cost matrices, see
-      :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`. Used when
-      geometries are *not* :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost function. If `-1`, the geometries will not be converted
-      to low-rank. If :class:`tuple`, it specifies the ranks of ``geom_xx``,
-      ``geom_yy`` and ``geom_xy``, respectively. If :class:`int`, rank is shared
-      across all geometries.
-    tolerances: Tolerances used when converting geometries to low-rank. Used
-      when geometries are not :class:`~ott.geometry.pointcloud.PointCloud` with
-      `'sqeucl'` cost. If :class:`float`, it is shared across all geometries.
-    kwargs: Keyword arguments for
-      :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
-
-  Returns:
-    Gromov-Wasserstein output.
-  """
-  prob = quadratic_problem.QuadraticProblem(
-      geom_xx,
-      geom_yy,
-      geom_xy=geom_xy,
-      fused_penalty=fused_penalty,
-      scale_cost=scale_cost,
-      a=a,
-      b=b,
-      loss=loss,
-      tau_a=tau_a,
-      tau_b=tau_b,
-      gw_unbalanced_correction=gw_unbalanced_correction,
-      ranks=ranks,
-      tolerances=tolerances
-  )
-  solver = GromovWasserstein(**kwargs)
-  return solver(prob)

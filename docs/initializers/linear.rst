@@ -20,6 +20,7 @@ Low-rank Sinkhorn Initializers
 .. autosummary::
     :toctree: _autosummary
 
+    initializers_lr.LRInitializer
     initializers_lr.RandomInitializer
     initializers_lr.Rank2Initializer
     initializers_lr.KMeansInitializer

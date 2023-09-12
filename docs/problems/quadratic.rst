@@ -20,5 +20,6 @@ Costs
 .. autosummary::
     :toctree: _autosummary
 
+    quadratic_costs.GWLoss
     quadratic_costs.make_square_loss
     quadratic_costs.make_kl_loss

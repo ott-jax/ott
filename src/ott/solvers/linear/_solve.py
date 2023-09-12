@@ -1,11 +1,22 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Any, Optional, Union
 
 import jax.numpy as jnp
 
 from ott.geometry import geometry
 from ott.problems.linear import linear_problem
-
-#if TYPE_CHECKING:
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["solve"]
@@ -23,7 +34,7 @@ def solve(
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:
-    geom: The ground geometry cost of the linear problem.
+    geom: The ground geometry of the linear problem.
     a: The first marginal. If :obj:`None`, it will be uniform.
     b: The second marginal. If :obj:`None`, it will be uniform.
     tau_a: If :math:`< 1`, defines how much unbalanced the problem is
@@ -36,7 +47,7 @@ def solve(
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
       :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`,
-      depending on ``rank``.
+      depending on the ``rank``.
 
   Returns:
     The Sinkhorn output.

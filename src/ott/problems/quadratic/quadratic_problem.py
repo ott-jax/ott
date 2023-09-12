@@ -41,18 +41,16 @@ class QuadraticProblem:
   is assumed to match the form given in eq. 5., with our notations:
 
   .. math::
-
-    L(x, y) = lin1(x) + lin2(y) - quad1(x) * quad2(y)
+    L(x, y) = f_1(x) + f_2(y) - h_1(x) h_2(y)
 
   Args:
     geom_xx: Ground geometry of the first space.
     geom_yy: Ground geometry of the second space.
     geom_xy: Geometry defining the linear penalty term for
-      Fused Gromov-Wasserstein. If `None`, the problem reduces to a plain
-      Gromov-Wasserstein problem.
-    fused_penalty: multiplier of the linear term in Fused Gromov-Wasserstein,
-      i.e. problem = purely quadratic + fused_penalty * linear problem.
-      Ignored if ``geom_xy`` is not specified.
+      fused Gromov-Wasserstein :cite:`vayer:19`. If :obj:`None`, the problem
+      reduces to a plain Gromov-Wasserstein problem :cite:`peyre:16`.
+    fused_penalty: Multiplier of the linear term in fused Gromov-Wasserstein,
+      i.e. ``problem = purely quadratic + fused_penalty * linear problem``.
     scale_cost: option to rescale the cost matrices:
 
       - if :obj:`True`, use the default for each geometry.
@@ -62,19 +60,14 @@ class QuadraticProblem:
         :class:`~ott.geometry.pointcloud.PointCloud`.
       - if :obj:`None`, do not scale the cost matrices.
 
-    a: array representing the probability weights of the samples
-      from ``geom_xx``. If `None`, it will be uniform.
-    b: array representing the probability weights of the samples
-      from ``geom_yy``. If `None`, it will be uniform.
-    loss: a 2-tuple of 2-tuples of Callable. The first tuple is the linear
-      part of the loss. The second one is the quadratic part (quad1, quad2).
-      By default, the loss is set as the 4 functions representing the squared
-      Euclidean loss, and this property is taken advantage of in subsequent
-      computations. Alternatively, KL loss can be specified in no less optimized
-      way.
-    tau_a: if `< 1.0`, defines how much unbalanced the problem is on
+    a: The first marginal. If :obj:`None`, it will be uniform.
+    b: The second marginal. If :obj:`None`, it will be uniform.
+    loss: Gromov-Wasserstein loss function, see
+      :class:`~ott.problems.quadratic.quadratic_costs.GWLoss` for more
+      information.
+    tau_a: If :math:`< 1.0`, defines how much unbalanced the problem is on
       the first marginal.
-    tau_b: if `< 1.0`, defines how much unbalanced the problem is on
+    tau_b: If :math:`< 1.0`, defines how much unbalanced the problem is on
       the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
       :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
@@ -101,8 +94,8 @@ class QuadraticProblem:
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
-      tau_a: Optional[float] = 1.0,
-      tau_b: Optional[float] = 1.0,
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
       gw_unbalanced_correction: bool = True,
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,

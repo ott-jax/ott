@@ -12,7 +12,7 @@ Gromov-Wasserstein Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    gromov_wasserstein.solve
+    solve
     gromov_wasserstein.GromovWasserstein
     gromov_wasserstein.GWOutput
     gromov_wasserstein_lr.LRGromovWasserstein

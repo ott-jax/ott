@@ -252,7 +252,7 @@ class LRGWOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class LRGromovWasserstein(sinkhorn.Sinkhorn):
-  r"""A low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
+  r"""Low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
   care to initialization and convergence. Convergence is evaluated on successive
@@ -270,8 +270,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
-      `'generalized-k-means'`.
+      factors.
     lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.

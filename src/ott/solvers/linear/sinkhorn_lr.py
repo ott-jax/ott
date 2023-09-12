@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A Jax implementation of the Low-Rank Sinkhorn algorithm."""
 from typing import (
     Any,
     Callable,
@@ -272,7 +271,7 @@ class LRSinkhornOutput(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class LRSinkhorn(sinkhorn.Sinkhorn):
-  r"""A Low-Rank Sinkhorn solver for linear reg-OT problems.
+  r"""Low-Rank Sinkhorn solver for linear reg-OT problems.
 
   The algorithm is described in :cite:`scetbon:21` and the implementation
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
@@ -288,15 +287,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors. Valid options are `'random'`, `'rank2'`, `'k-means'`, and
-      `'generalized-k-means'`.
+      factors.
     lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
       input parameters. Only `True` handled at this moment.
-    implicit_diff: Whether to use implicit differentiation. Currently, only
-      ``implicit_diff = False`` is implemented.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
@@ -316,25 +312,23 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       rank: int,
       gamma: float = 10.,
       gamma_rescale: bool = True,
-      epsilon: float = 0.,
+      epsilon: float = 0.0,
       initializer: Union[Literal["random", "rank2", "k-means",
                                  "generalized-k-means"],
                          initializers_lr.LRInitializer] = "random",
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
-      implicit_diff: bool = False,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
-    assert not implicit_diff, "Implicit diff. not yet implemented."
+    kwargs["implicit_diff"] = None  # not yet implemented
     super().__init__(
         lse_mode=lse_mode,
         inner_iterations=inner_iterations,
         use_danskin=use_danskin,
-        implicit_diff=implicit_diff,
         **kwargs
     )
     self.rank = rank
