@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from types import MappingProxyType
-from typing import Any, List, Mapping, NamedTuple, Optional, Tuple, Type
+from typing import Any, Mapping, NamedTuple, Optional, Tuple, Type
 
 import jax.numpy as jnp
 
@@ -26,16 +26,19 @@ __all__ = [
     "SinkhornDivergenceOutput"
 ]
 
+Potentials_t = Tuple[jnp.ndarray, jnp.ndarray]
+
 
 class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
   divergence: float
-  potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
+  potentials: Tuple[Potentials_t, Potentials_t, Potentials_t]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
   errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
   a: jnp.ndarray
   b: jnp.ndarray
+  n_iters: Tuple[int, int, int] = (-1, -1, -1)
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
@@ -45,17 +48,6 @@ class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
     return potentials.EntropicPotentials(
         f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
     )
-
-  @property
-  def n_iters(self) -> Tuple[int, int, int]:  # noqa: D102
-    """Returns 3 number of iterations that were needed to terminate."""
-    out = []
-    for i in range(3):
-      if self.errors[i] is None:
-        out.append(-1)
-      else:
-        out.append(jnp.sum(self.errors[i] > -1))
-    return out
 
 
 def sinkhorn_divergence(
@@ -190,12 +182,32 @@ def _sinkhorn_divergence(
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
       0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
   )
-  out = (out_xy, out_xx, out_yy)
+
   return SinkhornDivergenceOutput(
-      div, tuple([s.f, s.g] for s in out),
-      (geometry_xy, geometry_xx, geometry_yy), tuple(s.errors for s in out),
-      tuple(s.converged for s in out), a, b
+      divergence=div,
+      potentials=((out_xy.f, out_xy.g), (out_xx.f, out_xx.g),
+                  (out_yy.f, out_yy.g)),
+      geoms=(geometry_xy, geometry_xx, geometry_yy),
+      errors=(out_xy.errors, out_xx.errors, out_yy.errors),
+      converged=(out_xy.converged, out_xx.converged, out_yy.converged),
+      a=a,
+      b=b,
+      n_iters=(out_xy.n_iters, out_xx.n_iters, out_yy.n_iters),
   )
+
+
+"""
+class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
+  divergence: float
+  potentials: Tuple[List[jnp.ndarray], List[jnp.ndarray], List[jnp.ndarray]]
+  geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
+  errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]]
+  converged: Tuple[bool, bool, bool]
+  a: jnp.ndarray
+  b: jnp.ndarray
+  n_iters: Tuple[int, int, int] = (-1, -1, -1)
+"""
 
 
 def segment_sinkhorn_divergence(

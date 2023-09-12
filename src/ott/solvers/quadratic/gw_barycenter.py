@@ -52,17 +52,11 @@ class GWBarycenterState(NamedTuple):
   costs: Optional[jnp.ndarray] = None
   costs_bary: Optional[jnp.ndarray] = None
   gw_convergence: Optional[jnp.ndarray] = None
+  n_iters: int = -1
 
   def set(self, **kwargs: Any) -> "GWBarycenterState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
-
-  @property
-  def n_iters(self) -> int:
-    """Number of iterations."""
-    if self.gw_convergence is None:
-      return -1
-    return jnp.sum(self.gw_convergence > -1)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -254,14 +248,15 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         costs=costs,
         costs_bary=costs_bary,
         errors=errors,
-        gw_convergence=gw_convergence
+        gw_convergence=gw_convergence,
+        n_iters=iteration,
     )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     """No-op."""
     # TODO(michalk8): just for consistency with continuous barycenter
     # will be refactored in the future to create an output
-    return state
+    return state.set(n_iters=state.n_iters + 1)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux = super().tree_flatten()

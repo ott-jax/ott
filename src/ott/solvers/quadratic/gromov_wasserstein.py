@@ -61,6 +61,7 @@ class GWOutput(NamedTuple):
       linearization of GW.
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
+    n_iters: Number of the outer GW iterations.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -71,6 +72,7 @@ class GWOutput(NamedTuple):
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
   old_transport_mass: float = 1.0
+  n_iters: int = -1
 
   def set(self, **kwargs: Any) -> "GWOutput":
     """Return a copy of self, possibly with overwrites."""
@@ -99,12 +101,6 @@ class GWOutput(NamedTuple):
     """Return transport cost of current linear OT solution at geometry."""
     return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
 
-  @property
-  def n_iters(self) -> int:  # noqa: D102
-    if self.errors is None:
-      return -1
-    return jnp.sum(self.errors > -1)
-
 
 class GWState(NamedTuple):
   """State of the Gromov-Wasserstein solver.
@@ -122,6 +118,7 @@ class GWState(NamedTuple):
       when not using warm start.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
+    iteration: The current outer GW iteration.
   """
 
   costs: jnp.ndarray
@@ -131,6 +128,7 @@ class GWState(NamedTuple):
   old_transport_mass: float
   rngs: Optional[jax.random.PRNGKeyArray] = None
   errors: Optional[jnp.ndarray] = None
+  iteration: int = -1
 
   def set(self, **kwargs: Any) -> "GWState":
     """Return a copy of self, possibly with overwrites."""
@@ -155,7 +153,8 @@ class GWState(NamedTuple):
         costs=costs,
         linear_convergence=linear_convergence,
         errors=errors,
-        old_transport_mass=old_transport_mass
+        old_transport_mass=old_transport_mass,
+        iteration=iteration,
     )
 
 
@@ -321,7 +320,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=state.errors,
         linear_state=state.linear_state,
         geom=state.linear_pb.geom,
-        old_transport_mass=state.old_transport_mass
+        old_transport_mass=state.old_transport_mass,
+        n_iters=state.iteration + 1,
     )
 
   def create_initializer(

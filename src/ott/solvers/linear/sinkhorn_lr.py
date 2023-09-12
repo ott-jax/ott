@@ -51,6 +51,7 @@ class LRSinkhornState(NamedTuple):
   costs: jnp.ndarray
   errors: jnp.ndarray
   crossed_threshold: bool
+  iteration: int = -1
 
   def compute_error(  # noqa: D102
       self, previous_state: "LRSinkhornState"
@@ -178,6 +179,7 @@ class LRSinkhornOutput(NamedTuple):
   epsilon: float
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
+  n_iters: int = -1
 
   def set(self, **kwargs: Any) -> "LRSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -709,6 +711,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         costs=state.costs.at[it].set(cost),
         errors=state.errors.at[it].set(error),
         crossed_threshold=crossed_threshold,
+        iteration=iteration,
     )
 
     if self.progress_fn is not None:
@@ -779,6 +782,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         costs=state.costs,
         errors=state.errors,
         epsilon=self.epsilon,
+        n_iters=state.iteration + 1,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:

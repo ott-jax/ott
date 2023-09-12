@@ -57,6 +57,7 @@ class SinkhornState(NamedTuple):
   gv: Optional[jnp.ndarray] = None
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
+  iteration: int = -1
 
   def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
@@ -329,6 +330,7 @@ class SinkhornOutput(NamedTuple):
   threshold: Optional[jnp.ndarray] = None
   converged: Optional[bool] = None
   inner_iterations: Optional[int] = None
+  n_iters: int = -1
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -443,14 +445,6 @@ class SinkhornOutput(NamedTuple):
   @property
   def linear_output(self) -> bool:  # noqa: D102
     return True
-
-  # TODO(michalk8): this should be always present
-  @property
-  def n_iters(self) -> int:  # noqa: D102
-    """Returns the total number of iterations that were needed to terminate."""
-    if self.errors is None:
-      return -1
-    return jnp.sum(self.errors > -1) * self.inner_iterations
 
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
@@ -993,7 +987,7 @@ class Sinkhorn:
         ot_prob,
     )
     errors = state.errors.at[iteration // self.inner_iterations, :].set(err)
-    state = state.set(errors=errors)
+    state = state.set(iteration=iteration, errors=errors)
 
     if self.progress_fn is not None:
       jax.experimental.io_callback(
@@ -1094,7 +1088,8 @@ class Sinkhorn:
         errors=state.errors[:, 0],
         threshold=jnp.array(self.threshold),
         converged=converged,
-        inner_iterations=self.inner_iterations
+        inner_iterations=self.inner_iterations,
+        n_iters=state.iteration + 1,
     )
 
   @property
