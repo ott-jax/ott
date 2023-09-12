@@ -175,7 +175,7 @@ class Graph(geometry.Geometry):
     else:
       constants = L, None
 
-    return fixpoint_fn(
+    (res, _), _ = fixpoint_fn(
         cond_fn=(lambda *_, **__: True) if force_scan else conf_fn,
         body_fn=body_fn,
         min_iterations=self.n_steps if force_scan else 1,
@@ -183,7 +183,8 @@ class Graph(geometry.Geometry):
         inner_iterations=1,
         constants=constants,
         state=state,
-    )[1]
+    )
+    return res
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102

@@ -778,7 +778,7 @@ class Bures(CostFn):
       )
       return cov_init, diffs
 
-    cov, diffs = fixed_point_loop.fixpoint_iter(
+    (cov, diffs), _ = fixed_point_loop.fixpoint_iter(
         cond_fn=cond_fn,
         body_fn=body_fn,
         min_iterations=min_iterations,

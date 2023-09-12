@@ -107,7 +107,7 @@ def sqrtm(
                      dtype=dtype)
   state = (errors, y, z)
   const = (x, threshold)
-  errors, y, z = fixed_point_loop.fixpoint_iter_backprop(
+  (errors, y, z), _ = fixed_point_loop.fixpoint_iter_backprop(
       cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
       state
   )

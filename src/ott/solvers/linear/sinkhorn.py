@@ -57,7 +57,6 @@ class SinkhornState(NamedTuple):
   gv: Optional[jnp.ndarray] = None
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
-  iteration: int = -1
 
   def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
@@ -984,7 +983,7 @@ class Sinkhorn:
         ot_prob,
     )
     errors = state.errors.at[iteration // self.inner_iterations, :].set(err)
-    state = state.set(iteration=iteration, errors=errors)
+    state = state.set(errors=errors)
 
     if self.progress_fn is not None:
       jax.experimental.io_callback(
@@ -1029,7 +1028,9 @@ class Sinkhorn:
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
   def output_from_state(
-      self, ot_prob: linear_problem.LinearProblem, state: SinkhornState
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      state: SinkhornState,
   ) -> SinkhornOutput:
     """Create an output from a loop state.
 
@@ -1085,7 +1086,6 @@ class Sinkhorn:
         errors=state.errors[:, 0],
         threshold=jnp.array(self.threshold),
         converged=converged,
-        n_iters=state.iteration + 1,
     )
 
   @property
@@ -1168,11 +1168,12 @@ def iterations(
 
   const = ot_prob, solver
   state = solver.init_state(ot_prob, init)
-  state = fix_point(
+  state, n_iters = fix_point(
       cond_fn, body_fn, solver.min_iterations, solver.max_iterations,
       solver.inner_iterations, const, state
   )
-  return solver.output_from_state(ot_prob, state)
+  out = solver.output_from_state(ot_prob, state)
+  return out.set(n_iters=n_iters)
 
 
 def _iterations_taped(

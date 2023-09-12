@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +24,7 @@ def fixpoint_iter(
     cond_fn: Callable[[int, Any, Any], bool],
     body_fn: Callable[[Any, Any, Any, Any], Any], min_iterations: int,
     max_iterations: int, inner_iterations: int, constants: Any, state: Any
-):
+) -> Tuple[Any, int]:
   """Implementation of a fixed point loop.
 
   This fixed point loop iterator applies ``body_fn`` to a tuple
@@ -51,7 +51,8 @@ def fixpoint_iter(
     state : state variable
 
   Returns:
-    outputs state returned by ``body_fn`` upon termination.
+    outputs state returned by ``body_fn`` upon termination and
+    the total number of iterations.
   """  # noqa: D401
   # If number of minimal iterations matches maximal number, force a scan instead
   # of a while loop.
@@ -83,20 +84,23 @@ def fixpoint_iter(
     return (iteration_state, None) if force_scan else iteration_state
 
   if force_scan:
+    n_iters = max_iterations // inner_iterations
     (_, state), _ = jax.lax.scan(
         lambda carry, x: unrolled_body_fn(carry), (0, state),
         None,
         length=max_iterations // inner_iterations
     )
   else:
-    _, state = jax.lax.while_loop(max_cond_fn, unrolled_body_fn, (0, state))
-  return state
+    n_iters, state = jax.lax.while_loop(
+        max_cond_fn, unrolled_body_fn, (0, state)
+    )
+  return state, n_iters
 
 
 def fixpoint_iter_fwd(
     cond_fn, body_fn, min_iterations, max_iterations, inner_iterations,
     constants, state
-):
+) -> Tuple[Any, int]:
   """Forward iteration of fixed point iteration to handle backpropagation.
 
   The main difference with fixpoint_iter is the checkpointing, in variable
@@ -114,7 +118,8 @@ def fixpoint_iter_fwd(
     state : state variable
 
   Returns:
-    outputs state returned by body_fn upon termination.
+    outputs state returned by body_fn upon termination and
+    the total number of iterations.
   """
   force_scan = min_iterations == max_iterations
   compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
@@ -166,7 +171,7 @@ def fixpoint_iter_fwd(
         max_cond_fn, unrolled_body_fn, (0, states, state)
     )
 
-  return state, (constants, iteration, states)
+  return (state, iteration), (constants, iteration, states)
 
 
 def fixpoint_iter_bwd(
@@ -174,6 +179,8 @@ def fixpoint_iter_bwd(
 ):
   """Backward iteration of fixed point iteration, using checkpointed states."""
   del cond_fn
+  g, _ = g  # out, iteration
+
   force_scan = (min_iterations == max_iterations)
   constants, iteration, states = res
   # The tree may contain some python floats
@@ -187,16 +194,15 @@ def fixpoint_iter_bwd(
     return iteration >= 0
 
   def unrolled_body_fn_no_errors(iteration, constants, state):
-    compute_error_flags = jnp.zeros((inner_iterations,), dtype=bool)
 
-    def one_iteration(iteration_state, compute_error):
+    def one_iteration(iteration_state, _):
       iteration, state = iteration_state
-      state = body_fn(iteration, constants, state, compute_error)
+      state = body_fn(iteration, constants, state, False)
       iteration += 1
       return (iteration, state), None
 
     iteration_state, _ = jax.lax.scan(
-        one_iteration, (iteration, state), compute_error_flags
+        one_iteration, (iteration, state), xs=None, length=inner_iterations
     )
     _, state = iteration_state
     return state
@@ -207,7 +213,10 @@ def fixpoint_iter_bwd(
         lambda x: x[iteration // inner_iterations], states
     )
     _, pullback = jax.vjp(
-        unrolled_body_fn_no_errors, iteration, constants, state
+        unrolled_body_fn_no_errors,
+        iteration,
+        constants,
+        state,
     )
     _, gi_constants, g_state = pullback(g)
     g_constants = jax.tree_util.tree_map(
@@ -218,7 +227,7 @@ def fixpoint_iter_bwd(
 
   if force_scan:
     (_, g_state, g_constants), _ = jax.lax.scan(
-        lambda carry, x: unrolled_body_fn(carry), (0, g, g_constants),
+        lambda carry, _: unrolled_body_fn(carry), (0, g, g_constants),
         None,
         length=max_iterations // inner_iterations
     )

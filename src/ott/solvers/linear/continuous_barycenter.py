@@ -220,7 +220,7 @@ def iterations(
         iteration, bar_prob, solver.linear_ot_solver, solver.store_inner_errors
     )
 
-  state = fixed_point_loop.fixpoint_iter(
+  state, _ = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,

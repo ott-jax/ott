@@ -51,7 +51,6 @@ class LRSinkhornState(NamedTuple):
   costs: jnp.ndarray
   errors: jnp.ndarray
   crossed_threshold: bool
-  iteration: int = -1
 
   def compute_error(  # noqa: D102
       self, previous_state: "LRSinkhornState"
@@ -526,7 +525,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g = jnp.exp(gamma * h)
       return q, r, g
 
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
+    state_inner, _ = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
@@ -623,7 +622,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
 
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
+    state_inner, _ = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
@@ -711,7 +710,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         costs=state.costs.at[it].set(cost),
         errors=state.errors.at[it].set(error),
         crossed_threshold=crossed_threshold,
-        iteration=iteration,
     )
 
     if self.progress_fn is not None:
@@ -763,13 +761,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def output_from_state(
-      self, ot_prob: linear_problem.LinearProblem, state: LRSinkhornState
+      self,
+      ot_prob: linear_problem.LinearProblem,
+      state: LRSinkhornState,
   ) -> LRSinkhornOutput:
     """Create an output from a loop state.
 
     Args:
       ot_prob: the transport problem.
       state: a LRSinkhornState.
+      n_iters: Number of iteration.
 
     Returns:
       A LRSinkhornOutput.
@@ -782,7 +783,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         costs=state.costs,
         errors=state.errors,
         epsilon=self.epsilon,
-        n_iters=state.iteration + 1,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:

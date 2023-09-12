@@ -118,7 +118,6 @@ class GWState(NamedTuple):
       when not using warm start.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
-    iteration: The current outer GW iteration.
   """
 
   costs: jnp.ndarray
@@ -128,7 +127,6 @@ class GWState(NamedTuple):
   old_transport_mass: float
   rngs: Optional[jax.random.PRNGKeyArray] = None
   errors: Optional[jnp.ndarray] = None
-  iteration: int = -1
 
   def set(self, **kwargs: Any) -> "GWState":
     """Return a copy of self, possibly with overwrites."""
@@ -154,7 +152,6 @@ class GWState(NamedTuple):
         linear_convergence=linear_convergence,
         errors=errors,
         old_transport_mass=old_transport_mass,
-        iteration=iteration,
     )
 
 
@@ -321,7 +318,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linear_state=state.linear_state,
         geom=state.linear_pb.geom,
         old_transport_mass=state.old_transport_mass,
-        n_iters=state.iteration + 1,
     )
 
   def create_initializer(
@@ -412,7 +408,7 @@ def iterations(
 
     return new_state
 
-  state = fixed_point_loop.fixpoint_iter(
+  state, n_iters = fixed_point_loop.fixpoint_iter(
       cond_fn=cond_fn,
       body_fn=body_fn,
       min_iterations=solver.min_iterations,
@@ -421,8 +417,8 @@ def iterations(
       constants=solver,
       state=solver.init_state(prob, init, rng=rng)
   )
-
-  return solver.output_from_state(state)
+  out = solver.output_from_state(state)
+  return out.set(n_iters=n_iters)
 
 
 def solve(

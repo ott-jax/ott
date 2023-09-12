@@ -169,7 +169,7 @@ def unbalanced_dykstra_lse(
       err=jnp.inf,
   )
 
-  state: State = fixed_point_loop.fixpoint_iter_backprop(
+  state, _ = fixed_point_loop.fixpoint_iter_backprop(
       cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
   )
 
@@ -306,7 +306,7 @@ def unbalanced_dykstra_kernel(
       err=jnp.inf
   )
 
-  state: State = fixed_point_loop.fixpoint_iter_backprop(
+  state, _ = fixed_point_loop.fixpoint_iter_backprop(
       cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
   )
 

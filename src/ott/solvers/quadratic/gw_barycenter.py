@@ -120,8 +120,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       The solution.
     """
     state = self.init_state(problem, bar_size, **kwargs)
-    state = iterations(self, problem, state)
-    return self.output_from_state(state)
+    state, n_iters = iterations(self, problem, state)
+    out = self.output_from_state(state)
+    return out.set(n_iters=n_iters)
 
   def init_state(
       self,
@@ -249,14 +250,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         costs_bary=costs_bary,
         errors=errors,
         gw_convergence=gw_convergence,
-        n_iters=iteration,
     )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
     """No-op."""
     # TODO(michalk8): just for consistency with continuous barycenter
     # will be refactored in the future to create an output
-    return state.set(n_iters=state.n_iters + 1)
+    return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux = super().tree_flatten()
@@ -305,7 +305,7 @@ def init_transports(
 def iterations(  # noqa: D103
     solver: GromovWassersteinBarycenter,
     problem: gw_barycenter.GWBarycenterProblem, init_state: GWBarycenterState
-) -> GWBarycenterState:
+) -> Tuple[GWBarycenterState, int]:
 
   def cond_fn(
       iteration: int, constants: GromovWassersteinBarycenter,
@@ -331,4 +331,4 @@ def iterations(  # noqa: D103
       inner_iterations=1,
       constants=(solver, problem),
       state=init_state,
-  )
+  )[0]

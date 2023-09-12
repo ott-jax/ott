@@ -229,7 +229,7 @@ def _discrete_barycenter(
 
   state = (errors, d, f_u, g_v)
 
-  state = fixed_point_loop.fixpoint_iter_backprop(
+  state, _ = fixed_point_loop.fixpoint_iter_backprop(
       cond_fn, body_fn, min_iterations, max_iterations, inner_iterations, const,
       state
   )

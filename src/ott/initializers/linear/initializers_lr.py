@@ -652,4 +652,4 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
         inner_iterations=inner_iterations,
         constants=consts,
         state=init_fn(),
-    ).factor
+    )[0].factor

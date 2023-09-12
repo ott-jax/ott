@@ -535,7 +535,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       g = jnp.exp(gamma * h)
       return q, r, g
 
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
+    state_inner, _ = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
@@ -634,7 +634,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
 
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
+    state_inner, _ = fixed_point_loop.fixpoint_iter_backprop(
         cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
     )
 
@@ -777,7 +777,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     )
 
   def output_from_state(
-      self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState
+      self,
+      ot_prob: quadratic_problem.QuadraticProblem,
+      state: LRGWState,
   ) -> LRGWOutput:
     """Create an output from a loop state.
 

@@ -163,7 +163,7 @@ def _k_means_plus_plus(
 
   state = init_fn(geom, rng)
   constants = (geom, jnp.arange(geom.shape[0]))
-  state = fixed_point_loop.fixpoint_iter(
+  state, _ = fixed_point_loop.fixpoint_iter(
       lambda *_, **__: True,
       body_fn,
       min_iterations=k - 1,
@@ -324,7 +324,7 @@ def _k_means(
   x_weights = jnp.hstack([weights[:, None] * geom.x, weights[:, None]])
   const = KMeansConst(geom, x_weights)
 
-  state = fixpoint_fn(
+  state, _ = fixpoint_fn(
       cond_fn,
       body_fn,
       min_iterations=min_iterations,
