@@ -16,10 +16,13 @@ from typing import Optional
 
 import jax.numpy as jnp
 import pytest
-from ott.geometry import pointcloud
-from ott.problems.nn import dataset
-from ott.solvers.nn import losses, models
-from ott.tools import map_estimator, sinkhorn_divergence
+
+_ = pytest.importorskip("flax")
+
+from ott.geometry import pointcloud  # noqa: E402
+from ott.problems.nn import dataset  # noqa: E402
+from ott.solvers.nn import losses, models  # noqa: E402
+from ott.tools import map_estimator, sinkhorn_divergence  # noqa: E402
 
 
 @pytest.mark.fast()
