@@ -116,7 +116,14 @@ def compute_reg_gw_cost(
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
   out = LRGWOutput(
-      q=q, r=r, g=g, ot_prob=ot_prob, costs=None, errors=None, epsilon=None
+      q=q,
+      r=r,
+      g=g,
+      ot_prob=ot_prob,
+      costs=None,
+      errors=None,
+      epsilon=None,
+      inner_iterations=None,
   )
 
   cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
