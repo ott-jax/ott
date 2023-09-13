@@ -49,17 +49,6 @@ class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
         f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
     )
 
-  @property
-  def n_iters(self) -> Tuple[int, int, int]:  # noqa: D102
-    """Returns 3 number of iterations that were needed to terminate."""
-    out = []
-    for i in range(3):
-      if self.errors[i] is None:
-        out.append(-1)
-      else:
-        out.append(jnp.sum(self.errors[i] > -1))
-    return out
-
 
 def sinkhorn_divergence(
     geom: Type[geometry.Geometry],
