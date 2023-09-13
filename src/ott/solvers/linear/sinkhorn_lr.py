@@ -207,10 +207,6 @@ class LRSinkhornOutput(NamedTuple):
     )
 
   @property
-  def linear(self) -> bool:  # noqa: D102
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
-
-  @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
@@ -221,10 +217,6 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
-
-  @property
-  def linear_output(self) -> bool:  # noqa: D102
-    return True
 
   @property
   def n_iters(self) -> int:  # noqa: D102

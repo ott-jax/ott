@@ -62,7 +62,7 @@ class GWBarycenterState(NamedTuple):
     """Number of iterations."""
     if self.gw_convergence is None:
       return -1
-    return jnp.sum(self.gw_convergence > -1)
+    return jnp.sum(self.gw_convergence != -1)
 
 
 @jax.tree_util.register_pytree_node_class

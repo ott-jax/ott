@@ -172,10 +172,6 @@ class LRGWOutput(NamedTuple):
     )
 
   @property
-  def linear(self) -> bool:  # noqa: D102
-    return False
-
-  @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     """Linearized geometry."""
     return _linearized_geometry(self.ot_prob, q=self.q, r=self.r, g=self.g)
@@ -187,10 +183,6 @@ class LRGWOutput(NamedTuple):
   @property
   def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
-
-  @property
-  def linear_output(self) -> bool:  # noqa: D102
-    return False
 
   @property
   def n_iters(self) -> int:  # noqa: D102
