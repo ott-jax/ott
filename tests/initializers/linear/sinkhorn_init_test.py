@@ -19,7 +19,6 @@ import numpy as np
 import pytest
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
-from ott.initializers.nn import initializers as nn_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
@@ -281,44 +280,3 @@ class TestSinkhornInitializers:
       assert default_out.n_iters > init_out.n_iters
     else:
       assert default_out.n_iters >= init_out.n_iters
-
-  @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
-    """Tests Meta initializer"""
-    n, m, d = 20, 20, 2
-    epsilon = 1e-2
-
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
-    a = ot_problem.a
-    b = ot_problem.b
-    geom = ot_problem.geom
-
-    # run sinkhorn
-    sink_out = run_sinkhorn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=linear_init.DefaultInitializer(),
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode
-    )
-
-    # overfit the initializer to the problem.
-    meta_initializer = nn_init.MetaInitializer(geom)
-    for _ in range(50):
-      _, _, meta_initializer.state = meta_initializer.update(
-          meta_initializer.state, a=a, b=b
-      )
-
-    prob = linear_problem.LinearProblem(geom, a, b)
-    solver = sinkhorn.Sinkhorn(initializer=meta_initializer, lse_mode=lse_mode)
-    meta_out = solver(prob)
-
-    # check initializer is better
-    if lse_mode:
-      assert sink_out.converged
-      assert meta_out.converged
-      assert sink_out.n_iters > meta_out.n_iters
-    else:
-      assert sink_out.n_iters >= meta_out.n_iters

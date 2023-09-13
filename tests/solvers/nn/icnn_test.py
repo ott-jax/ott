@@ -18,7 +18,7 @@ import pytest
 
 _ = pytest.importorskip("flax")
 
-from ott.solvers.nn import models  # noqa: E402
+from ott.solvers.nn import models
 
 
 @pytest.mark.fast()

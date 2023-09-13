@@ -20,8 +20,8 @@ import pytest
 
 _ = pytest.importorskip("flax")
 
-from ott.problems.nn import dataset  # noqa: E402
-from ott.solvers.nn import conjugate_solvers, models, neuraldual  # noqa: E402
+from ott.problems.nn import dataset
+from ott.solvers.nn import conjugate_solvers, models, neuraldual
 
 ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
 DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]

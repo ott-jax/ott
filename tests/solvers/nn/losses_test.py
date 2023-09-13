@@ -18,8 +18,8 @@ import pytest
 
 _ = pytest.importorskip("flax")
 
-from ott.geometry import costs  # noqa: E402
-from ott.solvers.nn import losses, models  # noqa: E402
+from ott.geometry import costs
+from ott.solvers.nn import losses, models
 
 
 @pytest.mark.fast()
