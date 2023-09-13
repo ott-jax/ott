@@ -17,8 +17,11 @@ from typing import Optional, Sequence, Tuple
 import jax
 import numpy as np
 import pytest
-from ott.problems.nn import dataset
-from ott.solvers.nn import conjugate_solvers, models, neuraldual
+
+_ = pytest.importorskip("flax")
+
+from ott.problems.nn import dataset  # noqa: E402
+from ott.solvers.nn import conjugate_solvers, models, neuraldual  # noqa: E402
 
 ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
 DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]

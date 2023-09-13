@@ -15,7 +15,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from ott.solvers.nn import models
+
+_ = pytest.importorskip("flax")
+
+from ott.solvers.nn import models  # noqa: E402
 
 
 @pytest.mark.fast()

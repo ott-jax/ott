@@ -183,7 +183,10 @@ legacy_tox_ini = """
     skip_missing_interpreters = true
 
     [testenv]
-    extras = test,neural
+    extras =
+        test
+        # https://github.com/google/flax/issues/3329
+        py{3.9,3.10,3.11},py3.9-jax-default: neural
     pass_env = CUDA_*,PYTEST_*,CI
     commands_pre =
         gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
