@@ -175,6 +175,7 @@ class LRSinkhornOutput(NamedTuple):
   errors: jnp.ndarray
   ot_prob: linear_problem.LinearProblem
   epsilon: float
+  inner_iterations: int
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
@@ -206,10 +207,6 @@ class LRSinkhornOutput(NamedTuple):
     )
 
   @property
-  def linear(self) -> bool:  # noqa: D102
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
-
-  @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
@@ -222,8 +219,8 @@ class LRSinkhornOutput(NamedTuple):
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:  # noqa: D102
-    return True
+  def n_iters(self) -> int:  # noqa: D102
+    return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
   def converged(self) -> bool:  # noqa: D102
@@ -773,6 +770,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         costs=state.costs,
         errors=state.errors,
         epsilon=self.epsilon,
+        inner_iterations=self.inner_iterations,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:

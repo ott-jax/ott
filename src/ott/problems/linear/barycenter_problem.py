@@ -18,7 +18,7 @@ import jax.numpy as jnp
 
 from ott.geometry import costs, geometry, segment
 
-__all__ = ["FreeBarycenterProblem"]
+__all__ = ["FreeBarycenterProblem", "FixedBarycenterProblem"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -44,8 +44,8 @@ class FreeBarycenterProblem:
       Only used when ``y`` is not already segmented. When passing
       ``segment_ids``, 2 arguments must be specified for jitting to work:
 
-        - ``num_segments`` - the total number of measures.
-        - ``max_measure_size`` -  maximum of support sizes of these measures.
+      - ``num_segments`` - the total number of measures.
+      - ``max_measure_size`` -  maximum of support sizes of these measures.
   """
 
   def __init__(
@@ -158,7 +158,7 @@ class FixedBarycenterProblem:
     a: batch of histograms of shape ``[batch, num_a]`` where ``num_a`` matches
       the first value of the :attr:`~ott.geometry.Geometry.shape` attribute of
       ``geom``.
-    weights: ``[batch,]`` positive weights summing to :math`1`. Uniform by
+    weights: ``[batch,]`` positive weights summing to :math:`1`. Uniform by
       default.
   """
 

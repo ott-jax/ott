@@ -15,6 +15,9 @@
 import jax
 import numpy as np
 import pytest
+
+_ = pytest.importorskip("flax")
+
 from ott.geometry import costs
 from ott.solvers.nn import losses, models
 

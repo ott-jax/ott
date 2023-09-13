@@ -75,16 +75,18 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
     max_iter: maximum number of iterations
     max_linesearch_iter: maximum number of line search iterations
     linesearch_type: type of line search
-    decrease_factor: decrease factor for a backtracking line search
-    ls_method: the line search method
+    linesearch_init: strategy for line search initialization
+    increase_factor: factor by which to increase the step size during
+      the line search
   """
 
   gtol: float = 1e-3
   max_iter: int = 10
   max_linesearch_iter: int = 10
-  linesearch_type: Literal["zoom", "backtracking"] = "backtracking"
-  decrease_factor: float = 0.66
-  ls_method: Literal["wolf", "strong-wolfe"] = "strong-wolfe"
+  linesearch_type: Literal["zoom", "backtracking",
+                           "hager-zhang"] = "backtracking"
+  linesearch_init: Literal["increase", "max", "current"] = "increase"
+  increase_factor: float = 1.5
 
   def solve(  # noqa: D102
       self,
@@ -98,9 +100,9 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
         fun=lambda x: f(x) - x.dot(y),
         tol=self.gtol,
         maxiter=self.max_iter,
-        decrease_factor=self.decrease_factor,
         linesearch=self.linesearch_type,
-        condition=self.ls_method,
+        linesearch_init=self.linesearch_init,
+        increase_factor=self.increase_factor,
         implicit_diff=False,
         unroll=False
     )

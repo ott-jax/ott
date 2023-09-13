@@ -17,6 +17,9 @@ from typing import Optional, Sequence, Tuple
 import jax
 import numpy as np
 import pytest
+
+_ = pytest.importorskip("flax")
+
 from ott.problems.nn import dataset
 from ott.solvers.nn import conjugate_solvers, models, neuraldual
 

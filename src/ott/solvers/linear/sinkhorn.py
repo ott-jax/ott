@@ -318,7 +318,6 @@ class SinkhornOutput(NamedTuple):
       below the convergence threshold.
     inner_iterations: number of iterations that were run between two
       computations of errors.
-
   """
 
   f: Optional[jnp.ndarray] = None
@@ -425,10 +424,6 @@ class SinkhornOutput(NamedTuple):
     return jnp.sum(self.matrix * other_geom.cost_matrix)
 
   @property
-  def linear(self) -> bool:  # noqa: D102
-    return isinstance(self.ot_prob, linear_problem.LinearProblem)
-
-  @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     return self.ot_prob.geom
 
@@ -441,16 +436,9 @@ class SinkhornOutput(NamedTuple):
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:  # noqa: D102
-    return True
-
-  # TODO(michalk8): this should be always present
-  @property
   def n_iters(self) -> int:  # noqa: D102
     """Returns the total number of iterations that were needed to terminate."""
-    if self.errors is None:
-      return -1
-    return jnp.sum(self.errors > -1) * self.inner_iterations
+    return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102

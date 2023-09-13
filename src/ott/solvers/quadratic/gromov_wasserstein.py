@@ -103,7 +103,7 @@ class GWOutput(NamedTuple):
   def n_iters(self) -> int:  # noqa: D102
     if self.errors is None:
       return -1
-    return jnp.sum(self.errors > -1)
+    return jnp.sum(self.errors[:, 0] != -1)
 
 
 class GWState(NamedTuple):

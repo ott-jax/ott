@@ -6,54 +6,54 @@ Geometry
 .. toctree::
     :maxdepth: 1
 
-    notebooks/introduction_grid
+    introduction_grid
 
 Linear Optimal Transport
 ------------------------
 .. toctree::
     :maxdepth: 1
 
-    notebooks/point_clouds
-    notebooks/One_Sinkhorn
-    notebooks/OTT_&_POT
-    notebooks/Hessians
-    notebooks/LRSinkhorn
-    notebooks/sinkhorn_divergence_gradient_flow
-    notebooks/sparse_monge_displacements
+    point_clouds
+    One_Sinkhorn
+    OTT_&_POT
+    Hessians
+    LRSinkhorn
+    sinkhorn_divergence_gradient_flow
+    sparse_monge_displacements
 
 Barycenters
 ^^^^^^^^^^^
 .. toctree::
     :maxdepth: 1
 
-    notebooks/Sinkhorn_Barycenters
-    notebooks/gmm_pair_demo
-    notebooks/wasserstein_barycenters_gmms
+    Sinkhorn_Barycenters
+    gmm_pair_demo
+    wasserstein_barycenters_gmms
 
 Miscellaneous
 ^^^^^^^^^^^^^
 .. toctree::
     :maxdepth: 1
 
-    notebooks/tracking_progress
-    notebooks/soft_sort
-    notebooks/application_biology
+    tracking_progress
+    soft_sort
+    application_biology
 
 Quadratic Optimal Transport
 ---------------------------
 .. toctree::
     :maxdepth: 1
 
-    notebooks/gromov_wasserstein
-    notebooks/GWLRSinkhorn
-    notebooks/gromov_wasserstein_multiomics
+    gromov_wasserstein
+    GWLRSinkhorn
+    gromov_wasserstein_multiomics
 
 Neural Optimal Transport
 ------------------------
 .. toctree::
     :maxdepth: 1
 
-    notebooks/neural_dual
-    notebooks/icnn_inits
-    notebooks/MetaOT
-    notebooks/Monge_Gap
+    neural_dual
+    icnn_inits
+    MetaOT
+    Monge_Gap

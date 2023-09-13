@@ -15,6 +15,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
+_ = pytest.importorskip("flax")
+
 from ott.solvers.nn import models
 
 

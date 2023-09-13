@@ -21,6 +21,9 @@ from ott.tools.gaussian_mixture import (
     gaussian_mixture_pair,
 )
 
+# on 3.8, neural (flax/optax) is not installed
+_ = pytest.importorskip("optax")
+
 
 class TestFitGmmPair:
 

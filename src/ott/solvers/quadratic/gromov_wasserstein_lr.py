@@ -116,7 +116,14 @@ def compute_reg_gw_cost(
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
   out = LRGWOutput(
-      q=q, r=r, g=g, ot_prob=ot_prob, costs=None, errors=None, epsilon=None
+      q=q,
+      r=r,
+      g=g,
+      ot_prob=ot_prob,
+      costs=None,
+      errors=None,
+      epsilon=None,
+      inner_iterations=None,
   )
 
   cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
@@ -141,6 +148,7 @@ class LRGWOutput(NamedTuple):
   errors: jnp.ndarray
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
+  inner_iterations: int
   reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
@@ -171,10 +179,6 @@ class LRGWOutput(NamedTuple):
     )
 
   @property
-  def linear(self) -> bool:  # noqa: D102
-    return False
-
-  @property
   def geom(self) -> geometry.Geometry:  # noqa: D102
     """Linearized geometry."""
     return _linearized_geometry(self.ot_prob, q=self.q, r=self.r, g=self.g)
@@ -188,8 +192,8 @@ class LRGWOutput(NamedTuple):
     return self.ot_prob.b
 
   @property
-  def linear_output(self) -> bool:  # noqa: D102
-    return False
+  def n_iters(self) -> int:  # noqa: D102
+    return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
   def converged(self) -> bool:  # noqa: D102
@@ -792,6 +796,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         costs=state.costs,
         errors=state.errors,
         epsilon=self.epsilon,
+        inner_iterations=self.inner_iterations,
     )
 
   def _converged(self, state: LRGWState, iteration: int) -> bool:

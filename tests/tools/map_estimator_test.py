@@ -16,6 +16,9 @@ from typing import Optional
 
 import jax.numpy as jnp
 import pytest
+
+_ = pytest.importorskip("flax")
+
 from ott.geometry import pointcloud
 from ott.problems.nn import dataset
 from ott.solvers.nn import losses, models
