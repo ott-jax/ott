@@ -38,6 +38,7 @@ Miscellaneous
     notebooks/tracking_progress
     notebooks/soft_sort
     notebooks/application_biology
+    notebooks/domain_adaptation_with_class_regularization
 
 Quadratic Optimal Transport
 ---------------------------
