@@ -173,7 +173,10 @@ def _sinkhorn_divergence(
     # Create dummy output, corresponds to scenario where static_b is True.
     # This choice ensures that `converged`` of this dummy output is True.
     out_yy = sinkhorn.SinkhornOutput(
-        errors=jnp.array([-jnp.inf]), reg_ot_cost=0.0, threshold=0.0
+        errors=jnp.array([-jnp.inf]),
+        reg_ot_cost=0.0,
+        threshold=0.0,
+        inner_iterations=0,
     )
   else:
     out_yy = linear.solve(geometry_yy, b, b, **kwargs_symmetric)

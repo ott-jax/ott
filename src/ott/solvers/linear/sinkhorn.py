@@ -318,7 +318,6 @@ class SinkhornOutput(NamedTuple):
       below the convergence threshold.
     inner_iterations: number of iterations that were run between two
       computations of errors.
-
   """
 
   f: Optional[jnp.ndarray] = None
