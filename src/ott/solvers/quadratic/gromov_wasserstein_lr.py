@@ -141,6 +141,7 @@ class LRGWOutput(NamedTuple):
   errors: jnp.ndarray
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
+  inner_iterations: int
   reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
@@ -190,6 +191,10 @@ class LRGWOutput(NamedTuple):
   @property
   def linear_output(self) -> bool:  # noqa: D102
     return False
+
+  @property
+  def n_iters(self) -> int:  # noqa: D102
+    return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
   def converged(self) -> bool:  # noqa: D102
@@ -792,6 +797,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         costs=state.costs,
         errors=state.errors,
         epsilon=self.epsilon,
+        inner_iterations=self.inner_iterations,
     )
 
   def _converged(self, state: LRGWState, iteration: int) -> bool:

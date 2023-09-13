@@ -444,13 +444,10 @@ class SinkhornOutput(NamedTuple):
   def linear_output(self) -> bool:  # noqa: D102
     return True
 
-  # TODO(michalk8): this should be always present
   @property
   def n_iters(self) -> int:  # noqa: D102
     """Returns the total number of iterations that were needed to terminate."""
-    if self.errors is None:
-      return -1
-    return jnp.sum(self.errors > -1) * self.inner_iterations
+    return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
   def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
