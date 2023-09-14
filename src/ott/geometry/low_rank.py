@@ -355,8 +355,14 @@ class LRCGeometry(geometry.Geometry):
 class LRKGeometry(geometry.Geometry):
   """TODO."""
 
-  def __init__(self, k1: jnp.ndarray, k2: jnp.ndarray):
-    super().__init__(epsilon=1.0)
+  def __init__(
+      self,
+      k1: jnp.ndarray,
+      k2: jnp.ndarray,
+      epsilon: Optional[float] = None,
+      **kwargs: Any
+  ):
+    super().__init__(epsilon=epsilon, relative_epsilon=False, **kwargs)
     self.k1 = k1
     self.k2 = k2
 
@@ -374,9 +380,9 @@ class LRKGeometry(geometry.Geometry):
     rng1, rng2 = jax.random.split(rng, 2)
 
     assert geom.is_squared_euclidean, "TODO"
+    eps = geom.epsilon
 
     if kernel == "gaussian":
-      eps = geom.epsilon
       r = jnp.maximum(
           jnp.linalg.norm(geom.x, axis=-1).max(),
           jnp.linalg.norm(geom.y, axis=-1).max()
@@ -391,7 +397,7 @@ class LRKGeometry(geometry.Geometry):
     else:
       raise NotImplementedError("TODO(michalk8): error message")
 
-    return cls(k1, k2)
+    return cls(k1, k2, epsilon=eps)
 
   def apply_kernel(  # noqa: D102
       self,
@@ -406,6 +412,11 @@ class LRKGeometry(geometry.Geometry):
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     return self.k1 @ self.k2.T
+
+  @property
+  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+    eps = jnp.finfo(self.dtype).tiny
+    return -self.epsilon * jnp.log(self.kernel_matrix + eps)
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
