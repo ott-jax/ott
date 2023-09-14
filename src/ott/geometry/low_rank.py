@@ -356,7 +356,7 @@ class LRKGeometry(geometry.Geometry):
   """TODO."""
 
   def __init__(self, k1: jnp.ndarray, k2: jnp.ndarray):
-    super().__init__()
+    super().__init__(epsilon=1.0)
     self.k1 = k1
     self.k2 = k2
 
@@ -406,6 +406,20 @@ class LRKGeometry(geometry.Geometry):
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     return self.k1 @ self.k2.T
+
+  @property
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
+    return self.k1.shape[0], self.k2.shape[0]
+
+  @property
+  def dtype(self) -> jnp.dtype:  # noqa: D102
+    return self.k1.dtype
+
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
+    """Not implemented."""
+    raise ValueError("Not implemented.")
 
   def tree_flatten(self):  # noqa: D102
     return [self.k1, self.k2], {}
