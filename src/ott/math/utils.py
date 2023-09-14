@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import scipy.special
 
 if TYPE_CHECKING:
   from ott.geometry import costs
@@ -220,3 +221,10 @@ def barycentric_projection(
   return jax.vmap(
       lambda m, y: cost_fn.barycenter(m, y)[0], in_axes=[0, None]
   )(matrix, y)
+
+
+def lambertw(z: jnp.ndarray) -> jnp.ndarray:
+  # TODO(michalk8): use tfp
+  return jax.pure_callback(
+      lambda z: scipy.special.lambertw(z).real.astype(z.dtype), z, z
+  )

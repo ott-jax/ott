@@ -11,15 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
 from ott import utils
-from ott.geometry import geometry
+from ott.geometry import costs, geometry
+from ott.math import utils as mu
 
-__all__ = ["LRCGeometry"]
+__all__ = ["LRCGeometry", "LRKGeometry"]
+
+if TYPE_CHECKING:
+  from ott.geometry import pointcloud
 
 
 @jax.tree_util.register_pytree_node_class
@@ -345,3 +349,88 @@ class LRCGeometry(geometry.Geometry):
         tgt_mask=tgt_mask,
         **aux_data
     )
+
+
+@jax.tree_util.register_pytree_node_class
+class LRKGeometry(geometry.Geometry):
+  """TODO."""
+
+  def __init__(self, k1: jnp.ndarray, k2: jnp.ndarray):
+    super().__init__()
+    self.k1 = k1
+    self.k2 = k2
+
+  @classmethod
+  def from_pointcloud(
+      cls,
+      geom: "pointcloud.PointCloud",
+      *,
+      kernel: Literal["gaussian", "arccos"],
+      rank: int,
+      rng: Optional[jax.random.PRNGKeyArray] = None
+  ) -> "LRKGeometry":
+    """TODO."""
+    rng = utils.default_prng_key(rng)
+    rng1, rng2 = jax.random.split(rng, 2)
+
+    assert geom.is_squared_euclidean, "TODO"
+
+    if kernel == "gaussian":
+      eps = geom.epsilon
+      r = jnp.maximum(
+          jnp.linalg.norm(geom.x, axis=-1).max(),
+          jnp.linalg.norm(geom.y, axis=-1).max()
+      )
+
+      k1 = _gaussian_kernel(geom.x, eps=eps, n_features=rank, R=r, rng=rng1)
+      k2 = _gaussian_kernel(geom.y, eps=eps, n_features=rank, R=r, rng=rng2)
+    elif kernel == "arccos":
+      # TODO(michalk8): implement me
+      k1 = ...
+      k2 = ...
+    else:
+      raise NotImplementedError("TODO(michalk8): error message")
+
+    return cls(k1, k2)
+
+  def apply_kernel(  # noqa: D102
+      self,
+      scaling: jnp.ndarray,
+      eps: Optional[float] = None,
+      axis: int = 0,
+  ) -> jnp.ndarray:
+    if axis == 0:
+      return self.k2 @ (self.k1.T @ scaling)
+    return self.k1 @ (self.k2.T @ scaling)
+
+  @property
+  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+    return self.k1 @ self.k2.T
+
+  def tree_flatten(self):  # noqa: D102
+    return [self.k1, self.k2], {}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(*children, **aux_data)
+
+
+def _gaussian_kernel(
+    x: jnp.ndarray,
+    eps: float,
+    n_features: int,
+    R: jnp.ndarray,
+    rng: jax.random.PRNGKeyArray,
+) -> jnp.ndarray:
+  n, d = x.shape
+  cost_fn = costs.SqEuclidean()
+
+  y = (R ** 2) / (eps * d)
+  q = y / (2.0 * mu.lambertw(y))
+
+  u = jax.random.normal(rng, shape=(n_features, d)) * jnp.sqrt(q * eps) * 0.5
+  cost = cost_fn.all_pairs(x, u)
+  norm_u = cost_fn.norm(u)
+
+  tmp = 2.0 * (-cost / eps + norm_u / (eps + 2 * R ** 2))
+  return (1.0 / jnp.sqrt(n_features)) * (2 * q) ** (d / 4) * jnp.exp(tmp)
