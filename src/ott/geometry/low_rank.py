@@ -377,7 +377,6 @@ class LRKGeometry(geometry.Geometry):
   ) -> "LRKGeometry":
     """TODO."""
     rng = utils.default_prng_key(rng)
-    rng1, rng2 = jax.random.split(rng, 2)
 
     assert geom.is_squared_euclidean, "TODO"
     eps = geom.epsilon
@@ -388,8 +387,8 @@ class LRKGeometry(geometry.Geometry):
           jnp.linalg.norm(geom.y, axis=-1).max()
       )
 
-      k1 = _gaussian_kernel(geom.x, eps=eps, n_features=rank, R=r, rng=rng1)
-      k2 = _gaussian_kernel(geom.y, eps=eps, n_features=rank, R=r, rng=rng2)
+      k1 = _gaussian_kernel(geom.x, eps=eps, n_features=rank, R=r, rng=rng)
+      k2 = _gaussian_kernel(geom.y, eps=eps, n_features=rank, R=r, rng=rng)
     elif kernel == "arccos":
       # TODO(michalk8): implement me
       k1 = ...
@@ -433,7 +432,7 @@ class LRKGeometry(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self):  # noqa: D102
-    return [self.k1, self.k2], {}
+    return [self.k1, self.k2, self._epsilon_init], {}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
@@ -458,4 +457,6 @@ def _gaussian_kernel(
   norm_u = cost_fn.norm(u)
 
   tmp = 2.0 * (-cost / eps + norm_u / (eps + 2 * R ** 2))
-  return (1.0 / jnp.sqrt(n_features)) * (2 * q) ** (d / 4) * jnp.exp(tmp)
+  # tmp = -2.0 * cost / eps + norm_u / (eps * q)
+  phi = (2 * q) ** (d / 4) * jnp.exp(tmp)
+  return (1.0 / jnp.sqrt(n_features)) * phi
