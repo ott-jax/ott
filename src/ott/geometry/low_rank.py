@@ -373,6 +373,7 @@ class LRKGeometry(geometry.Geometry):
       *,
       kernel: Literal["gaussian", "arccos"],
       rank: int,
+      s: float = 1.0,
       rng: Optional[jax.random.PRNGKeyArray] = None
   ) -> "LRKGeometry":
     """TODO."""
@@ -387,12 +388,11 @@ class LRKGeometry(geometry.Geometry):
           jnp.linalg.norm(geom.y, axis=-1).max()
       )
 
-      k1 = _gaussian_kernel(geom.x, eps=eps, n_features=rank, R=r, rng=rng)
-      k2 = _gaussian_kernel(geom.y, eps=eps, n_features=rank, R=r, rng=rng)
+      k1 = _gaussian_kernel(rng, geom.x, rank, eps=eps, R=r)
+      k2 = _gaussian_kernel(rng, geom.y, rank, eps=eps, R=r)
     elif kernel == "arccos":
-      # TODO(michalk8): implement me
-      k1 = ...
-      k2 = ...
+      k1 = _arccos_kernel(rng, geom.x, rank, s=s)
+      k2 = _arccos_kernel(rng, geom.y, rank, s=s)
     else:
       raise NotImplementedError("TODO(michalk8): error message")
 
@@ -418,6 +418,10 @@ class LRKGeometry(geometry.Geometry):
     return -self.epsilon * jnp.log(self.kernel_matrix + eps)
 
   @property
+  def rank(self) -> int:  # noqa: D102
+    return self.k1.shape[1]
+
+  @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
     return self.k1.shape[0], self.k2.shape[0]
 
@@ -440,13 +444,13 @@ class LRKGeometry(geometry.Geometry):
 
 
 def _gaussian_kernel(
-    x: jnp.ndarray,
-    eps: float,
-    n_features: int,
-    R: jnp.ndarray,
     rng: jax.random.PRNGKeyArray,
+    x: jnp.ndarray,
+    n_features: int,
+    eps: float,
+    R: jnp.ndarray,
 ) -> jnp.ndarray:
-  n, d = x.shape
+  _, d = x.shape
   cost_fn = costs.SqEuclidean()
 
   y = (R ** 2) / (eps * d)
@@ -460,3 +464,22 @@ def _gaussian_kernel(
   # tmp = -2.0 * cost / eps + norm_u / (eps * q)
   phi = (2 * q) ** (d / 4) * jnp.exp(tmp)
   return (1.0 / jnp.sqrt(n_features)) * phi
+
+
+def _arccos_kernel(
+    rng: jax.random.PRNGKeyArray,
+    x: jnp.ndarray,
+    n_features: int,
+    s: float = 1.0,
+    std: float = 1.0,
+    kappa: float = 1e-6,
+) -> jnp.ndarray:
+  n, d = x.shape
+  c = jnp.sqrt(2) * (std ** (d / 2))
+
+  u = jax.random.normal(rng, shape=(n_features, d)) * std
+  tmp = -(1 / 4) * jnp.sum(u ** 2, axis=-1) * (1.0 - (1.0 / (std ** 2)))
+  phi = c * (jnp.maximum(0.0, (x @ u.T)) ** s) * jnp.exp(tmp)
+
+  return jnp.c_[(1.0 / jnp.sqrt(n_features)) * phi,
+                jnp.full((n,), fill_value=kappa)]
