@@ -17,11 +17,13 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+import scipy.sparse as sp
 from jax.experimental.sparse.linalg import lobpcg_standard
 from scipy.special import ive
 
 from ott.geometry import geometry
-from ott.utils import default_prng_key
+
+#from ott.utils import default_prng_key
 
 __all__ = ["Geodesic"]
 
@@ -52,12 +54,14 @@ class Geodesic(geometry.Geometry):
     self.laplacian = laplacian
     self.t = t
     self.order = order
+    self.chebyshev_coeffs = None
 
   @classmethod
   def from_graph(
       cls,
       G: jnp.ndarray,
       t: Optional[float] = 1e-3,
+      order=100,
       directed: bool = False,
       normalize: bool = False,
       **kwargs: Any
@@ -70,6 +74,7 @@ class Geodesic(geometry.Geometry):
         If `None`, it defaults to :math:`\frac{1}{|E|} \sum_{(u, v) \in E}
         \text{weight}(u, v)` :cite:`crane:13`. In this case, the ``graph``
         must be specified and the edge weights are assumed to be positive.
+      order: Max order of Chebyshev polynomial.
       directed: Whether the ``graph`` is directed. If not, it's made
         undirected as :math:`G + G^T`. This parameter is ignored when passing
         the Laplacian directly, assumed to be symmetric.
@@ -99,7 +104,19 @@ class Geodesic(geometry.Geometry):
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
 
-    return cls(laplacian, t=t, **kwargs)
+    # Create an instance of the Geodesic class and set the attribute
+    geodesic_instance = cls(laplacian, t=t, order=order, **kwargs)
+
+    # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
+    chebyshev_coeffs = (
+        2 *
+        ive(jnp.arange(0, geodesic_instance.order + 1), -geodesic_instance.t)
+    ).tolist()
+
+    # Set the attribute
+    geodesic_instance.chebyshev_coeffs = chebyshev_coeffs
+
+    return geodesic_instance
 
   def apply_kernel(
       self,
@@ -118,11 +135,12 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
 
-    def compute_largest_eigenvalue(laplacian_matrix, k):
+    def compute_largest_eigenvalue(laplacian_matrix, k, seed=None):
       # Compute the largest eigenvalue of the Laplacian matrix.
+      if seed is None:
+        seed = jax.random.PRNGKey(0)
       n, _ = self.shape
-      prng_key = default_prng_key()
-      initial_directions = jax.random.normal(prng_key, (n, k))
+      initial_directions = jax.random.normal(seed, (n, k))
       eigvals, _, _ = lobpcg_standard(laplacian_matrix, initial_directions, m=k)
 
       return np.max(eigvals)
@@ -133,7 +151,8 @@ class Geodesic(geometry.Geometry):
       if largest_eigenvalue > 2:
         rescaled_laplacian = laplacian_matrix.copy()
         rescaled_laplacian /= largest_eigenvalue
-      return 2 * rescaled_laplacian
+        return 2 * rescaled_laplacian
+      return laplacian_matrix
 
     def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
       # Define the scaled Laplacian matrix.
@@ -141,24 +160,21 @@ class Geodesic(geometry.Geometry):
       identity = jnp.eye(n)
       return laplacian_matrix - identity
 
-    def chebyshev_coefficients(t: float, max_order: int) -> List[float]:
-      # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
-      return (2 * ive(jnp.arange(0, max_order + 1), -t)).tolist()
-
     def compute_chebyshev_approximation(
         x: jnp.ndarray, coeffs: List[float]
     ) -> jnp.ndarray:
-      # Compute the Chebyshev polynomial approx for the given input and coeffs.
-      return self.apply_kernel(x, coeffs)
+      # Compute the Chebyshev polynomial approximation for
+      # the given input and coefficients.
+      x_dense = x.toarray() if sp.issparse(x) else x
+      return np.polynomial.chebyshev.chebval(x_dense, coeffs)
 
     rescaled_laplacian = rescale_laplacian(self.laplacian)
     scaled_laplacian = define_scaled_laplacian(rescaled_laplacian)
-    chebyshev_coeffs = chebyshev_coefficients(self.t, self.order)
 
     laplacian_times_signal = scaled_laplacian.dot(scaling)  # Apply the kernel
 
     return compute_chebyshev_approximation(
-        laplacian_times_signal, chebyshev_coeffs
+        laplacian_times_signal, self.chebyshev_coeffs
     )
 
   @property
