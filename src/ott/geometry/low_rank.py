@@ -353,7 +353,14 @@ class LRCGeometry(geometry.Geometry):
 
 @jax.tree_util.register_pytree_node_class
 class LRKGeometry(geometry.Geometry):
-  """Low-rank kernel geometry :cite:`scetbon`."""
+  """Low-rank kernel geometry :cite:`scetbon:20`.
+
+  Args:
+    k1: TODO.
+    k2: TODO.
+    epsilno: TODO.
+    kwargs: TODO.
+  """
 
   def __init__(
       self,
@@ -376,7 +383,18 @@ class LRKGeometry(geometry.Geometry):
       s: float = 1.0,
       rng: Optional[jax.random.PRNGKeyArray] = None
   ) -> "LRKGeometry":
-    """TODO."""
+    """TODO.
+
+    Args:
+      geom: TODO.
+      kernel: TODO.
+      rank: TODO.
+      s: TODO
+      rng: TODO.
+
+    Returns:
+      Low-rank kernel geometry.
+    """
     rng = utils.default_prng_key(rng)
 
     assert geom.is_squared_euclidean, "TODO"
