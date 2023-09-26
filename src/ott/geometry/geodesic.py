@@ -15,15 +15,13 @@
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import numpy as np
 import scipy.sparse as sp
-from jax.experimental.sparse.linalg import lobpcg_standard
 from scipy.special import ive
 
 from ott.geometry import geometry
-
-#from ott.utils import default_prng_key
 
 __all__ = ["Geodesic"]
 
@@ -141,7 +139,9 @@ class Geodesic(geometry.Geometry):
         seed = jax.random.PRNGKey(0)
       n, _ = self.shape
       initial_directions = jax.random.normal(seed, (n, k))
-      eigvals, _, _ = lobpcg_standard(laplacian_matrix, initial_directions, m=k)
+      eigvals, _, _ = jesp.linalg.lobpcg_standard(
+          laplacian_matrix, initial_directions, m=k
+      )
 
       return np.max(eigvals)
 
