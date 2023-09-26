@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 import jax
 import jax.experimental.sparse as jesp
@@ -46,13 +46,17 @@ class Geodesic(geometry.Geometry):
       laplacian: jnp.ndarray,
       t: float = 1e-3,
       order: int = 100,
+      chebyshev_coeffs: Optional[List[float]] = None,
+      numerical_scheme: Literal["backward_euler",
+                                "crank_nicolson"] = "backward_euler",
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
     self.laplacian = laplacian
     self.t = t
     self.order = order
-    self.chebyshev_coeffs = None
+    self.chebyshev_coeffs = chebyshev_coeffs
+    self.numerical_scheme = numerical_scheme
 
   @classmethod
   def from_graph(
@@ -232,10 +236,9 @@ class Geodesic(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [self.laplacian, self.t], {
-        "order": self.order,
+    return [self.laplacian, self.t, self.order], {
+        "chebyshev_coeffs": self.chebyshev_coeffs,
         "numerical_scheme": self.numerical_scheme,
-        "tol": self.tol,
     }
 
   @classmethod
