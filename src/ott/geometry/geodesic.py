@@ -142,9 +142,16 @@ class Geodesic(geometry.Geometry):
       if seed is None:
         seed = jax.random.PRNGKey(0)
       n, _ = self.shape
-      initial_directions = jax.random.normal(seed, (n, k))
+      # Generate random initial directions for eigenvalue computation
+      initial_dirs = jax.random.normal(seed, (n, k))
+
+      # Create a sparse matrix-vector product function using sparsify
+      # This function multiplies the sparse laplacian_matrix with a vector
+      lapl_vector_product = jesp.sparsify(lambda v: laplacian_matrix @ v)
+
+      # Compute eigenvalues using the sparse matrix-vector product
       eigvals, _, _ = jesp.linalg.lobpcg_standard(
-          laplacian_matrix, initial_directions, m=k
+          lapl_vector_product, initial_dirs, m=k
       )
 
       return np.max(eigvals)
@@ -237,8 +244,8 @@ class Geodesic(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.laplacian, self.t, self.order], {
-        "chebyshev_coeffs": self.chebyshev_coeffs,
         "numerical_scheme": self.numerical_scheme,
+        "chebyshev_coeffs": self.chebyshev_coeffs,
     }
 
   @classmethod
