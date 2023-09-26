@@ -353,7 +353,7 @@ class LRCGeometry(geometry.Geometry):
 
 @jax.tree_util.register_pytree_node_class
 class LRKGeometry(geometry.Geometry):
-  """TODO."""
+  """Low-rank kernel geometry :cite:`scetbon`."""
 
   def __init__(
       self,

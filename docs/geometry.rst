@@ -46,6 +46,7 @@ Geometries
     grid.Grid
     graph.Graph
     low_rank.LRCGeometry
+    low_rank.LRKGeometry
     epsilon_scheduler.Epsilon
 
 Cost Functions
