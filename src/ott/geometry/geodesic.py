@@ -194,6 +194,11 @@ class Geodesic(geometry.Geometry):
     return self.apply_kernel(jnp.eye(n))
 
   @property
+  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+    # Calculate the cost matrix using the formula (5) from the main reference
+    return -4 * self.t * jnp.log(self.kernel_matrix)
+
+  @property
   def _scale(self) -> float:
     """Constant used to scale the Laplacian."""
     if self.numerical_scheme == "backward_euler":
