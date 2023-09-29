@@ -154,7 +154,7 @@ class Geodesic(geometry.Geometry):
           lapl_vector_product, initial_dirs, m=k
       )
 
-      return np.max(eigvals)
+      return jnp.max(eigvals)
 
     def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
       # Rescale the Laplacian matrix.
