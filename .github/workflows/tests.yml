@@ -83,6 +83,8 @@ jobs:
         include:
         - python-version: '3.9'
           os: macos-latest
+        - python-version: '3.10'
+          os: macos-latest-xlarge
 
     steps:
     - uses: actions/checkout@v3
