@@ -21,6 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.special import ive
 
+from ott import utils
 from ott.geometry import geometry
 
 __all__ = ["Geodesic"]
@@ -137,13 +138,13 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
 
-    def compute_largest_eigenvalue(laplacian_matrix, k, seed=None):
+    def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
       # Compute the largest eigenvalue of the Laplacian matrix.
-      if seed is None:
-        seed = jax.random.PRNGKey(0)
+      if rng is None:
+        rng = utils.default_prng_key(rng)
       n, _ = self.shape
       # Generate random initial directions for eigenvalue computation
-      initial_dirs = jax.random.normal(seed, (n, k))
+      initial_dirs = jax.random.normal(rng, (n, k))
 
       # Create a sparse matrix-vector product function using sparsify
       # This function multiplies the sparse laplacian_matrix with a vector
