@@ -289,16 +289,15 @@ class Rank2Initializer(LRInitializer):
     lambda_1 = jnp.min(
         jnp.array([jnp.min(a), jnp.min(init_g),
                    jnp.min(b)])
-    ) * .5
+    ) * 0.5
 
-    # normalization to 1 can overflow in i32 (e.g., n=128k)
-    # using the formula: r * (r + 1) / 2 will raise:
-    # OverflowError: Python int 16384128000 too large to convert to int32
-    # normalizing by `jnp.sum()` overflows silently
-    g1 = 2. * jnp.arange(1, r + 1) / (r ** 2 + r)
-    g2 = (init_g - lambda_1 * g1) / (1. - lambda_1)
-    x = 2. * jnp.arange(1, n + 1) / (n ** 2 + n)
-    y = (marginal - lambda_1 * x) / (1. - lambda_1)
+    g1 = jnp.arange(1, r + 1)
+    g1 /= g1.astype(float).sum()
+    g2 = (init_g - lambda_1 * g1) / (1.0 - lambda_1)
+
+    x = jnp.arange(1, n + 1)
+    x /= x.astype(float).sum()
+    y = (marginal - lambda_1 * x) / (1.0 - lambda_1)
 
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
             ((1 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
