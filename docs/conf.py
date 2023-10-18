@@ -127,6 +127,7 @@ linkcheck_ignore = [
     "https://doi.org/10.1002/mana.19901470121",
     "https://doi.org/10.1145/2516971.2516977",
     "https://doi.org/10.1145/2766963",
+    "https://keras.io/examples/nlp/pretrained_word_embeddings/",
 ]
 
 # List of patterns, relative to source directory, that match files and
