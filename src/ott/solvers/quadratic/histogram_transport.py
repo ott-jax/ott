@@ -137,7 +137,8 @@ class HistogramTransport:
   The current implementation requires uniform marginals.
   If there are an uneven number of points in the two distributions,
   then we perform a stratified subsample of the distribution of
-  distances to be able to approximate the distance.
+  distances to be able to approximate the Wasserstein distance between
+  the local distributions of distnaces.
 
   Args:
   softness: regularization for soft sort. Set to `-1` for normal sorting

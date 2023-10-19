@@ -168,6 +168,3 @@ docs/html
 
 # macos
 **/.DS_Store
-src/ott/solvers/quadratic/test.ipynb
-src/ott/solvers/quadratic/initializers.py
-tests/solvers/quadratic/ht_test.py
