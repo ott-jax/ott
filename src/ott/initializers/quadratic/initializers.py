@@ -23,7 +23,11 @@ if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
 
-__all__ = ["BaseQuadraticInitializer", "QuadraticInitializer"]
+__all__ = [
+    "BaseQuadraticInitializer",
+    "QuadraticInitializer",
+    "ArbitraryTransportInitializer",
+]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -31,7 +35,7 @@ class BaseQuadraticInitializer(abc.ABC):
   """Base class for quadratic initializers.
 
   Args:
-    kwargs: Keyword arguments.
+  kwargs: Keyword arguments.
   """
 
   def __init__(self, **kwargs: Any):
@@ -43,24 +47,26 @@ class BaseQuadraticInitializer(abc.ABC):
     """Compute the initial linearization of a quadratic problem.
 
     Args:
-      quad_prob: Quadratic problem to linearize.
-      kwargs: Additional keyword arguments.
+    quad_prob: Quadratic problem to linearize.
+    kwargs: Additional keyword arguments.
 
     Returns:
-      Linear problem.
+    Linear problem.
     """
     from ott.problems.linear import linear_problem
 
     n, m = quad_prob.geom_xx.shape[0], quad_prob.geom_yy.shape[0]
     geom = self._create_geometry(quad_prob, **kwargs)
-    assert geom.shape == (n, m), f"Expected geometry of shape `{n, m}`, " \
-                                 f"found `{geom.shape}`."
+    assert geom.shape == (n, m), (
+        f"Expected geometry of shape `{n, m}`, "
+        f"found `{geom.shape}`."
+    )
     return linear_problem.LinearProblem(
         geom,
         a=quad_prob.a,
         b=quad_prob.b,
         tau_a=quad_prob.tau_a,
-        tau_b=quad_prob.tau_b
+        tau_b=quad_prob.tau_b,
     )
 
   @abc.abstractmethod
@@ -70,11 +76,11 @@ class BaseQuadraticInitializer(abc.ABC):
     """Compute initial geometry for linearization.
 
     Args:
-      quad_prob: Quadratic problem.
-      kwargs: Additional keyword arguments.
+    quad_prob: Quadratic problem.
+    kwargs: Additional keyword arguments.
 
     Returns:
-      Geometry used to initialize the linearized problem.
+    Geometry used to initialize the linearized problem.
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
@@ -112,8 +118,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   .. math::
 
-    \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
-     \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
+  \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
+  \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
 
   When working with the fused problem, a linear term is added to the cost
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
@@ -125,20 +131,21 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       *,
       epsilon: float,
       relative_epsilon: Optional[bool] = None,
-      **kwargs: Any
+      **kwargs: Any,
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
     Args:
-      quad_prob: Quadratic OT problem.
-      epsilon: Epsilon regularization.
-      relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
-      kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+    quad_prob: Quadratic OT problem.
+    epsilon: Epsilon regularization.
+    relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
 
     Returns:
-      The initial geometry used to initialize the linearized problem.
+    The initial geometry used to initialize the linearized problem.
     """
     from ott.problems.quadratic import quadratic_problem
+
     del kwargs
 
     marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
@@ -148,6 +155,68 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
     tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
     tmp = jnp.outer(tmp1, tmp2)
+
+    if quad_prob.is_balanced:
+      cost_matrix = marginal_cost.cost_matrix - tmp
+    else:
+      # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
+      init_transport = jnp.outer(quad_prob.a, quad_prob.b)
+      marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
+
+      epsilon = quadratic_problem.update_epsilon_unbalanced(
+          epsilon=epsilon, transport_mass=marginal_1.sum()
+      )
+      unbalanced_correction = quad_prob.cost_unbalanced_correction(
+          init_transport, marginal_1, marginal_2, epsilon=epsilon
+      )
+      cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
+
+    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    return geometry.Geometry(
+        cost_matrix=cost_matrix,
+        epsilon=epsilon,
+        relative_epsilon=relative_epsilon
+    )
+
+
+class ArbitraryTransportInitializer(BaseQuadraticInitializer):
+  r"""Initialize a linear problem locally around a given coupling."""
+
+  def __init__(self, init_coupling: jnp.ndarray, **kwargs):
+    super().__init__(**kwargs)
+    self.init_coupling = init_coupling
+
+  def _create_geometry(
+      self,
+      quad_prob: "quadratic_problem.QuadraticProblem",
+      *,
+      epsilon: float,
+      relative_epsilon: Optional[bool] = None,
+      **kwargs: Any,
+  ) -> geometry.Geometry:
+    """Compute initial geometry for linearization using the given coupling.
+
+    Args:
+    quad_prob: Quadratic OT problem.
+    epsilon: Epsilon regularization.
+    relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+
+    Returns:
+    The initial geometry used to initialize the linearized problem.
+    """
+    from ott.problems.quadratic import quadratic_problem
+
+    del kwargs
+
+    marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
+    geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
+
+    h1, h2 = quad_prob.quad_loss
+    tmp1 = h1.func(geom_xx.cost_matrix)
+    tmp2 = h2.func(geom_yy.cost_matrix)
+    # TODO: Add checks that the coupling is valid
+    tmp = tmp1 @ self.init_coupling @ tmp2.T
 
     if quad_prob.is_balanced:
       cost_matrix = marginal_cost.cost_matrix - tmp
