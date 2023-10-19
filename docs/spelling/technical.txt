@@ -88,6 +88,7 @@ omics
 optimality
 overfitting
 parallelization
+parallelize
 parameterization
 parameterizing
 piecewise
