@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 __all__ = [
     "BaseQuadraticInitializer",
     "QuadraticInitializer",
-    "ArbitraryTransportInitializer",
+    "FixedCouplingInitializer",
 ]
 
 
@@ -179,7 +179,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     )
 
 
-class ArbitraryTransportInitializer(BaseQuadraticInitializer):
+class FixedCouplingInitializer(BaseQuadraticInitializer):
   r"""Initialize a linear problem locally around a given coupling."""
 
   def __init__(self, init_coupling: jnp.ndarray, **kwargs):
