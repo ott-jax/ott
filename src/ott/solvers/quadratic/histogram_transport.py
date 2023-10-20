@@ -141,7 +141,7 @@ class HistogramTransport:
   the local distributions of distnaces.
 
   Args:
-  softness: regularization for soft sort. Set to `-1` for normal sorting
+  epsilon_1d: regularization for soft sort. Set to `0.0` for normal sorting
   p: exponent for computing the transport distance betweeen histograms
   epsilon: regularization parameter for the resulting Sinkhorn problem
   min_iterations: minimum iterations for computing Sinkhorn distance
@@ -150,7 +150,7 @@ class HistogramTransport:
 
   def __init__(
       self,
-      epsilon_1d: float = -1.0,
+      epsilon_1d: float = 0.0,
       p: float = 1.0,
       epsilon: float = 1.0,
       min_iterations: int = 10,
