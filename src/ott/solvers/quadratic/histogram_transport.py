@@ -150,13 +150,13 @@ class HistogramTransport:
 
   def __init__(
       self,
-      softness: float = -1.0,
+      epsilon_1d: float = -1.0,
       p: float = 1.0,
       epsilon: float = 1.0,
       min_iterations: int = 10,
       max_iterations: int = 100,
   ):
-    self.softness = softness
+    self.epsilon_1d = epsilon_1d
     self.p = p
     self.epsilon = epsilon
     self.linear_ot_solver = sinkhorn.Sinkhorn(
@@ -187,12 +187,16 @@ class HistogramTransport:
     x_indices = jnp.round(small_indices * (m / min_num_pts)).astype(int)
     y_indices = jnp.round(small_indices * (n / min_num_pts)).astype(int)
 
-    if self.softness < 0:
+    if self.epsilon_1d < 0:
       sorted_dists_xx = jax.lax.sort(dists_xx, dimension=-1)
       sorted_dists_yy = jax.lax.sort(dists_yy, dimension=-1)
     else:
-      sorted_dists_xx = soft_sort.sort(dists_xx, axis=-1, epsilon=self.softness)
-      sorted_dists_yy = soft_sort.sort(dists_yy, axis=-1, epsilon=self.softness)
+      sorted_dists_xx = soft_sort.sort(
+          dists_xx, axis=-1, epsilon=self.epsilon_1d
+      )
+      sorted_dists_yy = soft_sort.sort(
+          dists_yy, axis=-1, epsilon=self.epsilon_1d
+      )
 
     # Uniformly subsample distances
     sorted_dists_xx = jnp.take_along_axis(
