@@ -187,7 +187,7 @@ class HistogramTransport:
     x_indices = jnp.round(small_indices * (m / min_num_pts)).astype(int)
     y_indices = jnp.round(small_indices * (n / min_num_pts)).astype(int)
 
-    if self.epsilon_1d < 0:
+    if self.epsilon_1d <= 0.0:
       sorted_dists_xx = jax.lax.sort(dists_xx, dimension=-1)
       sorted_dists_yy = jax.lax.sort(dists_yy, dimension=-1)
     else:
