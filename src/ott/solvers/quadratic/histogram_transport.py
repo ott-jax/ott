@@ -27,6 +27,7 @@ import numpy as np
 
 from ott import utils
 from ott.geometry import geometry
+from ott.geometry.costs import TICost
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
@@ -133,6 +134,9 @@ class HTState(NamedTuple):
 class HistogramTransport:
   """Histogram Transport solver.
 
+  WARNING: As implemented, this solver assumes uniform marginals,
+  non-uniform marginal solver coming soon!
+
   Computes the First Lower Bound distance between two distributions.
   The current implementation requires uniform marginals.
   If there are an uneven number of points in the two distributions,
@@ -141,11 +145,13 @@ class HistogramTransport:
   the local distributions of distnaces.
 
   Args:
-  epsilon_1d: regularization for soft sort. Set to `0.0` for normal sorting
-  p: exponent for computing the transport distance betweeen histograms
-  epsilon: regularization parameter for the resulting Sinkhorn problem
-  min_iterations: minimum iterations for computing Sinkhorn distance
-  max_iterations: maximum iterations for computing Sinkhorn distance
+  `epsilon_1d`: regularization for soft sort. Set to `0.0` for normal sorting
+  `p`: exponent for computing the transport distance betweeen histograms
+  `epsilon`: regularization parameter for the resulting Sinkhorn problem
+  `min_iterations`: minimum iterations for computing Sinkhorn distance
+  `max_iterations`: maximum iterations for computing Sinkhorn distance
+  `cost_fn`: cost function for transport on the real line. If this is
+  provided, the parameter `p` is ignored
   """
 
   def __init__(
@@ -155,6 +161,7 @@ class HistogramTransport:
       epsilon: float = 1.0,
       min_iterations: int = 10,
       max_iterations: int = 100,
+      cost_fn: Union[None, TICost] = None,
   ):
     self.epsilon_1d = epsilon_1d
     self.p = p
@@ -162,6 +169,7 @@ class HistogramTransport:
     self.linear_ot_solver = sinkhorn.Sinkhorn(
         max_iterations=max_iterations, min_iterations=min_iterations
     )
+    self.cost_fn = cost_fn
 
   def __call__(
       self,
@@ -206,32 +214,36 @@ class HistogramTransport:
         sorted_dists_yy, y_indices[None, :], -1
     )
 
-    match self.p:
-      case 1.0:
-        cost_xy = jnp.sum(
-            jnp.abs(sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]),
-            axis=-1,
-        )
-      case 2.0:
-        cost_xy = jax.lax.sqrt(
-            jnp.sum(
-                jnp.square(
-                    sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]
-                ),
-                axis=-1,
-            )
-        )
-      case _:
-        cost_xy = jnp.power(
-            jnp.sum(
-                jnp.power(
-                    sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :],
-                    self.p,
-                ),
-                axis=-1,
-            ),
-            1 / self.p,
-        )
+    if self.cost_fn is None:
+      match self.p:
+        case 1.0:
+          cost_xy = jnp.sum(
+              jnp
+              .abs(sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]),
+              axis=-1,
+          )
+        case 2.0:
+          cost_xy = jax.lax.sqrt(
+              jnp.sum(
+                  jnp.square(
+                      sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]
+                  ),
+                  axis=-1,
+              )
+          )
+        case _:
+          cost_xy = jnp.power(
+              jnp.sum(
+                  jnp.power(
+                      sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :],
+                      self.p,
+                  ),
+                  axis=-1,
+              ),
+              1 / self.p,
+          )
+    else:
+      cost_xy = self.cost_fn.all_pairs(sorted_dists_xx, sorted_dists_yy)
 
     geom_xy = geometry.Geometry(cost_matrix=cost_xy, epsilon=self.epsilon)
 
