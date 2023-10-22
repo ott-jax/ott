@@ -17,7 +17,7 @@ from typing import Literal, Union
 import jax
 import jax.numpy as jnp
 
-from ott.geometry.costs import TICost
+from ott.geometry.costs import PNormP, TICost
 from ott.tools import soft_sort
 
 
@@ -32,8 +32,7 @@ class WassersteinSolver_1d:
 
   Args:
   `epsilon`: regularization parameter for sorting. Set to 0.0 for hard-sorting.
-  `p`: Exponent used to compute distance. Ignored if `cost_fn` is passed.
-  `cost_fn`: The cost function to use to compute distance.
+  `cost_fn`: The cost function for transport. Defaults to Euclidean distance.
   `method`: The method used for computing the distance on the line. Options
   currently supported are:
   `subsample`: Take a stratfied subsample of the distances,
@@ -47,31 +46,31 @@ class WassersteinSolver_1d:
   def __init__(
       self,
       epsilon: float = 0.0,
-      p: float = 1.0,
-      cost_fn: Union[None, TICost] = None,
+      cost_fn: Union[TICost, None] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
   ):
     self.epsilon = epsilon
-    self.p = p
-    self.cost_fn = cost_fn
     self.method = method
     self.n_subsamples = n_subsamples
+    if cost_fn is None:
+      cost_fn = PNormP(2.0)
+    self.cost_fn = cost_fn
 
   def __call__(self, x, y):
     """Computes the 1D Wasserstein Distance between `x` and `y`."""
     match self.method:
       case "subsample":
-        return self._cost(
+        return self.cost_fn.pairwise(
             self._sort(x)[jnp.linspace(0, x.shape[0],
                                        num=self.n_subsamples).astype(int)],
             self._sort(y)[jnp.linspace(0, y.shape[0],
                                        num=self.n_subsamples).astype(int)],
         )
       case "equal":
-        return self._cost(self._sort(x), self._sort(y))
+        return self.cost_fn.pairwise(self._sort(x), self._sort(y))
       case "quantile":
-        return self._cost(
+        return self.cost_fn.pairwise(
             jnp.quantile(
                 a=self._sort(x), q=jnp.linspace(0, 1, self.n_subsamples)
             ),
@@ -81,11 +80,6 @@ class WassersteinSolver_1d:
         )
       case _:
         raise KeyError(f"Method {self.method} not implemented!")
-
-  def _cost(self, sorted_x, sorted_y):
-    if self.cost_fn is None:
-      return self._power_cost(sorted_x, sorted_y)
-    return self.cost_fn.pairwise(sorted_x, sorted_y)
 
   def _power_cost(self, sorted_x, sorted_y):
     match self.p:
