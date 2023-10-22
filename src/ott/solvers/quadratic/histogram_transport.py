@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import (
-    Any,
-    Callable,
-    NamedTuple,
     Optional,
-    Tuple,
     Union,
 )
 
 import jax
 import jax.experimental
-import jax.numpy as jnp
-import numpy as np
 
 from ott import utils
 from ott.geometry import geometry
@@ -32,99 +26,7 @@ from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn, wasserstein_1d
 
-__all__ = ["HistogramTransport", "HTState"]
-
-ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "HTState"]], None]
-
-
-class HTOutput(NamedTuple):
-  """Holds the output of the Histogram Transport solver.
-
-  Args:
-  costs:
-  linear_convergence:
-  converged:
-  errors:
-  linear_state:
-  geom:
-  old_transport_mass:
-  """
-
-  converged: bool = False
-  errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[sinkhorn.SinkhornOutput] = None
-  geom: Optional[geometry.Geometry] = None
-
-  def set(self, **kwargs: Any) -> "HTOutput":
-    """Return a copy of self, possibly with overwrites."""
-    return self._replace(**kwargs)
-
-  @property
-  def matrix(self) -> jnp.ndarray:
-    """Transport matrix."""
-    return self.linear_state.matrix
-
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
-    """Apply the transport to an array; axis=1 for its transpose."""
-    return self.linear_state.apply(inputs, axis=axis)
-
-  @property
-  def reg_ht_cost(self) -> float:
-    """Regularized optimal transport cost of the histogram transport."""
-    return self.linear_state.reg_ot_cost
-
-  @property
-  def primal_cost(self) -> float:
-    """Return transport cost of current linear OT solution at geometry."""
-    return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
-
-
-class HTState(NamedTuple):
-  """State of the Histogram-Transport solver.
-
-  Attributes:
-  costs:
-  linear_convergence:
-  linear_state:
-  linear_pb:
-  rngs:
-  errors:
-  """
-
-  costs: jnp.ndarray
-  linear_convergence: jnp.ndarray
-  linear_state: sinkhorn.SinkhornState
-  linear_pb: linear_problem.LinearProblem
-  rngs: Optional[jax.random.PRNGKeyArray] = None
-  errors: Optional[jnp.ndarray] = None
-
-  def set(self, **kwargs: Any) -> "HTState":
-    """Return a copy of self, possibly with overwrites."""
-    return self._replace(**kwargs)
-
-  def update(  # noqa: D102
-      self,
-      iteration: int,
-      linear_sol: sinkhorn.SinkhornState,
-      linear_pb: linear_problem.LinearProblem,
-      store_errors: bool,
-  ) -> "HTState":
-    costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
-    errors = None
-    if store_errors and self.errors is not None:
-      errors = self.errors.at[iteration, :].set(linear_sol.errors)
-    linear_convergence = self.linear_convergence.at[iteration].set(
-        linear_sol.converged
-    )
-
-    return self.set(
-        linear_state=linear_sol,
-        linear_pb=linear_pb,
-        costs=costs,
-        linear_convergence=linear_convergence,
-        errors=errors,
-    )
+__all__ = ["HistogramTransport"]
 
 
 # @jax.tree_util.register_pytree_node_class
@@ -174,7 +76,7 @@ class HistogramTransport:
       self,
       prob: quadratic_problem.QuadraticProblem,
       rng: Optional[jax.random.PRNGKeyArray] = None,
-  ) -> HTOutput:
+  ) -> sinkhorn.SinkhornOutput:
     """Run the Histogram Transport solver.
 
     Args:
@@ -194,11 +96,4 @@ class HistogramTransport:
 
     self.linear_pb = linear_problem.LinearProblem(geom=geom_xy)
 
-    wass_out = self.linear_ot_solver(self.linear_pb)
-
-    return HTOutput(
-        converged=wass_out.converged,
-        errors=wass_out.errors,
-        linear_state=wass_out,
-        geom=self.linear_pb.geom,
-    )
+    return self.linear_ot_solver(self.linear_pb)
