@@ -30,12 +30,9 @@ from ott.geometry import geometry
 from ott.geometry.costs import TICost
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import sinkhorn, sinkhorn_lr
-from ott.tools import soft_sort
+from ott.solvers.linear import sinkhorn, wasserstein_1d
 
 __all__ = ["HistogramTransport", "HTState"]
-
-LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 ProgressCallbackFn_t = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "HTState"]], None]
@@ -56,7 +53,7 @@ class HTOutput(NamedTuple):
 
   converged: bool = False
   errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[LinearOutput] = None
+  linear_state: Optional[sinkhorn.SinkhornOutput] = None
   geom: Optional[geometry.Geometry] = None
 
   def set(self, **kwargs: Any) -> "HTOutput":
@@ -97,7 +94,7 @@ class HTState(NamedTuple):
 
   costs: jnp.ndarray
   linear_convergence: jnp.ndarray
-  linear_state: LinearOutput
+  linear_state: sinkhorn.SinkhornState
   linear_pb: linear_problem.LinearProblem
   rngs: Optional[jax.random.PRNGKeyArray] = None
   errors: Optional[jnp.ndarray] = None
@@ -109,7 +106,7 @@ class HTState(NamedTuple):
   def update(  # noqa: D102
       self,
       iteration: int,
-      linear_sol: LinearOutput,
+      linear_sol: sinkhorn.SinkhornState,
       linear_pb: linear_problem.LinearProblem,
       store_errors: bool,
   ) -> "HTState":
@@ -145,31 +142,33 @@ class HistogramTransport:
   the local distributions of distnaces.
 
   Args:
-  `epsilon_1d`: regularization for soft sort. Set to `0.0` for normal sorting
-  `p`: exponent for computing the transport distance betweeen histograms
   `epsilon`: regularization parameter for the resulting Sinkhorn problem
   `min_iterations`: minimum iterations for computing Sinkhorn distance
   `max_iterations`: maximum iterations for computing Sinkhorn distance
-  `cost_fn`: cost function for transport on the real line. If this is
-  provided, the parameter `p` is ignored
+  `**kwargs`: keyword arguments for the 1D Wasserstein computation
   """
 
   def __init__(
       self,
-      epsilon_1d: float = 0.0,
-      p: float = 1.0,
       epsilon: float = 1.0,
       min_iterations: int = 10,
       max_iterations: int = 100,
       cost_fn: Union[None, TICost] = None,
+      **kwargs,
   ):
-    self.epsilon_1d = epsilon_1d
-    self.p = p
     self.epsilon = epsilon
     self.linear_ot_solver = sinkhorn.Sinkhorn(
         max_iterations=max_iterations, min_iterations=min_iterations
     )
     self.cost_fn = cost_fn
+    wass_solver_1d = wasserstein_1d.WassersteinSolver_1d(**kwargs)
+    self.wass_solver_1d_vmap = jax.jit(
+        jax.vmap(
+            jax.vmap(wass_solver_1d, in_axes=(0, None), out_axes=-1),
+            in_axes=(None, 0),
+            out_axes=-1,
+        )
+    )
 
   def __call__(
       self,
@@ -189,61 +188,7 @@ class HistogramTransport:
 
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
-    m, n = dists_xx.shape[0], dists_yy.shape[0]
-    min_num_pts = min([m, n])
-    small_indices = jnp.arange(min_num_pts)
-    x_indices = jnp.round(small_indices * (m / min_num_pts)).astype(int)
-    y_indices = jnp.round(small_indices * (n / min_num_pts)).astype(int)
-
-    if self.epsilon_1d <= 0.0:
-      sorted_dists_xx = jax.lax.sort(dists_xx, dimension=-1)
-      sorted_dists_yy = jax.lax.sort(dists_yy, dimension=-1)
-    else:
-      sorted_dists_xx = soft_sort.sort(
-          dists_xx, axis=-1, epsilon=self.epsilon_1d
-      )
-      sorted_dists_yy = soft_sort.sort(
-          dists_yy, axis=-1, epsilon=self.epsilon_1d
-      )
-
-    # Uniformly subsample distances
-    sorted_dists_xx = jnp.take_along_axis(
-        sorted_dists_xx, x_indices[None, :], -1
-    )
-    sorted_dists_yy = jnp.take_along_axis(
-        sorted_dists_yy, y_indices[None, :], -1
-    )
-
-    if self.cost_fn is None:
-      match self.p:
-        case 1.0:
-          cost_xy = jnp.sum(
-              jnp
-              .abs(sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]),
-              axis=-1,
-          )
-        case 2.0:
-          cost_xy = jax.lax.sqrt(
-              jnp.sum(
-                  jnp.square(
-                      sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :]
-                  ),
-                  axis=-1,
-              )
-          )
-        case _:
-          cost_xy = jnp.power(
-              jnp.sum(
-                  jnp.power(
-                      sorted_dists_xx[:, None, :] - sorted_dists_yy[None, :, :],
-                      self.p,
-                  ),
-                  axis=-1,
-              ),
-              1 / self.p,
-          )
-    else:
-      cost_xy = self.cost_fn.all_pairs(sorted_dists_xx, sorted_dists_yy)
+    cost_xy = self.wass_solver_1d_vmap(dists_xx, dists_yy)
 
     geom_xy = geometry.Geometry(cost_matrix=cost_xy, epsilon=self.epsilon)
 
