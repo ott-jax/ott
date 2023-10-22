@@ -59,40 +59,25 @@ class WassersteinSolver_1d:
 
   def __call__(self, x, y):
     """Computes the 1D Wasserstein Distance between `x` and `y`."""
-    match self.method:
-      case "subsample":
-        return self.cost_fn.pairwise(
-            self._sort(x)[jnp.linspace(0, x.shape[0],
-                                       num=self.n_subsamples).astype(int)],
-            self._sort(y)[jnp.linspace(0, y.shape[0],
-                                       num=self.n_subsamples).astype(int)],
-        )
-      case "equal":
-        return self.cost_fn.pairwise(self._sort(x), self._sort(y))
-      case "quantile":
-        return self.cost_fn.pairwise(
-            jnp.quantile(
-                a=self._sort(x), q=jnp.linspace(0, 1, self.n_subsamples)
-            ),
-            jnp.quantile(
-                a=self._sort(y), q=jnp.linspace(0, 1, self.n_subsamples)
-            ),
-        )
-      case _:
-        raise KeyError(f"Method {self.method} not implemented!")
-
-  def _power_cost(self, sorted_x, sorted_y):
-    match self.p:
-      case 1.0:
-        cost = jnp.sum(jnp.abs(sorted_x - sorted_y))
-      case 2.0:
-        cost = jax.lax.sqrt(jnp.sum(jnp.square(sorted_x - sorted_y)))
-      case _:
-        cost = jnp.power(
-            jnp.sum(jnp.power(jnp.abs(sorted_x - sorted_y), self.p)),
-            1 / self.p,
-        )
-    return cost
+    if self.method == "subsample":
+      return self.cost_fn.pairwise(
+          self._sort(x)[jnp.linspace(0, x.shape[0],
+                                     num=self.n_subsamples).astype(int)],
+          self._sort(y)[jnp.linspace(0, y.shape[0],
+                                     num=self.n_subsamples).astype(int)],
+      )
+    if self.method == "equal":
+      return self.cost_fn.pairwise(self._sort(x), self._sort(y))
+    if self.method == "quantile":
+      return self.cost_fn.pairwise(
+          jnp.quantile(
+              a=self._sort(x), q=jnp.linspace(0, 1, self.n_subsamples)
+          ),
+          jnp.quantile(
+              a=self._sort(y), q=jnp.linspace(0, 1, self.n_subsamples)
+          ),
+      )
+    raise KeyError(f"Method {self.method} not implemented!")
 
   def _sort(self, x):
     return jax.lax.cond(
