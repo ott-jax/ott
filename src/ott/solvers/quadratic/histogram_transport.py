@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import (
     Optional,
-    Union,
 )
 
 import jax
@@ -21,7 +20,6 @@ import jax.experimental
 
 from ott import utils
 from ott.geometry import geometry
-from ott.geometry.costs import TICost
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn, wasserstein_1d
@@ -55,14 +53,12 @@ class HistogramTransport:
       epsilon: float = 1.0,
       min_iterations: int = 10,
       max_iterations: int = 100,
-      cost_fn: Union[None, TICost] = None,
       **kwargs,
   ):
     self.epsilon = epsilon
     self.linear_ot_solver = sinkhorn.Sinkhorn(
         max_iterations=max_iterations, min_iterations=min_iterations
     )
-    self.cost_fn = cost_fn
     wass_solver_1d = wasserstein_1d.WassersteinSolver_1d(**kwargs)
     self.wass_solver_1d_vmap = jax.jit(
         jax.vmap(

@@ -31,7 +31,7 @@ class WassersteinSolver_1d:
   via a variety of methods.
 
   Args:
-  `epsilon`: regularization parameter for sorting. Set to 0.0 for hard-sorting.
+  `epsilon_sort`: regularization parameter for sorting. 0.0 for hard-sorting.
   `cost_fn`: The cost function for transport. Defaults to Euclidean distance.
   `method`: The method used for computing the distance on the line. Options
   currently supported are:
@@ -45,12 +45,12 @@ class WassersteinSolver_1d:
 
   def __init__(
       self,
-      epsilon: float = 0.0,
+      epsilon_sort: float = 0.0,
       cost_fn: Union[TICost, None] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
   ):
-    self.epsilon = epsilon
+    self.epsilon_sort = epsilon_sort
     self.method = method
     self.n_subsamples = n_subsamples
     if cost_fn is None:
@@ -81,8 +81,8 @@ class WassersteinSolver_1d:
 
   def _sort(self, x):
     return jax.lax.cond(
-        self.epsilon <= 0,
+        self.epsilon_sort <= 0,
         jax.lax.sort,
-        lambda v: soft_sort.sort(v, epsilon=self.epsilon),
+        lambda v: soft_sort.sort(v, epsilon=self.epsilon_sort),
         x,
     )

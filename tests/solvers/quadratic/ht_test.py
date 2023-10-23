@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from ott.geometry import geometry, pointcloud
+from ott.geometry.costs import PNormP
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
@@ -52,11 +53,13 @@ class TestHistogramTransport:
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
     solver = histogram_transport.HistogramTransport(
-        softness=-1,
-        p=2.0,
         epsilon=1e-1,
         min_iterations=100,
-        max_iterations=100
+        max_iterations=100,
+        epsilon_sort=-1,
+        cost_fn=PNormP(2.0),
+        method="quantile",
+        n_subsamples=min([self.x.shape[0], self.y.shape[0]]),
     )
 
     out = solver(prob)
