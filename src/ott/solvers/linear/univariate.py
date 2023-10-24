@@ -14,7 +14,6 @@
 
 from typing import Literal, Optional
 
-import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs
@@ -23,6 +22,7 @@ from ott.tools import soft_sort
 __all__ = ["UnivariateSolver"]
 
 
+# @jax.tree_util.register_pytree_node_class
 class UnivariateSolver:
   """1-D optimal transport solver.
 
@@ -35,7 +35,8 @@ class UnivariateSolver:
 
   Args:
     epsilon_sort: regularization parameter for sorting. 0.0 for hard-sorting.
-    cost_fn: The cost function for transport. Defaults to Euclidean distance.
+    cost_fn: The cost function for transport. Defaults to Squared Euclidean
+    distance.
     method: The method used for computing the distance on the line. Options
     currently supported are:
       subsample: Take a stratfied subsample of the distances,
@@ -44,14 +45,16 @@ class UnivariateSolver:
       same number of points.
     n_subsamples: The number of subsamples to draw for the "quantile" or
     "subsample" methods
+    require_sort: Whether to assume that the inputed arrays are sorted.
   """
 
   def __init__(
       self,
-      epsilon_sort: float = 0.0,
+      epsilon_sort: Optional[float] = 0.0,
       cost_fn: Optional[costs.TICost] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
+      require_sort: bool = False,
   ):
     self.epsilon_sort = epsilon_sort
     self.method = method
@@ -59,8 +62,9 @@ class UnivariateSolver:
     if cost_fn is None:
       cost_fn = costs.PNormP(2.0)
     self.cost_fn = cost_fn
+    self.require_sort = require_sort
 
-  def __call__(self, x, y):
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray):
     """Computes the 1D Wasserstein Distance between `x` and `y`."""
     if self.method == "subsample":
       return self.cost_fn.pairwise(
@@ -82,10 +86,9 @@ class UnivariateSolver:
       )
     raise KeyError(f"Method {self.method} not implemented!")
 
-  def _sort(self, x):
-    return jax.lax.cond(
-        self.epsilon_sort <= 0,
-        jax.lax.sort,
-        lambda v: soft_sort.sort(v, epsilon=self.epsilon_sort),
-        x,
-    )
+  def _sort(self, x: jnp.ndarray) -> jnp.ndarray:
+    if self.require_sort:
+      return x
+    if self.epsilon_sort > 0 or self.epsilon_sort is None:
+      return soft_sort.sort(x, epsilon=self.epsilon_sort)
+    return jnp.sort(x)

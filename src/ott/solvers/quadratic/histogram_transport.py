@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
+
 import jax
 import jax.experimental
 
 from ott.geometry import geometry
-from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import sinkhorn, univariate
+from ott.solvers import linear
 
 __all__ = ["HistogramTransport"]
 
@@ -41,46 +42,40 @@ class HistogramTransport:
     epsilon: regularization parameter for the resulting Sinkhorn problem
     min_iterations: minimum iterations for computing Sinkhorn distance
     max_iterations: maximum iterations for computing Sinkhorn distance
-    **kwargs: keyword arguments for the 1D Wasserstein computation
+    kwargs: keyword arguments for the 1D Wasserstein computation
   """
 
   def __init__(
       self,
       epsilon: float = 1.0,
-      min_iterations: int = 10,
-      max_iterations: int = 100,
-      **kwargs,
+      **kwargs: Any,
   ):
     self.epsilon = epsilon
-    self.linear_ot_solver = sinkhorn.Sinkhorn(
-        max_iterations=max_iterations, min_iterations=min_iterations
-    )
-    wass_solver_1d = univariate.UnivariateSolver(**kwargs)
-    self.wass_solver_1d_vmap = jax.vmap(
-        jax.vmap(wass_solver_1d, in_axes=(0, None), out_axes=-1),
-        in_axes=(None, 0),
-        out_axes=-1,
-    )
+    self.wass_solver_1d = linear.univariate.UnivariateSolver(**kwargs)
 
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-  ) -> sinkhorn.SinkhornOutput:
+      **kwargs: Any,
+  ) -> linear.sinkhorn.SinkhornOutput:
     """Run the Histogram Transport solver.
 
     Args:
       prob: Quadratic OT problem.
       rng: Random number key.
+      kwargs: Arguments for the Sinkhorn solver
 
     Returns:
       The Histogram Transport output.
     """
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
-    cost_xy = self.wass_solver_1d_vmap(dists_xx, dists_yy)
+    cost_xy = jax.vmap(
+        jax.vmap(self.wass_solver_1d, in_axes=(0, None), out_axes=-1),
+        in_axes=(None, 0),
+        out_axes=-1,
+    )(dists_xx, dists_yy)
 
     geom_xy = geometry.Geometry(cost_matrix=cost_xy, epsilon=self.epsilon)
 
-    self.linear_pb = linear_problem.LinearProblem(geom=geom_xy)
-
-    return self.linear_ot_solver(self.linear_pb)
+    return linear.solve(geom_xy, **kwargs)
