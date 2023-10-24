@@ -61,9 +61,9 @@ class HistogramTransport:
     """Run the Histogram Transport solver.
 
     Args:
-      prob: Quadratic OT problem.
-      rng: Random number key.
-      kwargs: Arguments for the Sinkhorn solver
+      prob: quadratic OT problem.
+      rng: random number key.
+      kwargs: keyword arguments for the Sinkhorn solver
 
     Returns:
       The Histogram Transport output.
