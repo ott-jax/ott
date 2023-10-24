@@ -17,8 +17,10 @@ from typing import Literal, Optional
 import jax
 import jax.numpy as jnp
 
-from ott.geometry.costs import PNormP, TICost
+from ott.geometry import costs
 from ott.tools import soft_sort
+
+__all__ = ["UnivariateSolver"]
 
 
 class UnivariateSolver:
@@ -46,7 +48,7 @@ class UnivariateSolver:
   def __init__(
       self,
       epsilon_sort: float = 0.0,
-      cost_fn: Optional[TICost] = None,
+      cost_fn: Optional[costs.TICost] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
   ):
@@ -54,7 +56,7 @@ class UnivariateSolver:
     self.method = method
     self.n_subsamples = n_subsamples
     if cost_fn is None:
-      cost_fn = PNormP(2.0)
+      cost_fn = costs.PNormP(2.0)
     self.cost_fn = cost_fn
 
   def __call__(self, x, y):
