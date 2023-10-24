@@ -24,9 +24,10 @@ __all__ = ["UnivariateSolver"]
 
 
 class UnivariateSolver:
-  """One-Dimensional Optimal Transport Solver.
+  """1-D optimal transport solver.
 
-  WARNING: As implemented, this solver assumes uniform marginals,
+  warning::
+  As implemented, this solver assumes uniform marginals,
   non-uniform marginal solver coming soon!
 
   Computes the 1-Dimensional Optimal Transport distance between two histograms
