@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
+from typing import Any, Optional
 
 import jax
 import jax.experimental
@@ -20,11 +20,12 @@ import jax.experimental
 from ott.geometry import geometry
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
+from ott.solvers.linear import sinkhorn, univariate
 
 __all__ = ["HistogramTransport"]
 
 
-# @jax.tree_util.register_pytree_node_class
+@jax.tree_util.register_pytree_node_class
 class HistogramTransport:
   """Histogram Transport solver.
 
@@ -47,31 +48,34 @@ class HistogramTransport:
 
   def __init__(
       self,
-      epsilon: float = 1.0,
+      epsilon: Optional[float] = None,
       **kwargs: Any,
   ):
     self.epsilon = epsilon
-    self.wass_solver_1d = linear.univariate.UnivariateSolver(**kwargs)
+    self.univariate_solver = univariate.UnivariateSolver(**kwargs)
 
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
+      rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
-  ) -> linear.sinkhorn.SinkhornOutput:
+  ) -> sinkhorn.SinkhornOutput:
     """Run the Histogram Transport solver.
 
     Args:
       prob: quadratic OT problem.
-      rng: random number key.
+      rng: random number key (not used)
       kwargs: keyword arguments for the Sinkhorn solver
 
     Returns:
       The Histogram Transport output.
     """
+    del rng
+
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
     cost_xy = jax.vmap(
-        jax.vmap(self.wass_solver_1d, in_axes=(0, None), out_axes=-1),
+        jax.vmap(self.univariate_solver, in_axes=(0, None), out_axes=-1),
         in_axes=(None, 0),
         out_axes=-1,
     )(dists_xx, dists_yy)
@@ -79,3 +83,14 @@ class HistogramTransport:
     geom_xy = geometry.Geometry(cost_matrix=cost_xy, epsilon=self.epsilon)
 
     return linear.solve(geom_xy, **kwargs)
+
+  def tree_flatten(self):  # noqa: D102
+    aux = vars(self).copy()
+    univariate_solver = aux.pop("univariate_solver")
+    return [univariate_solver], aux
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    ht_solver = cls(**aux_data)
+    ht_solver.univariate_solver = children[0]
+    return ht_solver

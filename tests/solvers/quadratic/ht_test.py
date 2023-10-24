@@ -16,8 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from ott.geometry import pointcloud
-from ott.geometry.costs import PNormP
+from ott.geometry import costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.quadratic import histogram_transport
 
@@ -42,10 +41,9 @@ class TestHistogramTransport:
 
   @pytest.mark.fast()
   def test_ht_pointcloud(self):
-    """Test basic computations point clouds."""
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
-    tau_a, tau_b = (1.0, 1.0)
+    tau_a, tau_b = 1.0, 1.0
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
@@ -54,7 +52,7 @@ class TestHistogramTransport:
         min_iterations=100,
         max_iterations=100,
         epsilon_sort=-1,
-        cost_fn=PNormP(2.0),
+        cost_fn=costs.PNormP(2.0),
         method="quantile",
         n_subsamples=min([self.x.shape[0], self.y.shape[0]]),
     )

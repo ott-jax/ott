@@ -14,6 +14,7 @@
 
 from typing import Literal, Optional
 
+import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs
@@ -22,7 +23,7 @@ from ott.tools import soft_sort
 __all__ = ["UnivariateSolver"]
 
 
-# @jax.tree_util.register_pytree_node_class
+@jax.tree_util.register_pytree_node_class
 class UnivariateSolver:
   """1-D optimal transport solver.
 
@@ -92,3 +93,11 @@ class UnivariateSolver:
     if self.epsilon_sort > 0 or self.epsilon_sort is None:
       return soft_sort.sort(x, epsilon=self.epsilon_sort)
     return jnp.sort(x)
+
+  def tree_flatten(self):  # noqa: D102
+    aux = vars(self).copy()
+    return [], aux
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(**aux_data)
