@@ -64,7 +64,7 @@ class UnivariateSolver:
     self.cost_fn = cost_fn
     self.require_sort = require_sort
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray):
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Computes the 1D Wasserstein Distance between `x` and `y`."""
     if self.method == "subsample":
       return self.cost_fn.pairwise(
