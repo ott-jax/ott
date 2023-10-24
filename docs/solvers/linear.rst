@@ -34,6 +34,13 @@ Barycenter Solvers
     discrete_barycenter.FixedBarycenter
     discrete_barycenter.SinkhornBarycenterOutput
 
+Other Solvers
+---------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    univariate.UnivariateSolver
+
 Sinkhorn Acceleration
 ---------------------
 .. autosummary::
