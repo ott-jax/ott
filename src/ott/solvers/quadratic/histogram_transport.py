@@ -22,7 +22,7 @@ from ott import utils
 from ott.geometry import geometry
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import sinkhorn, wasserstein_1d
+from ott.solvers.linear import sinkhorn, univariate
 
 __all__ = ["HistogramTransport"]
 
@@ -59,7 +59,7 @@ class HistogramTransport:
     self.linear_ot_solver = sinkhorn.Sinkhorn(
         max_iterations=max_iterations, min_iterations=min_iterations
     )
-    wass_solver_1d = wasserstein_1d.WassersteinSolver_1d(**kwargs)
+    wass_solver_1d = univariate.UnivariateSolver(**kwargs)
     self.wass_solver_1d_vmap = jax.vmap(
         jax.vmap(wass_solver_1d, in_axes=(0, None), out_axes=-1),
         in_axes=(None, 0),

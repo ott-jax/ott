@@ -21,7 +21,7 @@ from ott.geometry.costs import PNormP, TICost
 from ott.tools import soft_sort
 
 
-class WassersteinSolver_1d:
+class UnivariateSolver:
   """One-Dimensional Optimal Transport Solver.
 
   WARNING: As implemented, this solver assumes uniform marginals,
