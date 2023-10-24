@@ -47,11 +47,11 @@ class BaseQuadraticInitializer(abc.ABC):
     """Compute the initial linearization of a quadratic problem.
 
     Args:
-    quad_prob: Quadratic problem to linearize.
-    kwargs: Additional keyword arguments.
+      quad_prob: Quadratic problem to linearize.
+      kwargs: Additional keyword arguments.
 
     Returns:
-    Linear problem.
+      Linear problem.
     """
     from ott.problems.linear import linear_problem
 
@@ -76,11 +76,11 @@ class BaseQuadraticInitializer(abc.ABC):
     """Compute initial geometry for linearization.
 
     Args:
-    quad_prob: Quadratic problem.
-    kwargs: Additional keyword arguments.
+      quad_prob: Quadratic problem.
+      kwargs: Additional keyword arguments.
 
     Returns:
-    Geometry used to initialize the linearized problem.
+      Geometry used to initialize the linearized problem.
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
@@ -136,13 +136,13 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     """Compute initial geometry for linearization.
 
     Args:
-    quad_prob: Quadratic OT problem.
-    epsilon: Epsilon regularization.
-    relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+      quad_prob: Quadratic OT problem.
+      epsilon: Epsilon regularization.
+      relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+      kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
 
     Returns:
-    The initial geometry used to initialize the linearized problem.
+      The initial geometry used to initialize the linearized problem.
     """
     from ott.problems.quadratic import quadratic_problem
 
@@ -197,13 +197,13 @@ class FixedCouplingInitializer(BaseQuadraticInitializer):
     """Compute initial geometry for linearization using the given coupling.
 
     Args:
-    quad_prob: Quadratic OT problem.
-    epsilon: Epsilon regularization.
-    relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+      quad_prob: Quadratic OT problem.
+      epsilon: Epsilon regularization.
+      relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+      kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
 
     Returns:
-    The initial geometry used to initialize the linearized problem.
+      The initial geometry used to initialize the linearized problem.
     """
     from ott.problems.quadratic import quadratic_problem
 
@@ -215,7 +215,6 @@ class FixedCouplingInitializer(BaseQuadraticInitializer):
     h1, h2 = quad_prob.quad_loss
     tmp1 = h1.func(geom_xx.cost_matrix)
     tmp2 = h2.func(geom_yy.cost_matrix)
-    # TODO: Add checks that the coupling is valid
     tmp = tmp1 @ self.init_coupling @ tmp2.T
 
     if quad_prob.is_balanced:

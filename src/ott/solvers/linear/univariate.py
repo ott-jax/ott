@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Union
+from typing import Literal, Optional
 
 import jax
 import jax.numpy as jnp
@@ -31,22 +31,22 @@ class UnivariateSolver:
   via a variety of methods.
 
   Args:
-  `epsilon_sort`: regularization parameter for sorting. 0.0 for hard-sorting.
-  `cost_fn`: The cost function for transport. Defaults to Euclidean distance.
-  `method`: The method used for computing the distance on the line. Options
-  currently supported are:
-  `subsample`: Take a stratfied subsample of the distances,
-  `quantile`: Take equally spaced quantiles of the distances,
-  `equal`: No subsampling is performed--requires distributions to have the same
-  number of points.
-  `n_subsamples`: The number of subsamples to draw for the "quantile" or
-  "subsample" methods
+    epsilon_sort: regularization parameter for sorting. 0.0 for hard-sorting.
+    cost_fn: The cost function for transport. Defaults to Euclidean distance.
+    method: The method used for computing the distance on the line. Options
+    currently supported are:
+      subsample: Take a stratfied subsample of the distances,
+      quantile: Take equally spaced quantiles of the distances,
+      equal: No subsampling is performed--requires distributions to have the
+      same number of points.
+    n_subsamples: The number of subsamples to draw for the "quantile" or
+    "subsample" methods
   """
 
   def __init__(
       self,
       epsilon_sort: float = 0.0,
-      cost_fn: Union[TICost, None] = None,
+      cost_fn: Optional[TICost] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
   ):

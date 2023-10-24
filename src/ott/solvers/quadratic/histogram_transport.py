@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Optional,
-)
 
 import jax
 import jax.experimental
 
-from ott import utils
 from ott.geometry import geometry
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
@@ -42,10 +38,10 @@ class HistogramTransport:
   the local distributions of distnaces.
 
   Args:
-  `epsilon`: regularization parameter for the resulting Sinkhorn problem
-  `min_iterations`: minimum iterations for computing Sinkhorn distance
-  `max_iterations`: maximum iterations for computing Sinkhorn distance
-  `**kwargs`: keyword arguments for the 1D Wasserstein computation
+    epsilon: regularization parameter for the resulting Sinkhorn problem
+    min_iterations: minimum iterations for computing Sinkhorn distance
+    max_iterations: maximum iterations for computing Sinkhorn distance
+    **kwargs: keyword arguments for the 1D Wasserstein computation
   """
 
   def __init__(
@@ -69,19 +65,16 @@ class HistogramTransport:
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
   ) -> sinkhorn.SinkhornOutput:
     """Run the Histogram Transport solver.
 
     Args:
-    prob: Quadratic OT problem.
-    rng: Random number key.
+      prob: Quadratic OT problem.
+      rng: Random number key.
 
     Returns:
-    The Histogram Transport output.
+      The Histogram Transport output.
     """
-    rng = utils.default_prng_key(rng)
-
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
     cost_xy = self.wass_solver_1d_vmap(dists_xx, dists_yy)
