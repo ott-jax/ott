@@ -90,7 +90,7 @@ class BaseQuadraticInitializer(abc.ABC):
 
 
 class QuadraticInitializer(BaseQuadraticInitializer):
-  r"""Initialize a linear problem locally around :math:`ab^T` initializer.
+  r"""Initialize a linear problem locally around an initial coupling.
 
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
