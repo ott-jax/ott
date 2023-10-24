@@ -60,12 +60,10 @@ class HistogramTransport:
         max_iterations=max_iterations, min_iterations=min_iterations
     )
     wass_solver_1d = wasserstein_1d.WassersteinSolver_1d(**kwargs)
-    self.wass_solver_1d_vmap = jax.jit(
-        jax.vmap(
-            jax.vmap(wass_solver_1d, in_axes=(0, None), out_axes=-1),
-            in_axes=(None, 0),
-            out_axes=-1,
-        )
+    self.wass_solver_1d_vmap = jax.vmap(
+        jax.vmap(wass_solver_1d, in_axes=(0, None), out_axes=-1),
+        in_axes=(None, 0),
+        out_axes=-1,
     )
 
   def __call__(

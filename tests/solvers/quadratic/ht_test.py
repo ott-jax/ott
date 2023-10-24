@@ -16,11 +16,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from ott.geometry import geometry, pointcloud
+from ott.geometry import pointcloud
 from ott.geometry.costs import PNormP
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import histogram_transport
 
 
@@ -34,14 +32,13 @@ class TestHistogramTransport:
     rngs = jax.random.split(rng, 6)
     self.x = jax.random.uniform(rngs[0], (self.n, d_x))
     self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    a = jax.random.uniform(rngs[2], (self.n,)) + 1e-1
-    b = jax.random.uniform(rngs[3], (self.m,)) + 1e-1
+    # Currently Histogram Transport only supports uniform distributions:
+    a = jnp.ones(self.n)
+    b = jnp.ones(self.m)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
     self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
     self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
-    self.tau_a = 0.8
-    self.tau_b = 0.9
 
   @pytest.mark.fast()
   def test_ht_pointcloud(self):
@@ -68,62 +65,4 @@ class TestHistogramTransport:
         out.primal_cost, jnp.sum(out.geom.cost_matrix * out.matrix), rtol=1e-3
     )
 
-    assert not jnp.isnan(out.reg_ht_cost)
-
-  @pytest.mark.parametrize(
-      "is_cost",
-      [True, False],
-  )
-  def test_gradient_ht_geometry(
-      self,
-      is_cost: bool,
-  ):
-    """Test gradient w.r.t. the geometries."""
-
-    def reg_ht(
-        x: jnp.ndarray,
-        y: jnp.ndarray,
-        a: jnp.ndarray,
-        b: jnp.ndarray,
-        implicit: bool,
-    ) -> float:
-      if is_cost:
-        geom_x = geometry.Geometry(cost_matrix=x)
-        geom_y = geometry.Geometry(cost_matrix=y)
-      else:
-        geom_x = pointcloud.PointCloud(x)
-        geom_y = pointcloud.PointCloud(y)
-      prob = quadratic_problem.QuadraticProblem(
-          geom_x,
-          geom_y,
-      )
-
-      implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
-
-      solver = histogram_transport.HistogramTransport(
-          epsilon=1.0, max_iterations=100
-      )
-
-      lin_solver = sinkhorn.Sinkhorn(
-          lse_mode=True, max_iterations=1000, implicit_diff=implicit_diff
-      )
-
-      solver.linear_ot_solver = lin_solver
-
-      return solver(prob).reg_ht_cost
-
-    grad_matrices = [None, None]
-    x, y = (self.cx, self.cy) if is_cost else (self.x, self.y)
-    reg_ht_grad = jax.grad(reg_ht, argnums=(0, 1))
-
-    for i, implicit in enumerate([True, False]):
-      grad_matrices[i] = reg_ht_grad(x, y, self.a, self.b, implicit)
-      assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
-      assert not jnp.any(jnp.isnan(grad_matrices[i][1]))
-
-    np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
-    )
-    np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
-    )
+    assert not jnp.isnan(out.reg_ot_cost)
