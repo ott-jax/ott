@@ -464,7 +464,7 @@ def multiv_cdf_quantile_maps(
     input_weights: Optional[jnp.ndarray] = None,
     target_weights: Optional[jnp.ndarray] = None,
     **kwargs: Any
-) -> [Func_t, Func_t]:
+) -> Tuple[Func_t, Func_t]:
   r"""Returns multivariate CDF and quantile maps, given input samples.
 
   Implements the multivariate generalizations for CDF and quantiles proposed in
@@ -477,38 +477,39 @@ def multiv_cdf_quantile_maps(
   the other for the quantiles map.
 
   Args:
-    inputs: 2D array of :math:`[n, d]` vectors.
-    target_sampler: Callable that takes a ``key`` and ``[m,d]`` shape Tuple.
+    inputs: 2D array of ``[n, d]`` vectors.
+    target_sampler: Callable that takes a ``key`` and ``[m,d]`` shape.
       ``m`` is passed on as ``target_num_samples``, dimension ``d`` is inferred
       directly from the shape passed in ``inputs``. This is assumed by default
-      to be :func:`jax.random.uniform`, and could be any other random sampler
+      to be :func:`~jax.random.uniform`, and could be any other random sampler
       properly wrapped to have the signature above.
-    key: rng key used by ``target_sampler``
+    key: rng key used by ``target_sampler``.
     num_target_samples: number ``m`` of points generated in the target
       distribution.
-    cost_fn: :class:`~ott.geometry.costs.CostFn` object, used to compare
-      ``inputs`` and ``targets``. Passed on to instantiate a
-      :class:`~ott.geometry.pointcloud.PointCloud` object. This
-      defaults to the squared-Euclidean distance.
+    cost_fn: Cost function, used to compare ``inputs`` and ``targets``.
+      Passed on to instantiate a
+      :class:`~ott.geometry.pointcloud.PointCloud` object. If :obj:`None`,
+      :class:`~ott.geometry.costs.SqEuclidean` is used.
     epsilon: entropic regularization parameter used to instantiate the
       :class:`~ott.geometry.pointcloud.PointCloud` object.
-    input_weights: :math:`[n,]` vector of weights for input measure. Assumed to
+    input_weights: ``[n,]`` vector of weights for input measure. Assumed to
       be uniform by default.
-    target_weights: :math:`[m,]` vector of weights for target measure. Assumed
+    target_weights: ``[m,]`` vector of weights for target measure. Assumed
       to be uniform by default.
     kwargs: keyword arguments passed on to the :func:`~ott.solvers.linear.solve`
       function, which solves the OT problem between ``inputs`` and ``targets``
       using the Sinkhorn algorithm.
 
   Returns:
-    Two callables, vector-to-vector mappings:
-      - multivariate CDF map, taking values in the range of the reference
-        measure.
-      - quantile map, going by default from :math:`[0, 1]^d` to the range of the
-        input measure.
+    A tuple of two callables, each a vector-to-vector mapping:
 
-  Raises:
-    A ValueError in case the input and target have not the same dimension.
+    - The first Callable is the vmapped multivariate CDF map, taking a
+    ``[b, d]`` batch of vectors in the range of the ``inputs`` point cloud, and
+    mapping each vector within the range of the reference measure
+    (assumed by default to be :math:`[0, 1]^d`).
+    - The second Callable is the vmapped quantile map, mapping a batch
+    ``[b, d]`` of multivariate quantile vectors onto ``[b,d]`` vectors in
+    :math:`[0, 1]^d`, the range of the reference measure.
   """
   n, d = inputs.shape
   key = jax.random.PRNGKey(0) if key is None else key
