@@ -35,6 +35,7 @@ Soft Sorting Algorithms
 .. autosummary::
     :toctree: _autosummary
 
+    soft_sort.multivariate_cdf_quantile_maps
     soft_sort.quantile
     soft_sort.quantile_normalization
     soft_sort.quantize

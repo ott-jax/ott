@@ -26,7 +26,7 @@ from ott.solvers.linear import sinkhorn
 
 __all__ = [
     "sort", "ranks", "sort_with", "quantile", "quantile_normalization",
-    "quantize", "topk_mask"
+    "quantize", "topk_mask", "multivariate_cdf_quantile_maps"
 ]
 
 Func_t = Callable[[jnp.ndarray], jnp.ndarray]
