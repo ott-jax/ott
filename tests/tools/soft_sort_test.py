@@ -86,6 +86,51 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
+  def test_multiv_cdf_quantiles(self):
+    n, d = 512, 3
+    keys = jax.random.split(jax.random.PRNGKey(0), 3)
+
+    # Set central point in sampled input measure
+    z = jax.random.uniform(keys[0], (1, d))
+
+    # Sample inputs symmetrically centered on z
+    inputs = .34 * jax.random.normal(keys[0], (n, d)) + z
+
+    # Set central point in target distribution.
+    q = .5 * jnp.ones((1, d))
+
+    # Set tolerance for quantile / cdf comparisons to ground truth.
+    atol = .1
+
+    # Check approximate correctness of naked call to API
+    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs)
+    np.testing.assert_allclose(cdf(z), q, atol=atol)
+    np.testing.assert_allclose(z, qua(q), atol=atol)
+
+    # Check passing explicitly uniform target values
+    m = 473
+    targets = jax.random.uniform(keys[1], (m, d))
+    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs, targets=targets)
+    np.testing.assert_allclose(cdf(z), q, atol=atol)
+    np.testing.assert_allclose(z, qua(q), atol=atol)
+
+    # Check consistency with passing sampler / key
+    cdf_2, qua_2 = soft_sort.multiv_cdf_quantile_maps(
+        inputs,
+        target_sampler=jax.random.uniform,
+        key=keys[1],
+        target_num_samples=m
+    )
+    np.testing.assert_allclose(cdf_2(z), cdf(z))
+    np.testing.assert_allclose(qua_2(q), qua(q))
+
+    # Check passing explicitly different reference measure target values,
+    # make sure still symmetric / centered on {.5}^d
+    targets = .5 * (jax.random.ball(keys[2], d, p=4, shape=(557,)) + 1.)
+    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs, targets)
+    np.testing.assert_allclose(cdf(z), q, atol=atol)
+    np.testing.assert_allclose(z, qua(q), atol=atol)
+
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
   def test_ranks(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
     rng1, rng2 = jax.random.split(rng, 2)

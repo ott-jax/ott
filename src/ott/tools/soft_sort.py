@@ -20,6 +20,7 @@ import numpy as np
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
+from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
 __all__ = [
@@ -448,6 +449,84 @@ def quantile(
     return out[odds][idx]
 
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
+
+
+def multiv_cdf_quantile_maps(
+    inputs: jnp.ndarray,
+    targets: Optional[jnp.ndarray] = None,
+    target_sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
+                                      jnp.ndarray]] = None,
+    key: Optional[jax.random.PRNGKey] = None,
+    target_num_samples: Optional[int] = None,
+    cost_fn: Optional[jnp.ndarray] = None,
+    epsilon: Optional[float] = None,
+    input_weights: Optional[jnp.ndarray] = None,
+    target_weights: Optional[jnp.ndarray] = None,
+    **kwargs: Any
+) -> [
+    Callable[[jnp.ndarray], jnp.ndarray], Callable[[jnp.ndarray], jnp.ndarray]
+]:
+  r"""Returns multivariate CDF and quantile maps, given input samples.
+
+  Implements the multivariate generalizations for CDF and quantiles proposed in
+  :cite:`chernozhukov:17`. The reference measure is assumed to be the uniform
+  measure by default, but can be modified. For consistency, the reference
+  measure should be symmetrically centered around
+  :math:`(\tfrac{1}{2},\cdots,\tfrac{1}{2})` and suppported on :math:`[0,1]^d`.
+
+  The implementation return two entropic map estimators, one for the CDF map,
+  the other for the quantiles map.
+
+  Args:
+    inputs: 2D array of `[n, d]` vectors.
+    targets: 2D array of `[m,d]` vectors. If not passed explicitly, the random
+      sampler specified in `target_sampled` is used to create these samples from
+      reference measure.
+    target_sampler: When ``targets`` is not passed, Callable that takes a
+      ``key`` and shape specified by ``target_num_samples`` to sample a target
+      points.
+    key: `rng` key used in ``target_sampler``
+    target_num_samples: number of points generated in the target distribution.
+    cost_fn: cost function used to compare ``inputs`` and ``targets``. Passed on
+      to instantiate a {class}`~ott.geometry.pointcloud.PointCloud` object. This
+      will default to squared-Euclidean distance.
+    epsilon: entropic regularization parameter used to instantiate the
+      {class}`~ott.geometry.pointcloud.PointCloud` object.
+    input_weights: `[n,]` vector of weights for input measure. Assumed to be
+      uniform by default.
+    target_weights: `[m,]` vector of weights for target measure. Assumed to be
+      uniform by default.
+    kwargs: keyword arguments passed on to the :func:`~ott.solvers.linear.solve`
+      function, which solves the OT problem between ``inputs`` and ``targets``
+      using the Sinkhorn algorithm.
+
+  Returns:
+    Two callables, vector-to-vector mappings. The first callable implements the
+    multivariate CDF map, taking values in the range of the reference measure.
+    The second implements the quantile map, going by default from `[0,1]^d` to
+    the range of the input measure.
+
+  Raises:
+    A ValueError in case the input and target have not the same dimension.
+  """
+  n, d = inputs.shape
+  key = jax.random.PRNGKey(0) if key is None else key
+  if targets is None:
+    target_num_samples = n if target_num_samples is None else target_num_samples
+    if target_sampler is None:
+      target_sampler = jax.random.uniform
+    targets = target_sampler(key, (target_num_samples, d))
+  else:
+    d_t = targets.shape[-1]
+    assert d_t == d, f"Incompatible dimensions for inputs/targets, {d_t}≠{d}."
+  geom = pointcloud.PointCloud(
+      inputs, targets, cost_fn=cost_fn, epsilon=epsilon
+  )
+  out = linear.solve(geom, a=input_weights, b=target_weights, **kwargs)
+  potentials = out.to_dual_potentials()
+  return potentials.transport, functools.partial(
+      potentials.transport, forward=False
+  )
 
 
 def _quantile_normalization(
