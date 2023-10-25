@@ -59,7 +59,7 @@ jobs:
         python3 -m pip install -e".[test]"
         python3 -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
-    - name: Nvidia SMI
+    - name: Run nvidia-smi
       run: |
         nvidia-smi
 
