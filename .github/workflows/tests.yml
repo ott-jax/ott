@@ -48,21 +48,16 @@ jobs:
     name: Fast GPU tests Python 3.8 on ubuntu-20.04
     runs-on: [self-hosted, ott-gpu]
     container:
-      image: docker://michalk8/cuda:11.3.0-ubuntu20.04
-      options: --gpus="device=12"
+      image: docker://michalk8/cuda:12.2.2-cudnn8-devel-ubuntu22.04
+      options: --gpus="device=3"
     steps:
     - uses: actions/checkout@v3
 
     - name: Install dependencies
-      # `jax[cuda]<0.4` because of Docker issues: https://github.com/google/jax/issues/13758
-      # `chex<0.1.7` because it requires `jax>=0.4.6`
-      # `flax<0.6.5` because it requires `jax>=0.4.2`, --no-deps because of `orbax`
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "orbax-checkpoint" "orbax-export" "chex<0.1.7"
-        python3 -m pip install --no-deps "flax<0.6.5"
-        python3 -m pip install "jax[cuda]<0.4" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        python3 -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
     - name: Nvidia SMI
       run: |
