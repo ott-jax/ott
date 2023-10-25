@@ -45,7 +45,7 @@ jobs:
         tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
 
   gpu-tests:
-    name: Fast GPU tests Python 3.13 on ubuntu-22.04
+    name: Fast GPU tests Python 3.10 on ubuntu-22.04
     runs-on: [self-hosted, ott-gpu]
     container:
       image: docker://michalk8/cuda:12.2.2-cudnn8-devel-ubuntu22.04
