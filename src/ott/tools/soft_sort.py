@@ -19,6 +19,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 
+from ott import utils
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
@@ -458,7 +459,7 @@ def multivariate_cdf_quantile_maps(
     inputs: jnp.ndarray,
     target_sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
                                       jnp.ndarray]] = None,
-    key: Optional[jax.random.PRNGKey] = None,
+    rng: Optional[jax.random.PRNGKey] = None,
     num_target_samples: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
@@ -479,12 +480,12 @@ def multivariate_cdf_quantile_maps(
 
   Args:
     inputs: 2D array of ``[n, d]`` vectors.
-    target_sampler: Callable that takes a ``key`` and ``[m,d]`` shape.
+    target_sampler: Callable that takes a ``rng`` and ``[m, d]`` shape.
       ``m`` is passed on as ``target_num_samples``, dimension ``d`` is inferred
       directly from the shape passed in ``inputs``. This is assumed by default
       to be :func:`~jax.random.uniform`, and could be any other random sampler
       properly wrapped to have the signature above.
-    key: rng key used by ``target_sampler``.
+    rng: rng key used by ``target_sampler``.
     num_target_samples: number ``m`` of points generated in the target
       distribution.
     cost_fn: Cost function, used to compare ``inputs`` and ``targets``.
@@ -499,31 +500,33 @@ def multivariate_cdf_quantile_maps(
       to be uniform by default.
     kwargs: keyword arguments passed on to the :func:`~ott.solvers.linear.solve`
       function, which solves the OT problem between ``inputs`` and ``targets``
-      using the Sinkhorn algorithm.
+      using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
   Returns:
-    A tuple of two callables, each a vector-to-vector mapping:
-
-    - The first Callable is the vmapped multivariate CDF map, taking a
-    ``[b, d]`` batch of vectors in the range of the ``inputs`` point cloud, and
-    mapping each vector within the range of the reference measure
-    (assumed by default to be :math:`[0, 1]^d`).
-    - The second Callable is the vmapped quantile map, mapping a batch
-    ``[b, d]`` of multivariate quantile vectors onto ``[b,d]`` vectors in
-    :math:`[0, 1]^d`, the range of the reference measure.
+    - The first callable is the vmapped multivariate CDF map, taking a
+      ``[b, d]`` batch of vectors in the range of the ``inputs`` point cloud,
+      and mapping each vector within the range of the reference measure
+      (assumed by default to be :math:`[0, 1]^d`).
+    - The second callable is the vmapped quantile map, mapping a batch
+      ``[b, d]`` of multivariate quantile vectors onto ``[b, d]`` vectors in
+      :math:`[0, 1]^d`, the range of the reference measure.
   """
   n, d = inputs.shape
-  key = jax.random.PRNGKey(0) if key is None else key
-  num_target_samples = n if num_target_samples is None else num_target_samples
+  rng = utils.default_prng_key(rng)
+
+  if num_target_samples is None:
+    num_target_samples = n
   if target_sampler is None:
     target_sampler = jax.random.uniform
-  targets = target_sampler(key, (num_target_samples, d))
 
+  targets = target_sampler(rng, (num_target_samples, d))
   geom = pointcloud.PointCloud(
       inputs, targets, cost_fn=cost_fn, epsilon=epsilon
   )
+
   out = linear.solve(geom, a=input_weights, b=target_weights, **kwargs)
   potentials = out.to_dual_potentials()
+
   cdf_map = jtu.Partial(lambda x, p: p.transport(x), p=potentials)
   quantile_map = jtu.Partial(
       lambda x, p: p.transport(x, forward=False), p=potentials
