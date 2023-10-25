@@ -86,15 +86,15 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  def test_multivariate_cdf_quantiles(self):
+  def test_multivariate_cdf_quantiles(self, rng: jax.random.PRNGKeyArray):
     n, d = 512, 3
-    keys = jax.random.split(jax.random.PRNGKey(0), 3)
+    key1, key2, key3 = jax.random.split(rng, 3)
 
     # Set central point in sampled input measure
-    z = jax.random.uniform(keys[0], (1, d))
+    z = jax.random.uniform(key1, (1, d))
 
     # Sample inputs symmetrically centered on z
-    inputs = 0.34 * jax.random.normal(keys[0], (n, d)) + z
+    inputs = 0.34 * jax.random.normal(key2, (n, d)) + z
 
     # Set central point in target distribution.
     q = 0.5 * jnp.ones((1, d))
@@ -115,16 +115,16 @@ class TestSoftSort:
     num_target_samples = 473
 
     @functools.partial(jax.jit, static_argnums=[1])
-    def mv_c_q(inputs, num_target_samples, key, epsilon):
+    def mv_c_q(inputs, num_target_samples, rng, epsilon):
       return soft_sort.multivariate_cdf_quantile_maps(
           inputs,
           target_sampler=ball_sampler,
           num_target_samples=num_target_samples,
-          key=key,
+          rng=rng,
           epsilon=epsilon
       )
 
-    cdf, qua = mv_c_q(inputs, num_target_samples, keys[2], 0.05)
+    cdf, qua = mv_c_q(inputs, num_target_samples, key3, 0.05)
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
