@@ -473,7 +473,7 @@ def multivariate_cdf_quantile_maps(
   :cite:`chernozhukov:17`. The reference measure is assumed to be the uniform
   measure by default, but can be modified. For consistency, the reference
   measure should be symmetrically centered around
-  :math:`(\tfrac{1}{2},\cdots,\tfrac{1}{2})` and suppported on :math:`[0,1]^d`.
+  :math:`(\tfrac{1}{2},\cdots,\tfrac{1}{2})` and supported on :math:`[0, 1]^d`.
 
   The implementation return two entropic map estimators, one for the CDF map,
   the other for the quantiles map.
@@ -503,13 +503,12 @@ def multivariate_cdf_quantile_maps(
       using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
   Returns:
-    - The first callable is the vmapped multivariate CDF map, taking a
-      ``[b, d]`` batch of vectors in the range of the ``inputs`` point cloud,
-      and mapping each vector within the range of the reference measure
-      (assumed by default to be :math:`[0, 1]^d`).
-    - The second callable is the vmapped quantile map, mapping a batch
-      ``[b, d]`` of multivariate quantile vectors onto ``[b, d]`` vectors in
-      :math:`[0, 1]^d`, the range of the reference measure.
+    - The multivariate CDF map, taking a ``[b, d]`` batch of vectors in the
+      range of the ``inputs``, and mapping each vector within the range
+      of the reference measure (assumed by default to be :math:`[0, 1]^d`).
+    - The quantile map, mapping a batch ``[b, d]`` of multivariate quantile
+      vectors onto ``[b, d]`` vectors in :math:`[0, 1]^d`, the range of
+      the reference measure.
   """
   n, d = inputs.shape
   rng = utils.default_prng_key(rng)
