@@ -16,6 +16,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott.geometry import costs, pointcloud
@@ -453,7 +454,7 @@ def quantile(
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
 
 
-def multiv_cdf_quantile_maps(
+def multivariate_cdf_quantile_maps(
     inputs: jnp.ndarray,
     target_sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
                                       jnp.ndarray]] = None,
@@ -523,9 +524,11 @@ def multiv_cdf_quantile_maps(
   )
   out = linear.solve(geom, a=input_weights, b=target_weights, **kwargs)
   potentials = out.to_dual_potentials()
-  return potentials.transport, functools.partial(
-      potentials.transport, forward=False
+  cdf_map = jtu.Partial(lambda x, p: p.transport(x), p=potentials)
+  quantile_map = jtu.Partial(
+      lambda x, p: p.transport(x, forward=False), p=potentials
   )
+  return cdf_map, quantile_map
 
 
 def _quantile_normalization(

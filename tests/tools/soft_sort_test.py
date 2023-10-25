@@ -86,7 +86,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  def test_multiv_cdf_quantiles(self):
+  def test_multivariate_cdf_quantiles(self):
     n, d = 512, 3
     keys = jax.random.split(jax.random.PRNGKey(0), 3)
 
@@ -103,7 +103,7 @@ class TestSoftSort:
     atol = 0.1
 
     # Check approximate correctness of naked call to API
-    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs)
+    cdf, qua = soft_sort.multivariate_cdf_quantile_maps(inputs)
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
@@ -114,13 +114,17 @@ class TestSoftSort:
 
     num_target_samples = 473
 
-    cdf, qua = soft_sort.multiv_cdf_quantile_maps(
-        inputs,
-        target_sampler=ball_sampler,
-        num_target_samples=num_target_samples,
-        key=keys[2],
-        epsilon=0.05
-    )
+    @functools.partial(jax.jit, static_argnums=[1])
+    def mv_c_q(inputs, num_target_samples, key, epsilon):
+      return soft_sort.multivariate_cdf_quantile_maps(
+          inputs,
+          target_sampler=ball_sampler,
+          num_target_samples=num_target_samples,
+          key=key,
+          epsilon=epsilon
+      )
+
+    cdf, qua = mv_c_q(inputs, num_target_samples, keys[2], 0.05)
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
