@@ -94,40 +94,33 @@ class TestSoftSort:
     z = jax.random.uniform(keys[0], (1, d))
 
     # Sample inputs symmetrically centered on z
-    inputs = .34 * jax.random.normal(keys[0], (n, d)) + z
+    inputs = 0.34 * jax.random.normal(keys[0], (n, d)) + z
 
     # Set central point in target distribution.
-    q = .5 * jnp.ones((1, d))
+    q = 0.5 * jnp.ones((1, d))
 
     # Set tolerance for quantile / cdf comparisons to ground truth.
-    atol = .1
+    atol = 0.1
 
     # Check approximate correctness of naked call to API
     cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs)
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
-    # Check passing explicitly uniform target values
-    m = 473
-    targets = jax.random.uniform(keys[1], (m, d))
-    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs, targets=targets)
-    np.testing.assert_allclose(cdf(z), q, atol=atol)
-    np.testing.assert_allclose(z, qua(q), atol=atol)
+    # Check passing custom sampler, must be still symmetric / centered on {.5}^d
+    # Check passing custom epsilon also works.
+    def ball_sampler(k: jax.random.PRNGKey, s: Tuple[int, int]) -> jnp.ndarray:
+      return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
 
-    # Check consistency with passing sampler / key
-    cdf_2, qua_2 = soft_sort.multiv_cdf_quantile_maps(
+    num_target_samples = 473
+
+    cdf, qua = soft_sort.multiv_cdf_quantile_maps(
         inputs,
-        target_sampler=jax.random.uniform,
-        key=keys[1],
-        target_num_samples=m
+        target_sampler=ball_sampler,
+        num_target_samples=num_target_samples,
+        key=keys[2],
+        epsilon=0.05
     )
-    np.testing.assert_allclose(cdf_2(z), cdf(z))
-    np.testing.assert_allclose(qua_2(q), qua(q))
-
-    # Check passing explicitly different reference measure target values,
-    # make sure still symmetric / centered on {.5}^d
-    targets = .5 * (jax.random.ball(keys[2], d, p=4, shape=(557,)) + 1.)
-    cdf, qua = soft_sort.multiv_cdf_quantile_maps(inputs, targets)
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
