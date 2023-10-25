@@ -16,16 +16,21 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
-from ott.geometry import pointcloud
+from ott import utils
+from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
+from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
 __all__ = [
     "sort", "ranks", "sort_with", "quantile", "quantile_normalization",
-    "quantize", "topk_mask"
+    "quantize", "topk_mask", "multivariate_cdf_quantile_maps"
 ]
+
+Func_t = Callable[[jnp.ndarray], jnp.ndarray]
 
 
 def transport_for_sort(
@@ -448,6 +453,84 @@ def quantile(
     return out[odds][idx]
 
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
+
+
+def multivariate_cdf_quantile_maps(
+    inputs: jnp.ndarray,
+    target_sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
+                                      jnp.ndarray]] = None,
+    rng: Optional[jax.random.PRNGKey] = None,
+    num_target_samples: Optional[int] = None,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[float] = None,
+    input_weights: Optional[jnp.ndarray] = None,
+    target_weights: Optional[jnp.ndarray] = None,
+    **kwargs: Any
+) -> Tuple[Func_t, Func_t]:
+  r"""Returns multivariate CDF and quantile maps, given input samples.
+
+  Implements the multivariate generalizations for CDF and quantiles proposed in
+  :cite:`chernozhukov:17`. The reference measure is assumed to be the uniform
+  measure by default, but can be modified. For consistency, the reference
+  measure should be symmetrically centered around
+  :math:`(\tfrac{1}{2},\cdots,\tfrac{1}{2})` and supported on :math:`[0, 1]^d`.
+
+  The implementation return two entropic map estimators, one for the CDF map,
+  the other for the quantiles map.
+
+  Args:
+    inputs: 2D array of ``[n, d]`` vectors.
+    target_sampler: Callable that takes a ``rng`` and ``[m, d]`` shape.
+      ``m`` is passed on as ``target_num_samples``, dimension ``d`` is inferred
+      directly from the shape passed in ``inputs``. This is assumed by default
+      to be :func:`~jax.random.uniform`, and could be any other random sampler
+      properly wrapped to have the signature above.
+    rng: rng key used by ``target_sampler``.
+    num_target_samples: number ``m`` of points generated in the target
+      distribution.
+    cost_fn: Cost function, used to compare ``inputs`` and ``targets``.
+      Passed on to instantiate a
+      :class:`~ott.geometry.pointcloud.PointCloud` object. If :obj:`None`,
+      :class:`~ott.geometry.costs.SqEuclidean` is used.
+    epsilon: entropic regularization parameter used to instantiate the
+      :class:`~ott.geometry.pointcloud.PointCloud` object.
+    input_weights: ``[n,]`` vector of weights for input measure. Assumed to
+      be uniform by default.
+    target_weights: ``[m,]`` vector of weights for target measure. Assumed
+      to be uniform by default.
+    kwargs: keyword arguments passed on to the :func:`~ott.solvers.linear.solve`
+      function, which solves the OT problem between ``inputs`` and ``targets``
+      using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
+
+  Returns:
+    - The multivariate CDF map, taking a ``[b, d]`` batch of vectors in the
+      range of the ``inputs``, and mapping each vector within the range
+      of the reference measure (assumed by default to be :math:`[0, 1]^d`).
+    - The quantile map, mapping a batch ``[b, d]`` of multivariate quantile
+      vectors onto ``[b, d]`` vectors in :math:`[0, 1]^d`, the range of
+      the reference measure.
+  """
+  n, d = inputs.shape
+  rng = utils.default_prng_key(rng)
+
+  if num_target_samples is None:
+    num_target_samples = n
+  if target_sampler is None:
+    target_sampler = jax.random.uniform
+
+  targets = target_sampler(rng, (num_target_samples, d))
+  geom = pointcloud.PointCloud(
+      inputs, targets, cost_fn=cost_fn, epsilon=epsilon
+  )
+
+  out = linear.solve(geom, a=input_weights, b=target_weights, **kwargs)
+  potentials = out.to_dual_potentials()
+
+  cdf_map = jtu.Partial(lambda x, p: p.transport(x), p=potentials)
+  quantile_map = jtu.Partial(
+      lambda x, p: p.transport(x, forward=False), p=potentials
+  )
+  return cdf_map, quantile_map
 
 
 def _quantile_normalization(

@@ -86,6 +86,48 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
+  def test_multivariate_cdf_quantiles(self, rng: jax.random.PRNGKeyArray):
+    n, d = 512, 3
+    key1, key2, key3 = jax.random.split(rng, 3)
+
+    # Set central point in sampled input measure
+    z = jax.random.uniform(key1, (1, d))
+
+    # Sample inputs symmetrically centered on z
+    inputs = 0.34 * jax.random.normal(key2, (n, d)) + z
+
+    # Set central point in target distribution.
+    q = 0.5 * jnp.ones((1, d))
+
+    # Set tolerance for quantile / cdf comparisons to ground truth.
+    atol = 0.1
+
+    # Check approximate correctness of naked call to API
+    cdf, qua = soft_sort.multivariate_cdf_quantile_maps(inputs)
+    np.testing.assert_allclose(cdf(z), q, atol=atol)
+    np.testing.assert_allclose(z, qua(q), atol=atol)
+
+    # Check passing custom sampler, must be still symmetric / centered on {.5}^d
+    # Check passing custom epsilon also works.
+    def ball_sampler(k: jax.random.PRNGKey, s: Tuple[int, int]) -> jnp.ndarray:
+      return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
+
+    num_target_samples = 473
+
+    @functools.partial(jax.jit, static_argnums=[1])
+    def mv_c_q(inputs, num_target_samples, rng, epsilon):
+      return soft_sort.multivariate_cdf_quantile_maps(
+          inputs,
+          target_sampler=ball_sampler,
+          num_target_samples=num_target_samples,
+          rng=rng,
+          epsilon=epsilon
+      )
+
+    cdf, qua = mv_c_q(inputs, num_target_samples, key3, 0.05)
+    np.testing.assert_allclose(cdf(z), q, atol=atol)
+    np.testing.assert_allclose(z, qua(q), atol=atol)
+
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
   def test_ranks(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
     rng1, rng2 = jax.random.split(rng, 2)
