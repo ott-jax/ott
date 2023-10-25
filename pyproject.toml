@@ -13,8 +13,7 @@ authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 dependencies = [
-    "jax>=0.1.67",
-    "jaxlib>=0.1.47",
+    "jax>=0.4.0",
     "jaxopt>=0.8",
     "lineax>=0.0.1; python_version >= '3.9'",
     # https://github.com/numba/numba/issues/9130
