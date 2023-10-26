@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -39,8 +41,15 @@ class TestHistogramTransport:
     self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
     self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
 
-  @pytest.mark.fast()
-  def test_ht_pointcloud(self):
+  @pytest.mark.fast.with_args(
+      epsilon_sort=[0.0, 1e-2, 1.0],
+      method=["subsample", "quantile"],
+      cost_fn=[costs.SqEuclidean, costs.PNormP(1.0)]
+  )
+  def test_ht_pointcloud(
+      self, epsilon_sort: float, method: Literal["subsample", "quantile",
+                                                 "equal"], cost_fn: costs.CostFn
+  ):
     geom_x = pointcloud.PointCloud(self.x)
     geom_y = pointcloud.PointCloud(self.y)
     tau_a, tau_b = 1.0, 1.0
@@ -51,9 +60,9 @@ class TestHistogramTransport:
         epsilon=1e-1,
         min_iterations=100,
         max_iterations=100,
-        epsilon_sort=-1,
-        cost_fn=costs.PNormP(2.0),
-        method="quantile",
+        epsilon_sort=epsilon_sort,
+        cost_fn=cost_fn,
+        method=method,
         n_subsamples=min([self.x.shape[0], self.y.shape[0]]),
     )
 

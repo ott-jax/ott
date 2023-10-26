@@ -64,7 +64,7 @@ class UnivariateSolver:
     self.method = method
     self.n_subsamples = n_subsamples
     if cost_fn is None:
-      cost_fn = costs.PNormP(2.0)
+      cost_fn = costs.SqEuclidean
     self.cost_fn = cost_fn
     self.require_sort = require_sort
     self.n_iterations = n_iterations
