@@ -37,25 +37,28 @@ class UnivariateSolver:
   Args:
     epsilon_sort: regularization parameter for sorting. 0.0 for hard-sorting.
     cost_fn: The cost function for transport. Defaults to Squared Euclidean
-    distance.
+      distance.
     method: The method used for computing the distance on the line. Options
-    currently supported are:
+      currently supported are:
       subsample: Take a stratfied subsample of the distances,
       quantile: Take equally spaced quantiles of the distances,
       equal: No subsampling is performed--requires distributions to have the
       same number of points.
     n_subsamples: The number of subsamples to draw for the "quantile" or
-    "subsample" methods
+      "subsample" methods
     require_sort: Whether to assume that the inputed arrays are sorted.
+    n_iterations: The number of iterations for computing the soft sort. Ignored
+      if `epsilon_sort` is zero.
   """
 
   def __init__(
       self,
       epsilon_sort: Optional[float] = 0.0,
-      cost_fn: Optional[costs.TICost] = None,
+      cost_fn: Optional[costs.CostFn] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
       require_sort: bool = False,
+      n_iterations: int = 50,
   ):
     self.epsilon_sort = epsilon_sort
     self.method = method
@@ -64,40 +67,44 @@ class UnivariateSolver:
       cost_fn = costs.PNormP(2.0)
     self.cost_fn = cost_fn
     self.require_sort = require_sort
+    self.n_iterations = n_iterations
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Computes the 1D Wasserstein Distance between `x` and `y`."""
+    """Computes the Univariate OT Distance between `x` and `y`."""
+    sorted_x, sorted_y = (self._sort(x),
+                          self._sort(y)) if self.requires_sort else (x, y)
     if self.method == "subsample":
       return self.cost_fn.pairwise(
-          self._sort(x)[jnp.linspace(0, x.shape[0],
-                                     num=self.n_subsamples).astype(int)],
-          self._sort(y)[jnp.linspace(0, y.shape[0],
-                                     num=self.n_subsamples).astype(int)],
+          sorted_x[jnp.linspace(0, x.shape[0],
+                                num=self.n_subsamples).astype(int)],
+          sorted_y[jnp.linspace(0, y.shape[0],
+                                num=self.n_subsamples).astype(int)],
       )
     if self.method == "equal":
-      return self.cost_fn.pairwise(self._sort(x), self._sort(y))
+      return self.cost_fn.pairwise(sorted_x, sorted_y)
     if self.method == "quantile":
       return self.cost_fn.pairwise(
-          jnp.quantile(
-              a=self._sort(x), q=jnp.linspace(0, 1, self.n_subsamples)
-          ),
-          jnp.quantile(
-              a=self._sort(y), q=jnp.linspace(0, 1, self.n_subsamples)
-          ),
+          jnp.quantile(a=sorted_x, q=jnp.linspace(0, 1, self.n_subsamples)),
+          jnp.quantile(a=sorted_y, q=jnp.linspace(0, 1, self.n_subsamples)),
       )
     raise KeyError(f"Method {self.method} not implemented!")
 
   def _sort(self, x: jnp.ndarray) -> jnp.ndarray:
-    if self.require_sort:
-      return x
     if self.epsilon_sort > 0 or self.epsilon_sort is None:
-      return soft_sort.sort(x, epsilon=self.epsilon_sort)
+      return soft_sort.sort(
+          x,
+          epsilon=self.epsilon_sort,
+          min_iterations=self.n_iterations,
+          max_iterations=self.n_iterations
+      )
     return jnp.sort(x)
 
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
-    return [], aux
+    aux.pop("cost_fn")
+    aux.pop("epsilon_sort")
+    return [self.cost_fn, self.epsilon_sort], aux
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(**aux_data)
+    return cls(*children, **aux_data)

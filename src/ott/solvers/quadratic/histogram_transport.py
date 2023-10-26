@@ -29,7 +29,8 @@ __all__ = ["HistogramTransport"]
 class HistogramTransport:
   """Histogram Transport solver.
 
-  WARNING: As implemented, this solver assumes uniform marginals,
+  warning::
+  As implemented, this solver assumes uniform marginals,
   non-uniform marginal solver coming soon!
 
   Computes the First Lower Bound distance between two distributions.
