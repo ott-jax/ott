@@ -29,15 +29,15 @@ class UnivariateSolver:
 
   .. warning::
 
-    As implemented, this solver assumes uniform marginals,
-    non-uniform marginal solver coming soon!
+    This solver assumes uniform marginals, but a non-uniform marginal solver
+    is coming soon.
 
   Computes the 1-Dimensional Optimal Transport distance between two histograms
   via a variety of methods.
 
   Args:
     epsilon_sort: regularization parameter for sorting. If :math:`\le 0` use
-      `hard-sorting <jax.numpy.sort>`.
+      :func:`hard-sorting <jax.numpy.sort>`.
     cost_fn: The cost function for transport. Defaults to Squared Euclidean
       distance.
     method: The method used for computing the distance on the line. Options
