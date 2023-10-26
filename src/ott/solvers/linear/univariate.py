@@ -90,7 +90,7 @@ class UnivariateSolver:
           jnp.quantile(a=sorted_x, q=jnp.linspace(0, 1, self.n_subsamples)),
           jnp.quantile(a=sorted_y, q=jnp.linspace(0, 1, self.n_subsamples)),
       )
-    raise KeyError(f"Method {self.method} not implemented!")
+    raise NotImplementedError(f"Method {self.method} not implemented.")
 
   def _sort(self, x: jnp.ndarray) -> jnp.ndarray:
     if self.epsilon_sort > 0 or self.epsilon_sort is None:
@@ -106,7 +106,7 @@ class UnivariateSolver:
     aux = vars(self).copy()
     aux.pop("cost_fn")
     aux.pop("epsilon_sort")
-    return [self.cost_fn, self.epsilon_sort], aux
+    return [self.epsilon_sort, self.cost_fn], aux
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
