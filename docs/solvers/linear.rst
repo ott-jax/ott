@@ -35,7 +35,7 @@ Barycenter Solvers
     discrete_barycenter.SinkhornBarycenterOutput
 
 Other Solvers
----------------------
+-------------
 .. autosummary::
     :toctree: _autosummary
 
