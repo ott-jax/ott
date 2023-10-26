@@ -40,13 +40,13 @@ class UnivariateSolver:
       distance.
     method: The method used for computing the distance on the line. Options
       currently supported are:
-      subsample: Take a stratfied subsample of the distances,
+      subsample: Take a stratified sub-sample of the distances,
       quantile: Take equally spaced quantiles of the distances,
-      equal: No subsampling is performed--requires distributions to have the
+      equal: No sub-sampling is performed--requires distributions to have the
       same number of points.
-    n_subsamples: The number of subsamples to draw for the "quantile" or
+    n_subsamples: The number of sub-samples to draw for the "quantile" or
       "subsample" methods
-    require_sort: Whether to assume that the inputed arrays are sorted.
+    requires_sort: Whether to assume that the inputted arrays are sorted.
     n_iterations: The number of iterations for computing the soft sort. Ignored
       if `epsilon_sort` is zero.
   """
@@ -57,16 +57,16 @@ class UnivariateSolver:
       cost_fn: Optional[costs.CostFn] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
-      require_sort: bool = False,
+      requires_sort: bool = False,
       n_iterations: int = 50,
   ):
     self.epsilon_sort = epsilon_sort
     self.method = method
     self.n_subsamples = n_subsamples
     if cost_fn is None:
-      cost_fn = costs.SqEuclidean
+      cost_fn = costs.PNormP(2.0)
     self.cost_fn = cost_fn
-    self.require_sort = require_sort
+    self.requires_sort = requires_sort
     self.n_iterations = n_iterations
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
