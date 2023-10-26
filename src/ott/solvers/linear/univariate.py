@@ -66,8 +66,7 @@ class UnivariateSolver:
     self.epsilon_sort = epsilon_sort
     self.method = method
     self.n_subsamples = n_subsamples
-    if cost_fn is None:
-      cost_fn = costs.PNormP(2.0)
+    cost_fn = costs.PNormP(2.0) if cost_fn is None else cost_fn
     self.cost_fn = cost_fn
     self.requires_sort = requires_sort
     self.min_iterations = min_iterations
