@@ -29,9 +29,10 @@ __all__ = ["HistogramTransport"]
 class HistogramTransport:
   """Histogram Transport solver.
 
-  warning::
-  As implemented, this solver assumes uniform marginals,
-  non-uniform marginal solver coming soon!
+  .. warning::
+
+    As implemented, this solver assumes uniform marginals,
+    non-uniform marginal solver coming soon!
 
   Computes the First Lower Bound distance from :cite:`memoli:11` between two
   distributions. The current implementation requires uniform marginals.
