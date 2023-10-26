@@ -25,7 +25,7 @@ __all__ = ["UnivariateSolver"]
 
 @jax.tree_util.register_pytree_node_class
 class UnivariateSolver:
-  """1-D optimal transport solver.
+  r"""1-D optimal transport solver.
 
   .. warning::
 
@@ -36,20 +36,21 @@ class UnivariateSolver:
   via a variety of methods.
 
   Args:
-    epsilon_sort: regularization parameter for sorting. 0.0 for hard-sorting.
+    epsilon_sort: regularization parameter for sorting. If :math:`\le 0` use
+      `hard-sorting <jax.numpy.sort>`.
     cost_fn: The cost function for transport. Defaults to Squared Euclidean
       distance.
     method: The method used for computing the distance on the line. Options
       currently supported are:
-      subsample: Take a stratified sub-sample of the distances,
-      quantile: Take equally spaced quantiles of the distances,
-      equal: No sub-sampling is performed--requires distributions to have the
-      same number of points.
+      - `'subsample'`: Take a stratified sub-sample of the distances,
+      - `'quantile'`: Take equally spaced quantiles of the distances,
+      - `'equal'`: No sub-sampling is performed--requires distributions to have
+        the same number of points.
     n_subsamples: The number of sub-samples to draw for the "quantile" or
       "subsample" methods
     requires_sort: Whether to assume that the inputted arrays are sorted.
     n_iterations: The number of iterations for computing the soft sort. Ignored
-      if `epsilon_sort` is zero.
+      when `epsilon_sort = 0`.
   """
 
   def __init__(
