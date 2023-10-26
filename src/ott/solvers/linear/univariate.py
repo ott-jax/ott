@@ -53,6 +53,8 @@ class UnivariateSolver:
     requires_sort: Whether to assume that the inputted arrays are sorted.
     n_iterations: The number of iterations for computing the soft sort. Ignored
       when `epsilon_sort = 0`.
+    min_iterations: Minimum number of iterations for soft-sorting.
+    max_iterations: Maximum number of iterations for soft-sorting.
   """
 
   def __init__(
