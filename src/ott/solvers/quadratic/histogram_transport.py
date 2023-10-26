@@ -39,7 +39,7 @@ class HistogramTransport:
   If there are an uneven number of points in the two distributions,
   then we perform a stratified subsample of the distribution of
   distances to be able to approximate the Wasserstein distance between
-  the local distributions of distnaces.
+  the local distributions of distances.
 
   Args:
     epsilon: regularization parameter for the resulting Sinkhorn problem

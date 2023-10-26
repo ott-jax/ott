@@ -44,7 +44,7 @@ class TestHistogramTransport:
   @pytest.mark.fast.with_args(
       epsilon_sort=[0.0, 1e-2, 1.0],
       method=["subsample", "quantile"],
-      cost_fn=[costs.SqEuclidean, costs.PNormP(1.0)]
+      cost_fn=[costs.SqEuclidean(), costs.PNormP(1.0)]
   )
   def test_ht_pointcloud(
       self, epsilon_sort: float, method: Literal["subsample", "quantile",
