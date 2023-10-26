@@ -58,7 +58,8 @@ class UnivariateSolver:
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
       requires_sort: bool = False,
-      n_iterations: int = 50,
+      min_iterations: int = 50,
+      max_iterations: int = 50,
   ):
     self.epsilon_sort = epsilon_sort
     self.method = method
@@ -67,7 +68,8 @@ class UnivariateSolver:
       cost_fn = costs.PNormP(2.0)
     self.cost_fn = cost_fn
     self.requires_sort = requires_sort
-    self.n_iterations = n_iterations
+    self.min_iterations = min_iterations
+    self.max_iterations = max_iterations
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Computes the Univariate OT Distance between `x` and `y`."""
@@ -94,8 +96,8 @@ class UnivariateSolver:
       return soft_sort.sort(
           x,
           epsilon=self.epsilon_sort,
-          min_iterations=self.n_iterations,
-          max_iterations=self.n_iterations
+          min_iterations=self.min_iterations,
+          max_iterations=self.max_iterations
       )
     return jnp.sort(x)
 
