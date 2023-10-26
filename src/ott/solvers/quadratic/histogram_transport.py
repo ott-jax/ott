@@ -33,8 +33,8 @@ class HistogramTransport:
   As implemented, this solver assumes uniform marginals,
   non-uniform marginal solver coming soon!
 
-  Computes the First Lower Bound distance between two distributions.
-  The current implementation requires uniform marginals.
+  Computes the First Lower Bound distance from :cite:`memoli:11` between two
+  distributions. The current implementation requires uniform marginals.
   If there are an uneven number of points in the two distributions,
   then we perform a stratified subsample of the distribution of
   distances to be able to approximate the Wasserstein distance between
