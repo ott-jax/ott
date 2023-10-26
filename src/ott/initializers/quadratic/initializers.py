@@ -127,7 +127,9 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       the product coupling.
   """
 
-  def __init__(self, init_coupling: Optional[jnp.ndarray] = None, **kwargs):
+  def __init__(
+      self, init_coupling: Optional[jnp.ndarray] = None, **kwargs: Any
+  ):
     super().__init__(**kwargs)
     self.init_coupling = init_coupling
 
