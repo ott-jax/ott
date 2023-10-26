@@ -188,3 +188,6 @@ class QuadraticInitializer(BaseQuadraticInitializer):
         epsilon=epsilon,
         relative_epsilon=relative_epsilon
     )
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+    return [self.init_coupling], self._kwargs
