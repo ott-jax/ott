@@ -31,7 +31,7 @@ class BaseQuadraticInitializer(abc.ABC):
   """Base class for quadratic initializers.
 
   Args:
-  kwargs: Keyword arguments.
+    kwargs: Keyword arguments.
   """
 
   def __init__(self, **kwargs: Any):
@@ -116,8 +116,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   .. math::
 
-  \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
-  \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
+    \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
+    \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
 
   When working with the fused problem, a linear term is added to the cost
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
