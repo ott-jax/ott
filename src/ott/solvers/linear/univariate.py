@@ -42,10 +42,12 @@ class UnivariateSolver:
       distance.
     method: The method used for computing the distance on the line. Options
       currently supported are:
+
       - `'subsample'`: Take a stratified sub-sample of the distances,
       - `'quantile'`: Take equally spaced quantiles of the distances,
       - `'equal'`: No sub-sampling is performed--requires distributions to have
         the same number of points.
+
     n_subsamples: The number of sub-samples to draw for the "quantile" or
       "subsample" methods
     requires_sort: Whether to assume that the inputted arrays are sorted.
