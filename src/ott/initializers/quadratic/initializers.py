@@ -122,7 +122,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   Args:
     init_coupling: The coupling to use for initialization. If :obj:`None`,
-    defaults to the product coupling :math:`ab^T`.
+      defaults to the product coupling :math:`ab^T`.
   """
 
   def __init__(
