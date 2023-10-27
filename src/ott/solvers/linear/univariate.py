@@ -76,10 +76,11 @@ class UnivariateSolver:
     assert x.ndim == 1, x.ndim
     assert y.ndim == 1, y.ndim
 
+    n, m = x.shape[0], y.shape[0]
+
     if self.method == "equal":
       xx, yy = self.sort_fn(x), self.sort_fn(y)
     elif self.method == "subsample":
-      n, m = x.shape[0], y.shape[0]
       assert self.n_subsamples <= n, (self.n_subsamples, x)
       assert self.n_subsamples <= m, (self.n_subsamples, y)
 
@@ -93,7 +94,8 @@ class UnivariateSolver:
     else:
       raise NotImplementedError(f"Method `{self.method}` not implemented.")
 
-    return self.cost_fn.pairwise(xx, yy)
+    # re-scale when subsampling
+    return self.cost_fn.pairwise(xx, yy) * (n / xx.shape[0])
 
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()
