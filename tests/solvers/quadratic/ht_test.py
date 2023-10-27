@@ -44,29 +44,34 @@ class TestHistogramTransport:
     self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
 
   @pytest.mark.fast.with_args(
-      epsilon_sort=[0.0, 1e-1],
-      method=["subsample", "quantile"],
-      cost_fn=[costs.SqEuclidean(), costs.PNormP(1.0)],
+      "epsilon_sort,method,cost_fn",
+      [(0.0, "subsample", costs.SqEuclidean()),
+       (1e-1, "quantile", costs.PNormP(1.5)), (1.0, "equal", costs.SqPNorm(1)),
+       (None, "subsample", costs.PNormP(3.1))],
       only_fast=0,
   )
   def test_ht_pointcloud(
       self, epsilon_sort: float, method: Literal["subsample", "quantile",
                                                  "equal"], cost_fn: costs.CostFn
   ):
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
-    tau_a, tau_b = 1.0, 1.0
+    n_sub = min([self.x.shape[0], self.y.shape[0]])
+    x, y = (self.x[:n_sub],
+            self.y[:n_sub]) if method == "equal" else (self.x, self.y)
+
+    geom_x = pointcloud.PointCloud(x)
+    geom_y = pointcloud.PointCloud(y)
     prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+        geom_x, geom_y, a=self.a, b=self.b
     )
-    if epsilon_sort <= 0.0:
+
+    if epsilon_sort is not None and epsilon_sort <= 0.0:
       sort_fn = None
     else:
       sort_fn = functools.partial(
           soft_sort.sort,
           epsilon=epsilon_sort,
           min_iterations=100,
-          max_iterations=100
+          max_iterations=100,
       )
 
     solver = histogram_transport.HistogramTransport(
@@ -74,7 +79,7 @@ class TestHistogramTransport:
         sort_fn=sort_fn,
         cost_fn=cost_fn,
         method=method,
-        n_subsamples=min([self.x.shape[0], self.y.shape[0]]),
+        n_subsamples=4,
     )
 
     out = jax.jit(solver)(prob)
