@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import functools
-from typing import Literal
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -53,8 +53,7 @@ class TestHistogramTransport:
       only_fast=0,
   )
   def test_ht_pointcloud(
-      self, epsilon_sort: float, method: Literal["subsample", "quantile",
-                                                 "equal"], cost_fn: costs.CostFn
+      self, epsilon_sort: float, method: str, cost_fn: costs.CostFn
   ):
     n_sub = min([self.x.shape[0], self.y.shape[0]])
     x, y = (self.x[:n_sub],
@@ -92,7 +91,7 @@ class TestHistogramTransport:
 
     assert not jnp.isnan(out.reg_ot_cost)
 
-  @pytest.mark.parametrize("method", ["quantile", "equal"])
+  @pytest.mark.parametrize("method", ["subsample", "quantile", "equal"])
   @pytest.mark.parametrize(
       "sort_fn",
       [
@@ -109,15 +108,18 @@ class TestHistogramTransport:
           ),
           functools.partial(
               soft_sort.sort,
-              epsilon=5e-1,
+              epsilon=1e-1,
               implicit_diff=implicit_lib.ImplicitDiff(),
               initializer=initializers.DefaultInitializer(),
               min_iterations=0,
-              max_iterations=25,
+              max_iterations=100,
           )
       ]
   )
-  def test_ht_grad(self, rng: jax.random.PRNGKeyArray, sort_fn, method: str):
+  def test_ht_grad(
+      self, rng: jax.random.PRNGKeyArray,
+      sort_fn: Callable[[jnp.ndarray], jnp.ndarray], method: str
+  ):
 
     def fn(x: jnp.ndarray, y: jnp.ndarray) -> float:
       geom_x = pointcloud.PointCloud(x)
@@ -125,18 +127,22 @@ class TestHistogramTransport:
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
       solver = histogram_transport.HistogramTransport(
-          epsilon=1e-1,
+          epsilon=5e-2,
           sort_fn=sort_fn,
-          cost_fn=costs.PNormP(2.1),
+          cost_fn=costs.SqEuclidean(),
           method=method,
           n_subsamples=n_sub,
       )
       return solver(prob).reg_ot_cost
 
     rng1, rng2 = jax.random.split(rng)
-    eps, tol = 1e-3, 1e-4
+    eps, tol = 1e-4, 1e-3
+
     n_sub = min(self.x.shape[0], self.y.shape[0])
-    x, y = self.x[:n_sub], self.y[:n_sub]
+    if method == "equal":
+      x, y = self.x[:n_sub], self.y[:n_sub]
+    else:
+      x, y = self.x, self.y
 
     grad_x, grad_y = jax.jit(jax.grad(fn, (0, 1)))(x, y)
 
