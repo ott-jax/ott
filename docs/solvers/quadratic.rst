@@ -17,7 +17,7 @@ Gromov-Wasserstein Solvers
     gromov_wasserstein.GWOutput
     gromov_wasserstein_lr.LRGromovWasserstein
     gromov_wasserstein_lr.LRGWOutput
-    histogram_transport.HistogramTransport
+    lower_bound.LowerBoundSolver
 
 
 Barycenter Solvers

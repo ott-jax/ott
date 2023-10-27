@@ -24,10 +24,10 @@ __all__ = ["UnivariateSolver"]
 
 @jax.tree_util.register_pytree_node_class
 class UnivariateSolver:
-  r"""1-D optimal transport solver.
+  r"""1-D OT solver.
 
   .. warning::
-    This solver assumes uniform marginals, but a non-uniform marginal solver
+    This solver assumes uniform marginals, a non-uniform marginal solver
     is coming soon.
 
   Computes the 1-Dimensional optimal transport distance between two histograms.
@@ -40,12 +40,12 @@ class UnivariateSolver:
     method: The method used for computing the distance on the line. Options
       currently supported are:
 
-      - `'subsample'`: Take a stratified sub-sample of the distances.
-      - `'quantile'`: Take equally spaced quantiles of the distances.
-      - `'equal'`: No sub-sampling is performed--requires distributions to have
+      - `'subsample'` - Take a stratified sub-sample of the distances.
+      - `'quantile'` - Take equally spaced quantiles of the distances.
+      - `'equal'` - No subsampling is performed, requires distributions to have
         the same number of points.
 
-    n_subsamples: The number of subsamples to draw for the "quantile" or
+    n_subsamples: The number of samples to draw for the "quantile" or
       "subsample" methods.
   """
 

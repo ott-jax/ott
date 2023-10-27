@@ -21,12 +21,12 @@ from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn, univariate
 
-__all__ = ["HistogramTransport"]
+__all__ = ["LowerBoundSolver"]
 
 
 @jax.tree_util.register_pytree_node_class
-class HistogramTransport:
-  """Histogram transport solver.
+class LowerBoundSolver:
+  """Lower bound OT solver :cite:`memoli:11`.
 
   .. warning::
     As implemented, this solver assumes uniform marginals,

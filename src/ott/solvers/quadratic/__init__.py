@@ -15,6 +15,6 @@ from . import (
     gromov_wasserstein,
     gromov_wasserstein_lr,
     gw_barycenter,
-    histogram_transport,
+    lower_bound,
 )
 from ._solve import solve

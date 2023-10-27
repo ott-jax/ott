@@ -23,11 +23,11 @@ from ott.geometry import costs, pointcloud
 from ott.initializers.linear import initializers
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.quadratic import histogram_transport
+from ott.solvers.quadratic import lower_bound
 from ott.tools import soft_sort
 
 
-class TestHistogramTransport:
+class TestLowerBoundSolver:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.random.PRNGKeyArray):
@@ -52,7 +52,7 @@ class TestHistogramTransport:
        (None, "subsample", costs.PNormP(3.1))],
       only_fast=0,
   )
-  def test_ht_pointcloud(
+  def test_lb_pointcloud(
       self, epsilon_sort: float, method: str, cost_fn: costs.CostFn
   ):
     n_sub = min([self.x.shape[0], self.y.shape[0]])
@@ -75,7 +75,7 @@ class TestHistogramTransport:
           max_iterations=100,
       )
 
-    solver = histogram_transport.HistogramTransport(
+    solver = lower_bound.LowerBoundSolver(
         epsilon=1e-1,
         sort_fn=sort_fn,
         cost_fn=cost_fn,
@@ -103,7 +103,7 @@ class TestHistogramTransport:
               # soft sort uses `sorting` initializer, which uses while loop
               # which is not reverse-mode diff.
               initializer=initializers.DefaultInitializer(),
-              min_iterations=0,
+              min_iterations=10,
               max_iterations=10,
           ),
           functools.partial(
@@ -116,7 +116,7 @@ class TestHistogramTransport:
           )
       ]
   )
-  def test_ht_grad(
+  def test_lb_grad(
       self, rng: jax.random.PRNGKeyArray,
       sort_fn: Callable[[jnp.ndarray], jnp.ndarray], method: str
   ):
@@ -126,7 +126,7 @@ class TestHistogramTransport:
       geom_y = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
-      solver = histogram_transport.HistogramTransport(
+      solver = lower_bound.LowerBoundSolver(
           epsilon=5e-2,
           sort_fn=sort_fn,
           cost_fn=costs.SqEuclidean(),

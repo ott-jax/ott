@@ -92,8 +92,6 @@ class BaseQuadraticInitializer(abc.ABC):
 class QuadraticInitializer(BaseQuadraticInitializer):
   r"""Initialize a linear problem locally around a selected coupling.
 
-  Defaults to the product coupling, :math:`ab^T`.
-
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
 
@@ -124,7 +122,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   Args:
     init_coupling: The coupling to use for initialization. If :obj:`None`,
-      identity is used.
+    defaults to the product coupling :math:`ab^T`.
   """
 
   def __init__(
