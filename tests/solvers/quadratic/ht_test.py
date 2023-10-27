@@ -20,7 +20,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from ott.geometry import costs, pointcloud
+from ott.initializers.linear import initializers
 from ott.problems.quadratic import quadratic_problem
+from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.quadratic import histogram_transport
 from ott.tools import soft_sort
 
@@ -31,8 +33,8 @@ class TestHistogramTransport:
   def initialize(self, rng: jax.random.PRNGKeyArray):
     d_x = 2
     d_y = 3
-    self.n, self.m = 6, 7
-    rngs = jax.random.split(rng, 6)
+    self.n, self.m = 13, 15
+    rngs = jax.random.split(rng, 4)
     self.x = jax.random.uniform(rngs[0], (self.n, d_x))
     self.y = jax.random.uniform(rngs[1], (self.m, d_y))
     # Currently Histogram Transport only supports uniform distributions:
@@ -40,8 +42,8 @@ class TestHistogramTransport:
     b = jnp.ones(self.m)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
-    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
+    self.cx = jax.random.uniform(rngs[2], (self.n, self.n))
+    self.cy = jax.random.uniform(rngs[3], (self.m, self.m))
 
   @pytest.mark.fast.with_args(
       "epsilon_sort,method,cost_fn",
@@ -89,3 +91,63 @@ class TestHistogramTransport:
     )
 
     assert not jnp.isnan(out.reg_ot_cost)
+
+  @pytest.mark.parametrize("method", ["quantile", "equal"])
+  @pytest.mark.parametrize(
+      "sort_fn",
+      [
+          None,
+          functools.partial(
+              soft_sort.sort,
+              epsilon=1e-3,
+              implicit_diff=False,
+              # soft sort uses `sorting` initializer, which uses while loop
+              # which is not reverse-mode diff.
+              initializer=initializers.DefaultInitializer(),
+              min_iterations=0,
+              max_iterations=10,
+          ),
+          functools.partial(
+              soft_sort.sort,
+              epsilon=5e-1,
+              implicit_diff=implicit_lib.ImplicitDiff(),
+              initializer=initializers.DefaultInitializer(),
+              min_iterations=0,
+              max_iterations=25,
+          )
+      ]
+  )
+  def test_ht_grad(self, rng: jax.random.PRNGKeyArray, sort_fn, method: str):
+
+    def fn(x: jnp.ndarray, y: jnp.ndarray) -> float:
+      geom_x = pointcloud.PointCloud(x)
+      geom_y = pointcloud.PointCloud(y)
+      prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
+
+      solver = histogram_transport.HistogramTransport(
+          epsilon=1e-1,
+          sort_fn=sort_fn,
+          cost_fn=costs.PNormP(2.1),
+          method=method,
+          n_subsamples=n_sub,
+      )
+      return solver(prob).reg_ot_cost
+
+    rng1, rng2 = jax.random.split(rng)
+    eps, tol = 1e-3, 1e-4
+    n_sub = min(self.x.shape[0], self.y.shape[0])
+    x, y = self.x[:n_sub], self.y[:n_sub]
+
+    grad_x, grad_y = jax.jit(jax.grad(fn, (0, 1)))(x, y)
+
+    v_x = jax.random.normal(rng1, shape=x.shape)
+    v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
+    expected = fn(x + v_x, y) - fn(x - v_x, y)
+    actual = 2.0 * jnp.vdot(v_x, grad_x)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+    v_y = jax.random.normal(rng2, shape=y.shape)
+    v_y = (v_y / jnp.linalg.norm(v_y, axis=-1, keepdims=True)) * eps
+    expected = (fn(x, y + v_y) - fn(x, y - v_y))
+    actual = 2.0 * jnp.vdot(v_y, grad_y)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
