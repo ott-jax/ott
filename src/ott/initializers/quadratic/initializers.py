@@ -53,14 +53,16 @@ class BaseQuadraticInitializer(abc.ABC):
 
     n, m = quad_prob.geom_xx.shape[0], quad_prob.geom_yy.shape[0]
     geom = self._create_geometry(quad_prob, **kwargs)
-    assert geom.shape == (n, m), f"Expected geometry of shape `{n, m}`, " \
-                                 f"found `{geom.shape}`."
+    assert geom.shape == (n, m), (
+        f"Expected geometry of shape `{n, m}`, "
+        f"found `{geom.shape}`."
+    )
     return linear_problem.LinearProblem(
         geom,
         a=quad_prob.a,
         b=quad_prob.b,
         tau_a=quad_prob.tau_a,
-        tau_b=quad_prob.tau_b
+        tau_b=quad_prob.tau_b,
     )
 
   @abc.abstractmethod
@@ -88,7 +90,7 @@ class BaseQuadraticInitializer(abc.ABC):
 
 
 class QuadraticInitializer(BaseQuadraticInitializer):
-  r"""Initialize a linear problem locally around :math:`ab^T` initializer.
+  r"""Initialize a linear problem locally around a selected coupling.
 
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
   the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
@@ -113,11 +115,21 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   .. math::
 
     \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
-     \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
+    \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
 
   When working with the fused problem, a linear term is added to the cost
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
+
+  Args:
+    init_coupling: The coupling to use for initialization. If :obj:`None`,
+      defaults to the product coupling :math:`ab^T`.
   """
+
+  def __init__(
+      self, init_coupling: Optional[jnp.ndarray] = None, **kwargs: Any
+  ):
+    super().__init__(**kwargs)
+    self.init_coupling = init_coupling
 
   def _create_geometry(
       self,
@@ -125,7 +137,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       *,
       epsilon: float,
       relative_epsilon: Optional[bool] = None,
-      **kwargs: Any
+      **kwargs: Any,
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
 
@@ -139,15 +151,21 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       The initial geometry used to initialize the linearized problem.
     """
     from ott.problems.quadratic import quadratic_problem
+
     del kwargs
 
     marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
     geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
 
     h1, h2 = quad_prob.quad_loss
-    tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
-    tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
-    tmp = jnp.outer(tmp1, tmp2)
+    if self.init_coupling is None:
+      tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
+      tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
+      tmp = jnp.outer(tmp1, tmp2)
+    else:
+      tmp1 = h1.func(geom_xx.cost_matrix)
+      tmp2 = h2.func(geom_yy.cost_matrix)
+      tmp = tmp1 @ self.init_coupling @ tmp2.T
 
     if quad_prob.is_balanced:
       cost_matrix = marginal_cost.cost_matrix - tmp
@@ -170,3 +188,6 @@ class QuadraticInitializer(BaseQuadraticInitializer):
         epsilon=epsilon,
         relative_epsilon=relative_epsilon
     )
+
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+    return [self.init_coupling], self._kwargs

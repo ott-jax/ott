@@ -16,6 +16,7 @@ import itertools
 from typing import Any, Mapping, Optional, Sequence
 
 import jax
+import jax.experimental
 import jax.numpy as jnp
 import pytest
 from _pytest.python import Metafunc
@@ -74,9 +75,8 @@ def rng() -> jnp.ndarray:
 
 @pytest.fixture()
 def enable_x64() -> bool:
-  previous_value = jax.config.jax_enable_x64
-  jax.config.update("jax_enable_x64", True)
-  try:
-    yield True
-  finally:
-    jax.config.update("jax_enable_x64", previous_value)
+  with jax.experimental.enable_x64(True):
+    try:
+      yield
+    finally:
+      pass

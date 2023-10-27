@@ -23,7 +23,7 @@ from jaxtyping import Array, Float, PyTree
 _T = TypeVar("_T")
 _FlatPyTree = tuple[list[_T], jtu.PyTreeDef]
 
-__all__ = ["CustomTransposeLinearOperator"]
+__all__ = ["CustomTransposeLinearOperator", "solve_lineax"]
 
 
 class CustomTransposeLinearOperator(lx.FunctionLinearOperator):

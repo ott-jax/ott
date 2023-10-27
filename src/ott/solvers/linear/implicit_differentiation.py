@@ -27,7 +27,7 @@ LinOp_t = Callable[[jnp.ndarray], jnp.ndarray]
 Solver_t = Callable[[LinOp_t, jnp.ndarray, Optional[LinOp_t], bool],
                     jnp.ndarray]
 
-__all__ = ["ImplicitDiff"]
+__all__ = ["ImplicitDiff", "solve_jax_cg"]
 
 
 @utils.register_pytree_node
