@@ -65,24 +65,31 @@ class UnivariateSolver:
     """Computes the Univariate OT Distance between `x` and `y`.
 
     Args:
-      x: The first distribution.
-      y: The second distribution.
+      x: The first distribution of shape ``[n,]`` or ``[n, 1]``.
+      y: The second distribution of shape ``[m,]`` or ``[m, 1]``.
 
     Returns:
       The OT distance.
     """
-    sorted_x = self.sort_fn(x)
-    sorted_y = self.sort_fn(y)
-    n, m = sorted_x.shape[0], sorted_y.shape[0]
+    x = x.squeeze(-1) if x.ndim == 2 else x
+    y = y.squeeze(-1) if y.ndim == 2 else y
+    assert x.ndim == 1, x.ndim
+    assert y.ndim == 1, y.ndim
 
     if self.method == "equal":
-      xx, yy = sorted_x, sorted_y
+      xx, yy = self.sort_fn(x), self.sort_fn(y)
     elif self.method == "subsample":
+      n, m = x.shape[0], y.shape[0]
+      assert self.n_subsamples <= n, (self.n_subsamples, x)
+      assert self.n_subsamples <= m, (self.n_subsamples, y)
+
+      sorted_x, sorted_y = self.sort_fn(x), self.sort_fn(y)
       xx = sorted_x[jnp.linspace(0, n, num=self.n_subsamples).astype(int)]
       yy = sorted_y[jnp.linspace(0, m, num=self.n_subsamples).astype(int)]
     elif self.method == "quantile":
-      xx = jnp.quantile(a=sorted_x, q=jnp.linspace(0, 1, self.n_subsamples))
-      yy = jnp.quantile(a=sorted_y, q=jnp.linspace(0, 1, self.n_subsamples))
+      sorted_x, sorted_y = self.sort_fn(x), self.sort_fn(y)
+      xx = jnp.quantile(sorted_x, q=jnp.linspace(0, 1, self.n_subsamples))
+      yy = jnp.quantile(sorted_y, q=jnp.linspace(0, 1, self.n_subsamples))
     else:
       raise NotImplementedError(f"Method `{self.method}` not implemented.")
 
