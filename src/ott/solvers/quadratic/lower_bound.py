@@ -32,14 +32,13 @@ class LowerBoundSolver:
     As implemented, this solver assumes uniform marginals,
     non-uniform marginal solver coming soon!
 
-  Computes the First Lower Bound distance from :cite:`memoli:11` between two
-  distributions. If there is an uneven number of points in the distributions,
-  then we perform a stratified subsample of the distribution of
-  distances to be able to approximate the Wasserstein distance between
-  the local distributions of distances.
+  Computes the first lower bound distance from :cite:`memoli:11`, def. 6.1.
+  there is an uneven number of points in the distributions, then we perform a
+  stratified subsample of the distribution of distances to approximate
+  the Wasserstein distance between the local distributions of distances.
 
   Args:
-    epsilon: Regularization parameter for the resulting Sinkhorn problem.
+    epsilon: Entropy regularization for the resulting linear problem.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.univariate.UnivariateSolver`.
   """
