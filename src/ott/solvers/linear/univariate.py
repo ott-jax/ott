@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 import jax
 import jax.numpy as jnp
 
 from ott.geometry import costs
-from ott.tools import soft_sort
 
 __all__ = ["UnivariateSolver"]
 
@@ -28,89 +27,70 @@ class UnivariateSolver:
   r"""1-D optimal transport solver.
 
   .. warning::
-
     This solver assumes uniform marginals, but a non-uniform marginal solver
     is coming soon.
 
-  Computes the 1-Dimensional Optimal Transport distance between two histograms
-  via a variety of methods.
+  Computes the 1-Dimensional optimal transport distance between two histograms.
 
   Args:
-    epsilon_sort: regularization parameter for sorting. If :math:`\le 0` use
-      :func:`hard-sorting <jax.numpy.sort>`.
-    cost_fn: The cost function for transport. Defaults to Squared Euclidean
-      distance.
+    sort_fn: The sorting function. If :obj:`None`,
+      use :func:`hard-sorting <jax.numpy.sort>`.
+    cost_fn: The cost function for transport. If :obj:`None`, defaults to
+      :class:`PNormP(2) <ott.geometry.costs.PNormP>`.
     method: The method used for computing the distance on the line. Options
       currently supported are:
 
-      - `'subsample'`: Take a stratified sub-sample of the distances,
-      - `'quantile'`: Take equally spaced quantiles of the distances,
+      - `'subsample'`: Take a stratified sub-sample of the distances.
+      - `'quantile'`: Take equally spaced quantiles of the distances.
       - `'equal'`: No sub-sampling is performed--requires distributions to have
         the same number of points.
 
-    n_subsamples: The number of sub-samples to draw for the "quantile" or
-      "subsample" methods
-    requires_sort: Whether to assume that the inputted arrays are sorted.
-    n_iterations: The number of iterations for computing the soft sort. Ignored
-      when `epsilon_sort = 0`.
-    min_iterations: Minimum number of iterations for soft-sorting.
-    max_iterations: Maximum number of iterations for soft-sorting.
+    n_subsamples: The number of subsamples to draw for the "quantile" or
+      "subsample" methods.
   """
 
   def __init__(
       self,
-      epsilon_sort: Optional[float] = 0.0,
+      sort_fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       cost_fn: Optional[costs.CostFn] = None,
       method: Literal["subsample", "quantile", "equal"] = "subsample",
       n_subsamples: int = 100,
-      requires_sort: bool = False,
-      min_iterations: int = 50,
-      max_iterations: int = 50,
   ):
-    self.epsilon_sort = epsilon_sort
+    self.sort_fn = jnp.sort if sort_fn is None else sort_fn
+    self.cost_fn = costs.PNormP(2) if cost_fn is None else cost_fn
     self.method = method
     self.n_subsamples = n_subsamples
-    cost_fn = costs.PNormP(2.0) if cost_fn is None else cost_fn
-    self.cost_fn = cost_fn
-    self.requires_sort = requires_sort
-    self.min_iterations = min_iterations
-    self.max_iterations = max_iterations
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Computes the Univariate OT Distance between `x` and `y`."""
-    sorted_x, sorted_y = (self._sort(x),
-                          self._sort(y)) if self.requires_sort else (x, y)
-    if self.method == "subsample":
-      return self.cost_fn.pairwise(
-          sorted_x[jnp.linspace(0, x.shape[0],
-                                num=self.n_subsamples).astype(int)],
-          sorted_y[jnp.linspace(0, y.shape[0],
-                                num=self.n_subsamples).astype(int)],
-      )
-    if self.method == "equal":
-      return self.cost_fn.pairwise(sorted_x, sorted_y)
-    if self.method == "quantile":
-      return self.cost_fn.pairwise(
-          jnp.quantile(a=sorted_x, q=jnp.linspace(0, 1, self.n_subsamples)),
-          jnp.quantile(a=sorted_y, q=jnp.linspace(0, 1, self.n_subsamples)),
-      )
-    raise NotImplementedError(f"Method {self.method} not implemented.")
+    """Computes the Univariate OT Distance between `x` and `y`.
 
-  def _sort(self, x: jnp.ndarray) -> jnp.ndarray:
-    if self.epsilon_sort > 0 or self.epsilon_sort is None:
-      return soft_sort.sort(
-          x,
-          epsilon=self.epsilon_sort,
-          min_iterations=self.min_iterations,
-          max_iterations=self.max_iterations
-      )
-    return jnp.sort(x)
+    Args:
+      x: The first distribution.
+      y: The second distribution.
+
+    Returns:
+      The OT distance.
+    """
+    sorted_x = self.sort_fn(x)
+    sorted_y = self.sort_fn(y)
+    n, m = sorted_x.shape[0], sorted_y.shape[0]
+
+    if self.method == "equal":
+      xx, yy = sorted_x, sorted_y
+    elif self.method == "subsample":
+      xx = sorted_x[jnp.linspace(0, n, num=self.n_subsamples).astype(int)]
+      yy = sorted_y[jnp.linspace(0, m, num=self.n_subsamples).astype(int)]
+    elif self.method == "quantile":
+      xx = jnp.quantile(a=sorted_x, q=jnp.linspace(0, 1, self.n_subsamples))
+      yy = jnp.quantile(a=sorted_y, q=jnp.linspace(0, 1, self.n_subsamples))
+    else:
+      raise NotImplementedError(f"Method `{self.method}` not implemented.")
+
+    return self.cost_fn.pairwise(xx, yy)
 
   def tree_flatten(self):  # noqa: D102
-    aux = vars(self).copy()
-    aux.pop("cost_fn")
-    aux.pop("epsilon_sort")
-    return [self.epsilon_sort, self.cost_fn], aux
+    aux_data = vars(self).copy()
+    return [], aux_data
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102

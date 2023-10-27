@@ -15,7 +15,6 @@
 from typing import Any, Optional
 
 import jax
-import jax.experimental
 
 from ott.geometry import geometry
 from ott.problems.quadratic import quadratic_problem
@@ -27,25 +26,22 @@ __all__ = ["HistogramTransport"]
 
 @jax.tree_util.register_pytree_node_class
 class HistogramTransport:
-  """Histogram Transport solver.
+  """Histogram transport solver.
 
   .. warning::
-
     As implemented, this solver assumes uniform marginals,
     non-uniform marginal solver coming soon!
 
   Computes the First Lower Bound distance from :cite:`memoli:11` between two
-  distributions. The current implementation requires uniform marginals.
-  If there are an uneven number of points in the two distributions,
+  distributions. If there is an uneven number of points in the distributions,
   then we perform a stratified subsample of the distribution of
   distances to be able to approximate the Wasserstein distance between
   the local distributions of distances.
 
   Args:
-    epsilon: regularization parameter for the resulting Sinkhorn problem
-    min_iterations: minimum iterations for computing Sinkhorn distance
-    max_iterations: maximum iterations for computing Sinkhorn distance
-    kwargs: keyword arguments for the 1D Wasserstein computation
+    epsilon: Regularization parameter for the resulting Sinkhorn problem.
+    kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.univariate.UnivariateSolver`.
   """
 
   def __init__(
@@ -59,21 +55,17 @@ class HistogramTransport:
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
       **kwargs: Any,
   ) -> sinkhorn.SinkhornOutput:
-    """Run the Histogram Transport solver.
+    """Run the Histogram transport solver.
 
     Args:
-      prob: quadratic OT problem.
-      rng: random number key (not used)
-      kwargs: keyword arguments for the Sinkhorn solver
+      prob: Quadratic OT problem.
+      kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
-      The Histogram Transport output.
+      The Histogram transport output.
     """
-    del rng
-
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
     cost_xy = jax.vmap(
@@ -87,12 +79,11 @@ class HistogramTransport:
     return linear.solve(geom_xy, **kwargs)
 
   def tree_flatten(self):  # noqa: D102
-    aux = vars(self).copy()
-    univariate_solver = aux.pop("univariate_solver")
-    return [univariate_solver], aux
+    return [self.epsilon, self.univariate_solver], {}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    ht_solver = cls(**aux_data)
-    ht_solver.univariate_solver = children[0]
-    return ht_solver
+    epsilon, solver = children
+    obj = cls(epsilon, **aux_data)
+    obj.univariate_solver = solver
+    return obj

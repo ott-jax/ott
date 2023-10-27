@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 from typing import Literal
 
 import jax
@@ -21,6 +22,7 @@ import pytest
 from ott.geometry import costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.quadratic import histogram_transport
+from ott.tools import soft_sort
 
 
 class TestHistogramTransport:
@@ -42,9 +44,10 @@ class TestHistogramTransport:
     self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
 
   @pytest.mark.fast.with_args(
-      epsilon_sort=[0.0, 1e-2, 1.0],
+      epsilon_sort=[0.0, 1e-1],
       method=["subsample", "quantile"],
-      cost_fn=[costs.SqEuclidean(), costs.PNormP(1.0)]
+      cost_fn=[costs.SqEuclidean(), costs.PNormP(1.0)],
+      only_fast=0,
   )
   def test_ht_pointcloud(
       self, epsilon_sort: float, method: Literal["subsample", "quantile",
@@ -56,17 +59,25 @@ class TestHistogramTransport:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
     )
+    if epsilon_sort <= 0.0:
+      sort_fn = None
+    else:
+      sort_fn = functools.partial(
+          soft_sort.sort,
+          epsilon=epsilon_sort,
+          min_iterations=100,
+          max_iterations=100
+      )
+
     solver = histogram_transport.HistogramTransport(
         epsilon=1e-1,
-        min_iterations=100,
-        max_iterations=100,
-        epsilon_sort=epsilon_sort,
+        sort_fn=sort_fn,
         cost_fn=cost_fn,
         method=method,
         n_subsamples=min([self.x.shape[0], self.y.shape[0]]),
     )
 
-    out = solver(prob)
+    out = jax.jit(solver)(prob)
 
     np.testing.assert_allclose(
         out.primal_cost, jnp.sum(out.geom.cost_matrix * out.matrix), rtol=1e-3

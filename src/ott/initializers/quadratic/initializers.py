@@ -123,8 +123,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
 
   Args:
-    init_coupling: The coupling to use for initialization. Set to `None` for
-      the product coupling.
+    init_coupling: The coupling to use for initialization. If :obj:`None`,
+      identity is used.
   """
 
   def __init__(
