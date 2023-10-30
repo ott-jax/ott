@@ -18,7 +18,6 @@ import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import numpy as np
-import scipy.sparse as sp
 from scipy.special import ive
 
 from ott import utils
@@ -65,7 +64,7 @@ class Geodesic(geometry.Geometry):
       cls,
       G: jnp.ndarray,
       t: Optional[float] = 1e-3,
-      order=100,
+      order: int = 100,
       directed: bool = False,
       normalize: bool = False,
       **kwargs: Any
@@ -178,7 +177,8 @@ class Geodesic(geometry.Geometry):
     ) -> jnp.ndarray:
       # Compute the Chebyshev polynomial approximation for
       # the given input and coefficients.
-      x_dense = x.toarray() if sp.issparse(x) else x
+      x_dense = x.todense(
+      ) if type(x) is jesp.BCOO else x  # this should be true all the time
       return np.polynomial.chebyshev.chebval(x_dense, coeffs)
 
     rescaled_laplacian = rescale_laplacian(self.laplacian)
