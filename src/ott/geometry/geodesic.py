@@ -23,6 +23,7 @@ from scipy.special import ive
 
 from ott import utils
 from ott.geometry import geometry
+from ott.math import utils as mu
 
 __all__ = ["Geodesic"]
 
@@ -197,7 +198,7 @@ class Geodesic(geometry.Geometry):
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
-    return -4 * self.t * jnp.log(self.kernel_matrix)
+    return -4 * self.t * mu.safe_log(self.kernel_matrix)
 
   @property
   def _scale(self) -> float:
