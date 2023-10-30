@@ -107,19 +107,16 @@ class Geodesic(geometry.Geometry):
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
 
-    # Create an instance of the Geodesic class and set the attribute
-    geodesic_instance = cls(laplacian, t=t, order=order, **kwargs)
-
     # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
-    chebyshev_coeffs = (
-        2 *
-        ive(jnp.arange(0, geodesic_instance.order + 1), -geodesic_instance.t)
-    ).tolist()
+    chebyshev_coeffs = (2 * ive(jnp.arange(0, order + 1), -t)).tolist()
 
-    # Set the attribute
-    geodesic_instance.chebyshev_coeffs = chebyshev_coeffs
-
-    return geodesic_instance
+    return cls(
+        laplacian,
+        t=t,
+        order=order,
+        chebyshev_coeffs=chebyshev_coeffs,
+        **kwargs
+    )
 
   def apply_kernel(
       self,
