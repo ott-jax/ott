@@ -45,6 +45,7 @@ Geometries
     pointcloud.PointCloud
     grid.Grid
     graph.Graph
+    geodesic.Geodesic
     low_rank.LRCGeometry
     epsilon_scheduler.Epsilon
 
