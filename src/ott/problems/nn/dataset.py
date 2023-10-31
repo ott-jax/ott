@@ -52,14 +52,14 @@ class GaussianMixture:
 
     batch_size: batch size of the samples
     init_rng: initial PRNG key
-    scale: scale of the individual Gaussian samples
-    variance: the variance of the individual Gaussian samples
+    scale: scale of the Gaussian means
+    std: the standard deviation of the individual Gaussian samples
   """
   name: Name_t
   batch_size: int
   init_rng: jax.random.PRNGKeyArray
   scale: float = 5.0
-  variance: float = 0.5
+  std: float = 0.5
 
   def __post_init__(self):
     gaussian_centers = {
@@ -101,7 +101,7 @@ class GaussianMixture:
       rng1, rng2, rng = jax.random.split(rng, 3)
       means = jax.random.choice(rng1, self.centers, (self.batch_size,))
       normal_samples = jax.random.normal(rng2, (self.batch_size, 2))
-      samples = self.scale * means + self.variance ** 2 * normal_samples
+      samples = self.scale * means + (self.std ** 2) * normal_samples
       yield samples
 
 
