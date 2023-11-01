@@ -44,7 +44,7 @@ class UnivariateSolver:
       - `'quantile'` - Take equally spaced quantiles of the distances.
       - `'equal'` - No subsampling is performed, requires distributions to have
         the same number of points.
-      - `'wasserstein'` - Compute the `p`-norm distance between the cdf of the
+      - `'wasserstein'` - Compute the `p`-norm distance between the CDFs of the
         weighted distributions.
 
     n_subsamples: The number of samples to draw for the "quantile" or
