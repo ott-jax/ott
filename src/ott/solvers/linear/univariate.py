@@ -44,29 +44,43 @@ class UnivariateSolver:
       - `'quantile'` - Take equally spaced quantiles of the distances.
       - `'equal'` - No subsampling is performed, requires distributions to have
         the same number of points.
+      - `'wasserstein'` - Compute the `p`-norm distance between the cdf of the
+        weighted distributions.
 
     n_subsamples: The number of samples to draw for the "quantile" or
       "subsample" methods.
+    p: The exponent for the `'wasserstein'` method.
   """
 
   def __init__(
       self,
       sort_fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       cost_fn: Optional[costs.CostFn] = None,
-      method: Literal["subsample", "quantile", "equal"] = "subsample",
+      method: Literal["subsample", "quantile", "wasserstein",
+                      "equal"] = "subsample",
       n_subsamples: int = 100,
+      p: Optional[float] = None,
   ):
     self.sort_fn = jnp.sort if sort_fn is None else sort_fn
     self.cost_fn = costs.PNormP(2) if cost_fn is None else cost_fn
     self.method = method
     self.n_subsamples = n_subsamples
+    self.p = 2.0 if p is None else p
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(
+      self,
+      x: jnp.ndarray,
+      y: jnp.ndarray,
+      a: Optional[jnp.ndarray] = None,
+      b: Optional[jnp.ndarray] = None
+  ) -> float:
     """Computes the Univariate OT Distance between `x` and `y`.
 
     Args:
       x: The first distribution of shape ``[n,]`` or ``[n, 1]``.
       y: The second distribution of shape ``[m,]`` or ``[m, 1]``.
+      a: The probability weights for `x` (only for wasserstein)
+      b: The probability weights for `y` (only for wasserstein)
 
     Returns:
       The OT distance.
@@ -91,11 +105,40 @@ class UnivariateSolver:
       sorted_x, sorted_y = self.sort_fn(x), self.sort_fn(y)
       xx = jnp.quantile(sorted_x, q=jnp.linspace(0, 1, self.n_subsamples))
       yy = jnp.quantile(sorted_y, q=jnp.linspace(0, 1, self.n_subsamples))
+    elif self.method == "wasserstein":
+      a = jnp.ones(x.shape) if a is None else a
+      b = jnp.ones(y.shape) if b is None else b
+      return self._cdf_distance(x, y, a, b)
     else:
       raise NotImplementedError(f"Method `{self.method}` not implemented.")
 
     # re-scale when subsampling
     return self.cost_fn.pairwise(xx, yy) * (n / xx.shape[0])
+
+  def _cdf_distance(
+      self, x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+  ):
+    # Implementation based on `scipy` implementation for
+    # :func:<scipy.stats.wasserstein_distance>
+    x_sorter = jnp.argsort(x)
+    y_sorter = jnp.argsort(y)
+    x_sorted = x[x_sorter]
+    y_sorted = y[y_sorter]
+
+    all_values = jnp.concatenate([x_sorted, y_sorted])
+    all_values_sorter = jnp.argsort(all_values)
+    all_values_sorted = all_values[all_values_sorter]
+
+    deltas = jnp.diff(all_values_sorted)
+
+    x_pdf = jnp.concatenate([a, jnp.zeros(y.shape)])[all_values_sorter]
+    y_pdf = jnp.concatenate([jnp.zeros(x.shape), b])[all_values_sorter]
+
+    x_cdf = jnp.cumsum(x_pdf)[:-1]
+    y_cdf = jnp.cumsum(y_pdf)[:-1]
+    return jnp.power(
+        jnp.sum(jnp.abs(x_cdf - y_cdf) * jnp.power(deltas, self.p)), 1 / self.p
+    )
 
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()
