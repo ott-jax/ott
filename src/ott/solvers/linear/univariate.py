@@ -120,10 +120,8 @@ class UnivariateSolver:
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>
-    x_sorter = jnp.argsort(x)
-    y_sorter = jnp.argsort(y)
-    x_sorted = x[x_sorter]
-    y_sorted = y[y_sorter]
+    x_sorted = jnp.sort(x)
+    y_sorted = jnp.sort(y)
 
     all_values = jnp.concatenate([x_sorted, y_sorted])
     all_values_sorter = jnp.argsort(all_values)
