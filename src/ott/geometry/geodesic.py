@@ -50,6 +50,8 @@ class Geodesic(geometry.Geometry):
       chebyshev_coeffs: Optional[List[float]] = None,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
+      lap_m_id: Optional[jnp.ndarray] = None, # Rescale Laplacian minus identity
+      eigval: Optional[jnp.ndarray] = None, # (Second)Largest eigenvalue of Laplacian
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
@@ -58,6 +60,8 @@ class Geodesic(geometry.Geometry):
     self.order = order
     self.chebyshev_coeffs = chebyshev_coeffs
     self.numerical_scheme = numerical_scheme
+    self.lap_m_id = lap_m_id
+    self.eigval = eigval
 
   @classmethod
   def from_graph(
@@ -104,6 +108,10 @@ class Geodesic(geometry.Geometry):
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
+    eigval = compute_largest_eigenvalue(laplacian, k=1)
+    rescaled_laplacian = rescale_laplacian(laplacian, eigval)
+    lap_min_id = define_scaled_laplacian(rescaled_laplacian)
+
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
 
@@ -115,6 +123,8 @@ class Geodesic(geometry.Geometry):
         t=t,
         order=order,
         chebyshev_coeffs=chebyshev_coeffs,
+        lap_m_id=lap_min_id,
+        eigval=eigval,
         **kwargs
     )
 
@@ -124,10 +134,13 @@ class Geodesic(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
+    # TODO: fix indentation
+    # NOTE: GH: We could also input time, since we only need to recompute the coeffs, 
+    # i.e. we can use the same laplacian, scales laplaciant for different times.
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-    scaling: Scaling to apply the kernel to.
+    scaling: Scaling to apply the kernel to. 
     eps: passed for consistency, not used yet.
     axis: passed for consistency, not used yet.
 
@@ -135,19 +148,7 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
 
-    def compute_chebyshev_approximation(
-        x: jnp.ndarray, coeffs: List[float]
-    ) -> jnp.ndarray:
-      # Compute the Chebyshev polynomial approximation for
-      # the given input and coefficients.
-      x_dense = x.todense(
-      ) if type(x) is jesp.BCOO else x  # this should be true all the time
-      return np.polynomial.chebyshev.chebval(x_dense, coeffs)
-
-    rescaled_laplacian = rescale_laplacian(self.laplacian)
-    scaled_laplacian = define_scaled_laplacian(rescaled_laplacian)
-
-    laplacian_times_signal = scaled_laplacian.dot(scaling)  # Apply the kernel
+    laplacian_times_signal = self.lap_m_id.dot(scaling)  # Apply the kernel
 
     return compute_chebyshev_approximation(
         laplacian_times_signal, self.chebyshev_coeffs
@@ -226,7 +227,7 @@ class Geodesic(geometry.Geometry):
 
 
 # TODO:
-# just moving some function here for now, idk if we want them in the class
+# Moving some function here for now, idk if we want them in the class
 # or in a utils file.  
 
 def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
@@ -248,9 +249,8 @@ def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
 
   return jnp.max(eigvals)
 
-def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
+def rescale_laplacian(laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.ndarray) -> jnp.ndarray:
   # Rescale the Laplacian matrix.
-  largest_eigenvalue = compute_largest_eigenvalue(laplacian_matrix, k=1)
   if largest_eigenvalue > 2:
     rescaled_laplacian = laplacian_matrix.copy()
     rescaled_laplacian /= largest_eigenvalue
@@ -262,3 +262,13 @@ def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
   n = laplacian_matrix.shape[0]
   identity = jnp.eye(n)
   return laplacian_matrix - identity
+
+@jax.pure_callback
+def compute_chebyshev_approximation(
+    x: jnp.ndarray, coeffs: List[float]
+) -> jnp.ndarray:
+  # Compute the Chebyshev polynomial approximation for
+  # the given input and coefficients.
+  x_dense = x.todense(
+  ) if type(x) is jesp.BCOO else x  # this should be true all the time
+  return np.polynomial.chebyshev.chebval(x_dense, coeffs)
