@@ -145,8 +145,6 @@ class UnivariateSolver:
 
     if x.shape != p.shape:
       raise ValueError("Probabilities and geometry must be the same shape")
-    if jnp.any(p < 0):
-      raise ValueError("All probabilities must be non-negative.")
 
     # Currently, we normalize so `p` sums to one. We could also throw an error
     # if it doesn't.
