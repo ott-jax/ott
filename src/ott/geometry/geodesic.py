@@ -135,40 +135,6 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
 
-    def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
-      # Compute the largest eigenvalue of the Laplacian matrix.
-      if rng is None:
-        rng = utils.default_prng_key(rng)
-      n, _ = self.shape
-      # Generate random initial directions for eigenvalue computation
-      initial_dirs = jax.random.normal(rng, (n, k))
-
-      # Create a sparse matrix-vector product function using sparsify
-      # This function multiplies the sparse laplacian_matrix with a vector
-      lapl_vector_product = jesp.sparsify(lambda v: laplacian_matrix @ v)
-
-      # Compute eigenvalues using the sparse matrix-vector product
-      eigvals, _, _ = jesp.linalg.lobpcg_standard(
-          lapl_vector_product, initial_dirs, m=k
-      )
-
-      return jnp.max(eigvals)
-
-    def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      # Rescale the Laplacian matrix.
-      largest_eigenvalue = compute_largest_eigenvalue(laplacian_matrix, k=1)
-      if largest_eigenvalue > 2:
-        rescaled_laplacian = laplacian_matrix.copy()
-        rescaled_laplacian /= largest_eigenvalue
-        return 2 * rescaled_laplacian
-      return laplacian_matrix
-
-    def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-      # Define the scaled Laplacian matrix.
-      n = laplacian_matrix.shape[0]
-      identity = jnp.eye(n)
-      return laplacian_matrix - identity
-
     def compute_chebyshev_approximation(
         x: jnp.ndarray, coeffs: List[float]
     ) -> jnp.ndarray:
@@ -257,3 +223,42 @@ class Geodesic(geometry.Geometry):
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
   ) -> "Geodesic":
     return cls(*children, **aux_data)
+
+
+# TODO:
+# just moving some function here for now, idk if we want them in the class
+# or in a utils file.  
+
+def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
+  # Compute the largest eigenvalue of the Laplacian matrix.
+  if rng is None:
+    rng = utils.default_prng_key(rng)
+  n = laplacian_matrix.shape[0]
+  # Generate random initial directions for eigenvalue computation
+  initial_dirs = jax.random.normal(rng, (n, k))
+
+  # Create a sparse matrix-vector product function using sparsify
+  # This function multiplies the sparse laplacian_matrix with a vector
+  lapl_vector_product = jesp.sparsify(lambda v: laplacian_matrix @ v)
+
+  # Compute eigenvalues using the sparse matrix-vector product
+  eigvals, _, _ = jesp.linalg.lobpcg_standard(
+      lapl_vector_product, initial_dirs, m=k
+  )
+
+  return jnp.max(eigvals)
+
+def rescale_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
+  # Rescale the Laplacian matrix.
+  largest_eigenvalue = compute_largest_eigenvalue(laplacian_matrix, k=1)
+  if largest_eigenvalue > 2:
+    rescaled_laplacian = laplacian_matrix.copy()
+    rescaled_laplacian /= largest_eigenvalue
+    return 2 * rescaled_laplacian
+  return laplacian_matrix
+
+def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
+  # Define the scaled Laplacian matrix.
+  n = laplacian_matrix.shape[0]
+  identity = jnp.eye(n)
+  return laplacian_matrix - identity
