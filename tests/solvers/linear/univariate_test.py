@@ -24,15 +24,15 @@ from ott.solvers.linear import sinkhorn, univariate
 class TestUnivariate:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     self.rng = rng
     self.n = 17
     self.m = 29
     self.rng, *rngs = jax.random.split(self.rng, 4)
     self.x = jax.random.uniform(rngs[0], [self.n])
     self.y = jax.random.uniform(rngs[1], [self.m])
-    a = jax.random.uniform(rngs[2], (self.n,))
-    b = jax.random.uniform(rngs[3], (self.m,))
+    a = jax.random.uniform(rngs[2], [self.n])
+    b = jax.random.uniform(rngs[3], [self.m])
 
     #  adding zero weights to test proper handling
     a = a.at[0].set(0)
@@ -41,7 +41,7 @@ class TestUnivariate:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      "cost_fn", [
+      cost_fn=[
           costs.SqEuclidean(),
           costs.PNormP(1.0),
           costs.PNormP(2.0),
@@ -85,9 +85,10 @@ class TestUnivariate:
 
     np.testing.assert_allclose(scipy_distance, ott_distance, atol=0, rtol=1e-2)
 
+  @pytest.mark.fast()
   def test_cdf_grad(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
   ):
     cost_fn = costs.SqEuclidean()
     rngs = jax.random.split(rng, 4)
