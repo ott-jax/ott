@@ -84,3 +84,48 @@ class TestUnivariate:
     )
 
     np.testing.assert_allclose(scipy_distance, ott_distance, atol=0, rtol=1e-2)
+
+  def test_cdf_grad(
+      self,
+      rng: jax.random.PRNGKeyArray,
+  ):
+    cost_fn = costs.SqEuclidean()
+    rngs = jax.random.split(rng, 4)
+    eps, tol = 1e-4, 1e-3
+
+    solver = univariate.UnivariateSolver(method="wasserstein", cost_fn=cost_fn)
+
+    grad_x, grad_y, grad_a, grad_b = jax.jit(jax.grad(solver, (0, 1, 2, 3))
+                                            )(self.x, self.y, self.a, self.b)
+
+    # Checking geometric grads:
+    v_x = jax.random.normal(rngs[0], shape=self.x.shape)
+    v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
+    expected = solver(self.x + v_x, self.y, self.a,
+                      self.b) - solver(self.x - v_x, self.y, self.a, self.b)
+    actual = 2.0 * jnp.vdot(v_x, grad_x)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+    v_y = jax.random.normal(rngs[1], shape=self.y.shape)
+    v_y = (v_y / jnp.linalg.norm(v_y, axis=-1, keepdims=True)) * eps
+    expected = solver(self.x, self.y + v_y, self.a,
+                      self.b) - solver(self.x, self.y - v_y, self.a, self.b)
+    actual = 2.0 * jnp.vdot(v_y, grad_y)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+    # Checking probability grads:
+    v_a = jax.random.normal(rngs[2], shape=self.x.shape)
+    v_a -= jnp.mean(v_a, axis=-1, keepdims=True)
+    v_a = (v_a / jnp.linalg.norm(v_a, axis=-1, keepdims=True)) * eps
+    expected = solver(self.x, self.y, self.a + v_a,
+                      self.b) - solver(self.x, self.y, self.a - v_a, self.b)
+    actual = 2.0 * jnp.vdot(v_a, grad_a)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+    v_b = jax.random.normal(rngs[3], shape=self.x.shape)
+    v_b -= jnp.mean(v_b, axis=-1, keepdims=True)
+    v_b = (v_b / jnp.linalg.norm(v_b, axis=-1, keepdims=True)) * eps
+    expected = solver(self.x, self.y, self.a, self.b +
+                      v_b) - solver(self.x, self.y, self.a, self.b - v_b)
+    actual = 2.0 * jnp.vdot(v_b, grad_b)
+    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
