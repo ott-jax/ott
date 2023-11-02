@@ -48,7 +48,7 @@ class TestUnivariate:
           costs.PNormP(1.7)
       ]
   )
-  def test_cdf_distance_and_sinkhorn(self, cost_fn):
+  def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
     """The Univariate distance coincides with the sinkhorn solver"""
     univariate_solver = univariate.UnivariateSolver(
         method="wasserstein", cost_fn=cost_fn
