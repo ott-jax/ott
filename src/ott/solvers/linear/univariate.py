@@ -49,7 +49,6 @@ class UnivariateSolver:
 
     n_subsamples: The number of samples to draw for the "quantile" or
       "subsample" methods.
-    p: The exponent for the `'wasserstein'` method.
   """
 
   def __init__(
@@ -59,13 +58,11 @@ class UnivariateSolver:
       method: Literal["subsample", "quantile", "wasserstein",
                       "equal"] = "subsample",
       n_subsamples: int = 100,
-      p: Optional[float] = None,
   ):
     self.sort_fn = jnp.sort if sort_fn is None else sort_fn
     self.cost_fn = costs.PNormP(2) if cost_fn is None else cost_fn
     self.method = method
     self.n_subsamples = n_subsamples
-    self.p = 2.0 if p is None else p
 
   def __call__(
       self,
@@ -133,9 +130,9 @@ class UnivariateSolver:
     x_cdf_inv = all_values_sorted[jnp.searchsorted(x_cdf, quantiles)]
     y_cdf_inv = all_values_sorted[jnp.searchsorted(y_cdf, quantiles)]
     return jnp.sum(
-        jnp.power(jnp.abs(y_cdf_inv[1:] - x_cdf_inv[1:]), self.p) *
+        jax.vmap(self.cost_fn)(y_cdf_inv[1:, None], x_cdf_inv[1:, None]) *
         jnp.diff(quantiles)
-    ) / self.p
+    )
 
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()

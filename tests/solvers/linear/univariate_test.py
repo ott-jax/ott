@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -26,16 +39,25 @@ class TestUnivariate:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @pytest.mark.fast.with_args(p=[1.0, 2.0, 1.7])
-  def test_cdf_distance(self, p):
-    """The Univariate distance coincides with the  sinkhorn solver"""
-    univariate_solver = univariate.UnivariateSolver(method="wasserstein", p=p)
+  @pytest.mark.fast.with_args(
+      cost_fn=[
+          costs.SqEuclidean(),
+          costs.PNormP(1.0),
+          costs.PNormP(2.0),
+          costs.PNormP(1.7)
+      ]
+  )
+  def test_cdf_distance(self, cost_fn):
+    """The Univariate distance coincides with the sinkhorn solver"""
+    univariate_solver = univariate.UnivariateSolver(
+        method="wasserstein", cost_fn=cost_fn
+    )
     distance = univariate_solver(self.x, self.y, self.a, self.b)
 
     geom = pointcloud.PointCloud(
         x=self.x[:, None],
         y=self.y[:, None],
-        cost_fn=costs.PNormP(p),
+        cost_fn=costs.PNormP(cost_fn),
         epsilon=5e-5
     )
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
@@ -43,5 +65,6 @@ class TestUnivariate:
     sinkhorn_soln = sinkhorn_solver(prob)
 
     np.testing.assert_allclose(
-        sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-2
+        sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-7
     )
+    assert 1 == 2
