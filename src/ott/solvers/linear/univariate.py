@@ -120,23 +120,22 @@ class UnivariateSolver:
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>
-    x_sorted = jnp.sort(x)
-    y_sorted = jnp.sort(y)
-
-    all_values = jnp.concatenate([x_sorted, y_sorted])
+    all_values = jnp.concatenate([x, y])
     all_values_sorter = jnp.argsort(all_values)
     all_values_sorted = all_values[all_values_sorter]
-
-    deltas = jnp.diff(all_values_sorted)
-
     x_pdf = jnp.concatenate([a, jnp.zeros(y.shape)])[all_values_sorter]
     y_pdf = jnp.concatenate([jnp.zeros(x.shape), b])[all_values_sorter]
 
-    x_cdf = jnp.cumsum(x_pdf)[:-1]
-    y_cdf = jnp.cumsum(y_pdf)[:-1]
-    return jnp.power(
-        jnp.sum(jnp.abs(x_cdf - y_cdf) * jnp.power(deltas, self.p)), 1 / self.p
-    )
+    x_cdf = jnp.cumsum(x_pdf)
+    y_cdf = jnp.cumsum(y_pdf)
+
+    quantiles = jnp.sort(jnp.concatenate([x_cdf, y_cdf]))
+    x_cdf_inv = all_values_sorted[jnp.searchsorted(x_cdf, quantiles)]
+    y_cdf_inv = all_values_sorted[jnp.searchsorted(y_cdf, quantiles)]
+    return jnp.sum(
+        jnp.power(jnp.abs(y_cdf_inv[1:] - x_cdf_inv[1:]), self.p) *
+        jnp.diff(quantiles)
+    ) / self.p
 
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()
