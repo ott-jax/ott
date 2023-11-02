@@ -120,7 +120,7 @@ class TestUnivariate:
     actual = 2.0 * jnp.vdot(v_a, grad_a)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-    v_b = jax.random.normal(rngs[3], shape=self.x.shape)
+    v_b = jax.random.normal(rngs[3], shape=self.y.shape)
     v_b -= jnp.mean(v_b, axis=-1, keepdims=True)
     v_b = (v_b / jnp.linalg.norm(v_b, axis=-1, keepdims=True)) * eps
     expected = solver(self.x, self.y, self.a, self.b +
