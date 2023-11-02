@@ -103,8 +103,6 @@ class UnivariateSolver:
       xx = jnp.quantile(sorted_x, q=jnp.linspace(0, 1, self.n_subsamples))
       yy = jnp.quantile(sorted_y, q=jnp.linspace(0, 1, self.n_subsamples))
     elif self.method == "wasserstein":
-      a = jnp.ones(x.shape) if a is None else a
-      b = jnp.ones(y.shape) if b is None else b
       return self._cdf_distance(x, y, a, b)
     else:
       raise NotImplementedError(f"Method `{self.method}` not implemented.")
@@ -113,10 +111,14 @@ class UnivariateSolver:
     return self.cost_fn.pairwise(xx, yy) * (n / xx.shape[0])
 
   def _cdf_distance(
-      self, x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+      self, x: jnp.ndarray, y: jnp.ndarray, a: Optional[jnp.ndarray],
+      b: Optional[jnp.ndarray]
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>
+    a = jnp.ones(x.shape) if a is None else a
+    b = jnp.ones(y.shape) if b is None else b
+
     all_values = jnp.concatenate([x, y])
     all_values_sorter = jnp.argsort(all_values)
     all_values_sorted = all_values[all_values_sorter]
