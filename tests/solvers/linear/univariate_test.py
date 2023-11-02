@@ -15,6 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+import scipy as sp
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, univariate
@@ -67,3 +68,19 @@ class TestUnivariate:
     np.testing.assert_allclose(
         sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-2
     )
+
+  @pytest.mark.fast()
+  def test_cdf_distance_and_scipy(self):
+    """The OTT solver coincides with scipy solver"""
+
+    # The `scipy` solver only has the solution for p=1.0 visible
+    univariate_solver = univariate.UnivariateSolver(
+        method="wasserstein", cost_fn=costs.PNormP(1.0)
+    )
+    ott_distance = univariate_solver(self.x, self.y, self.a, self.b)
+
+    scipy_distance = sp.stats.wasserstein_distance(
+        self.x, self.y, self.a, self.b
+    )
+
+    np.testing.assert_allclose(scipy_distance, ott_distance, atol=0, rtol=1e-2)
