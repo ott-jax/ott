@@ -28,7 +28,7 @@ class TestUnivariate:
     self.rng = rng
     self.n = 17
     self.m = 29
-    self.rng, *rngs = jax.random.split(self.rng, 4)
+    self.rng, *rngs = jax.random.split(self.rng, 5)
     self.x = jax.random.uniform(rngs[0], [self.n])
     self.y = jax.random.uniform(rngs[1], [self.m])
     a = jax.random.uniform(rngs[2], [self.n])
