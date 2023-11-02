@@ -118,8 +118,8 @@ class UnivariateSolver:
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>
-    a = jnp.ones(x.shape) if a is None else a
-    b = jnp.ones(y.shape) if b is None else b
+    x, a = self._validate_distribution(x, a)
+    y, b = self._validate_distribution(y, b)
 
     all_values = jnp.concatenate([x, y])
     all_values_sorter = jnp.argsort(all_values)
@@ -137,6 +137,20 @@ class UnivariateSolver:
         jax.vmap(self.cost_fn)(y_cdf_inv[1:, None], x_cdf_inv[1:, None]) *
         jnp.diff(quantiles)
     )
+
+  def _validate_distribution(self, x, p):
+    if p is None:
+      p = jnp.ones(x.shape)
+      return x, p / jnp.sum(p)
+
+    if x.shape != p.shape:
+      raise ValueError("Probabilities and geometry must be the same shape")
+    if jnp.any(p < 0):
+      raise ValueError("All probabilities must be non-negative.")
+
+    # Currently, we normalize so `p` sums to one. We could also throw an error
+    # if it doesn't.
+    return x, p / jnp.sum(p)
 
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()
