@@ -44,8 +44,8 @@ class UnivariateSolver:
       - `'quantile'` - Take equally spaced quantiles of the distances.
       - `'equal'` - No subsampling is performed, requires distributions to have
         the same number of points.
-      - `'wasserstein'` - Compute the `p`-norm distance between the CDFs of the
-        weighted distributions.
+      - `'wasserstein'` - Compute the distance using the explicit solution
+        involving inverse CDFs.
 
     n_subsamples: The number of samples to draw for the "quantile" or
       "subsample" methods.
@@ -76,8 +76,10 @@ class UnivariateSolver:
     Args:
       x: The first distribution of shape ``[n,]`` or ``[n, 1]``.
       y: The second distribution of shape ``[m,]`` or ``[m, 1]``.
-      a: The probability weights for `x` (only for wasserstein)
-      b: The probability weights for `y` (only for wasserstein)
+      a: The first marginals when ``method = 'wasserstein'``. If :obj:`None`,
+        uniform will be used.
+      b: The second marginals when ``method = 'wasserstein'``. If :obj:`None`,
+        uniform will be used.
 
     Returns:
       The OT distance.
