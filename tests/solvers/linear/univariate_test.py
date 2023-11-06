@@ -87,6 +87,8 @@ class TestUnivariate:
       self,
       rng: jax.Array,
   ):
+    # TODO: Once a `check_grad` function is implemented, replace the code
+    # blocks before with `check_grad`'s.
     cost_fn = costs.SqEuclidean()
     rngs = jax.random.split(rng, 4)
     eps, tol = 1e-4, 1e-3
