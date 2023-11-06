@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Optional
 
-import jax.numpy as jnp
 import pytest
 from ott import utils
 
@@ -37,9 +36,3 @@ def test_deprecation_warning(version: Optional[str], msg: Optional[str]):
   with pytest.warns(DeprecationWarning, match=expected_msg):
     res = func()
   assert res == 42
-
-
-def test_is_jax_array():
-  x = jnp.array([0.0])
-  assert utils.is_jax_array(x)
-  assert not utils.is_jax_array(0)
