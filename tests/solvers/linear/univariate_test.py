@@ -41,7 +41,7 @@ class TestUnivariate:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.parametrize(
-      cost_fn=[
+      "cost_fn", [
           costs.SqEuclidean(),
           costs.PNormP(1.0),
           costs.PNormP(2.0),
