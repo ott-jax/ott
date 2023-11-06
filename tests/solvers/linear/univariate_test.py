@@ -59,7 +59,7 @@ class TestUnivariate:
         x=self.x[:, None], y=self.y[:, None], cost_fn=cost_fn, epsilon=5e-5
     )
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
-    sinkhorn_solver = sinkhorn.Sinkhorn(max_iterations=int(1e6))
+    sinkhorn_solver = jax.jit(sinkhorn.Sinkhorn(max_iterations=int(1e6)))
     sinkhorn_soln = sinkhorn_solver(prob)
 
     np.testing.assert_allclose(
