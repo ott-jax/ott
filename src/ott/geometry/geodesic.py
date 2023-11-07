@@ -160,7 +160,11 @@ class Geodesic(geometry.Geometry):
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
-    return self.apply_kernel(jnp.eye(n))
+    kernel = self.apply_kernel(jnp.eye(n))
+    # check if the kernel is symmetric
+    if jnp.any((kernel != kernel.T)):
+      kernel = (kernel + kernel.T) / 2.0
+    return kernel
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102

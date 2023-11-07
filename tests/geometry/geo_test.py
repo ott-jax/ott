@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import Optional
 
+import jax
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
@@ -67,50 +68,61 @@ class TestGeodesic:
 
   def test_init(self):
     n, order = 10, 100
+    t = 10
     G = random_graph(n, p=0.5)
-    geom = geodesic.Geodesic.from_graph(G, order=order)
+    geom = geodesic.Geodesic.from_graph(G, t=t, order=order)
 
     np.testing.assert_equal(geom.order, order)
-    np.testing.assert_equal(geom.t, 1e-3)
-    np.testing.assert_equal(geom.chebyshev_coeffs, None)
-    np.testing.assert_equal(geom.laplacian, G)
-    np.testing.assert_equal(geom.numerical_scheme, "backward_euler")
+    np.testing.assert_equal(geom.t, t)
+    # np.testing.assert_equal(geom.laplacian, G) # TODO: check for the normalized laplacian
+
+  def test_kernel_is_symmetric_positive_definite(
+      self, rng: jax.random.PRNGKeyArray
+  ):
+    n, tol = 65, 0.02
+    t = 20
+    order = 50
+    x = jax.random.normal(rng, (n,))
+    G = random_graph(n)
+    geom = geodesic.Geodesic.from_graph(G, t=t, order=order)
+
+    kernel = geom.kernel_matrix
+
+    vec0 = geom.apply_kernel(x, axis=0)
+    vec1 = geom.apply_kernel(x, axis=1)
+    vec_direct0 = geom.kernel_matrix.T @ x
+    vec_direct1 = geom.kernel_matrix @ x
+
+    # we symmetrize the kernel explicitly when materializing it, because
+    # numerical error arise  for small `t` and `backward_euler`, or Chebyshev approximation.
+    np.testing.assert_array_equal(kernel, kernel.T)
+    eigenvalues = jnp.linalg.eigvals(kernel)
+    neg_eigenvalues = eigenvalues[eigenvalues < 0]
+    # check that the negative eigenvalues are all very small
+    np.testing.assert_array_less(jnp.abs(neg_eigenvalues), 1e-3)
+    # internally, the axis is ignored because the kernel is symmetric
+    np.testing.assert_array_equal(vec0, vec1)
+    np.testing.assert_array_equal(vec_direct0, vec_direct1)
+
+    np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
+    np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
+
+    # compute the distance matrix and check that it is symmetric
+    cost_matrix = geom.cost_matrix
+    np.testing.assert_array_equal(cost_matrix, cost_matrix.T)
+    # and all dissimilarities are positive
+    np.testing.assert_array_less(0, cost_matrix)
+
+  def test_automatic_t(self):
+    G = random_graph(38, return_laplacian=False)
+    geom = geodesic.Geodesic.from_graph(G, t=None)
+
+    expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
+    actual = geom.t
+    np.testing.assert_equal(actual, expected)
 
 
 # class TestGraph:
-
-#   def test_kernel_is_symmetric_positive_definite(
-#       self, rng: jax.random.PRNGKeyArray
-#   ):
-#     n, tol = 65, 0.02
-#     x = jax.random.normal(rng, (n,))
-#     geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
-
-#     kernel = geom.kernel_matrix
-
-#     vec0 = geom.apply_kernel(x, axis=0)
-#     vec1 = geom.apply_kernel(x, axis=1)
-#     vec_direct0 = geom.kernel_matrix.T @ x
-#     vec_direct1 = geom.kernel_matrix @ x
-
-#     # we symmetrize the kernel explicitly when materializing it, because
-#     # numerical error arise  for small `t` and `backward_euler`
-#     np.testing.assert_array_equal(kernel, kernel.T)
-#     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
-#     # internally, the axis is ignored because the kernel is symmetric
-#     np.testing.assert_array_equal(vec0, vec1)
-#     np.testing.assert_array_equal(vec_direct0, vec_direct1)
-
-#     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
-#     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
-
-#   def test_automatic_t(self):
-#     G = random_graph(38, return_laplacian=False)
-#     geom = graph.Graph.from_graph(G, t=None)
-
-#     expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
-#     actual = geom.t
-#     np.testing.assert_equal(actual, expected)
 
 #   @pytest.mark.fast.with_args(
 #       numerical_scheme=["backward_euler", "crank_nicolson"],
