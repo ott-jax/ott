@@ -50,8 +50,10 @@ class Geodesic(geometry.Geometry):
       chebyshev_coeffs: Optional[List[float]] = None,
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
-      lap_m_id: Optional[jnp.ndarray] = None, # Rescale Laplacian minus identity
-      eigval: Optional[jnp.ndarray] = None, # (Second)Largest eigenvalue of Laplacian
+      lap_min_id: Optional[jnp.ndarray
+                          ] = None,  # Rescale Laplacian minus identity
+      eigval: Optional[jnp.ndarray
+                      ] = None,  # (Second)Largest eigenvalue of Laplacian
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
@@ -60,8 +62,8 @@ class Geodesic(geometry.Geometry):
     self.order = order
     self.chebyshev_coeffs = chebyshev_coeffs
     self.numerical_scheme = numerical_scheme
-    self.lap_m_id = lap_m_id
     self.eigval = eigval
+    self.lap_min_id = lap_min_id
 
   @classmethod
   def from_graph(
@@ -110,7 +112,9 @@ class Geodesic(geometry.Geometry):
 
     eigval = compute_largest_eigenvalue(laplacian, k=1)
     rescaled_laplacian = rescale_laplacian(laplacian, eigval)
-    lap_min_id = define_scaled_laplacian(rescaled_laplacian)
+    lap_min_id = define_scaled_laplacian(
+        rescaled_laplacian
+    )  # TODO: remove if not needed.
 
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
@@ -119,11 +123,11 @@ class Geodesic(geometry.Geometry):
     chebyshev_coeffs = (2 * ive(jnp.arange(0, order + 1), -t)).tolist()
 
     return cls(
-        laplacian,
+        laplacian=laplacian,
         t=t,
         order=order,
         chebyshev_coeffs=chebyshev_coeffs,
-        lap_m_id=lap_min_id,
+        lap_min_id=lap_min_id,
         eigval=eigval,
         **kwargs
     )
@@ -135,24 +139,23 @@ class Geodesic(geometry.Geometry):
       axis: int = 0,
   ) -> jnp.ndarray:
     # TODO: fix indentation
-    # NOTE: GH: We could also input time, since we only need to recompute the coeffs, 
+    # NOTE: GH: We could also input time, since we only need to recompute the coeffs,
     # i.e. we can use the same laplacian, scales laplaciant for different times.
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-    scaling: Scaling to apply the kernel to. 
+    scaling: Scaling to apply the kernel to.
     eps: passed for consistency, not used yet.
     axis: passed for consistency, not used yet.
 
     Returns:
     Kernel applied to ``scaling``.
     """
-
-    laplacian_times_signal = self.lap_m_id.dot(scaling)  # Apply the kernel
-
-    return compute_chebyshev_approximation(
-        laplacian_times_signal, self.chebyshev_coeffs
+    diff_signal = expm_multiply(
+        self.laplacian, scaling, self.t, self.eigval, self.order
     )
+
+    return diff_signal
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
@@ -228,7 +231,8 @@ class Geodesic(geometry.Geometry):
 
 # TODO:
 # Moving some function here for now, idk if we want them in the class
-# or in a utils file.  
+# or in a utils file.
+
 
 def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
   # Compute the largest eigenvalue of the Laplacian matrix.
@@ -249,7 +253,10 @@ def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
 
   return jnp.max(eigvals)
 
-def rescale_laplacian(laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.ndarray) -> jnp.ndarray:
+
+def rescale_laplacian(
+    laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.ndarray
+) -> jnp.ndarray:
   # Rescale the Laplacian matrix.
   if largest_eigenvalue > 2:
     rescaled_laplacian = laplacian_matrix.copy()
@@ -257,18 +264,57 @@ def rescale_laplacian(laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.nda
     return 2 * rescaled_laplacian
   return laplacian_matrix
 
+
 def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
   # Define the scaled Laplacian matrix.
   n = laplacian_matrix.shape[0]
   identity = jnp.eye(n)
   return laplacian_matrix - identity
 
-@jax.pure_callback
-def compute_chebyshev_approximation(
-    x: jnp.ndarray, coeffs: List[float]
-) -> jnp.ndarray:
-  # Compute the Chebyshev polynomial approximation for
-  # the given input and coefficients.
-  x_dense = x.todense(
-  ) if type(x) is jesp.BCOO else x  # this should be true all the time
-  return np.polynomial.chebyshev.chebval(x_dense, coeffs)
+
+def _scipy_compute_chebychev_coeff_all(phi, tau, K):
+  """Compute the K+1 Chebychev coefficients for our functions."""
+  coeff = 2 * ive(np.arange(0, K + 1), -tau * phi)
+  if coeff.dtype == np.float64:
+    coeff = np.float32(coeff)
+  return coeff
+
+
+def expm_multiply(
+    L,
+    X,
+    phi,
+    tau,
+    K=None,
+):
+  # NOTE: Modified the signature, to reuse computation during the Sinkhorn iteration.
+  # Compute coefficients (they should all fit in memory, no problem)
+  coeff = compute_chebychev_coeff_all(phi, tau, K)
+  # Initialize the accumulator with only the first coeff*polynomial
+  T0 = X
+  Y = 0.5 * coeff[0] * T0
+  # Add the second coeff*polynomial to the accumulator
+  T1 = (1 / phi) * L @ X - T0
+  Y = Y + coeff[1] * T1
+  # Recursively add the next coeff*polynomial
+  for j in range(2, K + 1):
+    T2 = (2 / phi) * L @ T1 - 2 * T1 - T0
+    Y = Y + coeff[j] * T2
+    T0 = T1
+    T1 = T2
+  return Y
+
+
+def compute_chebychev_coeff_all(phi, tau, K):
+  """Jax wrapper to compute the K+1 Chebychev coefficients."""
+  if not isinstance(phi, jnp.ndarray):
+    phi = jnp.asarray(phi)
+
+  result_shape_dtype = jax.ShapeDtypeStruct(
+      shape=(K + 1,),
+      dtype=jax.numpy.float32,
+  )  # TODO: not sure about the best type here. Maybe the best if to have
+  # the same type as the laplacian.
+  return jax.pure_callback(
+      _scipy_compute_chebychev_coeff_all, result_shape_dtype, phi, tau, K
+  )

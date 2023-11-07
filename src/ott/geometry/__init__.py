@@ -14,6 +14,7 @@
 from . import (
     costs,
     epsilon_scheduler,
+    geodesic,
     geometry,
     graph,
     grid,
