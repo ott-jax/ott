@@ -37,7 +37,7 @@ class TestLowerBoundSolver:
     rngs = jax.random.split(rng, 4)
     self.x = jax.random.uniform(rngs[0], (self.n, d_x))
     self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    # Currently Histogram Transport only supports uniform distributions:
+    # Currently the Lower Bound only supports uniform distributions:
     a = jnp.ones(self.n)
     b = jnp.ones(self.m)
     self.a = a / jnp.sum(a)
