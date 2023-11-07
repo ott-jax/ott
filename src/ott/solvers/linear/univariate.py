@@ -118,7 +118,7 @@ class UnivariateSolver:
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>
-    a = jnp.ones_line(x) if a is None else a
+    a = jnp.ones_like(x) if a is None else a
     a /= jnp.sum(a)
     b = jnp.ones_like(y) if b is None else b
     b /= jnp.sum(b)
