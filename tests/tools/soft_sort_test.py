@@ -191,7 +191,7 @@ class TestSoftSort:
     x = jnp.linspace(0.0, 1.0, 100)
     x_q = soft_sort.quantile(x, q=q, weight=0.05, epsilon=1e-3, lse_mode=True)
 
-    np.testing.assert_approx_equal(x_q, q, significant=1)
+    np.testing.assert_allclose(x_q, q, atol=1e-3, rtol=1e-2)
 
   def test_quantile_on_several_axes(self, rng: jax.Array):
     batch, height, width, channels = 4, 47, 45, 3

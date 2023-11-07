@@ -119,6 +119,9 @@ markers = [
     "cpu: Mark tests as CPU only.",
     "fast: Mark tests as fast.",
 ]
+filterwarnings = [
+    "ignore:jax.random.KeyArray is deprecated:DeprecationWarning",
+]
 
 [tool.coverage.run]
 branch = true
