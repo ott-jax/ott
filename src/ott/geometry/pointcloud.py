@@ -17,7 +17,6 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
-from ott import utils
 from ott.geometry import costs, geometry, low_rank
 from ott.math import utils as mu
 
@@ -142,8 +141,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def inv_scale_cost(self) -> float:  # noqa: D102
-    if isinstance(self._scale_cost,
-                  (int, float)) or utils.is_jax_array(self._scale_cost):
+    if isinstance(self._scale_cost, (int, float, jax.Array)):
       return 1.0 / self._scale_cost
     self = self._masked_geom()
     if self._scale_cost == "max_cost":
