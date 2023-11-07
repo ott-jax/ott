@@ -49,8 +49,8 @@ class TestBarycenter:
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jax.random.PRNGKeyArray, rank: int, epsilon: float,
-      init_random: bool, jit: bool
+      self, rng: jax.Array, rank: int, epsilon: float, init_random: bool,
+      jit: bool
   ):
     rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
@@ -114,9 +114,7 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() > .7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
-  def test_barycenter_jit(
-      self, rng: jax.random.PRNGKeyArray, segment_before: bool
-  ):
+  def test_barycenter_jit(self, rng: jax.Array, segment_before: bool):
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
@@ -171,7 +169,7 @@ class TestBarycenter:
   @pytest.mark.fast()
   def test_bures_barycenter(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
   ):
     lse_mode = True,
     epsilon = 1e-1
@@ -257,7 +255,7 @@ class TestBarycenter:
   @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
   ):
     alpha = 5.
     epsilon = 0.01

@@ -20,7 +20,7 @@ import pytest
 from ott.math import matrix_square_root
 
 
-def _get_random_spd_matrix(dim: int, rng: jax.random.PRNGKeyArray):
+def _get_random_spd_matrix(dim: int, rng: jax.Array):
   # Get a random symmetric, positive definite matrix of a specified size.
 
   rng, subrng0, subrng1 = jax.random.split(rng, num=3)
@@ -36,8 +36,8 @@ def _get_random_spd_matrix(dim: int, rng: jax.random.PRNGKeyArray):
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int,
-    rng: jax.random.PRNGKeyArray, **kwargs: Any
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, rng: jax.Array,
+    **kwargs: Any
 ) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
@@ -70,7 +70,7 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
 class TestMatrixSquareRoot:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     self.dim = 13
     self.batch = 3
     # Values for testing the Sylvester solver

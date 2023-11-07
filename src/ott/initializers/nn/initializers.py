@@ -78,7 +78,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       meta_model: Optional[nn.Module] = None,
       opt: Optional[optax.GradientTransformation
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
@@ -145,7 +145,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.

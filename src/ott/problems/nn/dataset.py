@@ -57,7 +57,7 @@ class GaussianMixture:
   """
   name: Name_t
   batch_size: int
-  init_rng: jax.random.PRNGKeyArray
+  init_rng: jax.Array
   scale: float = 5.0
   std: float = 0.5
 
@@ -110,7 +110,7 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: Optional[jax.random.PRNGKeyArray] = None,
+    rng: Optional[jax.Array] = None,
 ) -> Tuple[Dataset, Dataset, int]:
   """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 

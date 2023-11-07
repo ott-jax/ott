@@ -136,7 +136,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
 
@@ -282,7 +282,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
 @partial(jax.vmap, in_axes=[None, 0, None, 0, None])
 def init_transports(
-    solver, rng: jax.random.PRNGKeyArray, a: jnp.ndarray, b: jnp.ndarray,
+    solver, rng: jax.Array, a: jnp.ndarray, b: jnp.ndarray,
     epsilon: Optional[float]
 ) -> jnp.ndarray:
   """Initialize random 2D point cloud and solve the linear OT problem.

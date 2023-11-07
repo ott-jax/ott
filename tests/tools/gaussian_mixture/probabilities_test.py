@@ -38,9 +38,8 @@ class TestProbabilities:
     np.testing.assert_allclose(jnp.sum(probs), 1.0, rtol=1e-6, atol=1e-6)
     np.testing.assert_array_equal(probs > 0., True)
 
-  def test_from_random(self):
+  def test_from_random(self, rng: jax.Array):
     n_dimensions = 4
-    rng = jax.random.PRNGKey(0)
     pp = probabilities.Probabilities.from_random(
         rng=rng, n_dimensions=n_dimensions, stdev=0.1
     )
@@ -51,11 +50,11 @@ class TestProbabilities:
     pp = probabilities.Probabilities.from_probs(probs)
     np.testing.assert_allclose(probs, pp.probs(), rtol=1e-6, atol=1e-6)
 
-  def test_sample(self):
+  def test_sample(self, rng: jax.Array):
     p = 0.4
     probs = jnp.array([p, 1. - p])
     pp = probabilities.Probabilities.from_probs(probs)
-    samples = pp.sample(rng=jax.random.PRNGKey(0), size=10000)
+    samples = pp.sample(rng=rng, size=10000)
     sd = jnp.sqrt(p * (1. - p))
     np.testing.assert_allclose(jnp.mean(samples == 0), p, atol=3. * sd)
 

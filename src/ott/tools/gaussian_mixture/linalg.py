@@ -132,9 +132,7 @@ def invmatvectril(
 
 
 def get_random_orthogonal(
-    rng: jax.random.PRNGKeyArray,
-    dim: int,
-    dtype: Optional[jnp.dtype] = None
+    rng: jax.Array, dim: int, dtype: Optional[jnp.dtype] = None
 ) -> jnp.ndarray:
   """Get a random orthogonal matrix with the specified dimension."""
   m = jax.random.normal(key=rng, shape=[dim, dim], dtype=dtype)

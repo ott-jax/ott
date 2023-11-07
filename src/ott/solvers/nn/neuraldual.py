@@ -117,7 +117,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
@@ -162,7 +162,7 @@ class W2NeuralDual:
 
   def setup(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       neural_f: models.ModelBase,
       neural_g: models.ModelBase,
       dim_data: int,

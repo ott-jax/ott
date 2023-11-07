@@ -29,7 +29,7 @@ from ott.solvers.linear import acceleration, sinkhorn
 class TestSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     self.rng = rng
     self.dim = 4
     self.n = 17

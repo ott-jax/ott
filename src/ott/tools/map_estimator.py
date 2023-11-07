@@ -30,6 +30,7 @@ import optax
 from flax.core import frozen_dict
 from flax.training import train_state
 
+from ott import utils
 from ott.solvers.nn import models
 
 __all__ = ["MapEstimator"]
@@ -86,7 +87,7 @@ class MapEstimator:
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jax.random.PRNGKey] = None,
+      rng: Optional[jax.Array] = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -100,7 +101,7 @@ class MapEstimator:
     self.num_train_iters = num_train_iters
     self.logging = logging
     self.valid_freq = valid_freq
-    self.rng = jax.random.PRNGKey(0) if rng is None else rng
+    self.rng = utils.default_prng_key(rng)
 
     # set default optimizer
     if optimizer is None:
