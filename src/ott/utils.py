@@ -68,9 +68,7 @@ def deprecate(  # noqa: D103
   return functools.wraps(func)(wrapper)
 
 
-def default_prng_key(
-    rng: Optional[jax.random.PRNGKeyArray] = None,
-) -> jax.random.PRNGKeyArray:
+def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
   """Get the default PRNG key.
 
   Args:

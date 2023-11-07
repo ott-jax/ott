@@ -19,8 +19,8 @@ import jax.numpy as jnp
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
 
-PRNGKey = Any
-Shape = Tuple[int]
+PRNGKey = jax.Array
+Shape = Tuple[int, ...]
 Dtype = Any
 Array = Any
 

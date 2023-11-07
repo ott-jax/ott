@@ -27,7 +27,7 @@ from ott.solvers.linear import sinkhorn
 
 
 def create_ot_problem(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     n: int,
     m: int,
     d: int,
@@ -73,7 +73,7 @@ def run_sinkhorn(
 class TestMetaInitializer:
 
   @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
+  def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2

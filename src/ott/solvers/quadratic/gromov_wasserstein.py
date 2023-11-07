@@ -129,7 +129,7 @@ class GWState(NamedTuple):
   linear_state: LinearOutput
   linear_pb: linear_problem.LinearProblem
   old_transport_mass: float
-  rngs: Optional[jax.random.PRNGKeyArray] = None
+  rngs: Optional[jax.Array] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "GWState":
@@ -213,7 +213,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: Optional[linear_problem.LinearProblem] = None,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> GWOutput:
     """Run the Gromov-Wasserstein solver.
@@ -272,7 +272,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: linear_problem.LinearProblem,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations.
 
@@ -361,7 +361,7 @@ def iterations(
     solver: GromovWasserstein,
     prob: quadratic_problem.QuadraticProblem,
     init: linear_problem.LinearProblem,
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 

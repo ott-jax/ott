@@ -382,7 +382,7 @@ class QuadraticProblem:
 
   def to_low_rank(
       self,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 

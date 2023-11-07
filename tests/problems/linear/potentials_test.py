@@ -35,7 +35,7 @@ class TestDualPotentials:
 
 class TestEntropicPotentials:
 
-  def test_device_put(self, rng: jax.random.PRNGKeyArray):
+  def test_device_put(self, rng: jax.Array):
     n = 10
     device = jax.devices()[0]
     rngs = jax.random.split(rng, 5)
@@ -52,9 +52,7 @@ class TestEntropicPotentials:
     _ = jax.device_put(pot, device)
 
   @pytest.mark.fast.with_args(eps=[5e-2, 1e-1], only_fast=0)
-  def test_entropic_potentials_dist(
-      self, rng: jax.random.PRNGKeyArray, eps: float
-  ):
+  def test_entropic_potentials_dist(self, rng: jax.Array, eps: float):
     n1, n2, d = 64, 96, 2
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
 
@@ -92,7 +90,7 @@ class TestEntropicPotentials:
 
   @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
   def test_entropic_potentials_displacement(
-      self, rng: jax.random.PRNGKeyArray, forward: bool, monkeypatch
+      self, rng: jax.Array, forward: bool, monkeypatch
   ):
     """Tests entropic displacements, as well as their plots."""
     n1, n2, d = 96, 128, 2
@@ -135,7 +133,7 @@ class TestEntropicPotentials:
       p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
   )
   def test_entropic_potentials_sqpnorm(
-      self, rng: jax.random.PRNGKeyArray, p: float, forward: bool
+      self, rng: jax.Array, p: float, forward: bool
   ):
     epsilon = None
     cost_fn = costs.SqPNorm(p=p)
@@ -175,7 +173,7 @@ class TestEntropicPotentials:
       p=[1.45, 2.2, 1.0], forward=[False, True], only_fast=0
   )
   def test_entropic_potentials_pnorm(
-      self, rng: jax.random.PRNGKeyArray, p: float, forward: bool
+      self, rng: jax.Array, p: float, forward: bool
   ):
     epsilon = None
     cost_fn = costs.PNormP(p=p)
@@ -217,9 +215,7 @@ class TestEntropicPotentials:
       assert div < .1 * div_0
 
   @pytest.mark.parametrize("jit", [False, True])
-  def test_distance_differentiability(
-      self, rng: jax.random.PRNGKeyArray, jit: bool
-  ):
+  def test_distance_differentiability(self, rng: jax.Array, jit: bool):
     rng1, rng2, rng3 = jax.random.split(rng, 3)
     n, m, d = 18, 36, 5
 
@@ -241,9 +237,7 @@ class TestEntropicPotentials:
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("eps", [None, 1e-1, 1e1, 1e2, 1e3])
-  def test_potentials_sinkhorn_divergence(
-      self, rng: jax.random.PRNGKeyArray, eps: float
-  ):
+  def test_potentials_sinkhorn_divergence(self, rng: jax.Array, eps: float):
     rng1, rng2, rng3 = jax.random.split(rng, 3)
     n, m, d = 32, 36, 4
     fwd = True

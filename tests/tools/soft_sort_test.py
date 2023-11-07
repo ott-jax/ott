@@ -26,16 +26,14 @@ from ott.tools import soft_sort
 class TestSoftSort:
 
   @pytest.mark.parametrize("shape", [(20,), (20, 1)])
-  def test_sort_one_array(
-      self, rng: jax.random.PRNGKeyArray, shape: Tuple[int, ...]
-  ):
+  def test_sort_one_array(self, rng: jax.Array, shape: Tuple[int, ...]):
     x = jax.random.uniform(rng, shape)
     xs = soft_sort.sort(x, axis=0)
 
     np.testing.assert_array_equal(x.shape, xs.shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=0) >= 0.0, True)
 
-  def test_sort_array_squashing_momentum(self, rng: jax.random.PRNGKeyArray):
+  def test_sort_array_squashing_momentum(self, rng: jax.Array):
     shape = (33, 1)
     x = jax.random.uniform(rng, shape)
     xs_lin = soft_sort.sort(
@@ -62,7 +60,7 @@ class TestSoftSort:
 
   @pytest.mark.fast()
   @pytest.mark.parametrize("k", [-1, 4, 100])
-  def test_topk_one_array(self, rng: jax.random.PRNGKeyArray, k: int):
+  def test_topk_one_array(self, rng: jax.Array, k: int):
     n = 20
     x = jax.random.uniform(rng, (n,))
     axis = 0
@@ -76,7 +74,7 @@ class TestSoftSort:
     np.testing.assert_allclose(xs, jnp.sort(x, axis=axis)[-outsize:], atol=0.01)
 
   @pytest.mark.fast.with_args("topk", [-1, 2, 11], only_fast=-1)
-  def test_sort_batch(self, rng: jax.random.PRNGKeyArray, topk: int):
+  def test_sort_batch(self, rng: jax.Array, topk: int):
     x = jax.random.uniform(rng, (32, 10, 6, 4))
     axis = 1
     xs = soft_sort.sort(x, axis=axis, topk=topk)
@@ -86,7 +84,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(xs.shape, expected_shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=axis) >= 0.0, True)
 
-  def test_multivariate_cdf_quantiles(self, rng: jax.random.PRNGKeyArray):
+  def test_multivariate_cdf_quantiles(self, rng: jax.Array):
     n, d = 512, 3
     key1, key2, key3 = jax.random.split(rng, 3)
 
@@ -109,7 +107,7 @@ class TestSoftSort:
 
     # Check passing custom sampler, must be still symmetric / centered on {.5}^d
     # Check passing custom epsilon also works.
-    def ball_sampler(k: jax.random.PRNGKey, s: Tuple[int, int]) -> jnp.ndarray:
+    def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
       return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
 
     num_target_samples = 473
@@ -129,7 +127,7 @@ class TestSoftSort:
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
-  def test_ranks(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
+  def test_ranks(self, axis, rng: jax.Array, jit: bool):
     rng1, rng2 = jax.random.split(rng, 2)
     num_targets = 13
     x = jax.random.uniform(rng1, (8, 5, 2))
@@ -164,7 +162,7 @@ class TestSoftSort:
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
-  def test_topk_mask(self, axis, rng: jax.random.PRNGKeyArray, jit: bool):
+  def test_topk_mask(self, axis, rng: jax.Array, jit: bool):
 
     def boolean_topk_mask(u, k):
       return u >= jnp.flip(jax.numpy.sort(u))[k - 1]
@@ -195,7 +193,7 @@ class TestSoftSort:
 
     np.testing.assert_approx_equal(x_q, q, significant=1)
 
-  def test_quantile_on_several_axes(self, rng: jax.random.PRNGKeyArray):
+  def test_quantile_on_several_axes(self, rng: jax.Array):
     batch, height, width, channels = 4, 47, 45, 3
     x = jax.random.uniform(rng, shape=(batch, height, width, channels))
     q = soft_sort.quantile(
@@ -209,7 +207,7 @@ class TestSoftSort:
 
   @pytest.mark.fast()
   @pytest.mark.parametrize("jit", [False, True])
-  def test_quantiles(self, rng: jax.random.PRNGKeyArray, jit: bool):
+  def test_quantiles(self, rng: jax.Array, jit: bool):
     inputs = jax.random.uniform(rng, (100, 2, 3))
     q = jnp.array([.1, .8, .4])
     quantile_fn = soft_sort.quantile
@@ -221,9 +219,7 @@ class TestSoftSort:
     np.testing.assert_allclose(m1.mean(axis=[1, 2]), q, atol=5e-2)
 
   @pytest.mark.parametrize("jit", [False, True])
-  def test_soft_quantile_normalization(
-      self, rng: jax.random.PRNGKeyArray, jit: bool
-  ):
+  def test_soft_quantile_normalization(self, rng: jax.Array, jit: bool):
     rngs = jax.random.split(rng, 2)
     x = jax.random.uniform(rngs[0], shape=(100,))
     mu, sigma = 2.0, 1.2
@@ -240,7 +236,7 @@ class TestSoftSort:
                                [mu_target, sigma_target],
                                rtol=0.05)
 
-  def test_sort_with(self, rng: jax.random.PRNGKeyArray):
+  def test_sort_with(self, rng: jax.Array):
     n, d = 20, 4
     inputs = jax.random.uniform(rng, shape=(n, d))
     criterion = jnp.linspace(0.1, 1.2, n)
@@ -272,9 +268,7 @@ class TestSoftSort:
     np.testing.assert_allclose(min_distances, min_distances, atol=0.05)
 
   @pytest.mark.parametrize("implicit", [False, True])
-  def test_soft_sort_jacobian(
-      self, rng: jax.random.PRNGKeyArray, implicit: bool
-  ):
+  def test_soft_sort_jacobian(self, rng: jax.Array, implicit: bool):
     # Add a ridge when using JAX solvers.
     try:
       from ott.solvers.linear import lineax_implicit  # noqa: F401

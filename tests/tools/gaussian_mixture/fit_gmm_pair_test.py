@@ -28,7 +28,7 @@ _ = pytest.importorskip("optax")
 class TestFitGmmPair:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     mean_generator0 = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                 [[0.5, 0.4], [0.4, 0.5]]])

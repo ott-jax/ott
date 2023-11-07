@@ -130,7 +130,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
     rng = utils.default_prng_key(rng)
@@ -141,7 +141,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
       x_init: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
@@ -196,7 +196,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
     bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
-    rng: jax.random.PRNGKeyArray
+    rng: jax.Array
 ) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 

@@ -128,7 +128,7 @@ class ModelBase(abc.ABC, nn.Module):
 
   def create_train_state(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
       **kwargs: Any,

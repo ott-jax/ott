@@ -30,7 +30,7 @@ from ott.tools import soft_sort
 class TestLowerBoundSolver:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     d_x = 2
     d_y = 3
     self.n, self.m = 13, 15
@@ -117,8 +117,8 @@ class TestLowerBoundSolver:
       ]
   )
   def test_lb_grad(
-      self, rng: jax.random.PRNGKeyArray,
-      sort_fn: Callable[[jnp.ndarray], jnp.ndarray], method: str
+      self, rng: jax.Array, sort_fn: Callable[[jnp.ndarray], jnp.ndarray],
+      method: str
   ):
 
     def fn(x: jnp.ndarray, y: jnp.ndarray) -> float:
