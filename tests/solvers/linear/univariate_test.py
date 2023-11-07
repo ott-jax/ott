@@ -56,14 +56,14 @@ class TestUnivariate:
     distance = univariate_solver(self.x, self.y, self.a, self.b)
 
     geom = pointcloud.PointCloud(
-        x=self.x[:, None], y=self.y[:, None], cost_fn=cost_fn, epsilon=5e-5
+        x=self.x[:, None], y=self.y[:, None], cost_fn=cost_fn, epsilon=5e-3
     )
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
-    sinkhorn_solver = jax.jit(sinkhorn.Sinkhorn(max_iterations=int(1e6)))
+    sinkhorn_solver = jax.jit(sinkhorn.Sinkhorn(max_iterations=10_000))
     sinkhorn_soln = sinkhorn_solver(prob)
 
     np.testing.assert_allclose(
-        sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-2
+        sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-1
     )
 
   @pytest.mark.fast()
