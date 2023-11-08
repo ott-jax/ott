@@ -139,7 +139,8 @@ class Geodesic(geometry.Geometry):
       axis: int = 0,
   ) -> jnp.ndarray:
     # TODO: fix indentation
-    # NOTE: GH: We could also input time, since we only need to recompute the coeffs,
+    # NOTE: GH: We could also input time,
+    # since we only need to recompute the coeffs,
     # i.e. we can use the same laplacian, scales laplaciant for different times.
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
@@ -151,18 +152,16 @@ class Geodesic(geometry.Geometry):
     Returns:
     Kernel applied to ``scaling``.
     """
-    diff_signal = expm_multiply(
+    return expm_multiply(
         self.laplacian, scaling, self.t, self.eigval, self.order
     )
-
-    return diff_signal
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     # check if the kernel is symmetric
-    if jnp.any((kernel != kernel.T)):
+    if jnp.any(kernel != kernel.T):
       kernel = (kernel + kernel.T) / 2.0
     return kernel
 
@@ -291,7 +290,6 @@ def expm_multiply(
     tau,
     K=None,
 ):
-  # NOTE: Modified the signature, to reuse computation during the Sinkhorn iteration.
   # Compute coefficients (they should all fit in memory, no problem)
   coeff = compute_chebychev_coeff_all(phi, tau, K)
   # Initialize the accumulator with only the first coeff*polynomial
