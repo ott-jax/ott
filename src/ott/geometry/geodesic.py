@@ -24,8 +24,33 @@ from scipy.special import ive
 from ott import utils
 from ott.geometry import geometry
 from ott.math import utils as mu
+from ott.types import Array_g
 
 __all__ = ["Geodesic"]
+
+# TODO:
+# - Finalize the docstrings.
+# - Add tests.
+# - Verify sparse graph + cholesky.
+
+# Previous meetings todos:
+# 1) wrap all scipy and numpy
+# 2) move all the comp in the init, just call it once
+# 3) make sure it works with sparse graph + cholesky
+# 4) differentiablity , graph geo uses cholesky (triangle solve).
+
+# NOTE: Meeting questions:
+# - i moved some fn outside of the class. Where do we want them?
+# - review type, float64 vs float32 (see the TODOs in the code).
+# - Currently two implementations of the eigenvalue computation,
+#   they give different results. I trust the one from scipy.
+# - Changed the chebyshev computstion to the one inspired from
+#   https://github.com/sibyllema/Fast-Multiscale-Diffusion-on-Graphs.
+# - I started working on test.
+# - I see that there is also another method using backward Euler..
+#   Do we just want to have a HeatFilter class that includes both?
+# - Do we want docstrings for all methods? e.g. the wrapper?
+#   GH: I think only the class is enough.
 
 
 @jax.tree_util.register_pytree_node_class
@@ -45,12 +70,11 @@ class Geodesic(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: jnp.ndarray,
+      laplacian: Array_g,
       t: float = 1e-3,
       order: int = 100,
       chebyshev_coeffs: Optional[List[float]] = None,
-      lap_min_id: Optional[jnp.ndarray
-                          ] = None,  # Rescale Laplacian minus identity
+      lap_min_id: Optional[Array_g] = None,  # Rescale Laplacian minus identity
       eigval: Optional[jnp.ndarray
                       ] = None,  # (Second)Largest eigenvalue of Laplacian
       **kwargs: Any
@@ -66,7 +90,7 @@ class Geodesic(geometry.Geometry):
   @classmethod
   def from_graph(
       cls,
-      G: jnp.ndarray,
+      G: Array_g,
       t: Optional[float] = 1e-3,
       order: int = 100,
       directed: bool = False,
@@ -141,10 +165,6 @@ class Geodesic(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
-    # TODO: fix indentation
-    # NOTE: GH: We could also input time,
-    # since we only need to recompute the coeffs,
-    # i.e. we can use the same laplacian, scales laplaciant for different times.
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
