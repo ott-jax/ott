@@ -18,6 +18,7 @@ import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import numpy as np
+from scipy.sparse.linalg import eigsh as _scipy_eigsh
 from scipy.special import ive
 
 from ott import utils
@@ -73,6 +74,7 @@ class Geodesic(geometry.Geometry):
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
+      eigenval_scipy: bool = False,
       **kwargs: Any
   ) -> "Geodesic":
     r"""Construct a Geodesic geometry from an adjacency matrix.
@@ -91,6 +93,8 @@ class Geodesic(geometry.Geometry):
         :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
         \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
         non-normalized Laplacian and :math:`D` is the degree matrix.
+      eigenval_scipy: Whether to use the scipy implementation of the
+        eigenvalue computation.
       kwargs: Keyword arguments for the Geodesic class.
 
     Returns:
@@ -109,8 +113,10 @@ class Geodesic(geometry.Geometry):
           jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
-
-    eigval = compute_largest_eigenvalue(laplacian, k=1)
+    if eigenval_scipy:
+      eigval = compute_eigenvalue(laplacian)
+    else:
+      eigval = compute_largest_eigenvalue(laplacian, k=1)
     rescaled_laplacian = rescale_laplacian(laplacian, eigval)
     lap_min_id = define_scaled_laplacian(
         rescaled_laplacian
@@ -120,7 +126,7 @@ class Geodesic(geometry.Geometry):
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
 
     # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
-    chebyshev_coeffs = (2 * ive(jnp.arange(0, order + 1), -t)).tolist()
+    chebyshev_coeffs = compute_chebychev_coeff_all(eigval, t, order)
 
     return cls(
         laplacian=laplacian,
@@ -153,7 +159,8 @@ class Geodesic(geometry.Geometry):
     Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.laplacian, scaling, self.t, self.eigval, self.order
+        self.laplacian, scaling, self.chebyshev_coeffs, self.t, self.eigval,
+        self.order
     )
 
   @property
@@ -286,12 +293,11 @@ def _scipy_compute_chebychev_coeff_all(phi, tau, K):
 def expm_multiply(
     L,
     X,
+    coeff,
     phi,
     tau,
     K=None,
 ):
-  # Compute coefficients (they should all fit in memory, no problem)
-  coeff = compute_chebychev_coeff_all(phi, tau, K)
   # Initialize the accumulator with only the first coeff*polynomial
   T0 = X
   Y = 0.5 * coeff[0] * T0
@@ -320,3 +326,13 @@ def compute_chebychev_coeff_all(phi, tau, K):
   return jax.pure_callback(
       _scipy_compute_chebychev_coeff_all, result_shape_dtype, phi, tau, K
   )
+
+
+def compute_eigenvalue(L):
+  """Jax wrapper to compute the largest eigenvalue of the Laplacian."""
+  result_shape_dtype = jax.ShapeDtypeStruct(
+      shape=(1,),
+      dtype=jax.numpy.float32,
+  )
+  eval_only = lambda x: _scipy_eigsh(x, k=1)[0] / 2.0
+  return jax.pure_callback(eval_only, result_shape_dtype, L)
