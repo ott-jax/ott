@@ -17,9 +17,10 @@ import jax
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
+import pytest
 from networkx.algorithms import shortest_paths
-from networkx.generators import random_graphs
-from ott.geometry import geodesic, geometry
+from networkx.generators import balanced_tree, random_graphs
+from ott.geometry import geodesic, geometry, graph
 
 
 def random_graph(
@@ -74,13 +75,12 @@ class TestGeodesic:
 
     np.testing.assert_equal(geom.order, order)
     np.testing.assert_equal(geom.t, t)
-    # np.testing.assert_equal(geom.laplacian, G) # TODO: check for the normalized laplacian
 
   def test_kernel_is_symmetric_positive_definite(
       self, rng: jax.random.PRNGKeyArray
   ):
-    n, tol = 65, 0.02
-    t = 20
+    n, tol = 100, 0.02
+    t = 1
     order = 50
     x = jax.random.normal(rng, (n,))
     G = random_graph(n)
@@ -94,7 +94,7 @@ class TestGeodesic:
     vec_direct1 = geom.kernel_matrix @ x
 
     # we symmetrize the kernel explicitly when materializing it, because
-    # numerical error arise  for small `t` and `backward_euler`, or Chebyshev approximation.
+    # numerical errors can make it non-symmetric.
     np.testing.assert_array_equal(kernel, kernel.T)
     eigenvalues = jnp.linalg.eigvals(kernel)
     neg_eigenvalues = eigenvalues[eigenvalues < 0]
@@ -120,7 +120,6 @@ class TestGeodesic:
     expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
     actual = geom.t
     np.testing.assert_equal(actual, expected)
-
 
 # class TestGraph:
 
@@ -152,51 +151,57 @@ class TestGeodesic:
 #         atol=1e-2
 #     )
 
-#   @pytest.mark.fast.with_args(
-#       n_steps=[50, 100, 200],
-#       t=[1e-4, 1e-5],
-#       only_fast=0,
-#   )
-#   def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
-#     tol = 5 * t
-#     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
-#     G = jnp.asarray(G.toarray(), dtype=float)
-#     eye = jnp.eye(G.shape[0])
+  @pytest.mark.fast.with_args(
+      n_steps=[50, 100, 200],
+      t=[1e-4, 1e-5],
+      only_fast=0,
+  )
+  def cheb_be_cn(self, t: Optional[float], n_steps: int):
+    tol = 5 * t
+    G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
+    G = jnp.asarray(G.toarray(), dtype=float)
+    eye = jnp.eye(G.shape[0])
 
-#     be_geom = graph.Graph.from_graph(
-#         G, t=t, n_steps=n_steps, numerical_scheme="backward_euler"
-#     )
-#     cn_geom = graph.Graph.from_graph(
-#         G, t=t, n_steps=n_steps, numerical_scheme="crank_nicolson"
-#     )
-#     eps = jnp.finfo(eye.dtype).tiny
+    be_geom = graph.Graph.from_graph(
+        G, t=t, n_steps=n_steps, numerical_scheme="backward_euler"
+    )
+    cn_geom = graph.Graph.from_graph(
+        G, t=t, n_steps=n_steps, numerical_scheme="crank_nicolson"
+    )
+    geo = geodesic.Geodesic.from_graph(G, t=t, order=n_steps)
+    eps = jnp.finfo(eye.dtype).tiny
 
-#     be_cost = -t * jnp.log(be_geom.apply_kernel(eye) + eps)
-#     cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
+    be_cost = -t * jnp.log(be_geom.apply_kernel(eye) + eps)
+    cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
+    cheb_cost = -t * jnp.log(geo.apply_kernel(eye) + eps)
 
-#     np.testing.assert_allclose(cn_cost, cn_cost.T, rtol=tol, atol=tol)
-#     with pytest.raises(AssertionError):
-#       np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
+    np.testing.assert_allclose(cheb_cost, cheb_cost.T, rtol=tol, atol=tol)
+    # check that it is close to the BE CN
+    np.testing.assert_allclose(be_cost, cheb_cost, rtol=tol, atol=tol)
+    np.testing.assert_allclose(cn_cost, cheb_cost, rtol=tol, atol=tol)
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
 
-#   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
-#   def test_directed_graph(self, jit: bool, normalize: bool):
+  @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
+  def test_directed_graph(self, jit: bool, normalize: bool):
 
-#     def create_graph(G: jnp.ndarray) -> graph.Graph:
-#       return graph.Graph.from_graph(G, directed=True, normalize=normalize)
+    def create_graph(G: jnp.ndarray) -> graph.Graph:
+      return geodesic.Geodesic.from_graph(G, directed=True, normalize=normalize)
 
-#     G = random_graph(16, p=0.25, directed=True)
-#     create_fn = jax.jit(create_graph) if jit else create_graph
-#     geom = create_fn(G)
+    G = random_graph(16, p=0.25, directed=True)
+    create_fn = jax.jit(create_graph) if jit else create_graph
+    geom = create_fn(G)
 
-#     with pytest.raises(AssertionError):
-#       np.testing.assert_allclose(G, G.T)
+    with pytest.raises(AssertionError):
+      np.testing.assert_allclose(G, G.T)
 
-#     L = geom.laplacian
+    L = geom.laplacian
 
-#     with pytest.raises(AssertionError):
-#       # make sure that original graph was directed
-#       np.testing.assert_allclose(G, G.T, rtol=1e-6, atol=1e-6)
-#     np.testing.assert_allclose(L, L.T, rtol=1e-6, atol=1e-6)
+    with pytest.raises(AssertionError):
+      # make sure that original graph was directed
+      np.testing.assert_allclose(G, G.T, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(L, L.T, rtol=1e-6, atol=1e-6)
+
 
 #   @pytest.mark.parametrize("directed", [False, True])
 #   @pytest.mark.parametrize("normalize", [False, True])
@@ -308,7 +313,8 @@ class TestGeodesic:
 #     x = jnp.abs(jax.random.normal(rng, (n,)))
 
 #     graph_no_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=-1)
-#     graph_low_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=2.5e-4)
+#     graph_low_tol = graph.Graph.from_graph(G, t=t,
+#                     n_steps=n_steps, tol=2.5e-4)
 #     graph_high_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-1)
 
 #     app_no_tol = graph_no_tol.apply_kernel(x)
