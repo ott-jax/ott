@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import jax
 import jax.experimental.sparse as jesp
@@ -49,8 +49,6 @@ class Geodesic(geometry.Geometry):
       t: float = 1e-3,
       order: int = 100,
       chebyshev_coeffs: Optional[List[float]] = None,
-      numerical_scheme: Literal["backward_euler",
-                                "crank_nicolson"] = "backward_euler",
       lap_min_id: Optional[jnp.ndarray
                           ] = None,  # Rescale Laplacian minus identity
       eigval: Optional[jnp.ndarray
@@ -62,7 +60,6 @@ class Geodesic(geometry.Geometry):
     self.t = t
     self.order = order
     self.chebyshev_coeffs = chebyshev_coeffs
-    self.numerical_scheme = numerical_scheme
     self.eigval = eigval
     self.lap_min_id = lap_min_id
 
@@ -151,12 +148,12 @@ class Geodesic(geometry.Geometry):
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-    scaling: Scaling to apply the kernel to.
-    eps: passed for consistency, not used yet.
-    axis: passed for consistency, not used yet.
+      scaling: Scaling to apply the kernel to.
+      eps: passed for consistency, not used yet.
+      axis: passed for consistency, not used yet.
 
     Returns:
-    Kernel applied to ``scaling``.
+      Kernel applied to ``scaling``.
     """
     return expm_multiply(
         self.laplacian, scaling, self.chebyshev_coeffs, self.t, self.eigval,
@@ -176,17 +173,6 @@ class Geodesic(geometry.Geometry):
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
     return -4 * self.t * mu.safe_log(self.kernel_matrix)
-
-  @property
-  def _scale(self) -> float:
-    """Constant used to scale the Laplacian."""
-    if self.numerical_scheme == "backward_euler":
-      return self.t / (4. * self.order)
-    if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2. * self.order)
-    raise NotImplementedError(
-        f"Numerical scheme `{self.numerical_scheme}` is not implemented."
-    )
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
@@ -228,7 +214,6 @@ class Geodesic(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.laplacian, self.t, self.order], {
-        "numerical_scheme": self.numerical_scheme,
         "chebyshev_coeffs": self.chebyshev_coeffs,
     }
 
