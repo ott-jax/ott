@@ -18,7 +18,6 @@ import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import numpy as np
-from scipy.sparse.linalg import eigsh as _scipy_eigsh
 from scipy.special import ive
 
 from ott import utils
@@ -34,23 +33,10 @@ __all__ = ["Geodesic"]
 # - Verify sparse graph + cholesky.
 
 # Previous meetings todos:
-# 1) wrap all scipy and numpy
-# 2) move all the comp in the init, just call it once
+# 1) wrap all scipy and numpy (done)
+# 2) move all the comp in the init, just call it once (done)
 # 3) make sure it works with sparse graph + cholesky
 # 4) differentiablity , graph geo uses cholesky (triangle solve).
-
-# NOTE: Meeting questions:
-# - i moved some fn outside of the class. Where do we want them?
-# - review type, float64 vs float32 (see the TODOs in the code).
-# - Currently two implementations of the eigenvalue computation,
-#   they give different results. I trust the one from scipy.
-# - Changed the chebyshev computstion to the one inspired from
-#   https://github.com/sibyllema/Fast-Multiscale-Diffusion-on-Graphs.
-# - I started working on test.
-# - I see that there is also another method using backward Euler..
-#   Do we just want to have a HeatFilter class that includes both?
-# - Do we want docstrings for all methods? e.g. the wrapper?
-#   GH: I think only the class is enough.
 
 
 @jax.tree_util.register_pytree_node_class
@@ -95,7 +81,6 @@ class Geodesic(geometry.Geometry):
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
-      eigenval_scipy: bool = False,
       **kwargs: Any
   ) -> "Geodesic":
     r"""Construct a Geodesic geometry from an adjacency matrix.
@@ -114,8 +99,6 @@ class Geodesic(geometry.Geometry):
         :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
         \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
         non-normalized Laplacian and :math:`D` is the degree matrix.
-      eigenval_scipy: Whether to use the scipy implementation of the
-        eigenvalue computation.
       kwargs: Keyword arguments for the Geodesic class.
 
     Returns:
@@ -134,10 +117,8 @@ class Geodesic(geometry.Geometry):
           jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
-    if eigenval_scipy:
-      eigval = compute_eigenvalue(laplacian)
-    else:
-      eigval = compute_largest_eigenvalue(laplacian, k=1)
+
+    eigval = compute_largest_eigenvalue(laplacian, k=1)
     rescaled_laplacian = rescale_laplacian(laplacian, eigval)
     lap_min_id = define_scaled_laplacian(
         rescaled_laplacian
@@ -176,8 +157,7 @@ class Geodesic(geometry.Geometry):
       Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.laplacian, scaling, self.chebyshev_coeffs, self.t, self.eigval,
-        self.order
+        self.laplacian, scaling, self.chebyshev_coeffs, self.eigval, self.order
     )
 
   @property
@@ -244,11 +224,6 @@ class Geodesic(geometry.Geometry):
     return cls(*children, **aux_data)
 
 
-# TODO:
-# Moving some function here for now, idk if we want them in the class
-# or in a utils file.
-
-
 def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
   # Compute the largest eigenvalue of the Laplacian matrix.
   if rng is None:
@@ -263,9 +238,10 @@ def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
 
   # Compute eigenvalues using the sparse matrix-vector product
   eigvals, _, _ = jesp.linalg.lobpcg_standard(
-      lapl_vector_product, initial_dirs, m=k
+      lapl_vector_product,
+      initial_dirs,
+      m=100,
   )
-
   return jnp.max(eigvals)
 
 
@@ -273,11 +249,9 @@ def rescale_laplacian(
     laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.ndarray
 ) -> jnp.ndarray:
   # Rescale the Laplacian matrix.
-  if largest_eigenvalue > 2:
-    rescaled_laplacian = laplacian_matrix.copy()
-    rescaled_laplacian /= largest_eigenvalue
-    return 2 * rescaled_laplacian
-  return laplacian_matrix
+  return jax.lax.cond((largest_eigenvalue > 2),
+                      lambda l: 2 * l / largest_eigenvalue, lambda l: l,
+                      laplacian_matrix)
 
 
 def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
@@ -295,49 +269,39 @@ def _scipy_compute_chebychev_coeff_all(phi, tau, K):
   return coeff
 
 
-def expm_multiply(
-    L,
-    X,
-    coeff,
-    phi,
-    tau,
-    K=None,
-):
-  # Initialize the accumulator with only the first coeff*polynomial
+def expm_multiply(L, X, coeff, phi, K):
+
+  def body(carry, c):
+    T0, T1, Y = carry
+    T2 = (2 / phi) * L @ T1 - 2 * T1 - T0
+    Y = Y + c * T2
+    return (T1, T2, Y), None
+
   T0 = X
   Y = 0.5 * coeff[0] * T0
-  # Add the second coeff*polynomial to the accumulator
   T1 = (1 / phi) * L @ X - T0
   Y = Y + coeff[1] * T1
-  # Recursively add the next coeff*polynomial
-  for j in range(2, K + 1):
-    T2 = (2 / phi) * L @ T1 - 2 * T1 - T0
-    Y = Y + coeff[j] * T2
-    T0 = T1
-    T1 = T2
+
+  initial_state = (T0, T1, Y)
+  carry, _ = jax.lax.scan(body, initial_state, coeff[2:])
+  _, _, Y = carry
   return Y
 
 
 def compute_chebychev_coeff_all(phi, tau, K):
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
-  if not isinstance(phi, jnp.ndarray):
-    phi = jnp.asarray(phi)
+  if hasattr(phi, "dtype") and phi.dtype == jnp.float64:
+    _type = jnp.float64
+  else:
+    _type = jnp.float32
 
   result_shape_dtype = jax.ShapeDtypeStruct(
       shape=(K + 1,),
-      dtype=jax.numpy.float32,
-  )  # TODO: not sure about the best type here. Maybe the best if to have
-  # the same type as the laplacian.
-  return jax.pure_callback(
-      _scipy_compute_chebychev_coeff_all, result_shape_dtype, phi, tau, K
+      dtype=_type,
   )
 
+  chebychev_coeff = lambda phi, tau, K: _scipy_compute_chebychev_coeff_all(
+      phi, tau, K
+  ).astype(_type)
 
-def compute_eigenvalue(L):
-  """Jax wrapper to compute the largest eigenvalue of the Laplacian."""
-  result_shape_dtype = jax.ShapeDtypeStruct(
-      shape=(1,),
-      dtype=jax.numpy.float32,
-  )
-  eval_only = lambda x: _scipy_eigsh(x, k=1)[0] / 2.0
-  return jax.pure_callback(eval_only, result_shape_dtype, L)
+  return jax.pure_callback(chebychev_coeff, result_shape_dtype, phi, tau, K)
