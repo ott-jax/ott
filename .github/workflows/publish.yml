@@ -1,4 +1,4 @@
-name: Upload Python Package
+name: Upload package
 
 on:
   release:
@@ -7,6 +7,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment: publish-pypi
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 3.10
@@ -22,8 +26,9 @@ jobs:
     - name: Build package
       run: tox -e build-package
 
-    - name: Publish package
+    - name: Publish package on PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip-existing: true
+        verify-metadata: true
         verbose: true
