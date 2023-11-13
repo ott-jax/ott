@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.experimental.sparse as jesp
@@ -27,28 +27,20 @@ from ott.types import Array_g
 
 __all__ = ["Geodesic"]
 
-# TODO:
-# - Finalize the docstrings.
-# - Add tests.
-# - Verify sparse graph + cholesky.
-
-# Previous meetings todos:
-# 1) wrap all scipy and numpy (done)
-# 2) move all the comp in the init, just call it once (done)
-# 3) make sure it works with sparse graph + cholesky
-# 4) differentiablity , graph geo uses cholesky (triangle solve).
-
 
 @jax.tree_util.register_pytree_node_class
 class Geodesic(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
 
-  Approximates the heat-geodesic kernel using thee Chebyshev polynomials of the
+  Approximates the heat kernel using Chebyshev polynomials of the
   first kind of max order ``order``, which for small ``t`` approximates the
   geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
     laplacian: Symmetric graph Laplacian.
+    scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
+    eigval: Largest eigenvalue of the Laplacian.
+    chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
     t: Time parameter for heat kernel.
     order: Max order of Chebyshev polynomial.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
@@ -59,25 +51,25 @@ class Geodesic(geometry.Geometry):
       laplacian: Array_g,
       scaled_laplacian: Array_g,
       eigval: jnp.ndarray,
+      chebyshev_coeffs: jnp.ndarray,
       t: float = 1e-3,
       order: int = 100,
-      chebyshev_coeffs: Optional[List[float]] = None,
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
     self.laplacian = laplacian
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
+    self.chebyshev_coeffs = chebyshev_coeffs
     self.t = t
     self.order = order
-    self.chebyshev_coeffs = chebyshev_coeffs
 
   @classmethod
   def from_graph(
       cls,
       G: Array_g,
       t: Optional[float] = 1e-3,
-      eigval: Optional[jnp.ndarray] = None,  # Largest eigenvalue of Laplacian
+      eigval: Optional[jnp.ndarray] = None,
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
@@ -94,7 +86,7 @@ class Geodesic(geometry.Geometry):
       eigval: Largest eigenvalue of the Laplacian. If `None`, it's computed
         at initialization.
       order: Max order of Chebyshev polynomial.
-      directed: Whether the ``graph`` is directed. If not, it's made
+      directed: Whether the ``graph`` is directed. If `True`, it's made
         undirected as :math:`G + G^T`. This parameter is ignored when passing
         the Laplacian directly, assumed to be symmetric.
       normalize: Whether to normalize the Laplacian as
@@ -135,9 +127,9 @@ class Geodesic(geometry.Geometry):
         laplacian=laplacian,
         scaled_laplacian=scaled_laplacian,
         eigval=eigval,
+        chebyshev_coeffs=chebyshev_coeffs,
         t=t,
         order=order,
-        chebyshev_coeffs=chebyshev_coeffs,
         **kwargs
     )
 
@@ -215,8 +207,12 @@ class Geodesic(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [
-        self.laplacian, self.scaled_laplacian, self.eigval, self.t, self.order,
-        self.chebyshev_coeffs
+        self.laplacian,
+        self.scaled_laplacian,
+        self.eigval,
+        self.chebyshev_coeffs,
+        self.t,
+        self.order,
     ], {}
 
   @classmethod
