@@ -21,6 +21,8 @@ import pytest
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from ott.geometry import geodesic, geometry, graph
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import sinkhorn
 
 
 def random_graph(
@@ -121,36 +123,6 @@ class TestGeodesic:
     actual = geom.t
     np.testing.assert_equal(actual, expected)
 
-# class TestGraph:
-
-#   @pytest.mark.fast.with_args(
-#       numerical_scheme=["backward_euler", "crank_nicolson"],
-#       only_fast=0,
-#   )
-#   def test_approximates_ground_truth(
-#       self,
-#       rng: jax.random.PRNGKeyArray,
-#       numerical_scheme: Literal["backward_euler", "crank_nicolson"],
-#   ):
-#     eps, n_steps = 1e-5, 20
-#     G = random_graph(37, p=0.5)
-#     x = jax.random.normal(rng, (G.shape[0],))
-
-#     gt_geom = gt_geometry(G, epsilon=eps)
-#     graph_geom = graph.Graph.from_graph(
-#         G, t=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
-#     )
-
-#     np.testing.assert_allclose(
-#         gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-2, atol=1e-2
-#     )
-#     np.testing.assert_allclose(
-#         gt_geom.apply_kernel(x),
-#         graph_geom.apply_kernel(x),
-#         rtol=1e-2,
-#         atol=1e-2
-#     )
-
   @pytest.mark.fast.with_args(
       n_steps=[50, 100, 200],
       t=[1e-4, 1e-5],
@@ -202,126 +174,66 @@ class TestGeodesic:
       np.testing.assert_allclose(G, G.T, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(L, L.T, rtol=1e-6, atol=1e-6)
 
+  @pytest.mark.parametrize("directed", [False, True])
+  @pytest.mark.parametrize("normalize", [False, True])
+  def test_normalize_laplacian(self, directed: bool, normalize: bool):
 
-#   @pytest.mark.parametrize("directed", [False, True])
-#   @pytest.mark.parametrize("normalize", [False, True])
-#   def test_normalize_laplacian(self, directed: bool, normalize: bool):
+    def laplacian(G: jnp.ndarray) -> jnp.ndarray:
+      if directed:
+        G = G + G.T
 
-#     def laplacian(G: jnp.ndarray) -> jnp.ndarray:
-#       if directed:
-#         G = G + G.T
+      data = jnp.sum(G, axis=1)
+      lap = jnp.diag(data) - G
+      if normalize:
+        inv_sqrt_deg = jnp.diag(
+            jnp.where(data > 0.0, 1.0 / jnp.sqrt(data), 0.0)
+        )
+        return inv_sqrt_deg @ lap @ inv_sqrt_deg
+      return lap
 
-#       data = jnp.sum(G, axis=1)
-#       lap = jnp.diag(data) - G
-#       if normalize:
-#         inv_sqrt_deg = jnp.diag(
-#             jnp.where(data > 0.0, 1.0 / jnp.sqrt(data), 0.0)
-#         )
-#         return inv_sqrt_deg @ lap @ inv_sqrt_deg
-#       return lap
+    G = random_graph(51, p=0.35, directed=directed)
+    geom = geodesic.Geodesic.from_graph(
+        G, directed=directed, normalize=normalize
+    )
 
-#     G = random_graph(51, p=0.35, directed=directed)
-#     geom = graph.Graph.from_graph(G, directed=directed, normalize=normalize)
+    expected = laplacian(G)
+    actual = geom.laplacian
 
-#     expected = laplacian(G)
-#     actual = geom.laplacian
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
-#     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+  @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
+  def test_graph_sinkhorn(self, rng: jax.random.PRNGKeyArray, jit: bool):
 
-#   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-#   def test_graph_sinkhorn(self, rng: jax.random.PRNGKeyArray, jit: bool):
+    def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
+      solver = sinkhorn.Sinkhorn(lse_mode=False)
+      problem = linear_problem.LinearProblem(geom)
+      return solver(problem)
 
-#     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
-#       solver = sinkhorn.Sinkhorn(lse_mode=False)
-#       problem = linear_problem.LinearProblem(geom)
-#       return solver(problem)
+    n, eps, tol = 11, 1e-5, 1e-3
+    G = random_graph(n, p=0.35)
+    x = jax.random.normal(rng, (n,))
 
-#     n, eps, tol = 11, 1e-5, 1e-3
-#     G = random_graph(n, p=0.35)
-#     x = jax.random.normal(rng, (n,))
+    gt_geom = gt_geometry(G, epsilon=eps)
+    graph_geom = geodesic.Geodesic.from_graph(G, t=eps)
 
-#     gt_geom = gt_geometry(G, epsilon=eps)
-#     graph_geom = graph.Graph.from_graph(G, t=eps)
+    fn = jax.jit(callback) if jit else callback
+    gt_out = fn(gt_geom)
+    graph_out = fn(graph_geom)
 
-#     fn = jax.jit(callback) if jit else callback
+    assert gt_out.converged
+    assert graph_out.converged
+    np.testing.assert_allclose(
+        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
+    )
+    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
+    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
 
-#     gt_out = fn(gt_geom)
-#     graph_out = fn(graph_geom)
+    for axis in [0, 1]:
+      y_gt = gt_out.apply(x, axis=axis)
+      y_out = graph_out.apply(x, axis=axis)
+      # note the high tolerance
+      np.testing.assert_allclose(y_gt, y_out, rtol=5e-1, atol=5e-1)
 
-#     assert gt_out.converged
-#     assert graph_out.converged
-#     np.testing.assert_allclose(
-#         graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
-#     )
-#     np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
-#     np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
-
-#     for axis in [0, 1]:
-#       y_gt = gt_out.apply(x, axis=axis)
-#       y_out = graph_out.apply(x, axis=axis)
-#       # note the high tolerance
-#       np.testing.assert_allclose(y_gt, y_out, rtol=5e-1, atol=5e-1)
-
-#     np.testing.assert_allclose(
-#         gt_out.matrix, graph_out.matrix, rtol=1e-1, atol=1e-1
-#     )
-
-#   @pytest.mark.parametrize(
-#       "implicit_diff",
-#       [False, True],
-#       ids=["not-implicit", "implicit"],
-#   )
-#   def test_dense_graph_differentiability(
-#       self, rng: jax.random.PRNGKeyArray, implicit_diff: bool
-#   ):
-
-#     def callback(
-#         data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
-#         shape: Tuple[int, int]
-#     ) -> float:
-#       G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
-
-#       geom = graph.Graph.from_graph(G, t=1.)
-#       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
-#       problem = linear_problem.LinearProblem(geom)
-
-#       return solver(problem).reg_ot_cost
-
-#     if implicit_diff:
-#       kwargs = {"implicit_diff": implicit_lib.ImplicitDiff()}
-#     else:
-#       kwargs = {"implicit_diff": None}
-
-#     eps = 1e-3
-#     G = random_graph(20, p=0.5)
-#     G = sparse.BCOO.fromdense(G)
-
-#     w, rows, cols = G.data, G.indices[:, 0], G.indices[:, 1]
-#     v_w = jax.random.normal(rng, shape=w.shape)
-#     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
-
-#     grad_w = jax.grad(callback)(w, rows, cols, shape=G.shape)
-
-#     expected = callback(w + v_w, rows, cols,
-#                         G.shape) - callback(w - v_w, rows, cols, G.shape)
-#     actual = 2 * jnp.vdot(v_w, grad_w)
-#     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
-
-#   def test_tolerance_hilbert_metric(self, rng: jax.random.PRNGKeyArray):
-#     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
-#     G = random_graph(n, p=0.15)
-#     x = jnp.abs(jax.random.normal(rng, (n,)))
-
-#     graph_no_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=-1)
-#     graph_low_tol = graph.Graph.from_graph(G, t=t,
-#                     n_steps=n_steps, tol=2.5e-4)
-#     graph_high_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-1)
-
-#     app_no_tol = graph_no_tol.apply_kernel(x)
-#     app_low_tol = graph_low_tol.apply_kernel(x)  # does 1 iteration
-#     app_high_tol = graph_high_tol.apply_kernel(x)  # does 961 iterations
-
-#     np.testing.assert_allclose(app_no_tol, app_low_tol, rtol=tol, atol=tol)
-#     np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=5e-2, atol=5e-2)
-#     with pytest.raises(AssertionError):
-#       np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=tol, atol=tol)
+    np.testing.assert_allclose(
+        gt_out.matrix, graph_out.matrix, rtol=1e-1, atol=1e-1
+    )

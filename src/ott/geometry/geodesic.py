@@ -57,27 +57,27 @@ class Geodesic(geometry.Geometry):
   def __init__(
       self,
       laplacian: Array_g,
+      scaled_laplacian: Array_g,
+      eigval: jnp.ndarray,
       t: float = 1e-3,
       order: int = 100,
       chebyshev_coeffs: Optional[List[float]] = None,
-      lap_min_id: Optional[Array_g] = None,  # Rescale Laplacian minus identity
-      eigval: Optional[jnp.ndarray
-                      ] = None,  # (Second)Largest eigenvalue of Laplacian
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
     self.laplacian = laplacian
+    self.scaled_laplacian = scaled_laplacian
+    self.eigval = eigval
     self.t = t
     self.order = order
     self.chebyshev_coeffs = chebyshev_coeffs
-    self.eigval = eigval
-    self.lap_min_id = lap_min_id
 
   @classmethod
   def from_graph(
       cls,
       G: Array_g,
       t: Optional[float] = 1e-3,
+      eigval: Optional[jnp.ndarray] = None,  # Largest eigenvalue of Laplacian
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
@@ -91,6 +91,8 @@ class Geodesic(geometry.Geometry):
         If `None`, it defaults to :math:`\frac{1}{|E|} \sum_{(u, v) \in E}
         \text{weight}(u, v)` :cite:`crane:13`. In this case, the ``graph``
         must be specified and the edge weights are assumed to be positive.
+      eigval: Largest eigenvalue of the Laplacian. If `None`, it's computed
+        at initialization.
       order: Max order of Chebyshev polynomial.
       directed: Whether the ``graph`` is directed. If not, it's made
         undirected as :math:`G + G^T`. This parameter is ignored when passing
@@ -118,11 +120,10 @@ class Geodesic(geometry.Geometry):
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
-    eigval = compute_largest_eigenvalue(laplacian, k=1)
-    rescaled_laplacian = rescale_laplacian(laplacian, eigval)
-    lap_min_id = define_scaled_laplacian(
-        rescaled_laplacian
-    )  # TODO: remove if not needed.
+    eigval = compute_largest_eigenvalue(
+        laplacian, k=1
+    ) if eigval is None else eigval
+    scaled_laplacian = rescale_laplacian(laplacian, eigval)
 
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
@@ -132,11 +133,11 @@ class Geodesic(geometry.Geometry):
 
     return cls(
         laplacian=laplacian,
+        scaled_laplacian=scaled_laplacian,
+        eigval=eigval,
         t=t,
         order=order,
         chebyshev_coeffs=chebyshev_coeffs,
-        lap_min_id=lap_min_id,
-        eigval=eigval,
         **kwargs
     )
 
@@ -157,7 +158,7 @@ class Geodesic(geometry.Geometry):
       Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.laplacian, scaling, self.chebyshev_coeffs, self.eigval, self.order
+        self.scaled_laplacian, scaling, self.chebyshev_coeffs, self.eigval
     )
 
   @property
@@ -213,9 +214,10 @@ class Geodesic(geometry.Geometry):
     raise ValueError("Not implemented.")
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [self.laplacian, self.t, self.order], {
-        "chebyshev_coeffs": self.chebyshev_coeffs,
-    }
+    return [
+        self.laplacian, self.scaled_laplacian, self.eigval, self.t, self.order,
+        self.chebyshev_coeffs
+    ], {}
 
   @classmethod
   def tree_unflatten(  # noqa: D102
@@ -254,13 +256,6 @@ def rescale_laplacian(
                       laplacian_matrix)
 
 
-def define_scaled_laplacian(laplacian_matrix: jnp.ndarray) -> jnp.ndarray:
-  # Define the scaled Laplacian matrix.
-  n = laplacian_matrix.shape[0]
-  identity = jnp.eye(n)
-  return laplacian_matrix - identity
-
-
 def _scipy_compute_chebychev_coeff_all(phi, tau, K):
   """Compute the K+1 Chebychev coefficients for our functions."""
   coeff = 2 * ive(np.arange(0, K + 1), -tau * phi)
@@ -269,7 +264,7 @@ def _scipy_compute_chebychev_coeff_all(phi, tau, K):
   return coeff
 
 
-def expm_multiply(L, X, coeff, phi, K):
+def expm_multiply(L, X, coeff, phi):
 
   def body(carry, c):
     T0, T1, Y = carry
