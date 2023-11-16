@@ -37,7 +37,6 @@ class Geodesic(geometry.Geometry):
   geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
-    laplacian: Symmetric graph Laplacian.
     scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
     eigval: Largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
@@ -48,7 +47,6 @@ class Geodesic(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: Array_g,
       scaled_laplacian: Array_g,
       eigval: jnp.ndarray,
       chebyshev_coeffs: jnp.ndarray,
@@ -57,7 +55,6 @@ class Geodesic(geometry.Geometry):
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
-    self.laplacian = laplacian
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
@@ -126,7 +123,6 @@ class Geodesic(geometry.Geometry):
     )
 
     return cls(
-        laplacian=laplacian,
         scaled_laplacian=scaled_laplacian,
         eigval=eigval,
         chebyshev_coeffs=chebyshev_coeffs,
@@ -171,7 +167,7 @@ class Geodesic(geometry.Geometry):
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
-    return self.laplacian.shape
+    return self.scaled_laplacian.shape
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102
@@ -179,7 +175,7 @@ class Geodesic(geometry.Geometry):
 
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
-    return self.laplacian.dtype
+    return self.scaled_laplacian.dtype
 
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray
@@ -209,7 +205,6 @@ class Geodesic(geometry.Geometry):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [
-        self.laplacian,
         self.scaled_laplacian,
         self.eigval,
         self.chebyshev_coeffs,

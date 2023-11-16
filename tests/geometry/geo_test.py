@@ -167,7 +167,7 @@ class TestGeodesic:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(G, G.T)
 
-    L = geom.laplacian
+    L = geom.scaled_laplacian
 
     with pytest.raises(AssertionError):
       # make sure that original graph was directed
@@ -197,7 +197,12 @@ class TestGeodesic:
     )
 
     expected = laplacian(G)
-    actual = geom.laplacian
+    eigenvalues = jnp.linalg.eigvals(expected)
+    eigval = jnp.max(eigenvalues)
+    #rescale the laplacian
+    expected = 2 * expected / eigval if eigval > 2 else expected
+
+    actual = geom.scaled_laplacian
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
