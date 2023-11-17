@@ -249,18 +249,6 @@ def rescale_laplacian(
                       laplacian_matrix)
 
 
-def _scipy_compute_chebychev_coeff_all(phi, tau, K, dtype=jnp.float32):
-  """Compute the K+1 Chebychev coefficients for our functions."""
-  coeff = 2 * ive(np.arange(0, K + 1), -tau * phi)
-  if dtype == jnp.float32 and coeff.dtype != np.float32:
-    coeff = np.float32(coeff)
-  elif dtype == jnp.float64 and coeff.dtype != np.float64:
-    coeff = np.float64(coeff)
-  else:
-    raise ValueError("Invalid dtype.")
-  return coeff
-
-
 def expm_multiply(L, X, coeff, phi):
 
   def body(carry, c):
@@ -287,8 +275,8 @@ def compute_chebychev_coeff_all(phi, tau, K, dtype=jnp.float32):
       dtype=dtype,
   )
 
-  chebychev_coeff = lambda phi, tau, K: _scipy_compute_chebychev_coeff_all(
-      phi, tau, K, dtype=dtype
+  chebychev_coeff = lambda phi, tau, K: (
+      2 * ive(np.arange(0, K + 1), -tau * phi)
   ).astype(dtype)
 
   return jax.pure_callback(chebychev_coeff, result_shape_dtype, phi, tau, K)
