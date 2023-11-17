@@ -82,7 +82,7 @@ class Geodesic(geometry.Geometry):
         must be specified and the edge weights are assumed to be positive.
       eigval: Largest eigenvalue of the Laplacian. If `None`, it's computed
         at initialization.
-      order: Max order of Chebyshev polynomial.
+      order: Max order of Chebyshev polynomials.
       directed: Whether the ``graph`` is directed. If `True`, it's made
         undirected as :math:`G + G^T`. This parameter is ignored when passing
         the Laplacian directly, assumed to be symmetric.

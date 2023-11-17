@@ -1,6 +1,7 @@
 Barycenters
 Brenier
 Bures
+Chebyshev
 Cholesky
 DTW
 Danskin
@@ -24,6 +25,7 @@ SGD
 Schur
 Seidel
 Sinkhorn
+UNet
 Unbalancedness
 Wasserstein
 adaptively
@@ -93,6 +95,7 @@ parameterization
 parameterizing
 piecewise
 pluripotent
+polynomials
 positivity
 postfix
 potentials
