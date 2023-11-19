@@ -114,23 +114,21 @@ class PosDefPotentials(nn.Module):
         (self.num_potentials, inputs.shape[-1], inputs.shape[-1])
     )
 
+    y = inputs.reshape((-1, inputs.shape[-1])) if inputs.ndim == 1 else inputs
+
     if self.use_bias:
       bias = self.param(
           "bias", self.bias_init, (self.num_potentials, self.dim_data)
       )
       bias = jnp.asarray(bias, self.dtype)
-
-      y = inputs.reshape((-1, inputs.shape[-1])) if inputs.ndim == 1 else inputs
       y = y[..., None] - bias.T[None, ...]
-      y = jax.lax.dot_general(
-          y, kernel, (((1,), (1,)), ((2,), (0,))), precision=self.precision
-      )
+    
     else:
-      y = jax.lax.dot_general(
-          inputs,
-          kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-          precision=self.precision
-      )
-
+      y = jnp.tile(y[..., None], self.num_potentials) 
+      
+    y = jax.lax.dot_general(
+        y, kernel, (((1,), (1,)), ((2,), (0,))), precision=self.precision
+    )
+    
     y = 0.5 * y * y
     return jnp.sum(y.reshape((-1, self.num_potentials, self.dim_data)), axis=2)
