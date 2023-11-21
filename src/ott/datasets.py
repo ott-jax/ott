@@ -43,7 +43,7 @@ class Dataset(NamedTuple):
 
 @dataclasses.dataclass
 class GaussianMixture:
-  """A mixture of Gaussians.
+  """A class to define 2-dimensional Gaussian mixtures.
 
   Args:
     name: the name specifying the centers of the mixture components:
@@ -119,8 +119,10 @@ class SklearnDistribution:
 
       - ``moon`` - lower moon Sklearn dataset,
       - ``s_curve`` - s curve Sklearn dataset.
+      - ``swiss`` - swiss roll Sklearn dataset
 
     init_rng: initial PRNG key
+    dim_data: data dimensionality
     theta_rotation: angle to define the rotation matrix to rotate samples
     offset: offset added to the Sklearn samples
     scale: scaling factor to scale the Sklearn samples
@@ -128,8 +130,9 @@ class SklearnDistribution:
     batch_size: batch size of the samples
   """
 
-  name: Literal["moon", "s_curve"]
+  name: Literal["moon", "s_curve", "swiss"]
   init_rng: jax.Array
+  dim_data: int = 2
   theta_rotation: float = 0.0
   offset: Optional[jnp.ndarray] = None
   scale: float = 1.0
@@ -145,12 +148,31 @@ class SklearnDistribution:
     return self._create_sample_generators()
 
   def __post_init__(self):
+
+    # check dimension consistency with dataset
+    if self.dim_data > 2:
+      assert self.name != "moon", (
+          "Moon disribution only supported in dimension 2."
+      )
+      assert self.theta_rotation == 0., (
+          "Samples rotation only supported in dimension 2."
+      )
+
+    # define offset
+    self._offset = jnp.zeros(
+        self.dim_data
+    ) if self.offset is None else self.offset
+
     # define rotation matrix to rotate samples
-    self.rotation = jnp.array([
-        [jnp.cos(self.theta_rotation), -jnp.sin(self.theta_rotation)],
-        [jnp.sin(self.theta_rotation),
-         jnp.cos(self.theta_rotation)],
-    ])
+    if self.theta_rotation == 0.:
+      self.rotation_fn = lambda x: x
+    else:
+      rotation_marix = jnp.array([
+          [jnp.cos(self.theta_rotation), -jnp.sin(self.theta_rotation)],
+          [jnp.sin(self.theta_rotation),
+           jnp.cos(self.theta_rotation)],
+      ])
+      self.rotation_fn = lambda x: jnp.matmul(rotation_marix, x)
 
   def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
     rng = jax.random.PRNGKey(0) if self.init_rng is None else self.init_rng
@@ -170,16 +192,83 @@ class SklearnDistribution:
             random_state=seed,
             noise=self.std_noise,
         )
-        samples = x[:, [2, 0]]
+        samples = x[:, [2, 0]] if self.dim_data == 2 else x
+      elif self.name == "swiss":
+        x, _ = sklearn.datasets.make_swiss_roll(
+            n_samples=self.batch_size,
+            random_state=seed,
+            noise=self.std_noise,
+        )
+        samples = x[:, [2, 0]] if self.dim_data == 2 else x
       else:
         raise NotImplementedError(
             f"SklearnDistribution `{self.name}` not implemented."
         )
 
       samples = jnp.asarray(samples, dtype=jnp.float32)
-      samples = jnp.squeeze(jnp.matmul(self.rotation[None, :], samples.T).T)
-      offset = jnp.zeros(2) if self.offset is None else self.offset
-      samples = offset + self.scale * samples
+      samples = jax.vmap(self.rotation_fn)(samples)
+      samples = self._offset + self.scale * samples
+      yield samples
+
+
+@dataclasses.dataclass
+class SortedSprial:
+  """A class to define 2 or 3-dimensional ordered spiral distributions.
+
+  The spiral is sorted in the sense that the indices of the points in each
+  generated batch follow the progression of the spiral, i.e. the angles to draw
+  the points are linearly increasing between ``min_angle`` and ``max_angle``.
+  Afterwards, the first point of a batch point always has a norm close to
+  ``min_radius``, while the last point of the batch always has a norm close
+  to ``max_radius``, and the intermediate points have a linearly increasing
+  norm between ``min_radius`` and ``max_raidus``.
+
+  Args:
+    init_rng: initial PRNG key
+    dim_data: data dimensionality
+    min_angle: angle we start from to draw the spiral
+    max_angle: angle of the spiral's ending point
+    std_noise: standard deviation of the gaussian additive noise
+    batch_size: batch size of the samples
+  """
+
+  init_rng: jax.Array
+  dim_data: int = 2
+  min_radius: float = 3.
+  max_radius: float = 10.
+  min_angle: float = 0.
+  max_angle: float = 10.
+  std_noise: float = 0.01
+  batch_size: int = 1024
+
+  def __iter__(self) -> Iterator[jnp.ndarray]:
+    """Random sample generator from an ordered spiral distribution.
+
+    Returns:
+    A generator of samples from the ordered spiral distribution.
+    """
+    return self._create_sample_generators()
+
+  def _create_sample_generators(self) -> Iterator[jnp.ndarray]:
+    rng = jax.random.PRNGKey(0) if self.init_rng is None else self.init_rng
+
+    while True:
+      rng, rng1, rng2 = jax.random.split(rng, 3)
+      radius = jnp.linspace(self.min_radius, self.max_radius, self.batch_size)
+      angles = jnp.linspace(self.min_angle, self.max_angle, self.batch_size)
+      noise = self.std_noise * jax.random.normal(rng1, (self.batch_size, 2))
+      x_coordinates = (radius + noise[:, 0]) * jnp.cos(angles)
+      y_coordinates = (radius + noise[:, 1]) * jnp.sin(angles)
+      samples = jnp.concatenate(
+          (x_coordinates[:, jnp.newaxis], y_coordinates[:, jnp.newaxis]),
+          axis=1
+      )
+      if self.dim_data == 3:
+        third_axis = jax.random.uniform(
+            rng2, (self.batch_size, 1)
+        ) * self.max_radius
+        samples = jnp.hstack((samples[:, 0:1], third_axis, samples[:, 1:]))
+
       yield samples
 
 
