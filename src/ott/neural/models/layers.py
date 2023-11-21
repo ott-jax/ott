@@ -13,9 +13,9 @@
 # limitations under the License.
 from typing import Any, Callable, Tuple
 
-import flax.linen as nn
 import jax
 import jax.numpy as jnp
+from flax import linen as nn
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
 
@@ -79,7 +79,7 @@ class PositiveDense(nn.Module):
 
 
 class PosDefPotentials(nn.Module):
-  """A layer to output ( 0.5 x^T [A_i A_i^T + Diag(d_i^2)] x + x^T b_i + c_i )_i potentials.
+  """A layer to output  (0.5 || A_i^T (x - b_i)||^2)_i potentials.
 
   Args:
     num_potentials: the dimension of the output

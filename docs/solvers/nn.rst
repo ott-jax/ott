@@ -20,7 +20,7 @@ Models
 .. autosummary::
     :toctree: _autosummary
 
-    models.ModelBase
+    models.BaseW2NeuralDual
     models.ICNN
     models.MLP
 

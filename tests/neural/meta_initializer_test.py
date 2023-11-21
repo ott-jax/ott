@@ -16,14 +16,26 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 import pytest
-
-_ = pytest.importorskip("flax")
-
+from flax import linen as nn
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as linear_init
-from ott.initializers.nn import initializers as nn_init
+from ott.neural.models import models as nn_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+
+
+class MetaMLP(nn.Module):
+  potential_size: int
+  num_hidden_units: int = 512
+  num_hidden_layers: int = 3
+
+  @nn.compact
+  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+    dtype = a.dtype
+    z = jnp.concatenate((a, b))
+    for _ in range(self.num_hidden_layers):
+      z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
+    return nn.Dense(self.potential_size, dtype=dtype)(z)
 
 
 def create_ot_problem(
@@ -95,7 +107,8 @@ class TestMetaInitializer:
     )
 
     # overfit the initializer to the problem.
-    meta_initializer = nn_init.MetaInitializer(geom)
+    meta_model = MetaMLP(n)
+    meta_initializer = nn_init.MetaInitializer(geom, meta_model)
     for _ in range(50):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b
