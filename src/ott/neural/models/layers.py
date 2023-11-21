@@ -79,7 +79,7 @@ class PositiveDense(nn.Module):
 
 
 class PosDefPotentials(nn.Module):
-  """A layer to output  (0.5 [A_i A_i^T] (x - b_i)_i potentials.
+  """A layer to output  (0.5 || A_i^T (x - b_i)||^2)_i potentials.
 
   Args:
     use_bias: whether to add a bias to the output.
