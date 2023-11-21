@@ -31,7 +31,7 @@ from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott import utils
-from ott.solvers.nn import models
+from ott.neural.solvers import neuraldual
 
 __all__ = ["MapEstimator"]
 
@@ -77,7 +77,7 @@ class MapEstimator:
   def __init__(
       self,
       dim_data: int,
-      model: models.ModelBase,
+      model: neuraldual.BaseW2NeuralDual,
       optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       Tuple[float, Optional[Any]]]] = None,
@@ -113,7 +113,7 @@ class MapEstimator:
   def setup(
       self,
       dim_data: int,
-      neural_net: models.ModelBase,
+      neural_net: neuraldual.BaseW2NeuralDual,
       optimizer: optax.OptState,
   ):
     """Setup all components required to train the network."""

@@ -32,7 +32,7 @@ class LowerBoundSolver:
     As implemented, this solver assumes uniform marginals,
     non-uniform marginal solver coming soon!
 
-  Computes the first lower bound distance from :cite:`memoli:11`, def. 6.1.
+  Computes the third lower bound distance from :cite:`memoli:11`, def. 6.3.
   there is an uneven number of points in the distributions, then we perform a
   stratified subsample of the distribution of distances to approximate
   the Wasserstein distance between the local distributions of distances.

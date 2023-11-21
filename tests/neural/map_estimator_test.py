@@ -11,18 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Optional
 
 import jax.numpy as jnp
 import pytest
-
-_ = pytest.importorskip("flax")
-
+from ott import datasets
 from ott.geometry import pointcloud
-from ott.problems.nn import dataset
-from ott.solvers.nn import losses, models
-from ott.tools import map_estimator, sinkhorn_divergence
+from ott.neural.models import models
+from ott.neural.solvers import losses, map_estimator
+from ott.tools import sinkhorn_divergence
 
 
 @pytest.mark.fast()
@@ -56,7 +53,7 @@ class TestMapEstimator:
 
     # generate data
     train_dataset, valid_dataset, dim_data = (
-        dataset.create_gaussian_mixture_samplers(
+        datasets.create_gaussian_mixture_samplers(
             name_source="simple",
             name_target="circle",
             train_batch_size=30,

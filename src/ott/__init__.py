@@ -11,5 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import geometry, initializers, math, problems, solvers, tools, utils
+import contextlib
+
+from . import (
+    datasets,
+    geometry,
+    initializers,
+    math,
+    problems,
+    solvers,
+    tools,
+    utils,
+)
+
+with contextlib.suppress(ImportError):
+  # TODO(michalk8): add warning that neural module is not imported
+  from . import neural
+
 from ._version import __version__
+
+del contextlib
