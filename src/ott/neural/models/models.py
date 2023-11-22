@@ -19,10 +19,8 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
-from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
-from jax import numpy as jnp
 from jax.nn import initializers
 
 from ott import utils
@@ -420,8 +418,7 @@ class Block(nn.Module):
     for i in range(self.num_layers):
       x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
       x = self.activation_fn(x)
-    x = nn.Dense(self.out_dim, name="fc_final")(x)
-    return x
+    return nn.Dense(self.out_dim)(x)
 
 
 class BaseNeuralVectorField(nn.Module, abc.ABC):
@@ -435,21 +432,6 @@ class BaseNeuralVectorField(nn.Module, abc.ABC):
       keys_model: Optional[jax.Array] = None
   ) -> jnp.ndarray:  # noqa: D102):
     pass
-
-
-class Block(nn.Module):
-  dim: int = 128
-  out_dim: int = 32
-  num_layers: int = 3
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
-
-  @nn.compact
-  def __call__(self, x):
-    for i in range(self.num_layers):
-      x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
-      x = self.act_fn(x)
-    x = nn.Dense(self.out_dim, name="fc_final")(x)
-    return x
 
 
 class NeuralVectorField(BaseNeuralVectorField):
@@ -493,8 +475,8 @@ class NeuralVectorField(BaseNeuralVectorField):
   def __call__(
       self,
       t: jax.Array,
+      x: jax.Array,
       condition: Optional[jax.Array],
-      latent: jax.Array,
       keys_model: Optional[jax.Array] = None,
   ) -> jax.Array:
 
@@ -508,13 +490,13 @@ class NeuralVectorField(BaseNeuralVectorField):
         t
     )
 
-    data = Block(
+    x = Block(
         dim=self.latent_embed_dim,
         out_dim=self.latent_embed_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
     )(
-        data
+        x
     )
 
     if self.condition_dim > 0:
@@ -526,9 +508,9 @@ class NeuralVectorField(BaseNeuralVectorField):
       )(
           condition
       )
-      concatenated = jnp.concatenate((t, data, condition), axis=-1)
+      concatenated = jnp.concatenate((t, x, condition), axis=-1)
     else:
-      concatenated = jnp.concatenate((t, data), axis=-1)
+      concatenated = jnp.concatenate((t, x), axis=-1)
 
     out = Block(
         dim=self.joint_hidden_dim,

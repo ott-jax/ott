@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
 import diffrax
 import jax
 import jax.numpy as jnp
+import optax
 import orbax as obx
 from jax import random
 
@@ -17,7 +18,6 @@ from ott.neural.solver.base_solver import (
 )
 from ott.neural.solvers.flows import (
     BaseFlow,
-    ConstantNoiseFlow,
 )
 from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
@@ -32,8 +32,8 @@ class FlowMatching(BaseNeuralSolver, MatchMixin, UnbalancednessMixin):
       iterations: int,
       valid_freq: int,
       ot_solver: Type[was_solver.WassersteinSolver],
-      flow: Type[BaseFlow] = ConstantNoiseFlow(0),
-      optimizer: Optional[Any] = None,
+      flow: Type[BaseFlow],
+      optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[obx.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
