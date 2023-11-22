@@ -45,6 +45,11 @@ class BaseNeuralSolver(ABC):
     pass
 
   @abstractmethod
+  def transport(self, *args: Any, forward: bool, **kwargs: Any) -> Any:
+    """Transport."""
+    pass
+
+  @abstractmethod
   def save(self, path: Path):
     """Save the model."""
     pass

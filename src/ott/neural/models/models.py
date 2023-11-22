@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import functools
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
@@ -403,3 +404,14 @@ class MetaInitializer(lin_init.DefaultInitializer):
         "rng": self.rng,
         "state": self.state
     }
+
+
+class BaseNeuralVectorField(abc.ABC):
+
+  def __call__(
+      self,
+      t: jax.Array,
+      condition: Optional[jax.Array] = None,
+      keys_model: Optional[jax.Array] = None
+  ) -> jnp.ndarray:  # noqa: D102):
+    pass

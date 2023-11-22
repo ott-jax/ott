@@ -1,6 +1,8 @@
 import functools
+import types
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
 
+import diffrax
 import jax
 import jax.numpy as jnp
 import orbax as obx
@@ -168,13 +170,42 @@ class FlowMatching(BaseNeuralSolver, MatchMixin, UnbalancednessMixin):
             states_to_save["state_xi"] = self.state_xi
           self.checkpoint_manager.save(iter, states_to_save)
 
+  def transport(
+      self,
+      data: jnp.array,
+      condition: Optional[jax.Array],
+      rng: random.PRNGKey,
+      forward: bool = True,
+      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
+  ) -> diffrax.Solution:
+    diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
+    t0, t1 = (0, 1) if forward else (1, 0)
+    return diffrax.diffeqsolve(
+        diffrax.ODETerm(
+            lambda t, y: self.state_neural_vector_field.
+            apply({"params": self.state_neural_vector_field.params},
+                  t=t,
+                  x=y,
+                  condition=condition)
+        ),
+        diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+        t0=t0,
+        t1=t1,
+        dt0=diffeqsolve_kwargs.pop("dt0", None),
+        y0=data,
+        stepsize_controller=diffeqsolve_kwargs.pop(
+            "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
+        ),
+        **diffeqsolve_kwargs,
+    )
+
   def _valid_step(self, valid_loader, iter) -> None:
     batch = next(valid_loader)
-    batch, a, b = self.match_fn(batch)
-    if not self.is_balanced:
-      self.unbalancedness_step_fn(batch, a, b)
-    if self.callback_fn is not None:
-      self.callback_fn(batch, a, b)
+    tmat = self.match_fn(batch)
+    batch = self.resample(
+        batch, tmat, (batch["source"], batch["condition"]),
+        (batch["target"], batch["condition"])
+    )
 
   @property
   def learn_rescaling(self) -> bool:
