@@ -48,18 +48,15 @@ class BaseNeuralSolver(ABC):
 
   @property
   @abstractmethod
-  def is_balanced(self) -> bool:
-    """Return the training logs."""
-    pass
-
-  @property
-  @abstractmethod
   def training_logs(self) -> Dict[str, Any]:
     """Return the training logs."""
     pass
 
 
 class ResampleMixin:
+
+  def __init__(*args, **kwargs):
+    pass
 
   def _resample_data(
       self,

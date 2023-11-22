@@ -409,14 +409,14 @@ class MetaInitializer(lin_init.DefaultInitializer):
 class Block(nn.Module):
   dim: int = 128
   num_layers: int = 3
-  activation_fn: Any = nn.silu
+  act_fn: Any = nn.silu
   out_dim: int = 32
 
   @nn.compact
   def __call__(self, x):
     for i in range(self.num_layers):
       x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
-      x = self.activation_fn(x)
+      x = self.act_fn(x)
     return nn.Dense(self.out_dim)(x)
 
 
@@ -434,6 +434,7 @@ class BaseNeuralVectorField(nn.Module, abc.ABC):
 
 
 class NeuralVectorField(BaseNeuralVectorField):
+  output_dim: int
   condition_dim: int
   latent_embed_dim: int
   condition_embed_dim: Optional[int] = None

@@ -12,23 +12,24 @@ from orbax import checkpoint
 from ott.geometry import costs, pointcloud
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-  BaseNeuralSolver,
-  ResampleMixin,
-  UnbalancednessMixin,
+    BaseNeuralSolver,
+    ResampleMixin,
+    UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-  BaseFlow,
+    BaseFlow,
 )
 from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
 
 
-class FlowMatching(BaseNeuralSolver, ResampleMixin, UnbalancednessMixin):
+class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
       neural_vector_field: Type[BaseNeuralVectorField],
       input_dim: int,
+      cond_dim: int,
       iterations: int,
       valid_freq: int,
       ot_solver: Type[was_solver.WassersteinSolver],
@@ -44,12 +45,15 @@ class FlowMatching(BaseNeuralSolver, ResampleMixin, UnbalancednessMixin):
       unbalanced_kwargs: Dict[str, Any] = {},
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
-      seed: int = 0,
+      rng: random.PRNGKeyArray = random.PRNGKey(0),
       **kwargs: Any,
   ) -> None:
     super().__init__(
         iterations=iterations,
         valid_freq=valid_freq,
+        source_dim=input_dim,
+        target_dim=input_dim,
+        cond_dim=cond_dim,
         tau_a=tau_a,
         tau_b=tau_b,
         mlp_eta=mlp_eta,
@@ -67,11 +71,13 @@ class FlowMatching(BaseNeuralSolver, ResampleMixin, UnbalancednessMixin):
     self.cost_fn = cost_fn
     self.callback_fn = callback_fn
     self.checkpoint_manager = checkpoint_manager
-    self.seed = seed
+    self.rng = rng
 
-  def setup(self, **kwargs: Any) -> None:
+    self.setup()
+
+  def setup(self) -> None:
     self.state_neural_vector_field = self.neural_vector_field.create_train_state(
-        self.rng, self.optimizer, self.output_dim
+        self.rng, self.optimizer, self.input_dim
     )
 
     self.step_fn = self._get_step_fn()
@@ -210,3 +216,19 @@ class FlowMatching(BaseNeuralSolver, ResampleMixin, UnbalancednessMixin):
   @property
   def learn_rescaling(self) -> bool:
     return self.mlp_eta is not None or self.mlp_xi is not None
+
+  def save(self, path: str) -> None:
+    raise NotImplementedError
+
+  def training_logs(self) -> Dict[str, Any]:
+    raise NotImplementedError
+
+  def sample_t(
+      self, key: random.PRNGKey, batch_size: int
+  ) -> jnp.ndarray:  #TODO: make more general
+    return random.uniform(key, batch_size)
+
+  def sample_noise(
+      self, key: random.PRNGKey, batch_size: int
+  ) -> jnp.ndarray:  #TODO: make more general
+    return random.normal(key, shape=(batch_size, self.input_dim))
