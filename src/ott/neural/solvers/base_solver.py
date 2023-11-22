@@ -1,24 +1,16 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from types import Mapping, MappingProxyType
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Optional,
-    Tuple,
-    Union,
-)
+from types import MappingProxyType
+from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import optax
-from flax import train_state
+from flax.training import train_state
 from jax import random
 
 from ott.geometry.pointcloud import PointCloud
-from ott.neural.solvers import models
+from ott.neural.models import models
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
@@ -54,14 +46,14 @@ class BaseNeuralSolver(ABC):
     """Save the model."""
     pass
 
-  @abstractmethod
   @property
-  def is_balanced(self) -> Dict[str, Any]:
+  @abstractmethod
+  def is_balanced(self) -> bool:
     """Return the training logs."""
     pass
 
-  @abstractmethod
   @property
+  @abstractmethod
   def training_logs(self) -> Dict[str, Any]:
     """Return the training logs."""
     pass
@@ -106,8 +98,8 @@ class UnbalancednessMixin:
       cond_dim: Optional[int],
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Optional[models.ModelBase] = None,
-      mlp_xi: Optional[models.ModelBase] = None,
+      mlp_eta: Optional[models.BaseRescalingNet] = None,
+      mlp_xi: Optional[models.BaseRescalingNet] = None,
       seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,

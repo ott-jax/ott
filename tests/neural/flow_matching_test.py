@@ -1,8 +1,8 @@
 import optax
 
-from ott.neural.flow_matching import FlowMatching
-from ott.neural.flows import ConstantNoiseFlow
-from ott.neural.models import NeuralVectorField
+from ott.neural.models.models import NeuralVectorField
+from ott.neural.solvers.flow_matching import FlowMatching
+from ott.neural.solvers.flows import ConstantNoiseFlow
 from ott.solvers.linear import sinkhorn
 
 

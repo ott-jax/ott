@@ -30,7 +30,6 @@ from ott.math import matrix_square_root
 from ott.neural.models import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
-from ott.solvers.nn.models import NeuralTrainState
 
 __all__ = ["ICNN", "MLP", "MetaInitializer"]
 
@@ -533,7 +532,7 @@ class NeuralVectorField(BaseNeuralVectorField):
       rng: jax.random.PRNGKeyArray,
       optimizer: optax.OptState,
       input_dim: int,
-  ) -> NeuralTrainState:
+  ) -> train_state.TrainState:
     params = self.init(
         rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
         jnp.ones((1, self.condition_dim))

@@ -6,24 +6,24 @@ import diffrax
 import jax
 import jax.numpy as jnp
 import optax
-import orbax as obx
 from jax import random
+from orbax import checkpoint
 
 from ott.geometry import costs, pointcloud
 from ott.neural.models.models import BaseNeuralVectorField
-from ott.neural.solver.base_solver import (
-    BaseNeuralSolver,
-    MatchMixin,
-    UnbalancednessMixin,
+from ott.neural.solvers.base_solver import (
+  BaseNeuralSolver,
+  ResampleMixin,
+  UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-    BaseFlow,
+  BaseFlow,
 )
 from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
 
 
-class FlowMatching(BaseNeuralSolver, MatchMixin, UnbalancednessMixin):
+class FlowMatching(BaseNeuralSolver, ResampleMixin, UnbalancednessMixin):
 
   def __init__(
       self,
@@ -34,7 +34,7 @@ class FlowMatching(BaseNeuralSolver, MatchMixin, UnbalancednessMixin):
       ot_solver: Type[was_solver.WassersteinSolver],
       flow: Type[BaseFlow],
       optimizer: Type[optax.GradientTransformation],
-      checkpoint_manager: Type[obx.CheckpointManager] = None,
+      checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
       tau_a: float = 1.0,
