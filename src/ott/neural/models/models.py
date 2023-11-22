@@ -15,7 +15,9 @@ import abc
 import functools
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
+import flax.linen as nn
 import jax
+import jax.numpy as jnp
 import optax
 from flax import linen as nn
 from flax.core import frozen_dict
@@ -30,6 +32,7 @@ from ott.math import matrix_square_root
 from ott.neural.models import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
+from ott.solvers.nn.models import NeuralTrainState
 
 __all__ = ["ICNN", "MLP", "MetaInitializer"]
 
@@ -406,12 +409,218 @@ class MetaInitializer(lin_init.DefaultInitializer):
     }
 
 
-class BaseNeuralVectorField(abc.ABC):
+class Block(nn.Module):
+  dim: int = 128
+  num_layers: int = 3
+  activation_fn: Any = nn.silu
+  out_dim: int = 32
 
+  @nn.compact
+  def __call__(self, x):
+    for i in range(self.num_layers):
+      x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
+      x = self.activation_fn(x)
+    x = nn.Dense(self.out_dim, name="fc_final")(x)
+    return x
+
+
+class BaseNeuralVectorField(nn.Module, abc.ABC):
+
+  @abc.abstractmethod
   def __call__(
       self,
       t: jax.Array,
+      x: jax.Array,
       condition: Optional[jax.Array] = None,
       keys_model: Optional[jax.Array] = None
   ) -> jnp.ndarray:  # noqa: D102):
     pass
+
+
+class Block(nn.Module):
+  dim: int = 128
+  out_dim: int = 32
+  num_layers: int = 3
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
+
+  @nn.compact
+  def __call__(self, x):
+    for i in range(self.num_layers):
+      x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
+      x = self.act_fn(x)
+    x = nn.Dense(self.out_dim, name="fc_final")(x)
+    return x
+
+
+class NeuralVectorField(BaseNeuralVectorField):
+  condition_dim: int
+  latent_embed_dim: int
+  condition_embed_dim: Optional[int] = None
+  t_embed_dim: Optional[int] = None
+  joint_hidden_dim: Optional[int] = None
+  num_layers_per_block: int = 3
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
+  n_frequencies: int = 128
+
+  def time_encoder(self, t: jax.Array) -> jnp.array:
+    freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
+    t = freq * t
+    return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
+
+  def __post_init__(self):
+
+    # set embedded dim from latent embedded dim
+    if self.condition_embed_dim is None:
+      self.condition_embed_dim = self.latent_embed_dim
+    if self.t_embed_dim is None:
+      self.t_embed_dim = self.latent_embed_dim
+
+    # set joint hidden dim from all embedded dim
+    concat_embed_dim = (
+        self.latent_embed_dim + self.condition_embed_dim + self.t_embed_dim
+    )
+    if self.joint_hidden_dim is not None:
+      assert (self.joint_hidden_dim >= concat_embed_dim), (
+          "joint_hidden_dim must be greater than or equal to the sum of "
+          "all embedded dimensions. "
+      )
+      self.joint_hidden_dim = self.latent_embed_dim
+    else:
+      self.joint_hidden_dim = concat_embed_dim
+    super().__post_init__()
+
+  @nn.compact
+  def __call__(
+      self,
+      t: jax.Array,
+      condition: Optional[jax.Array],
+      latent: jax.Array,
+      keys_model: Optional[jax.Array] = None,
+  ) -> jax.Array:
+
+    t = self.time_encoder(t)
+    t = Block(
+        dim=self.t_embed_dim,
+        out_dim=self.t_embed_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn,
+    )(
+        t
+    )
+
+    data = Block(
+        dim=self.latent_embed_dim,
+        out_dim=self.latent_embed_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn
+    )(
+        data
+    )
+
+    if self.condition_dim > 0:
+      condition = Block(
+          dim=self.condition_embed_dim,
+          out_dim=self.condition_embed_dim,
+          num_layers=self.num_layers_per_block,
+          act_fn=self.act_fn
+      )(
+          condition
+      )
+      concatenated = jnp.concatenate((t, data, condition), axis=-1)
+    else:
+      concatenated = jnp.concatenate((t, data), axis=-1)
+
+    out = Block(
+        dim=self.joint_hidden_dim,
+        out_dim=self.joint_hidden_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn,
+    )(
+        concatenated
+    )
+
+    return nn.Dense(
+        self.output_dim,
+        use_bias=True,
+    )(
+        out
+    )
+
+  def create_train_state(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      optimizer: optax.OptState,
+      input_dim: int,
+  ) -> NeuralTrainState:
+    params = self.init(
+        rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
+        jnp.ones((1, self.condition_dim))
+    )["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )
+
+
+class BaseRescalingNet(nn.Module, abc.ABC):
+
+  @abc.abstractmethod
+  def __call___(
+      self, x: jax.Array, condition: Optional[jax.Array] = None
+  ) -> jax.Array:
+    pass
+
+
+class Rescaling_MLP(nn.Module):
+  hidden_dim: int
+  cond_dim: int
+  is_potential: bool = False
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.selu
+
+  @nn.compact
+  def __call__(
+      self, x: jnp.ndarray, condition: Optional[jax.Array]
+  ) -> jnp.ndarray:  # noqa: D102
+    x = Block(
+        dim=self.latent_embed_dim,
+        out_dim=self.latent_embed_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn
+    )(
+        x
+    )
+    if self.condition_dim > 0:
+      condition = Block(
+          dim=self.condition_embed_dim,
+          out_dim=self.condition_embed_dim,
+          num_layers=self.num_layers_per_block,
+          act_fn=self.act_fn
+      )(
+          condition
+      )
+      concatenated = jnp.concatenate((x, condition), axis=-1)
+    else:
+      concatenated = x
+
+    out = Block(
+        dim=self.joint_hidden_dim,
+        out_dim=self.joint_hidden_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn,
+    )(
+        concatenated
+    )
+
+    return jnp.exp(out)
+
+  def create_train_state(
+      self,
+      rng: jax.random.PRNGKeyArray,
+      optimizer: optax.OptState,
+      input_dim: int,
+  ) -> train_state.TrainState:
+    params = self.init(
+        rng, jnp.ones((1, input_dim)), jnp.ones((1, self.cond_dim))
+    )["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )

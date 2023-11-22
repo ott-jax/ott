@@ -11,13 +11,13 @@ from jax import random
 from ott.geometry import costs, pointcloud
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solver.base_solver import (
-  BaseNeuralSolver,
-  MatchMixin,
-  UnbalancednessMixin,
+    BaseNeuralSolver,
+    MatchMixin,
+    UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-  BaseFlow,
-  ConstantNoiseFlow,
+    BaseFlow,
+    ConstantNoiseFlow,
 )
 from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
