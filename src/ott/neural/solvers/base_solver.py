@@ -15,6 +15,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import train_state
+from jax import random
 
 from ott.geometry.pointcloud import PointCloud
 from ott.neural.solvers import models
@@ -59,6 +60,36 @@ class BaseNeuralSolver(ABC):
   def training_logs(self) -> Dict[str, Any]:
     """Return the training logs."""
     pass
+
+
+class ResampleMixin:
+
+  def _resample_data(
+      self,
+      key: jax.random.KeyArray,
+      tmat: jnp.ndarray,
+      source_arrays: Tuple[jnp.ndarray, ...],
+      target_arrays: Tuple[jnp.ndarray, ...],
+  ) -> Tuple[jnp.ndarray, ...]:
+    """Resample a batch according to coupling `tmat`."""
+    transition_matrix = tmat.flatten()
+    indices = random.choice(
+        key, transition_matrix.flatten(), shape=[len(transition_matrix) ** 2]
+    )
+    indices_source = indices // self.batch_size
+    indices_target = indices % self.batch_size
+    return tuple(
+        b[indices_source] if b is not None else None for b in source_arrays
+    ), tuple(
+        b[indices_target] if b is not None else None for b in target_arrays
+    )
+
+  def _resample_data_conditionally(
+      self,
+      *args: Any,
+      **kwargs: Any,
+  ):
+    raise NotImplementedError
 
 
 class UnbalancednessMixin:
@@ -132,7 +163,7 @@ class UnbalancednessMixin:
     return compute_unbalanced_marginals
 
   @jax.jit
-  def _resample(
+  def _resample_unbalanced(
       self,
       key: jax.random.KeyArray,
       batch: Tuple[jnp.ndarray, ...],
