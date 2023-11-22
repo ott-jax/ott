@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from flax import linen as nn
+
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.neural.models import models as nn_init

@@ -14,6 +14,7 @@
 
 import jax
 import matplotlib.pyplot as plt
+
 import ott
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem

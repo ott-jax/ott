@@ -16,6 +16,7 @@ from typing import Optional, Sequence, Tuple
 import jax
 import numpy as np
 import pytest
+
 from ott import datasets
 from ott.neural.models import conjugate_solvers, models
 from ott.neural.solvers import neuraldual

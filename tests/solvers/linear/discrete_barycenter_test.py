@@ -13,6 +13,7 @@
 # limitations under the License.
 import jax.numpy as jnp
 import pytest
+
 from ott.geometry import grid, pointcloud
 from ott.problems.linear import barycenter_problem as bp
 from ott.solvers.linear import discrete_barycenter as db

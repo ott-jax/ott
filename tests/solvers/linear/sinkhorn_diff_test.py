@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib

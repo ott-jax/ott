@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from ott.math import utils as mu
 
 

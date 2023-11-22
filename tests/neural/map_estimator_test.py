@@ -15,6 +15,7 @@ from typing import Optional
 
 import jax.numpy as jnp
 import pytest
+
 from ott import datasets
 from ott.geometry import pointcloud
 from ott.neural.models import models

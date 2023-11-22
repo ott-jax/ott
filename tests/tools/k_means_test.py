@@ -19,11 +19,12 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from ott.geometry import costs, pointcloud
-from ott.tools import k_means
 from sklearn import datasets
 from sklearn.cluster import KMeans, kmeans_plusplus
 from sklearn.cluster._k_means_common import _is_same_clustering
+
+from ott.geometry import costs, pointcloud
+from ott.tools import k_means
 
 
 def make_blobs(

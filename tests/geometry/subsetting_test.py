@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from ott.geometry import geometry, low_rank, pointcloud
 
 Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]

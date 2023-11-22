@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 import scipy as sp
+
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, univariate

@@ -14,6 +14,7 @@
 import jax
 import numpy as np
 import pytest
+
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as lin_init
 from ott.initializers.linear import initializers_lr

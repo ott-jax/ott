@@ -15,6 +15,7 @@
 import jax
 import numpy as np
 import pytest
+
 from ott.geometry import costs
 from ott.neural.models import models
 from ott.neural.solvers import losses

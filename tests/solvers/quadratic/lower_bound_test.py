@@ -19,6 +19,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from ott.geometry import costs, pointcloud
 from ott.initializers.linear import initializers
 from ott.problems.quadratic import quadratic_problem

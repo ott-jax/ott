@@ -21,6 +21,7 @@ import pytest
 from jax.experimental import sparse
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
+
 from ott.geometry import geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib

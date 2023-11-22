@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.tools import soft_sort
