@@ -68,6 +68,10 @@ class W2NeuralTrainState(train_state.TrainState):
                                   )
 
 
+class BaseNeuralVectorField(nn.Module):
+  pass
+
+
 class BaseW2NeuralDual(abc.ABC, nn.Module):
   """Base class for the neural solver models."""
 
