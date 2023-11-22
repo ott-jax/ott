@@ -61,7 +61,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     dim_data: int
     dim_hidden: Sequence[int]
     rank: int = 1
-    init_std: float = 1e-8
+    init_std: float = 1e-2
     init_fn: Callable = jax.nn.initializers.normal
     act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
     pos_weights: bool = True
