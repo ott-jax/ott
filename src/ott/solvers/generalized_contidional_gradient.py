@@ -45,15 +45,15 @@ class GCGState(NamedTuple):
   """State of the Generalized Conditional Gradient (GCG) Solver.
 
   Attributes:
-  costs: Holds the sequence of costs seen through the outer
-  loop of the solver.
-  linear_convergence: Holds the sequence of bool convergence flags of the
-  inner linear solvers.
-  linear_pb: last inner linear_problem
-  linear_state: solution to the linear_pb
-  sol_matrix: current solution matrix for GCG
-  errors: sequence of vectors of errors of the Sinkhorn algorithm
-  at each iteration.
+    costs: Holds the sequence of costs seen through the outer
+    loop of the solver.
+    linear_convergence: Holds the sequence of bool convergence flags of the
+    inner linear solvers.
+    linear_pb: last inner linear_problem
+    linear_state: solution to the linear_pb
+    sol_matrix: current solution matrix for GCG
+    errors: sequence of vectors of errors of the Sinkhorn algorithm
+    at each iteration.
   """
 
   costs: jnp.ndarray
@@ -124,10 +124,10 @@ class GCG(was_solver.WassersteinSolver):
     """Initialize the state of the GCG.
 
     Args:
-    init_linear_pb: initialization for linear OT problem
+      init_linear_pb: initialization for linear OT problem
 
     Returns:
-    initial GCGState .
+      initial GCGState .
     """
     linear_state = self.linear_ot_solver(init_linear_pb)
     num_iter = self.max_iterations
