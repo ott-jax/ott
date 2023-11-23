@@ -33,16 +33,16 @@ from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["GCG", "GCGState"]
+__all__ = ["ConditionalGradient", "ConditionalGradientState"]
 
 LinearOutput = sinkhorn.SinkhornOutput
 
 ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "GCG"]], None]
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "ConditionalGradient"]], None]
 
 
-class GCGState(NamedTuple):
-  """State of the Generalized Conditional Gradient (GCG) Solver.
+class ConditionalGradientState(NamedTuple):
+  """State of the Generalized Conditional Gradient (ConditionalGradient) Solver.
 
   Attributes:
     costs: Holds the sequence of costs seen through the outer
@@ -51,7 +51,7 @@ class GCGState(NamedTuple):
     inner linear solvers.
     linear_pb: last inner linear_problem
     linear_state: solution to the linear_pb
-    sol_matrix: current solution matrix for GCG
+    sol_matrix: current solution matrix for ConditionalGradient
     errors: sequence of vectors of errors of the Sinkhorn algorithm
     at each iteration.
   """
@@ -63,7 +63,7 @@ class GCGState(NamedTuple):
   sol_matrix: jnp.ndarray
   errors: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> "GCGState":
+  def set(self, **kwargs: Any) -> "ConditionalGradientState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -75,7 +75,7 @@ class GCGState(NamedTuple):
       linear_pb: linear_problem.LinearProblem,
       linear_sol: LinearOutput,
       store_errors: bool,
-  ) -> "GCGState":
+  ) -> "ConditionalGradientState":
     costs = self.costs.at[iteration].set(cost)
     errors = None
     if store_errors and self.errors is not None:
@@ -94,7 +94,7 @@ class GCGState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GCG(was_solver.WassersteinSolver):
+class ConditionalGradient(was_solver.WassersteinSolver):
   """Implements generatlized conditional gradient solver for regularized OT.
 
   Args:
@@ -120,14 +120,14 @@ class GCG(was_solver.WassersteinSolver):
   def init_state(
       self,
       init_linear_pb: linear_problem.LinearProblem,
-  ) -> GCGState:
-    """Initialize the state of the GCG.
+  ) -> ConditionalGradientState:
+    """Initialize the state of the ConditionalGradient.
 
     Args:
       init_linear_pb: initialization for linear OT problem
 
     Returns:
-      initial GCGState .
+      initial ConditionalGradientState .
     """
     linear_state = self.linear_ot_solver(init_linear_pb)
     num_iter = self.max_iterations
@@ -136,7 +136,7 @@ class GCG(was_solver.WassersteinSolver):
     else:
       errors = None
 
-    return GCGState(
+    return ConditionalGradientState(
         costs=-jnp.ones((num_iter,)),
         linear_convergence=-jnp.ones((num_iter,)),
         linear_pb=init_linear_pb,
@@ -153,10 +153,10 @@ class GCG(was_solver.WassersteinSolver):
       reg,
       linesearch_maxiter: int = 40,
       init_linear_pb: Optional[linear_problem.LinearProblem] = None,
-      init_state: Optional[GCGState] = None,
+      init_state: Optional[ConditionalGradientState] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
-  ) -> GCGState:
-    """Run GCG.
+  ) -> ConditionalGradientState:
+    """Run ConditionalGradient.
 
     Args:
       cost_mat : cost matrix related to the transport problem.
@@ -188,14 +188,16 @@ class GCG(was_solver.WassersteinSolver):
         fun=cost_fun, maxiter=linesearch_maxiter
     )
 
-    def next_linearization(state: GCGState) -> linear_problem.LinearProblem:
+    def next_linearization(
+        state: ConditionalGradientState
+    ) -> linear_problem.LinearProblem:
       current_sol = state.sol_matrix
       new_cost_matrix = cost_mat + reg * grad_loss(current_sol)
       geom = Geometry(new_cost_matrix, epsilon)
       return linear_problem.LinearProblem(geom)
 
     def update_state_fn(
-        state: GCGState,
+        state: ConditionalGradientState,
         new_linear_sol: "LinearOutput",
     ) -> Tuple[jnp.array, float]:
       # Constructing the cost function
@@ -224,29 +226,33 @@ class GCG(was_solver.WassersteinSolver):
 
 
 def iterations(
-    solver: GCG,
-    init_state: GCGState,
-    next_linear_pb: Callable[[GCGState], linear_problem.LinearProblem],
+    solver: ConditionalGradient,
+    init_state: ConditionalGradientState,
+    next_linear_pb: Callable[[ConditionalGradientState],
+                             linear_problem.LinearProblem],
     new_pstate_cost: Callable[
         [
-            GCGState,
+            ConditionalGradientState,
             "LinearOutput",
         ],
         Tuple[jnp.array, float],
     ],
     progress_fn: Optional[ProgressCallbackFn_t] = None
-) -> GCGState:
-  """Jittable GCG outer loop."""
+) -> ConditionalGradientState:
+  """Jittable ConditionalGradient outer loop."""
 
-  def cond_fn(iteration: int, solver: GCG, state: GCGState) -> bool:
+  def cond_fn(
+      iteration: int, solver: ConditionalGradient,
+      state: ConditionalGradientState
+  ) -> bool:
     return solver._continue(state, iteration)
 
   def body_fn(
       iteration: int,
-      solver: GCG,
-      state: GCGState,
+      solver: ConditionalGradient,
+      state: ConditionalGradientState,
       compute_error: bool,
-  ) -> GCGState:
+  ) -> ConditionalGradientState:
     del compute_error  # always assumed true for the outer loop
 
     linear_pb = next_linear_pb(state)
