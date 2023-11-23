@@ -20,30 +20,30 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Union,
 )
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.experimental import host_callback
+from jaxopt import BacktrackingLineSearch
 
-from ott import utils
+from ott.geometry.geometry import Geometry
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
-from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.linear import sinkhorn
 
-__all__ = ["IterativeLinearSolver", "IterLinState"]
+__all__ = ["GCG", "GCGState"]
 
-LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+LinearOutput = sinkhorn.SinkhornOutput
 
 ProgressCallbackFn_t = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "IterLinState"]], None]
+    [Tuple[np.ndarray, np.ndarray, np.ndarray, "GCG"]], None]
 
 
-class IterLinState(NamedTuple):
-  """State of the IterativeLinearSolver.
+class GCGState(NamedTuple):
+  """State of the Generalized Gradient Solver.
 
   Attributes:
   costs: Holds the sequence of costs seen through the outer
@@ -52,10 +52,8 @@ class IterLinState(NamedTuple):
   inner linear solvers.
   linear_pb: last inner linear_problem
   linear_state: solution to the linear_pb
-  prob_state: a problem specific state, provided and managed by
-    user-defined functions
-  rngs: random keys passed to the user defined functions at each iteration.
-  errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+  sol_matrix: current solution matrix for GCG
+  errors: sequence of vectors of errors of the Sinkhorn algorithm
   at each iteration.
   """
 
@@ -63,11 +61,10 @@ class IterLinState(NamedTuple):
   linear_convergence: jnp.ndarray
   linear_pb: linear_problem.LinearProblem
   linear_state: LinearOutput
-  prob_state: NamedTuple = None
-  rngs: Optional[jax.random.PRNGKeyArray] = None
+  sol_matrix: jnp.ndarray
   errors: Optional[jnp.ndarray] = None
 
-  def set(self, **kwargs: Any) -> "IterLinState":
+  def set(self, **kwargs: Any) -> "GCGState":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -75,11 +72,11 @@ class IterLinState(NamedTuple):
       self,
       iteration: int,
       cost: float,
+      sol_matrix: jnp.ndarray,
       linear_pb: linear_problem.LinearProblem,
       linear_sol: LinearOutput,
-      prob_state: NamedTuple,
       store_errors: bool,
-  ) -> "IterLinState":
+  ) -> "GCGState":
     costs = self.costs.at[iteration].set(cost)
     errors = None
     if store_errors and self.errors is not None:
@@ -90,7 +87,7 @@ class IterLinState(NamedTuple):
     return self.set(
         linear_pb=linear_pb,
         linear_state=linear_sol,
-        prob_state=prob_state,
+        sol_matrix=sol_matrix,
         costs=costs,
         linear_convergence=linear_convergence,
         errors=errors,
@@ -98,15 +95,15 @@ class IterLinState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class IterativeLinearSolver(was_solver.WassersteinSolver):
-  """Implements probems requiring iterative calls to (low_rank) sinkhorn solver.
+class GCG(was_solver.WassersteinSolver):
+  """Implements generatlized conditional gradient solver for regularized OT.
 
   Args:
   args: Positional arguments for
   :class:`~ott.solvers.was_solver.WassersteinSolver`.
-  warm_start: Whether to initialize (low-rank) Sinkhorn calls using values
   from the previous iteration. If `None`, warm starts are not used for
   standard Sinkhorn, but used for low-rank Sinkhorn.
+
   progress_fn: callback function which gets called during the
   inner iterations, so the user can display the error at each
   iteration, e.g., using a progress bar.
@@ -117,19 +114,16 @@ class IterativeLinearSolver(was_solver.WassersteinSolver):
   def __init__(
       self,
       *args: Any,
-      warm_start: Optional[bool] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any,
   ):
     super().__init__(*args, **kwargs)
-    self._warm_start = warm_start
     self.progress_fn = progress_fn
     self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def tree_flatten(self,) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
-    aux_data["warm_start"] = self._warm_start
     aux_data["progress_fn"] = self.progress_fn
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
@@ -137,19 +131,14 @@ class IterativeLinearSolver(was_solver.WassersteinSolver):
   def init_state(
       self,
       init_linear_pb: linear_problem.LinearProblem,
-      init_prob_state: NamedTuple,
-      rng: jax.random.PRNGKeyArray,
-  ) -> IterLinState:
-    """Initialize the state of the IterativeLinearSolver.
+  ) -> GCGState:
+    """Initialize the state of the GCG.
 
     Args:
     init_linear_pb: initialization for linear OT problem
-    init_prob_state: initalization of prob_state
-    rng: Random key for low-rank initializers. Only used when
-    :attr:`warm_start` is `False`.
 
     Returns:
-    The initial IterLinState .
+    The initial GCGState .
     """
     linear_state = self.linear_ot_solver(init_linear_pb)
     num_iter = self.max_iterations
@@ -158,127 +147,126 @@ class IterativeLinearSolver(was_solver.WassersteinSolver):
     else:
       errors = None
 
-    return IterLinState(
+    return GCGState(
         costs=-jnp.ones((num_iter,)),
         linear_convergence=-jnp.ones((num_iter,)),
         linear_pb=init_linear_pb,
         linear_state=linear_state,
-        prob_state=init_prob_state,
-        rngs=jax.random.split(rng, num_iter),
+        sol_matrix=linear_state.matrix,
         errors=errors,
     )
 
   def __call__(
       self,
-      next_linear_pb: Callable[
-          [IterLinState, jax.random.PRNGKeyArray],
-          linear_problem.LinearProblem,
-      ],
-      new_pstate_cost: Callable[
-          [
-              IterLinState,
-              linear_problem.LinearProblem,
-              "LinearOutput",
-              jax.random.PRNGKeyArray,
-          ],
-          Tuple[NamedTuple, float],
-      ],
+      cost_mat,
+      loss,
+      epsilon,
+      reg,
+      linesearch_maxiter: int = 40,
       init_linear_pb: Optional[linear_problem.LinearProblem] = None,
-      init_prob_state: Optional[NamedTuple] = None,
-      init_state: Optional[IterLinState] = None,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
-  ) -> IterLinState:
-    """Run the generic solver.
+      init_state: Optional[GCGState] = None,
+  ) -> GCGState:
+    """Run GCG.
 
     Args:
-    next_linear_pb: a user-defined function that takes the current state a
-      random key and outputs a new linear problem
-    new_pstate_cost: a user-defined function that takes the current state,
-      the new linear problem, new linear solution, a random key and and
-      outputs a new state
-    init_linear_pb: the initial linear problem to be solved
-    init_prob_state: initialization for the problem state
-    init_state: allows the user to directly define the initial state.
-      If provided init_prob and init-aux state are ignored
-    rng: Random number key.
+        cost_mat : cost matrix related to the transport problem.
+        init_linear_pb: the initial linear problem to be solved
+        loss: regulatization function
+        epsilon: entropic regularization constant
+        reg: weight for non-entropic regularization
+
+        linesearch_maxiter: maximum iterations for stepsize linesearch
+        init_linear_pb: first linear to be solve
+        init_state: allows the user to directly define the initial state.
+        If provided init_prob and cost_mat are ignored
 
     Returns:
     Last solver state.
     """
-    if rng is None:
-      rng = utils.default_prng_key(rng)
+    grad_loss = jax.grad(loss)
 
-    if (
-        init_linear_pb is None or init_prob_state is None
-    ) and init_state is None:
+    def cost_fun(x):
+      return (
+          jnp.sum(x * cost_mat) - epsilon * (jnp.sum(x * jnp.log(x)) + 1) +
+          reg * loss(x)
+      )
+
+    line_search = BacktrackingLineSearch(
+        fun=cost_fun, maxiter=linesearch_maxiter
+    )
+
+    def next_linearization(state: GCGState) -> linear_problem.LinearProblem:
+      current_sol = state.sol_matrix
+      new_cost_matrix = cost_mat + reg * grad_loss(current_sol)
+      geom = Geometry(new_cost_matrix, epsilon)
+      return linear_problem.LinearProblem(geom)
+
+    def update_state_fn(
+        state: GCGState,
+        new_linear_sol: "LinearOutput",
+    ) -> Tuple[jnp.array, float]:
+      # Constructing the cost function
+      current_sol = state.sol_matrix
+      new_sol = new_linear_sol.matrix
+      delta = new_sol - current_sol
+      step_size, _ = line_search.run(
+          init_stepsize=1.0, params=current_sol, descent_direction=delta
+      )
+
+      new_sol = current_sol + step_size * delta
+      return new_sol, loss(new_sol)
+
+    if (init_linear_pb is None) and init_state is None:
       raise ValueError(
           "If initial solver state is None, init_linear_pb and \
             init_prob_state should be provided"
       )
+
     if init_state is None:
-      init_state = self.init_state(init_linear_pb, init_prob_state, rng)
+      init_state = self.init_state(init_linear_pb)
 
-    return iterations(self, init_state, next_linear_pb, new_pstate_cost)
-
-  @property
-  def warm_start(self) -> bool:
-    """Whether to initialize (low-rank) Sinkhorn using previous solutions."""
-    return (self.is_low_rank if self._warm_start is None else self._warm_start)
+    return iterations(self, init_state, next_linearization, update_state_fn)
 
 
 def iterations(
-    solver: IterativeLinearSolver,
-    init_state: IterLinState,
-    next_linear_pb: Callable[[IterLinState, jax.random.PRNGKeyArray],
-                             linear_problem.LinearProblem],
+    solver: GCG,
+    init_state: GCGState,
+    next_linear_pb: Callable[[GCGState], linear_problem.LinearProblem],
     new_pstate_cost: Callable[
         [
-            IterLinState,
-            linear_problem.LinearProblem,
+            GCGState,
             "LinearOutput",
-            jax.random.PRNGKeyArray,
         ],
-        Tuple[NamedTuple, float],
+        Tuple[jnp.array, float],
     ],
-) -> IterLinState:
-  """Jittable IterativeLinearSolver outer loop."""
+) -> GCGState:
+  """Jittable GCG outer loop."""
 
-  def cond_fn(
-      iteration: int, solver: IterativeLinearSolver, state: IterLinState
-  ) -> bool:
+  def cond_fn(iteration: int, solver: GCG, state: GCGState) -> bool:
     return solver._continue(state, iteration)
 
   def body_fn(
       iteration: int,
-      solver: IterativeLinearSolver,
-      state: IterLinState,
+      solver: GCG,
+      state: GCGState,
       compute_error: bool,
-  ) -> IterLinState:
+  ) -> GCGState:
     del compute_error  # always assumed true for the outer loop
-    rng = state.rngs[iteration]
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
-    lin_state = state.linear_state
-    linear_pb = next_linear_pb(state, rng1)
+
+    linear_pb = next_linear_pb(state)
     # solving the lienar_pb
-    if solver.is_low_rank:
-      init = ((lin_state.q, lin_state.r, lin_state.g) if solver.warm_start else
-              (None, None, None))
-      linear_pb_sol = solver.linear_ot_solver(linear_pb, init=init, rng=rng2)
-    else:
-      init = ((lin_state.f, lin_state.g) if solver.warm_start else (None, None))
-      linear_pb_sol = solver.linear_ot_solver(linear_pb, init=init, rng=rng2)
+    init = (None, None)
+    linear_pb_sol = solver.linear_ot_solver(linear_pb, init=init)
 
     # Updating the state
-    new_prob_state, new_cost = new_pstate_cost(
-        state, linear_pb, linear_pb_sol, rng3
-    )
+    new_sol_matrix, new_cost = new_pstate_cost(state, linear_pb_sol)
 
     new_state = state.update(
         iteration,
         new_cost,
+        new_sol_matrix,
         linear_pb,
         linear_pb_sol,
-        new_prob_state,
         solver.store_inner_errors,
     )
 
