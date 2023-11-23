@@ -27,7 +27,7 @@ class BaseFlow(abc.ABC):
       self, noise: jax.Array, t: jax.Array, x_0: jax.Array, x_1: jax.Array
   ) -> jax.Array:
     mu_t = self.compute_mu_t(t, x_0, x_1)
-    sigma_t = self.compute_sigma_t(t, x_0, x_1)
+    sigma_t = self.compute_sigma_t(t)
     return mu_t + sigma_t * noise
 
 

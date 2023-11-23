@@ -23,7 +23,7 @@ class BaseNeuralSolver(ABC):
     valid_freq: Frequency at which to run validation.
   """
 
-  def __init__(self, iterations: int, valid_freq: int, **_: Any) -> Any:
+  def __init__(self, iterations: int, valid_freq: int, **_: Any) -> None:
     self.iterations = iterations
     self.valid_freq = valid_freq
 
@@ -66,16 +66,16 @@ class ResampleMixin:
       target_arrays: Tuple[jnp.ndarray, ...],
   ) -> Tuple[jnp.ndarray, ...]:
     """Resample a batch according to coupling `tmat`."""
-    transition_matrix = tmat.flatten()
+    tmat_flattened = tmat.flatten()
     indices = random.choice(
-        key, transition_matrix.flatten(), shape=[len(transition_matrix) ** 2]
+        key, len(tmat_flattened), shape=[len(tmat_flattened)]
     )
-    indices_source = indices // self.batch_size
-    indices_target = indices % self.batch_size
+    indices_source = indices // tmat.shape[1]
+    indices_target = indices % tmat.shape[1]
     return tuple(
-        b[indices_source] if b is not None else None for b in source_arrays
+        b[indices_source, :] if b is not None else None for b in source_arrays
     ), tuple(
-        b[indices_target] if b is not None else None for b in target_arrays
+        b[indices_target, :] if b is not None else None for b in target_arrays
     )
 
   def _resample_data_conditionally(

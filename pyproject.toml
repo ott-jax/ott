@@ -59,6 +59,7 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 neural = [
     "flax>=0.6.6",
     "optax>=0.1.1",
+    "diffrax>=0.4.1",
 ]
 dev = [
     "pre-commit>=2.16.0",

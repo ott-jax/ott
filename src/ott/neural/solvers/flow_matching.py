@@ -48,9 +48,12 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       rng: random.PRNGKeyArray = random.PRNGKey(0),
       **kwargs: Any,
   ) -> None:
-    super().__init__(
-        iterations=iterations,
-        valid_freq=valid_freq,
+    BaseNeuralSolver.__init__(
+        self, iterations=iterations, valid_freq=valid_freq
+    )
+    ResampleMixin.__init__(self)
+    UnbalancednessMixin.__init__(
+        self,
         source_dim=input_dim,
         target_dim=input_dim,
         cond_dim=cond_dim,
@@ -59,7 +62,6 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         mlp_eta=mlp_eta,
         mlp_xi=mlp_xi,
         unbalanced_kwargs=unbalanced_kwargs,
-        **kwargs
     )
 
     self.neural_vector_field = neural_vector_field
@@ -105,10 +107,10 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
         x_t = self.flow.compute_xt(noise, t, batch["source"], batch["target"])
         apply_fn = functools.partial(
-            state_neural_vector_field.apply, {"params": params}
+            state_neural_vector_field.apply_fn, {"params": params}
         )
         v_t = jax.vmap(apply_fn)(
-            t=t, x_t=x_t, condition=batch["condition"], keys_model=keys_model
+            t=t, x=x_t, condition=batch["condition"], keys_model=keys_model
         )
         u_t = self.flow.compute_ut(t, batch["source"], batch["target"])
         return jnp.mean((v_t - u_t) ** 2)
@@ -122,7 +124,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       loss, grads = loss_grad(
           state_neural_vector_field.params, t, noise, batch, keys_model
       )
-      return state_neural_vector_field.apply_gradients(grads), loss
+      return state_neural_vector_field.apply_gradients(grads=grads), loss
 
     return step_fn
 
@@ -151,14 +153,16 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def __call__(self, train_loader, valid_loader) -> None:
     batch: Mapping[str, jnp.ndarray] = {}
     for iter in range(self.iterations):
+      rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
       batch["source"], batch["target"], batch["condition"] = next(train_loader)
-      tmat = self.match_fn(batch)
-      batch = self.resample(
-          batch, tmat, (batch["source"], batch["condition"]),
-          (batch["target"], batch["condition"])
-      )
+      tmat = self.match_fn(batch["source"], batch["target"])
+      (batch["source"],
+       batch["condition"]), (batch["target"],) = self._resample_data(
+           rng_resample, tmat, (batch["source"], batch["condition"]),
+           (batch["target"],)
+       )
       self.state_neural_vector_field, loss = self.step_fn(
-          self.state_neural_vector_field, batch
+          rng_step_fn, self.state_neural_vector_field, batch
       )
       if self.learn_rescaling:
         self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
@@ -206,12 +210,8 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     )
 
   def _valid_step(self, valid_loader, iter) -> None:
-    batch = next(valid_loader)
-    tmat = self.match_fn(batch)
-    batch = self.resample(
-        batch, tmat, (batch["source"], batch["condition"]),
-        (batch["target"], batch["condition"])
-    )
+    next(valid_loader)
+    # TODO: add callback and logging
 
   @property
   def learn_rescaling(self) -> bool:
@@ -223,12 +223,12 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def training_logs(self) -> Dict[str, Any]:
     raise NotImplementedError
 
-  def sample_t(
+  def sample_t( #TODO: make more general
       self, key: random.PRNGKey, batch_size: int
   ) -> jnp.ndarray:  #TODO: make more general
-    return random.uniform(key, batch_size)
+    return random.uniform(key, [batch_size, 1])
 
-  def sample_noise(
+  def sample_noise( #TODO: make more general
       self, key: random.PRNGKey, batch_size: int
   ) -> jnp.ndarray:  #TODO: make more general
     return random.normal(key, shape=(batch_size, self.input_dim))
