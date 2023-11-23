@@ -9,9 +9,11 @@ import optax
 from flax.training import train_state
 from jax import random
 
+from ott.geometry import pointcloud
 from ott.geometry.pointcloud import PointCloud
 from ott.neural.models import models
 from ott.problems.linear import linear_problem
+from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn
 
 
@@ -83,12 +85,131 @@ class ResampleMixin:
         b[indices_target, :] if b is not None else None for b in target_arrays
     )
 
-  def _resample_data_conditionally(
+  def sample_conditional_indices_from_tmap(
+      key: jax.random.PRNGKeyArray,
+      tmat: jnp.ndarray,
+      k_samples_per_x: Union[int, jnp.ndarray],
+      source_arrays: Tuple[jnp.ndarray, ...],
+      target_arrays: Tuple[jnp.ndarray, ...],
+      *,
+      is_balanced: bool,
+  ) -> Tuple[jnp.array, jnp.array]:
+    left_marginals = tmat.sum(axis=1)
+    if not is_balanced:
+      key, key2 = jax.random.split(key, 2)
+      indices = jax.random.choice(
+          key=key2,
+          a=jnp.arange(len(left_marginals)),
+          p=left_marginals,
+          shape=(len(left_marginals),)
+      )
+    else:
+      indices = jnp.arange(tmat.shape[0])
+    tmat_adapted = tmat[indices]
+    indices_per_row = jax.vmap(
+        lambda tmat_adapted: jax.random.choice(
+            key=key,
+            a=jnp.arange(tmat.shape[1]),
+            p=tmat_adapted,
+            shape=(k_samples_per_x,)
+        ),
+        in_axes=0,
+        out_axes=0,
+    )(
+        tmat_adapted
+    )
+
+    indices_source = jnp.repeat(indices, k_samples_per_x)
+    indices_target = indices_per_row % tmat.shape[1]
+    return tuple(
+        b[indices_source, :] if b is not None else None for b in source_arrays
+    ), tuple(
+        b[indices_target, :] if b is not None else None for b in target_arrays
+    )
+
+  def _get_sinkhorn_match_fn(
       self,
-      *args: Any,
-      **kwargs: Any,
-  ):
-    raise NotImplementedError
+      ot_solver: Any,
+      epsilon: float,
+      cost_fn: str,
+      scale_cost: Any,
+      tau_a: float,
+      tau_b: float,
+  ) -> Callable:
+
+    def match_pairs(
+        x: jax.Array, y: jax.Array
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      geom = pointcloud.PointCloud(
+          x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
+      )
+      return ot_solver(
+          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
+      ).matrix
+
+    return match_pairs
+
+  def _get_gromov_match_fn(
+      self,
+      ot_solver: Any,
+      cost_fn: Union[Any, Mapping[str, Any]],
+      scale_cost: Union[Any, Mapping[str, Any]],
+      tau_a: float,
+      tau_b: float,
+      fused_penalty: float,
+  ) -> Callable:
+    if isinstance(cost_fn, Mapping):
+      assert "x_cost_fn" in cost_fn
+      assert "y_cost_fn" in cost_fn
+      x_cost_fn = cost_fn["x_cost_fn"]
+      y_cost_fn = cost_fn["y_cost_fn"]
+      if fused_penalty > 0:
+        assert "xy_cost_fn" in x_cost_fn
+        xy_cost_fn = cost_fn["xy_cost_fn"]
+    else:
+      x_cost_fn = y_cost_fn = xy_cost_fn = cost_fn
+
+    if isinstance(scale_cost, Mapping):
+      assert "x_scale_cost" in scale_cost
+      assert "y_scale_cost" in scale_cost
+      x_scale_cost = scale_cost["x_scale_cost"]
+      y_scale_cost = scale_cost["y_scale_cost"]
+      if fused_penalty > 0:
+        assert "xy_scale_cost" in scale_cost
+        xy_scale_cost = cost_fn["xy_scale_cost"]
+    else:
+      x_scale_cost = y_scale_cost = xy_scale_cost = scale_cost
+
+    def match_pairs(
+        x_quad: Tuple[jnp.ndarray, jnp.ndarray],
+        y_quad: Tuple[jnp.ndarray, jnp.ndarray],
+        x_lin: Optional[jax.Array],
+        y_lin: Optional[jax.Array],
+    ) -> Tuple[jnp.array, jnp.array]:
+      geom_xx = pointcloud.PointCloud(
+          x=x_quad, y=x_quad, cost_fn=x_cost_fn, scale_cost=x_scale_cost
+      )
+      geom_yy = pointcloud.PointCloud(
+          x=y_quad, y=y_quad, cost_fn=y_cost_fn, scale_cost=y_scale_cost
+      )
+      if fused_penalty > 0:
+        geom_xy = pointcloud.PointCloud(
+            x=x_lin, y=y_lin, cost_fn=xy_cost_fn, scale_cost=xy_scale_cost
+        )
+      else:
+        geom_xy = None
+      prob = quadratic_problem.QuadraticProblem(
+          geom_xx,
+          geom_yy,
+          geom_xy,
+          fused_penalty=fused_penalty,
+          tau_a=tau_a,
+          tau_b=tau_b
+      )
+      out = ot_solver(prob)
+      return out.matrix
+
+    return match_pairs
 
 
 class UnbalancednessMixin:

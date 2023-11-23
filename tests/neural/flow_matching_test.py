@@ -1,6 +1,7 @@
 from typing import Type
 
 import diffrax
+import jax
 import jax.numpy as jnp
 import optax
 import pytest
@@ -85,12 +86,12 @@ class TestFlowMatching:
 
     source, target, condition = next(data_loader_gaussian_with_conditions)
     result_forward = fm.transport(source, condition=condition, forward=True)
-    assert isinstance(result_forward, diffrax.Solution)
-    assert jnp.sum(jnp.isnan(result_forward.y)) == 0
+    assert isinstance(result_forward, jax.Array)
+    assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(target, condition=condition, forward=False)
-    assert isinstance(result_backward, diffrax.Solution)
-    assert jnp.sum(jnp.isnan(result_backward.y)) == 0
+    assert isinstance(result_backward, jax.Array)
+    assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
       "flow",

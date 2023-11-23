@@ -9,7 +9,7 @@ import optax
 from jax import random
 from orbax import checkpoint
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
     BaseNeuralSolver,
@@ -19,7 +19,6 @@ from ott.neural.solvers.base_solver import (
 from ott.neural.solvers.flows import (
     BaseFlow,
 )
-from ott.problems.linear import linear_problem
 from ott.solvers import was_solver
 
 
@@ -84,13 +83,13 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     self.step_fn = self._get_step_fn()
     if self.ot_solver is not None:
-      self.match_fn = self._get_match_fn(
+      self.match_fn = self._get_sinkhorn_match_fn(
           self.ot_solver,
           epsilon=self.epsilon,
           cost_fn=self.cost_fn,
+          scale_cost=self.scale_cost,
           tau_a=self.tau_a,
           tau_b=self.tau_b,
-          scale_cost=self.scale_cost,
       )
     else:
       self.match_fn = None
@@ -131,28 +130,6 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     return step_fn
 
-  def _get_match_fn(
-      self,
-      ot_solver: Any,
-      epsilon: float,
-      cost_fn: str,
-      tau_a: float,
-      tau_b: float,
-      scale_cost: Any,
-  ) -> Callable:
-
-    def match_pairs(
-        x: jax.Array, y: jax.Array
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-      geom = pointcloud.PointCloud(
-          x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
-      )
-      return ot_solver(
-          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
-      ).matrix
-
-    return match_pairs
-
   def __call__(self, train_loader, valid_loader) -> None:
     batch: Mapping[str, jnp.ndarray] = {}
     for iter in range(self.iterations):
@@ -192,27 +169,64 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
+
+    def solve_ode(
+        t0: jax.Array, t1: jax.Array, input: jax.Array, cond: jax.Array
+    ):
+      return diffrax.diffeqsolve(
+          diffrax.ODETerm(
+              lambda t, x, args: self.state_neural_vector_field.
+              apply_fn({"params": self.state_neural_vector_field.params},
+                       t=t,
+                       x=x,
+                       condition=cond)
+          ),
+          diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+          t0=t0,
+          t1=t1,
+          dt0=diffeqsolve_kwargs.pop("dt0", None),
+          y0=input,
+          stepsize_controller=diffeqsolve_kwargs.pop(
+              "stepsize_controller",
+              diffrax.PIDController(rtol=1e-5, atol=1e-5)
+          ),
+          **diffeqsolve_kwargs,
+      ).solution.y
+
+    arr = jnp.ones((len(data), 1))
+    t0, t1 = (arr * 0.0, arr * 1.0) if forward else (arr * 1.0, arr * 0.0)
+
+    out = jax.vmap(solve_ode)(t0, t1, data, condition)
+    return out
+
+  def _transport(
+      self,
+      data: jnp.array,
+      condition: Optional[jax.Array],
+      forward: bool = True,
+      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
+  ) -> diffrax.Solution:
+    diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
     arr = jnp.ones((len(data), 1))
     t0, t1 = (arr * 0.0, arr * 1.0) if forward else (arr * 1.0, arr * 0.0)
     apply_fn_partial = functools.partial(
-        self.state_neural_vector_field.apply_fn, condition=condition
+        self.state_neural_vector_field.apply_fn,
+        params={"params": self.state_neural_vector_field.params},
+        condition=condition
+    )
+    term = diffrax.ODETerm(lambda t, y, *args: apply_fn_partial(t, y, *args))
+    solver = diffeqsolve_kwargs.pop("solver", diffrax.Tsit5())
+    stepsize_controller = diffeqsolve_kwargs.pop(
+        "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
     )
     return diffrax.diffeqsolve(
-        diffrax.ODETerm(
-            lambda t, y, *args: apply_fn_partial(
-                {"params": self.state_neural_vector_field.params},
-                t=t,
-                x=y,
-            )
-        ),
-        diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+        term,
+        solver,
         t0=t0,
         t1=t1,
         dt0=diffeqsolve_kwargs.pop("dt0", None),
         y0=data,
-        stepsize_controller=diffeqsolve_kwargs.pop(
-            "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
-        ),
+        stepsize_controller=stepsize_controller,
         **diffeqsolve_kwargs,
     )
 
