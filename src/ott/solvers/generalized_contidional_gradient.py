@@ -15,7 +15,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Mapping,
     NamedTuple,
     Optional,
     Sequence,
@@ -43,7 +42,7 @@ ProgressCallbackFn_t = Callable[
 
 
 class GCGState(NamedTuple):
-  """State of the Generalized Gradient Solver.
+  """State of the Generalized Conditional Gradient (GCG) Solver.
 
   Attributes:
   costs: Holds the sequence of costs seen through the outer
@@ -99,28 +98,18 @@ class GCG(was_solver.WassersteinSolver):
   """Implements generatlized conditional gradient solver for regularized OT.
 
   Args:
-  args: Positional arguments for
-  :class:`~ott.solvers.was_solver.WassersteinSolver`.
-  from the previous iteration. If `None`, warm starts are not used for
-  standard Sinkhorn, but used for low-rank Sinkhorn.
-
-  progress_fn: callback function which gets called during the
-  inner iterations, so the user can display the error at each
-  iteration, e.g., using a progress bar.
-  See :func:`~ott.utils.default_progress_fn` for a basic implementation.
-  kwargs_init: auxilary key arguments
+    args: positional arguments for
+    :class:`~ott.solvers.was_solver.WassersteinSolver`.
+    kwargs: key arguments for
+    :class:`~ott.solvers.was_solver.WassersteinSolver`.
   """
 
   def __init__(
       self,
       *args: Any,
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
-      kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any,
   ):
     super().__init__(*args, **kwargs)
-    self.progress_fn = progress_fn
-    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def tree_flatten(self,) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
@@ -138,7 +127,7 @@ class GCG(was_solver.WassersteinSolver):
     init_linear_pb: initialization for linear OT problem
 
     Returns:
-    The initial GCGState .
+    initial GCGState .
     """
     linear_state = self.linear_ot_solver(init_linear_pb)
     num_iter = self.max_iterations
@@ -165,23 +154,27 @@ class GCG(was_solver.WassersteinSolver):
       linesearch_maxiter: int = 40,
       init_linear_pb: Optional[linear_problem.LinearProblem] = None,
       init_state: Optional[GCGState] = None,
+      progress_fn: Optional[ProgressCallbackFn_t] = None,
   ) -> GCGState:
     """Run GCG.
 
     Args:
-        cost_mat : cost matrix related to the transport problem.
-        init_linear_pb: the initial linear problem to be solved
-        loss: regulatization function
-        epsilon: entropic regularization constant
-        reg: weight for non-entropic regularization
-
-        linesearch_maxiter: maximum iterations for stepsize linesearch
-        init_linear_pb: first linear to be solve
-        init_state: allows the user to directly define the initial state.
-        If provided init_prob and cost_mat are ignored
+      cost_mat : cost matrix related to the transport problem.
+      init_linear_pb: the initial linear problem to be solved
+      loss: regulatization function
+      epsilon: entropic regularization constant
+      reg: weight for non-entropic regularization
+      linesearch_maxiter: maximum iterations for stepsize linesearch
+      init_linear_pb: first linear to be solve
+      init_state: allows the user to directly define the initial state.
+      If provided init_prob and cost_mat are ignored
+      progress_fn: callback function which gets called during the
+      inner iterations, so the user can display the error at each
+      iteration, e.g., using a progress bar.
+      See :func:`~ott.utils.default_progress_fn` for a basic implementation.
 
     Returns:
-    Last solver state.
+      Last solver state.
     """
     grad_loss = jax.grad(loss)
 
@@ -225,7 +218,9 @@ class GCG(was_solver.WassersteinSolver):
     if init_state is None:
       init_state = self.init_state(init_linear_pb)
 
-    return iterations(self, init_state, next_linearization, update_state_fn)
+    return iterations(
+        self, init_state, next_linearization, update_state_fn, progress_fn
+    )
 
 
 def iterations(
@@ -239,6 +234,7 @@ def iterations(
         ],
         Tuple[jnp.array, float],
     ],
+    progress_fn: Optional[ProgressCallbackFn_t] = None
 ) -> GCGState:
   """Jittable GCG outer loop."""
 
@@ -272,7 +268,7 @@ def iterations(
 
     # Inner iterations is currently fixed to 1.
     inner_iterations = 1
-    if solver.progress_fn is not None:
+    if progress_fn is not None:
       host_callback.id_tap(
           solver.progress_fn,
           (iteration, inner_iterations, solver.max_iterations, new_state),
