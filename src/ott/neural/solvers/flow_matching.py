@@ -6,6 +6,7 @@ import diffrax
 import jax
 import jax.numpy as jnp
 import optax
+from flax.training import train_state
 from jax import random
 from orbax import checkpoint
 
@@ -98,7 +99,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     def step_fn(
         key: random.PRNGKeyArray,
-        state_neural_vector_field: Any,
+        state_neural_vector_field: train_state.TrainState,
         batch: Dict[str, jnp.ndarray],
     ) -> Tuple[Any, Any]:
 
@@ -122,8 +123,8 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       keys_model = random.split(key_model, batch_size)
       t = self.sample_t(key_t, batch_size)
       noise = self.sample_noise(key_noise, batch_size)
-      loss_grad = jax.value_and_grad(loss_fn)
-      loss, grads = loss_grad(
+      grad_fn = jax.value_and_grad(loss_fn)
+      loss, grads = grad_fn(
           state_neural_vector_field.params, t, noise, batch, keys_model
       )
       return state_neural_vector_field.apply_gradients(grads=grads), loss

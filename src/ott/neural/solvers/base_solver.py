@@ -85,7 +85,7 @@ class ResampleMixin:
         b[indices_target, :] if b is not None else None for b in target_arrays
     )
 
-  def sample_conditional_indices_from_tmap(
+  def _sample_conditional_indices_from_tmap(
       key: jax.random.PRNGKeyArray,
       tmat: jnp.ndarray,
       k_samples_per_x: Union[int, jnp.ndarray],

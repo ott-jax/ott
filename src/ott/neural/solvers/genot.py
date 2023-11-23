@@ -1,21 +1,23 @@
+import functools
 import types
 from functools import partial
 from typing import (
-  Any,
-  Callable,
-  Dict,
-  Literal,
-  Mapping,
-  Optional,
-  Tuple,
-  Type,
-  Union,
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    Union,
 )
 
 import diffrax
 import jax
 import jax.numpy as jnp
 import optax
+from flax.training import train_state
 from flax.training.train_state import TrainState
 from jax import random
 from tqdm import tqdm
@@ -23,9 +25,9 @@ from tqdm import tqdm
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-  BaseNeuralSolver,
-  ResampleMixin,
-  UnbalancednessMixin,
+    BaseNeuralSolver,
+    ResampleMixin,
+    UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import BaseFlow, ConstantNoiseFlow
 from ott.solvers import was_solver
@@ -57,8 +59,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cost_fn: Union[costs.CostFn, Literal["graph"]] = costs.SqEuclidean(),
       solver_latent_to_data: Optional[Type[was_solver.WassersteinSolver]
                                      ] = None,
-      latent_to_data_epsilon: float = 1e-2,
-      latent_to_data_scale_cost: Any = 1.0,
+      kwargs_solver_latent_to_data: Dict[str, Any] = types.MappingProxyType({}),
       scale_cost: Union[Any, Mapping[str, Any]] = 1.0,
       graph_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       fused_penalty: float = 0.0,
@@ -190,8 +191,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     # OT latent-data matching parameters
     self.solver_latent_to_data = solver_latent_to_data
-    self.latent_to_data_epsilon = latent_to_data_epsilon
-    self.latent_to_data_scale_cost = latent_to_data_scale_cost
+    self.kwargs_solver_latent_to_data = kwargs_solver_latent_to_data
 
     # callback parameteres
     self.callback = callback
@@ -216,13 +216,13 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     )
     self.step_fn = self._get_step_fn()
     if self.solver_latent_to_data is not None:
-      self.match_latent_to_data_fn = self._get_match_latent_fn(
-          self.solver_latent_to_data, self.latent_to_data_epsilon,
-          self.latent_to_data_scale_cost
+      self.match_latent_to_data_fn = self._get_sinkhorn_match_fn(
+          self.solver_latent_to_data, **self.kwargs_solver_latent_to_data
       )
     else:
       self.match_latent_to_data_fn = lambda key, x, y, **_: (x, y)
 
+    # TODO: add graph construction function
     if isinstance(self.ot_solver, sinkhorn.Sinkhorn):
       self.match_fn = self._get_sinkhorn_match_fn(
           self.ot_solver, self.epsilon, self.cost_fn, self.tau_a, self.tau_b,
@@ -241,36 +241,39 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       batch["source"], batch["source_q"], batch["target"], batch[
           "target_q"], batch["condition"] = next(train_loader)
 
-      self.rng, rng_time, rng_match, rng_resample, rng_noise, rng_step_fn = jax.random.split(
-          self.rng, 6
+      self.rng, rng_time, rng_match, rng_resample, rng_noise, rng_latent_data_match, rng_step_fn = jax.random.split(
+          self.rng, 7
       )
       n_samples = len(batch["source"]) * self.k_noise_per_k
-      t = (
-          jax.random.uniform(rng_time, (1,)) + jnp.arange(n_samples) / n_samples
-      ) % (1 - self.t_offset)
-      batch["time"] = t[:, None]
+      batch["time"] = self.sample_t(key, n_samples)
       batch["noise"] = self.noise_fn(
           rng_noise, shape=(batch["source"], self.k_noise_per_x)
       )
 
       tmat = self.match_fn(rng_match, batch["source"], batch["target"])
       (batch["source"], batch["source_q"], batch["condition"]
+      ), (batch["target"],
+          batch["target_q"]) = self._sample_conditional_indices_from_tmap(
+              rng_resample, tmat, self.k_noise_per_x,
+              (batch["source"], batch["source_q"], batch["condition"]),
+              (batch["target"], batch["target_q"])
+          )
+      rng_noise = jax.random.split(rng_noise, (len(batch["target"])))
+
+      tmat_latent_data = jax.vmap(self.match_latent_to_data_fn, 0, 0)(
+          key=rng_noise, x=batch["noise"], y=batch["target"]
+      )
+      (batch["source"], batch["source_q"], batch["condition"]
       ), (batch["target"], batch["target_q"]) = self._resample_data(
-          rng_resample, tmat,
+          rng_latent_data_match, tmat_latent_data,
           (batch["source"], batch["source_q"], batch["condition"]),
           (batch["target"], batch["target_q"])
       )
-      rng_noise = jax.random.split(rng_noise, (len(batch["target"])))
 
-      noise_matched, conditional_target = jax.vmap(
-          self.match_latent_to_data_fn, 0, 0
-      )(key=rng_noise, x=batch["noise"], y=batch["target"])
-
-      batch["source"] = jnp.reshape(batch["source"], (len(batch["source"]), -1))
-      batch["target"] = jnp.reshape(
-          conditional_target, (len(batch["source"]), -1)
-      )
-      batch["noise"] = jnp.reshape(noise_matched, (len(batch["soruce"]), -1))
+      batch = {
+          key: jnp.reshape(arr, (len(batch["source"]), -1))
+          for key, arr in batch.items()
+      }
 
       self.state_neural_vector_field, loss = self.step_fn(
           rng_step_fn, self.state_neural_vector_field, batch
@@ -293,46 +296,38 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def _get_step_fn(self) -> Callable:
 
-    def loss_fn(
-        params_mlp: jnp.array,
-        apply_fn_mlp: Callable,
-        batch: Dict[str, jnp.array],
-    ):
-
-      def phi_t(
-          x_0: jnp.ndarray, x_1: jnp.ndarray, t: jnp.ndarray
-      ) -> jnp.ndarray:
-        return (1 - t) * x_0 + t * x_1
-
-      def u_t(x_0: jnp.ndarray, x_1: jnp.ndarray) -> jnp.ndarray:
-        return x_1 - x_0
-
-      phi_t_eval = phi_t(batch["noise"], batch["target"], batch["time"])
-      mlp_pred = apply_fn_mlp({"params": params_mlp},
-                              t=batch["time"],
-                              latent=phi_t_eval,
-                              condition=batch["source"])
-      d_psi = u_t(batch["noise"], batch["target"])
-
-      return jnp.mean(optax.l2_loss(mlp_pred, d_psi))
-
     @jax.jit
     def step_fn(
         key: jax.random.PRNGKeyArray,
-        state_neural_net: TrainState,
+        state_neural_vector_field: train_state.TrainState,
         batch: Dict[str, jnp.array],
     ):
 
+      def loss_fn(
+          params: jax.Array, t: jax.Array, noise: jax.Array,
+          batch: Dict[str, jnp.array], keys_model: random.PRNGKeyArray
+      ):
+
+        x_t = self.flow.compute_xt(noise, t, batch["latent"], batch["target"])
+        apply_fn = functools.partial(
+            state_neural_vector_field.apply_fn, {"params": params}
+        )
+        cond_input = jnp.concatenate([batch["source"], batch["condition"]],
+                                     axis=-1)
+        v_t = jax.vmap(apply_fn)(
+            t=t, x=x_t, condition=cond_input, keys_model=keys_model
+        )
+        u_t = self.flow.compute_ut(t, batch["latent"], batch["target"])
+        return jnp.mean((v_t - u_t) ** 2)
+
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-      loss, grads_mlp = grad_fn(
-          state_neural_net.params,
-          state_neural_net.apply_fn,
+      loss, grads = grad_fn(
+          state_neural_vector_field.params,
+          state_neural_vector_field.apply_fn,
           batch,
       )
-      metrics = {}
-      metrics["loss"] = loss
 
-      return (state_neural_net.apply_gradients(grads=grads_mlp), loss)
+      return state_neural_vector_field.apply_gradients(grads=grads), loss
 
     return step_fn
 
@@ -389,3 +384,26 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     else:
       weight_factors = jnp.ones(source.shape)
     return solution.ys, solution, weight_factors
+
+  def _valid_step(self, valid_loader, iter) -> None:
+    next(valid_loader)
+
+  # TODO: add callback and logging
+
+  @property
+  def learn_rescaling(self) -> bool:
+    return self.mlp_eta is not None or self.mlp_xi is not None
+
+  def save(self, path: str) -> None:
+    raise NotImplementedError
+
+  def load(self, path: str) -> "GENOT":
+    raise NotImplementedError
+
+  def training_logs(self) -> Dict[str, Any]:
+    raise NotImplementedError
+
+  def sample_t( #TODO: make more general
+      self, key: random.PRNGKey, batch_size: int
+  ) -> jnp.ndarray:  #TODO: make more general
+    return random.uniform(key, [batch_size, 1])
