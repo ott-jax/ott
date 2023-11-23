@@ -46,6 +46,11 @@ class BaseNeuralSolver(ABC):
     """Save the model."""
     pass
 
+  @abstractmethod
+  def load(self, path: Path):
+    """Load the model."""
+    pass
+
   @property
   @abstractmethod
   def training_logs(self) -> Dict[str, Any]:

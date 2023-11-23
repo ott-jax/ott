@@ -32,7 +32,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cond_dim: int,
       iterations: int,
       valid_freq: int,
-      ot_solver: Type[was_solver.WassersteinSolver],
+      ot_solver: Optional[Type[was_solver.WassersteinSolver]],
       flow: Type[BaseFlow],
       optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
@@ -83,14 +83,17 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     )
 
     self.step_fn = self._get_step_fn()
-    self.match_fn = self._get_match_fn(
-        self.ot_solver,
-        epsilon=self.epsilon,
-        cost_fn=self.cost_fn,
-        tau_a=self.tau_a,
-        tau_b=self.tau_b,
-        scale_cost=self.scale_cost,
-    )
+    if self.ot_solver is not None:
+      self.match_fn = self._get_match_fn(
+          self.ot_solver,
+          epsilon=self.epsilon,
+          cost_fn=self.cost_fn,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
+          scale_cost=self.scale_cost,
+      )
+    else:
+      self.match_fn = None
 
   def _get_step_fn(self) -> Callable:
 
@@ -155,12 +158,13 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
       batch["source"], batch["target"], batch["condition"] = next(train_loader)
-      tmat = self.match_fn(batch["source"], batch["target"])
-      (batch["source"],
-       batch["condition"]), (batch["target"],) = self._resample_data(
-           rng_resample, tmat, (batch["source"], batch["condition"]),
-           (batch["target"],)
-       )
+      if self.ot_solver is not None:
+        tmat = self.match_fn(batch["source"], batch["target"])
+        (batch["source"],
+         batch["condition"]), (batch["target"],) = self._resample_data(
+             rng_resample, tmat, (batch["source"], batch["condition"]),
+             (batch["target"],)
+         )
       self.state_neural_vector_field, loss = self.step_fn(
           rng_step_fn, self.state_neural_vector_field, batch
       )
@@ -184,19 +188,22 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       self,
       data: jnp.array,
       condition: Optional[jax.Array],
-      rng: random.PRNGKey,
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
-    t0, t1 = (0, 1) if forward else (1, 0)
+    arr = jnp.ones((len(data), 1))
+    t0, t1 = (arr * 0.0, arr * 1.0) if forward else (arr * 1.0, arr * 0.0)
+    apply_fn_partial = functools.partial(
+        self.state_neural_vector_field.apply_fn, condition=condition
+    )
     return diffrax.diffeqsolve(
         diffrax.ODETerm(
-            lambda t, y: self.state_neural_vector_field.
-            apply({"params": self.state_neural_vector_field.params},
-                  t=t,
-                  x=y,
-                  condition=condition)
+            lambda t, y, *args: apply_fn_partial(
+                {"params": self.state_neural_vector_field.params},
+                t=t,
+                x=y,
+            )
         ),
         diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
         t0=t0,
@@ -218,6 +225,9 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     return self.mlp_eta is not None or self.mlp_xi is not None
 
   def save(self, path: str) -> None:
+    raise NotImplementedError
+
+  def load(self, path: str) -> "FlowMatching":
     raise NotImplementedError
 
   def training_logs(self) -> Dict[str, Any]:
