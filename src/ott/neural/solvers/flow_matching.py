@@ -171,8 +171,9 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   ) -> diffrax.Solution:
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
 
+    t0, t1 = (0.0, 1.0) if forward else (1.0, 0.0)
     def solve_ode(
-        t0: jax.Array, t1: jax.Array, input: jax.Array, cond: jax.Array
+        input: jax.Array, cond: jax.Array
     ):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
@@ -192,12 +193,9 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
               diffrax.PIDController(rtol=1e-5, atol=1e-5)
           ),
           **diffeqsolve_kwargs,
-      ).solution.y
+      ).ys[0]
 
-    arr = jnp.ones((len(data), 1))
-    t0, t1 = (arr * 0.0, arr * 1.0) if forward else (arr * 1.0, arr * 0.0)
-
-    out = jax.vmap(solve_ode)(t0, t1, data, condition)
+    out = jax.vmap(solve_ode)(data, condition)
     return out
 
   def _transport(
