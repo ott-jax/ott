@@ -100,6 +100,23 @@ class GENOTDataLoader:
       batch_size: int = 64
   ) -> None:
     super().__init__()
+    if source_lin is not None:
+      if source_quad is not None:
+        assert len(source_lin) == len(source_quad)
+      else:
+        self.n_source = len(source_lin)
+    else:
+      self.n_source = len(source_quad)
+    if conditions is not None:
+      assert len(conditions) == self.n_source
+    if target_lin is not None:
+      if target_quad is not None:
+        assert len(target_lin) == len(target_quad)
+      else:
+        self.n_target = len(target_lin)
+    else:
+      self.n_target = len(target_quad)
+
     self.source_lin = source_lin
     self.target_lin = target_lin
     self.source_quad = source_quad
@@ -110,12 +127,8 @@ class GENOTDataLoader:
 
   def __next__(self) -> jax.Array:
     key, self.key = jax.random.split(self.key)
-    inds_source = jax.random.choice(
-        key, len(self.source_lin), shape=[self.batch_size]
-    )
-    inds_target = jax.random.choice(
-        key, len(self.target_lin), shape=[self.batch_size]
-    )
+    inds_source = jax.random.choice(key, self.n_source, shape=[self.batch_size])
+    inds_target = jax.random.choice(key, self.n_target, shape=[self.batch_size])
     return self.source_lin[
         inds_source, :
     ] if self.source_lin is not None else None, self.source_quad[
@@ -134,6 +147,15 @@ def genot_data_loader_linear():
   source = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
   target = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2)) + 1.0
   return GENOTDataLoader(source, None, target, None, None, 16)
+
+
+@pytest.fixture(scope="module")
+def genot_data_loader_linear_conditional():
+  """Returns a data loader for a simple Gaussian mixture."""
+  source = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
+  target = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2)) + 1.0
+  conditions = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 4))
+  return GENOTDataLoader(source, None, target, None, conditions, 16)
 
 
 @pytest.fixture(scope="module")

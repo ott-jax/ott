@@ -172,9 +172,8 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
 
     t0, t1 = (0.0, 1.0) if forward else (1.0, 0.0)
-    def solve_ode(
-        input: jax.Array, cond: jax.Array
-    ):
+
+    def solve_ode(input: jax.Array, cond: jax.Array):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
               lambda t, x, args: self.state_neural_vector_field.

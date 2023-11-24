@@ -1,6 +1,5 @@
 import functools
 import types
-from functools import partial
 from typing import (
     Any,
     Callable,
@@ -209,7 +208,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Keyword arguments for the setup function
     """
     self.state_neural_vector_field = self.neural_vector_field.create_train_state(
-        self.rng, self.optimizer, self.input_dim
+        self.rng, self.optimizer, self.input_dim + self.cond_dim
     )
     self.step_fn = self._get_step_fn()
     if self.solver_latent_to_data is not None:
@@ -231,7 +230,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           filter_input=True
       )
     else:
-      self._get_gromov_match_fn(
+      self.match_fn = self._get_gromov_match_fn(
           self.ot_solver, self.cost_fn, self.tau_a, self.tau_b, self.scale_cost,
           self.fused_penalty
       )
@@ -243,11 +242,11 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       batch["source"], batch["source_q"], batch["target"], batch[
           "target_q"], batch["condition"] = next(train_loader)
 
-      self.rng, rng_time, rng_match, rng_resample, rng_noise, rng_latent_data_match, rng_step_fn = jax.random.split(
-          self.rng, 7
+      self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match, rng_step_fn = jax.random.split(
+          self.rng, 6
       )
       batch_size = len(batch["source"]
-                      ) if "source" in batch else len(batch["source_q"])
+                      ) if batch["source"] is not None else len(batch["source_q"])
       n_samples = batch_size * self.k_noise_per_x
       batch["time"] = self.sample_t(rng_time, n_samples)
       batch["noise"] = self.sample_noise(rng_noise, n_samples)
@@ -268,12 +267,13 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
               (batch["target"], batch["target_q"]),
               source_is_balanced=(self.tau_a == 1.0)
           )
-      rng_noise = jax.random.split(rng_noise, (len(batch["target"])))
-
+      rng_latent = jax.random.split(rng_noise, batch_size * self.k_noise_per_x)
+      
       if self.solver_latent_to_data is not None:
+        target = jnp.concatenate([batch[el] for el in ["target", "target_q"] if batch[el] is not None], axis=1)
         tmats_latent_data = jnp.array(
             jax.vmap(self.match_latent_to_data_fn, 0,
-                     0)(key=rng_noise, x=batch["noise"], y=batch["target"])
+                     0)(key=rng_latent, x=batch["latent"], y=target)
         )
 
       if self.k_noise_per_x > 1:
@@ -296,7 +296,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
       batch = {
           key:
-              jnp.reshape(arr, (len(batch["source"]),
+              jnp.reshape(arr, (batch_size*self.k_noise_per_x,
                                 -1)) if arr is not None else None
           for key, arr in batch.items()
       }
@@ -333,24 +333,21 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           params: jax.Array, batch: Dict[str, jnp.array],
           keys_model: random.PRNGKeyArray
       ):
-
+        target = jnp.concatenate([batch[el] for el in ["target", "target_q"] if batch[el] is not None], axis=1)
         x_t = self.flow.compute_xt(
-            batch["noise"], batch["time"], batch["latent"], batch["target"]
+            batch["noise"], batch["time"], batch["latent"], target
         )
         apply_fn = functools.partial(
             state_neural_vector_field.apply_fn, {"params": params}
         )
 
-        if batch["condition"] is None:
-          cond_input = batch["source"]
-        else:
-          cond_input = jnp.concatenate([batch["source"], batch["condition"]],
-                                       axis=-1)
+        cond_input = jnp.concatenate([batch[el] for el in ["source", "source_q", "condition"] if batch[el] is not None], axis=1)
+
         v_t = jax.vmap(apply_fn)(
             t=batch["time"], x=x_t, condition=cond_input, keys_model=keys_model
         )
         u_t = self.flow.compute_ut(
-            batch["time"], batch["latent"], batch["target"]
+            batch["time"], batch["latent"], target
         )
         return jnp.mean((v_t - u_t) ** 2)
 
@@ -366,7 +363,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def transport(
       self,
       source: jax.Array,
-      condition: jax.Array,
+      condition: Optional[jax.Array],
       rng: random.PRNGKeyArray = random.PRNGKey(0),
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       forward: bool = True,
@@ -391,36 +388,36 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
     assert len(source) == len(condition) if condition is not None else True
 
-    latent_batch = self.latent_noise_fn(
-        rng, shape=(len(source), self.output_dim)
-    )
+    latent_batch = self.latent_noise_fn(rng, shape=(len(source),))
     cond_input = source if condition is None else jnp.concatenate([
         source, condition
     ],
                                                                   axis=-1)
-    apply_fn_partial = partial(
-        self.state_neural_vector_field.apply_fn, condition=cond_input
-    )
-    t0 = jnp.zeros((len(source),1))
-    t1 = jnp.ones((len(source),1))
-    solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(
-            lambda t, y, *args:
-            apply_fn_partial({"params": self.state_neural_vector_field.params},
-                             t=t,
-                             x=y)
-        ),
-        diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
-        t0=t0,
-        t1=t1,
-        dt0=diffeqsolve_kwargs.pop("dt0", None),
-        y0=latent_batch,
-        stepsize_controller=diffeqsolve_kwargs.pop(
-            "stepsize_controller", diffrax.PIDController(rtol=1e-3, atol=1e-6)
-        ),
-        **diffeqsolve_kwargs,
-    )
-    return solution.ys
+    t0, t1 = (0.0, 1.0)
+
+    def solve_ode(input: jax.Array, cond: jax.Array):
+      return diffrax.diffeqsolve(
+          diffrax.ODETerm(
+              lambda t, x, args: self.state_neural_vector_field.
+              apply_fn({"params": self.state_neural_vector_field.params},
+                       t=t,
+                       x=x,
+                       condition=cond)
+          ),
+          diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+          t0=t0,
+          t1=t1,
+          dt0=diffeqsolve_kwargs.pop("dt0", None),
+          y0=input,
+          stepsize_controller=diffeqsolve_kwargs.pop(
+              "stepsize_controller",
+              diffrax.PIDController(rtol=1e-5, atol=1e-5)
+          ),
+          **diffeqsolve_kwargs,
+      ).ys[0]
+
+    out = jax.vmap(solve_ode)(latent_batch, cond_input)
+    return out
 
   def _valid_step(self, valid_loader, iter) -> None:
     next(valid_loader)
