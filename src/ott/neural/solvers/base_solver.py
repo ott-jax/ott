@@ -86,16 +86,17 @@ class ResampleMixin:
     )
 
   def _sample_conditional_indices_from_tmap(
+      self,
       key: jax.random.PRNGKeyArray,
       tmat: jnp.ndarray,
       k_samples_per_x: Union[int, jnp.ndarray],
       source_arrays: Tuple[jnp.ndarray, ...],
       target_arrays: Tuple[jnp.ndarray, ...],
       *,
-      is_balanced: bool,
+      source_is_balanced: bool,
   ) -> Tuple[jnp.array, jnp.array]:
     left_marginals = tmat.sum(axis=1)
-    if not is_balanced:
+    if not source_is_balanced:
       key, key2 = jax.random.split(key, 2)
       indices = jax.random.choice(
           key=key2,
@@ -135,6 +136,8 @@ class ResampleMixin:
       scale_cost: Any,
       tau_a: float,
       tau_b: float,
+      *,
+      filter_input: bool = False,
   ) -> Callable:
 
     def match_pairs(
@@ -147,7 +150,17 @@ class ResampleMixin:
           linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
       ).matrix
 
-    return match_pairs
+    def match_pairs_filtered(
+        x_lin: jax.Array, x_quad: jax.Array, y_lin: jax.Array, y_quad: jax.Array
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      geom = pointcloud.PointCloud(
+          x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
+      )
+      return ot_solver(
+          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
+      ).matrix
+
+    return match_pairs_filtered if filter_input else match_pairs
 
   def _get_gromov_match_fn(
       self,
@@ -181,10 +194,10 @@ class ResampleMixin:
       x_scale_cost = y_scale_cost = xy_scale_cost = scale_cost
 
     def match_pairs(
-        x_quad: Tuple[jnp.ndarray, jnp.ndarray],
-        y_quad: Tuple[jnp.ndarray, jnp.ndarray],
         x_lin: Optional[jax.Array],
+        x_quad: Tuple[jnp.ndarray, jnp.ndarray],
         y_lin: Optional[jax.Array],
+        y_quad: Tuple[jnp.ndarray, jnp.ndarray],
     ) -> Tuple[jnp.array, jnp.array]:
       geom_xx = pointcloud.PointCloud(
           x=x_quad, y=x_quad, cost_fn=x_cost_fn, scale_cost=x_scale_cost
