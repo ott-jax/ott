@@ -103,6 +103,7 @@ class GENOTDataLoader:
     if source_lin is not None:
       if source_quad is not None:
         assert len(source_lin) == len(source_quad)
+        self.n_source = len(source_lin)
       else:
         self.n_source = len(source_lin)
     else:
@@ -112,6 +113,7 @@ class GENOTDataLoader:
     if target_lin is not None:
       if target_quad is not None:
         assert len(target_lin) == len(target_quad)
+        self.n_target = len(target_lin)
       else:
         self.n_target = len(target_lin)
     else:
@@ -167,6 +169,15 @@ def genot_data_loader_quad():
 
 
 @pytest.fixture(scope="module")
+def genot_data_loader_quad_conditional():
+  """Returns a data loader for a simple Gaussian mixture."""
+  source = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
+  target = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 1)) + 1.0
+  conditions = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 7))
+  return GENOTDataLoader(None, source, None, target, conditions, 16)
+
+
+@pytest.fixture(scope="module")
 def genot_data_loader_fused():
   """Returns a data loader for a simple Gaussian mixture."""
   source_q = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
@@ -174,3 +185,16 @@ def genot_data_loader_fused():
   source_lin = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
   target_lin = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2)) + 1.0
   return GENOTDataLoader(source_lin, source_q, target_lin, target_q, None, 16)
+
+
+@pytest.fixture(scope="module")
+def genot_data_loader_fused_conditional():
+  """Returns a data loader for a simple Gaussian mixture."""
+  source_q = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
+  target_q = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 1)) + 1.0
+  source_lin = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2))
+  target_lin = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 2)) + 1.0
+  conditions = jax.random.normal(jax.random.PRNGKey(0), shape=(100, 1))
+  return GENOTDataLoader(
+      source_lin, source_q, target_lin, target_q, conditions, 16
+  )

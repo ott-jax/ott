@@ -194,39 +194,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           **diffeqsolve_kwargs,
       ).ys[0]
 
-    out = jax.vmap(solve_ode)(data, condition)
-    return out
-
-  def _transport(
-      self,
-      data: jnp.array,
-      condition: Optional[jax.Array],
-      forward: bool = True,
-      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
-  ) -> diffrax.Solution:
-    diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
-    arr = jnp.ones((len(data), 1))
-    t0, t1 = (arr * 0.0, arr * 1.0) if forward else (arr * 1.0, arr * 0.0)
-    apply_fn_partial = functools.partial(
-        self.state_neural_vector_field.apply_fn,
-        params={"params": self.state_neural_vector_field.params},
-        condition=condition
-    )
-    term = diffrax.ODETerm(lambda t, y, *args: apply_fn_partial(t, y, *args))
-    solver = diffeqsolve_kwargs.pop("solver", diffrax.Tsit5())
-    stepsize_controller = diffeqsolve_kwargs.pop(
-        "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
-    )
-    return diffrax.diffeqsolve(
-        term,
-        solver,
-        t0=t0,
-        t1=t1,
-        dt0=diffeqsolve_kwargs.pop("dt0", None),
-        y0=data,
-        stepsize_controller=stepsize_controller,
-        **diffeqsolve_kwargs,
-    )
+    return jax.vmap(solve_ode)(data, condition)
 
   def _valid_step(self, valid_loader, iter) -> None:
     next(valid_loader)
