@@ -16,10 +16,10 @@ from typing import Any, Optional
 
 import jax
 
-from ott.geometry import geometry
+from ott.geometry import distrib_cost, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
-from ott.solvers.linear import sinkhorn, univariate
+from ott.solvers.linear import sinkhorn
 
 __all__ = ["LowerBoundSolver"]
 
@@ -28,14 +28,7 @@ __all__ = ["LowerBoundSolver"]
 class LowerBoundSolver:
   """Lower bound OT solver :cite:`memoli:11`.
 
-  .. warning::
-    As implemented, this solver assumes uniform marginals,
-    non-uniform marginal solver coming soon!
-
   Computes the third lower bound distance from :cite:`memoli:11`, def. 6.3.
-  there is an uneven number of points in the distributions, then we perform a
-  stratified subsample of the distribution of distances to approximate
-  the Wasserstein distance between the local distributions of distances.
 
   Args:
     epsilon: Entropy regularization for the resulting linear problem.
@@ -49,17 +42,28 @@ class LowerBoundSolver:
       **kwargs: Any,
   ):
     self.epsilon = epsilon
-    self.univariate_solver = univariate.UnivariateSolver(**kwargs)
 
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-      **kwargs: Any,
+      rng: Optional[jax.Array] = None,
+      kwargs_univsolver: Optional[Any] = None,
+      epsilon: Optional[float] = None,
+      **kwargs
   ) -> sinkhorn.SinkhornOutput:
     """Run the Histogram transport solver.
 
     Args:
       prob: Quadratic OT problem.
+      kwargs_univsolver: keyword args to
+        create the :class:`~ott.solvers.linear.univariate.UnivariateSolver`,
+        used to compute a ``[n,m]`` cost matrix, using the linearization
+        approach. This might rely, for instance, on subsampling or quantile
+        reduction to speed up computations.
+      rng: random key, possibly used when computing 1D costs when using
+        subsampling.
+      epsilon: entropic regularization passed on to solve the linearization of
+        the quadratic problem using 1D costs.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
@@ -67,13 +71,13 @@ class LowerBoundSolver:
     """
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
-    cost_xy = jax.vmap(
-        jax.vmap(self.univariate_solver, in_axes=(0, None), out_axes=-1),
-        in_axes=(None, 0),
-        out_axes=-1,
-    )(dists_xx, dists_yy)
-
-    geom_xy = geometry.Geometry(cost_matrix=cost_xy, epsilon=self.epsilon)
+    kwargs_univsolver = {} if kwargs_univsolver is None else kwargs_univsolver
+    geom_xy = pointcloud.PointCloud(
+        dists_xx,
+        dists_yy,
+        cost_fn=distrib_cost.UnivariateWasserstein(**kwargs_univsolver),
+        epsilon=self.epsilon
+    )
 
     return linear.solve(geom_xy, **kwargs)
 

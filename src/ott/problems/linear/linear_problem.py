@@ -79,6 +79,16 @@ class LinearProblem:
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
   @property
+  def is_uniform(self) -> bool:
+    """Test if no weights were passed."""
+    return self._a is None and self._b is None
+
+  @property
+  def is_equal_size(self) -> bool:
+    """Test if square shape, i.e. n == m."""
+    return self.geom.shape[0] == self.geom.shape[1]
+
+  @property
   def epsilon(self) -> float:
     """Entropic regularization."""
     return self.geom.epsilon
