@@ -120,12 +120,14 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
   ) -> None:
+    rng, rng_unbalanced = random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
     ResampleMixin.__init__(self)
     UnbalancednessMixin.__init__(
         self,
+        rng=rng_unbalanced,
         source_dim=input_dim,
         target_dim=input_dim,
         cond_dim=cond_dim,

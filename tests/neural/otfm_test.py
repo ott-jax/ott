@@ -156,6 +156,9 @@ class TestOTFlowMatching:
       data_loader_gaussian_conditional: Iterator
   ):
     data_loader = data_loader_gaussian_conditional if conditional else data_loader_gaussian
+    source, target, condition = next(data_loader)
+    source_dim = source.shape[1]
+    condition_dim = condition.shape[1] if conditional else 0
     neural_vf = NeuralVectorField(
         output_dim=2,
         condition_dim=0,
@@ -168,12 +171,12 @@ class TestOTFlowMatching:
 
     tau_a = 0.9
     tau_b = 0.2
-    mlp_eta = Rescaling_MLP(hidden_dim=4, cond_dim=0)
-    mlp_xi = Rescaling_MLP(hidden_dim=4, cond_dim=0)
+    mlp_eta = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_xi = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
     fm = OTFlowMatching(
         neural_vf,
-        input_dim=2,
-        cond_dim=0,
+        input_dim=source_dim,
+        cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,

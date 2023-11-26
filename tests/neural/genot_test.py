@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import optax
 import pytest
 
-from ott.neural.models.models import NeuralVectorField
+from ott.neural.models.models import NeuralVectorField, Rescaling_MLP
 from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.solvers.genot import GENOT
 from ott.solvers.linear import sinkhorn
@@ -295,6 +295,8 @@ class TestGENOT:
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
+    mlp_eta = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_xi = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,
@@ -305,6 +307,10 @@ class TestGENOT:
         ot_solver=ot_solver,
         time_sampler=time_sampler,
         optimizer=optimizer,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        mlp_eta=mlp_eta,
+        mlp_xi=mlp_xi,
     )
     genot(data_loader, data_loader)
 

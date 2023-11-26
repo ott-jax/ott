@@ -245,6 +245,7 @@ class UnbalancednessMixin:
 
   def __init__(
       self,
+      rng: jax.Array,
       source_dim: int,
       target_dim: int,
       cond_dim: Optional[int],
@@ -261,6 +262,7 @@ class UnbalancednessMixin:
       sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
       **_: Any,
   ) -> None:
+    self.rng_unbalanced = rng
     self.source_dim = source_dim
     self.target_dim = target_dim
     self.cond_dim = cond_dim
@@ -325,14 +327,17 @@ class UnbalancednessMixin:
     return tuple(b[indices] if b is not None else None for b in batch)
 
   def _setup(self, source_dim: int, target_dim: int, cond_dim: int):
-    self.unbalancedness_step_fn = self._get_step_fn()
+    self.rng_unbalanced, rng_eta, rng_xi = jax.random.split(
+        self.rng_unbalanced, 3
+    )
+    self.unbalancedness_step_fn = self._get_rescaling_step_fn()
     if self.mlp_eta is not None:
       self.opt_eta = (
           self.opt_eta if self.opt_eta is not None else
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
       self.state_eta = self.mlp_eta.create_train_state(
-          self._key, self.opt_eta, source_dim + cond_dim
+          rng_eta, self.opt_eta, source_dim + cond_dim
       )
     if self.mlp_xi is not None:
       self.opt_xi = (
@@ -340,19 +345,20 @@ class UnbalancednessMixin:
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
       self.state_xi = self.mlp_xi.create_train_state(
-          self._key, self.opt_xi, target_dim + cond_dim
+          rng_xi, self.opt_xi, target_dim + cond_dim
       )
 
-  def _get_step_fn(self) -> Callable:  # type:ignore[type-arg]
+  def _get_rescaling_step_fn(self) -> Callable:  # type:ignore[type-arg]
 
     def loss_a_fn(
         params_eta: Optional[jax.Array],
         apply_fn_eta: Callable[[Dict[str, jax.Array], jax.Array], jax.Array],
         x: jax.Array,
+        condition: Optional[jax.Array],
         a: jax.Array,
         expectation_reweighting: float,
     ) -> Tuple[float, jax.Array]:
-      eta_predictions = apply_fn_eta({"params": params_eta}, x)
+      eta_predictions = apply_fn_eta({"params": params_eta}, x, condition)
       return (
           optax.l2_loss(eta_predictions[:, 0], a).mean() +
           optax.l2_loss(jnp.mean(eta_predictions) - expectation_reweighting),
@@ -363,10 +369,11 @@ class UnbalancednessMixin:
         params_xi: Optional[jax.Array],
         apply_fn_xi: Callable[[Dict[str, jax.Array], jax.Array], jax.Array],
         x: jax.Array,
+        condition: Optional[jax.Array],
         b: jax.Array,
         expectation_reweighting: float,
     ) -> Tuple[float, jax.Array]:
-      xi_predictions = apply_fn_xi({"params": params_xi}, x)
+      xi_predictions = apply_fn_xi({"params": params_xi}, x, condition)
       return (
           optax.l2_loss(xi_predictions[:, 0], b).mean() +
           optax.l2_loss(jnp.mean(xi_predictions) - expectation_reweighting),
@@ -397,6 +404,7 @@ class UnbalancednessMixin:
             state_eta.params,
             state_eta.apply_fn,
             input_source,
+            condition,
             a * len(a),
             jnp.sum(b),
         )
@@ -412,6 +420,7 @@ class UnbalancednessMixin:
             state_xi.params,
             state_xi.apply_fn,
             input_target,
+            condition,
             b * len(b),
             jnp.sum(a),
         )

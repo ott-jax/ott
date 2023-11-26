@@ -93,12 +93,14 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
   ) -> None:
+    rng, rng_unbalanced = random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
     ResampleMixin.__init__(self)
     UnbalancednessMixin.__init__(
         self,
+        rng=rng_unbalanced,
         source_dim=input_dim,
         target_dim=input_dim,
         cond_dim=cond_dim,
@@ -204,7 +206,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
       if self.learn_rescaling:
         self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
-            batch, tmat.sum(axis=1), tmat.sum(axis=0)
+            source=batch["source"], target=batch["target"], condition=batch["condition"], a=tmat.sum(axis=1), b=tmat.sum(axis=0), state_eta=self.state_eta, state_xi=self.state_xi, 
         )
       if iter % self.valid_freq == 0:
         self._valid_step(valid_loader, iter)

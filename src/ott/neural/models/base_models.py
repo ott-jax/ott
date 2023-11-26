@@ -36,7 +36,7 @@ class BaseNeuralVectorField(nn.Module, abc.ABC):
 class BaseRescalingNet(nn.Module, abc.ABC):
 
   @abc.abstractmethod
-  def __call___(
+  def __call__(
       self, x: jax.Array, condition: Optional[jax.Array] = None
   ) -> jax.Array:
     pass

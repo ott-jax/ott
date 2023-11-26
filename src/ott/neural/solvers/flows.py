@@ -176,6 +176,9 @@ class UniformSampler(BaseTimeSampler):
     high: Upper bound of the uniform distribution.
   """
 
+  def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
+    super().__init__(low=low, high=high)
+
   def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
     """Generate `num_samples` samples of the time `math`:t:.
 

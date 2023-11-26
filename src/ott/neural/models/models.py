@@ -535,8 +535,8 @@ class NeuralVectorField(BaseNeuralVectorField):
 
 class Rescaling_MLP(BaseRescalingNet):
   hidden_dim: int
-  cond_dim: int
-  is_potential: bool = False
+  condition_dim: int
+  num_layers_per_block: int = 3
   act_fn: Callable[[jax.Array], jax.Array] = nn.selu
 
   @nn.compact
@@ -544,8 +544,8 @@ class Rescaling_MLP(BaseRescalingNet):
       self, x: jax.Array, condition: Optional[jax.Array]
   ) -> jax.Array:  # noqa: D102
     x = Block(
-        dim=self.latent_embed_dim,
-        out_dim=self.latent_embed_dim,
+        dim=self.hidden_dim,
+        out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
     )(
@@ -553,8 +553,8 @@ class Rescaling_MLP(BaseRescalingNet):
     )
     if self.condition_dim > 0:
       condition = Block(
-          dim=self.condition_embed_dim,
-          out_dim=self.condition_embed_dim,
+          dim=self.hidden_dim,
+          out_dim=self.hidden_dim,
           num_layers=self.num_layers_per_block,
           act_fn=self.act_fn
       )(
@@ -565,8 +565,8 @@ class Rescaling_MLP(BaseRescalingNet):
       concatenated = x
 
     out = Block(
-        dim=self.joint_hidden_dim,
-        out_dim=self.joint_hidden_dim,
+        dim=self.hidden_dim,
+        out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn,
     )(
@@ -582,7 +582,7 @@ class Rescaling_MLP(BaseRescalingNet):
       input_dim: int,
   ) -> train_state.TrainState:
     params = self.init(
-        rng, jnp.ones((1, input_dim)), jnp.ones((1, self.cond_dim))
+        rng, jnp.ones((1, input_dim)), jnp.ones((1, self.condition_dim))
     )["params"]
     return train_state.TrainState.create(
         apply_fn=self.apply, params=params, tx=optimizer
