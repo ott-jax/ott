@@ -57,7 +57,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_linear, genot_data_loader_linear)
 
@@ -99,7 +99,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_quad, genot_data_loader_quad)
 
@@ -139,7 +139,7 @@ class TestGENOT:
         time_sampler=time_sampler,
         optimizer=optimizer,
         fused_penalty=0.5,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_fused, genot_data_loader_fused)
 
@@ -178,7 +178,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(
         genot_data_loader_linear_conditional,
@@ -223,7 +223,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_quad, genot_data_loader_quad)
 
@@ -263,7 +263,7 @@ class TestGENOT:
         time_sampler=time_sampler,
         optimizer=optimizer,
         fused_penalty=0.5,
-        k_noise_per_x=k_noise_per_x,
+        k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_fused, genot_data_loader_fused)
 

@@ -17,8 +17,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Literal,
-    Mapping,
     Optional,
     Tuple,
     Type,
@@ -58,6 +56,37 @@ Match_latent_fn_T = Callable[[jax.random.PRNGKeyArray, jnp.array, jnp.array],
 
 
 class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
+  """The GENOT training class as introduced in :cite:`TODO`.
+
+  Args:
+    neural_vector_field: Neural vector field parameterized by a neural network.
+    input_dim: Dimension of the data in the source distribution.
+    output_dim: Dimension of the data in the target distribution.
+    cond_dim: Dimension of the conditioning variable.
+    iterations: Number of iterations.
+    valid_freq: Frequency of validation.
+    ot_solver: OT solver to match samples from the source and the target distribution.
+    epsilon: Entropy regularization term of the OT problem solved by `ot_solver`.
+    cost_fn: Cost function for the OT problem solved by the `ot_solver`. In the linear case, this is always expected to be of type `str`. If the problem is of quadratic type and `cost_fn` is a string, the `cost_fn` is used for all terms, i.e. both quadratic terms and, if applicable, the linear temr. If of type :class:`dict`, the keys are expected to be `x_cost_fn`, `y_cost_fn`, and if applicable, `xy_cost_fn`.
+    scale_cost: How to scale the cost matrix for the OT problem solved by the `ot_solver`. In the linear case, this is always expected to be not a :class:`dict`. If the problem is of quadratic type and `scale_cost` is a string, the `scale_cost` argument is used for all terms, i.e. both quadratic terms and, if applicable, the linear temr. If of type :class:`dict`, the keys are expected to be `x_scale_cost`, `y_scale_cost`, and if applicable, `xy_scale_cost`.
+    optimizer: Optimizer for `neural_vector_field`.
+    flow: Flow between latent distribution and target distribution.
+    time_sampler: Sampler for the time.
+    checkpoint_manager: Checkpoint manager.
+    k_samples_per_x: Number of samples drawn from the conditional distribution of an input sample, see algorithm TODO.
+    solver_latent_to_data: Linear OT solver to match the latent distribution with the conditional distribution. Only applicable if `k_samples_per_x` is larger than :math:`1`. #TODO: adapt
+    kwargs_solver_latent_to_data: Keyword arguments for `solver_latent_to_data`. #TODO: adapt
+    fused_penalty: Fused penalty of the linear/fused term in the Fused Gromov-Wasserstein problem.
+    tau_a: If :math:`<1`, defines how much unbalanced the problem is
+    on the first marginal.
+    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
+    on the second marginal.
+    mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+    unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
+   callback_fn: Callback function.
+    rng: Random number generator.
+  """
 
   def __init__(
       self,
@@ -68,95 +97,27 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       iterations: int,
       valid_freq: int,
       ot_solver: Type[was_solver.WassersteinSolver],
+      epsilon: float,
+      cost_fn: Union[costs.CostFn, Dict[str, costs.CostFn]],
+      scale_cost: Union[Any, Dict[str, Any]],  #TODO: replace `Any`
       optimizer: Type[optax.GradientTransformation],
-      checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       flow: Type[BaseFlow] = ConstantNoiseFlow(0.0),
       time_sampler: Type[BaseTimeSampler] = UniformSampler(),
-      k_noise_per_x: int = 1,
-      t_offset: float = 1e-5,
-      epsilon: float = 1e-2,
-      cost_fn: Union[costs.CostFn, Literal["graph"]] = costs.SqEuclidean(),
+      checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
+      k_samples_per_x: int = 1,
       solver_latent_to_data: Optional[Type[was_solver.WassersteinSolver]
                                      ] = None,
       kwargs_solver_latent_to_data: Dict[str, Any] = types.MappingProxyType({}),
-      scale_cost: Union[Any, Mapping[str, Any]] = 1.0,
       fused_penalty: float = 0.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       mlp_eta: Callable[[jax.Array], float] = None,
       mlp_xi: Callable[[jax.Array], float] = None,
       unbalanced_kwargs: Dict[str, Any] = {},
-      callback: Optional[Callable[[jax.Array, jax.Array, jax.Array],
-                                  Any]] = None,
-      callback_kwargs: Dict[str, Any] = {},
-      callback_iters: int = 10,
+      callback_fn: Optional[Callable[[jax.Array, jax.Array, jax.Array],
+                                     Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
-      **kwargs: Any,
   ) -> None:
-    """The GENOT training class.
-
-    Parameters
-    ----------
-    neural_vector_field
-    Neural vector field
-    input_dim
-    Dimension of the source distribution
-    output_dim
-    Dimension of the target distribution
-    cond_dim
-    Dimension of the condition
-    iterations
-    Number of iterations to train
-    valid_freq
-    Number of iterations after which to perform a validation step
-    ot_solver
-    Solver to match samples from the source to the target distribution
-    optimizer
-    Optimizer for the neural vector field
-    flow
-    Flow to use in the target space from noise to data. Should be of type
-    `ConstantNoiseFlow` to recover the setup in the paper TODO.
-    k_noise_per_x
-    Number of samples to draw from the conditional distribution
-    t_offset
-    Offset for sampling from the time t
-    epsilon
-    Entropy regularization parameter for the discrete solver
-    cost_fn
-    Cost function to use for the discrete OT solver
-    solver_latent_to_data
-    Linear OT solver to match samples from the noise to the conditional distribution
-    latent_to_data_epsilon
-    Entropy regularization term for `solver_latent_to_data`
-    latent_to_data_scale_cost
-    How to scale the cost matrix for the `solver_latent_to_data` solver
-    scale_cost
-    How to scale the cost matrix in each discrete OT problem
-    graph_kwargs
-    Keyword arguments for the graph cost computation in case `cost="graph"`
-    fused_penalty
-    Penalisation term for the linear term in a Fused GW setting
-    split_dim
-    Dimension to split the data into fused term and purely quadratic term in the FGW setting
-    mlp_eta
-    Neural network to learn the left rescaling function
-    mlp_xi
-    Neural network to learn the right rescaling function
-    tau_a
-    Left unbalancedness parameter
-    tau_b
-    Right unbalancedness parameter
-    callback
-    Callback function
-    callback_kwargs
-    Keyword arguments to the callback function
-    callback_iters
-    Number of iterations after which to evaluate callback function
-    seed
-    Random seed
-    kwargs
-    Keyword arguments passed to `setup`, e.g. custom choice of optimizers for learning rescaling functions
-    """
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
@@ -196,7 +157,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.input_dim = input_dim
     self.output_dim = output_dim
     self.cond_dim = cond_dim
-    self.k_noise_per_x = k_noise_per_x
+    self.k_noise_per_x = k_samples_per_x
 
     # OT data-data matching parameters
     self.ot_solver = ot_solver
@@ -210,14 +171,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.kwargs_solver_latent_to_data = kwargs_solver_latent_to_data
 
     # callback parameteres
-    self.callback = callback
-    self.callback_kwargs = callback_kwargs
-    self.callback_iters = callback_iters
-
-    #TODO: check how to handle this
-    self.t_offset = t_offset
-
-    self.setup(**kwargs)
+    self.callbac_fn = callback_fn
+    self.setup()
 
   def setup(self) -> None:
     """Set up the model.
@@ -395,23 +350,24 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       source: jax.Array,
       condition: Optional[jax.Array],
       rng: random.PRNGKeyArray = random.PRNGKey(0),
-      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       forward: bool = True,
+      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
   ) -> Union[jnp.array, diffrax.Solution, Optional[jax.Array]]:
-    """Transport the distribution.
+    """Transport data with the learnt plan.
 
-    Parameters
-    ----------
-    source
-    Source distribution to transport
-    seed
-    Random seed for sampling from the latent distribution
-    diffeqsolve_kwargs
-    Keyword arguments for the ODE solver.
+    This method pushes-forward the `source` to its conditional distribution by solving the neural ODE parameterized by the :attr:`~ott.neural.solvers.GENOTg.neural_vector_field` from
+    :attr:`~ott.neural.flows.BaseTimeSampler.low` to :attr:`~ott.neural.flows.BaseTimeSampler.high`.
+
+    Args:
+      data: Initial condition of the ODE.
+      condition: Condition of the input data.
+      rng: random seed for sampling from the latent distribution.
+      forward: If `True` integrates forward, otherwise backwards.
+      diffeqsovle_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-    -------
-    The transported samples, the solution of the neural ODE, and the rescaling factor.
+      The push-forward or pull-back distribution defined by the learnt transport plan.
+
     """
     if not forward:
       raise NotImplementedError
@@ -449,24 +405,46 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     return jax.vmap(solve_ode)(latent_batch, cond_input)
 
   def _valid_step(self, valid_loader, iter) -> None:
+    """TODO."""
     next(valid_loader)
-
-  # TODO: add callback and logging
 
   @property
   def learn_rescaling(self) -> bool:
+    """Whether to learn at least one rescaling factor of the marginal distributions."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
   def save(self, path: str) -> None:
+    """Save the model.
+
+    Args:
+      path: Where to save the model to.
+    """
     raise NotImplementedError
 
   def load(self, path: str) -> "GENOT":
+    """Load a model.
+
+    Args:
+      path: Where to load the model from.
+
+    Returns:
+      An instance of :class:`ott.neural.solvers.OTFlowMatching`.
+    """
     raise NotImplementedError
 
+  @property
   def training_logs(self) -> Dict[str, Any]:
+    """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise( #TODO: make more general
-      self, key: random.PRNGKey, batch_size: int
-  ) -> jax.Array:  #TODO: make more general
+  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jax.Array:
+    """Sample noise from a standard-normal distribution.
+
+    Args:
+      key: Random key for seeding.
+      batch_size: Number of samples to draw.
+
+    Returns:
+      Samples from the standard normal distribution.
+    """
     return random.normal(key, shape=(batch_size, self.output_dim))

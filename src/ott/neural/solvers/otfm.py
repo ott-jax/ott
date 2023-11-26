@@ -41,30 +41,30 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   """Flow matching as introduced in :cite:`TODO, with extension to OT-FM ().
 
   Args:
-  neural_vector_field: Neural vector field parameterized by a neural network.
-  input_dim: Dimension of the input data.
-  cond_dim: Dimension of the conditioning variable.
-  iterations: Number of iterations.
-  valid_freq: Frequency of validation.
-  ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`TODO`. If `None`, no matching will be performed as proposed in :cite:`TODO`.
-  flow: Flow between source and target distribution.
-  time_sampler: Sampler for the time.
-  optimizer: Optimizer for `neural_vector_field`.
-  checkpoint_manager: Checkpoint manager.
-  epsilon: Entropy regularization term for the `ot_solver`.
-  cost_fn: Cost function for the OT problem solved by the `ot_solver`.
-  tau_a: If :math:`<1`, defines how much unbalanced the problem is
-  on the first marginal.
-  tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-  on the second marginal.
-  mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
-  mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
-  unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
-  callback_fn: Callback function.
-  rng: Random number generator.
+    neural_vector_field: Neural vector field parameterized by a neural network.
+    input_dim: Dimension of the input data.
+    cond_dim: Dimension of the conditioning variable.
+    iterations: Number of iterations.
+    valid_freq: Frequency of validation.
+    ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`TODO`. If `None`, no matching will be performed as proposed in :cite:`TODO`.
+    flow: Flow between source and target distribution.
+    time_sampler: Sampler for the time.
+    optimizer: Optimizer for `neural_vector_field`.
+    checkpoint_manager: Checkpoint manager.
+    epsilon: Entropy regularization term of the OT OT problem solved by the `ot_solver`.
+    cost_fn: Cost function for the OT problem solved by the `ot_solver`.
+    tau_a: If :math:`<1`, defines how much unbalanced the problem is
+    on the first marginal.
+    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
+    on the second marginal.
+    mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+    unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
+    callback_fn: Callback function.
+    rng: Random number generator.
 
   Returns:
-  None
+    None
 
   """
 
@@ -295,6 +295,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """
     raise NotImplementedError
 
+  @property
   def training_logs(self) -> Dict[str, Any]:
     """Logs of the training."""
     raise NotImplementedError
