@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Type
+from typing import Iterator, Type
 
 import jax
 import jax.numpy as jnp
 import optax
 import pytest
 
-from ott.neural.models.models import NeuralVectorField
+from ott.neural.models.models import NeuralVectorField, Rescaling_MLP
 from ott.neural.solvers.flows import (
     BaseFlow,
     BrownianNoiseFlow,
@@ -149,3 +149,49 @@ class TestOTFlowMatching:
     result_backward = fm.transport(target, condition=condition, forward=False)
     assert isinstance(result_backward, jax.Array)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
+
+  @pytest.mark.parametrize("conditional", [True, False])
+  def test_flow_matching_learn_rescaling(
+      self, conditional: bool, data_loader_gaussian: Iterator,
+      data_loader_gaussian_conditional: Iterator
+  ):
+    data_loader = data_loader_gaussian_conditional if conditional else data_loader_gaussian
+    neural_vf = NeuralVectorField(
+        output_dim=2,
+        condition_dim=0,
+        latent_embed_dim=5,
+    )
+    ot_solver = sinkhorn.Sinkhorn()
+    time_sampler = UniformSampler()
+    flow = ConstantNoiseFlow(1.0)
+    optimizer = optax.adam(learning_rate=1e-3)
+
+    tau_a = 0.9
+    tau_b = 0.2
+    mlp_eta = Rescaling_MLP(hidden_dim=4, cond_dim=0)
+    mlp_xi = Rescaling_MLP(hidden_dim=4, cond_dim=0)
+    fm = OTFlowMatching(
+        neural_vf,
+        input_dim=2,
+        cond_dim=0,
+        iterations=3,
+        valid_freq=2,
+        ot_solver=ot_solver,
+        flow=flow,
+        time_sampler=time_sampler,
+        optimizer=optimizer,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        mlp_eta=mlp_eta,
+        mlp_xi=mlp_xi,
+    )
+    fm(data_loader, data_loader)
+
+    source, target, condition = next(data_loader_gaussian)
+    result_eta = fm.evaluate_eta(source, condition=condition)
+    assert isinstance(result_eta, jax.Array)
+    assert jnp.sum(jnp.isnan(result_eta)) == 0
+
+    result_xi = fm.evaluate_xi(target, condition=condition)
+    assert isinstance(result_xi, jax.Array)
+    assert jnp.sum(jnp.isnan(result_xi)) == 0

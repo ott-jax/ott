@@ -272,3 +272,50 @@ class TestGENOT:
     )
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
+
+  @pytest.mark.parametrize("conditional", [False, True])
+  def test_genot_linear_learn_rescaling(
+      self, conditional: bool, genot_data_loader_linear: Iterator,
+      genot_data_loader_linear_conditional: Iterator
+  ):
+    data_loader = genot_data_loader_linear_conditional if conditional else genot_data_loader_linear
+
+    source_lin, source_quad, target_lin, target_quad, condition = next(
+        genot_data_loader_linear
+    )
+    source_dim = source_lin.shape[1]
+    target_dim = target_lin.shape[1]
+    condition_dim = condition.shape[1] if conditional else 0
+
+    neural_vf = NeuralVectorField(
+        output_dim=target_dim,
+        condition_dim=condition_dim,
+        latent_embed_dim=5,
+    )
+    ot_solver = sinkhorn.Sinkhorn()
+    time_sampler = UniformSampler()
+    optimizer = optax.adam(learning_rate=1e-3)
+    genot = GENOT(
+        neural_vf,
+        input_dim=source_dim,
+        output_dim=target_dim,
+        cond_dim=condition_dim,
+        iterations=3,
+        valid_freq=2,
+        ot_solver=ot_solver,
+        time_sampler=time_sampler,
+        optimizer=optimizer,
+    )
+    genot(data_loader, data_loader)
+
+    source_lin, source_quad, target_lin, target_quad, condition = next(
+        genot_data_loader_linear
+    )
+
+    result_eta = genot.evaluate_eta(source_lin, condition=condition)
+    assert isinstance(result_eta, jax.Array)
+    assert jnp.sum(jnp.isnan(result_eta)) == 0
+
+    result_xi = genot.evaluate_xi(target_lin, condition=condition)
+    assert isinstance(result_xi, jax.Array)
+    assert jnp.sum(jnp.isnan(result_xi)) == 0

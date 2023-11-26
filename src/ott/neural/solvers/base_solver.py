@@ -44,6 +44,7 @@ class BaseNeuralSolver(ABC):
 
   @abstractmethod
   def setup(self, *args: Any, **kwargs: Any) -> None:
+    """Setup the model."""
     pass
 
   @abstractmethod
@@ -74,6 +75,7 @@ class BaseNeuralSolver(ABC):
 
 
 class ResampleMixin:
+  """Mixin class for mini-batch OT in neural optimal transport solvers."""
 
   def __init__(*args, **kwargs):
     pass
@@ -239,6 +241,7 @@ class ResampleMixin:
 
 
 class UnbalancednessMixin:
+  """Mixin class to incorporate unbalancedness into neural OT models."""
 
   def __init__(
       self,
@@ -421,3 +424,39 @@ class UnbalancednessMixin:
       return new_state_eta, new_state_xi, eta_predictions, xi_predictions, loss_a, loss_b
 
     return step_fn
+
+  def evaluate_eta(
+      self, source: jax.Array, condition: Optional[jax.Array]
+  ) -> jax.Array:
+    """Evaluate the left learnt rescaling factor.
+
+    Args:
+      source: Samples from the source distribution to evaluate rescaling function on.
+      condition: Condition belonging to the samples in the source distribution.
+
+    Returns:
+      Learnt left rescaling factors.
+    """
+    if self.state_eta is None:
+      raise ValueError("The left rescaling factor was not parameterized.")
+    return self.state_xi.apply_fn({"params": self.state_eta.params},
+                                  x=source,
+                                  condition=condition)
+
+  def evaluate_xi(
+      self, target: jax.Array, condition: Optional[jax.Array]
+  ) -> jax.Array:
+    """Evaluate the right learnt rescaling factor.
+
+    Args:
+      target: Samples from the target distribution to evaluate the rescaling function on.
+      condition: Condition belonging to the samples in the target distribution.
+
+    Returns:
+      Learnt right rescaling factors.
+    """
+    if self.state_xi is None:
+      raise ValueError("The right rescaling factor was not parameterized.")
+    return self.state_xi.apply_fn({"params": self.state_xi.params},
+                                  x=target,
+                                  condition=condition)

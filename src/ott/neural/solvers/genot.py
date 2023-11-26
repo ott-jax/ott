@@ -365,7 +365,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       condition: Condition of the input data.
       rng: random seed for sampling from the latent distribution.
       forward: If `True` integrates forward, otherwise backwards.
-      diffeqsovle_kwargs: Keyword arguments for the ODE solver.
+      diffeqsolve_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
       The push-forward or pull-back distribution defined by the learnt transport plan.
