@@ -1,15 +1,28 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 import types
 from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-    Union,
+  Any,
+  Callable,
+  Dict,
+  Literal,
+  Mapping,
+  Optional,
+  Tuple,
+  Type,
+  Union,
 )
 
 import diffrax
@@ -24,11 +37,16 @@ from orbax import checkpoint
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
+  BaseNeuralSolver,
+  ResampleMixin,
+  UnbalancednessMixin,
 )
-from ott.neural.solvers.flows import BaseFlow, ConstantNoiseFlow
+from ott.neural.solvers.flows import (
+  BaseFlow,
+  BaseTimeSampler,
+  ConstantNoiseFlow,
+  UniformSampler,
+)
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
@@ -53,6 +71,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       flow: Type[BaseFlow] = ConstantNoiseFlow(0.0),
+      time_sampler: Type[BaseTimeSampler] = UniformSampler(),
       k_noise_per_x: int = 1,
       t_offset: float = 1e-5,
       epsilon: float = 1e-2,
@@ -166,6 +185,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.neural_vector_field = neural_vector_field
     self.state_neural_vector_field: Optional[TrainState] = None
     self.flow = flow
+    self.time_sampler = time_sampler
     self.optimizer = optimizer
     self.checkpoint_manager = checkpoint_manager
     self.latent_noise_fn = jax.tree_util.Partial(
@@ -249,7 +269,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           batch["source_q"]
       )
       n_samples = batch_size * self.k_noise_per_x
-      batch["time"] = self.sample_t(rng_time, n_samples)
+      batch["time"] = self.time_sampler(rng_time, n_samples)
       batch["noise"] = self.sample_noise(rng_noise, n_samples)
       batch["latent"] = self.latent_noise_fn(
           rng_noise,
@@ -445,11 +465,6 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def training_logs(self) -> Dict[str, Any]:
     raise NotImplementedError
-
-  def sample_t( #TODO: make more general
-      self, key: random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:  #TODO: make more general
-    return random.uniform(key, [batch_size, 1])
 
   def sample_noise( #TODO: make more general
       self, key: random.PRNGKey, batch_size: int

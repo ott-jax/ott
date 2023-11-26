@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Iterator
 
 import jax
@@ -6,6 +19,7 @@ import optax
 import pytest
 
 from ott.neural.models.models import NeuralVectorField
+from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.solvers.genot import GENOT
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
@@ -31,6 +45,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -40,6 +55,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         k_noise_per_x=k_noise_per_x,
     )
@@ -70,6 +86,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    time_sampler = OffsetUniformSampler(1e-3)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -80,6 +97,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         k_noise_per_x=k_noise_per_x,
     )
@@ -107,6 +125,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -117,6 +136,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         fused_penalty=0.5,
         k_noise_per_x=k_noise_per_x,
@@ -146,6 +166,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -155,6 +176,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         k_noise_per_x=k_noise_per_x,
     )
@@ -188,6 +210,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -198,6 +221,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         k_noise_per_x=k_noise_per_x,
     )
@@ -225,6 +249,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -235,6 +260,7 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
+        time_sampler=time_sampler,
         optimizer=optimizer,
         fused_penalty=0.5,
         k_noise_per_x=k_noise_per_x,

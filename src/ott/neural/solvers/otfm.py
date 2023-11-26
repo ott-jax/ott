@@ -1,3 +1,16 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 import types
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
@@ -19,11 +32,12 @@ from ott.neural.solvers.base_solver import (
 )
 from ott.neural.solvers.flows import (
     BaseFlow,
+    BaseTimeSampler,
 )
 from ott.solvers import was_solver
 
 
-class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
+class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
@@ -34,6 +48,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       valid_freq: int,
       ot_solver: Optional[Type[was_solver.WassersteinSolver]],
       flow: Type[BaseFlow],
+      time_sampler: Type[BaseTimeSampler],
       optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
@@ -46,7 +61,6 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
-      **kwargs: Any,
   ) -> None:
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
@@ -68,6 +82,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.input_dim = input_dim
     self.ot_solver = ot_solver
     self.flow = flow
+    self.time_sampler = time_sampler
     self.optimizer = optimizer
     self.epsilon = epsilon
     self.cost_fn = cost_fn
@@ -121,7 +136,7 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       batch_size = len(batch["source"])
       key_noise, key_t, key_model = random.split(key, 3)
       keys_model = random.split(key_model, batch_size)
-      t = self.sample_t(key_t, batch_size)
+      t = self.time_sampler(key_t, batch_size)
       noise = self.sample_noise(key_noise, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
       loss, grads = grad_fn(
@@ -207,16 +222,11 @@ class FlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def save(self, path: str) -> None:
     raise NotImplementedError
 
-  def load(self, path: str) -> "FlowMatching":
+  def load(self, path: str) -> "OTFlowMatching":
     raise NotImplementedError
 
   def training_logs(self) -> Dict[str, Any]:
     raise NotImplementedError
-
-  def sample_t( #TODO: make more general
-      self, key: random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:  #TODO: make more general
-    return random.uniform(key, [batch_size, 1])
 
   def sample_noise( #TODO: make more general
       self, key: random.PRNGKey, batch_size: int
