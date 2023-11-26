@@ -40,7 +40,7 @@ __all__ = ["OTFlowMatching"]
 
 
 class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
-  """Flow matching as introduced in :cite:`TODO, with extension to OT-FM ().
+  """Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM (:cite`tong:23`, :cite:`pooladian:23`).
 
   Args:
     neural_vector_field: Neural vector field parameterized by a neural network.
@@ -48,7 +48,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     cond_dim: Dimension of the conditioning variable.
     iterations: Number of iterations.
     valid_freq: Frequency of validation.
-    ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`TODO`. If `None`, no matching will be performed as proposed in :cite:`TODO`.
+    ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`. If `None`, no matching will be performed as proposed in :cite:`lipman:22`.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for `neural_vector_field`.

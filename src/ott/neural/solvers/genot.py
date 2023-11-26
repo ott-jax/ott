@@ -58,7 +58,7 @@ __all__ = ["GENOT"]
 
 
 class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
-  """The GENOT training class as introduced in :cite:`TODO`.
+  """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
 
   Args:
     neural_vector_field: Neural vector field parameterized by a neural network.
@@ -83,8 +83,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+    mlp_eta: Neural network to learn the left rescaling function. If `None`, the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function. If `None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
    callback_fn: Callback function.
     rng: Random number generator.
