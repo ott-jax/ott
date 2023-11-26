@@ -249,19 +249,25 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
               (batch["target"], batch["target_q"]),
               source_is_balanced=(self.tau_a == 1.0)
           )
+      source = jnp.concatenate([
+          batch[el] for el in ["source", "source_q"] if batch[el] is not None
+      ],
+                               axis=1)
+      target = jnp.concatenate([
+          batch[el] for el in ["target", "target_q"] if batch[el] is not None
+      ],
+                               axis=1)
+
       rng_latent = jax.random.split(rng_noise, batch_size * self.k_noise_per_x)
 
       if self.solver_latent_to_data is not None:
-        target = jnp.concatenate([
-            batch[el] for el in ["target", "target_q"] if batch[el] is not None
-        ],
-                                 axis=1)
         tmats_latent_data = jnp.array(
             jax.vmap(self.match_latent_to_data_fn, 0,
                      0)(key=rng_latent, x=batch["latent"], y=target)
         )
 
       if self.k_noise_per_x > 1:
+        raise NotImplementedError
         rng_latent_data_match = jax.random.split(
             rng_latent_data_match, batch_size
         )
@@ -290,7 +296,13 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
       if self.learn_rescaling:
         self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
-            batch, tmat.sum(axis=1), tmat.sum(axis=0)
+            source=source,
+            target=target,
+            condition=batch["condition"],
+            a=tmat.sum(axis=1),
+            b=tmat.sum(axis=0),
+            state_eta=self.state_eta,
+            state_xi=self.state_xi,
         )
       if iteration % self.valid_freq == 0:
         self._valid_step(valid_loader, iteration)

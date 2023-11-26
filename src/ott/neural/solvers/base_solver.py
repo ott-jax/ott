@@ -89,9 +89,7 @@ class ResampleMixin:
   ) -> Tuple[jax.Array, ...]:
     """Resample a batch according to coupling `tmat`."""
     tmat_flattened = tmat.flatten()
-    indices = random.choice(
-        key, len(tmat_flattened), shape=[len(tmat_flattened)]
-    )
+    indices = random.choice(key, len(tmat_flattened), shape=[tmat.shape[0]])
     indices_source = indices // tmat.shape[1]
     indices_target = indices % tmat.shape[1]
     return tuple(
@@ -337,7 +335,7 @@ class UnbalancednessMixin:
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
       self.state_eta = self.mlp_eta.create_train_state(
-          rng_eta, self.opt_eta, source_dim + cond_dim
+          rng_eta, self.opt_eta, source_dim
       )
     if self.mlp_xi is not None:
       self.opt_xi = (
@@ -345,7 +343,7 @@ class UnbalancednessMixin:
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
       self.state_xi = self.mlp_xi.create_train_state(
-          rng_xi, self.opt_xi, target_dim + cond_dim
+          rng_xi, self.opt_xi, target_dim
       )
 
   def _get_rescaling_step_fn(self) -> Callable:  # type:ignore[type-arg]
@@ -392,18 +390,13 @@ class UnbalancednessMixin:
         *,
         is_training: bool = True,
     ):
-      if condition is None:
-        input_source = source
-        input_target = target
-      else:
-        input_source = jnp.concatenate([source, condition], axis=-1)
-        input_target = jnp.concatenate([target, condition], axis=-1)
       if state_eta is not None:
         grad_a_fn = jax.value_and_grad(loss_a_fn, argnums=0, has_aux=True)
+        print(source.shape, (a * len(a)).shape)
         (loss_a, eta_predictions), grads_eta = grad_a_fn(
             state_eta.params,
             state_eta.apply_fn,
-            input_source,
+            source,
             condition,
             a * len(a),
             jnp.sum(b),
@@ -419,7 +412,7 @@ class UnbalancednessMixin:
         (loss_b, xi_predictions), grads_xi = grad_b_fn(
             state_xi.params,
             state_xi.apply_fn,
-            input_target,
+            target,
             condition,
             b * len(b),
             jnp.sum(a),

@@ -150,7 +150,7 @@ class TestOTFlowMatching:
     assert isinstance(result_backward, jax.Array)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
-  @pytest.mark.parametrize("conditional", [True, False])
+  @pytest.mark.parametrize("conditional", [False, True])
   def test_flow_matching_learn_rescaling(
       self, conditional: bool, data_loader_gaussian: Iterator,
       data_loader_gaussian_conditional: Iterator
@@ -190,7 +190,6 @@ class TestOTFlowMatching:
     )
     fm(data_loader, data_loader)
 
-    source, target, condition = next(data_loader_gaussian)
     result_eta = fm.evaluate_eta(source, condition=condition)
     assert isinstance(result_eta, jax.Array)
     assert jnp.sum(jnp.isnan(result_eta)) == 0

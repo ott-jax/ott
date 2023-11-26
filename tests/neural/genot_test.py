@@ -295,6 +295,8 @@ class TestGENOT:
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
+    tau_a = 0.9
+    tau_b = 0.2
     mlp_eta = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
     mlp_xi = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
     genot = GENOT(

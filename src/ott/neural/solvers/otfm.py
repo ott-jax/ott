@@ -206,7 +206,13 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
       if self.learn_rescaling:
         self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
-            source=batch["source"], target=batch["target"], condition=batch["condition"], a=tmat.sum(axis=1), b=tmat.sum(axis=0), state_eta=self.state_eta, state_xi=self.state_xi, 
+            source=batch["source"],
+            target=batch["target"],
+            condition=batch["condition"],
+            a=tmat.sum(axis=1),
+            b=tmat.sum(axis=0),
+            state_eta=self.state_eta,
+            state_xi=self.state_xi,
         )
       if iter % self.valid_freq == 0:
         self._valid_step(valid_loader, iter)
