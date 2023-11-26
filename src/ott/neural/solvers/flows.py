@@ -18,77 +18,178 @@ import jax.numpy as jnp
 
 
 class BaseFlow(abc.ABC):
+  """Base class for all flows.
+
+  Args:
+    sigma: Constant noise used for computing time-dependent noise schedule.
+  """
 
   def __init__(self, sigma: float) -> None:
     self.sigma = sigma
 
   @abc.abstractmethod
   def compute_mu_t(self, t: jax.Array, x_0: jax.Array, x_1: jax.Array):
+    """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+      x_0: Sample from the source distribution.
+      x_1: Sample from the target distribution.
+    """
     pass
 
   @abc.abstractmethod
   def compute_sigma_t(self, t: jax.Array):
+    """Compute the standard deviation of the probablity path at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+    """
     pass
 
   @abc.abstractmethod
   def compute_ut(
       self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
   ) -> jax.Array:
+    """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+      x_0: Sample from the source distribution.
+      x_1: Sample from the target distribution.
+    """
     pass
 
   def compute_xt(
       self, noise: jax.Array, t: jax.Array, x_0: jax.Array, x_1: jax.Array
   ) -> jax.Array:
+    """Sample from the probability path between :math:`x_0` and :math:`x_1` at time :math:`t`.
+
+    Args:
+      noise: Noise sampled from a standard normal distribution.
+      t: Time :math:`t`.
+      x_0: Sample from the source distribution.
+      x_1: Sample from the target distribution.
+
+    Returns:
+      Samples from the probability path between :math:`x_0` and :math:`x_1` at time :math:`t`.
+    """
     mu_t = self.compute_mu_t(t, x_0, x_1)
     sigma_t = self.compute_sigma_t(t)
     return mu_t + sigma_t * noise
 
 
-class StraightFlow(BaseFlow):
+class StraightFlow(BaseFlow, abc.ABC):
+  """Base class for flows with straight paths."""
 
   def compute_mu_t(
       self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
   ) -> jax.Array:
+    """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+      x_0: Sample from the source distribution.
+      x_1: Sample from the target distribution.
+    """
     return t * x_0 + (1 - t) * x_1
 
   def compute_ut(
       self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
   ) -> jax.Array:
+    """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+      x_0: Sample from the source distribution.
+      x_1: Sample from the target distribution.
+
+    Returns:
+      Conditional vector field evaluated at time :math:`t`.
+    """
     return x_1 - x_0
 
 
 class ConstantNoiseFlow(StraightFlow):
+  r"""Flow with straight paths and constant flow noise :math:`\sigma`."""
 
   def compute_sigma_t(self, t: jax.Array):
+    r"""Compute noise of the flow at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+
+    Returns:
+      Constant, time-independent standard deviation :math:`\sigma`.
+    """
     return self.sigma
 
 
 class BrownianNoiseFlow(StraightFlow):
+  r"""Sampler for sampling noise implicitly defined by a Schroedinger Bridge problem with parameter `\sigma` such that :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`."""
 
   def compute_sigma_t(self, t: jax.Array):
+    """Compute the standard deviation of the probablity path at time :math:`t`.
+
+    Args:
+      t: Time :math:`t`.
+
+    Returns:
+      Standard deviation of the probablity path at time :math:`t`.
+    """
     return jnp.sqrt(self.sigma * t * (1 - t))
 
 
 class BaseTimeSampler(abc.ABC):
+  """Base class for time samplers."""
 
   @abc.abstractmethod
   def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+    """Generate `num_samples` samples of the time `math`:t:.
+
+    Args:
+      rng: Random number generator.
+      num_samples: Number of samples to generate.
+
+    """
     pass
 
 
 class UniformSampler(BaseTimeSampler):
+  """Sample :math:`t` from a uniform distribution :math:`[low, high]`.
+
+  Args:
+    low: Lower bound of the uniform distribution.
+    high: Upper bound of the uniform distribution.
+  """
 
   def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
     self.low = low
     self.high = high
 
   def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+    """Generate `num_samples` samples of the time `math`:t:.
+
+    Args:
+      rng: Random number generator.
+      num_samples: Number of samples to generate.
+
+    Returns:
+      `num_samples` samples of the time :math:`t``.
+    """
     return jax.random.uniform(
         rng, (num_samples, 1), minval=self.low, maxval=self.high
     )
 
 
 class OffsetUniformSampler(BaseTimeSampler):
+  """Sample :math:`t` from a uniform distribution :math:`[low, high]` with offset `offset`.
+
+  Args:
+    offset: Offset of the uniform distribution.
+    low: Lower bound of the uniform distribution.
+    high: Upper bound of the uniform distribution.
+  """
 
   def __init__(
       self, offset: float, low: float = 0.0, high: float = 1.0
@@ -98,6 +199,15 @@ class OffsetUniformSampler(BaseTimeSampler):
     self.high = high
 
   def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+    """Generate `num_samples` samples of the time `math`:t:.
+
+    Args:
+      rng: Random number generator.
+      num_samples: Number of samples to generate.
+
+    Returns:
+    An array with `num_samples` samples of the time `math`:t:.
+    """
     return (
         jax.random.uniform(rng, (1, 1), minval=self.low, maxval=self.high) +
         jnp.arange(num_samples)[:, None] / num_samples

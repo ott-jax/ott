@@ -20,11 +20,11 @@ import pytest
 
 from ott.neural.models.models import NeuralVectorField
 from ott.neural.solvers.flows import (
-  BaseFlow,
-  BrownianNoiseFlow,
-  ConstantNoiseFlow,
-  OffsetUniformSampler,
-  UniformSampler,
+    BaseFlow,
+    BrownianNoiseFlow,
+    ConstantNoiseFlow,
+    OffsetUniformSampler,
+    UniformSampler,
 )
 from ott.neural.solvers.otfm import OTFlowMatching
 from ott.solvers.linear import sinkhorn
