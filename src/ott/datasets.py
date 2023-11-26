@@ -32,8 +32,8 @@ class Dataset(NamedTuple):
     source_iter: loader for the source measure
     target_iter: loader for the target measure
   """
-  source_iter: Iterator[jnp.ndarray]
-  target_iter: Iterator[jnp.ndarray]
+  source_iter: Iterator[jax.Array]
+  target_iter: Iterator[jax.Array]
 
 
 @dataclasses.dataclass

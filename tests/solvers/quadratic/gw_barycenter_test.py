@@ -42,9 +42,9 @@ class TestGWBarycenter:
 
   @staticmethod
   def pad_cost_matrices(
-      costs: Sequence[jnp.ndarray],
+      costs: Sequence[jax.Array],
       shape: Optional[Tuple[int, int]] = None
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jax.Array, jax.Array]:
     if shape is None:
       shape = jnp.asarray([arr.shape for arr in costs]).max()
       shape = (shape, shape)
@@ -133,7 +133,7 @@ class TestGWBarycenter:
   ):
 
     def barycenter(
-        y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
+        y: jnp.ndim, y_fused: jax.Array, num_per_segment: Tuple[int, ...]
     ) -> gwb_solver.GWBarycenterState:
       prob = gwb.GWBarycenterProblem(
           y=y,

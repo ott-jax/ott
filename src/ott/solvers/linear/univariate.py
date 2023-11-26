@@ -53,7 +53,7 @@ class UnivariateSolver:
 
   def __init__(
       self,
-      sort_fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      sort_fn: Optional[Callable[[jax.Array], jax.Array]] = None,
       cost_fn: Optional[costs.CostFn] = None,
       method: Literal["subsample", "quantile", "wasserstein",
                       "equal"] = "subsample",
@@ -66,10 +66,10 @@ class UnivariateSolver:
 
   def __call__(
       self,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None
+      x: jax.Array,
+      y: jax.Array,
+      a: Optional[jax.Array] = None,
+      b: Optional[jax.Array] = None
   ) -> float:
     """Computes the Univariate OT Distance between `x` and `y`.
 
@@ -113,8 +113,8 @@ class UnivariateSolver:
     return self.cost_fn.pairwise(xx, yy) * (n / xx.shape[0])
 
   def _cdf_distance(
-      self, x: jnp.ndarray, y: jnp.ndarray, a: Optional[jnp.ndarray],
-      b: Optional[jnp.ndarray]
+      self, x: jax.Array, y: jax.Array, a: Optional[jax.Array],
+      b: Optional[jax.Array]
   ):
     # Implementation based on `scipy` implementation for
     # :func:<scipy.stats.wasserstein_distance>

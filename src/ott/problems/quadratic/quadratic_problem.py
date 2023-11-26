@@ -91,8 +91,8 @@ class QuadraticProblem:
       geom_xy: Optional[geometry.Geometry] = None,
       fused_penalty: float = 1.0,
       scale_cost: Optional[Union[bool, float, str]] = False,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      a: Optional[jax.Array] = None,
+      b: Optional[jax.Array] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
       tau_a: float = 1.0,
       tau_b: float = 1.0,
@@ -125,8 +125,8 @@ class QuadraticProblem:
 
   def marginal_dependent_cost(
       self,
-      marginal_1: jnp.ndarray,
-      marginal_2: jnp.ndarray,
+      marginal_1: jax.Array,
+      marginal_2: jax.Array,
   ) -> low_rank.LRCGeometry:
     r"""Initialize cost term that depends on the marginals of the transport.
 
@@ -169,9 +169,9 @@ class QuadraticProblem:
 
   def cost_unbalanced_correction(
       self,
-      transport_matrix: jnp.ndarray,
-      marginal_1: jnp.ndarray,
-      marginal_2: jnp.ndarray,
+      transport_matrix: jax.Array,
+      marginal_1: jax.Array,
+      marginal_2: jax.Array,
       epsilon: epsilon_scheduler.Epsilon,
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
@@ -193,10 +193,10 @@ class QuadraticProblem:
         :math:`+ epsilon * \sum(KL(P|ab'))`
 
     Args:
-      transport_matrix: jnp.ndarray<float>[num_a, num_b], transport matrix.
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
+      transport_matrix: jax.Array<float>[num_a, num_b], transport matrix.
+      marginal_1: jax.Array<float>[num_a,], marginal of the transport matrix
         for samples from :attr:`geom_xx`.
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
+      marginal_2: jax.Array<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
       epsilon: entropy regularizer.
 
@@ -353,7 +353,7 @@ class QuadraticProblem:
     )
 
   @property
-  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+  def _fused_cost_matrix(self) -> Union[float, jax.Array]:
     if not self.is_fused:
       return 0.0
     geom_xy = self.geom_xy
@@ -442,13 +442,13 @@ class QuadraticProblem:
     return self._geom_xy
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jax.Array:
     """First marginal."""
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
@@ -510,7 +510,7 @@ def update_epsilon_unbalanced(  # noqa: D103
 
 
 def apply_cost(  # noqa: D103
-    geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
+    geom: geometry.Geometry, arr: jax.Array, *, axis: int,
     fn: quadratic_costs.Loss
-) -> jnp.ndarray:
+) -> jax.Array:
   return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)

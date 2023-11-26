@@ -30,14 +30,14 @@ __all__ = [
     "quantize", "topk_mask", "multivariate_cdf_quantile_maps"
 ]
 
-Func_t = Callable[[jnp.ndarray], jnp.ndarray]
+Func_t = Callable[[jax.Array], jax.Array]
 
 
 def transport_for_sort(
-    inputs: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None,
-    target_weights: Optional[jnp.ndarray] = None,
-    squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+    inputs: jax.Array,
+    weights: Optional[jax.Array] = None,
+    target_weights: Optional[jax.Array] = None,
+    squashing_fun: Optional[Callable[[jax.Array], jax.Array]] = None,
     epsilon: float = 1e-2,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
@@ -83,7 +83,7 @@ def transport_for_sort(
   return solver(prob)
 
 
-def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
+def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jax.Array:
   """Apply a differentiable operator on a given axis of the input.
 
   Args:
@@ -120,8 +120,8 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
 
 
 def _sort(
-    inputs: jnp.ndarray, topk: int, num_targets: Optional[int], **kwargs: Any
-) -> jnp.ndarray:
+    inputs: jax.Array, topk: int, num_targets: Optional[int], **kwargs: Any
+) -> jax.Array:
   """Apply the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -145,12 +145,12 @@ def _sort(
 
 
 def sort(
-    inputs: jnp.ndarray,
+    inputs: jax.Array,
     axis: int = -1,
     topk: int = -1,
     num_targets: Optional[int] = None,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Apply the soft sort operator on a given axis of the input.
 
   For instance:
@@ -203,8 +203,8 @@ def sort(
 
 
 def _ranks(
-    inputs: jnp.ndarray, num_targets, target_weights, **kwargs: Any
-) -> jnp.ndarray:
+    inputs: jax.Array, num_targets, target_weights, **kwargs: Any
+) -> jax.Array:
   """Apply the soft ranks operator on a one dimensional array."""
   num_points = inputs.shape[0]
   if target_weights is None:
@@ -220,12 +220,12 @@ def _ranks(
 
 
 def ranks(
-    inputs: jnp.ndarray,
+    inputs: jax.Array,
     axis: int = -1,
     num_targets: Optional[int] = None,
-    target_weights: Optional[jnp.ndarray] = None,
+    target_weights: Optional[jax.Array] = None,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Apply the soft rank operator on input tensor.
 
   For instance:
@@ -278,11 +278,11 @@ def ranks(
 
 
 def topk_mask(
-    inputs: jnp.ndarray,
+    inputs: jax.Array,
     axis: int = -1,
     k: int = 1,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Soft :math:`\text{top-}k` selection mask.
 
   For instance:
@@ -337,12 +337,12 @@ def topk_mask(
 
 
 def quantile(
-    inputs: jnp.ndarray,
-    q: Optional[Union[float, jnp.ndarray]],
+    inputs: jax.Array,
+    q: Optional[Union[float, jax.Array]],
     axis: Union[int, Tuple[int, ...]] = -1,
-    weight: Optional[Union[float, jnp.ndarray]] = None,
+    weight: Optional[Union[float, jax.Array]] = None,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Apply the soft quantiles operator on the input tensor.
 
   For instance:
@@ -395,8 +395,8 @@ def quantile(
   """
 
   def _quantile(
-      inputs: jnp.ndarray, q: float, weight: float, **kwargs
-  ) -> jnp.ndarray:
+      inputs: jax.Array, q: float, weight: float, **kwargs
+  ) -> jax.Array:
     num_points = inputs.shape[0]
     q = jnp.array([0.2, 0.5, 0.8]) if q is None else jnp.atleast_1d(q)
     num_quantiles = q.shape[0]
@@ -456,15 +456,15 @@ def quantile(
 
 
 def multivariate_cdf_quantile_maps(
-    inputs: jnp.ndarray,
+    inputs: jax.Array,
     target_sampler: Optional[Callable[[jax.Array, Tuple[int, int]],
-                                      jnp.ndarray]] = None,
+                                      jax.Array]] = None,
     rng: Optional[jax.Array] = None,
     num_target_samples: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
-    input_weights: Optional[jnp.ndarray] = None,
-    target_weights: Optional[jnp.ndarray] = None,
+    input_weights: Optional[jax.Array] = None,
+    target_weights: Optional[jax.Array] = None,
     **kwargs: Any
 ) -> Tuple[Func_t, Func_t]:
   r"""Returns multivariate CDF and quantile maps, given input samples.
@@ -534,8 +534,8 @@ def multivariate_cdf_quantile_maps(
 
 
 def _quantile_normalization(
-    inputs: jnp.ndarray, targets: jnp.ndarray, weights: float, **kwargs: Any
-) -> jnp.ndarray:
+    inputs: jax.Array, targets: jax.Array, weights: float, **kwargs: Any
+) -> jax.Array:
   """Apply soft quantile normalization on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -544,12 +544,12 @@ def _quantile_normalization(
 
 
 def quantile_normalization(
-    inputs: jnp.ndarray,
-    targets: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None,
+    inputs: jax.Array,
+    targets: jax.Array,
+    weights: Optional[jax.Array] = None,
     axis: int = -1,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Re-normalize inputs so that its quantiles match those of targets/weights.
 
   Quantile normalization rearranges the values in inputs to values that match
@@ -600,11 +600,11 @@ def quantile_normalization(
 
 
 def sort_with(
-    inputs: jnp.ndarray,
-    criterion: jnp.ndarray,
+    inputs: jax.Array,
+    criterion: jax.Array,
     topk: int = -1,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Sort a multidimensional array according to a real valued criterion.
 
   Given ``batch`` vectors of dimension `dim`, to which, for each, a real value
@@ -655,7 +655,7 @@ def sort_with(
   return sort_fn(inputs)
 
 
-def _quantize(inputs: jnp.ndarray, num_q: int, **kwargs: Any) -> jnp.ndarray:
+def _quantize(inputs: jax.Array, num_q: int, **kwargs: Any) -> jax.Array:
   """Apply the soft quantization operator on a one dimensional array."""
   num_points = inputs.shape[0]
   a = jnp.ones((num_points,)) / num_points
@@ -665,11 +665,11 @@ def _quantize(inputs: jnp.ndarray, num_q: int, **kwargs: Any) -> jnp.ndarray:
 
 
 def quantize(
-    inputs: jnp.ndarray,
+    inputs: jax.Array,
     num_levels: int = 10,
     axis: int = -1,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Soft quantizes an input according using ``num_levels`` values along axis.
 
   The quantization operator consists in concentrating several values around

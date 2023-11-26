@@ -35,7 +35,7 @@ def random_graph(
     *,
     return_laplacian: bool = False,
     directed: bool = False,
-) -> jnp.ndarray:
+) -> jax.Array:
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
     assert nx.is_connected(G), "Generated graph is not connected."
@@ -51,7 +51,7 @@ def random_graph(
   return jnp.asarray(G.toarray())
 
 
-def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
+def gt_geometry(G: jax.Array, *, epsilon: float = 1e-2) -> geometry.Geometry:
   if not isinstance(G, nx.Graph):
     G = nx.from_numpy_array(np.asarray(G))
 
@@ -160,7 +160,7 @@ class TestGraph:
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
-    def create_graph(G: jnp.ndarray) -> graph.Graph:
+    def create_graph(G: jax.Array) -> graph.Graph:
       return graph.Graph.from_graph(G, directed=True, normalize=normalize)
 
     G = random_graph(16, p=0.25, directed=True)
@@ -181,7 +181,7 @@ class TestGraph:
   @pytest.mark.parametrize("normalize", [False, True])
   def test_normalize_laplacian(self, directed: bool, normalize: bool):
 
-    def laplacian(G: jnp.ndarray) -> jnp.ndarray:
+    def laplacian(G: jax.Array) -> jax.Array:
       if directed:
         G = G + G.T
 
@@ -250,8 +250,8 @@ class TestGraph:
   ):
 
     def callback(
-        data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
-        shape: Tuple[int, int]
+        data: jax.Array, rows: jax.Array, cols: jax.Array, shape: Tuple[int,
+                                                                        int]
     ) -> float:
       G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 

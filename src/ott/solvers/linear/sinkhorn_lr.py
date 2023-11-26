@@ -43,12 +43,12 @@ ProgressCallbackFn_t = Callable[
 
 class LRSinkhornState(NamedTuple):
   """State of the Low Rank Sinkhorn algorithm."""
-  q: jnp.ndarray
-  r: jnp.ndarray
-  g: jnp.ndarray
+  q: jax.Array
+  r: jax.Array
+  g: jax.Array
   gamma: float
-  costs: jnp.ndarray
-  errors: jnp.ndarray
+  costs: jax.Array
+  errors: jax.Array
   crossed_threshold: bool
 
   def compute_error(  # noqa: D102
@@ -79,7 +79,7 @@ class LRSinkhornState(NamedTuple):
 
   def solution_error(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     return solution_error(self.q, self.r, ot_prob, norm_error)
 
   def set(self, **kwargs: Any) -> "LRSinkhornState":
@@ -88,9 +88,9 @@ class LRSinkhornState(NamedTuple):
 
 
 def compute_reg_ot_cost(
-    q: jnp.ndarray,
-    r: jnp.ndarray,
-    g: jnp.ndarray,
+    q: jax.Array,
+    r: jax.Array,
+    g: jax.Array,
     ot_prob: linear_problem.LinearProblem,
     epsilon: float,
     use_danskin: bool = False
@@ -110,7 +110,7 @@ def compute_reg_ot_cost(
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
 
-  def ent(x: jnp.ndarray) -> float:
+  def ent(x: jax.Array) -> float:
     # generalized entropy
     return jnp.sum(jsp.special.entr(x) + x)
 
@@ -131,9 +131,9 @@ def compute_reg_ot_cost(
 
 
 def solution_error(
-    q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
+    q: jax.Array, r: jax.Array, ot_prob: linear_problem.LinearProblem,
     norm_error: Tuple[int, ...]
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute solution error.
 
   Since only balanced case is available for LR, this is marginal deviation.
@@ -166,13 +166,13 @@ def solution_error(
 class LRSinkhornOutput(NamedTuple):
   """Transport interface for a low-rank Sinkhorn solution."""
 
-  q: jnp.ndarray
-  r: jnp.ndarray
-  g: jnp.ndarray
-  costs: jnp.ndarray
+  q: jax.Array
+  r: jax.Array
+  g: jax.Array
+  costs: jax.Array
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
   # in future, enforce via class hierarchy
-  errors: jnp.ndarray
+  errors: jax.Array
   ot_prob: linear_problem.LinearProblem
   epsilon: float
   inner_iterations: int
@@ -211,11 +211,11 @@ class LRSinkhornOutput(NamedTuple):
     return self.ot_prob.geom
 
   @property
-  def a(self) -> jnp.ndarray:  # noqa: D102
+  def a(self) -> jax.Array:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jnp.ndarray:  # noqa: D102
+  def b(self) -> jax.Array:  # noqa: D102
     return self.ot_prob.b
 
   @property
@@ -229,17 +229,17 @@ class LRSinkhornOutput(NamedTuple):
     )
 
   @property
-  def matrix(self) -> jnp.ndarray:
+  def matrix(self) -> jax.Array:
     """Transport matrix if it can be instantiated."""
     return (self.q * self._inv_g) @ self.r.T
 
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply(self, inputs: jax.Array, axis: int = 0) -> jax.Array:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
 
-  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
+  def marginal(self, axis: int) -> jax.Array:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
 
@@ -262,7 +262,7 @@ class LRSinkhornOutput(NamedTuple):
     return self.marginal(0).sum()
 
   @property
-  def _inv_g(self) -> jnp.ndarray:
+  def _inv_g(self) -> jax.Array:
     return 1. / self.g
 
 
@@ -341,8 +341,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                  Optional[jnp.ndarray]] = (None, None, None),
+      init: Tuple[Optional[jax.Array], Optional[jax.Array],
+                  Optional[jax.Array]] = (None, None, None),
       rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> LRSinkhornOutput:
@@ -371,7 +371,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self,
       ot_prob: linear_problem.LinearProblem,
       state: LRSinkhornState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
+  ) -> Tuple[jax.Array, jax.Array, jax.Array, float]:
     log_q, log_r, log_g = (
         mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
     )
@@ -407,9 +407,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   # TODO(michalk8): move to `lr_utils` when refactoring this
   def dykstra_update_lse(
       self,
-      c_q: jnp.ndarray,
-      c_r: jnp.ndarray,
-      h: jnp.ndarray,
+      c_q: jax.Array,
+      c_r: jax.Array,
+      h: jax.Array,
       gamma: float,
       ot_prob: linear_problem.LinearProblem,
       min_entry_value: float = 1e-6,
@@ -417,7 +417,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
@@ -435,24 +435,24 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     constants = c_q, c_r, loga, logb
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: Tuple[jax.Array, ...],
+        state_inner: Tuple[jax.Array, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
-    ) -> jnp.ndarray:
+        f: jax.Array, g: jax.Array, c: jax.Array, axis: int
+    ) -> jax.Array:
       return jsp.special.logsumexp(
           gamma * (f[:, None] + g[None, :] - c), axis=axis
       )
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: Tuple[jax.Array, ...],
+        state_inner: Tuple[jax.Array, ...], compute_error: bool
+    ) -> Tuple[jax.Array, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
@@ -501,15 +501,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
     def recompute_couplings(
-        f1: jnp.ndarray,
-        g1: jnp.ndarray,
-        c_q: jnp.ndarray,
-        f2: jnp.ndarray,
-        g2: jnp.ndarray,
-        c_r: jnp.ndarray,
-        h: jnp.ndarray,
+        f1: jax.Array,
+        g1: jax.Array,
+        c_q: jax.Array,
+        f2: jax.Array,
+        g2: jax.Array,
+        c_r: jax.Array,
+        h: jax.Array,
         gamma: float,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
       q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
       r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
       g = jnp.exp(gamma * h)
@@ -524,9 +524,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def dykstra_update_kernel(
       self,
-      k_q: jnp.ndarray,
-      k_r: jnp.ndarray,
-      k_g: jnp.ndarray,
+      k_q: jax.Array,
+      k_r: jax.Array,
+      k_g: jax.Array,
       gamma: float,
       ot_prob: linear_problem.LinearProblem,
       min_entry_value: float = 1e-6,
@@ -534,7 +534,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     rank = self.rank
@@ -553,17 +553,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     constants = k_q, k_r, k_g, a, b
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: Tuple[jax.Array, ...],
+        state_inner: Tuple[jax.Array, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: Tuple[jax.Array, ...],
+        state_inner: Tuple[jax.Array, ...], compute_error: bool
+    ) -> Tuple[jax.Array, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
       k_q, k_r, k_g, a, b = constants
@@ -600,14 +600,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
 
     def recompute_couplings(
-        u1: jnp.ndarray,
-        v1: jnp.ndarray,
-        k_q: jnp.ndarray,
-        u2: jnp.ndarray,
-        v2: jnp.ndarray,
-        k_r: jnp.ndarray,
-        g: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        u1: jax.Array,
+        v1: jax.Array,
+        k_q: jax.Array,
+        u2: jax.Array,
+        v2: jax.Array,
+        k_r: jax.Array,
+        g: jax.Array,
+    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
       q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
@@ -736,7 +736,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   def init_state(
       self, ot_prob: linear_problem.LinearProblem,
-      init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+      init: Tuple[jax.Array, jax.Array, jax.Array]
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
     q, r, g = init
@@ -811,8 +811,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 def run(
     ot_prob: linear_problem.LinearProblem,
     solver: LRSinkhorn,
-    init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                Optional[jnp.ndarray]],
+    init: Tuple[Optional[jax.Array], Optional[jax.Array], Optional[jax.Array]],
 ) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)

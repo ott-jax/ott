@@ -45,13 +45,13 @@ class GWBarycenterState(NamedTuple):
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
       of all GW problems at each iteration.
   """
-  cost: Optional[jnp.ndarray] = None
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
-  errors: Optional[jnp.ndarray] = None
-  costs: Optional[jnp.ndarray] = None
-  costs_bary: Optional[jnp.ndarray] = None
-  gw_convergence: Optional[jnp.ndarray] = None
+  cost: Optional[jax.Array] = None
+  x: Optional[jax.Array] = None
+  a: Optional[jax.Array] = None
+  errors: Optional[jax.Array] = None
+  costs: Optional[jax.Array] = None
+  costs_bary: Optional[jax.Array] = None
+  gw_convergence: Optional[jax.Array] = None
 
   def set(self, **kwargs: Any) -> "GWBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -133,9 +133,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       problem: gw_barycenter.GWBarycenterProblem,
       bar_size: int,
-      bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
-                                                  jnp.ndarray]]] = None,
-      a: Optional[jnp.ndarray] = None,
+      bar_init: Optional[Union[jax.Array, Tuple[jax.Array, jax.Array]]] = None,
+      a: Optional[jax.Array] = None,
       rng: Optional[jax.Array] = None,
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
@@ -210,13 +209,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       iteration: int,
       problem: gw_barycenter.GWBarycenterProblem,
       store_errors: bool = True,
-  ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
+  ) -> Tuple[float, bool, jax.Array, Optional[jax.Array]]:
     """Solve the (fused) Gromov-Wasserstein barycenter problem."""
 
     def solve_gw(
-        state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
-        f: Optional[jnp.ndarray]
-    ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
+        state: GWBarycenterState, b: jax.Array, y: jax.Array,
+        f: Optional[jax.Array]
+    ) -> Tuple[float, bool, jax.Array, Optional[jax.Array]]:
       quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
       return (
@@ -282,9 +281,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
 @partial(jax.vmap, in_axes=[None, 0, None, 0, None])
 def init_transports(
-    solver, rng: jax.Array, a: jnp.ndarray, b: jnp.ndarray,
-    epsilon: Optional[float]
-) -> jnp.ndarray:
+    solver, rng: jax.Array, a: jax.Array, b: jax.Array, epsilon: Optional[float]
+) -> jax.Array:
   """Initialize random 2D point cloud and solve the linear OT problem.
 
   Args:

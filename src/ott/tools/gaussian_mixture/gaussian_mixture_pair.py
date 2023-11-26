@@ -128,12 +128,12 @@ class GaussianMixturePair:
         epsilon=self.epsilon
     )
 
-  def get_cost_matrix(self) -> jnp.ndarray:
+  def get_cost_matrix(self) -> jax.Array:
     """Get matrix of :math:`W_2^2` costs between all pairs of components."""
     return self.get_bures_geometry().cost_matrix
 
   def get_sinkhorn(
-      self, cost_matrix: jnp.ndarray, **kwargs: Any
+      self, cost_matrix: jax.Array, **kwargs: Any
   ) -> sinkhorn.SinkhornOutput:
     """Get the output of Sinkhorn's method for a given cost matrix."""
     # We use a Geometry here rather than the PointCloud created in
@@ -152,7 +152,7 @@ class GaussianMixturePair:
   def get_normalized_sinkhorn_coupling(
       self,
       sinkhorn_output: sinkhorn.SinkhornOutput,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Get the normalized coupling matrix for the specified Sinkhorn output.
 
     Args:

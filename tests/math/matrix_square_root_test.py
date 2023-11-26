@@ -37,9 +37,9 @@ def _get_random_spd_matrix(dim: int, rng: jax.Array):
 
 
 def _get_test_fn(
-    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, rng: jax.Array,
+    fn: Callable[[jax.Array], jax.Array], dim: int, rng: jax.Array,
     **kwargs: Any
-) -> Callable[[jnp.ndarray], jnp.ndarray]:
+) -> Callable[[jax.Array], jax.Array]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
   # difference approximations. We'll do so via a test function that
@@ -54,7 +54,7 @@ def _get_test_fn(
   unit = jax.random.normal(key=subrng3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
 
-  def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
+  def _test_fn(x: jax.Array, **kwargs: Any) -> jax.Array:
     # m is the product of 2 symmetric, positive definite matrices
     # so it will be positive definite but not necessarily symmetric
     m = jnp.matmul(m0, m1 + x * dx)
@@ -63,7 +63,7 @@ def _get_test_fn(
   return _test_fn
 
 
-def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
+def _sqrt_plus_inv_sqrt(x: jax.Array) -> jax.Array:
   sqrtm = matrix_square_root.sqrtm(x)
   return sqrtm[0] + sqrtm[1]
 

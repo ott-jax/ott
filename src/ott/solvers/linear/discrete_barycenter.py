@@ -26,10 +26,10 @@ __all__ = ["SinkhornBarycenterOutput", "FixedBarycenter"]
 
 
 class SinkhornBarycenterOutput(NamedTuple):  # noqa: D101
-  f: jnp.ndarray
-  g: jnp.ndarray
-  histogram: jnp.ndarray
-  errors: jnp.ndarray
+  f: jax.Array
+  g: jax.Array
+  histogram: jax.Array
+  errors: jax.Array
 
 
 @jax.tree_util.register_pytree_node_class
@@ -79,7 +79,7 @@ class FixedBarycenter:
   def __call__(
       self,
       fixed_bp: barycenter_problem.FixedBarycenterProblem,
-      dual_initialization: Optional[jnp.ndarray] = None,
+      dual_initialization: Optional[jax.Array] = None,
   ) -> SinkhornBarycenterOutput:
     """Solve barycenter problem, possibly using clever initialization.
 
@@ -128,10 +128,10 @@ class FixedBarycenter:
 
 @functools.partial(jax.jit, static_argnums=(5, 6, 7, 8, 9, 10, 11, 12))
 def _discrete_barycenter(
-    geom: geometry.Geometry, a: jnp.ndarray, weights: jnp.ndarray,
-    dual_initialization: jnp.ndarray, threshold: float,
-    norm_error: Sequence[int], inner_iterations: int, min_iterations: int,
-    max_iterations: int, lse_mode: bool, debiased: bool, num_a: int, num_b: int
+    geom: geometry.Geometry, a: jax.Array, weights: jax.Array,
+    dual_initialization: jax.Array, threshold: float, norm_error: Sequence[int],
+    inner_iterations: int, min_iterations: int, max_iterations: int,
+    lse_mode: bool, debiased: bool, num_a: int, num_b: int
 ) -> SinkhornBarycenterOutput:
   """Jit'able function to compute discrete barycenters."""
   if lse_mode:

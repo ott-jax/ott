@@ -17,7 +17,6 @@ from typing import Any, Mapping, Optional, Sequence
 
 import jax
 import jax.experimental
-import jax.numpy as jnp
 import pytest
 from _pytest.python import Metafunc
 
@@ -69,7 +68,7 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def rng() -> jnp.ndarray:
+def rng() -> jax.Array:
   return jax.random.PRNGKey(0)
 
 

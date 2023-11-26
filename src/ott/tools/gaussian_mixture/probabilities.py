@@ -27,7 +27,7 @@ class Probabilities:
   to a length n simplex by appending a 0 and taking a softmax.
   """
 
-  _params: jnp.ndarray
+  _params: jax.Array
 
   def __init__(self, params):
     self._params = params
@@ -47,7 +47,7 @@ class Probabilities:
     )
 
   @classmethod
-  def from_probs(cls, probs: jnp.ndarray) -> "Probabilities":
+  def from_probs(cls, probs: jax.Array) -> "Probabilities":
     """Construct Probabilities from a vector of probabilities."""
     log_probs = jnp.log(probs)
     log_probs_normalized, norm = log_probs[:-1], log_probs[-1]
@@ -62,21 +62,21 @@ class Probabilities:
   def dtype(self):  # noqa: D102
     return self._params.dtype
 
-  def unnormalized_log_probs(self) -> jnp.ndarray:
+  def unnormalized_log_probs(self) -> jax.Array:
     """Get the unnormalized log probabilities."""
     return jnp.concatenate([self._params,
                             jnp.zeros((1,), dtype=self.dtype)],
                            axis=-1)
 
-  def log_probs(self) -> jnp.ndarray:
+  def log_probs(self) -> jax.Array:
     """Get the log probabilities."""
     return jax.nn.log_softmax(self.unnormalized_log_probs())
 
-  def probs(self) -> jnp.ndarray:
+  def probs(self) -> jax.Array:
     """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
-  def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.Array, size: int) -> jax.Array:
     """Sample from the distribution."""
     return jax.random.categorical(
         key=rng, logits=self.unnormalized_log_probs(), shape=(size,)

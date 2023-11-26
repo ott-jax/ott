@@ -40,9 +40,9 @@ class PositiveDense(nn.Module):
     bias_init: initializer function for the bias.
   """
   dim_hidden: int
-  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
-  inv_rectifier_fn: Callable[[jnp.ndarray],
-                             jnp.ndarray] = lambda x: jnp.log(jnp.exp(x) - 1)
+  rectifier_fn: Callable[[jax.Array], jax.Array] = nn.softplus
+  inv_rectifier_fn: Callable[[jax.Array],
+                             jax.Array] = lambda x: jnp.log(jnp.exp(x) - 1)
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
@@ -51,7 +51,7 @@ class PositiveDense(nn.Module):
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, inputs: jax.Array) -> jax.Array:
     """Applies a linear transformation to inputs along the last dimension.
 
     Args:
@@ -99,7 +99,7 @@ class PosDefPotentials(nn.Module):
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, inputs: jax.Array) -> jax.Array:
     """Apply a few quadratic forms.
 
     Args:

@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import List, Optional, Sequence, Tuple, Union
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
@@ -32,8 +33,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
                   gromov_wasserstein.GWOutput]
 
 
-def bidimensional(x: jnp.ndarray,
-                  y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def bidimensional(x: jax.Array, y: jax.Array) -> Tuple[jax.Array, jax.Array]:
   """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y
@@ -121,7 +121,7 @@ class Plot:
     scales_y = b * self._scale * b.shape[0]
     return x, y, scales_x, scales_y
 
-  def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):
+  def _mapping(self, x: jax.Array, y: jax.Array, matrix: jax.Array):
     """Compute the lines representing the mapping between the 2 point clouds."""
     # Only plot the lines with a cost above the threshold.
     u, v = jnp.where(matrix > self._threshold)

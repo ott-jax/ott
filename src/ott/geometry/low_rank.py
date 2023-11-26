@@ -33,8 +33,8 @@ class LRCGeometry(geometry.Geometry):
   if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
-    cost_1: jnp.ndarray<float>[num_a, r]
-    cost_2: jnp.ndarray<float>[num_b, r]
+    cost_1: jax.Array<float>[num_a, r]
+    cost_2: jax.Array<float>[num_b, r]
     bias: constant added to entire cost matrix.
     scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
@@ -51,8 +51,8 @@ class LRCGeometry(geometry.Geometry):
 
   def __init__(
       self,
-      cost_1: jnp.ndarray,
-      cost_2: jnp.ndarray,
+      cost_1: jax.Array,
+      cost_2: jax.Array,
       bias: float = 0.0,
       scale_factor: float = 1.0,
       scale_cost: Union[bool, int, float, Literal["mean", "max_bound",
@@ -69,13 +69,13 @@ class LRCGeometry(geometry.Geometry):
     self.batch_size = batch_size
 
   @property
-  def cost_1(self) -> jnp.ndarray:
+  def cost_1(self) -> jax.Array:
     """First factor of the :attr:`cost_matrix`."""
     scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
     return scale_factor * self._cost_1
 
   @property
-  def cost_2(self) -> jnp.ndarray:
+  def cost_2(self) -> jax.Array:
     """Second factor of the :attr:`cost_matrix`."""
     scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
     return scale_factor * self._cost_2
@@ -90,7 +90,7 @@ class LRCGeometry(geometry.Geometry):
     return self._cost_1.shape[1]
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:
+  def cost_matrix(self) -> jax.Array:
     """Materialize the cost matrix."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
@@ -124,7 +124,7 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / self.compute_max_cost()
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply_square_cost(self, arr: jax.Array, axis: int = 0) -> jax.Array:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
     # When applying square of a LRCGeometry, one can either elementwise square
@@ -142,15 +142,15 @@ class LRCGeometry(geometry.Geometry):
 
   def _apply_cost_to_vec(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Optional[Callable[[jax.Array], jax.Array]] = None,
       is_linear: bool = False,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
-      vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
+      vec: jax.Array [num_a,] ([num_b,] if axis=1) vector
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
@@ -159,12 +159,12 @@ class LRCGeometry(geometry.Geometry):
         for a heuristic to help determine if a function is linear.
 
     Returns:
-      A jnp.ndarray corresponding to cost x vector
+      A jax.Array corresponding to cost x vector
     """
 
     def linear_apply(
-        vec: jnp.ndarray, axis: int, fn: Callable[[jnp.ndarray], jnp.ndarray]
-    ) -> jnp.ndarray:
+        vec: jax.Array, axis: int, fn: Callable[[jax.Array], jax.Array]
+    ) -> jax.Array:
       c1 = self.cost_1 if axis == 1 else self.cost_2
       c2 = self.cost_2 if axis == 1 else self.cost_1
       c2 = fn(c2) if fn is not None else c2
@@ -241,14 +241,14 @@ class LRCGeometry(geometry.Geometry):
     return True
 
   def subset(  # noqa: D102
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      self, src_ixs: Optional[jax.Array], tgt_ixs: Optional[jax.Array],
       **kwargs: Any
   ) -> "LRCGeometry":
 
     def subset_fn(
-        arr: Optional[jnp.ndarray],
-        ixs: Optional[jnp.ndarray],
-    ) -> jnp.ndarray:
+        arr: Optional[jax.Array],
+        ixs: Optional[jax.Array],
+    ) -> jax.Array:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
     return self._mask_subset_helper(
@@ -257,15 +257,15 @@ class LRCGeometry(geometry.Geometry):
 
   def mask(  # noqa: D102
       self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
+      src_mask: Optional[jax.Array],
+      tgt_mask: Optional[jax.Array],
       mask_value: float = 0.,
   ) -> "LRCGeometry":
 
     def mask_fn(
-        arr: Optional[jnp.ndarray],
-        mask: Optional[jnp.ndarray],
-    ) -> Optional[jnp.ndarray]:
+        arr: Optional[jax.Array],
+        mask: Optional[jax.Array],
+    ) -> Optional[jax.Array]:
       if arr is None or mask is None:
         return arr
       return jnp.where(mask[:, None], arr, mask_value)
@@ -278,11 +278,11 @@ class LRCGeometry(geometry.Geometry):
 
   def _mask_subset_helper(
       self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
+      src_ixs: Optional[jax.Array],
+      tgt_ixs: Optional[jax.Array],
       *,
-      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
-                   Optional[jnp.ndarray]],
+      fn: Callable[[Optional[jax.Array], Optional[jax.Array]],
+                   Optional[jax.Array]],
       propagate_mask: bool,
       **kwargs: Any,
   ) -> "LRCGeometry":

@@ -49,7 +49,7 @@ class TestSinkhornImplicit:
   ):
     epsilon = 0.05
 
-    def loss_g(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True) -> float:
+    def loss_g(a: jax.Array, x: jax.Array, implicit: bool = True) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = geometry.Geometry(
           cost_matrix=jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
@@ -65,9 +65,7 @@ class TestSinkhornImplicit:
       )
       return solver(prob).reg_ot_cost
 
-    def loss_pcg(
-        a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True
-    ) -> float:
+    def loss_pcg(a: jax.Array, x: jax.Array, implicit: bool = True) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = pointcloud.PointCloud(x, self.y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(
@@ -154,7 +152,7 @@ class TestSinkhornJacobian:
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
 
-    def reg_ot(a: jnp.ndarray, b: jnp.ndarray) -> float:
+    def reg_ot(a: jax.Array, b: jax.Array) -> float:
       geom = pointcloud.PointCloud(x, y, epsilon=1e-1)
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
@@ -190,7 +188,7 @@ class TestSinkhornJacobian:
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-3  # perturbation magnitude
 
-    def loss_fn(cm: jnp.ndarray):
+    def loss_fn(cm: jax.Array):
       a = jnp.ones(cm.shape[0]) / cm.shape[0]
       b = jnp.ones(cm.shape[1]) / cm.shape[1]
       geom = geometry.Geometry(cm, epsilon=0.5)
@@ -264,8 +262,8 @@ class TestSinkhornJacobian:
     # Adding some near-zero distances to test proper handling with p_norm=1.
     y = y.at[0].set(x[0, :] + 1e-3)
 
-    def loss_fn(x: jnp.ndarray,
-                y: jnp.ndarray) -> Tuple[float, sinkhorn.SinkhornOutput]:
+    def loss_fn(x: jax.Array,
+                y: jax.Array) -> Tuple[float, sinkhorn.SinkhornOutput]:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       prob = linear_problem.LinearProblem(geom, a, b)
@@ -320,7 +318,7 @@ class TestSinkhornJacobian:
   def test_autoepsilon_differentiability(self, rng: jax.Array):
     cost = jax.random.uniform(rng, (15, 17))
 
-    def reg_ot_cost(c: jnp.ndarray) -> float:
+    def reg_ot_cost(c: jax.Array) -> float:
       geom = geometry.Geometry(c, epsilon=None)  # auto epsilon
       prob = linear_problem.LinearProblem(geom)
       return sinkhorn.Sinkhorn()(prob).reg_ot_cost
@@ -331,7 +329,7 @@ class TestSinkhornJacobian:
   @pytest.mark.fast()
   def test_differentiability_with_jit(self, rng: jax.Array):
 
-    def reg_ot_cost(c: jnp.ndarray) -> float:
+    def reg_ot_cost(c: jax.Array) -> float:
       geom = geometry.Geometry(c, epsilon=1e-2)
       prob = linear_problem.LinearProblem(geom)
       return sinkhorn.Sinkhorn()(prob).reg_ot_cost
@@ -385,7 +383,7 @@ class TestSinkhornJacobian:
     # general rule, even more so when using backprop.
     epsilon = 0.01 if lse_mode else 0.1
 
-    def apply_ot(a: jnp.ndarray, x: jnp.ndarray, implicit: bool) -> jnp.ndarray:
+    def apply_ot(a: jax.Array, x: jax.Array, implicit: bool) -> jax.Array:
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
 
@@ -488,7 +486,7 @@ class TestSinkhornJacobian:
     # with small epsilon when differentiating.
     epsilon = 0.01 if lse_mode else 0.1
 
-    def loss_from_potential(a: jnp.ndarray, x: jnp.ndarray, implicit: bool):
+    def loss_from_potential(a: jax.Array, x: jax.Array, implicit: bool):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(geom, a, b, tau_a=tau_a, tau_b=tau_b)
 
@@ -556,7 +554,7 @@ class TestSinkhornGradGrid:
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
 
-    def reg_ot(x: List[jnp.ndarray]) -> float:
+    def reg_ot(x: List[jax.Array]) -> float:
       geom = grid.Grid(x=x, epsilon=1.0)
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       solver = sinkhorn.Sinkhorn(threshold=1e-1, lse_mode=lse_mode)
@@ -605,7 +603,7 @@ class TestSinkhornGradGrid:
     b = b.ravel() / jnp.sum(b)
     geom = grid.Grid(x=x, epsilon=1)
 
-    def reg_ot(a: jnp.ndarray, b: jnp.ndarray) -> float:
+    def reg_ot(a: jax.Array, b: jax.Array) -> float:
       prob = linear_problem.LinearProblem(geom, a, b)
       solver = sinkhorn.Sinkhorn(threshold=1e-3, lse_mode=lse_mode)
       return solver(prob).reg_ot_cost
@@ -667,9 +665,9 @@ class TestSinkhornJacobianPreconditioning:
     epsilon = 0.05 if lse_mode else 0.1
 
     def loss_from_potential(
-        a: jnp.ndarray,
-        x: jnp.ndarray,
-        precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+        a: jax.Array,
+        x: jax.Array,
+        precondition_fun: Optional[Callable[[jax.Array], jax.Array]] = None,
         symmetric: bool = False
     ) -> float:
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
@@ -771,7 +769,7 @@ class TestSinkhornHessian:
 
     imp_dif = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
 
-    def loss(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True):
+    def loss(a: jax.Array, x: jax.Array, implicit: bool = True):
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(geom, a, b, tau_a, tau_b)
       implicit_diff = imp_dif if implicit else None

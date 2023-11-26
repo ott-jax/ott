@@ -23,9 +23,8 @@ from ott.math import unbalanced_functions as uf
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
 
-LinOp_t = Callable[[jnp.ndarray], jnp.ndarray]
-Solver_t = Callable[[LinOp_t, jnp.ndarray, Optional[LinOp_t], bool],
-                    jnp.ndarray]
+LinOp_t = Callable[[jax.Array], jax.Array]
+Solver_t = Callable[[LinOp_t, jax.Array, Optional[LinOp_t], bool], jax.Array]
 
 __all__ = ["ImplicitDiff", "solve_jax_cg"]
 
@@ -70,16 +69,16 @@ class ImplicitDiff:
   solver: Optional[Solver_t] = None
   solver_kwargs: Optional[Dict[str, Any]] = None
   symmetric: bool = False
-  precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
+  precondition_fun: Optional[Callable[[jax.Array], jax.Array]] = None
 
   def solve(
       self,
-      gr: Tuple[jnp.ndarray, jnp.ndarray],
+      gr: Tuple[jax.Array, jax.Array],
       ot_prob: "linear_problem.LinearProblem",
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       lse_mode: bool,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
     This function is used to carry out implicit differentiation of ``sinkhorn``
@@ -224,7 +223,7 @@ class ImplicitDiff:
     return jnp.concatenate((-vjp_gr_f, -vjp_gr_g))
 
   def first_order_conditions(
-      self, prob, f: jnp.ndarray, g: jnp.ndarray, lse_mode: bool
+      self, prob, f: jax.Array, g: jax.Array, lse_mode: bool
   ):
     r"""Compute vector of first order conditions for the reg-OT problem.
 
@@ -238,12 +237,12 @@ class ImplicitDiff:
 
     Args:
       prob: definition of the linear optimal transport problem.
-      f: jnp.ndarray, first potential
-      g: jnp.ndarray, second potential
+      f: jax.Array, first potential
+      g: jax.Array, second potential
       lse_mode: bool
 
     Returns:
-      a jnp.ndarray of size (size of ``n + m``) quantifying deviation to
+      a jax.Array of size (size of ``n + m``) quantifying deviation to
       optimality for variables ``f`` and ``g``.
     """
     geom = prob.geom
@@ -266,8 +265,8 @@ class ImplicitDiff:
     return jnp.concatenate((result_a, result_b))
 
   def gradient(
-      self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
-      g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+      self, prob: "linear_problem.LinearProblem", f: jax.Array, g: jax.Array,
+      lse_mode: bool, gr: Tuple[jax.Array, jax.Array]
   ) -> "linear_problem.LinearProblem":
     """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
@@ -287,13 +286,13 @@ class ImplicitDiff:
 
 def solve_jax_cg(
     lin: LinOp_t,
-    b: jnp.ndarray,
+    b: jax.Array,
     lin_t: Optional[LinOp_t] = None,
     symmetric: bool = False,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Wrapper around JAX native linear solvers.
 
   Args:

@@ -28,15 +28,15 @@ LOG2PI = math.log(2. * math.pi)
 class Gaussian:
   """Normal distribution."""
 
-  def __init__(self, loc: jnp.ndarray, scale: scale_tril.ScaleTriL):
+  def __init__(self, loc: jax.Array, scale: scale_tril.ScaleTriL):
     self._loc = loc
     self._scale = scale
 
   @classmethod
   def from_samples(
       cls,
-      points: jnp.ndarray,
-      weights: Optional[jnp.ndarray] = None
+      points: jax.Array,
+      weights: Optional[jax.Array] = None
   ) -> "Gaussian":
     """Construct a Gaussian from weighted samples.
 
@@ -67,7 +67,7 @@ class Gaussian:
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
-      ridge: Union[float, jnp.ndarray] = 0,
+      ridge: Union[float, jax.Array] = 0,
       dtype: Optional[jnp.dtype] = None
   ) -> "Gaussian":
     """Construct a random Gaussian.
@@ -94,13 +94,13 @@ class Gaussian:
     return cls(loc=loc, scale=scale)
 
   @classmethod
-  def from_mean_and_cov(cls, mean: jnp.ndarray, cov: jnp.ndarray) -> "Gaussian":
+  def from_mean_and_cov(cls, mean: jax.Array, cov: jax.Array) -> "Gaussian":
     """Construct a Gaussian from a mean and covariance."""
     scale = scale_tril.ScaleTriL.from_covariance(cov)
     return cls(loc=mean, scale=scale)
 
   @property
-  def loc(self) -> jnp.ndarray:
+  def loc(self) -> jax.Array:
     """Mean of the Gaussian."""
     return self._loc
 
@@ -114,22 +114,22 @@ class Gaussian:
     """Dimensionality of the Gaussian."""
     return self.loc.shape[-1]
 
-  def covariance(self) -> jnp.ndarray:
+  def covariance(self) -> jax.Array:
     """Covariance of the Gaussian."""
     return self.scale.covariance()
 
-  def to_z(self, x: jnp.ndarray) -> jnp.ndarray:
+  def to_z(self, x: jax.Array) -> jax.Array:
     r"""Transform :math:`x` to :math:`z = \frac{x - loc}{scale}`."""
     return self.scale.centered_to_z(x_centered=x - self.loc)
 
-  def from_z(self, z: jnp.ndarray) -> jnp.ndarray:
+  def from_z(self, z: jax.Array) -> jax.Array:
     r"""Transform :math:`z` to :math:`x = loc + scale \cdot z`."""
     return self.scale.z_to_centered(z=z) + self.loc
 
   def log_prob(
       self,
-      x: jnp.ndarray,  # (?, d)
-  ) -> jnp.ndarray:  # (?, d)
+      x: jax.Array,  # (?, d)
+  ) -> jax.Array:  # (?, d)
     """Log probability for a Gaussian with a diagonal covariance."""
     d = x.shape[-1]
     z = self.to_z(x)
@@ -138,7 +138,7 @@ class Gaussian:
         -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2., axis=-1))
     )  # (?, k)
 
-  def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.Array, size: int) -> jax.Array:
     """Generate samples from the distribution."""
     std_samples_t = jax.random.normal(key=rng, shape=(self.n_dimensions, size))
     return self.loc[None] + (
@@ -149,7 +149,7 @@ class Gaussian:
         )
     )
 
-  def w2_dist(self, other: "Gaussian") -> jnp.ndarray:
+  def w2_dist(self, other: "Gaussian") -> jax.Array:
     r"""Wasserstein distance :math:`W_2^2` to another Gaussian.
 
     .. math::
@@ -167,7 +167,7 @@ class Gaussian:
     delta_sigma = self.scale.w2_dist(other.scale)
     return delta_mean + delta_sigma
 
-  def f_potential(self, dest: "Gaussian", points: jnp.ndarray) -> jnp.ndarray:
+  def f_potential(self, dest: "Gaussian", points: jax.Array) -> jax.Array:
     """Optimal potential for W2 distance between Gaussians. Evaluated on points.
 
     Args:
@@ -191,7 +191,7 @@ class Gaussian:
         points.dot(dest.loc)
     )
 
-  def transport(self, dest: "Gaussian", points: jnp.ndarray) -> jnp.ndarray:
+  def transport(self, dest: "Gaussian", points: jax.Array) -> jax.Array:
     """Transport points according to map between two Gaussian measures.
 
     Args:

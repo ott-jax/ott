@@ -27,7 +27,7 @@ except ImportError:
   ts_metrics = None
 
 
-def _proj(matrix: jnp.ndarray) -> jnp.ndarray:
+def _proj(matrix: jax.Array) -> jax.Array:
   u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
   return u.dot(v_h)
 

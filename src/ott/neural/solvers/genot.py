@@ -83,10 +83,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       fused_penalty: float = 0.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jnp.ndarray], float] = None,
-      mlp_xi: Callable[[jnp.ndarray], float] = None,
+      mlp_eta: Callable[[jax.Array], float] = None,
+      mlp_xi: Callable[[jax.Array], float] = None,
       unbalanced_kwargs: Dict[str, Any] = {},
-      callback: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+      callback: Optional[Callable[[jax.Array, jax.Array, jax.Array],
                                   Any]] = None,
       callback_kwargs: Dict[str, Any] = {},
       callback_iters: int = 10,
@@ -397,7 +397,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       rng: random.PRNGKeyArray = random.PRNGKey(0),
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       forward: bool = True,
-  ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
+  ) -> Union[jnp.array, diffrax.Solution, Optional[jax.Array]]:
     """Transport the distribution.
 
     Parameters
@@ -468,5 +468,5 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def sample_noise( #TODO: make more general
       self, key: random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:  #TODO: make more general
+  ) -> jax.Array:  #TODO: make more general
     return random.normal(key, shape=(batch_size, self.output_dim))

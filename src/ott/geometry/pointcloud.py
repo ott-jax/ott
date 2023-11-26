@@ -56,8 +56,8 @@ class PointCloud(geometry.Geometry):
 
   def __init__(
       self,
-      x: jnp.ndarray,
-      y: Optional[jnp.ndarray] = None,
+      x: jax.Array,
+      y: Optional[jax.Array] = None,
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
       scale_cost: Union[bool, int, float,
@@ -77,13 +77,13 @@ class PointCloud(geometry.Geometry):
     self._scale_cost = "mean" if scale_cost is True else scale_cost
 
   @property
-  def _norm_x(self) -> Union[float, jnp.ndarray]:
+  def _norm_x(self) -> Union[float, jax.Array]:
     if self._axis_norm == 0:
       return self.cost_fn.norm(self.x)
     return 0.
 
   @property
-  def _norm_y(self) -> Union[float, jnp.ndarray]:
+  def _norm_y(self) -> Union[float, jax.Array]:
     if self._axis_norm == 0:
       return self.cost_fn.norm(self.y)
     return 0.
@@ -98,14 +98,14 @@ class PointCloud(geometry.Geometry):
     return n * m > (n + m) * d
 
   @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def cost_matrix(self) -> Optional[jax.Array]:  # noqa: D102
     if self.is_online:
       return None
     cost_matrix = self._compute_cost_matrix()
     return cost_matrix * self.inv_scale_cost
 
   @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def kernel_matrix(self) -> Optional[jax.Array]:  # noqa: D102
     if self.is_online:
       return None
     return jnp.exp(-self.cost_matrix / self.epsilon)
@@ -183,7 +183,7 @@ class PointCloud(geometry.Geometry):
       )
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def _compute_cost_matrix(self) -> jnp.ndarray:
+  def _compute_cost_matrix(self) -> jax.Array:
     cost_matrix = self.cost_fn.all_pairs_pairwise(self.x, self.y)
     if self._axis_norm is not None:
       cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
@@ -191,12 +191,12 @@ class PointCloud(geometry.Geometry):
 
   def apply_lse_kernel(  # noqa: D102
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       eps: float,
-      vec: Optional[jnp.ndarray] = None,
+      vec: Optional[jax.Array] = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
 
     def body0(carry, i: int):
       f, g, eps, vec = carry
@@ -278,10 +278,10 @@ class PointCloud(geometry.Geometry):
 
   def apply_kernel(  # noqa: D102
       self,
-      scaling: jnp.ndarray,
+      scaling: jax.Array,
       eps: Optional[float] = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     if eps is None:
       eps = self.epsilon
 
@@ -303,8 +303,8 @@ class PointCloud(geometry.Geometry):
     )
 
   def transport_from_potentials(  # noqa: D102
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+      self, f: jax.Array, g: jax.Array
+  ) -> jax.Array:
     if not self.is_online:
       return super().transport_from_potentials(f, g)
     transport = jax.vmap(
@@ -317,8 +317,8 @@ class PointCloud(geometry.Geometry):
     )
 
   def transport_from_scalings(  # noqa: D102
-      self, u: jnp.ndarray, v: jnp.ndarray
-  ) -> jnp.ndarray:
+      self, u: jax.Array, v: jax.Array
+  ) -> jax.Array:
     if not self.is_online:
       return super().transport_from_scalings(u, v)
     transport = jax.vmap(
@@ -342,11 +342,11 @@ class PointCloud(geometry.Geometry):
 
   def apply_cost(
       self,
-      arr: jnp.ndarray,
+      arr: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Optional[Callable[[jax.Array], jax.Array]] = None,
       is_linear: bool = False,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Apply cost matrix to array (vector or matrix).
 
     This function applies the geometry's cost matrix, to perform either
@@ -356,7 +356,7 @@ class PointCloud(geometry.Geometry):
     application of fn to each entry of the :attr:`cost_matrix`.
 
     Args:
-      arr: jnp.ndarray [num_a or num_b, batch], vector that will be multiplied
+      arr: jax.Array [num_a or num_b, batch], vector that will be multiplied
         by the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0.
       fn: function optionally applied to cost matrix element-wise, before the
@@ -367,7 +367,7 @@ class PointCloud(geometry.Geometry):
         for a heuristic to help determine if a function is linear.
 
     Returns:
-      A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
+      A jax.Array, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
     # switch to efficient computation for the squared euclidean case.
     if self.is_squared_euclidean and (fn is None or is_linear):
@@ -375,9 +375,7 @@ class PointCloud(geometry.Geometry):
 
     return self._apply_cost(arr, axis, fn=fn)
 
-  def _apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None
-  ) -> jnp.ndarray:
+  def _apply_cost(self, arr: jax.Array, axis: int = 0, fn=None) -> jax.Array:
     """See :meth:`apply_cost`."""
     if not self.is_online:
       return super().apply_cost(arr, axis, fn)
@@ -401,24 +399,24 @@ class PointCloud(geometry.Geometry):
 
   def vec_apply_cost(
       self,
-      arr: jnp.ndarray,
+      arr: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
-  ) -> jnp.ndarray:
+      fn: Optional[Callable[[jax.Array], jax.Array]] = None
+  ) -> jax.Array:
     """Apply the geometry's cost matrix in a vectorized way.
 
     This function can be used when the cost matrix is squared euclidean
     and ``fn`` is a linear function.
 
     Args:
-      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
+      arr: jax.Array [num_a or num_b, p], vector that will be multiplied
         by the cost matrix.
       axis: standard cost matrix if axis=1, transport if 0.
       fn: function optionally applied to cost matrix element-wise, before the
         application.
 
     Returns:
-      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
+      A jax.Array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
@@ -434,7 +432,7 @@ class PointCloud(geometry.Geometry):
       applied_cost = fn(applied_cost)
     return self.inv_scale_cost * applied_cost
 
-  def _leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
+  def _leading_slice(self, t: jax.Array, i: int) -> jax.Array:
     start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
     slice_sizes = [self.batch_size] + list(t.shape[1:])
     return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
@@ -525,18 +523,18 @@ class PointCloud(geometry.Geometry):
         f"Scaling method {summary} does not exist for online mode."
     )
 
-  def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: jax.Array) -> jax.Array:
     """Compute barycenter of points in self.x using weights."""
     return self.cost_fn.barycenter(self.x, weights)[0]
 
   @classmethod
   def prepare_divergences(
       cls,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
+      x: jax.Array,
+      y: jax.Array,
       static_b: bool = False,
-      src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None,
+      src_mask: Optional[jax.Array] = None,
+      tgt_mask: Optional[jax.Array] = None,
       **kwargs: Any
   ) -> Tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
@@ -640,14 +638,14 @@ class PointCloud(geometry.Geometry):
     )
 
   def subset(  # noqa: D102
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
+      self, src_ixs: Optional[jax.Array], tgt_ixs: Optional[jax.Array],
       **kwargs: Any
   ) -> "PointCloud":
 
     def subset_fn(
-        arr: Optional[jnp.ndarray],
-        ixs: Optional[jnp.ndarray],
-    ) -> jnp.ndarray:
+        arr: Optional[jax.Array],
+        ixs: Optional[jax.Array],
+    ) -> jax.Array:
       return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
 
     return self._mask_subset_helper(
@@ -656,15 +654,15 @@ class PointCloud(geometry.Geometry):
 
   def mask(  # noqa: D102
       self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
+      src_mask: Optional[jax.Array],
+      tgt_mask: Optional[jax.Array],
       mask_value: float = 0.,
   ) -> "PointCloud":
 
     def mask_fn(
-        arr: Optional[jnp.ndarray],
-        mask: Optional[jnp.ndarray],
-    ) -> Optional[jnp.ndarray]:
+        arr: Optional[jax.Array],
+        mask: Optional[jax.Array],
+    ) -> Optional[jax.Array]:
       if arr is None or mask is None:
         return arr
       return jnp.where(mask[:, None], arr, mask_value)
@@ -677,11 +675,11 @@ class PointCloud(geometry.Geometry):
 
   def _mask_subset_helper(
       self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
+      src_ixs: Optional[jax.Array],
+      tgt_ixs: Optional[jax.Array],
       *,
-      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
-                   Optional[jnp.ndarray]],
+      fn: Callable[[Optional[jax.Array], Optional[jax.Array]],
+                   Optional[jax.Array]],
       propagate_mask: bool,
       **kwargs: Any,
   ) -> "PointCloud":
@@ -767,18 +765,18 @@ def _apply_cost_xy(x, y, norm_x, norm_y, vec, cost_fn, scale_cost, fn=None):
   fn(cost) matrix (or transpose) to vector.
 
   Args:
-    x: jnp.ndarray [num_a, d], first pointcloud
-    y: jnp.ndarray [num_b, d], second pointcloud
-    norm_x: jnp.ndarray [num_a,], (squared) norm as defined in by cost_fn
-    norm_y: jnp.ndarray [num_b,], (squared) norm as defined in by cost_fn
-    vec: jnp.ndarray [num_a,] ([num_b,] if axis=1 from `apply_cost`) vector
+    x: jax.Array [num_a, d], first pointcloud
+    y: jax.Array [num_b, d], second pointcloud
+    norm_x: jax.Array [num_a,], (squared) norm as defined in by cost_fn
+    norm_y: jax.Array [num_b,], (squared) norm as defined in by cost_fn
+    vec: jax.Array [num_a,] ([num_b,] if axis=1 from `apply_cost`) vector
     cost_fn: a CostFn function between two points in dimension d.
     scale_cost: scaling factor of the cost matrix.
     fn: function optionally applied to cost matrix element-wise, before the
       apply.
 
   Returns:
-    A jnp.ndarray corresponding to cost x vector
+    A jax.Array corresponding to cost x vector
   """
   c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
   return jnp.dot(c, vec) if fn is None else jnp.dot(fn(c), vec)

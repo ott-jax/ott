@@ -37,7 +37,7 @@ except ImportError:
   mpl = plt = None
 
 __all__ = ["DualPotentials", "EntropicPotentials"]
-Potential_t = Callable[[jnp.ndarray], float]
+Potential_t = Callable[[jax.Array], float]
 
 
 @jtu.register_pytree_node_class
@@ -72,7 +72,7 @@ class DualPotentials:
     self.cost_fn = cost_fn
     self._corr = corr
 
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
+  def transport(self, vec: jax.Array, forward: bool = True) -> jax.Array:
     r"""Transport ``vec`` according to Brenier formula :cite:`brenier:91`.
 
     Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
@@ -105,7 +105,7 @@ class DualPotentials:
       return vec - self._grad_h_inv(self._grad_f(vec))
     return vec - self._grad_h_inv(self._grad_g(vec))
 
-  def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
+  def distance(self, src: jax.Array, tgt: jax.Array) -> float:
     r"""Evaluate Wasserstein distance between samples using dual potentials.
 
     This uses direct estimation of potentials against measures when dual
@@ -146,17 +146,17 @@ class DualPotentials:
     return self._g
 
   @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_f(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`f`."""
     return jax.vmap(jax.grad(self.f, argnums=0))
 
   @property
-  def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_g(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   @property
-  def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_h_inv(self) -> Callable[[jax.Array], jax.Array]:
     from ott.geometry import costs
 
     assert isinstance(self.cost_fn, costs.TICost), (
@@ -181,9 +181,9 @@ class DualPotentials:
 
   def plot_ot_map(
       self,
-      source: jnp.ndarray,
-      target: jnp.ndarray,
-      samples: Optional[jnp.ndarray] = None,
+      source: jax.Array,
+      target: jax.Array,
+      samples: Optional[jax.Array] = None,
       forward: bool = True,
       ax: Optional["plt.Axes"] = None,
       legend_kwargs: Optional[Dict[str, Any]] = None,
@@ -348,11 +348,11 @@ class EntropicPotentials(DualPotentials):
 
   def __init__(
       self,
-      f_xy: jnp.ndarray,
-      g_xy: jnp.ndarray,
+      f_xy: jax.Array,
+      g_xy: jax.Array,
       prob: linear_problem.LinearProblem,
-      f_xx: Optional[jnp.ndarray] = None,
-      g_yy: Optional[jnp.ndarray] = None,
+      f_xx: Optional[jax.Array] = None,
+      g_yy: Optional[jax.Array] = None,
   ):
     # we pass directly the arrays and override the properties
     # since only the properties need to be callable
@@ -373,11 +373,11 @@ class EntropicPotentials(DualPotentials):
     from ott.geometry import pointcloud
 
     def callback(
-        x: jnp.ndarray,
+        x: jax.Array,
         *,
-        potential: jnp.ndarray,
-        y: jnp.ndarray,
-        weights: jnp.ndarray,
+        potential: jax.Array,
+        y: jax.Array,
+        weights: jax.Array,
         epsilon: float,
     ) -> float:
       x = jnp.atleast_2d(x)

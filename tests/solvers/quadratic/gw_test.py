@@ -156,8 +156,8 @@ class TestGromovWasserstein:
   def test_gradient_marginals_gw(self, jit: bool):
     """Test gradient w.r.t. probability weights."""
 
-    def reg_gw(a: jnp.ndarray, b: jnp.ndarray,
-               implicit: bool) -> Tuple[float, Tuple[jnp.ndarray, jnp.ndarray]]:
+    def reg_gw(a: jax.Array, b: jax.Array,
+               implicit: bool) -> Tuple[float, Tuple[jax.Array, jax.Array]]:
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, a=a, b=b)
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
@@ -245,8 +245,7 @@ class TestGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        implicit: bool
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array, implicit: bool
     ) -> float:
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)

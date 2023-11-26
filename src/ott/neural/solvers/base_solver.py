@@ -81,10 +81,10 @@ class ResampleMixin:
   def _resample_data(
       self,
       key: jax.random.KeyArray,
-      tmat: jnp.ndarray,
-      source_arrays: Tuple[jnp.ndarray, ...],
-      target_arrays: Tuple[jnp.ndarray, ...],
-  ) -> Tuple[jnp.ndarray, ...]:
+      tmat: jax.Array,
+      source_arrays: Tuple[jax.Array, ...],
+      target_arrays: Tuple[jax.Array, ...],
+  ) -> Tuple[jax.Array, ...]:
     """Resample a batch according to coupling `tmat`."""
     tmat_flattened = tmat.flatten()
     indices = random.choice(
@@ -101,10 +101,10 @@ class ResampleMixin:
   def _sample_conditional_indices_from_tmap(
       self,
       key: jax.random.PRNGKeyArray,
-      tmat: jnp.ndarray,
-      k_samples_per_x: Union[int, jnp.ndarray],
-      source_arrays: Tuple[jnp.ndarray, ...],
-      target_arrays: Tuple[jnp.ndarray, ...],
+      tmat: jax.Array,
+      k_samples_per_x: Union[int, jax.Array],
+      source_arrays: Tuple[jax.Array, ...],
+      target_arrays: Tuple[jax.Array, ...],
       *,
       source_is_balanced: bool,
   ) -> Tuple[jnp.array, jnp.array]:
@@ -155,7 +155,7 @@ class ResampleMixin:
 
     def match_pairs(
         x: jax.Array, y: jax.Array
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
       geom = pointcloud.PointCloud(
           x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
       )
@@ -165,7 +165,7 @@ class ResampleMixin:
 
     def match_pairs_filtered(
         x_lin: jax.Array, x_quad: jax.Array, y_lin: jax.Array, y_quad: jax.Array
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
       geom = pointcloud.PointCloud(
           x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
       )
@@ -208,9 +208,9 @@ class ResampleMixin:
 
     def match_pairs(
         x_lin: Optional[jax.Array],
-        x_quad: Tuple[jnp.ndarray, jnp.ndarray],
+        x_quad: Tuple[jax.Array, jax.Array],
         y_lin: Optional[jax.Array],
-        y_quad: Tuple[jnp.ndarray, jnp.ndarray],
+        y_quad: Tuple[jax.Array, jax.Array],
     ) -> Tuple[jnp.array, jnp.array]:
       geom_xx = pointcloud.PointCloud(
           x=x_quad, y=x_quad, cost_fn=x_cost_fn, scale_cost=x_scale_cost
@@ -288,13 +288,13 @@ class UnbalancednessMixin:
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
       sinkhorn_kwargs: Dict[str, Any] = MappingProxyType({}),
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jax.Array, jax.Array]:
     """Compute the unbalanced source and target marginals for a batch."""
 
     @jax.jit
     def compute_unbalanced_marginals(
-        batch_source: jnp.ndarray, batch_target: jnp.ndarray
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        batch_source: jax.Array, batch_target: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
       geom = PointCloud(
           batch_source,
           batch_target,
@@ -312,9 +312,9 @@ class UnbalancednessMixin:
   def _resample_unbalanced(
       self,
       key: jax.random.KeyArray,
-      batch: Tuple[jnp.ndarray, ...],
-      marginals: jnp.ndarray,
-  ) -> Tuple[jnp.ndarray, ...]:
+      batch: Tuple[jax.Array, ...],
+      marginals: jax.Array,
+  ) -> Tuple[jax.Array, ...]:
     """Resample a batch based upon marginals."""
     indices = jax.random.choice(
         key, a=len(marginals), p=jnp.squeeze(marginals), shape=[len(marginals)]
@@ -343,13 +343,12 @@ class UnbalancednessMixin:
   def _get_step_fn(self) -> Callable:  # type:ignore[type-arg]
 
     def loss_a_fn(
-        params_eta: Optional[jnp.ndarray],
-        apply_fn_eta: Callable[[Dict[str, jnp.ndarray], jnp.ndarray],
-                               jnp.ndarray],
-        x: jnp.ndarray,
-        a: jnp.ndarray,
+        params_eta: Optional[jax.Array],
+        apply_fn_eta: Callable[[Dict[str, jax.Array], jax.Array], jax.Array],
+        x: jax.Array,
+        a: jax.Array,
         expectation_reweighting: float,
-    ) -> Tuple[float, jnp.ndarray]:
+    ) -> Tuple[float, jax.Array]:
       eta_predictions = apply_fn_eta({"params": params_eta}, x)
       return (
           optax.l2_loss(eta_predictions[:, 0], a).mean() +
@@ -358,13 +357,12 @@ class UnbalancednessMixin:
       )
 
     def loss_b_fn(
-        params_xi: Optional[jnp.ndarray],
-        apply_fn_xi: Callable[[Dict[str, jnp.ndarray], jnp.ndarray],
-                              jnp.ndarray],
-        x: jnp.ndarray,
-        b: jnp.ndarray,
+        params_xi: Optional[jax.Array],
+        apply_fn_xi: Callable[[Dict[str, jax.Array], jax.Array], jax.Array],
+        x: jax.Array,
+        b: jax.Array,
         expectation_reweighting: float,
-    ) -> Tuple[float, jnp.ndarray]:
+    ) -> Tuple[float, jax.Array]:
       xi_predictions = apply_fn_xi({"params": params_xi}, x)
       return (
           optax.l2_loss(xi_predictions[:, 0], b).mean() +
@@ -374,11 +372,11 @@ class UnbalancednessMixin:
 
     @jax.jit
     def step_fn(
-        source: jnp.ndarray,
-        target: jnp.ndarray,
-        condition: Optional[jnp.ndarray],
-        a: jnp.ndarray,
-        b: jnp.ndarray,
+        source: jax.Array,
+        target: jax.Array,
+        condition: Optional[jax.Array],
+        a: jax.Array,
+        b: jax.Array,
         state_eta: Optional[train_state.TrainState] = None,
         state_xi: Optional[train_state.TrainState] = None,
         *,

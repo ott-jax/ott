@@ -31,7 +31,7 @@ class MetaMLP(nn.Module):
   num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, a: jax.Array, b: jax.Array) -> jax.Array:
     dtype = a.dtype
     z = jnp.concatenate((a, b))
     for _ in range(self.num_hidden_layers):
@@ -65,12 +65,12 @@ def create_ot_problem(
 
 
 def run_sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: jax.Array,
+    y: jax.Array,
     *,
     initializer: linear_init.SinkhornInitializer,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: Optional[jax.Array] = None,
+    b: Optional[jax.Array] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
 ) -> sinkhorn.SinkhornOutput:

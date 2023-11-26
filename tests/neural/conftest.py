@@ -46,7 +46,7 @@ class ConditionalDataLoader:
     self.conditions = list(dataloaders.keys())
     self.p = p
 
-  def __next__(self) -> jnp.ndarray:
+  def __next__(self) -> jax.Array:
     self.rng, rng = jax.random.split(self.rng, 2)
     idx = jax.random.choice(rng, len(self.conditions), p=self.p)
     return next(self.dataloaders[self.conditions[idx]])

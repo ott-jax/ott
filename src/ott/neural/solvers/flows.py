@@ -141,16 +141,24 @@ class BrownianNoiseFlow(StraightFlow):
 
 
 class BaseTimeSampler(abc.ABC):
-  """Base class for time samplers."""
+  """Base class for time samplers.
+
+  Args:
+    low: Lower bound of the distribution to sample from.
+    high: Upper bound of the distribution to sample from .
+  """
+
+  def __init__(self, low: float, high: float) -> None:
+    self.low = low
+    self.high = high
 
   @abc.abstractmethod
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
       rng: Random number generator.
       num_samples: Number of samples to generate.
-
     """
     pass
 
@@ -163,11 +171,7 @@ class UniformSampler(BaseTimeSampler):
     high: Upper bound of the uniform distribution.
   """
 
-  def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
-    self.low = low
-    self.high = high
-
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
@@ -194,11 +198,10 @@ class OffsetUniformSampler(BaseTimeSampler):
   def __init__(
       self, offset: float, low: float = 0.0, high: float = 1.0
   ) -> None:
+    super().__init__(low=low, high=high)
     self.offset = offset
-    self.low = low
-    self.high = high
 
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:

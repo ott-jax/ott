@@ -63,10 +63,10 @@ class GWOutput(NamedTuple):
     old_transport_mass: Holds total mass of transport at previous iteration.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
+  costs: Optional[jax.Array] = None
+  linear_convergence: Optional[jax.Array] = None
   converged: bool = False
-  errors: Optional[jnp.ndarray] = None
+  errors: Optional[jax.Array] = None
   linear_state: Optional[LinearOutput] = None
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
@@ -77,11 +77,11 @@ class GWOutput(NamedTuple):
     return self._replace(**kwargs)
 
   @property
-  def matrix(self) -> jnp.ndarray:
+  def matrix(self) -> jax.Array:
     """Transport matrix."""
     return self._rescale_factor * self.linear_state.matrix
 
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply(self, inputs: jax.Array, axis: int = 0) -> jax.Array:
     """Apply the transport to an array; axis=1 for its transpose."""
     return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
 
@@ -124,13 +124,13 @@ class GWState(NamedTuple):
       at each iteration.
   """
 
-  costs: jnp.ndarray
-  linear_convergence: jnp.ndarray
+  costs: jax.Array
+  linear_convergence: jax.Array
   linear_state: LinearOutput
   linear_pb: linear_problem.LinearProblem
   old_transport_mass: float
   rngs: Optional[jax.Array] = None
-  errors: Optional[jnp.ndarray] = None
+  errors: Optional[jax.Array] = None
 
   def set(self, **kwargs: Any) -> "GWState":
     """Return a copy of self, possibly with overwrites."""

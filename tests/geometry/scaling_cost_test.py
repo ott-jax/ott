@@ -53,7 +53,7 @@ class TestScaleCost:
     """Test various scale cost options for pointcloud."""
 
     def apply_sinkhorn(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array,
         scale_cost: Union[str, float]
     ):
       geom = pointcloud.PointCloud(
@@ -120,8 +120,8 @@ class TestScaleCost:
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(
-        cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        scale_cost: Union[str, float]
+        cost: jax.Array, a: jax.Array, b: jax.Array, scale_cost: Union[str,
+                                                                       float]
     ):
       geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)

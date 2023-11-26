@@ -38,6 +38,35 @@ from ott.solvers import was_solver
 
 
 class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
+  """Flow matching as introduced in :cite:`TODO, with extension to OT-FM ().
+
+  Args:
+  neural_vector_field: Neural vector field parameterized by a neural network.
+  input_dim: Dimension of the input data.
+  cond_dim: Dimension of the conditioning variable.
+  iterations: Number of iterations.
+  valid_freq: Frequency of validation.
+  ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`TODO`. If `None`, no matching will be performed as proposed in :cite:`TODO`.
+  flow: Flow between source and target distribution.
+  time_sampler: Sampler for the time.
+  optimizer: Optimizer for `neural_vector_field`.
+  checkpoint_manager: Checkpoint manager.
+  epsilon: Entropy regularization term for the `ot_solver`.
+  cost_fn: Cost function for the OT problem solved by the `ot_solver`.
+  tau_a: If :math:`<1`, defines how much unbalanced the problem is
+  on the first marginal.
+  tau_b: If :math:`< 1`, defines how much unbalanced the problem is
+  on the second marginal.
+  mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
+  mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+  unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
+  callback_fn: Callback function.
+  rng: Random number generator.
+
+  Returns:
+  None
+
+  """
 
   def __init__(
       self,
@@ -55,10 +84,10 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jnp.ndarray], float] = None,
-      mlp_xi: Callable[[jnp.ndarray], float] = None,
+      mlp_eta: Callable[[jax.Array], float] = None,
+      mlp_xi: Callable[[jax.Array], float] = None,
       unbalanced_kwargs: Dict[str, Any] = {},
-      callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+      callback_fn: Optional[Callable[[jax.Array, jax.Array, jax.Array],
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
   ) -> None:
@@ -93,6 +122,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.setup()
 
   def setup(self) -> None:
+    """Setup :class:`OTFlowMatching`."""
     self.state_neural_vector_field = self.neural_vector_field.create_train_state(
         self.rng, self.optimizer, self.input_dim
     )
@@ -115,13 +145,13 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     def step_fn(
         key: random.PRNGKeyArray,
         state_neural_vector_field: train_state.TrainState,
-        batch: Dict[str, jnp.ndarray],
+        batch: Dict[str, jax.Array],
     ) -> Tuple[Any, Any]:
 
       def loss_fn(
           params: jax.Array, t: jax.Array, noise: jax.Array,
-          batch: Dict[str, jnp.ndarray], keys_model: random.PRNGKeyArray
-      ) -> jnp.ndarray:
+          batch: Dict[str, jax.Array], keys_model: random.PRNGKeyArray
+      ) -> jax.Array:
 
         x_t = self.flow.compute_xt(noise, t, batch["source"], batch["target"])
         apply_fn = functools.partial(
@@ -147,7 +177,16 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     return step_fn
 
   def __call__(self, train_loader, valid_loader) -> None:
-    batch: Mapping[str, jnp.ndarray] = {}
+    """Train :class:`OTFlowMatching`.
+
+    Args;
+      train_loader: Dataloader for the training data.
+      valid_loader: Dataloader for the validation data.
+
+    Returns:
+      None
+    """
+    batch: Mapping[str, jax.Array] = {}
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
       batch["source"], batch["target"], batch["condition"] = next(train_loader)
@@ -184,9 +223,26 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:
+    """Transport data with the learnt map.
+
+    This method solves the neural ODE parameterized by the :attr:`~ott.neural.solvers.OTFlowMatching.neural_vector_field` from
+    :attr:`~ott.neural.flows.BaseTimeSampler.low` to :attr:`~ott.neural.flows.BaseTimeSampler.high` if `forward` is `True`,
+    else the other way round.
+
+    Args:
+      data: Initial condition of the ODE.
+      condition: Condition of the input data.
+      forward: If `True` integrates forward, otherwise backwards.
+      diffeqsovle_kwargs: Keyword arguments for the ODE solver.
+
+    Returns:
+      The push-forward or pull-back distribution defined by the learnt transport plan.
+
+    """
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
 
-    t0, t1 = (0.0, 1.0) if forward else (1.0, 0.0)
+    t0, t1 = (self.time_sampler.low, self.time_sampler.high
+             ) if forward else (self.time_sampler.high, self.time_sampler.low)
 
     def solve_ode(input: jax.Array, cond: jax.Array):
       return diffrax.diffeqsolve(
@@ -217,18 +273,40 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   @property
   def learn_rescaling(self) -> bool:
+    """Whether to learn at least one rescaling factor of the marginal distributions."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
   def save(self, path: str) -> None:
+    """Save the model.
+
+    Args:
+      path: Where to save the model to.
+    """
     raise NotImplementedError
 
   def load(self, path: str) -> "OTFlowMatching":
+    """Load a model.
+
+    Args:
+      path: Where to load the model from.
+
+    Returns:
+      An instance of :class:`ott.neural.solvers.OTFlowMatching`.
+    """
     raise NotImplementedError
 
   def training_logs(self) -> Dict[str, Any]:
+    """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise( #TODO: make more general
-      self, key: random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:  #TODO: make more general
+  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jax.Array:
+    """Sample noise from a standard-normal distribution.
+
+    Args:
+      key: Random key for seeding.
+      batch_size: Number of samples to draw.
+
+    Returns:
+      Samples from the standard normal distribution.
+    """
     return random.normal(key, shape=(batch_size, self.input_dim))

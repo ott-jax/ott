@@ -24,27 +24,27 @@ __all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
 
 
 class State(NamedTuple):  # noqa: D101
-  v1: jnp.ndarray
-  v2: jnp.ndarray
-  u1: jnp.ndarray
-  u2: jnp.ndarray
-  g: jnp.ndarray
+  v1: jax.Array
+  v2: jax.Array
+  u1: jax.Array
+  u2: jax.Array
+  g: jax.Array
   err: float
 
 
 class Constants(NamedTuple):  # noqa: D101
-  a: jnp.ndarray
-  b: jnp.ndarray
+  a: jax.Array
+  b: jax.Array
   rho_a: float
   rho_b: float
-  supp_a: Optional[jnp.ndarray] = None
-  supp_b: Optional[jnp.ndarray] = None
+  supp_a: Optional[jax.Array] = None
+  supp_b: Optional[jax.Array] = None
 
 
 def unbalanced_dykstra_lse(
-    c_q: jnp.ndarray,
-    c_r: jnp.ndarray,
-    c_g: jnp.ndarray,
+    c_q: jax.Array,
+    c_r: jax.Array,
+    c_g: jax.Array,
     gamma: float,
     ot_prob: linear_problem.LinearProblem,
     translation_invariant: bool = True,
@@ -52,7 +52,7 @@ def unbalanced_dykstra_lse(
     min_iter: int = 0,
     inner_iter: int = 10,
     max_iter: int = 10000
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Dykstra's algorithm for the unbalanced
   :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in LSE mode.
 
@@ -74,10 +74,10 @@ def unbalanced_dykstra_lse(
   """  # noqa: D205
 
   def _softm(
-      v: jnp.ndarray,
-      c: jnp.ndarray,
+      v: jax.Array,
+      c: jax.Array,
       axis: int,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     v = jnp.expand_dims(v, axis=1 - axis)
     return jsp.special.logsumexp(v + c, axis=axis)
 
@@ -181,9 +181,9 @@ def unbalanced_dykstra_lse(
 
 
 def unbalanced_dykstra_kernel(
-    k_q: jnp.ndarray,
-    k_r: jnp.ndarray,
-    k_g: jnp.ndarray,
+    k_q: jax.Array,
+    k_r: jax.Array,
+    k_g: jax.Array,
     gamma: float,
     ot_prob: linear_problem.LinearProblem,
     translation_invariant: bool = True,
@@ -191,7 +191,7 @@ def unbalanced_dykstra_kernel(
     min_iter: int = 0,
     inner_iter: int = 10,
     max_iter: int = 10000
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Dykstra's algorithm for the unbalanced
   :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in kernel mode.
 
@@ -317,7 +317,7 @@ def unbalanced_dykstra_kernel(
 
 
 def compute_lambdas(
-    const: Constants, state: State, gamma: float, g: jnp.ndarray, *,
+    const: Constants, state: State, gamma: float, g: jax.Array, *,
     lse_mode: bool
 ) -> Tuple[float, float]:
   """TODO."""

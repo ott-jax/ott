@@ -26,7 +26,7 @@ class ConditionalDataLoader:  #TODO(@MUCDK) uncomment, resolve installation issu
   #  self.conditions = dataloaders.keys()
   #  self.p = p
 
-  #def __next__(self) -> jnp.ndarray:
+  #def __next__(self) -> jax.Array:
   #  self.rng, rng = jax.random.split(self.rng, 2)
   #  condition = jax.random.choice(rng, self.conditions, p=self.p)
   #  return next(self.dataloaders[condition])

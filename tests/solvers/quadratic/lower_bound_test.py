@@ -118,11 +118,11 @@ class TestLowerBoundSolver:
       ]
   )
   def test_lb_grad(
-      self, rng: jax.Array, sort_fn: Callable[[jnp.ndarray], jnp.ndarray],
+      self, rng: jax.Array, sort_fn: Callable[[jax.Array], jax.Array],
       method: str
   ):
 
-    def fn(x: jnp.ndarray, y: jnp.ndarray) -> float:
+    def fn(x: jax.Array, y: jax.Array) -> float:
       geom_x = pointcloud.PointCloud(x)
       geom_y = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)

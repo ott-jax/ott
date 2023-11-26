@@ -48,7 +48,7 @@ class Graph(geometry.Geometry):
 
   def __init__(
       self,
-      laplacian: jnp.ndarray,
+      laplacian: jax.Array,
       t: float = 1e-3,
       n_steps: int = 100,
       numerical_scheme: Literal["backward_euler",
@@ -66,7 +66,7 @@ class Graph(geometry.Geometry):
   @classmethod
   def from_graph(
       cls,
-      G: jnp.ndarray,
+      G: jax.Array,
       t: Optional[float] = 1e-3,
       directed: bool = False,
       normalize: bool = False,
@@ -113,10 +113,10 @@ class Graph(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      scaling: jax.Array,
       eps: Optional[float] = None,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
@@ -129,8 +129,8 @@ class Graph(geometry.Geometry):
     """
 
     def conf_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray]
+        iteration: int, consts: Tuple[jax.Array, Optional[jax.Array]],
+        old_new: Tuple[jax.Array, jax.Array]
     ) -> bool:
       del iteration, consts
 
@@ -143,9 +143,9 @@ class Graph(geometry.Geometry):
       return (jnp.nanmax(f) - jnp.nanmin(f)) > self.tol
 
     def body_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        iteration: int, consts: Tuple[jax.Array, Optional[jax.Array]],
+        old_new: Tuple[jax.Array, jax.Array], compute_errors: bool
+    ) -> Tuple[jax.Array, jax.Array]:
       del iteration, compute_errors
 
       L, scaled_lap = consts
@@ -186,7 +186,7 @@ class Graph(geometry.Geometry):
     )[1]
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def kernel_matrix(self) -> jax.Array:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     # force symmetry because of numerical imprecision
@@ -194,7 +194,7 @@ class Graph(geometry.Geometry):
     return (kernel + kernel.T) * 0.5
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def cost_matrix(self) -> jax.Array:  # noqa: D102
     return -self.t * mu.safe_log(self.kernel_matrix)
 
   @property
@@ -209,12 +209,12 @@ class Graph(geometry.Geometry):
     )
 
   @property
-  def _scaled_laplacian(self) -> jnp.ndarray:
+  def _scaled_laplacian(self) -> jax.Array:
     """Laplacian scaled by a constant, depending on the numerical scheme."""
     return self._scale * self.laplacian
 
   @property
-  def _M(self) -> jnp.ndarray:
+  def _M(self) -> jax.Array:
     n, _ = self.shape
     return self._scaled_laplacian + jnp.eye(n)
 
@@ -230,29 +230,27 @@ class Graph(geometry.Geometry):
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.laplacian.dtype
 
-  def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+  def transport_from_potentials(self, f: jax.Array, g: jax.Array) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def apply_transport_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
+      vec: jax.Array,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Since applying from potentials is not feasible in grids, use scalings."""
     u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
     return self.apply_transport_from_scalings(u, v, vec, axis=axis)
 
   def marginal_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 

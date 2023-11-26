@@ -108,7 +108,7 @@ class TestSoftSort:
 
     # Check passing custom sampler, must be still symmetric / centered on {.5}^d
     # Check passing custom epsilon also works.
-    def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
+    def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jax.Array:
       return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
 
     num_target_samples = 473
@@ -283,7 +283,7 @@ class TestSoftSort:
     z = jax.random.uniform(rngs[0], ((b, n)))
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
-    def loss_fn(logits: jnp.ndarray) -> float:
+    def loss_fn(logits: jax.Array) -> float:
       im_d = None
       if implicit:
         # Ridge parameters are only used when using JAX's CG.

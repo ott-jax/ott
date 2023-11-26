@@ -403,7 +403,7 @@ class TestSinkhornDivergenceGrad:
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
-    def loss_fn(cloud_a: jnp.ndarray, cloud_b: jnp.ndarray) -> float:
+    def loss_fn(cloud_a: jax.Array, cloud_b: jax.Array) -> float:
       div = sinkhorn_divergence.sinkhorn_divergence(
           pointcloud.PointCloud,
           cloud_a,

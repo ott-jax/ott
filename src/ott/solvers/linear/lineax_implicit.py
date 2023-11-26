@@ -46,14 +46,14 @@ class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
 
 def solve_lineax(
     lin: Callable,
-    b: jnp.ndarray,
+    b: jax.Array,
     lin_t: Optional[Callable] = None,
     symmetric: bool = False,
     nonsym_solver: Optional[lx.AbstractLinearSolver] = None,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Wrapper around lineax solvers.
 
   Args:

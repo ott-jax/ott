@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Any, Optional, Union
 
-import jax.numpy as jnp
+import jax
 
 from ott.geometry import geometry
 from ott.problems.linear import linear_problem
@@ -24,8 +24,8 @@ __all__ = ["solve"]
 
 def solve(
     geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: Optional[jax.Array] = None,
+    b: Optional[jax.Array] = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     rank: int = -1,

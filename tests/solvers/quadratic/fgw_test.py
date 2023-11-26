@@ -56,7 +56,7 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
 
-    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
+    def reg_gw(a: jax.Array, b: jax.Array, implicit: bool):
       prob = quadratic_problem.QuadraticProblem(
           geom_x, geom_y, geom_xy, fused_penalty=self.fused_penalty, a=a, b=b
       )
@@ -101,9 +101,9 @@ class TestFusedGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray,
-        xy: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
-        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
+        x: jax.Array, y: jax.Array, xy: Union[jax.Array, Tuple[jax.Array,
+                                                               jax.Array]],
+        fused_penalty: float, a: jax.Array, b: jax.Array, implicit: bool
     ):
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -182,8 +182,8 @@ class TestFusedGromovWasserstein:
     lse_mode = True
 
     def reg_gw(
-        cx: jnp.ndarray, cy: jnp.ndarray, cxy: jnp.ndarray,
-        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
+        cx: jax.Array, cy: jax.Array, cxy: jax.Array, fused_penalty: float,
+        a: jax.Array, b: jax.Array, implicit: bool
     ) -> float:
       geom_x = geometry.Geometry(cost_matrix=cx)
       geom_y = geometry.Geometry(cost_matrix=cy)

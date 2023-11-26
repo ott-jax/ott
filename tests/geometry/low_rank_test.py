@@ -160,7 +160,7 @@ class TestLRGeometry:
   @pytest.mark.parametrize("axis", [0, 1])
   @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])
   def test_apply_affine_function_efficient(
-      self, rng: jax.Array, fn: Callable[[jnp.ndarray], jnp.ndarray], axis: int
+      self, rng: jax.Array, fn: Callable[[jax.Array], jax.Array], axis: int
   ):
     n, m, d = 21, 13, 3
     rngs = jax.random.split(rng, 3)
