@@ -36,6 +36,8 @@ from ott.neural.solvers.flows import (
 )
 from ott.solvers import was_solver
 
+__all__ = ["OTFlowMatching"]
+
 
 class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   """Flow matching as introduced in :cite:`TODO, with extension to OT-FM ().

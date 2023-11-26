@@ -54,6 +54,8 @@ Match_fn_T = Callable[[jax.random.PRNGKeyArray, jnp.array, jnp.array],
 Match_latent_fn_T = Callable[[jax.random.PRNGKeyArray, jnp.array, jnp.array],
                              Tuple[jnp.array, jnp.array]]
 
+__all__ = ["GENOT"]
+
 
 class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   """The GENOT training class as introduced in :cite:`TODO`.

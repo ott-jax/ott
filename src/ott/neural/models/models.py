@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
 import functools
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
@@ -28,10 +27,16 @@ from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
 from ott.math import matrix_square_root
 from ott.neural.models import layers
+from ott.neural.models.base_models import (
+    BaseNeuralVectorField,
+    BaseRescalingNet,
+)
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
-__all__ = ["ICNN", "MLP", "MetaInitializer"]
+__all__ = [
+    "ICNN", "MLP", "MetaInitializer", "NeuralVectorField", "Rescaling_MLP"
+]
 
 
 class ICNN(neuraldual.BaseW2NeuralDual):
@@ -418,19 +423,6 @@ class Block(nn.Module):
     return nn.Dense(self.out_dim)(x)
 
 
-class BaseNeuralVectorField(nn.Module, abc.ABC):
-
-  @abc.abstractmethod
-  def __call__(
-      self,
-      t: jax.Array,
-      x: jax.Array,
-      condition: Optional[jax.Array] = None,
-      keys_model: Optional[jax.Array] = None
-  ) -> jax.Array:  # noqa: D102):
-    pass
-
-
 class NeuralVectorField(BaseNeuralVectorField):
   output_dim: int
   condition_dim: int
@@ -541,16 +533,7 @@ class NeuralVectorField(BaseNeuralVectorField):
     )
 
 
-class BaseRescalingNet(nn.Module, abc.ABC):
-
-  @abc.abstractmethod
-  def __call___(
-      self, x: jax.Array, condition: Optional[jax.Array] = None
-  ) -> jax.Array:
-    pass
-
-
-class Rescaling_MLP(nn.Module):
+class Rescaling_MLP(BaseRescalingNet):
   hidden_dim: int
   cond_dim: int
   is_potential: bool = False
