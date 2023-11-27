@@ -55,15 +55,12 @@ class Geodesic(geometry.Geometry):
       eigval: jnp.ndarray,
       chebyshev_coeffs: jnp.ndarray,
       t: float = 1e-3,
-      order: int = 100,
       **kwargs: Any
   ):
     super().__init__(epsilon=1., **kwargs)
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
-    self.t = t
-    self.order = order
 
   @classmethod
   def from_graph(
@@ -132,8 +129,6 @@ class Geodesic(geometry.Geometry):
         scaled_laplacian=scaled_laplacian,
         eigval=eigval,
         chebyshev_coeffs=chebyshev_coeffs,
-        t=t,
-        order=order,
         **kwargs
     )
 
@@ -214,8 +209,6 @@ class Geodesic(geometry.Geometry):
         self.scaled_laplacian,
         self.eigval,
         self.chebyshev_coeffs,
-        self.t,
-        self.order,
     ], {}
 
   @classmethod
@@ -245,7 +238,9 @@ def compute_largest_eigenvalue(
   return jnp.max(eigvals)
 
 
-def expm_multiply(L, X, coeff, phi):
+def expm_multiply(
+    L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, phi: float
+) -> jnp.ndarray:
 
   def body(carry, c):
     T0, T1, Y = carry
@@ -259,12 +254,13 @@ def expm_multiply(L, X, coeff, phi):
   Y = Y + coeff[1] * T1
 
   initial_state = (T0, T1, Y)
-  carry, _ = jax.lax.scan(body, initial_state, coeff[2:])
-  _, _, Y = carry
+  (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
   return Y
 
 
-def compute_chebychev_coeff_all(phi, tau, K, dtype=jnp.float32):
+def compute_chebychev_coeff_all(
+    phi: float, tau: float, K: int, dtype: np.dtype
+) -> jnp.ndarray:
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
   result_shape_dtype = jax.ShapeDtypeStruct(
       shape=(K + 1,),
