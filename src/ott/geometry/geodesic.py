@@ -62,6 +62,7 @@ class Geodesic(geometry.Geometry):
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
+    self.t = t
 
   @classmethod
   def from_graph(
@@ -128,6 +129,7 @@ class Geodesic(geometry.Geometry):
         scaled_laplacian=scaled_laplacian,
         eigval=eigval,
         chebyshev_coeffs=chebyshev_coeffs,
+        t=t,
         **kwargs
     )
 
@@ -208,6 +210,7 @@ class Geodesic(geometry.Geometry):
         self.scaled_laplacian,
         self.eigval,
         self.chebyshev_coeffs,
+        self.t,
     ], {}
 
   @classmethod

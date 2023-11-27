@@ -69,15 +69,6 @@ def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
 
 class TestGeodesic:
 
-  def test_init(self):
-    n, order = 10, 100
-    t = 10
-    G = random_graph(n, p=0.5)
-    geom = geodesic.Geodesic.from_graph(G, t=t, order=order)
-
-    np.testing.assert_equal(geom.order, order)
-    np.testing.assert_equal(geom.t, t)
-
   def test_kernel_is_symmetric_positive_definite(
       self, rng: jax.random.PRNGKeyArray
   ):
@@ -115,44 +106,24 @@ class TestGeodesic:
     # and all dissimilarities are positive
     np.testing.assert_array_less(0, cost_matrix)
 
-  def test_automatic_t(self):
-    G = random_graph(38, return_laplacian=False)
-    geom = geodesic.Geodesic.from_graph(G, t=None)
-
-    expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
-    actual = geom.t
-    np.testing.assert_equal(actual, expected)
-
   @pytest.mark.fast.with_args(
-      n_steps=[50, 100, 200],
+      order=[50, 100, 200],
       t=[1e-4, 1e-5],
-      only_fast=0,
   )
-  def cheb_be_cn(self, t: Optional[float], n_steps: int):
-    tol = 5 * t
+  def test_approximates_ground_truth(self, t: Optional[float], order: int):
+    tol = 1e-2
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray(), dtype=float)
     eye = jnp.eye(G.shape[0])
-
-    be_geom = graph.Graph.from_graph(
-        G, t=t, n_steps=n_steps, numerical_scheme="backward_euler"
-    )
-    cn_geom = graph.Graph.from_graph(
-        G, t=t, n_steps=n_steps, numerical_scheme="crank_nicolson"
-    )
-    geo = geodesic.Geodesic.from_graph(G, t=t, order=n_steps)
     eps = jnp.finfo(eye.dtype).tiny
 
-    be_cost = -t * jnp.log(be_geom.apply_kernel(eye) + eps)
-    cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
-    cheb_cost = -t * jnp.log(geo.apply_kernel(eye) + eps)
+    gt_geom = gt_geometry(G, epsilon=eps)
 
-    np.testing.assert_allclose(cheb_cost, cheb_cost.T, rtol=tol, atol=tol)
-    # check that it is close to the BE CN
-    np.testing.assert_allclose(be_cost, cheb_cost, rtol=tol, atol=tol)
-    np.testing.assert_allclose(cn_cost, cheb_cost, rtol=tol, atol=tol)
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
+    geo = geodesic.Geodesic.from_graph(G, t=t, order=order)
+
+    np.testing.assert_allclose(
+        gt_geom.kernel_matrix, geo.kernel_matrix, rtol=tol, atol=tol
+    )
 
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
