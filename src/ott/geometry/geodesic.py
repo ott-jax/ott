@@ -20,7 +20,6 @@ import jax.numpy as jnp
 import numpy as np
 from scipy.special import ive
 
-from ott import utils
 from ott.geometry import geometry
 from ott.math import utils as mu
 from ott.types import Array_g
@@ -32,15 +31,20 @@ __all__ = ["Geodesic"]
 class Geodesic(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
 
-  Approximates the heat kernel using Chebyshev polynomials of the
-  first kind of max order ``order``, which for small ``t`` approximates the
+  important::
+  This constructor is not meant to be called by the user,
+  please use the :meth:`from_graph` method instead.
+
+  Approximates the heat kernel using `Chebyshev polynomials
+  <https://en.wikipedia.org/wiki/Chebyshev_polynomials>`_ of the first kind of
+  max order ``order``, which for small ``t`` approximates the
   geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
     scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
-    eigval: Largest eigenvalue of the Laplacian.
+    eigval: The largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
-    t: Time parameter for heat kernel.
+    t: Time parameter for the heat kernel.
     order: Max order of Chebyshev polynomial.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
@@ -90,7 +94,7 @@ class Geodesic(geometry.Geometry):
         :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
         \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
         non-normalized Laplacian and :math:`D` is the degree matrix.
-      kwargs: Keyword arguments for the Geodesic class.
+      kwargs: Keyword arguments for :class:`~ott.geometry.geodesic.Geodesic`.
 
     Returns:
       The Geodesic geometry.
@@ -112,10 +116,12 @@ class Geodesic(geometry.Geometry):
     eigval = compute_largest_eigenvalue(
         laplacian, k=1
     ) if eigval is None else eigval
-    scaled_laplacian = rescale_laplacian(laplacian, eigval)
+
+    scaled_laplacian = jax.lax.cond((eigval > 2.0), lambda l: 2.0 * l / eigval,
+                                    lambda l: l, laplacian)
 
     if t is None:
-      t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
+      t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2.0
 
     # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
     chebyshev_coeffs = compute_chebychev_coeff_all(
@@ -163,7 +169,7 @@ class Geodesic(geometry.Geometry):
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
-    return -4 * self.t * mu.safe_log(self.kernel_matrix)
+    return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
@@ -219,13 +225,13 @@ class Geodesic(geometry.Geometry):
     return cls(*children, **aux_data)
 
 
-def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
+def compute_largest_eigenvalue(
+    laplacian_matrix: jnp.ndarray, rng: Optional[jax.Array] = None
+) -> float:
   # Compute the largest eigenvalue of the Laplacian matrix.
-  if rng is None:
-    rng = utils.default_prng_key(rng)
   n = laplacian_matrix.shape[0]
   # Generate random initial directions for eigenvalue computation
-  initial_dirs = jax.random.normal(rng, (n, k))
+  initial_dirs = jax.random.normal(rng, (n, 1))
 
   # Create a sparse matrix-vector product function using sparsify
   # This function multiplies the sparse laplacian_matrix with a vector
@@ -235,31 +241,21 @@ def compute_largest_eigenvalue(laplacian_matrix, k, rng=None):
   eigvals, _, _ = jesp.linalg.lobpcg_standard(
       lapl_vector_product,
       initial_dirs,
-      m=100,
   )
   return jnp.max(eigvals)
-
-
-def rescale_laplacian(
-    laplacian_matrix: jnp.ndarray, largest_eigenvalue: jnp.ndarray
-) -> jnp.ndarray:
-  # Rescale the Laplacian matrix.
-  return jax.lax.cond((largest_eigenvalue > 2),
-                      lambda l: 2 * l / largest_eigenvalue, lambda l: l,
-                      laplacian_matrix)
 
 
 def expm_multiply(L, X, coeff, phi):
 
   def body(carry, c):
     T0, T1, Y = carry
-    T2 = (2 / phi) * L @ T1 - 2 * T1 - T0
+    T2 = (2.0 / phi) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
     return (T1, T2, Y), None
 
   T0 = X
   Y = 0.5 * coeff[0] * T0
-  T1 = (1 / phi) * L @ X - T0
+  T1 = (1.0 / phi) * L @ X - T0
   Y = Y + coeff[1] * T1
 
   initial_state = (T0, T1, Y)
@@ -276,7 +272,7 @@ def compute_chebychev_coeff_all(phi, tau, K, dtype=jnp.float32):
   )
 
   chebychev_coeff = lambda phi, tau, K: (
-      2 * ive(np.arange(0, K + 1), -tau * phi)
+      2.0 * ive(np.arange(0, K + 1), -tau * phi)
   ).astype(dtype)
 
   return jax.pure_callback(chebychev_coeff, result_shape_dtype, phi, tau, K)
