@@ -49,12 +49,11 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
       ``0<=k<m+n``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
       and ``j=paired_indices[s,1,k]``, point ``i`` sends
       ``mass_paired_indices[s,k]`` to point ``j``.
-
   """
   prob: linear_problem.LinearProblem
   ot_costs: float
-  paired_indices: Optional[jnp.ndarray]
-  mass_paired_indices: Optional[jnp.ndarray]
+  paired_indices: Optional[jnp.ndarray] = None
+  mass_paired_indices: Optional[jnp.ndarray] = None
 
   @property
   def transport_matrices(self) -> jnp.ndarray:
@@ -64,8 +63,8 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
     non-zero values, out of ``dnm`` total entries.
     """
     assert self.paired_indices is not None, \
-      ("[d, n, m] tensor of transports cannot be computed, likely because an"+
-       " approximate method was used (using either subsampling or quantiles).")
+      "[d, n, m] tensor of transports cannot be computed, likely because an" \
+      " approximate method was used (using either subsampling or quantiles)."
 
     n, m = self.prob.geom.shape
     if self.prob.is_equal_size and self.prob.is_uniform:

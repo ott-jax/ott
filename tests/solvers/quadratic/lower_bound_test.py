@@ -39,11 +39,11 @@ class TestLowerBoundSolver:
     self.cy = jax.random.uniform(rngs[3], (self.m, self.m))
 
   @pytest.mark.fast.with_args(
-      "cost_fn",
+      "ground_cost",
       [costs.SqEuclidean(), costs.PNormP(1.5)],
       only_fast=0,
   )
-  def test_lb_pointcloud(self, cost_fn: costs.CostFn):
+  def test_lb_pointcloud(self, ground_cost: costs.TICost):
     x, y = self.x, self.y
 
     geom_x = pointcloud.PointCloud(x)
@@ -51,7 +51,7 @@ class TestLowerBoundSolver:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b
     )
-    distrib_cost = distrib_costs.UnivariateWasserstein(cost_fn=cost_fn)
+    distrib_cost = distrib_costs.UnivariateWasserstein(ground_cost=ground_cost)
     solver = lower_bound.LowerBoundSolver(
         epsilon=1e-1, distrib_cost=distrib_cost
     )

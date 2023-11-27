@@ -72,7 +72,7 @@ class UnivariateWasserstein(costs.CostFn):
             pointcloud.PointCloud(
                 x[:, None], y[:, None], cost_fn=self.ground_cost
             )
-        )
+        ), **self._kwargs_solve
     )
     return jnp.squeeze(out.ot_costs)
 
