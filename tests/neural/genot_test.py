@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import optax
 import pytest
 
+from ott.geometry import costs
 from ott.neural.models.models import NeuralVectorField, Rescaling_MLP
 from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.solvers.genot import GENOT
@@ -41,7 +42,7 @@ class TestGENOT:
 
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
@@ -55,8 +56,11 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=0.1,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
+        time_sampler=time_sampler,
         k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_linear, genot_data_loader_linear)
@@ -82,7 +86,7 @@ class TestGENOT:
     condition_dim = 0
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
@@ -93,12 +97,14 @@ class TestGENOT:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        epsilon=None,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=None,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
+        time_sampler=time_sampler,
         k_samples_per_x=k_noise_per_x,
     )
     genot(genot_data_loader_quad, genot_data_loader_quad)
@@ -121,11 +127,11 @@ class TestGENOT:
     condition_dim = 0
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = UniformSampler()
+    UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -136,7 +142,8 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
         fused_penalty=0.5,
         k_samples_per_x=k_noise_per_x,
@@ -144,7 +151,9 @@ class TestGENOT:
     genot(genot_data_loader_fused, genot_data_loader_fused)
 
     result_forward = genot.transport(
-        source_quad, condition=condition, forward=True
+        jnp.concatenate((source_lin, source_quad), axis=1),
+        condition=condition,
+        forward=True
     )
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -176,8 +185,11 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=0.1,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
+        time_sampler=time_sampler,
         k_samples_per_x=k_noise_per_x,
     )
     genot(
@@ -196,17 +208,17 @@ class TestGENOT:
 
   @pytest.mark.parametrize("k_noise_per_x", [1, 2])
   def test_genot_quad_conditional(
-      self, genot_data_loader_quad: Iterator, k_noise_per_x: int
+      self, genot_data_loader_quad_conditional: Iterator, k_noise_per_x: int
   ):
     source_lin, source_quad, target_lin, target_quad, condition = next(
-        genot_data_loader_quad
+        genot_data_loader_quad_conditional
     )
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
     condition_dim = condition.shape[1]
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
@@ -217,15 +229,19 @@ class TestGENOT:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        epsilon=None,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=None,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
+        time_sampler=time_sampler,
         k_samples_per_x=k_noise_per_x,
     )
-    genot(genot_data_loader_quad, genot_data_loader_quad)
+    genot(
+        genot_data_loader_quad_conditional, genot_data_loader_quad_conditional
+    )
 
     result_forward = genot.transport(
         source_quad, condition=condition, forward=True
@@ -235,17 +251,17 @@ class TestGENOT:
 
   @pytest.mark.parametrize("k_noise_per_x", [1, 2])
   def test_genot_fused_conditional(
-      self, genot_data_loader_fused: Iterator, k_noise_per_x: int
+      self, genot_data_loader_fused_conditional: Iterator, k_noise_per_x: int
   ):
     source_lin, source_quad, target_lin, target_quad, condition = next(
-        genot_data_loader_fused
+        genot_data_loader_fused_conditional
     )
     source_dim = source_lin.shape[1] + source_quad.shape[1]
     target_dim = target_lin.shape[1] + target_quad.shape[1]
     condition_dim = condition.shape[1]
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
@@ -256,19 +272,24 @@ class TestGENOT:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        epsilon=None,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=None,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
-        fused_penalty=0.5,
+        time_sampler=time_sampler,
         k_samples_per_x=k_noise_per_x,
     )
-    genot(genot_data_loader_fused, genot_data_loader_fused)
+    genot(
+        genot_data_loader_fused_conditional, genot_data_loader_fused_conditional
+    )
 
     result_forward = genot.transport(
-        source_quad, condition=condition, forward=True
+        jnp.concatenate((source_lin, source_quad), axis=1),
+        condition=condition,
+        forward=True
     )
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -281,7 +302,7 @@ class TestGENOT:
     data_loader = genot_data_loader_linear_conditional if conditional else genot_data_loader_linear
 
     source_lin, source_quad, target_lin, target_quad, condition = next(
-        genot_data_loader_linear
+        data_loader
     )
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
@@ -289,7 +310,7 @@ class TestGENOT:
 
     neural_vf = NeuralVectorField(
         output_dim=target_dim,
-        condition_dim=condition_dim,
+        condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
@@ -307,18 +328,18 @@ class TestGENOT:
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
-        time_sampler=time_sampler,
+        epsilon=0.1,
+        cost_fn=costs.SqEuclidean(),
+        scale_cost=1.0,
         optimizer=optimizer,
+        time_sampler=time_sampler,
         tau_a=tau_a,
         tau_b=tau_b,
         mlp_eta=mlp_eta,
         mlp_xi=mlp_xi,
     )
-    genot(data_loader, data_loader)
 
-    source_lin, source_quad, target_lin, target_quad, condition = next(
-        genot_data_loader_linear
-    )
+    genot(data_loader, data_loader)
 
     result_eta = genot.evaluate_eta(source_lin, condition=condition)
     assert isinstance(result_eta, jax.Array)

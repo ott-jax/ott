@@ -392,7 +392,6 @@ class UnbalancednessMixin:
     ):
       if state_eta is not None:
         grad_a_fn = jax.value_and_grad(loss_a_fn, argnums=0, has_aux=True)
-        print(source.shape, (a * len(a)).shape)
         (loss_a, eta_predictions), grads_eta = grad_a_fn(
             state_eta.params,
             state_eta.apply_fn,
