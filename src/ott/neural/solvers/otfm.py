@@ -201,26 +201,6 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """
     batch: Mapping[str, jax.Array] = {}
     curr_loss = 0.0
-    """
-    if self.num_eval_samples > 0:
-      eval_batch_source, eval_batch_target = [], []
-      for iter in range(self.num_eval_samples):
-        batch = next(
-            valid_loader
-        )
-        eval_batch_source.append(batch["source_lin"])
-        eval_batch_target.append(batch["target_lin"])
-      eval_batch_source = jnp.stack(eval_batch_source)
-      eval_batch_target = jnp.stack(eval_batch_target)
-      self._training_logs["data_sink_div"].append(
-          sinkhorn_divergence(
-              eval_batch_source,
-              eval_batch_target,
-              self.epsilon,
-              self.cost_fn,
-              self.scale_cost,
-          )
-      )"""
         
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
