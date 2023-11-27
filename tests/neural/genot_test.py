@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Iterator
+from typing import Iterator, Optional
 
 import jax
 import jax.numpy as jnp
@@ -29,10 +29,14 @@ from ott.solvers.quadratic import gromov_wasserstein
 class TestGENOT:
   #TODO: add tests for unbalancedness
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_unconditional(
-      self, genot_data_loader_linear: Iterator, k_noise_per_x: int
+      self, genot_data_loader_linear: Iterator, k_samples_per_x: int,
+      solver_latent_to_data: Optional[str]
   ):
+    solver_latent_to_data = None if solver_latent_to_data is None else sinkhorn.Sinkhorn(
+    )
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_linear
     )
@@ -61,7 +65,8 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
+        solver_latent_to_data=solver_latent_to_data,
     )
     genot(genot_data_loader_linear, genot_data_loader_linear)
 
@@ -74,10 +79,13 @@ class TestGENOT:
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_quad_unconditional(
-      self, genot_data_loader_quad: Iterator, k_noise_per_x: int
+      self, genot_data_loader_quad: Iterator, k_samples_per_x: int,
+      solver_latent_to_data: Optional[str]
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_quad
     )
@@ -105,7 +113,7 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
     )
     genot(genot_data_loader_quad, genot_data_loader_quad)
 
@@ -115,10 +123,13 @@ class TestGENOT:
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_fused_unconditional(
-      self, genot_data_loader_fused: Iterator, k_noise_per_x: int
+      self, genot_data_loader_fused: Iterator, k_samples_per_x: int,
+      solver_latent_to_data: Optional[str]
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_fused
     )
@@ -146,7 +157,7 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         fused_penalty=0.5,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
     )
     genot(genot_data_loader_fused, genot_data_loader_fused)
 
@@ -158,10 +169,13 @@ class TestGENOT:
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_conditional(
-      self, genot_data_loader_linear_conditional: Iterator, k_noise_per_x: int
+      self, genot_data_loader_linear_conditional: Iterator,
+      k_samples_per_x: int, solver_latent_to_data: Optional[str]
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_linear_conditional
     )
@@ -190,7 +204,7 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
     )
     genot(
         genot_data_loader_linear_conditional,
@@ -206,10 +220,13 @@ class TestGENOT:
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_quad_conditional(
-      self, genot_data_loader_quad_conditional: Iterator, k_noise_per_x: int
+      self, genot_data_loader_quad_conditional: Iterator, k_samples_per_x: int,
+      solver_latent_to_data: Optional[str]
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_quad_conditional
     )
@@ -237,7 +254,7 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
     )
     genot(
         genot_data_loader_quad_conditional, genot_data_loader_quad_conditional
@@ -249,10 +266,13 @@ class TestGENOT:
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("k_noise_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_fused_conditional(
-      self, genot_data_loader_fused_conditional: Iterator, k_noise_per_x: int
+      self, genot_data_loader_fused_conditional: Iterator, k_samples_per_x: int,
+      solver_latent_to_data: Optional[str]
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     source_lin, source_quad, target_lin, target_quad, condition = next(
         genot_data_loader_fused_conditional
     )
@@ -280,7 +300,7 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        k_samples_per_x=k_noise_per_x,
+        k_samples_per_x=k_samples_per_x,
     )
     genot(
         genot_data_loader_fused_conditional, genot_data_loader_fused_conditional
@@ -295,10 +315,13 @@ class TestGENOT:
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("conditional", [False, True])
+  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_learn_rescaling(
       self, conditional: bool, genot_data_loader_linear: Iterator,
+      solver_latent_to_data: Optional[str],
       genot_data_loader_linear_conditional: Iterator
   ):
+    None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     data_loader = genot_data_loader_linear_conditional if conditional else genot_data_loader_linear
 
     source_lin, source_quad, target_lin, target_quad, condition = next(

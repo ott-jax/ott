@@ -22,7 +22,7 @@ import optax
 from flax.training import train_state
 from jax import random
 
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 from ott.geometry.pointcloud import PointCloud
 from ott.neural.models import models
 from ott.problems.linear import linear_problem
@@ -108,6 +108,7 @@ class ResampleMixin:
       *,
       source_is_balanced: bool,
   ) -> Tuple[jnp.array, jnp.array]:
+    batch_size = tmat.shape[0]
     left_marginals = tmat.sum(axis=1)
     if not source_is_balanced:
       key, key2 = jax.random.split(key, 2)
@@ -118,12 +119,12 @@ class ResampleMixin:
           shape=(len(left_marginals),)
       )
     else:
-      indices = jnp.arange(tmat.shape[0])
+      indices = jnp.arange(batch_size)
     tmat_adapted = tmat[indices]
     indices_per_row = jax.vmap(
         lambda tmat_adapted: jax.random.choice(
             key=key,
-            a=jnp.arange(tmat.shape[1]),
+            a=jnp.arange(batch_size),
             p=tmat_adapted,
             shape=(k_samples_per_x,)
         ),
@@ -134,21 +135,27 @@ class ResampleMixin:
     )
 
     indices_source = jnp.repeat(indices, k_samples_per_x)
-    indices_target = indices_per_row % tmat.shape[1]
+    indices_target = jnp.reshape(
+        indices_per_row % tmat.shape[1], (batch_size * k_samples_per_x,)
+    )
     return tuple(
-        b[indices_source, :] if b is not None else None for b in source_arrays
+        jnp.reshape(b[indices_source], (k_samples_per_x, batch_size,
+                                        -1)) if b is not None else None
+        for b in source_arrays
     ), tuple(
-        b[indices_target, :] if b is not None else None for b in target_arrays
+        jnp.reshape(b[indices_target, :], (k_samples_per_x, batch_size,
+                                           -1)) if b is not None else None
+        for b in target_arrays
     )
 
   def _get_sinkhorn_match_fn(
       self,
       ot_solver: Any,
-      epsilon: float,
-      cost_fn: str,
-      scale_cost: Any,
-      tau_a: float,
-      tau_b: float,
+      epsilon: float = 1e-2,
+      cost_fn: Any = costs.SqEuclidean(),
+      scale_cost: Any = "mean",
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
       *,
       filter_input: bool = False,
   ) -> Callable:

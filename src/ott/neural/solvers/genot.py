@@ -137,7 +137,6 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         mlp_xi=mlp_xi,
         unbalanced_kwargs=unbalanced_kwargs,
     )
-
     if isinstance(
         ot_solver, gromov_wasserstein.GromovWasserstein
     ) and epsilon is not None:
@@ -161,7 +160,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.input_dim = input_dim
     self.output_dim = output_dim
     self.cond_dim = cond_dim
-    self.k_noise_per_x = k_samples_per_x
+    self.k_samples_per_x = k_samples_per_x
 
     # OT data-data matching parameters
     self.ot_solver = ot_solver
@@ -175,7 +174,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.kwargs_solver_latent_to_data = kwargs_solver_latent_to_data
 
     # callback parameteres
-    self.callbac_fn = callback_fn
+    self.callback_fn = callback_fn
     self.setup()
 
   def setup(self) -> None:
@@ -227,13 +226,11 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       batch_size = len(
           batch["source_lin"]
       ) if batch["source_lin"] is not None else len(batch["source_q"])
-      n_samples = batch_size * self.k_noise_per_x
+      n_samples = batch_size * self.k_samples_per_x
       batch["time"] = self.time_sampler(rng_time, n_samples)
       batch["noise"] = self.sample_noise(rng_noise, n_samples)
       batch["latent"] = self.latent_noise_fn(
-          rng_noise,
-          shape=(batch_size, self.k_noise_per_x) if self.k_noise_per_x > 1 else
-          (batch_size,)
+          rng_noise, shape=(self.k_samples_per_x, batch_size)
       )
 
       tmat = self.match_fn(
@@ -253,43 +250,40 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           if batch[el] is not None
       ],
                                         axis=1)
+
+      batch = {
+          k: v
+          for k, v in batch.items()
+          if k in ["source", "target", "condition", "time", "noise", "latent"]
+      }
+
       (batch["source"], batch["condition"]
       ), (batch["target"],) = self._sample_conditional_indices_from_tmap(
           rng_resample,
           tmat,
-          self.k_noise_per_x, (batch["source"], batch["condition"]),
+          self.k_samples_per_x, (batch["source"], batch["condition"]),
           (batch["target"],),
           source_is_balanced=(self.tau_a == 1.0)
       )
-      rng_latent = jax.random.split(rng_noise, batch_size * self.k_noise_per_x)
+      jax.random.split(rng_noise, batch_size * self.k_samples_per_x)
 
       if self.solver_latent_to_data is not None:
         tmats_latent_data = jnp.array(
             jax.vmap(self.match_latent_to_data_fn, 0,
-                     0)(key=rng_latent, x=batch["latent"], y=batch["target"])
+                     0)(x=batch["latent"], y=batch["target"])
         )
 
-      if self.k_noise_per_x > 1:
-        raise NotImplementedError
         rng_latent_data_match = jax.random.split(
-            rng_latent_data_match, batch_size
+            rng_latent_data_match, self.k_samples_per_x
         )
-        (batch["source"], batch["source_q"], batch["condition"]
-        ), (batch["target"],
-            batch["target_q"]) = jax.vmap(self._resample_data, 0, 0)(
-                rng_latent_data_match, tmats_latent_data,
-                (batch["source"], batch["source_q"], batch["condition"]),
-                (batch["target"], batch["target_q"])
-            )
-      #(batch["source"], batch["source_q"], batch["condition"]
-      #), (batch["target"], batch["target_q"]) = self._resample_data(
-      #    rng_latent_data_match, tmat_latent_data,
-      #    (batch["source"], batch["source_q"], batch["condition"]),
-      #    (batch["target"], batch["target_q"])
-      #)
+        (batch["source"], batch["condition"]
+        ), (batch["target"],) = jax.vmap(self._resample_data, 0, 0)(
+            rng_latent_data_match, tmats_latent_data,
+            (batch["source"], batch["condition"]), (batch["target"],)
+        )
       batch = {
           key:
-              jnp.reshape(arr, (batch_size * self.k_noise_per_x,
+              jnp.reshape(arr, (batch_size * self.k_samples_per_x,
                                 -1)) if arr is not None else None
           for key, arr in batch.items()
       }
@@ -374,7 +368,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     :attr:`~ott.neural.flows.BaseTimeSampler.low` to :attr:`~ott.neural.flows.BaseTimeSampler.high`.
 
     Args:
-      data: Initial condition of the ODE.
+      source: Data to transport.
       condition: Condition of the input data.
       rng: random seed for sampling from the latent distribution.
       forward: If `True` integrates forward, otherwise backwards.
