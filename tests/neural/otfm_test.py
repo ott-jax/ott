@@ -60,12 +60,12 @@ class TestOTFlowMatching:
     )
     fm(data_loader_gaussian, data_loader_gaussian)
 
-    source, target, condition = next(data_loader_gaussian)
-    result_forward = fm.transport(source, condition=condition, forward=True)
+    batch = next(data_loader_gaussian)
+    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(target, condition=condition, forward=False)
+    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
     assert isinstance(result_backward, jax.Array)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
@@ -102,12 +102,12 @@ class TestOTFlowMatching:
         data_loader_gaussian_with_conditions
     )
 
-    source, target, condition = next(data_loader_gaussian_with_conditions)
-    result_forward = fm.transport(source, condition=condition, forward=True)
+    batch = next(data_loader_gaussian_with_conditions)
+    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(target, condition=condition, forward=False)
+    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
     assert isinstance(result_backward, jax.Array)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
@@ -141,12 +141,12 @@ class TestOTFlowMatching:
     )
     fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
 
-    source, target, condition = next(data_loader_gaussian_conditional)
-    result_forward = fm.transport(source, condition=condition, forward=True)
+    batch = next(data_loader_gaussian_conditional)
+    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
     assert isinstance(result_forward, jax.Array)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(target, condition=condition, forward=False)
+    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
     assert isinstance(result_backward, jax.Array)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
@@ -156,9 +156,9 @@ class TestOTFlowMatching:
       data_loader_gaussian_conditional: Iterator
   ):
     data_loader = data_loader_gaussian_conditional if conditional else data_loader_gaussian
-    source, target, condition = next(data_loader)
-    source_dim = source.shape[1]
-    condition_dim = condition.shape[1] if conditional else 0
+    batch = next(data_loader)
+    source_dim = batch["source_lin"].shape[1]
+    condition_dim = batch["source_conditions"].shape[1] if conditional else 0
     neural_vf = NeuralVectorField(
         output_dim=2,
         condition_dim=0,
@@ -190,10 +190,10 @@ class TestOTFlowMatching:
     )
     fm(data_loader, data_loader)
 
-    result_eta = fm.evaluate_eta(source, condition=condition)
+    result_eta = fm.evaluate_eta(batch["source_lin"], condition=batch["source_conditions"])
     assert isinstance(result_eta, jax.Array)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
-    result_xi = fm.evaluate_xi(target, condition=condition)
+    result_xi = fm.evaluate_xi(batch["target_lin"], condition=batch["target_conditions"])
     assert isinstance(result_xi, jax.Array)
     assert jnp.sum(jnp.isnan(result_xi)) == 0

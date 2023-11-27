@@ -552,6 +552,7 @@ class Rescaling_MLP(BaseRescalingNet):
         x
     )
     if self.condition_dim > 0:
+      condition = jnp.atleast_1d(condition)
       condition = Block(
           dim=self.hidden_dim,
           out_dim=self.hidden_dim,

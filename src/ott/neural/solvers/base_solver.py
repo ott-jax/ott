@@ -447,7 +447,7 @@ class UnbalancednessMixin:
     """
     if self.state_eta is None:
       raise ValueError("The left rescaling factor was not parameterized.")
-    return self.state_xi.apply_fn({"params": self.state_eta.params},
+    return self.state_eta.apply_fn({"params": self.state_eta.params},
                                   x=source,
                                   condition=condition)
 
