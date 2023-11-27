@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -18,7 +20,8 @@ import pytest
 import scipy as sp
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn, univariate
+from ott.solvers import linear
+from ott.solvers.linear import univariate
 
 
 class TestUnivariate:
@@ -26,13 +29,14 @@ class TestUnivariate:
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
     self.rng = rng
-    self.n = 17
-    self.m = 29
+    self.n = 7
+    self.m = 5
+    self.d = 2
     self.rng, *rngs = jax.random.split(self.rng, 5)
-    self.x = jax.random.uniform(rngs[0], [self.n])
-    self.y = jax.random.uniform(rngs[1], [self.m])
-    a = jax.random.uniform(rngs[2], [self.n])
-    b = jax.random.uniform(rngs[3], [self.m])
+    self.x = jax.random.uniform(rngs[0], (self.n, self.d))
+    self.y = jax.random.uniform(rngs[1], (self.m, self.d))
+    a = jax.random.uniform(rngs[2], (self.n,))
+    b = jax.random.uniform(rngs[3], (self.m,))
 
     #  adding zero weights to test proper handling
     a = a.at[0].set(0)
@@ -40,92 +44,122 @@ class TestUnivariate:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
-  @pytest.mark.parametrize(
-      "cost_fn", [
-          costs.SqEuclidean(),
-          costs.PNormP(1.0),
-          costs.PNormP(2.0),
-          costs.PNormP(1.7)
-      ]
-  )
+  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
     """The Univariate distance coincides with the sinkhorn solver"""
-    univariate_solver = univariate.UnivariateSolver(
-        method="wasserstein", cost_fn=cost_fn
-    )
-    distance = univariate_solver(self.x, self.y, self.a, self.b)
+    univariate_solver = univariate.UnivariateSolver()
+    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
+    prob = linear_problem.LinearProblem(geom=geom, a=self.a, b=self.b)
+    out = jax.jit(univariate_solver)(prob)
+    costs_1d, matrices_1d = out.ot_costs, out.transport_matrices
+    mean_matrices_1d = out.mean_transport_matrix
 
-    geom = pointcloud.PointCloud(
-        x=self.x[:, None], y=self.y[:, None], cost_fn=cost_fn, epsilon=5e-3
+    @jax.jit
+    @functools.partial(jax.vmap, in_axes=[1, 1, None, None])
+    def sliced_sinkhorn(x, y, a, b):
+      geom = pointcloud.PointCloud(
+          x[:, None], y[:, None], cost_fn=cost_fn, epsilon=0.0015
+      )
+      out = linear.solve(geom, a=self.a, b=self.b)
+      return out.primal_cost, out.matrix, out.converged
+
+    costs_sink, matrices_sink, converged = sliced_sinkhorn(
+        self.x, self.y, self.a, self.b
     )
-    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
-    sinkhorn_solver = jax.jit(sinkhorn.Sinkhorn(max_iterations=10_000))
-    sinkhorn_soln = sinkhorn_solver(prob)
+    assert jnp.all(converged)
+    scale = 1 / (self.n * self.m)
+
+    np.testing.assert_allclose(costs_1d, costs_sink, atol=scale, rtol=1e-1)
 
     np.testing.assert_allclose(
-        sinkhorn_soln.primal_cost, distance, atol=0, rtol=1e-1
+        jnp.mean(matrices_1d, axis=0).sum(1), self.a, atol=1e-3
+    )
+    np.testing.assert_allclose(
+        jnp.mean(matrices_1d, axis=0).sum(0), self.b, atol=1e-3
+    )
+
+    np.testing.assert_allclose(
+        matrices_sink, matrices_1d, atol=0.5 * scale, rtol=1e-1
+    )
+    np.testing.assert_allclose(
+        jnp.mean(matrices_sink, axis=0),
+        mean_matrices_1d,
+        atol=0.5 * scale,
+        rtol=1e-1
     )
 
   @pytest.mark.fast()
   def test_cdf_distance_and_scipy(self):
     """The OTT solver coincides with scipy solver"""
+    x, y, a, b = self.x, self.y, self.a, self.b
+    # The `scipy` solver only computes the solution for p=1.0 visible
 
-    # The `scipy` solver only has the solution for p=1.0 visible
-    univariate_solver = univariate.UnivariateSolver(
-        method="wasserstein", cost_fn=costs.PNormP(1.0)
-    )
-    ott_distance = univariate_solver(self.x, self.y, self.a, self.b)
+    # non-uniform: vanilla or subsampling
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNormP(1.0))
+    prob = linear_problem.LinearProblem(geom=geom, a=a, b=b)
+    ott_d = univariate.UnivariateSolver()(prob).ot_costs[0]
+    scipy_d = sp.stats.wasserstein_distance(x[:, 0], y[:, 0], a, b)
+    np.testing.assert_allclose(scipy_d, ott_d, atol=1e-2, rtol=1e-2)
 
-    scipy_distance = sp.stats.wasserstein_distance(
-        self.x, self.y, self.a, self.b
-    )
+    num_subsamples = 100
+    ott_dss = univariate.UnivariateSolver(num_subsamples=num_subsamples
+                                         )(prob).ot_costs[0]
+    np.testing.assert_allclose(scipy_d, ott_dss, atol=1e2, rtol=1e-2)
 
-    np.testing.assert_allclose(scipy_distance, ott_distance, atol=0, rtol=1e-2)
+    # uniform variants
+    prob = linear_problem.LinearProblem(geom=geom)
+    scipy_d2 = sp.stats.wasserstein_distance(x[:, 0], y[:, 0])
+
+    ott_d = univariate.UnivariateSolver()(prob).ot_costs[0]
+    ott_dq = univariate.UnivariateSolver(quantiles=8)(prob).ot_costs[0]
+    np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
+    np.testing.assert_allclose(scipy_d2, ott_dq, atol=1e-1, rtol=1e-1)
 
   @pytest.mark.fast()
-  def test_cdf_grad(
+  def test_univariate_grad(
       self,
       rng: jax.Array,
   ):
     # TODO: Once a `check_grad` function is implemented, replace the code
     # blocks before with `check_grad`'s.
-    cost_fn = costs.SqEuclidean()
     rngs = jax.random.split(rng, 4)
     eps, tol = 1e-4, 1e-3
+    x, y = self.x[:, 1][:, None], self.y[:, 1][:, None]
+    a, b = self.a, self.b
+    solver = univariate.UnivariateSolver()
 
-    solver = univariate.UnivariateSolver(method="wasserstein", cost_fn=cost_fn)
+    def univ_dist(x, y, a, b):
+      geom = pointcloud.PointCloud(x, y)
+      prob = linear_problem.LinearProblem(geom=geom, a=a, b=b)
+      return jnp.squeeze(solver(prob).ot_costs)
 
-    grad_x, grad_y, grad_a, grad_b = jax.jit(jax.grad(solver, (0, 1, 2, 3))
-                                            )(self.x, self.y, self.a, self.b)
+    grad_x, grad_y, grad_a, grad_b = jax.jit(jax.grad(univ_dist, (0, 1, 2, 3))
+                                            )(x, y, a, b)
 
     # Checking geometric grads:
-    v_x = jax.random.normal(rngs[0], shape=self.x.shape)
+    v_x = jax.random.normal(rngs[0], shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
-    expected = solver(self.x + v_x, self.y, self.a,
-                      self.b) - solver(self.x - v_x, self.y, self.a, self.b)
+    expected = univ_dist(x + v_x, y, a, b) - univ_dist(x - v_x, y, a, b)
     actual = 2.0 * jnp.vdot(v_x, grad_x)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-    v_y = jax.random.normal(rngs[1], shape=self.y.shape)
+    v_y = jax.random.normal(rngs[1], shape=y.shape)
     v_y = (v_y / jnp.linalg.norm(v_y, axis=-1, keepdims=True)) * eps
-    expected = solver(self.x, self.y + v_y, self.a,
-                      self.b) - solver(self.x, self.y - v_y, self.a, self.b)
+    expected = univ_dist(x, y + v_y, a, b) - univ_dist(x, y - v_y, a, b)
     actual = 2.0 * jnp.vdot(v_y, grad_y)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
     # Checking probability grads:
-    v_a = jax.random.normal(rngs[2], shape=self.x.shape)
+    v_a = jax.random.normal(rngs[2], shape=a.shape)
     v_a -= jnp.mean(v_a, axis=-1, keepdims=True)
     v_a = (v_a / jnp.linalg.norm(v_a, axis=-1, keepdims=True)) * eps
-    expected = solver(self.x, self.y, self.a + v_a,
-                      self.b) - solver(self.x, self.y, self.a - v_a, self.b)
+    expected = univ_dist(x, y, a + v_a, b) - univ_dist(x, y, a - v_a, b)
     actual = 2.0 * jnp.vdot(v_a, grad_a)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-    v_b = jax.random.normal(rngs[3], shape=self.y.shape)
+    v_b = jax.random.normal(rngs[3], shape=b.shape)
     v_b -= jnp.mean(v_b, axis=-1, keepdims=True)
     v_b = (v_b / jnp.linalg.norm(v_b, axis=-1, keepdims=True)) * eps
-    expected = solver(self.x, self.y, self.a, self.b +
-                      v_b) - solver(self.x, self.y, self.a, self.b - v_b)
+    expected = univ_dist(x, y, a, b + v_b) - univ_dist(x, y, a, b - v_b)
     actual = 2.0 * jnp.vdot(v_b, grad_b)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)

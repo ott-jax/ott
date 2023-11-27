@@ -13,6 +13,7 @@
 # limitations under the License.
 from . import (
     costs,
+    distrib_costs,
     epsilon_scheduler,
     geometry,
     graph,

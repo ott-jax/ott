@@ -66,6 +66,7 @@ Cost Functions
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
     costs.SoftDTW
+    distrib_costs.UnivariateWasserstein
 
 Utilities
 ---------
