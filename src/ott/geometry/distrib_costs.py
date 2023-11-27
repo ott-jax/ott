@@ -32,33 +32,36 @@ class UnivariateWasserstein(costs.CostFn):
   This ground cost between considers vectors as a family of values. The
   Wasserstein distance between them is the 1D OT cost, using a user-defined
   ground cost.
+
+  Args:
+    kwargs: arguments passed on when calling the
+      :class:`~ott.solvers.linear.univariate.UnivariateSolver`. May include
+      random key, or specific instructions to subsample or compute using
+      quantiles.
+
   """
 
   def __init__(
       self,
       ground_cost: Optional[costs.TICost] = None,
-      kwargs_solve: Optional[Any] = None,
+      solver: Optional[univariate.UnivariateSolver] = None,
       **kwargs: Any
   ):
     super().__init__()
-    if ground_cost is None:
-      self.ground_cost = costs.SqEuclidean()
-    else:
-      self.ground_cost = ground_cost
-    self._kwargs_solve = {} if kwargs_solve is None else kwargs_solve
-    self._kwargs = kwargs
-    self._solver = univariate.UnivariateSolver(**kwargs)
+
+    self.ground_cost = (
+        costs.SqEuclidean() if ground_cost is None else ground_cost
+    )
+
+    self._solver = univariate.UnivariateSolver() if solver is None else solver
+    self._kwargs_solve = kwargs
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Wasserstein distance between :math:`x` and :math:`y` seen as a 1D dist.
 
     Args:
-      x: vector
-      y: vector
-      kwargs: arguments passed on when calling the
-        :class:`~ott.solvers.linear.univariate.UnivariateSolver`. May include
-        random key, or specific instructions to subsample or compute using
-        quantiles.
+      x: vector, array of shape ``[n,]``
+      y: vector, array of shape ``[m,]``
 
     Returns:
       The transport cost.
@@ -73,10 +76,8 @@ class UnivariateWasserstein(costs.CostFn):
     return jnp.squeeze(out.ot_costs)
 
   def tree_flatten(self):  # noqa: D102
-    return (), (self.ground_cost, self._kwargs_solve, self._kwargs)
+    return (self.ground_cost, self._solver), self._kwargs_solve
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del children
-    gc, kws, kw = aux_data
-    return cls(gc, kws, **kw)
+    return cls(*children, **aux_data)

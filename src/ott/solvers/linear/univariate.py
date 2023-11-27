@@ -11,28 +11,61 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import costs, pointcloud
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
-__all__ = ["UnivariateOutput", "UnivariateSolver"]
+__all__ = [
+    "UnivariateOutput", "UnivariateSolver", "uniform_distance",
+    "quantile_distance"
+]
 
 
 class UnivariateOutput(NamedTuple):  # noqa: D101
+  """Holds the output of a UnivariateSolver.
+
+  Objects of this class contain both solutions and problem definition of a
+  univariate OT problem.
+
+  Args:
+    prob: OT problem between 2 weighted ``[n, d]`` and ``[m, d]`` point clouds.
+    ot_costs: ``[d,]`` optimal transport cost values, computed independently
+      along each of the ``d`` slices.
+    paired_indices: ``None`` if no transport was computed / recorded (e.g. when
+      using quantiles or subsampling approximations). Otherwise, output a tensor
+      of shape ``[d, 2, m+n]``, of ``m+n`` pairs of indices, for which the
+      optimal transport assigns mass, on each slice of the ``d`` slices
+      described in the dataset. Namely, for each index ``0<=k<m+n``, ``0<=s<d``,
+      if one has ``i:=paired_indices[s,0,k]`` and ``j:=paired_indices[s,1,k]``,
+      then point ``i`` in the first point cloud sends mass to point ``j`` in the
+      second, in slice ``s``.
+    mass_paired_indices: ``[d, m+n]`` array of weights. Using notation above, if
+      ``0<=k<m+n``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
+      and ``j=paired_indices[s,1,k]``, point ``i`` sends
+      ``mass_paired_indices[s,k]`` to point ``j``.
+
+  """
   prob: linear_problem.LinearProblem
   ot_costs: float
-  paired_indices: jax.Array
-  mass_paired_indices: jax.Array
+  paired_indices: Optional[jnp.ndarray]
+  mass_paired_indices: Optional[jnp.ndarray]
 
   @property
-  def transport_matrices(self) -> jax.Array:
-    """Output a ``[d,n,m]`` tensor of all ``[n,m]`` transport matrices."""
-    assert self.paired_indices is not None, "[d,n,m] Transports *not* computed"
+  def transport_matrices(self) -> jnp.ndarray:
+    """Outputs a ``[d, n, m]`` tensor of all ``[n, m]`` transport matrices.
+
+    This tensor will be extremely sparse, since it will have at most ``d(n+m)``
+    non-zero values, out of ``dnm`` total entries.
+    """
+    assert self.paired_indices is not None, \
+      ("[d, n, m] tensor of transports cannot be computed, likely because an"+
+       " approximate method was used (using either subsampling or quantiles).")
 
     n, m = self.prob.geom.shape
     if self.prob.is_equal_size and self.prob.is_uniform:
@@ -54,7 +87,7 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
     )(indices, self.mass_paired_indices)
 
   @property
-  def mean_transport_matrix(self) -> jax.Array:
+  def mean_transport_matrix(self) -> jnp.ndarray:
     """Return the mean tranport matrix, averaged over slices."""
     return jnp.mean(self.transport_matrices, axis=0)
 
@@ -66,10 +99,10 @@ class UnivariateSolver:
   Computes 1-Dimensional optimal transport distance between two $d$-dimensional
   point clouds. The total distance is the sum of univariate Wasserstein
   distances on the $d$ slices of data: given two weighted point-clouds, stored
-  as ``[n,d]`` and ``[m,d]`` in a
+  as ``[n, d]`` and ``[m, d]`` in a
   :class:`~ott.problems.linear.linear_problem.LinearProblem` object, with
   respective weights ``a`` and ``b``, the solver
-  computes ``d`` OT distances between each of these ``[n,1]`` and ``[m,1]``
+  computes ``d`` OT distances between each of these ``[n, 1]`` and ``[m, 1]``
   slices. The distance is computed using the analytical formula by default,
   which involves sorting each of the slices independently. The optimal transport
   matrices are also outputted when possible (described in sparse form, i.e.
@@ -110,7 +143,7 @@ class UnivariateSolver:
     self.num_subsamples = num_subsamples
 
   @property
-  def quantiles(self):
+  def quantiles(self) -> jnp.ndarray:
     """Quantiles' values used to evaluate OT cost."""
     if self._quantiles is None:
       return None
@@ -119,50 +152,49 @@ class UnivariateSolver:
     return self._quantiles
 
   @property
-  def num_quantiles(self):
+  def num_quantiles(self) -> int:
     """Number of quantiles used to evaluate OT cost."""
-    return 0 if self._quantiles is None else self.quantiles.shape[0]
+    return 0 if self.quantiles is None else self.quantiles.shape[0]
 
   def __call__(
       self,
       prob: linear_problem.LinearProblem,
       rng: Optional[jax.Array] = None,
-  ) -> float:
+  ) -> UnivariateOutput:
     """Computes Univariate Distance between the `d` dimensional slices.
 
     Args:
-      prob: describing, in its geometry attribute, the two point clouds
-        ``x`` and ``y`` (of respective sizes ``[n,d]`` and ``[m,d]``) and
-        a ground ``cost_fn`` for between two scalars. The ``[n,]`` and ``[m,]``
-        size probability weights vectors are stored in attributes ``a`` and
-        ``b``.
-      rng: used for random downsampling, if used.
-      return_transport: whether to return an average transport matrix (across
-        slices). Not available when approximating the distance computation
-        using subsamples, or quantiles.
+      prob: describing, in its :attr:`~ott.problems.linear.LinearProblem.geom`
+        attribute, the two point clouds ``x`` and ``y``
+        (of respective sizes ``[n, d]`` and ``[m, d]``) and a ground
+        `TI cost <ott.geometry.costs.TICost>` between two scalars.
+        The ``[n,]`` and ``[m,]`` size probability weights vectors are stored in
+        attributes `:attr:`~ott.problems.linear.LinearProblem.a` and
+        :attr:`~ott.problems.linear.LinearProblem.b`
+      rng: used for random downsampling, if specified in the solver.
 
     Returns:
-      The OT distance, and possibly the transport matrix averaged by
-        considering all matrices arising from 1D transport on each of the ``d``
-        dimensional slices of the input.
+      An output object, that computs ``d`` OT costs, in addition to, possibly,
+      paired lists of indices and their corresponding masses, on each of the
+      ``d`` dimensional slices of the input.
     """
     geom = prob.geom
     n, m = geom.shape
-    rng = jax.random.PRNGKey(0) if rng is None else rng
-    geom_is_pc = isinstance(geom, pointcloud.PointCloud)
-    assert geom_is_pc, "Geometry object in problem must be a PointCloud."
-    cost_is_TI = isinstance(geom.cost_fn, costs.TICost)
-    assert cost_is_TI, "Geometry's cost must be translation invariant."
+    rng = utils.default_prng_key(rng) if rng is None else rng
+    assert isinstance(geom, pointcloud.PointCloud), \
+      "Geometry object in problem must be a PointCloud."
+    assert isinstance(geom.cost_fn, costs.TICost), \
+      "Geometry's cost must be translation invariant."
     x, y = geom.x, geom.y
 
     # check if problem has the property uniform / same number of points
     is_uniform_same_size = prob.is_uniform and prob.is_equal_size
     if self.num_subsamples:
-      rng1, rng2 = jax.random.split(rng, 2)
       if prob.is_uniform:
         x = x[jnp.linspace(0, n, num=self.num_subsamples).astype(int), :]
         y = y[jnp.linspace(0, m, num=self.num_subsamples).astype(int), :]
       else:
+        rng1, rng2 = jax.random.split(rng, 2)
         x = jax.random.choice(rng1, x, (self.num_subsamples,), p=prob.a, axis=0)
         y = jax.random.choice(rng2, y, (self.num_subsamples,), p=prob.b, axis=0)
         n = m = self.num_subsamples
@@ -171,19 +203,9 @@ class UnivariateSolver:
 
     if self.quantiles is None:
       if is_uniform_same_size:
-        i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
-        x = jnp.take_along_axis(x, i_x, axis=0)
-        y = jnp.take_along_axis(y, i_y, axis=0)
-        ot_costs = jax.vmap(geom.cost_fn.h, in_axes=[0])(x.T - y.T) / n
-
-        if self.num_subsamples:
-          # When subsampling, the pairing computed have no meaning w.r.t.
-          # original data.
-          paired_indices, mass_paired_indices = None, None
-        else:
-          paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
-          mass_paired_indices = jnp.ones((n,)) / n
-
+        ot_costs, paired_indices, mass_paired_indices = uniform_distance(
+            x, y, geom.cost_fn, return_pairs=not self.num_subsamples
+        )
       else:
         ot_costs, paired_indices, mass_paired_indices = jax.vmap(
             self._quantile_distance_and_transport,
@@ -191,7 +213,8 @@ class UnivariateSolver:
         )(x, y, prob.a, prob.b, geom.cost_fn)
 
     else:
-      assert prob.is_uniform, "Quantile method only valid for uniform marginals"
+      assert prob.is_uniform, \
+        "The ``quantiles`` method can only be used with uniform marginals."
       x_q = jnp.quantile(x, self.quantiles, axis=0)
       y_q = jnp.quantile(y, self.quantiles, axis=0)
       ot_costs = jax.vmap(geom.cost_fn.pairwise, in_axes=[1, 1])(x_q, y_q)
@@ -206,53 +229,6 @@ class UnivariateSolver:
         mass_paired_indices=mass_paired_indices
     )
 
-  def _quantile_distance_and_transport(
-      self, x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-      cost_fn: costs.TICost
-  ):
-    # Implementation inspired by `scipy` implementation for
-    # :func:<scipy.stats.wasserstein_distance>
-    def sort_and_argsort(x: jnp.array, return_argsort: bool, **kwargs):
-      if return_argsort:
-        i_x = jnp.argsort(x, **kwargs)
-        return x[i_x], i_x
-      return jnp.sort(x), None
-
-    x, i_x = sort_and_argsort(x, True)
-    y, i_y = sort_and_argsort(y, True)
-
-    all_values = jnp.concatenate([x, y])
-    all_values_sorted, all_values_sorter = sort_and_argsort(all_values, True)
-
-    x_pdf = jnp.concatenate([a[i_x], jnp.zeros_like(b)])[all_values_sorter]
-    y_pdf = jnp.concatenate([jnp.zeros_like(a), b[i_y]])[all_values_sorter]
-
-    x_cdf = jnp.cumsum(x_pdf)
-    y_cdf = jnp.cumsum(y_pdf)
-
-    x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
-    quantile_levels, _ = sort_and_argsort(x_y_cdfs, False)
-
-    i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
-    x_cdf_inv = all_values_sorted[i_x_cdf_inv]
-    i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
-    y_cdf_inv = all_values_sorted[i_y_cdf_inv]
-
-    diff_q = jnp.diff(quantile_levels)
-    cost = jnp.sum(
-        jax.vmap(cost_fn.h)(y_cdf_inv[1:, None] - x_cdf_inv[1:, None]) * diff_q
-    )
-
-    n = x.shape[0]
-
-    i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
-    i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
-
-    orig_i = (i_x[i_in_sorted_x_of_quantile])[1:]
-    orig_j = (i_y[i_in_sorted_y_of_quantile])[1:]
-
-    return cost, jnp.stack([orig_i, orig_j]), diff_q
-
   def tree_flatten(self):  # noqa: D102
     aux_data = vars(self).copy()
     return [], aux_data
@@ -260,3 +236,97 @@ class UnivariateSolver:
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
+
+
+def uniform_distance(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    cost_fn: costs.TICost,
+    return_pairs: bool = True
+) -> Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]:
+  """Distance between two equal-size families of uniformly weighted values x/y.
+
+  Args:
+    x: a vector ``[n,]`` of real values
+    y: a vector ``[n,]`` of real values
+    cost_fn: a translation invariant cost function, i.e. ``c(x,y) = h(x-y).``
+    return_pairs: whether to return mapped pairs.
+
+  Returns:
+    optimal transport cost, a list of ``n+m`` paired indices, and their
+    corresponding transport mass. Note that said mass can be null in some
+    entries, but sums to 1.0
+  """
+  n = x.shape[0]
+  i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
+  x = jnp.take_along_axis(x, i_x, axis=0)
+  y = jnp.take_along_axis(y, i_y, axis=0)
+  ot_costs = jax.vmap(cost_fn.h, in_axes=[0])(x.T - y.T) / n
+
+  if return_pairs:
+    paired_indices, mass_paired_indices = None, None
+  else:
+    paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
+    mass_paired_indices = jnp.ones((n,)) / n
+  return ot_costs, paired_indices, mass_paired_indices
+
+
+def quantile_distance(
+    x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+    cost_fn: costs.TICost
+) -> Tuple[float, jnp.ndarray, jnp.ndarray]:
+  """Computes distance between quantile functions of distributions (a,x)/(b,y).
+
+  Args:
+    x: a vector ``[n,]`` of real values
+    y: a vector ``[m,]`` of real values
+    a: a vector ``[n,]`` of nonnegative weights summing to 1.
+    b: a vector ``[m,]`` of nonnegative weights summing to 1.
+    cost_fn: a translation invariant cost function, i.e. ``c(x,y) = h(x-y).``
+
+  Notes:
+    Implementation inspired by `scipy` implementation for
+    :func:`~scipy.stats.wasserstein_distance`, but can be used with other costs,
+    not just :math:`c(x,y)=|x-y|`.
+
+  Returns:
+    optimal transport cost, a list of ``n+m`` paired indices, and their
+    corresponding transport mass. Note that said mass can be null in some
+    entries, but sums to 1.0
+  """
+  x, i_x = mu.sort_and_argsort(x, argsort=True)
+  y, i_y = mu.sort_and_argsort(y, argsort=True)
+
+  all_values = jnp.concatenate([x, y])
+  all_values_sorted, all_values_sorter = mu.sort_and_argsort(
+      all_values, argsort=True
+  )
+
+  x_pdf = jnp.concatenate([a[i_x], jnp.zeros_like(b)])[all_values_sorter]
+  y_pdf = jnp.concatenate([jnp.zeros_like(a), b[i_y]])[all_values_sorter]
+
+  x_cdf = jnp.cumsum(x_pdf)
+  y_cdf = jnp.cumsum(y_pdf)
+
+  x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
+  quantile_levels, _ = mu.sort_and_argsort(x_y_cdfs, argsort=False)
+
+  i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
+  x_cdf_inv = all_values_sorted[i_x_cdf_inv]
+  i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
+  y_cdf_inv = all_values_sorted[i_y_cdf_inv]
+
+  diff_q = jnp.diff(quantile_levels)
+  cost = jnp.sum(
+      jax.vmap(cost_fn.h)(y_cdf_inv[1:, None] - x_cdf_inv[1:, None]) * diff_q
+  )
+
+  n = x.shape[0]
+
+  i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
+  i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
+
+  orig_i = i_x[i_in_sorted_x_of_quantile][1:]
+  orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+
+  return cost, jnp.stack([orig_i, orig_j]), diff_q

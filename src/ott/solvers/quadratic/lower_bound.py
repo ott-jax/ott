@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 import jax
 
-from ott.geometry import distrib_cost, pointcloud
+from ott.geometry import distrib_costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
@@ -32,6 +32,9 @@ class LowerBoundSolver:
 
   Args:
     epsilon: Entropy regularization for the resulting linear problem.
+    cost_fn: Univariate Wasserstein cost, used to compare two point clouds in
+      different spaces, where each point is seen as its distribution of costs
+      to other points in its point-cloud.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.univariate.UnivariateSolver`.
   """
@@ -39,44 +42,44 @@ class LowerBoundSolver:
   def __init__(
       self,
       epsilon: Optional[float] = None,
-      **kwargs: Any,
+      distrib_cost: Optional[distrib_costs.UnivariateWasserstein] = None,
   ):
     self.epsilon = epsilon
+    if distrib_cost is None:
+      distrib_cost = distrib_costs.UnivariateWasserstein()
+    self.distrib_cost = distrib_cost
 
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-      rng: Optional[jax.Array] = None,
-      kwargs_univsolver: Optional[Any] = None,
       epsilon: Optional[float] = None,
-      **kwargs
+      rng: Optional[jax.Array] = None,
+      **kwargs: Any
   ) -> sinkhorn.SinkhornOutput:
-    """Run the Histogram transport solver.
+    """Compute a lower-bound for the GW problem using a simple linearization.
+
+    This solver handles a quadratic problem by computing first a proxy ``[n,m]``
+    cost-matrix, inject it into a linear OT solver, to output a first OT matrix
+    that can be used either to linearize/initialize the resolution of the GW
+    problem, or more simply as a simple GW solution.
 
     Args:
       prob: Quadratic OT problem.
-      kwargs_univsolver: keyword args to
-        create the :class:`~ott.solvers.linear.univariate.UnivariateSolver`,
-        used to compute a ``[n,m]`` cost matrix, using the linearization
-        approach. This might rely, for instance, on subsampling or quantile
-        reduction to speed up computations.
-      rng: random key, possibly used when computing 1D costs when using
-        subsampling.
       epsilon: entropic regularization passed on to solve the linearization of
         the quadratic problem using 1D costs.
+      rng: random key, possibly used when computing 1D costs when using
+        subsampling.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
-      The Histogram transport output.
+      A linear OT output, an approximation of the OT coupling obtained using
+      the lower bound provided by :cite:`memoli:11`.
     """
     dists_xx = prob.geom_xx.cost_matrix
     dists_yy = prob.geom_yy.cost_matrix
-    kwargs_univsolver = {} if kwargs_univsolver is None else kwargs_univsolver
+
     geom_xy = pointcloud.PointCloud(
-        dists_xx,
-        dists_yy,
-        cost_fn=distrib_cost.UnivariateWasserstein(**kwargs_univsolver),
-        epsilon=self.epsilon
+        dists_xx, dists_yy, cost_fn=self.distrib_cost, epsilon=self.epsilon
     )
 
     return linear.solve(geom_xy, **kwargs)

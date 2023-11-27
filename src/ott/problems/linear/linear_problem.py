@@ -80,12 +80,12 @@ class LinearProblem:
 
   @property
   def is_uniform(self) -> bool:
-    """Test if no weights were passed."""
+    """True if no weights ``a,b`` were passed, and have defaulted to uniform."""
     return self._a is None and self._b is None
 
   @property
   def is_equal_size(self) -> bool:
-    """Test if square shape, i.e. n == m."""
+    """True if square shape, i.e. ``n == m``."""
     return self.geom.shape[0] == self.geom.shape[1]
 
   @property
