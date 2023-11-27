@@ -23,6 +23,7 @@ from scipy.special import ive
 from ott.geometry import geometry
 from ott.math import utils as mu
 from ott.types import Array_g
+from ott.utils import default_prng_key
 
 __all__ = ["Geodesic"]
 
@@ -110,9 +111,7 @@ class Geodesic(geometry.Geometry):
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
-    eigval = compute_largest_eigenvalue(
-        laplacian, k=1
-    ) if eigval is None else eigval
+    eigval = compute_largest_eigenvalue(laplacian) if eigval is None else eigval
 
     scaled_laplacian = jax.lax.cond((eigval > 2.0), lambda l: 2.0 * l / eigval,
                                     lambda l: l, laplacian)
@@ -224,7 +223,7 @@ def compute_largest_eigenvalue(
   # Compute the largest eigenvalue of the Laplacian matrix.
   n = laplacian_matrix.shape[0]
   # Generate random initial directions for eigenvalue computation
-  initial_dirs = jax.random.normal(rng, (n, 1))
+  initial_dirs = jax.random.normal(default_prng_key(rng), (n, 1))
 
   # Create a sparse matrix-vector product function using sparsify
   # This function multiplies the sparse laplacian_matrix with a vector
