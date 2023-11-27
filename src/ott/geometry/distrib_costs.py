@@ -47,6 +47,7 @@ class UnivariateWasserstein(costs.CostFn):
       solver: Optional[univariate.UnivariateSolver] = None,
       **kwargs: Any
   ):
+    from ott.solvers.linear import univariate
     super().__init__()
 
     self.ground_cost = (
@@ -71,13 +72,13 @@ class UnivariateWasserstein(costs.CostFn):
             pointcloud.PointCloud(
                 x[:, None], y[:, None], cost_fn=self.ground_cost
             )
-        ), **self._kwargs_solve
+        )
     )
     return jnp.squeeze(out.ot_costs)
 
   def tree_flatten(self):  # noqa: D102
-    return (self.ground_cost, self._solver), self._kwargs_solve
+    return (self.ground_cost,), (self._solver,)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(*children, **aux_data)
+    return cls(*children, *aux_data)

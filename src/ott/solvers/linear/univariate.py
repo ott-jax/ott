@@ -180,7 +180,7 @@ class UnivariateSolver:
     """
     geom = prob.geom
     n, m = geom.shape
-    rng = utils.default_prng_key(rng) if rng is None else rng
+    rng = utils.default_prng_key(rng)
     assert isinstance(geom, pointcloud.PointCloud), \
       "Geometry object in problem must be a PointCloud."
     assert isinstance(geom.cost_fn, costs.TICost), \
@@ -208,8 +208,7 @@ class UnivariateSolver:
         )
       else:
         ot_costs, paired_indices, mass_paired_indices = jax.vmap(
-            self._quantile_distance_and_transport,
-            in_axes=[1, 1, None, None, None]
+            quantile_distance, in_axes=[1, 1, None, None, None]
         )(x, y, prob.a, prob.b, geom.cost_fn)
 
     else:
@@ -230,12 +229,12 @@ class UnivariateSolver:
     )
 
   def tree_flatten(self):  # noqa: D102
-    aux_data = vars(self).copy()
-    return [], aux_data
+    return None, (self.num_subsamples, self._quantiles)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(*children, **aux_data)
+    del children
+    return cls(*aux_data)
 
 
 def uniform_distance(

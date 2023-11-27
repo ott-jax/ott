@@ -15,7 +15,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, distrib_costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.quadratic import lower_bound
 
@@ -51,8 +51,10 @@ class TestLowerBoundSolver:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b
     )
-
-    solver = lower_bound.LowerBoundSolver(epsilon=1e-1, cost_fn=cost_fn)
+    distrib_cost = distrib_costs.UnivariateWasserstein(cost_fn=cost_fn)
+    solver = lower_bound.LowerBoundSolver(
+        epsilon=1e-1, distrib_cost=distrib_cost
+    )
 
     out = jax.jit(solver)(prob)
 

@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import jax
 
-from ott.geometry import distrib_costs, pointcloud
+from ott.geometry import pointcloud
+
+if TYPE_CHECKING:
+  from ott.solvers.linear import distrib_costs
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
@@ -42,8 +45,9 @@ class LowerBoundSolver:
   def __init__(
       self,
       epsilon: Optional[float] = None,
-      distrib_cost: Optional[distrib_costs.UnivariateWasserstein] = None,
+      distrib_cost: Optional["distrib_costs.UnivariateWasserstein"] = None,
   ):
+    from ott.geometry import distrib_costs
     self.epsilon = epsilon
     if distrib_cost is None:
       distrib_cost = distrib_costs.UnivariateWasserstein()
@@ -81,15 +85,12 @@ class LowerBoundSolver:
     geom_xy = pointcloud.PointCloud(
         dists_xx, dists_yy, cost_fn=self.distrib_cost, epsilon=self.epsilon
     )
-
     return linear.solve(geom_xy, **kwargs)
 
   def tree_flatten(self):  # noqa: D102
-    return [self.epsilon, self.univariate_solver], {}
+    return (self.epsilon, self.distrib_cost), None
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    epsilon, solver = children
-    obj = cls(epsilon, **aux_data)
-    obj.univariate_solver = solver
-    return obj
+    del aux_data
+    return cls(*children)
