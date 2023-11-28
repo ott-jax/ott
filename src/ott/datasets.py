@@ -112,7 +112,7 @@ def create_gaussian_mixture_samplers(
     valid_batch_size: int = 2048,
     rng: Optional[jax.Array] = None,
 ) -> Tuple[Dataset, Dataset, int]:
-  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Gaussian samplers.
 
   Args:
     name_source: name of the source sampler
