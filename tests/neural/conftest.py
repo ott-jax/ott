@@ -10,7 +10,7 @@ def data_loader_gaussian():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  return OTDataLoader(source, target, 16)
+  return OTDataLoader(16, source_lin=source, target_lin=target)
 
 
 @pytest.fixture(scope="module")
@@ -23,10 +23,10 @@ def data_loader_gaussian_conditional():
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) - 2.0
   dl0 = OTDataLoader(
-      source_0, target_0, 16, source_conditions=np.zeros_like(source_0) * 0.0
+      16, source_lin=source_0, target_lin=target_0, source_conditions=np.zeros_like(source_0) * 0.0
   )
   dl1 = OTDataLoader(
-      source_1, target_1, 16, source_conditions=np.ones_like(source_1) * 1.0
+      16, source_lin=source_1, target_lin=target_1, source_conditions=np.ones_like(source_1) * 1.0
   )
 
   return ConditionalDataLoader({"0": dl0, "1": dl1}, np.array([0.5, 0.5]))
@@ -40,7 +40,7 @@ def data_loader_gaussian_with_conditions():
   target = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 1))
   target_conditions = rng.normal(size=(100, 1)) - 1.0
-  return OTDataLoader(source, target, 16, source_conditions, target_conditions)
+  return OTDataLoader(16, source_lin=source, target_lin=target, source_conditions=source_conditions, target_conditions=target_conditions)
 
 
 @pytest.fixture(scope="module")
