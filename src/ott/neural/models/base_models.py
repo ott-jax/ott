@@ -15,7 +15,7 @@ import abc
 from typing import Optional
 
 import flax.linen as nn
-import jax
+import jax.numpy as jnp
 
 __all__ = ["BaseNeuralVectorField", "BaseRescalingNet"]
 
@@ -25,11 +25,11 @@ class BaseNeuralVectorField(nn.Module, abc.ABC):
   @abc.abstractmethod
   def __call__(
       self,
-      t: jax.Array,
-      x: jax.Array,
-      condition: Optional[jax.Array] = None,
-      keys_model: Optional[jax.Array] = None
-  ) -> jax.Array:  # noqa: D102):
+      t: jnp.ndarray,
+      x: jnp.ndarray,
+      condition: Optional[jnp.ndarray] = None,
+      keys_model: Optional[jnp.ndarray] = None
+  ) -> jnp.ndarray:  # noqa: D102):
     pass
 
 
@@ -37,6 +37,8 @@ class BaseRescalingNet(nn.Module, abc.ABC):
 
   @abc.abstractmethod
   def __call__(
-      self, x: jax.Array, condition: Optional[jax.Array] = None
-  ) -> jax.Array:
+      self,
+      x: jnp.ndarray,
+      condition: Optional[jnp.ndarray] = None
+  ) -> jnp.ndarray:
     pass

@@ -125,7 +125,9 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       defaults to the product coupling :math:`ab^T`.
   """
 
-  def __init__(self, init_coupling: Optional[jax.Array] = None, **kwargs: Any):
+  def __init__(
+      self, init_coupling: Optional[jnp.ndarray] = None, **kwargs: Any
+  ):
     super().__init__(**kwargs)
     self.init_coupling = init_coupling
 

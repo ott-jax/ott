@@ -23,12 +23,8 @@ class DataLoader:
     self.rng = np.random.default_rng(seed=0)
 
   def __next__(self) -> Mapping[str, np.ndarray]:
-    inds_source = self.rng.choice(
-        len(self.source_data), size=[self.batch_size]
-    )
-    inds_target = self.rng.choice(
-        len(self.target_data), size=[self.batch_size]
-    )
+    inds_source = self.rng.choice(len(self.source_data), size=[self.batch_size])
+    inds_target = self.rng.choice(len(self.target_data), size=[self.batch_size])
     return {
         "source_lin":
             self.source_data[inds_source, :],
@@ -79,8 +75,12 @@ def data_loader_gaussian_conditional():
 
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) - 2.0
-  dl0 = DataLoader(source_0, target_0, 16, source_conditions=np.zeros_like(source_0) * 0.0)
-  dl1 = DataLoader(source_1, target_1, 16, source_conditions=np.ones_like(source_1) * 1.0)
+  dl0 = DataLoader(
+      source_0, target_0, 16, source_conditions=np.zeros_like(source_0) * 0.0
+  )
+  dl1 = DataLoader(
+      source_1, target_1, 16, source_conditions=np.ones_like(source_1) * 1.0
+  )
 
   return ConditionalDataLoader({"0": dl0, "1": dl1}, np.array([0.5, 0.5]))
 

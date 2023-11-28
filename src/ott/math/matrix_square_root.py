@@ -25,13 +25,13 @@ __all__ = ["sqrtm", "sqrtm_only", "inv_sqrtm_only"]
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
 def sqrtm(
-    x: jax.Array,
+    x: jnp.ndarray,
     threshold: float = 1e-6,
     min_iterations: int = 0,
     inner_iterations: int = 10,
     max_iterations: int = 1000,
     regularization: float = 1e-6
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Higham algorithm to compute matrix square root of p.d. matrix.
 
   See :cite:`higham:97`, eq. 2.6b
@@ -118,10 +118,10 @@ def sqrtm(
 
 
 def solve_sylvester_bartels_stewart(
-    a: jax.Array,
-    b: jax.Array,
-    c: jax.Array,
-) -> jax.Array:
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    c: jnp.ndarray,
+) -> jnp.ndarray:
   """Solve the real Sylvester equation AX - XB = C using Bartels-Stewart."""
   # See https://nhigham.com/2020/09/01/what-is-the-sylvester-equation/ for
   # discussion of the algorithm (but note that in the derivation, the sign on
@@ -153,13 +153,14 @@ def solve_sylvester_bartels_stewart(
 
 
 def sqrtm_fwd(
-    x: jax.Array,
+    x: jnp.ndarray,
     threshold: float,
     min_iterations: int,
     inner_iterations: int,
     max_iterations: int,
     regularization: float,
-) -> Tuple[Tuple[jax.Array, jax.Array, jax.Array], Tuple[jax.Array, jax.Array]]:
+) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray], Tuple[jnp.ndarray,
+                                                               jnp.ndarray]]:
   """Forward pass of custom VJP."""
   sqrt_x, inv_sqrt_x, errors = sqrtm(
       x=x,
@@ -178,9 +179,9 @@ def sqrtm_bwd(
     inner_iterations: int,
     max_iterations: int,
     regularization: float,
-    residual: Tuple[jax.Array, jax.Array],
-    cotangent: Tuple[jax.Array, jax.Array, jax.Array],
-) -> Tuple[jax.Array]:
+    residual: Tuple[jnp.ndarray, jnp.ndarray],
+    cotangent: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+) -> Tuple[jnp.ndarray]:
   """Compute the derivative by solving a Sylvester equation."""
   del threshold, min_iterations, inner_iterations, \
       max_iterations, regularization
@@ -236,13 +237,13 @@ sqrtm.defvjp(sqrtm_fwd, sqrtm_bwd)
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
 def sqrtm_only(  # noqa: D103
-    x: jax.Array,
+    x: jnp.ndarray,
     threshold: float = 1e-6,
     min_iterations: int = 0,
     inner_iterations: int = 10,
     max_iterations: int = 1000,
     regularization: float = 1e-6
-) -> jax.Array:
+) -> jnp.ndarray:
   return sqrtm(
       x, threshold, min_iterations, inner_iterations, max_iterations,
       regularization
@@ -250,9 +251,9 @@ def sqrtm_only(  # noqa: D103
 
 
 def sqrtm_only_fwd(  # noqa: D103
-    x: jax.Array, threshold: float, min_iterations: int,
+    x: jnp.ndarray, threshold: float, min_iterations: int,
     inner_iterations: int, max_iterations: int, regularization: float
-) -> Tuple[jax.Array, jax.Array]:
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   sqrt_x = sqrtm(
       x, threshold, min_iterations, inner_iterations, max_iterations,
       regularization
@@ -262,9 +263,9 @@ def sqrtm_only_fwd(  # noqa: D103
 
 def sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
-    max_iterations: int, regularization: float, sqrt_x: jax.Array,
-    cotangent: jax.Array
-) -> Tuple[jax.Array]:
+    max_iterations: int, regularization: float, sqrt_x: jnp.ndarray,
+    cotangent: jnp.ndarray
+) -> Tuple[jnp.ndarray]:
   del threshold, min_iterations, inner_iterations, \
     max_iterations, regularization
   vjp = jnp.swapaxes(
@@ -282,13 +283,13 @@ sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
 def inv_sqrtm_only(  # noqa: D103
-    x: jax.Array,
+    x: jnp.ndarray,
     threshold: float = 1e-6,
     min_iterations: int = 0,
     inner_iterations: int = 10,
     max_iterations: int = 1000,
     regularization: float = 1e-6
-) -> jax.Array:
+) -> jnp.ndarray:
   return sqrtm(
       x, threshold, min_iterations, inner_iterations, max_iterations,
       regularization
@@ -296,13 +297,13 @@ def inv_sqrtm_only(  # noqa: D103
 
 
 def inv_sqrtm_only_fwd(  # noqa: D103
-    x: jax.Array,
+    x: jnp.ndarray,
     threshold: float,
     min_iterations: int,
     inner_iterations: int,
     max_iterations: int,
     regularization: float,
-) -> Tuple[jax.Array, jax.Array]:
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   inv_sqrt_x = sqrtm(
       x, threshold, min_iterations, inner_iterations, max_iterations,
       regularization
@@ -312,9 +313,9 @@ def inv_sqrtm_only_fwd(  # noqa: D103
 
 def inv_sqrtm_only_bwd(  # noqa: D103
     threshold: float, min_iterations: int, inner_iterations: int,
-    max_iterations: int, regularization: float, residual: jax.Array,
-    cotangent: jax.Array
-) -> Tuple[jax.Array]:
+    max_iterations: int, regularization: float, residual: jnp.ndarray,
+    cotangent: jnp.ndarray
+) -> Tuple[jnp.ndarray]:
   del threshold, min_iterations, inner_iterations, \
     max_iterations, regularization
 

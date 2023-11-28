@@ -27,8 +27,9 @@ __all__ = ["GaussianMixture"]
 
 
 def get_summary_stats_from_points_and_assignment_probs(
-    points: jax.Array, point_weights: jax.Array, assignment_probs: jax.Array
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
+    points: jnp.ndarray, point_weights: jnp.ndarray,
+    assignment_probs: jnp.ndarray
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Get component summary stats from points and component probabilities.
 
   Args:
@@ -67,7 +68,7 @@ class GaussianMixture:
   """Gaussian Mixture model."""
 
   def __init__(
-      self, loc: jax.Array, scale_params: jax.Array,
+      self, loc: jnp.ndarray, scale_params: jnp.ndarray,
       component_weight_ob: probabilities.Probabilities
   ):
     self._loc = loc
@@ -77,7 +78,7 @@ class GaussianMixture:
   @classmethod
   def from_random(
       cls,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       n_components: int,
       n_dimensions: int,
       stdev_mean: float = 0.1,
@@ -112,7 +113,7 @@ class GaussianMixture:
 
   @classmethod
   def from_mean_cov_component_weights(
-      cls, mean: jax.Array, cov: jax.Array, component_weights: jax.Array
+      cls, mean: jnp.ndarray, cov: jnp.ndarray, component_weights: jnp.ndarray
   ):
     """Construct a GMM from means, covariances, and component weights."""
     scale_params = []
@@ -127,9 +128,9 @@ class GaussianMixture:
   @classmethod
   def from_points_and_assignment_probs(
       cls,
-      points: jax.Array,
-      point_weights: jax.Array,
-      assignment_probs: jax.Array,
+      points: jnp.ndarray,
+      point_weights: jnp.ndarray,
+      assignment_probs: jnp.ndarray,
   ) -> "GaussianMixture":
     """Estimate a GMM from points and a set of component probabilities."""
     mean, cov, wts = get_summary_stats_from_points_and_assignment_probs(
@@ -157,17 +158,17 @@ class GaussianMixture:
     return self._loc.shape[-2]
 
   @property
-  def loc(self) -> jax.Array:
+  def loc(self) -> jnp.ndarray:
     """Location parameters of the GMM."""
     return self._loc
 
   @property
-  def scale_params(self) -> jax.Array:
+  def scale_params(self) -> jnp.ndarray:
     """Scale parameters of the GMM."""
     return self._scale_params
 
   @property
-  def cholesky(self) -> jax.Array:
+  def cholesky(self) -> jnp.ndarray:
     """Cholesky decomposition of the GMM covariance matrices."""
     size = self.n_dimensions
 
@@ -177,7 +178,7 @@ class GaussianMixture:
     return jax.vmap(_get_cholesky, in_axes=0, out_axes=0)(self.scale_params)
 
   @property
-  def covariance(self) -> jax.Array:
+  def covariance(self) -> jnp.ndarray:
     """Covariance matrices of the GMM."""
     size = self.n_dimensions
 
@@ -192,16 +193,16 @@ class GaussianMixture:
     return self._component_weight_ob
 
   @property
-  def component_weights(self) -> jax.Array:
+  def component_weights(self) -> jnp.ndarray:
     """Component weights probabilities."""
     return self._component_weight_ob.probs()
 
-  def log_component_weights(self) -> jax.Array:
+  def log_component_weights(self) -> jnp.ndarray:
     """Log component weights probabilities."""
     return self._component_weight_ob.log_probs()
 
   def _get_normal(
-      self, loc: jax.Array, scale_params: jax.Array
+      self, loc: jnp.ndarray, scale_params: jnp.ndarray
   ) -> gaussian.Gaussian:
     size = loc.shape[-1]
     return gaussian.Gaussian(
@@ -218,7 +219,7 @@ class GaussianMixture:
     """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
-  def sample(self, rng: jax.Array, size: int) -> jax.Array:
+  def sample(self, rng: jnp.ndarray, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
     subrng0, subrng1 = jax.random.split(rng)
     component = self.component_weight_ob.sample(rng=subrng0, size=size)
@@ -243,7 +244,7 @@ class GaussianMixture:
         axis=0
     )
 
-  def conditional_log_prob(self, x: jax.Array) -> jax.Array:
+  def conditional_log_prob(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute the component-conditional log probability of x.
 
     Args:
@@ -255,7 +256,7 @@ class GaussianMixture:
     """
 
     def _log_prob_single_component(
-        loc: jax.Array, scale_params: jax.Array, x: jax.Array
+        loc: jnp.ndarray, scale_params: jnp.ndarray, x: jnp.ndarray
     ):
       norm = self._get_normal(loc=loc, scale_params=scale_params)
       return norm.log_prob(x)
@@ -265,7 +266,7 @@ class GaussianMixture:
     )
     return conditional_log_prob_fn(self._loc, self._scale_params, x)
 
-  def log_prob(self, x: jax.Array) -> jax.Array:
+  def log_prob(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute the log probability of the observations x.
 
     Args:
@@ -281,7 +282,7 @@ class GaussianMixture:
         log_prob_conditional + log_component_weight[None, :], axis=-1
     )
 
-  def get_log_component_posterior(self, x: jax.Array) -> jax.Array:
+  def get_log_component_posterior(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute the posterior probability that x came from each component.
 
     Args:

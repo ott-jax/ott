@@ -47,7 +47,7 @@ class TestScaleTriL:
     actual = chol.log_det_covariance()
     np.testing.assert_almost_equal(actual, expected)
 
-  def test_from_random(self, rng: jax.Array):
+  def test_from_random(self, rng: jnp.ndarray):
     n_dimensions = 4
     cov = scale_tril.ScaleTriL.from_random(
         rng=rng, n_dimensions=n_dimensions, stdev=0.1
@@ -56,7 +56,7 @@ class TestScaleTriL:
         cov.cholesky().shape, (n_dimensions, n_dimensions)
     )
 
-  def test_from_cholesky(self, rng: jax.Array):
+  def test_from_cholesky(self, rng: jnp.ndarray):
     n_dimensions = 4
     cholesky = scale_tril.ScaleTriL.from_random(
         rng=rng, n_dimensions=n_dimensions, stdev=1.
@@ -64,7 +64,7 @@ class TestScaleTriL:
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
     np.testing.assert_allclose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
 
-  def test_w2_dist(self, rng: jax.Array):
+  def test_w2_dist(self, rng: jnp.ndarray):
     # make sure distance between a random normal and itself is 0
     rng, subrng = jax.random.split(rng)
     s = scale_tril.ScaleTriL.from_random(rng=subrng, n_dimensions=3)
@@ -85,7 +85,7 @@ class TestScaleTriL:
     delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
     np.testing.assert_allclose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
-  def test_transport(self, rng: jax.Array):
+  def test_transport(self, rng: jnp.ndarray):
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
     diag0 = jnp.exp(jax.random.normal(key=subrng0, shape=(size,)))
@@ -99,14 +99,14 @@ class TestScaleTriL:
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
     np.testing.assert_allclose(expected, transported, atol=1e-4, rtol=1e-4)
 
-  def test_flatten_unflatten(self, rng: jax.Array):
+  def test_flatten_unflatten(self, rng: jnp.ndarray):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)
     children, aux_data = jax.tree_util.tree_flatten(scale)
     scale_new = jax.tree_util.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(scale.params, scale_new.params)
     assert scale == scale_new
 
-  def test_pytree_mapping(self, rng: jax.Array):
+  def test_pytree_mapping(self, rng: jnp.ndarray):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)
     scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
     np.testing.assert_allclose(2. * scale.params, scale_x_2.params)

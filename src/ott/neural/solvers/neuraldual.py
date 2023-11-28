@@ -44,8 +44,8 @@ Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
 Conj_t = Optional[conjugate_solvers.FenchelConjugateSolver]
 
-PotentialValueFn_t = Callable[[jax.Array], jax.Array]
-PotentialGradientFn_t = Callable[[jax.Array], jax.Array]
+PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 
 
 class W2NeuralTrainState(train_state.TrainState):
@@ -60,9 +60,9 @@ class W2NeuralTrainState(train_state.TrainState):
     potential_gradient_fn: the potential's gradient function
   """
   potential_value_fn: Callable[
-      [frozen_dict.FrozenDict[str, jax.Array], Optional[PotentialValueFn_t]],
+      [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
       PotentialValueFn_t] = struct.field(pytree_node=False)
-  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jax.Array]],
+  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
                                   PotentialGradientFn_t] = struct.field(
                                       pytree_node=False
                                   )
@@ -87,7 +87,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
 
   def potential_value_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jax.Array],
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
       other_potential_value_fn: Optional[PotentialValueFn_t] = None,
   ) -> PotentialValueFn_t:
     r"""Return a function giving the value of the potential.
@@ -119,7 +119,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
       "The value of the gradient-based potential depends " \
       "on the value of the other potential."
 
-    def value_fn(x: jax.Array) -> jax.Array:
+    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
       squeeze = x.ndim == 1
       if squeeze:
         x = jnp.expand_dims(x, 0)
@@ -132,7 +132,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
 
   def potential_gradient_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jax.Array],
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
   ) -> PotentialGradientFn_t:
     """Return a function returning a vector or the gradient of the potential.
 
@@ -148,7 +148,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
 
   def create_train_state(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
       **kwargs: Any,
@@ -243,7 +243,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jax.Array] = None,
+      rng: Optional[jnp.ndarray] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
@@ -288,7 +288,7 @@ class W2NeuralDual:
 
   def setup(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       neural_f: BaseW2NeuralDual,
       neural_g: BaseW2NeuralDual,
       dim_data: int,
@@ -358,10 +358,10 @@ class W2NeuralDual:
 
   def __call__(  # noqa: D102
       self,
-      trainloader_source: Iterator[jax.Array],
-      trainloader_target: Iterator[jax.Array],
-      validloader_source: Iterator[jax.Array],
-      validloader_target: Iterator[jax.Array],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Union[potentials.DualPotentials, Tuple[potentials.DualPotentials,
                                               Train_t]]:
@@ -378,10 +378,10 @@ class W2NeuralDual:
 
   def train_neuraldual_parallel(
       self,
-      trainloader_source: Iterator[jax.Array],
-      trainloader_target: Iterator[jax.Array],
-      validloader_source: Iterator[jax.Array],
-      validloader_target: Iterator[jax.Array],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with parallel updates."""
@@ -453,10 +453,10 @@ class W2NeuralDual:
 
   def train_neuraldual_alternating(
       self,
-      trainloader_source: Iterator[jax.Array],
-      trainloader_target: Iterator[jax.Array],
-      validloader_source: Iterator[jax.Array],
-      validloader_target: Iterator[jax.Array],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
       callback: Optional[Callback_t] = None,
   ) -> Train_t:
     """Training and validation with alternating updates."""
@@ -533,7 +533,7 @@ class W2NeuralDual:
 
       init_source_hat = g_gradient(params_g)(target)
 
-      def g_value_partial(y: jax.Array) -> jax.Array:
+      def g_value_partial(y: jnp.ndarray) -> jnp.ndarray:
         """Lazy way of evaluating g if f's computation needs it."""
         return g_value(params_g)(y)
 
@@ -661,7 +661,7 @@ class W2NeuralDual:
         self.state_g.params, f_value
     )
 
-    def g_value_finetuned(y: jax.Array) -> jax.Array:
+    def g_value_finetuned(y: jnp.ndarray) -> jnp.ndarray:
       x_hat = jax.grad(g_value_prediction)(y)
       grad_g_y = jax.lax.stop_gradient(
           self.conjugate_solver.solve(f_value, y, x_init=x_hat).grad
@@ -686,7 +686,7 @@ class W2NeuralDual:
     return core.freeze(params)
 
   @staticmethod
-  def _penalize_weights_icnn(params: Dict[str, jax.Array]) -> float:
+  def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:
     penalty = 0.0
     for k, param in params.items():
       if k.startswith("w_z"):
@@ -696,9 +696,9 @@ class W2NeuralDual:
   @staticmethod
   def _update_logs(
       logs: Dict[str, List[Union[float, str]]],
-      loss_f: jax.Array,
-      loss_g: jax.Array,
-      w_dist: jax.Array,
+      loss_f: jnp.ndarray,
+      loss_g: jnp.ndarray,
+      w_dist: jnp.ndarray,
   ) -> None:
     logs["loss_f"].append(float(loss_f))
     logs["loss_g"].append(float(loss_g))

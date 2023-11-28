@@ -79,14 +79,14 @@ class Geometry:
 
   def __init__(
       self,
-      cost_matrix: Optional[jax.Array] = None,
-      kernel_matrix: Optional[jax.Array] = None,
+      cost_matrix: Optional[jnp.ndarray] = None,
+      kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = 1.0,
-      src_mask: Optional[jax.Array] = None,
-      tgt_mask: Optional[jax.Array] = None,
+      src_mask: Optional[jnp.ndarray] = None,
+      tgt_mask: Optional[jnp.ndarray] = None,
   ):
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
@@ -107,7 +107,7 @@ class Geometry:
     """Output rank of cost matrix, if any was provided."""
 
   @property
-  def cost_matrix(self) -> jax.Array:
+  def cost_matrix(self) -> jnp.ndarray:
     """Cost matrix, recomputed from kernel if only kernel was specified."""
     if self._cost_matrix is None:
       # If no epsilon was passed on to the geometry, then assume it is one by
@@ -131,7 +131,7 @@ class Geometry:
     return jnp.sum(tmp * self._m_normed_ones)
 
   @property
-  def kernel_matrix(self) -> jax.Array:
+  def kernel_matrix(self) -> jnp.ndarray:
     """Kernel matrix.
 
     Either provided by user or recomputed from :attr:`cost_matrix`.
@@ -201,7 +201,7 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost, (int, float, np.number, jax.Array)):
+    if isinstance(self._scale_cost, (int, float, np.number, jnp.ndarray)):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == "max_cost":
@@ -245,12 +245,12 @@ class Geometry:
 
   def apply_lse_kernel(
       self,
-      f: jax.Array,
-      g: jax.Array,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
       eps: float,
-      vec: jax.Array = None,
+      vec: jnp.ndarray = None,
       axis: int = 0
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
@@ -267,10 +267,10 @@ class Geometry:
     f and g in iterations 1 & 2 respectively.
 
     Args:
-      f: jax.Array [num_a,] , potential of size num_rows of cost_matrix
-      g: jax.Array [num_b,] , potential of size num_cols of cost_matrix
+      f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
+      g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
       eps: float, regularization strength
-      vec: jax.Array [num_a or num_b,] , when not None, this has the effect of
+      vec: jnp.ndarray [num_a or num_b,] , when not None, this has the effect of
         doing log-Kernel computations with an addition elementwise
         multiplication of exp(g / eps) by a vector. This is carried out by
         adding weights to the log-sum-exp function, and needs to handle signs
@@ -278,7 +278,7 @@ class Geometry:
       axis: summing over axis 0 when doing (2), or over axis 1 when doing (1)
 
     Returns:
-      A jax.Array corresponding to output above, depending on axis.
+      A jnp.ndarray corresponding to output above, depending on axis.
     """
     w_res, w_sgn = self._softmax(f, g, eps, vec, axis)
     remove = f if axis == 1 else g
@@ -286,20 +286,20 @@ class Geometry:
 
   def apply_kernel(
       self,
-      scaling: jax.Array,
+      scaling: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-      scaling: jax.Array [num_a or num_b] , scaling of size num_rows or
+      scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
         num_cols of kernel_matrix
       eps: passed for consistency, not used yet.
       axis: standard kernel product if axis is 1, transpose if 0.
 
     Returns:
-      a jax.Array corresponding to output above, depending on axis.
+      a jnp.ndarray corresponding to output above, depending on axis.
     """
     if eps is None:
       kernel = self.kernel_matrix
@@ -311,10 +311,10 @@ class Geometry:
 
   def marginal_from_potentials(
       self,
-      f: jax.Array,
-      g: jax.Array,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
       axis: int = 0,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Output marginal of transportation matrix from potentials.
 
     This applies first lse kernel in the standard way, removes the
@@ -323,8 +323,8 @@ class Geometry:
     by potentials.
 
     Args:
-      f: jax.Array [num_a,] , potential of size num_rows of cost_matrix
-      g: jax.Array [num_b,] , potential of size num_cols of cost_matrix
+      f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
+      g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
       axis: axis along which to integrate, returns marginal on other axis.
 
     Returns:
@@ -336,19 +336,23 @@ class Geometry:
 
   def marginal_from_scalings(
       self,
-      u: jax.Array,
-      v: jax.Array,
+      u: jnp.ndarray,
+      v: jnp.ndarray,
       axis: int = 0,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Output marginal of transportation matrix from scalings."""
     u, v = (v, u) if axis == 0 else (u, v)
     return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
 
-  def transport_from_potentials(self, f: jax.Array, g: jax.Array) -> jax.Array:
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
     """Output transport matrix from potentials."""
     return jnp.exp(self._center(f, g) / self.epsilon)
 
-  def transport_from_scalings(self, u: jax.Array, v: jax.Array) -> jax.Array:
+  def transport_from_scalings(
+      self, u: jnp.ndarray, v: jnp.ndarray
+  ) -> jnp.ndarray:
     """Output transport matrix from pair of scalings."""
     return self.kernel_matrix * u[:, jnp.newaxis] * v[jnp.newaxis, :]
 
@@ -357,17 +361,17 @@ class Geometry:
 
   def update_potential(
       self,
-      f: jax.Array,
-      g: jax.Array,
-      log_marginal: jax.Array,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      log_marginal: jnp.ndarray,
       iteration: Optional[int] = None,
       axis: int = 0,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Carry out one Sinkhorn update for potentials, i.e. in log space.
 
     Args:
-      f: jax.Array [num_a,] , potential of size num_rows of cost_matrix
-      g: jax.Array [num_b,] , potential of size num_cols of cost_matrix
+      f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
+      g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
       log_marginal: targeted marginal
       iteration: used to compute epsilon from schedule, if provided.
       axis: axis along which the update should be carried out.
@@ -381,15 +385,15 @@ class Geometry:
 
   def update_scaling(
       self,
-      scaling: jax.Array,
-      marginal: jax.Array,
+      scaling: jnp.ndarray,
+      marginal: jnp.ndarray,
       iteration: Optional[int] = None,
       axis: int = 0,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Carry out one Sinkhorn update for scalings, using kernel directly.
 
     Args:
-      scaling: jax.Array of num_a or num_b positive values.
+      scaling: jnp.ndarray of num_a or num_b positive values.
       marginal: targeted marginal
       iteration: used to compute epsilon from schedule, if provided.
       axis: axis along which the update should be carried out.
@@ -402,13 +406,13 @@ class Geometry:
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
   # Helper functions
-  def _center(self, f: jax.Array, g: jax.Array) -> jax.Array:
+  def _center(self, f: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
     return f[:, jnp.newaxis] + g[jnp.newaxis, :] - self.cost_matrix
 
   def _softmax(
-      self, f: jax.Array, g: jax.Array, eps: float, vec: Optional[jax.Array],
-      axis: int
-  ) -> Tuple[jax.Array, jax.Array]:
+      self, f: jnp.ndarray, g: jnp.ndarray, eps: float,
+      vec: Optional[jnp.ndarray], axis: int
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Apply softmax row or column wise, weighted by vec."""
     if vec is not None:
       if axis == 0:
@@ -425,8 +429,8 @@ class Geometry:
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_potentials(
-      self, f: jax.Array, g: jax.Array, vec: jax.Array, axis: int
-  ) -> jax.Array:
+      self, f: jnp.ndarray, g: jnp.ndarray, vec: jnp.ndarray, axis: int
+  ) -> jnp.ndarray:
     """Apply lse_kernel to arbitrary vector while keeping track of signs."""
     lse_res, lse_sgn = self.apply_lse_kernel(
         f, g, self.epsilon, vec=vec, axis=axis
@@ -437,11 +441,11 @@ class Geometry:
   # wrapper to allow default option for axis.
   def apply_transport_from_potentials(
       self,
-      f: jax.Array,
-      g: jax.Array,
-      vec: jax.Array,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
+      vec: jnp.ndarray,
       axis: int = 0
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply transport matrix computed from potentials to a (batched) vec.
 
     This approach does not instantiate the transport matrix itself, but uses
@@ -452,9 +456,9 @@ class Geometry:
     (b=..., return_sign=True) optional parameters of logsumexp.
 
     Args:
-      f: jax.Array [num_a,] , potential of size num_rows of cost_matrix
-      g: jax.Array [num_b,] , potential of size num_cols of cost_matrix
-      vec: jax.Array [batch, num_a or num_b], vector that will be multiplied
+      f: jnp.ndarray [num_a,] , potential of size num_rows of cost_matrix
+      g: jnp.ndarray [num_b,] , potential of size num_cols of cost_matrix
+      vec: jnp.ndarray [batch, num_a or num_b], vector that will be multiplied
         by transport matrix corresponding to potentials f, g, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
 
@@ -469,7 +473,7 @@ class Geometry:
 
   @functools.partial(jax.vmap, in_axes=[None, None, None, 0, None])
   def _apply_transport_from_scalings(
-      self, u: jax.Array, v: jax.Array, vec: jax.Array, axis: int
+      self, u: jnp.ndarray, v: jnp.ndarray, vec: jnp.ndarray, axis: int
   ):
     u, v = (u, v * vec) if axis == 1 else (v, u * vec)
     return u * self.apply_kernel(v, eps=self.epsilon, axis=axis)
@@ -477,20 +481,20 @@ class Geometry:
   # wrapper to allow default option for axis
   def apply_transport_from_scalings(
       self,
-      u: jax.Array,
-      v: jax.Array,
-      vec: jax.Array,
+      u: jnp.ndarray,
+      v: jnp.ndarray,
+      vec: jnp.ndarray,
       axis: int = 0
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply transport matrix computed from scalings to a (batched) vec.
 
     This approach does not instantiate the transport matrix itself, but
     relies instead on the apply_kernel function.
 
     Args:
-      u: jax.Array [num_a,] , scaling of size num_rows of cost_matrix
-      v: jax.Array [num_b,] , scaling of size num_cols of cost_matrix
-      vec: jax.Array [batch, num_a or num_b], vector that will be multiplied
+      u: jnp.ndarray [num_a,] , scaling of size num_rows of cost_matrix
+      v: jnp.ndarray [num_b,] , scaling of size num_cols of cost_matrix
+      vec: jnp.ndarray [batch, num_a or num_b], vector that will be multiplied
         by transport matrix corresponding to scalings u, v, and geom.
       axis: axis to differentiate left (0) or right (1) multiply.
 
@@ -503,7 +507,7 @@ class Geometry:
       )[0, :]
     return self._apply_transport_from_scalings(u, v, vec, axis)
 
-  def potential_from_scaling(self, scaling: jax.Array) -> jax.Array:
+  def potential_from_scaling(self, scaling: jnp.ndarray) -> jnp.ndarray:
     """Compute dual potential vector from scaling vector.
 
     Args:
@@ -514,7 +518,7 @@ class Geometry:
     """
     return self.epsilon * jnp.log(scaling)
 
-  def scaling_from_potential(self, potential: jax.Array) -> jax.Array:
+  def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     """Compute scaling vector from dual potential.
 
     Args:
@@ -528,7 +532,7 @@ class Geometry:
         finite, jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)), 0.0
     )
 
-  def apply_square_cost(self, arr: jax.Array, axis: int = 0) -> jax.Array:
+  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either
@@ -549,11 +553,11 @@ class Geometry:
 
   def apply_cost(
       self,
-      arr: jax.Array,
+      arr: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jax.Array], jax.Array]] = None,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       **kwargs: Any
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply :attr:`cost_matrix` to array (vector or matrix).
 
     This function applies the ground geometry's cost matrix, to perform either
@@ -562,7 +566,7 @@ class Geometry:
     where C is [num_a, num_b]
 
     Args:
-      arr: jax.Array [num_a or num_b, p], vector that will be multiplied by
+      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied by
         the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
@@ -579,21 +583,21 @@ class Geometry:
 
   def _apply_cost_to_vec(
       self,
-      vec: jax.Array,
+      vec: jnp.ndarray,
       axis: int = 0,
       fn=None,
       **_: Any,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply ``[num_a, num_b]`` fn(cost) (or transpose) to vector.
 
     Args:
-      vec: jax.Array [num_a,] ([num_b,] if axis=1) vector
+      vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
 
     Returns:
-      A jax.Array corresponding to cost x vector
+      A jnp.ndarray corresponding to cost x vector
     """
     matrix = self.cost_matrix.T if axis == 0 else self.cost_matrix
     matrix = fn(matrix) if fn is not None else matrix
@@ -621,7 +625,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jax.Array] = None,
+      rng: Optional[jnp.ndarray] = None,
       scale: float = 1.
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -714,7 +718,7 @@ class Geometry:
     )
 
   def subset(
-      self, src_ixs: Optional[jax.Array], tgt_ixs: Optional[jax.Array],
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
       **kwargs: Any
   ) -> "Geometry":
     """Subset rows or columns of a geometry.
@@ -729,10 +733,10 @@ class Geometry:
     """
 
     def subset_fn(
-        arr: Optional[jax.Array],
-        src_ixs: Optional[jax.Array],
-        tgt_ixs: Optional[jax.Array],
-    ) -> Optional[jax.Array]:
+        arr: Optional[jnp.ndarray],
+        src_ixs: Optional[jnp.ndarray],
+        tgt_ixs: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
       if arr is None:
         return None
       if src_ixs is not None:
@@ -751,8 +755,8 @@ class Geometry:
 
   def mask(
       self,
-      src_mask: Optional[jax.Array],
-      tgt_mask: Optional[jax.Array],
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
       mask_value: float = 0.,
   ) -> "Geometry":
     """Mask rows or columns of a geometry.
@@ -776,10 +780,10 @@ class Geometry:
     """
 
     def mask_fn(
-        arr: Optional[jax.Array],
-        src_mask: Optional[jax.Array],
-        tgt_mask: Optional[jax.Array],
-    ) -> Optional[jax.Array]:
+        arr: Optional[jnp.ndarray],
+        src_mask: Optional[jnp.ndarray],
+        tgt_mask: Optional[jnp.ndarray],
+    ) -> Optional[jnp.ndarray]:
       if arr is None:
         return arr
       assert arr.ndim == 2, arr.ndim
@@ -797,12 +801,12 @@ class Geometry:
 
   def _mask_subset_helper(
       self,
-      src_ixs: Optional[jax.Array],
-      tgt_ixs: Optional[jax.Array],
+      src_ixs: Optional[jnp.ndarray],
+      tgt_ixs: Optional[jnp.ndarray],
       *,
       fn: Callable[
-          [Optional[jax.Array], Optional[jax.Array], Optional[jax.Array]],
-          Optional[jax.Array]],
+          [Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
+          Optional[jnp.ndarray]],
       propagate_mask: bool,
       **kwargs: Any,
   ) -> "Geometry":
@@ -821,7 +825,7 @@ class Geometry:
     )
 
   @property
-  def src_mask(self) -> Optional[jax.Array]:
+  def src_mask(self) -> Optional[jnp.ndarray]:
     """Mask of shape ``[num_a,]`` to compute :attr:`cost_matrix` statistics.
 
     Specifically, it is used when computing:
@@ -833,7 +837,7 @@ class Geometry:
     return self._normalize_mask(self._src_mask, self.shape[0])
 
   @property
-  def tgt_mask(self) -> Optional[jax.Array]:
+  def tgt_mask(self) -> Optional[jnp.ndarray]:
     """Mask of shape ``[num_b,]`` to compute :attr:`cost_matrix` statistics.
 
     Specifically, it is used when computing:
@@ -859,22 +863,22 @@ class Geometry:
     return self.mask(src_mask, tgt_mask, mask_value=mask_value)
 
   @property
-  def _n_normed_ones(self) -> jax.Array:
+  def _n_normed_ones(self) -> jnp.ndarray:
     """Normalized array of shape ``[num_a,]``."""
     mask = self.src_mask
     arr = jnp.ones(self.shape[0]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @property
-  def _m_normed_ones(self) -> jax.Array:
+  def _m_normed_ones(self) -> jnp.ndarray:
     """Normalized array of shape ``[num_b,]``."""
     mask = self.tgt_mask
     arr = jnp.ones(self.shape[1]) if mask is None else mask
     return arr / jnp.sum(arr)
 
   @staticmethod
-  def _normalize_mask(mask: Optional[Union[int, jax.Array]],
-                      size: int) -> Optional[jax.Array]:
+  def _normalize_mask(mask: Optional[Union[int, jnp.ndarray]],
+                      size: int) -> Optional[jnp.ndarray]:
     """Convert array of indices to a boolean mask."""
     if mask is None:
       return None

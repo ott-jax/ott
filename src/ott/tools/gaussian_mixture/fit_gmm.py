@@ -62,8 +62,8 @@ __all__ = ["initialize", "fit_model_em"]
 
 
 def get_assignment_probs(
-    gmm: gaussian_mixture.GaussianMixture, points: jax.Array
-) -> jax.Array:
+    gmm: gaussian_mixture.GaussianMixture, points: jnp.ndarray
+) -> jnp.ndarray:
   r"""Get component assignment probabilities used in the E step of EM.
 
   Here we compute the component assignment probabilities p(Z|X, \Theta^{(t)})
@@ -81,9 +81,9 @@ def get_assignment_probs(
 
 def get_q(
     gmm: gaussian_mixture.GaussianMixture,
-    assignment_probs: jax.Array,
-    points: jax.Array,
-    point_weights: Optional[jax.Array] = None,
+    assignment_probs: jnp.ndarray,
+    points: jnp.ndarray,
+    point_weights: Optional[jnp.ndarray] = None,
 ) -> float:
   r"""Get Q(\Theta|\Theta^{(t)}).
 
@@ -109,8 +109,8 @@ def get_q(
 
 def log_prob_loss(
     gmm: gaussian_mixture.GaussianMixture,
-    points: jax.Array,
-    point_weights: Optional[jax.Array] = None,
+    points: jnp.ndarray,
+    point_weights: Optional[jnp.ndarray] = None,
 ) -> float:
   """Loss function: weighted mean of (-log prob of observations).
 
@@ -130,8 +130,8 @@ def log_prob_loss(
 
 def fit_model_em(
     gmm: gaussian_mixture.GaussianMixture,
-    points: jax.Array,
-    point_weights: Optional[jax.Array],
+    points: jnp.ndarray,
+    point_weights: Optional[jnp.ndarray],
     steps: int,
     jit: bool = True,
     verbose: bool = False,
@@ -184,10 +184,10 @@ def fit_model_em(
 # See https://en.wikipedia.org/wiki/K-means%2B%2B for details
 
 
-def _get_dist_sq(points: jax.Array, loc: jax.Array) -> jax.Array:
+def _get_dist_sq(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
   """Get the squared distance from each point to each loc."""
 
-  def _dist_sq_one_loc(points: jax.Array, loc: jax.Array) -> jax.Array:
+  def _dist_sq_one_loc(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
     return jnp.sum((points - loc[None]) ** 2., axis=-1)
 
   dist_sq_fn = jax.vmap(_dist_sq_one_loc, in_axes=(None, 0), out_axes=1)
@@ -195,8 +195,8 @@ def _get_dist_sq(points: jax.Array, loc: jax.Array) -> jax.Array:
 
 
 def _get_locs(
-    rng: jax.Array, points: jax.Array, n_components: int
-) -> jax.Array:
+    rng: jnp.ndarray, points: jnp.ndarray, n_components: int
+) -> jnp.ndarray:
   """Get the initial component means.
 
   Args:
@@ -229,9 +229,9 @@ def _get_locs(
 
 
 def from_kmeans_plusplus(
-    rng: jax.Array,
-    points: jax.Array,
-    point_weights: Optional[jax.Array],
+    rng: jnp.ndarray,
+    points: jnp.ndarray,
+    point_weights: Optional[jnp.ndarray],
     n_components: int,
 ) -> gaussian_mixture.GaussianMixture:
   """Initialize a GMM via a single pass of K-means++.
@@ -265,9 +265,9 @@ def from_kmeans_plusplus(
 
 
 def initialize(
-    rng: jax.Array,
-    points: jax.Array,
-    point_weights: Optional[jax.Array],
+    rng: jnp.ndarray,
+    points: jnp.ndarray,
+    point_weights: Optional[jnp.ndarray],
     n_components: int,
     n_attempts: int = 50,
     verbose: bool = False

@@ -33,7 +33,7 @@ class BaseFlow(abc.ABC):
     self.sigma = sigma
 
   @abc.abstractmethod
-  def compute_mu_t(self, t: jax.Array, x_0: jax.Array, x_1: jax.Array):
+  def compute_mu_t(self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray):
     """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
 
     Args:
@@ -44,7 +44,7 @@ class BaseFlow(abc.ABC):
     pass
 
   @abc.abstractmethod
-  def compute_sigma_t(self, t: jax.Array):
+  def compute_sigma_t(self, t: jnp.ndarray):
     """Compute the standard deviation of the probablity path at time :math:`t`.
 
     Args:
@@ -54,8 +54,8 @@ class BaseFlow(abc.ABC):
 
   @abc.abstractmethod
   def compute_ut(
-      self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
-  ) -> jax.Array:
+      self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
+  ) -> jnp.ndarray:
     """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
 
     Args:
@@ -66,8 +66,9 @@ class BaseFlow(abc.ABC):
     pass
 
   def compute_xt(
-      self, noise: jax.Array, t: jax.Array, x_0: jax.Array, x_1: jax.Array
-  ) -> jax.Array:
+      self, noise: jnp.ndarray, t: jnp.ndarray, x_0: jnp.ndarray,
+      x_1: jnp.ndarray
+  ) -> jnp.ndarray:
     """Sample from the probability path between :math:`x_0` and :math:`x_1` at time :math:`t`.
 
     Args:
@@ -88,8 +89,8 @@ class StraightFlow(BaseFlow, abc.ABC):
   """Base class for flows with straight paths."""
 
   def compute_mu_t(
-      self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
-  ) -> jax.Array:
+      self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
+  ) -> jnp.ndarray:
     """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
 
     Args:
@@ -100,8 +101,8 @@ class StraightFlow(BaseFlow, abc.ABC):
     return t * x_0 + (1 - t) * x_1
 
   def compute_ut(
-      self, t: jax.Array, x_0: jax.Array, x_1: jax.Array
-  ) -> jax.Array:
+      self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
+  ) -> jnp.ndarray:
     """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
 
     Args:
@@ -118,7 +119,7 @@ class StraightFlow(BaseFlow, abc.ABC):
 class ConstantNoiseFlow(StraightFlow):
   r"""Flow with straight paths and constant flow noise :math:`\sigma`."""
 
-  def compute_sigma_t(self, t: jax.Array):
+  def compute_sigma_t(self, t: jnp.ndarray):
     r"""Compute noise of the flow at time :math:`t`.
 
     Args:
@@ -133,7 +134,7 @@ class ConstantNoiseFlow(StraightFlow):
 class BrownianNoiseFlow(StraightFlow):
   r"""Sampler for sampling noise implicitly defined by a Schroedinger Bridge problem with parameter `\sigma` such that :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`."""
 
-  def compute_sigma_t(self, t: jax.Array):
+  def compute_sigma_t(self, t: jnp.ndarray):
     """Compute the standard deviation of the probablity path at time :math:`t`.
 
     Args:
@@ -158,7 +159,7 @@ class BaseTimeSampler(abc.ABC):
     self.high = high
 
   @abc.abstractmethod
-  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
+  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
@@ -179,7 +180,7 @@ class UniformSampler(BaseTimeSampler):
   def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
     super().__init__(low=low, high=high)
 
-  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
+  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
@@ -209,7 +210,7 @@ class OffsetUniformSampler(BaseTimeSampler):
     super().__init__(low=low, high=high)
     self.offset = offset
 
-  def __call__(self, rng: jax.Array, num_samples: int) -> jax.Array:
+  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:

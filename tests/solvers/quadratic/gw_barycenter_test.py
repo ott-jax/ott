@@ -31,7 +31,7 @@ class TestGWBarycenter:
   def random_pc(
       n: int,
       d: int,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       m: Optional[int] = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
@@ -42,9 +42,9 @@ class TestGWBarycenter:
 
   @staticmethod
   def pad_cost_matrices(
-      costs: Sequence[jax.Array],
+      costs: Sequence[jnp.ndarray],
       shape: Optional[Tuple[int, int]] = None
-  ) -> Tuple[jax.Array, jax.Array]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     if shape is None:
       shape = jnp.asarray([arr.shape for arr in costs]).max()
       shape = (shape, shape)
@@ -65,7 +65,7 @@ class TestGWBarycenter:
       [("sqeucl", 17, None)]  # , ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(
-      self, rng: jax.Array, gw_loss: str, bar_size: int,
+      self, rng: jnp.ndarray, gw_loss: str, bar_size: int,
       epsilon: Optional[float]
   ):
     tol = 1e-3 if gw_loss == "sqeucl" else 1e-1
@@ -126,14 +126,14 @@ class TestGWBarycenter:
   )
   def test_fgw_barycenter(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       jit: bool,
       fused_penalty: float,
       scale_cost: str,
   ):
 
     def barycenter(
-        y: jnp.ndim, y_fused: jax.Array, num_per_segment: Tuple[int, ...]
+        y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
     ) -> gwb_solver.GWBarycenterState:
       prob = gwb.GWBarycenterProblem(
           y=y,

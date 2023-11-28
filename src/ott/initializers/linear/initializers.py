@@ -36,8 +36,8 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
     Args:
@@ -54,8 +54,8 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
     Args:
@@ -70,11 +70,11 @@ class SinkhornInitializer(abc.ABC):
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      a: Optional[jax.Array],
-      b: Optional[jax.Array],
+      a: Optional[jnp.ndarray],
+      b: Optional[jnp.ndarray],
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> Tuple[jax.Array, jax.Array]:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
     Args:
@@ -128,8 +128,8 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
 
@@ -137,8 +137,8 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
 
@@ -158,8 +158,8 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
@@ -207,8 +207,8 @@ class SortingInitializer(DefaultInitializer):
     self.vectorized_update = vectorized_update
 
   def _init_sorting_dual(
-      self, modified_cost: jax.Array, init_f: jax.Array
-  ) -> jax.Array:
+      self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
+  ) -> jnp.ndarray:
     """Run DualSort algorithm.
 
     Args:
@@ -221,15 +221,15 @@ class SortingInitializer(DefaultInitializer):
     """
 
     def body_fn(
-        state: Tuple[jax.Array, float, int]
-    ) -> Tuple[jax.Array, float, int]:
+        state: Tuple[jnp.ndarray, float, int]
+    ) -> Tuple[jnp.ndarray, float, int]:
       prev_f, _, it = state
       new_f = fn(prev_f, modified_cost)
       diff = jnp.sum((new_f - prev_f) ** 2)
       it += 1
       return new_f, diff, it
 
-    def cond_fn(state: Tuple[jax.Array, float, int]) -> bool:
+    def cond_fn(state: Tuple[jnp.ndarray, float, int]) -> bool:
       _, diff, it = state
       return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
 
@@ -245,9 +245,9 @@ class SortingInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-      init_f: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+      init_f: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     """Apply DualSort algorithm.
 
     Args:
@@ -324,8 +324,8 @@ class SubsampleInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     from ott.solvers import linear
 
     assert isinstance(
@@ -373,7 +373,9 @@ class SubsampleInitializer(DefaultInitializer):
     })
 
 
-def _vectorized_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
+def _vectorized_update(
+    f: jnp.ndarray, modified_cost: jnp.ndarray
+) -> jnp.ndarray:
   """Inner loop DualSort Update.
 
   Args:
@@ -386,7 +388,9 @@ def _vectorized_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
   return jnp.min(modified_cost + f[None, :], axis=1)
 
 
-def _coordinate_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
+def _coordinate_update(
+    f: jnp.ndarray, modified_cost: jnp.ndarray
+) -> jnp.ndarray:
   """Coordinate-wise updates within inner loop.
 
   Args:
@@ -397,7 +401,7 @@ def _coordinate_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
     updated potential vector, f.
   """
 
-  def body_fn(i: int, f: jax.Array) -> jax.Array:
+  def body_fn(i: int, f: jnp.ndarray) -> jnp.ndarray:
     new_f = jnp.min(modified_cost[i, :] + f)
     return f.at[i].set(new_f)
 

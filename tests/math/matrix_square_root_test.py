@@ -21,7 +21,7 @@ import pytest
 from ott.math import matrix_square_root
 
 
-def _get_random_spd_matrix(dim: int, rng: jax.Array):
+def _get_random_spd_matrix(dim: int, rng: jnp.ndarray):
   # Get a random symmetric, positive definite matrix of a specified size.
 
   rng, subrng0, subrng1 = jax.random.split(rng, num=3)
@@ -37,9 +37,9 @@ def _get_random_spd_matrix(dim: int, rng: jax.Array):
 
 
 def _get_test_fn(
-    fn: Callable[[jax.Array], jax.Array], dim: int, rng: jax.Array,
+    fn: Callable[[jnp.ndarray], jnp.ndarray], dim: int, rng: jnp.ndarray,
     **kwargs: Any
-) -> Callable[[jax.Array], jax.Array]:
+) -> Callable[[jnp.ndarray], jnp.ndarray]:
   # We want to test gradients of a function fn that maps positive definite
   # matrices to positive definite matrices by comparing them to finite
   # difference approximations. We'll do so via a test function that
@@ -54,7 +54,7 @@ def _get_test_fn(
   unit = jax.random.normal(key=subrng3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2.))
 
-  def _test_fn(x: jax.Array, **kwargs: Any) -> jax.Array:
+  def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
     # m is the product of 2 symmetric, positive definite matrices
     # so it will be positive definite but not necessarily symmetric
     m = jnp.matmul(m0, m1 + x * dx)
@@ -63,7 +63,7 @@ def _get_test_fn(
   return _test_fn
 
 
-def _sqrt_plus_inv_sqrt(x: jax.Array) -> jax.Array:
+def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
   sqrtm = matrix_square_root.sqrtm(x)
   return sqrtm[0] + sqrtm[1]
 
@@ -71,7 +71,7 @@ def _sqrt_plus_inv_sqrt(x: jax.Array) -> jax.Array:
 class TestMatrixSquareRoot:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 13
     self.batch = 3
     # Values for testing the Sylvester solver

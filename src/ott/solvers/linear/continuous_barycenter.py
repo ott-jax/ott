@@ -41,11 +41,11 @@ class FreeBarycenterState(NamedTuple):
     a: barycenter weights.
   """
 
-  costs: Optional[jax.Array] = None
-  linear_convergence: Optional[jax.Array] = None
-  errors: Optional[jax.Array] = None
-  x: Optional[jax.Array] = None
-  a: Optional[jax.Array] = None
+  costs: Optional[jnp.ndarray] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  errors: Optional[jnp.ndarray] = None
+  x: Optional[jnp.ndarray] = None
+  a: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -70,7 +70,7 @@ class FreeBarycenterState(NamedTuple):
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
-        a: Optional[jax.Array], x: jax.Array, b: jax.Array, y: jax.Array
+        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
     ):
       out = linear_ot_solver(
           linear_problem.LinearProblem(
@@ -129,8 +129,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
-      x_init: Optional[jax.Array] = None,
-      rng: Optional[jax.Array] = None,
+      x_init: Optional[jnp.ndarray] = None,
+      rng: Optional[jnp.ndarray] = None,
   ) -> FreeBarycenterState:
     # TODO(michalk8): no reason for iterations to be outside this class
     rng = utils.default_prng_key(rng)
@@ -140,8 +140,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
-      x_init: Optional[jax.Array] = None,
-      rng: Optional[jax.Array] = None,
+      x_init: Optional[jnp.ndarray] = None,
+      rng: Optional[jnp.ndarray] = None,
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
@@ -195,8 +195,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 
 def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jax.Array,
-    rng: jax.Array
+    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
+    rng: jnp.ndarray
 ) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 

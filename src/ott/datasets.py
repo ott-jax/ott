@@ -32,8 +32,8 @@ class Dataset(NamedTuple):
     source_iter: loader for the source measure
     target_iter: loader for the target measure
   """
-  source_iter: Iterator[jax.Array]
-  target_iter: Iterator[jax.Array]
+  source_iter: Iterator[jnp.ndarray]
+  target_iter: Iterator[jnp.ndarray]
 
 
 @dataclasses.dataclass
@@ -57,7 +57,7 @@ class GaussianMixture:
   """
   name: Name_t
   batch_size: int
-  init_rng: jax.Array
+  init_rng: jnp.ndarray
   scale: float = 5.0
   std: float = 0.5
 
@@ -110,7 +110,7 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: Optional[jax.Array] = None,
+    rng: Optional[jnp.ndarray] = None,
 ) -> Tuple[Dataset, Dataset, int]:
   """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
 

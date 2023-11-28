@@ -113,10 +113,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       fused_penalty: float = 0.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jax.Array], float] = None,
-      mlp_xi: Callable[[jax.Array], float] = None,
+      mlp_eta: Callable[[jnp.ndarray], float] = None,
+      mlp_xi: Callable[[jnp.ndarray], float] = None,
       unbalanced_kwargs: Dict[str, Any] = {},
-      callback_fn: Optional[Callable[[jax.Array, jax.Array, jax.Array],
+      callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
   ) -> None:
@@ -323,7 +323,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     ):
 
       def loss_fn(
-          params: jax.Array, batch: Dict[str, jnp.array],
+          params: jnp.ndarray, batch: Dict[str, jnp.array],
           keys_model: random.PRNGKeyArray
       ):
         x_t = self.flow.compute_xt(
@@ -356,12 +356,12 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def transport(
       self,
-      source: jax.Array,
-      condition: Optional[jax.Array],
+      source: jnp.ndarray,
+      condition: Optional[jnp.ndarray],
       rng: random.PRNGKeyArray = random.PRNGKey(0),
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
-  ) -> Union[jnp.array, diffrax.Solution, Optional[jax.Array]]:
+  ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
     """Transport data with the learnt plan.
 
     This method pushes-forward the `source` to its conditional distribution by solving the neural ODE parameterized by the :attr:`~ott.neural.solvers.GENOTg.neural_vector_field` from
@@ -390,7 +390,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                                                   axis=-1)
     t0, t1 = (0.0, 1.0)
 
-    def solve_ode(input: jax.Array, cond: jax.Array):
+    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
               lambda t, x, args: self.state_neural_vector_field.
@@ -446,7 +446,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jax.Array:
+  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jnp.ndarray:
     """Sample noise from a standard-normal distribution.
 
     Args:

@@ -27,16 +27,16 @@ __all__ = ["ScaleTriL"]
 class ScaleTriL:
   """Pytree for a lower triangular Cholesky-factored covariance matrix."""
 
-  def __init__(self, params: jax.Array, size: int):
+  def __init__(self, params: jnp.ndarray, size: int):
     self._params = params
     self._size = size
 
   @classmethod
   def from_points_and_weights(
       cls,
-      points: jax.Array,
-      weights: jax.Array,
-  ) -> Tuple[jax.Array, "ScaleTriL"]:
+      points: jnp.ndarray,
+      weights: jnp.ndarray,
+  ) -> Tuple[jnp.ndarray, "ScaleTriL"]:
     """Get a mean and a ScaleTriL from a set of points and weights."""
     mean, cov = linalg.get_mean_and_cov(points=points, weights=weights)
     return mean, cls.from_covariance(cov)
@@ -44,7 +44,7 @@ class ScaleTriL:
   @classmethod
   def from_random(
       cls,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: jnp.dtype = jnp.float32,
@@ -80,7 +80,7 @@ class ScaleTriL:
     return cls(params=flat, size=n_dimensions)
 
   @classmethod
-  def from_cholesky(cls, cholesky: jax.Array) -> "ScaleTriL":
+  def from_cholesky(cls, cholesky: jnp.ndarray) -> "ScaleTriL":
     """Construct ScaleTriL from a Cholesky factor of a covariance matrix."""
     m = linalg.apply_to_diag(cholesky, jnp.log)
     flat = linalg.tril_to_flat(m)
@@ -89,14 +89,14 @@ class ScaleTriL:
   @classmethod
   def from_covariance(
       cls,
-      covariance: jax.Array,
+      covariance: jnp.ndarray,
   ) -> "ScaleTriL":
     """Construct ScaleTriL from a covariance matrix."""
     cholesky = jnp.linalg.cholesky(covariance)
     return cls.from_cholesky(cholesky)
 
   @property
-  def params(self) -> jax.Array:
+  def params(self) -> jnp.ndarray:
     """Internal representation."""
     return self._params
 
@@ -110,34 +110,34 @@ class ScaleTriL:
     """Data type of the covariance matrix."""
     return self._params.dtype
 
-  def cholesky(self) -> jax.Array:
+  def cholesky(self) -> jnp.ndarray:
     """Get a lower triangular Cholesky factor for the covariance matrix."""
     m = linalg.flat_to_tril(self._params, size=self._size)
     return linalg.apply_to_diag(m, jnp.exp)
 
-  def covariance(self) -> jax.Array:
+  def covariance(self) -> jnp.ndarray:
     """Get the covariance matrix."""
     cholesky = self.cholesky()
     return cholesky @ cholesky.T
 
-  def covariance_sqrt(self) -> jax.Array:
+  def covariance_sqrt(self) -> jnp.ndarray:
     """Get the square root of the covariance matrix."""
     return linalg.matrix_powers(self.covariance(), (0.5,))[0]
 
-  def log_det_covariance(self) -> jax.Array:
+  def log_det_covariance(self) -> jnp.ndarray:
     """Get the log of the determinant of the covariance matrix."""
     diag = jnp.diagonal(self.cholesky(), axis1=-2, axis2=-1)
     return 2. * jnp.sum(jnp.log(diag), axis=-1)
 
-  def centered_to_z(self, x_centered: jax.Array) -> jax.Array:
+  def centered_to_z(self, x_centered: jnp.ndarray) -> jnp.ndarray:
     """Map centered points to standardized centered points (i.e. cov(z) = I)."""
     return linalg.invmatvectril(m=self.cholesky(), x=x_centered, lower=True)
 
-  def z_to_centered(self, z: jax.Array) -> jax.Array:
+  def z_to_centered(self, z: jnp.ndarray) -> jnp.ndarray:
     """Scale standardized points to points with the specified covariance."""
     return (self.cholesky() @ z.T).T
 
-  def w2_dist(self, other: "ScaleTriL") -> jax.Array:
+  def w2_dist(self, other: "ScaleTriL") -> jnp.ndarray:
     r"""Wasserstein distance W_2^2 to another Gaussian with same mean.
 
     Args:
@@ -148,7 +148,7 @@ class ScaleTriL:
     """
     dimension = self.size
 
-    def _flatten_cov(cov: jax.Array) -> jax.Array:
+    def _flatten_cov(cov: jnp.ndarray) -> jnp.ndarray:
       cov = cov.reshape(cov.shape[:-2] + (dimension * dimension,))
       return jnp.concatenate([jnp.zeros(dimension), cov], axis=-1)
 
@@ -159,7 +159,7 @@ class ScaleTriL:
         ...,
     ]
 
-  def gaussian_map(self, dest_scale: "ScaleTriL") -> jax.Array:
+  def gaussian_map(self, dest_scale: "ScaleTriL") -> jnp.ndarray:
     """Scaling matrix used in transport between 0-mean Gaussians.
 
     Sigma_mu^{-1/2} @
@@ -179,7 +179,9 @@ class ScaleTriL:
     )
     return jnp.matmul(sqrt0_inv, jnp.matmul(m, sqrt0_inv))
 
-  def transport(self, dest_scale: "ScaleTriL", points: jax.Array) -> jax.Array:
+  def transport(
+      self, dest_scale: "ScaleTriL", points: jnp.ndarray
+  ) -> jnp.ndarray:
     """Apply Monge map, computed between two 0-mean Gaussians, to points.
 
     Args:

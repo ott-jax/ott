@@ -46,12 +46,12 @@ ProgressCallbackFn_t = Callable[
 
 class LRGWState(NamedTuple):
   """State of the low-rank GW algorithm."""
-  q: jax.Array
-  r: jax.Array
-  g: jax.Array
+  q: jnp.ndarray
+  r: jnp.ndarray
+  g: jnp.ndarray
   gamma: float
-  costs: jax.Array
-  errors: jax.Array
+  costs: jnp.ndarray
+  errors: jnp.ndarray
   crossed_threshold: bool
 
   def compute_error(  # noqa: D102
@@ -85,9 +85,9 @@ class LRGWState(NamedTuple):
 
 
 def compute_reg_gw_cost(
-    q: jax.Array,
-    r: jax.Array,
-    g: jax.Array,
+    q: jnp.ndarray,
+    r: jnp.ndarray,
+    g: jnp.ndarray,
     ot_prob: quadratic_problem.QuadraticProblem,
     epsilon: float,
     use_danskin: bool = False
@@ -107,7 +107,7 @@ def compute_reg_gw_cost(
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
 
-  def ent(x: jax.Array) -> float:
+  def ent(x: jnp.ndarray) -> float:
     # generalized entropy
     return jnp.sum(jsp.special.entr(x) + x)
 
@@ -139,13 +139,13 @@ def compute_reg_gw_cost(
 
 class LRGWOutput(NamedTuple):
   """Transport interface for a low-rank GW solution."""
-  q: jax.Array
-  r: jax.Array
-  g: jax.Array
-  costs: jax.Array
+  q: jnp.ndarray
+  r: jnp.ndarray
+  g: jnp.ndarray
+  costs: jnp.ndarray
   # TODO(michalk8): must be called `errors`, because of `store_inner_errors`
   # in future, enforce via class hierarchy
-  errors: jax.Array
+  errors: jnp.ndarray
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
   inner_iterations: int
@@ -184,11 +184,11 @@ class LRGWOutput(NamedTuple):
     return _linearized_geometry(self.ot_prob, q=self.q, r=self.r, g=self.g)
 
   @property
-  def a(self) -> jax.Array:  # noqa: D102
+  def a(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.a
 
   @property
-  def b(self) -> jax.Array:  # noqa: D102
+  def b(self) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.b
 
   @property
@@ -202,17 +202,17 @@ class LRGWOutput(NamedTuple):
     )
 
   @property
-  def matrix(self) -> jax.Array:
+  def matrix(self) -> jnp.ndarray:
     """Transport matrix if it can be instantiated."""
     return (self.q * self._inv_g) @ self.r.T
 
-  def apply(self, inputs: jax.Array, axis: int = 0) -> jax.Array:
+  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
     # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
     return ((inputs @ r) * self._inv_g) @ q.T
 
-  def marginal(self, axis: int) -> jax.Array:  # noqa: D102
+  def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
     return self.apply(jnp.ones(length,), axis=axis)
 
@@ -250,7 +250,7 @@ class LRGWOutput(NamedTuple):
     return self.marginal(0).sum()
 
   @property
-  def _inv_g(self) -> jax.Array:
+  def _inv_g(self) -> jnp.ndarray:
     return 1.0 / self.g
 
 
@@ -334,9 +334,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   def __call__(
       self,
       ot_prob: quadratic_problem.QuadraticProblem,
-      init: Tuple[Optional[jax.Array], Optional[jax.Array],
-                  Optional[jax.Array]] = (None, None, None),
-      rng: Optional[jax.Array] = None,
+      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                  Optional[jnp.ndarray]] = (None, None, None),
+      rng: Optional[jnp.ndarray] = None,
       **kwargs: Any,
   ) -> LRGWOutput:
     """Run low-rank Gromov-Wasserstein solver.
@@ -370,7 +370,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       self,
       ot_prob: quadratic_problem.QuadraticProblem,
       state: LRGWState,
-  ) -> Tuple[jax.Array, jax.Array, jax.Array, float]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     q, r, g = state.q, state.r, state.g
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
@@ -427,9 +427,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   # TODO(michalk8): move to `lr_utils` when refactoring this the future
   def dykstra_update_lse(
       self,
-      c_q: jax.Array,
-      c_r: jax.Array,
-      h: jax.Array,
+      c_q: jnp.ndarray,
+      c_r: jnp.ndarray,
+      h: jnp.ndarray,
       gamma: float,
       ot_prob: quadratic_problem.QuadraticProblem,
       min_entry_value: float = 1e-6,
@@ -437,7 +437,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
@@ -455,24 +455,24 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     constants = c_q, c_r, loga, logb
 
     def cond_fn(
-        iteration: int, constants: Tuple[jax.Array, ...],
-        state_inner: Tuple[jax.Array, ...]
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def _softm(
-        f: jax.Array, g: jax.Array, c: jax.Array, axis: int
-    ) -> jax.Array:
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+    ) -> jnp.ndarray:
       return jsp.special.logsumexp(
           gamma * (f[:, None] + g[None, :] - c), axis=axis
       )
 
     def body_fn(
-        iteration: int, constants: Tuple[jax.Array, ...],
-        state_inner: Tuple[jax.Array, ...], compute_error: bool
-    ) -> Tuple[jax.Array, ...]:
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
@@ -522,15 +522,15 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
 
     def recompute_couplings(
-        f1: jax.Array,
-        g1: jax.Array,
-        c_q: jax.Array,
-        f2: jax.Array,
-        g2: jax.Array,
-        c_r: jax.Array,
-        h: jax.Array,
+        f1: jnp.ndarray,
+        g1: jnp.ndarray,
+        c_q: jnp.ndarray,
+        f2: jnp.ndarray,
+        g2: jnp.ndarray,
+        c_r: jnp.ndarray,
+        h: jnp.ndarray,
         gamma: float,
-    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
       r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
       g = jnp.exp(gamma * h)
@@ -545,9 +545,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
   def dykstra_update_kernel(
       self,
-      k_q: jax.Array,
-      k_r: jax.Array,
-      k_g: jax.Array,
+      k_q: jnp.ndarray,
+      k_r: jnp.ndarray,
+      k_g: jnp.ndarray,
       gamma: float,
       ot_prob: quadratic_problem.QuadraticProblem,
       min_entry_value: float = 1e-6,
@@ -555,7 +555,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     del gamma
@@ -575,17 +575,17 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     constants = k_q, k_r, k_g, a, b
 
     def cond_fn(
-        iteration: int, constants: Tuple[jax.Array, ...],
-        state_inner: Tuple[jax.Array, ...]
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def body_fn(
-        iteration: int, constants: Tuple[jax.Array, ...],
-        state_inner: Tuple[jax.Array, ...], compute_error: bool
-    ) -> Tuple[jax.Array, ...]:
+        iteration: int, constants: Tuple[jnp.ndarray, ...],
+        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
       k_q, k_r, k_g, a, b = constants
@@ -623,14 +623,14 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
 
     def recompute_couplings(
-        u1: jax.Array,
-        v1: jax.Array,
-        k_q: jax.Array,
-        u2: jax.Array,
-        v2: jax.Array,
-        k_r: jax.Array,
-        g: jax.Array,
-    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+        u1: jnp.ndarray,
+        v1: jnp.ndarray,
+        k_q: jnp.ndarray,
+        u2: jnp.ndarray,
+        v2: jnp.ndarray,
+        k_r: jnp.ndarray,
+        g: jnp.ndarray,
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
@@ -762,7 +762,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
   def init_state(
       self, ot_prob: quadratic_problem.QuadraticProblem,
-      init: Tuple[jax.Array, jax.Array, jax.Array]
+      init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRGWState:
     """Return the initial state of the loop."""
     q, r, g = init
@@ -837,7 +837,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 def run(
     ot_prob: quadratic_problem.QuadraticProblem,
     solver: LRGromovWasserstein,
-    init: Tuple[Optional[jax.Array], Optional[jax.Array], Optional[jax.Array]],
+    init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]],
 ) -> LRGWOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
@@ -848,9 +849,9 @@ def run(
 
 
 def dykstra_solution_error(
-    q: jax.Array, r: jax.Array, ot_prob: quadratic_problem.QuadraticProblem,
+    q: jnp.ndarray, r: jnp.ndarray, ot_prob: quadratic_problem.QuadraticProblem,
     norm_error: Tuple[int, ...]
-) -> jax.Array:
+) -> jnp.ndarray:
   """Compute solution error.
 
   Since only balanced case is available for LR, this is marginal deviation.
@@ -883,9 +884,9 @@ def dykstra_solution_error(
 def _linearized_geometry(
     prob: quadratic_problem.QuadraticProblem,
     *,
-    q: jax.Array,
-    r: jax.Array,
-    g: jax.Array,
+    q: jnp.ndarray,
+    r: jnp.ndarray,
+    g: jnp.ndarray,
 ) -> low_rank.LRCGeometry:
   inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
 

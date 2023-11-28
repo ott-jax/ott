@@ -31,7 +31,7 @@ from ott.tools import soft_sort
 class TestLowerBoundSolver:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
     self.n, self.m = 13, 15
@@ -118,11 +118,11 @@ class TestLowerBoundSolver:
       ]
   )
   def test_lb_grad(
-      self, rng: jax.Array, sort_fn: Callable[[jax.Array], jax.Array],
+      self, rng: jnp.ndarray, sort_fn: Callable[[jnp.ndarray], jnp.ndarray],
       method: str
   ):
 
-    def fn(x: jax.Array, y: jax.Array) -> float:
+    def fn(x: jnp.ndarray, y: jnp.ndarray) -> float:
       geom_x = pointcloud.PointCloud(x)
       geom_y = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)

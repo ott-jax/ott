@@ -71,7 +71,7 @@ class Grid(geometry.Geometry):
 
   def __init__(
       self,
-      x: Optional[Sequence[jax.Array]] = None,
+      x: Optional[Sequence[jnp.ndarray]] = None,
       grid_size: Optional[Sequence[int]] = None,
       cost_fns: Optional[Sequence[costs.CostFn]] = None,
       num_a: Optional[int] = None,
@@ -146,12 +146,12 @@ class Grid(geometry.Geometry):
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(
       self,
-      f: jax.Array,
-      g: jax.Array,
+      f: jnp.ndarray,
+      g: jnp.ndarray,
       eps: float,
-      vec: Optional[jax.Array] = None,
+      vec: Optional[jnp.ndarray] = None,
       axis: int = 0
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply grid kernel in log space. See notes in parent class for use case.
 
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
@@ -160,10 +160,10 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`.
 
     Args:
-      f: jax.Array, a vector of potentials
-      g: jax.Array, a vector of potentials
+      f: jnp.ndarray, a vector of potentials
+      g: jnp.ndarray, a vector of potentials
       eps: float, regularization strength
-      vec: jax.Array, if needed, a vector onto which apply the kernel weighted
+      vec: jnp.ndarray, if needed, a vector onto which apply the kernel weighted
         by f and g.
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -209,8 +209,8 @@ class Grid(geometry.Geometry):
     return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
-      self, vec: jax.Array, axis: int = 0, fn=None
-  ) -> jax.Array:
+      self, vec: jnp.ndarray, axis: int = 0, fn=None
+  ) -> jnp.ndarray:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
     The `apply_cost` operation on grids rests on the following identity.
@@ -229,13 +229,13 @@ class Grid(geometry.Geometry):
     summation while keeping dimensions.
 
     Args:
-      vec: jax.Array, flat vector of total size prod(grid_size).
+      vec: jnp.ndarray, flat vector of total size prod(grid_size).
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
 
     Returns:
-      A jax.Array corresponding to cost x matrix
+      A jnp.ndarray corresponding to cost x matrix
     """
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
@@ -255,10 +255,10 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jax.Array,
+      scaling: jnp.ndarray,
       eps: Optional[float] = None,
       axis: Optional[int] = None
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Apply grid kernel on scaling vector.
 
     See notes in parent class for use.
@@ -269,7 +269,7 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`,
 
     Args:
-      scaling: jax.Array, a vector of scaling (>0) values.
+      scaling: jnp.ndarray, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -289,7 +289,7 @@ class Grid(geometry.Geometry):
     return scaling.ravel()
 
   def transport_from_potentials(
-      self, f: jax.Array, g: jax.Array, axis: int = 0
+      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
@@ -300,7 +300,7 @@ class Grid(geometry.Geometry):
     )
 
   def transport_from_scalings(
-      self, f: jax.Array, g: jax.Array, axis: int = 0
+      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
@@ -311,15 +311,15 @@ class Grid(geometry.Geometry):
     )
 
   def subset(
-      self, src_ixs: Optional[jax.Array], tgt_ixs: Optional[jax.Array]
+      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
   ) -> NoReturn:
     """Not implemented."""
     raise NotImplementedError("Subsetting is not implemented for grids.")
 
   def mask(
       self,
-      src_mask: Optional[jax.Array],
-      tgt_mask: Optional[jax.Array],
+      src_mask: Optional[jnp.ndarray],
+      tgt_mask: Optional[jnp.ndarray],
       mask_value: float = 0.,
   ) -> NoReturn:
     """Not implemented."""

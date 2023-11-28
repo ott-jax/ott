@@ -56,10 +56,10 @@ class CostFn(abc.ABC):
   """
 
   # no norm function created by default.
-  norm: Optional[Callable[[jax.Array], Union[float, jax.Array]]] = None
+  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
 
   @abc.abstractmethod
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -70,8 +70,8 @@ class CostFn(abc.ABC):
       The cost.
     """
 
-  def barycenter(self, weights: jax.Array,
-                 xs: jax.Array) -> Tuple[jax.Array, Any]:
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Barycentric operator.
 
     Args:
@@ -86,7 +86,7 @@ class CostFn(abc.ABC):
     raise NotImplementedError("Barycenter is not implemented.")
 
   @classmethod
-  def _padder(cls, dim: int) -> jax.Array:
+  def _padder(cls, dim: int) -> jnp.ndarray:
     """Create a padding vector of adequate dimension, well-suited to a cost.
 
     Args:
@@ -97,7 +97,7 @@ class CostFn(abc.ABC):
     """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jax.Array, y: jax.Array) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -113,7 +113,7 @@ class CostFn(abc.ABC):
       return cost
     return cost + self.norm(x) + self.norm(y)
 
-  def all_pairs(self, x: jax.Array, y: jax.Array) -> jax.Array:
+  def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
     Args:
@@ -125,7 +125,7 @@ class CostFn(abc.ABC):
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
 
-  def all_pairs_pairwise(self, x: jax.Array, y: jax.Array) -> jax.Array:
+  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
 
     Args:
@@ -163,7 +163,7 @@ class TICost(CostFn):
   """
 
   @abc.abstractmethod
-  def h(self, z: jax.Array) -> float:
+  def h(self, z: jnp.ndarray) -> float:
     """TI function acting on difference of :math:`x-y` to output cost.
 
     Args:
@@ -173,11 +173,11 @@ class TICost(CostFn):
       The cost.
     """
 
-  def h_legendre(self, z: jax.Array) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("Legendre transform of `h` is not implemented.")
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -198,10 +198,10 @@ class SqPNorm(TICost):
     self.p = p
     self.q = 1.0 / (1.0 - (1.0 / p)) if p > 1.0 else jnp.inf
 
-  def h(self, z: jax.Array) -> float:  # noqa: D102
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * mu.norm(z, self.p) ** 2
 
-  def h_legendre(self, z: jax.Array) -> float:
+  def h_legendre(self, z: jnp.ndarray) -> float:
     """Legendre transform of :func:`h`.
 
     For details on the derivation, see e.g., :cite:`boyd:04`, p. 93/94.
@@ -234,10 +234,10 @@ class PNormP(TICost):
     self.p = p
     self.q = 1.0 / (1.0 - (1.0 / p)) if p > 1.0 else jnp.inf
 
-  def h(self, z: jax.Array) -> float:  # noqa: D102
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return mu.norm(z, self.p) ** self.p / self.p
 
-  def h_legendre(self, z: jax.Array) -> float:  # noqa: D102
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     # not defined for `p=1`
     return mu.norm(z, self.q) ** self.q / self.q
 
@@ -260,7 +260,7 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm using custom jvp implementation.
 
     Here we use a custom jvp implementation for the norm that does not yield
@@ -277,22 +277,22 @@ class SqEuclidean(TICost):
   Implemented as a translation invariant cost, :math:`h(z) = \|z\|^2`.
   """
 
-  def norm(self, x: jax.Array) -> Union[float, jax.Array]:
+  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
     return -2. * jnp.vdot(x, y)
 
-  def h(self, z: jax.Array) -> float:  # noqa: D102
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
 
-  def h_legendre(self, z: jax.Array) -> float:  # noqa: D102
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.25 * jnp.sum(z ** 2)
 
-  def barycenter(self, weights: jax.Array,
-                 xs: jax.Array) -> Tuple[jax.Array, Any]:
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return jnp.average(xs, weights=weights, axis=0), None
 
@@ -309,7 +309,7 @@ class Cosine(CostFn):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
     ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -318,7 +318,7 @@ class Cosine(CostFn):
     return 1.0 - cosine_similarity
 
   @classmethod
-  def _padder(cls, dim: int) -> jax.Array:
+  def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
 
 
@@ -341,7 +341,7 @@ class RegTICost(TICost, abc.ABC):
   def __init__(
       self,
       scaling_reg: float = 1.0,
-      matrix: Optional[jax.Array] = None,
+      matrix: Optional[jnp.ndarray] = None,
       orthogonal: bool = False,
   ):
     super().__init__()
@@ -350,16 +350,16 @@ class RegTICost(TICost, abc.ABC):
     self.orthogonal = orthogonal
 
   @abc.abstractmethod
-  def _reg(self, z: jax.Array) -> float:
+  def _reg(self, z: jnp.ndarray) -> float:
     """Regularization function."""
 
-  def _reg_stiefel_orth(self, z: jax.Array) -> float:
+  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
     raise NotImplementedError(
         "Regularization in the orthogonal "
         "subspace is not implemented."
     )
 
-  def reg(self, z: jax.Array) -> float:
+  def reg(self, z: jnp.ndarray) -> float:
     """Regularization function.
 
     Args:
@@ -374,7 +374,7 @@ class RegTICost(TICost, abc.ABC):
       return self._reg_stiefel_orth(z)
     return self._reg(self.matrix @ z)
 
-  def prox_reg(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     """Proximal operator of :meth:`reg`.
 
     Args:
@@ -391,24 +391,26 @@ class RegTICost(TICost, abc.ABC):
       return self._prox_reg_stiefel_orth(z, tau)
     return self._prox_reg_stiefel(z, tau)
 
-  def _prox_reg(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     raise NotImplementedError("Proximal operator is not implemented.")
 
-  def _prox_reg_stiefel_orth(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def _prox_reg_stiefel_orth(
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
 
-    def orth(x: jax.Array) -> jax.Array:
+    def orth(x: jnp.ndarray) -> jnp.ndarray:
       return x - self.matrix.T @ (self.matrix @ x)
 
     # assumes `matrix` has orthogonal rows
     tmp = orth(z)
     return z - orth(tmp - self._prox_reg(tmp, tau))
 
-  def _prox_reg_stiefel(self, z: jax.Array, tau: float) -> jax.Array:
+  def _prox_reg_stiefel(self, z: jnp.ndarray, tau: float) -> jnp.ndarray:
     # assumes `matrix` has orthogonal rows
     tmp = self.matrix @ z
     return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
 
-  def prox_legendre_reg(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     r"""Proximal operator of the Legendre transform of :meth:`reg`.
 
     Uses Moreau's decomposition:
@@ -426,16 +428,16 @@ class RegTICost(TICost, abc.ABC):
     """
     return z - tau * self.prox_reg(z / tau, 1.0 / tau)
 
-  def h(self, z: jax.Array) -> float:  # noqa: D102
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     out = 0.5 * jnp.sum(z ** 2)
     return out + self.scaling_reg * self.reg(z)
 
-  def h_legendre(self, z: jax.Array) -> float:  # noqa: D102
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     q = jax.lax.stop_gradient(self.prox_reg(z))
     return jnp.sum(q * z) - self.h(q)
 
-  def h_transform(self, f: Callable[[jax.Array], float],
-                  **kwargs: Any) -> Callable[[jax.Array], float]:
+  def h_transform(self, f: Callable[[jnp.ndarray], float],
+                  **kwargs: Any) -> Callable[[jnp.ndarray], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -465,16 +467,18 @@ class RegTICost(TICost, abc.ABC):
       The h-transform of ``f``.
     """
 
-    def minus_f(z: jax.Array, x: jax.Array) -> float:
+    def minus_f(z: jnp.ndarray, x: jnp.ndarray) -> float:
       return -f(x - z)
 
-    def prox(x: jax.Array, scaling_reg: float, scaling_h: float) -> jax.Array:
+    def prox(
+        x: jnp.ndarray, scaling_reg: float, scaling_h: float
+    ) -> jnp.ndarray:
       # https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 2.2.
       tmp = 1.0 / (1.0 + scaling_h)
       tau = scaling_reg * scaling_h * tmp
       return self.prox_reg(x * tmp, tau)
 
-    def f_h(x: jax.Array) -> float:
+    def f_h(x: jnp.ndarray) -> float:
       pg = jaxopt.ProximalGradient(fun=minus_f, prox=prox, **kwargs)
       pg_run = pg.run(x, self.scaling_reg, x=x)
       pg_sol = jax.lax.stop_gradient(pg_run.params)
@@ -504,10 +508,10 @@ class ElasticL1(RegTICost):
       to promote displacements in the span of ``matrix``.
   """
 
-  def _reg(self, z: jax.Array) -> float:  # noqa: D102
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(z, ord=1)
 
-  def _prox_reg(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - tau * self.scaling_reg)
 
 
@@ -525,17 +529,19 @@ class ElasticL2(RegTICost):
       to promote displacements in the span of ``matrix``.
   """
 
-  def _reg(self, z: jax.Array) -> float:  # noqa: D102
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     return 0.5 * jnp.sum(z ** 2)
 
-  def _reg_stiefel_orth(self, z: jax.Array) -> float:
+  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
     # Pythagorean identity
     return self._reg(z) - self._reg(self.matrix @ z)
 
-  def _prox_reg(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
     return z / (1.0 + tau * self.scaling_reg)
 
-  def _prox_reg_stiefel_orth(self, z: jax.Array, tau: float = 1.0) -> jax.Array:
+  def _prox_reg_stiefel_orth(
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
     out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
     return self._prox_reg(out, tau)
 
@@ -559,7 +565,7 @@ class ElasticSTVS(RegTICost):
       to promote displacements in the span of ``matrix``.
   """  # noqa: D205,E501
 
-  def _reg(self, z: jax.Array) -> float:  # noqa: D102
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     u = jnp.arcsinh(jnp.abs(z) / (2 * self.scaling_reg))
     out = u - 0.5 * jnp.exp(-2.0 * u)
     # Lemma 2.1 of `schreck:15`;
@@ -567,8 +573,8 @@ class ElasticSTVS(RegTICost):
     return self.scaling_reg * jnp.sum(out + 0.5)  # make positive
 
   def _prox_reg(  # noqa: D102
-      self, z: jax.Array, tau: float = 1.0
-  ) -> jax.Array:
+      self, z: jnp.ndarray, tau: float = 1.0
+  ) -> jnp.ndarray:
     tmp = 1.0 - (self.scaling_reg * tau / (jnp.abs(z) + 1e-12)) ** 2
     return jax.nn.relu(tmp) * z
 
@@ -594,7 +600,7 @@ class ElasticSqKOverlap(RegTICost):
     super().__init__(*args, **kwargs)
     self.k = k
 
-  def _reg(self, z: jax.Array) -> float:  # noqa: D102
+  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -615,14 +621,15 @@ class ElasticSqKOverlap(RegTICost):
 
     return 0.5 * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox_reg(self, z: jax.Array, tau: float = 1.0) -> float:  # noqa: D102
+  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
-    def find_indices(r: int, l: jax.Array,
-                     z: jax.Array) -> Tuple[jax.Array, jax.Array]:
+    def find_indices(r: int, l: jnp.ndarray,
+                     z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
 
       @functools.partial(jax.vmap, in_axes=[None, 0, None])
-      def inner(r: int, l: int, z: jax.Array) -> Tuple[jax.Array, jax.Array]:
+      def inner(r: int, l: int,
+                z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
         i = k - r - 1
         res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
         res /= l - k + (beta + 1) * r + beta + 1
@@ -685,14 +692,14 @@ class Bures(CostFn):
     self._dimension = dimension
     self._sqrtm_kw = {} if sqrtm_kw is None else sqrtm_kw
 
-  def norm(self, x: jax.Array) -> jax.Array:
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute norm of Gaussian, sq. 2-norm of mean + trace of covariance."""
     mean, cov = x_to_means_and_covs(x, self._dimension)
     norm = jnp.sum(mean ** 2, axis=-1)
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -706,12 +713,12 @@ class Bures(CostFn):
 
   def covariance_fixpoint_iter(
       self,
-      covs: jax.Array,
-      weights: jax.Array,
+      covs: jnp.ndarray,
+      weights: jnp.ndarray,
       tolerance: float = 1e-4,
       sqrtm_kw: Optional[Dict[str, Any]] = None,
       **kwargs: Any
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians.
 
     Args:
@@ -737,8 +744,8 @@ class Bures(CostFn):
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
     def scale_covariances(
-        cov_sqrt: jax.Array, cov: jax.Array, weight: jax.Array
-    ) -> jax.Array:
+        cov_sqrt: jnp.ndarray, cov: jnp.ndarray, weight: jnp.ndarray
+    ) -> jnp.ndarray:
       """Rescale covariance in barycenter step."""
       return weight * matrix_square_root.sqrtm_only((cov_sqrt @ cov) @ cov_sqrt,
                                                     **sqrtm_kw)
@@ -750,8 +757,8 @@ class Bures(CostFn):
 
     def body_fn(
         iteration: int, constants: Tuple[Any, ...],
-        state: Tuple[jax.Array, float], compute_error: bool
-    ) -> Tuple[jax.Array, float]:
+        state: Tuple[jnp.ndarray, float], compute_error: bool
+    ) -> Tuple[jnp.ndarray, float]:
       del constants, compute_error
       cov, diffs = state
       cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **sqrtm_kw)
@@ -763,7 +770,7 @@ class Bures(CostFn):
       diffs = diffs.at[iteration // inner_iterations].set(diff)
       return next_cov, diffs
 
-    def init_state() -> Tuple[jax.Array, float]:
+    def init_state() -> Tuple[jnp.ndarray, float]:
       cov_init = jnp.eye(self._dimension)
       diffs = -jnp.ones(
           (np.ceil(max_iterations / inner_iterations).astype(int),),
@@ -784,12 +791,12 @@ class Bures(CostFn):
 
   def barycenter(
       self,
-      weights: jax.Array,
-      xs: jax.Array,
+      weights: jnp.ndarray,
+      xs: jnp.ndarray,
       tolerance: float = 1e-4,
       sqrtm_kw: Optional[Dict[str, Any]] = None,
       **kwargs: Any
-  ) -> Tuple[jax.Array, jax.Array]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
     Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
@@ -835,7 +842,7 @@ class Bures(CostFn):
     return mean_and_cov_to_x(mu_bary, cov_bary, self._dimension), diffs
 
   @classmethod
-  def _padder(cls, dim: int) -> jax.Array:
+  def _padder(cls, dim: int) -> jnp.ndarray:
     dimension = int((-1 + math.sqrt(1 + 4 * dim)) / 2)
     padding = mean_and_cov_to_x(
         jnp.zeros((dimension,)), jnp.eye(dimension), dimension
@@ -878,7 +885,7 @@ class UnbalancedBures(CostFn):
     self._gamma = gamma
     self._sqrtm_kw = kwargs
 
-  def norm(self, x: jax.Array) -> jax.Array:
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute norm of Gaussian for unbalanced Bures.
 
     Args:
@@ -891,7 +898,7 @@ class UnbalancedBures(CostFn):
     """
     return self._gamma * x[..., 0]
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute dot-product for unbalanced Bures.
 
     Args:
@@ -985,17 +992,18 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jax.Array, y: jax.Array) -> float:  # noqa: D102
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))
     return c_xy
 
-  def _soft_dtw(self, t1: jax.Array, t2: jax.Array) -> float:
+  def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
 
     def body(
-        carry: Tuple[jax.Array, jax.Array], current_antidiagonal: jax.Array
-    ) -> Tuple[Tuple[jax.Array, jax.Array], jax.Array]:
+        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        current_antidiagonal: jnp.ndarray
+    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
       # modified from: https://github.com/khdlr/softdtw_jax
       two_ago, one_ago = carry
 
@@ -1042,8 +1050,8 @@ class SoftDTW(CostFn):
     return cls(*children, **aux_data)
 
 
-def x_to_means_and_covs(x: jax.Array,
-                        dimension: int) -> Tuple[jax.Array, jax.Array]:
+def x_to_means_and_covs(x: jnp.ndarray,
+                        dimension: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:
@@ -1063,8 +1071,8 @@ def x_to_means_and_covs(x: jax.Array,
 
 
 def mean_and_cov_to_x(
-    mean: jax.Array, covariance: jax.Array, dimension: int
-) -> jax.Array:
+    mean: jnp.ndarray, covariance: jnp.ndarray, dimension: int
+) -> jnp.ndarray:
   """Ravel a Gaussian's mean and covariance matrix to d(1 + d) vector."""
   return jnp.concatenate(
       (mean, jnp.reshape(covariance, (dimension * dimension)))

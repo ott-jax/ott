@@ -179,7 +179,7 @@ def fixpoint_iter_bwd(
   # The tree may contain some python floats
   g_constants = jax.tree_util.tree_map(
       lambda x: jnp.zeros_like(x, dtype=x.dtype)
-      if isinstance(x, (np.ndarray, jax.Array)) else 0, constants
+      if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants
   )
 
   def bwd_cond_fn(iteration_g_gconst):

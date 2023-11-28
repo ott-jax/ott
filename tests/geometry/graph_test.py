@@ -35,7 +35,7 @@ def random_graph(
     *,
     return_laplacian: bool = False,
     directed: bool = False,
-) -> jax.Array:
+) -> jnp.ndarray:
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
     assert nx.is_connected(G), "Generated graph is not connected."
@@ -51,7 +51,7 @@ def random_graph(
   return jnp.asarray(G.toarray())
 
 
-def gt_geometry(G: jax.Array, *, epsilon: float = 1e-2) -> geometry.Geometry:
+def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
   if not isinstance(G, nx.Graph):
     G = nx.from_numpy_array(np.asarray(G))
 
@@ -72,7 +72,7 @@ def gt_geometry(G: jax.Array, *, epsilon: float = 1e-2) -> geometry.Geometry:
 
 class TestGraph:
 
-  def test_kernel_is_symmetric_positive_definite(self, rng: jax.Array):
+  def test_kernel_is_symmetric_positive_definite(self, rng: jnp.ndarray):
     n, tol = 65, 0.02
     x = jax.random.normal(rng, (n,))
     geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
@@ -109,7 +109,7 @@ class TestGraph:
   )
   def test_approximates_ground_truth(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
       numerical_scheme: Literal["backward_euler", "crank_nicolson"],
   ):
     eps, n_steps = 1e-5, 20
@@ -160,7 +160,7 @@ class TestGraph:
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
-    def create_graph(G: jax.Array) -> graph.Graph:
+    def create_graph(G: jnp.ndarray) -> graph.Graph:
       return graph.Graph.from_graph(G, directed=True, normalize=normalize)
 
     G = random_graph(16, p=0.25, directed=True)
@@ -181,7 +181,7 @@ class TestGraph:
   @pytest.mark.parametrize("normalize", [False, True])
   def test_normalize_laplacian(self, directed: bool, normalize: bool):
 
-    def laplacian(G: jax.Array) -> jax.Array:
+    def laplacian(G: jnp.ndarray) -> jnp.ndarray:
       if directed:
         G = G + G.T
 
@@ -203,7 +203,7 @@ class TestGraph:
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_graph_sinkhorn(self, rng: jax.Array, jit: bool):
+  def test_graph_sinkhorn(self, rng: jnp.ndarray, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -246,12 +246,12 @@ class TestGraph:
       ids=["not-implicit", "implicit"],
   )
   def test_dense_graph_differentiability(
-      self, rng: jax.Array, implicit_diff: bool
+      self, rng: jnp.ndarray, implicit_diff: bool
   ):
 
     def callback(
-        data: jax.Array, rows: jax.Array, cols: jax.Array, shape: Tuple[int,
-                                                                        int]
+        data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
+        shape: Tuple[int, int]
     ) -> float:
       G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 
@@ -281,7 +281,7 @@ class TestGraph:
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
-  def test_tolerance_hilbert_metric(self, rng: jax.Array):
+  def test_tolerance_hilbert_metric(self, rng: jnp.ndarray):
     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
     G = random_graph(n, p=0.15)
     x = jnp.abs(jax.random.normal(rng, (n,)))

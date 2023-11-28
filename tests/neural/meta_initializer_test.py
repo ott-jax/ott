@@ -31,7 +31,7 @@ class MetaMLP(nn.Module):
   num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, a: jax.Array, b: jax.Array) -> jax.Array:
+  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
     dtype = a.dtype
     z = jnp.concatenate((a, b))
     for _ in range(self.num_hidden_layers):
@@ -40,7 +40,7 @@ class MetaMLP(nn.Module):
 
 
 def create_ot_problem(
-    rng: jax.Array,
+    rng: jnp.ndarray,
     n: int,
     m: int,
     d: int,
@@ -65,12 +65,12 @@ def create_ot_problem(
 
 
 def run_sinkhorn(
-    x: jax.Array,
-    y: jax.Array,
+    x: jnp.ndarray,
+    y: jnp.ndarray,
     *,
     initializer: linear_init.SinkhornInitializer,
-    a: Optional[jax.Array] = None,
-    b: Optional[jax.Array] = None,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
 ) -> sinkhorn.SinkhornOutput:
@@ -86,7 +86,7 @@ def run_sinkhorn(
 class TestMetaInitializer:
 
   @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
+  def test_meta_initializer(self, rng: jnp.ndarray, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2

@@ -25,7 +25,7 @@ from ott.solvers.linear import sinkhorn, univariate
 class TestUnivariate:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     self.rng = rng
     self.n = 17
     self.m = 29
@@ -86,7 +86,7 @@ class TestUnivariate:
   @pytest.mark.fast()
   def test_cdf_grad(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
   ):
     # TODO: Once a `check_grad` function is implemented, replace the code
     # blocks before with `check_grad`'s.

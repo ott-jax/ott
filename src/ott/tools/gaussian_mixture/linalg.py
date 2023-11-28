@@ -18,9 +18,9 @@ import jax.numpy as jnp
 
 
 def get_mean_and_var(
-    points: jax.Array,  # (n, d)
-    weights: jax.Array,  # (n,)
-) -> Tuple[jax.Array, jax.Array]:
+    points: jnp.ndarray,  # (n, d)
+    weights: jnp.ndarray,  # (n,)
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and variance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1)  # (1,)
   mean = (
@@ -37,9 +37,9 @@ def get_mean_and_var(
 
 
 def get_mean_and_cov(
-    points: jax.Array,  # (n, d)
-    weights: jax.Array,  # (n,)
-) -> Tuple[jax.Array, jax.Array]:
+    points: jnp.ndarray,  # (n, d)
+    weights: jnp.ndarray,  # (n,)
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and covariance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1, keepdims=True)  # (1,)
   mean = (
@@ -59,7 +59,7 @@ def get_mean_and_cov(
   return mean, cov
 
 
-def flat_to_tril(x: jax.Array, size: int) -> jax.Array:
+def flat_to_tril(x: jnp.ndarray, size: int) -> jnp.ndarray:
   """Map flat values to lower triangular matrices.
 
   Args:
@@ -76,7 +76,7 @@ def flat_to_tril(x: jax.Array, size: int) -> jax.Array:
   return m.at[..., tril[0], tril[1]].set(x)
 
 
-def tril_to_flat(m: jax.Array) -> jax.Array:
+def tril_to_flat(m: jnp.ndarray) -> jnp.ndarray:
   """Flatten lower triangular matrices.
 
   Args:
@@ -91,8 +91,8 @@ def tril_to_flat(m: jax.Array) -> jax.Array:
 
 
 def apply_to_diag(
-    m: jax.Array, fn: Callable[[jax.Array], jax.Array]
-) -> jax.Array:
+    m: jnp.ndarray, fn: Callable[[jnp.ndarray], jnp.ndarray]
+) -> jnp.ndarray:
   """Apply a function to the diagonal of a matrix."""
   size = m.shape[-1]
   diag = jnp.diagonal(m, axis1=-2, axis2=-1)
@@ -101,9 +101,9 @@ def apply_to_diag(
 
 
 def matrix_powers(
-    m: jax.Array,
+    m: jnp.ndarray,
     powers: Iterable[float],
-) -> List[jax.Array]:
+) -> List[jnp.ndarray]:
   """Raise a real, symmetric matrix to multiple powers."""
   eigs, q = jnp.linalg.eigh(m)
   qt = jnp.swapaxes(q, axis1=-2, axis2=-1)
@@ -113,7 +113,9 @@ def matrix_powers(
   return ret
 
 
-def invmatvectril(m: jax.Array, x: jax.Array, lower: bool = True) -> jax.Array:
+def invmatvectril(
+    m: jnp.ndarray, x: jnp.ndarray, lower: bool = True
+) -> jnp.ndarray:
   """Multiply x by the inverse of a triangular matrix.
 
   Args:
@@ -130,8 +132,10 @@ def invmatvectril(m: jax.Array, x: jax.Array, lower: bool = True) -> jax.Array:
 
 
 def get_random_orthogonal(
-    rng: jax.Array, dim: int, dtype: Optional[jnp.dtype] = None
-) -> jax.Array:
+    rng: jnp.ndarray,
+    dim: int,
+    dtype: Optional[jnp.dtype] = None
+) -> jnp.ndarray:
   """Get a random orthogonal matrix with the specified dimension."""
   m = jax.random.normal(key=rng, shape=[dim, dim], dtype=dtype)
   q, _ = jnp.linalg.qr(m)

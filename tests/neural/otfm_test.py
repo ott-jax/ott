@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Iterator, Type
 
-import jax
 import jax.numpy as jnp
 import optax
 import pytest
@@ -61,12 +60,18 @@ class TestOTFlowMatching:
     fm(data_loader_gaussian, data_loader_gaussian)
 
     batch = next(data_loader_gaussian)
-    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
-    assert isinstance(result_forward, jax.Array)
+    result_forward = fm.transport(
+        batch["source_lin"], condition=batch["source_conditions"], forward=True
+    )
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
-    assert isinstance(result_backward, jax.Array)
+    result_backward = fm.transport(
+        batch["target_lin"],
+        condition=batch["target_conditions"],
+        forward=False
+    )
+    assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
@@ -103,12 +108,18 @@ class TestOTFlowMatching:
     )
 
     batch = next(data_loader_gaussian_with_conditions)
-    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
-    assert isinstance(result_forward, jax.Array)
+    result_forward = fm.transport(
+        batch["source_lin"], condition=batch["source_conditions"], forward=True
+    )
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
-    assert isinstance(result_backward, jax.Array)
+    result_backward = fm.transport(
+        batch["target_lin"],
+        condition=batch["target_conditions"],
+        forward=False
+    )
+    assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
@@ -142,12 +153,18 @@ class TestOTFlowMatching:
     fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
 
     batch = next(data_loader_gaussian_conditional)
-    result_forward = fm.transport(batch["source_lin"], condition=batch["source_conditions"], forward=True)
-    assert isinstance(result_forward, jax.Array)
+    result_forward = fm.transport(
+        batch["source_lin"], condition=batch["source_conditions"], forward=True
+    )
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-    result_backward = fm.transport(batch["target_lin"], condition=batch["target_conditions"], forward=False)
-    assert isinstance(result_backward, jax.Array)
+    result_backward = fm.transport(
+        batch["target_lin"],
+        condition=batch["target_conditions"],
+        forward=False
+    )
+    assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize("conditional", [False, True])
@@ -190,10 +207,14 @@ class TestOTFlowMatching:
     )
     fm(data_loader, data_loader)
 
-    result_eta = fm.evaluate_eta(batch["source_lin"], condition=batch["source_conditions"])
-    assert isinstance(result_eta, jax.Array)
+    result_eta = fm.evaluate_eta(
+        batch["source_lin"], condition=batch["source_conditions"]
+    )
+    assert isinstance(result_eta, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
-    result_xi = fm.evaluate_xi(batch["target_lin"], condition=batch["target_conditions"])
-    assert isinstance(result_xi, jax.Array)
+    result_xi = fm.evaluate_xi(
+        batch["target_lin"], condition=batch["target_conditions"]
+    )
+    assert isinstance(result_xi, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_xi)) == 0

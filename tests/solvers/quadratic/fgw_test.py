@@ -29,7 +29,7 @@ class TestFusedGromovWasserstein:
 
   # TODO(michalk8): refactor me in the future
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     d_x = 2
     d_y = 3
     d_xy = 4
@@ -56,7 +56,7 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(self.y)
     geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
 
-    def reg_gw(a: jax.Array, b: jax.Array, implicit: bool):
+    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       prob = quadratic_problem.QuadraticProblem(
           geom_x, geom_y, geom_xy, fused_penalty=self.fused_penalty, a=a, b=b
       )
@@ -101,9 +101,9 @@ class TestFusedGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jax.Array, y: jax.Array, xy: Union[jax.Array, Tuple[jax.Array,
-                                                               jax.Array]],
-        fused_penalty: float, a: jax.Array, b: jax.Array, implicit: bool
+        x: jnp.ndarray, y: jnp.ndarray,
+        xy: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
+        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
     ):
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -182,8 +182,8 @@ class TestFusedGromovWasserstein:
     lse_mode = True
 
     def reg_gw(
-        cx: jax.Array, cy: jax.Array, cxy: jax.Array, fused_penalty: float,
-        a: jax.Array, b: jax.Array, implicit: bool
+        cx: jnp.ndarray, cy: jnp.ndarray, cxy: jnp.ndarray,
+        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
     ) -> float:
       geom_x = geometry.Geometry(cost_matrix=cx)
       geom_y = geometry.Geometry(cost_matrix=cy)
@@ -216,7 +216,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.limit_memory("200 MB")
   @pytest.mark.parametrize("jit", [False, True])
-  def test_fgw_lr_memory(self, rng: jax.Array, jit: bool):
+  def test_fgw_lr_memory(self, rng: jnp.ndarray, jit: bool):
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 5_000, 2_500, 1, 2
     x = jax.random.uniform(rngs[0], (n, d1))
@@ -243,7 +243,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_fgw_lr_generic_cost_matrix(
-      self, rng: jax.Array, cost_rank: Union[int, Tuple[int, int, int]]
+      self, rng: jnp.ndarray, cost_rank: Union[int, Tuple[int, int, int]]
   ):
     n, m = 20, 30
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)

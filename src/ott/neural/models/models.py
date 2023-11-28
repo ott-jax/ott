@@ -67,9 +67,9 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   dim_hidden: Sequence[int]
   init_std: float = 1e-2
   init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable[[jax.Array], jax.Array] = nn.relu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
   pos_weights: bool = True
-  gaussian_map_samples: Optional[Tuple[jax.Array, jax.Array]] = None
+  gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
@@ -151,8 +151,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
 
   @staticmethod
   def _compute_gaussian_map_params(
-      samples: Tuple[jax.Array, jax.Array]
-  ) -> Tuple[jax.Array, jax.Array]:
+      samples: Tuple[jnp.ndarray, jnp.ndarray]
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     from ott.tools.gaussian_mixture import gaussian
     source, target = samples
     g_s = gaussian.Gaussian.from_samples(source)
@@ -165,13 +165,13 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   @staticmethod
   def _compute_identity_map_params(
       input_dim: int
-  ) -> Tuple[jax.Array, jax.Array]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
     b = jnp.zeros((1, input_dim))
     return A, b
 
   @nn.compact
-  def __call__(self, x: jax.Array) -> float:  # noqa: D102
+  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     z = self.act_fn(self.w_xs[0](x))
     for i in range(self.num_hidden):
       z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
@@ -194,10 +194,10 @@ class MLP(neuraldual.BaseW2NeuralDual):
 
   dim_hidden: Sequence[int]
   is_potential: bool = True
-  act_fn: Callable[[jax.Array], jax.Array] = nn.leaky_relu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
 
   @nn.compact
-  def __call__(self, x: jax.Array) -> jax.Array:  # noqa: D102
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
@@ -267,7 +267,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
       meta_model: nn.Module,
       opt: Optional[optax.GradientTransformation
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: Optional[jax.Array] = None,
+      rng: Optional[jnp.ndarray] = None,
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
@@ -294,8 +294,8 @@ class MetaInitializer(lin_init.DefaultInitializer):
     self.update_impl = self._get_update_fn()
 
   def update(
-      self, state: train_state.TrainState, a: jax.Array, b: jax.Array
-  ) -> Tuple[jax.Array, jax.Array, train_state.TrainState]:
+      self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -333,8 +333,8 @@ class MetaInitializer(lin_init.DefaultInitializer):
       self,
       ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      rng: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2)
@@ -387,9 +387,9 @@ class MetaInitializer(lin_init.DefaultInitializer):
     return update
 
   def _compute_f(
-      self, a: jax.Array, b: jax.Array,
-      params: frozen_dict.FrozenDict[str, jax.Array]
-  ) -> jax.Array:
+      self, a: jnp.ndarray, b: jnp.ndarray,
+      params: frozen_dict.FrozenDict[str, jnp.ndarray]
+  ) -> jnp.ndarray:
     r"""Predict the optimal :math:`f` potential.
 
     Args:
@@ -431,10 +431,10 @@ class NeuralVectorField(BaseNeuralVectorField):
   t_embed_dim: Optional[int] = None
   joint_hidden_dim: Optional[int] = None
   num_layers_per_block: int = 3
-  act_fn: Callable[[jax.Array], jax.Array] = nn.silu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_frequencies: int = 128
 
-  def time_encoder(self, t: jax.Array) -> jnp.array:
+  def time_encoder(self, t: jnp.ndarray) -> jnp.array:
     freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
     t = freq * t
     return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
@@ -464,11 +464,11 @@ class NeuralVectorField(BaseNeuralVectorField):
   @nn.compact
   def __call__(
       self,
-      t: jax.Array,
-      x: jax.Array,
-      condition: Optional[jax.Array],
-      keys_model: Optional[jax.Array] = None,
-  ) -> jax.Array:
+      t: jnp.ndarray,
+      x: jnp.ndarray,
+      condition: Optional[jnp.ndarray],
+      keys_model: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
 
     t = self.time_encoder(t)
     t = Block(
@@ -537,12 +537,12 @@ class Rescaling_MLP(BaseRescalingNet):
   hidden_dim: int
   condition_dim: int
   num_layers_per_block: int = 3
-  act_fn: Callable[[jax.Array], jax.Array] = nn.selu
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.selu
 
   @nn.compact
   def __call__(
-      self, x: jax.Array, condition: Optional[jax.Array]
-  ) -> jax.Array:  # noqa: D102
+      self, x: jnp.ndarray, condition: Optional[jnp.ndarray]
+  ) -> jnp.ndarray:  # noqa: D102
     x = Block(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,

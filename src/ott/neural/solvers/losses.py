@@ -25,8 +25,8 @@ __all__ = ["monge_gap", "monge_gap_from_samples"]
 
 
 def monge_gap(
-    map_fn: Callable[[jax.Array], jax.Array],
-    reference_points: jax.Array,
+    map_fn: Callable[[jnp.ndarray], jnp.ndarray],
+    reference_points: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
@@ -91,8 +91,8 @@ def monge_gap(
 
 
 def monge_gap_from_samples(
-    source: jax.Array,
-    target: jax.Array,
+    source: jnp.ndarray,
+    target: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,

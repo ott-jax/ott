@@ -13,32 +13,31 @@
 # limitations under the License.
 from typing import Callable
 
-import jax
 import jax.numpy as jnp
 
 
-def phi_star(h: jax.Array, rho: float) -> jax.Array:
+def phi_star(h: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Legendre transform of KL, :cite:`sejourne:19`, p. 9."""
   return rho * (jnp.exp(h / rho) - 1)
 
 
-def derivative_phi_star(f: jax.Array, rho: float) -> jax.Array:
+def derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Derivative of Legendre transform of phi_starKL, see phi_star."""
   # TODO(cuturi): use jax.grad directly.
   return jnp.exp(f / rho)
 
 
 def grad_of_marginal_fit(
-    c: jax.Array, h: jax.Array, tau: float, epsilon: float
-) -> jax.Array:
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float
+) -> jnp.ndarray:
   """Compute grad of terms linked to marginals in objective.
 
   Computes gradient w.r.t. f ( or g) of terms in :cite:`sejourne:19`,
   left-hand-side of eq. 15 terms involving phi_star).
 
   Args:
-    c: jax.Array, first target marginal (either a or b in practice)
-    h: jax.Array, potential (either f or g in practice)
+    c: jnp.ndarray, first target marginal (either a or b in practice)
+    h: jnp.ndarray, potential (either f or g in practice)
     tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
     epsilon: regularization
 
@@ -51,14 +50,14 @@ def grad_of_marginal_fit(
   return jnp.where(c > 0, c * derivative_phi_star(-h, r), 0.0)
 
 
-def second_derivative_phi_star(f: jax.Array, rho: float) -> jax.Array:
+def second_derivative_phi_star(f: jnp.ndarray, rho: float) -> jnp.ndarray:
   """Second Derivative of Legendre transform of KL, see phi_star."""
   return jnp.exp(f / rho) / rho
 
 
 def diag_jacobian_of_marginal_fit(
-    c: jax.Array, h: jax.Array, tau: float, epsilon: float,
-    derivative: Callable[[jax.Array, float], jax.Array]
+    c: jnp.ndarray, h: jnp.ndarray, tau: float, epsilon: float,
+    derivative: Callable[[jnp.ndarray, float], jnp.ndarray]
 ):
   """Compute grad of terms linked to marginals in objective.
 
@@ -66,8 +65,8 @@ def diag_jacobian_of_marginal_fit(
   left-hand-side of eq. 32 (terms involving phi_star)
 
   Args:
-    c: jax.Array, first target marginal (either a or b in practice)
-    h: jax.Array, potential (either f or g in practice)
+    c: jnp.ndarray, first target marginal (either a or b in practice)
+    h: jnp.ndarray, potential (either f or g in practice)
     tau: float, strength (in ]0,1]) of regularizer w.r.t. marginal
     epsilon: regularization
     derivative: Callable

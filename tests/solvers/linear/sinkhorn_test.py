@@ -30,7 +30,7 @@ from ott.solvers.linear import acceleration, sinkhorn
 class TestSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     self.rng = rng
     self.dim = 4
     self.n = 17

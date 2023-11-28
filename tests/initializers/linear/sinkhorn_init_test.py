@@ -25,7 +25,7 @@ from ott.solvers.linear import sinkhorn
 
 
 def create_sorting_problem(
-    rng: jax.Array,
+    rng: jnp.ndarray,
     n: int,
     epsilon: float = 1e-2,
     batch_size: Optional[int] = None
@@ -55,7 +55,7 @@ def create_sorting_problem(
 
 
 def create_ot_problem(
-    rng: jax.Array,
+    rng: jnp.ndarray,
     n: int,
     m: int,
     d: int,
@@ -80,12 +80,12 @@ def create_ot_problem(
 
 
 def run_sinkhorn(
-    x: jax.Array,
-    y: jax.Array,
+    x: jnp.ndarray,
+    y: jnp.ndarray,
     *,
     initializer: linear_init.SinkhornInitializer,
-    a: Optional[jax.Array] = None,
-    b: Optional[jax.Array] = None,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
     epsilon: float = 1e-2,
     lse_mode: bool = True,
 ) -> sinkhorn.SinkhornOutput:
@@ -132,7 +132,9 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
                                                         (True, False),
                                                         (False, True)])
-  def test_sorting_init(self, vector_min: bool, lse_mode: bool, rng: jax.Array):
+  def test_sorting_init(
+      self, vector_min: bool, lse_mode: bool, rng: jnp.ndarray
+  ):
     """Tests sorting dual initializer."""
     n = 50
     epsilon = 1e-2
@@ -166,7 +168,7 @@ class TestSinkhornInitializers:
       assert sink_out_init.converged
       assert sink_out_base.n_iters > sink_out_init.n_iters
 
-  def test_sorting_init_online(self, rng: jax.Array):
+  def test_sorting_init_online(self, rng: jnp.ndarray):
     n = 10
     epsilon = 1e-2
 
@@ -177,7 +179,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_sorting_init_square_cost(self, rng: jax.Array):
+  def test_sorting_init_square_cost(self, rng: jnp.ndarray):
     n, m, d = 10, 15, 1
     epsilon = 1e-2
 
@@ -186,7 +188,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_default_initializer(self, rng: jax.Array):
+  def test_default_initializer(self, rng: jnp.ndarray):
     """Tests default initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2
@@ -204,7 +206,7 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(0., default_potential_a)
     np.testing.assert_array_equal(0., default_potential_b)
 
-  def test_gauss_pointcloud_geom(self, rng: jax.Array):
+  def test_gauss_pointcloud_geom(self, rng: jnp.ndarray):
     n, m, d = 20, 20, 2
     epsilon = 1e-2
 
@@ -225,7 +227,7 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
-      self, rng: jax.Array, lse_mode: bool, jit: bool,
+      self, rng: jnp.ndarray, lse_mode: bool, jit: bool,
       initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""

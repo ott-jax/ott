@@ -98,9 +98,9 @@ LOG2 = math.log(2)
 class Observations(NamedTuple):
   """Weighted observations and their E-step assignment probabilities."""
 
-  points: jax.Array
-  point_weights: jax.Array
-  assignment_probs: jax.Array
+  points: jnp.ndarray
+  point_weights: jnp.ndarray
+  assignment_probs: jnp.ndarray
 
 
 # Model fit
@@ -108,7 +108,7 @@ class Observations(NamedTuple):
 
 def get_q(
     gmm: gaussian_mixture.GaussianMixture, obs: Observations
-) -> jax.Array:
+) -> jnp.ndarray:
   r"""Get Q(\Theta|\Theta^{(t)}).
 
   Here Q is the log likelihood for our observations based on the current
@@ -159,7 +159,7 @@ def get_objective_fn(weight_transport: float):
       pair: gaussian_mixture_pair.GaussianMixturePair,
       obs0: Observations,
       obs1: Observations,
-  ) -> jax.Array:
+  ) -> jnp.ndarray:
     """Compute the objective function for a pair of GMMs.
 
     Args:
@@ -204,11 +204,11 @@ def print_losses(
 
 
 def do_e_step(  # noqa: D103
-    e_step_fn: Callable[[gaussian_mixture.GaussianMixture, jax.Array],
-                        jax.Array],
+    e_step_fn: Callable[[gaussian_mixture.GaussianMixture, jnp.ndarray],
+                        jnp.ndarray],
     gmm: gaussian_mixture.GaussianMixture,
-    points: jax.Array,
-    point_weights: jax.Array,
+    points: jnp.ndarray,
+    point_weights: jnp.ndarray,
 ) -> Observations:
   assignment_probs = e_step_fn(gmm, points)
   return Observations(
@@ -307,10 +307,10 @@ def get_fit_model_em_fn(
 
   def _fit_model_em(
       pair: gaussian_mixture_pair.GaussianMixturePair,
-      points0: jax.Array,
-      points1: jax.Array,
-      point_weights0: Optional[jax.Array],
-      point_weights1: Optional[jax.Array],
+      points0: jnp.ndarray,
+      points1: jnp.ndarray,
+      point_weights0: Optional[jnp.ndarray],
+      point_weights1: Optional[jnp.ndarray],
       em_steps: int,
       m_steps: int = 50,
       verbose: bool = False,

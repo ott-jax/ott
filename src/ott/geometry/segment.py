@@ -21,15 +21,15 @@ __all__ = ["segment_point_cloud"]
 
 
 def segment_point_cloud(
-    x: jax.Array,
-    a: Optional[jax.Array] = None,
+    x: jnp.ndarray,
+    a: Optional[jnp.ndarray] = None,
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
-    segment_ids: Optional[jax.Array] = None,
+    segment_ids: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
-    padding_vector: Optional[jax.Array] = None
-) -> Tuple[jax.Array, jax.Array]:
+    padding_vector: Optional[jnp.ndarray] = None
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -129,20 +129,21 @@ def segment_point_cloud(
 
 
 def _segment_interface(
-    x: jax.Array,
-    y: jax.Array,
-    eval_fn: Callable[[jax.Array, jax.Array, jax.Array, jax.Array], jax.Array],
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
+                      jnp.ndarray],
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
-    segment_ids_x: Optional[jax.Array] = None,
-    segment_ids_y: Optional[jax.Array] = None,
+    segment_ids_x: Optional[jnp.ndarray] = None,
+    segment_ids_y: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
-    num_per_segment_x: Optional[jax.Array] = None,
-    num_per_segment_y: Optional[jax.Array] = None,
-    weights_x: Optional[jax.Array] = None,
-    weights_y: Optional[jax.Array] = None,
-    padding_vector: Optional[jax.Array] = None,
-) -> jax.Array:
+    num_per_segment_x: Optional[jnp.ndarray] = None,
+    num_per_segment_y: Optional[jnp.ndarray] = None,
+    weights_x: Optional[jnp.ndarray] = None,
+    weights_y: Optional[jnp.ndarray] = None,
+    padding_vector: Optional[jnp.ndarray] = None,
+) -> jnp.ndarray:
   """Wrapper to segment two point clouds and return parallel evaluations.
 
   Utility function that segments two point clouds using the approach outlined

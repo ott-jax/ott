@@ -79,15 +79,15 @@ class MapEstimator:
       dim_data: int,
       model: neuraldual.BaseW2NeuralDual,
       optimizer: Optional[optax.OptState] = None,
-      fitting_loss: Optional[Callable[[jax.Array, jax.Array],
+      fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       Tuple[float, Optional[Any]]]] = None,
-      regularizer: Optional[Callable[[jax.Array, jax.Array],
+      regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                      Tuple[float, Optional[Any]]]] = None,
       regularizer_strength: Union[float, Sequence[float]] = 1.,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jax.Array] = None,
+      rng: Optional[jnp.ndarray] = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -126,7 +126,7 @@ class MapEstimator:
     self.step_fn = self._get_step_fn()
 
   @property
-  def regularizer(self) -> Callable[[jax.Array, jax.Array], float]:
+  def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
     Can be e.g. the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`.
@@ -139,7 +139,7 @@ class MapEstimator:
     return lambda *args, **kwargs: (0., None)
 
   @property
-  def fitting_loss(self) -> Callable[[jax.Array, jax.Array], float]:
+  def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Fitting loss to fit the marginal constraint.
 
     Can be for instance the
@@ -153,9 +153,9 @@ class MapEstimator:
 
   @staticmethod
   def _generate_batch(
-      loader_source: Iterator[jax.Array],
-      loader_target: Iterator[jax.Array],
-  ) -> Dict[str, jax.Array]:
+      loader_source: Iterator[jnp.ndarray],
+      loader_target: Iterator[jnp.ndarray],
+  ) -> Dict[str, jnp.ndarray]:
     """Generate batches a batch of samples.
 
     ``loader_source`` and ``loader_target`` can be training or
@@ -168,10 +168,10 @@ class MapEstimator:
 
   def train_map_estimator(
       self,
-      trainloader_source: Iterator[jax.Array],
-      trainloader_target: Iterator[jax.Array],
-      validloader_source: Iterator[jax.Array],
-      validloader_target: Iterator[jax.Array],
+      trainloader_source: Iterator[jnp.ndarray],
+      trainloader_target: Iterator[jnp.ndarray],
+      validloader_source: Iterator[jnp.ndarray],
+      validloader_target: Iterator[jnp.ndarray],
   ) -> Tuple[train_state.TrainState, Dict[str, Any]]:
     """Training loop."""
     # define logs
@@ -230,7 +230,7 @@ class MapEstimator:
 
     def loss_fn(
         params: frozen_dict.FrozenDict, apply_fn: Callable,
-        batch: Dict[str, jax.Array], step: int
+        batch: Dict[str, jnp.ndarray], step: int
     ) -> Tuple[float, Dict[str, float]]:
       """Loss function."""
       # map samples with the fitted map
@@ -261,8 +261,8 @@ class MapEstimator:
     @functools.partial(jax.jit, static_argnums=3)
     def step_fn(
         state_neural_net: train_state.TrainState,
-        train_batch: Dict[str, jax.Array],
-        valid_batch: Optional[Dict[str, jax.Array]] = None,
+        train_batch: Dict[str, jnp.ndarray],
+        valid_batch: Optional[Dict[str, jnp.ndarray]] = None,
         is_logging_step: bool = False,
         step: int = 0
     ) -> Tuple[train_state.TrainState, Dict[str, float]]:

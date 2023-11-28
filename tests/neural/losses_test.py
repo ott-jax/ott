@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -27,7 +28,7 @@ class TestMongeGap:
   @pytest.mark.parametrize("n_samples", [5, 25])
   @pytest.mark.parametrize("n_features", [10, 50, 100])
   def test_monge_gap_non_negativity(
-      self, rng: jax.Array, n_samples: int, n_features: int
+      self, rng: jnp.ndarray, n_samples: int, n_features: int
   ):
 
     # generate data
@@ -53,7 +54,7 @@ class TestMongeGap:
 
     np.testing.assert_array_equal(monge_gap_value, monge_gap_from_samples_value)
 
-  def test_monge_gap_jit(self, rng: jax.Array):
+  def test_monge_gap_jit(self, rng: jnp.ndarray):
     n_samples, n_features = 31, 17
     # generate data
     rng1, rng2 = jax.random.split(rng, 2)
@@ -85,7 +86,7 @@ class TestMongeGap:
       ],
   )
   def test_monge_gap_from_samples_different_cost(
-      self, rng: jax.Array, cost_fn: costs.CostFn, n_samples: int,
+      self, rng: jnp.ndarray, cost_fn: costs.CostFn, n_samples: int,
       n_features: int
   ):
     """Test that the Monge gap for different costs.

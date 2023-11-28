@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Any, Literal, Optional, Union
 
-import jax
+import jax.numpy as jnp
 
 from ott.geometry import geometry
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
@@ -28,8 +28,8 @@ def solve(
     geom_yy: geometry.Geometry,
     geom_xy: Optional[geometry.Geometry] = None,
     fused_penalty: float = 1.0,
-    a: Optional[jax.Array] = None,
-    b: Optional[jax.Array] = None,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",

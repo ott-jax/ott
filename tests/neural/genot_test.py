@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Iterator, Optional
 
-import jax
 import jax.numpy as jnp
 import optax
 import pytest
@@ -76,7 +75,7 @@ class TestGENOT:
     result_forward = genot.transport(
         source_lin, condition=condition, forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
@@ -120,7 +119,7 @@ class TestGENOT:
     result_forward = genot.transport(
         source_quad, condition=condition, forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
@@ -166,7 +165,7 @@ class TestGENOT:
         condition=condition,
         forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
@@ -217,7 +216,7 @@ class TestGENOT:
     result_forward = genot.transport(
         source_lin, condition=condition, forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
@@ -263,7 +262,7 @@ class TestGENOT:
     result_forward = genot.transport(
         source_quad, condition=condition, forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
@@ -311,7 +310,7 @@ class TestGENOT:
         condition=condition,
         forward=True
     )
-    assert isinstance(result_forward, jax.Array)
+    assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
   @pytest.mark.parametrize("conditional", [False, True])
@@ -365,9 +364,9 @@ class TestGENOT:
     genot(data_loader, data_loader)
 
     result_eta = genot.evaluate_eta(source_lin, condition=condition)
-    assert isinstance(result_eta, jax.Array)
+    assert isinstance(result_eta, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
     result_xi = genot.evaluate_xi(target_lin, condition=condition)
-    assert isinstance(result_xi, jax.Array)
+    assert isinstance(result_xi, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_xi)) == 0

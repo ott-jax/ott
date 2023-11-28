@@ -22,7 +22,7 @@ from ott.tools.gaussian_mixture import linalg
 @pytest.mark.fast()
 class TestLinalg:
 
-  def test_get_mean_and_var(self, rng: jax.Array):
+  def test_get_mean_and_var(self, rng: jnp.ndarray):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.ones(10)
     expected_mean = jnp.mean(points, axis=0)
@@ -33,7 +33,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1E-5, rtol=1E-5)
     np.testing.assert_allclose(expected_var, actual_var, atol=1E-5, rtol=1E-5)
 
-  def test_get_mean_and_var_nonuniform_weights(self, rng: jax.Array):
+  def test_get_mean_and_var_nonuniform_weights(self, rng: jnp.ndarray):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)
@@ -44,7 +44,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(expected_var, actual_var, rtol=1e-6, atol=1e-6)
 
-  def test_get_mean_and_cov(self, rng: jax.Array):
+  def test_get_mean_and_cov(self, rng: jnp.ndarray):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.ones(10)
     expected_mean = jnp.mean(points, axis=0)
@@ -55,7 +55,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, atol=1e-5, rtol=1e-5)
     np.testing.assert_allclose(expected_cov, actual_cov, atol=1e-5, rtol=1e-5)
 
-  def test_get_mean_and_cov_nonuniform_weights(self, rng: jax.Array):
+  def test_get_mean_and_cov_nonuniform_weights(self, rng: jnp.ndarray):
     points = jax.random.normal(key=rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)
@@ -66,7 +66,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_mean, actual_mean, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(expected_cov, actual_cov, rtol=1e-6, atol=1e-6)
 
-  def test_flat_to_tril(self, rng: jax.Array):
+  def test_flat_to_tril(self, rng: jnp.ndarray):
     size = 3
     x = jax.random.normal(key=rng, shape=(5, 4, size * (size + 1) // 2))
     m = linalg.flat_to_tril(x, size)
@@ -86,7 +86,7 @@ class TestLinalg:
     actual = linalg.tril_to_flat(m)
     np.testing.assert_allclose(x, actual)
 
-  def test_tril_to_flat(self, rng: jax.Array):
+  def test_tril_to_flat(self, rng: jnp.ndarray):
     size = 3
     m = jax.random.normal(key=rng, shape=(5, 4, size, size))
     for i in range(size):
@@ -103,7 +103,7 @@ class TestLinalg:
     inverted = linalg.flat_to_tril(flat, size)
     np.testing.assert_allclose(m, inverted)
 
-  def test_apply_to_diag(self, rng: jax.Array):
+  def test_apply_to_diag(self, rng: jnp.ndarray):
     size = 3
     m = jax.random.normal(key=rng, shape=(5, 4, size, size))
     mnew = linalg.apply_to_diag(m, jnp.exp)
@@ -114,7 +114,7 @@ class TestLinalg:
         else:
           np.testing.assert_allclose(jnp.exp(m[..., i, j]), mnew[..., i, j])
 
-  def test_matrix_powers(self, rng: jax.Array):
+  def test_matrix_powers(self, rng: jnp.ndarray):
     rng, subrng = jax.random.split(rng)
     m = jax.random.normal(key=subrng, shape=(4, 4))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
@@ -125,7 +125,7 @@ class TestLinalg:
     np.testing.assert_allclose(m, actual[0], rtol=1.e-5)
     np.testing.assert_allclose(inv_m, actual[1], rtol=1.e-4)
 
-  def test_invmatvectril(self, rng: jax.Array):
+  def test_invmatvectril(self, rng: jnp.ndarray):
     rng, subrng = jax.random.split(rng)
     m = jax.random.normal(key=subrng, shape=(2, 2))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
@@ -138,7 +138,7 @@ class TestLinalg:
     actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)
     np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1.e-4)
 
-  def test_get_random_orthogonal(self, rng: jax.Array):
+  def test_get_random_orthogonal(self, rng: jnp.ndarray):
     rng, subrng = jax.random.split(rng)
     q = linalg.get_random_orthogonal(rng=subrng, dim=3)
     qt = jnp.transpose(q)

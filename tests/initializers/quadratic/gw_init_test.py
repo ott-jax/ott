@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -49,7 +50,7 @@ class TestQuadraticInitializers:
     assert solver.initializer.rank == rank
 
   @pytest.mark.parametrize("eps", [0., 1e-2])
-  def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
+  def test_gw_better_initialization_helps(self, rng: jnp.ndarray, eps: float):
     n, m, d1, d2, rank = 83, 84, 8, 6, 4
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
 

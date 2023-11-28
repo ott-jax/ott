@@ -26,7 +26,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 class TestScaleCost:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
+  def initialize(self, rng: jnp.ndarray):
     self.dim = 4
     self.n = 7
     self.m = 9
@@ -53,7 +53,7 @@ class TestScaleCost:
     """Test various scale cost options for pointcloud."""
 
     def apply_sinkhorn(
-        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array,
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
         scale_cost: Union[str, float]
     ):
       geom = pointcloud.PointCloud(
@@ -120,8 +120,8 @@ class TestScaleCost:
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(
-        cost: jax.Array, a: jax.Array, b: jax.Array, scale_cost: Union[str,
-                                                                       float]
+        cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        scale_cost: Union[str, float]
     ):
       geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)

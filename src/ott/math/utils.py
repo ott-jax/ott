@@ -34,10 +34,10 @@ __all__ = [
 
 
 def safe_log(  # noqa: D103
-    x: jax.Array,
+    x: jnp.ndarray,
     *,
     eps: Optional[float] = None
-) -> jax.Array:
+) -> jnp.ndarray:
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
   return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
@@ -46,11 +46,11 @@ def safe_log(  # noqa: D103
 @functools.partial(jax.custom_jvp, nondiff_argnums=[1, 2, 3])
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
-    x: jax.Array,
+    x: jnp.ndarray,
     ord: Union[int, str, None] = None,
     axis: Union[None, Sequence[int], int] = None,
     keepdims: bool = False
-) -> jax.Array:
+) -> jnp.ndarray:
   """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
 
   Evaluations of distances between a vector and itself using translation
@@ -105,18 +105,18 @@ def norm_jvp(ord, axis, keepdims, primals, tangents):
 
 
 # TODO(michalk8): add axis argument
-def kl(p: jax.Array, q: jax.Array) -> float:
+def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   """Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
 
 
-def gen_kl(p: jax.Array, q: jax.Array) -> float:
+def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   """Generalized Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q))) + jnp.sum(q) - jnp.sum(p)
 
 
 # TODO(michalk8): add axis argument
-def gen_js(p: jax.Array, q: jax.Array, c: float = 0.5) -> float:
+def gen_js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
   return c * (gen_kl(p, q) + gen_kl(q, p))
 
@@ -176,8 +176,8 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
 def softmin(
-    x: jax.Array, gamma: float, axis: Optional[int] = None
-) -> jax.Array:
+    x: jnp.ndarray, gamma: float, axis: Optional[int] = None
+) -> jnp.ndarray:
   r"""Soft-min operator.
 
   Args:
@@ -205,8 +205,8 @@ softmin.defvjp(
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(
-    matrix: jax.Array, y: jax.Array, cost_fn: "costs.CostFn"
-) -> jax.Array:
+    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
+) -> jnp.ndarray:
   """Compute the barycentric projection of a matrix.
 
   Args:

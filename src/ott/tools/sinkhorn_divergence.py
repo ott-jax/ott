@@ -14,7 +14,6 @@
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple, Type
 
-import jax
 import jax.numpy as jnp
 
 from ott import utils
@@ -28,7 +27,7 @@ __all__ = [
     "SinkhornDivergenceOutput"
 ]
 
-Potentials_t = Tuple[jax.Array, jax.Array]
+Potentials_t = Tuple[jnp.ndarray, jnp.ndarray]
 
 
 @utils.register_pytree_node
@@ -36,10 +35,11 @@ class SinkhornDivergenceOutput:  # noqa: D101
   divergence: float
   potentials: Tuple[Potentials_t, Potentials_t, Potentials_t]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
-  errors: Tuple[Optional[jax.Array], Optional[jax.Array], Optional[jax.Array]]
+  errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
+                Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
-  a: jax.Array
-  b: jax.Array
+  a: jnp.ndarray
+  b: jnp.ndarray
   n_iters: Tuple[int, int, int]
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
@@ -73,8 +73,8 @@ class SinkhornDivergenceOutput:  # noqa: D101
 def sinkhorn_divergence(
     geom: Type[geometry.Geometry],
     *args: Any,
-    a: Optional[jax.Array] = None,
-    b: Optional[jax.Array] = None,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
@@ -138,8 +138,8 @@ def _sinkhorn_divergence(
     geometry_xy: geometry.Geometry,
     geometry_xx: geometry.Geometry,
     geometry_yy: Optional[geometry.Geometry],
-    a: jax.Array,
-    b: jax.Array,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
     symmetric_sinkhorn: bool,
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
@@ -155,9 +155,9 @@ def _sinkhorn_divergence(
     between elements of the view X.
     geometry_yy: a Cost object able to apply kernels with a certain epsilon,
     between elements of the view Y.
-    a: jax.Array<float>[n]: the weight of each input point. The sum of
+    a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
-    b: jax.Array<float>[m]: the weight of each target point. The sum of
+    b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
@@ -219,24 +219,24 @@ def _sinkhorn_divergence(
 
 
 def segment_sinkhorn_divergence(
-    x: jax.Array,
-    y: jax.Array,
+    x: jnp.ndarray,
+    y: jnp.ndarray,
     num_segments: Optional[int] = None,
     max_measure_size: Optional[int] = None,
     cost_fn: Optional[costs.CostFn] = None,
-    segment_ids_x: Optional[jax.Array] = None,
-    segment_ids_y: Optional[jax.Array] = None,
+    segment_ids_x: Optional[jnp.ndarray] = None,
+    segment_ids_y: Optional[jnp.ndarray] = None,
     indices_are_sorted: bool = False,
     num_per_segment_x: Optional[Tuple[int, ...]] = None,
     num_per_segment_y: Optional[Tuple[int, ...]] = None,
-    weights_x: Optional[jax.Array] = None,
-    weights_y: Optional[jax.Array] = None,
+    weights_x: Optional[jnp.ndarray] = None,
+    weights_y: Optional[jnp.ndarray] = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = False,
     **kwargs: Any
-) -> jax.Array:
+) -> jnp.ndarray:
   """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
@@ -313,10 +313,10 @@ def segment_sinkhorn_divergence(
     padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
-      padded_x: jax.Array,
-      padded_y: jax.Array,
-      padded_weight_x: jax.Array,
-      padded_weight_y: jax.Array,
+      padded_x: jnp.ndarray,
+      padded_y: jnp.ndarray,
+      padded_weight_x: jnp.ndarray,
+      padded_weight_y: jnp.ndarray,
   ) -> float:
     mask_x = padded_weight_x > 0.
     mask_y = padded_weight_y > 0.

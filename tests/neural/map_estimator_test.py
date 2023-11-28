@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Optional
 
-import jax
+import jax.numpy as jnp
 import pytest
 
 from ott import datasets
@@ -34,8 +34,8 @@ class TestMapEstimator:
 
     # define the fitting loss and the regularizer
     def fitting_loss(
-        samples: jax.Array,
-        mapped_samples: jax.Array,
+        samples: jnp.ndarray,
+        mapped_samples: jnp.ndarray,
     ) -> Optional[float]:
       r"""Sinkhorn divergence fitting loss."""
       div = sinkhorn_divergence.sinkhorn_divergence(

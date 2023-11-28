@@ -27,7 +27,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
-def is_positive_semidefinite(c: jax.Array) -> bool:
+def is_positive_semidefinite(c: jnp.ndarray) -> bool:
   # GPU friendly, eigvals not implemented for non-symmetric matrices
   w = jnp.linalg.eigvalsh((c + c.T) / 2.0)
   return jnp.all(w >= 0)
@@ -50,7 +50,7 @@ class TestBarycenter:
       },
   )
   def test_euclidean_barycenter(
-      self, rng: jax.Array, rank: int, epsilon: float, init_random: bool,
+      self, rng: jnp.ndarray, rank: int, epsilon: float, init_random: bool,
       jit: bool
   ):
     rngs = jax.random.split(rng, 20)
@@ -115,12 +115,12 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() > .7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
-  def test_barycenter_jit(self, rng: jax.Array, segment_before: bool):
+  def test_barycenter_jit(self, rng: jnp.ndarray, segment_before: bool):
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
-        y: jax.Array,
-        b: jax.Array,
+        y: jnp.ndarray,
+        b: jnp.ndarray,
         segment_before: bool,
         num_per_segment: Tuple[int, ...],
     ) -> cb.FreeBarycenterState:
@@ -170,7 +170,7 @@ class TestBarycenter:
   @pytest.mark.fast()
   def test_bures_barycenter(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
   ):
     lse_mode = True,
     epsilon = 1e-1
@@ -256,7 +256,7 @@ class TestBarycenter:
   @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(
       self,
-      rng: jax.Array,
+      rng: jnp.ndarray,
   ):
     alpha = 5.
     epsilon = 0.01

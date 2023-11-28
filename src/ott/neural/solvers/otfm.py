@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections import defaultdict
 import functools
 import types
+from collections import defaultdict
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
 
 import diffrax
@@ -36,7 +36,6 @@ from ott.neural.solvers.flows import (
     BaseTimeSampler,
 )
 from ott.solvers import was_solver
-from ott.tools.sinkhorn_divergence import sinkhorn_divergence
 
 __all__ = ["OTFlowMatching"]
 
@@ -88,10 +87,10 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jax.Array], float] = None,
-      mlp_xi: Callable[[jax.Array], float] = None,
+      mlp_eta: Callable[[jnp.ndarray], float] = None,
+      mlp_xi: Callable[[jnp.ndarray], float] = None,
       unbalanced_kwargs: Dict[str, Any] = {},
-      callback_fn: Optional[Callable[[jax.Array, jax.Array, jax.Array],
+      callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       logging_freq: int = 100,
       valid_freq: int = 5000,
@@ -158,20 +157,25 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     def step_fn(
         key: random.PRNGKeyArray,
         state_neural_vector_field: train_state.TrainState,
-        batch: Dict[str, jax.Array],
+        batch: Dict[str, jnp.ndarray],
     ) -> Tuple[Any, Any]:
 
       def loss_fn(
-          params: jax.Array, t: jax.Array, noise: jax.Array,
-          batch: Dict[str, jax.Array], keys_model: random.PRNGKeyArray
-      ) -> jax.Array:
+          params: jnp.ndarray, t: jnp.ndarray, noise: jnp.ndarray,
+          batch: Dict[str, jnp.ndarray], keys_model: random.PRNGKeyArray
+      ) -> jnp.ndarray:
 
-        x_t = self.flow.compute_xt(noise, t, batch["source_lin"], batch["target_lin"])
+        x_t = self.flow.compute_xt(
+            noise, t, batch["source_lin"], batch["target_lin"]
+        )
         apply_fn = functools.partial(
             state_neural_vector_field.apply_fn, {"params": params}
         )
         v_t = jax.vmap(apply_fn)(
-            t=t, x=x_t, condition=batch["source_conditions"], keys_model=keys_model
+            t=t,
+            x=x_t,
+            condition=batch["source_conditions"],
+            keys_model=keys_model
         )
         u_t = self.flow.compute_ut(t, batch["source_lin"], batch["target_lin"])
         return jnp.mean((v_t - u_t) ** 2)
@@ -199,19 +203,21 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Returns:
       None
     """
-    batch: Mapping[str, jax.Array] = {}
+    batch: Mapping[str, jnp.ndarray] = {}
     curr_loss = 0.0
-        
+
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
       batch = next(train_loader)
       if self.ot_solver is not None:
         tmat = self.match_fn(batch["source_lin"], batch["target_lin"])
-        (batch["source_lin"],
-         batch["source_conditions"]), (batch["target_lin"], batch["target_conditions"]) = self._resample_data(
-             rng_resample, tmat, (batch["source_lin"], batch["source_conditions"]),
-             (batch["target_lin"], batch["target_conditions"])
-         )
+        (batch["source_lin"], batch["source_conditions"]
+        ), (batch["target_lin"],
+            batch["target_conditions"]) = self._resample_data(
+                rng_resample, tmat,
+                (batch["source_lin"], batch["source_conditions"]),
+                (batch["target_lin"], batch["target_conditions"])
+            )
       self.state_neural_vector_field, loss = self.step_fn(
           rng_step_fn, self.state_neural_vector_field, batch
       )
@@ -244,7 +250,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def transport(
       self,
       data: jnp.array,
-      condition: Optional[jax.Array],
+      condition: Optional[jnp.ndarray],
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:
@@ -270,7 +276,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
              ) if forward else (self.time_sampler.high, self.time_sampler.low)
 
     @jax.jit
-    def solve_ode(input: jax.Array, cond: jax.Array):
+    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
               lambda t, x, args: self.state_neural_vector_field.
@@ -296,7 +302,6 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def _valid_step(self, valid_loader, iter) -> None:
     next(valid_loader)
     # TODO: add callback and logging
-  
 
   @property
   def learn_rescaling(self) -> bool:
@@ -327,7 +332,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jax.Array:
+  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jnp.ndarray:
     """Sample noise from a standard-normal distribution.
 
     Args:
