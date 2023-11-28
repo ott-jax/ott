@@ -17,29 +17,27 @@ from typing import TYPE_CHECKING, Any, Optional
 import jax
 
 from ott.geometry import pointcloud
-
-if TYPE_CHECKING:
-  from ott.solvers.linear import distrib_costs
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
+
+if TYPE_CHECKING:
+  from ott.geometry import distrib_costs
 
 __all__ = ["LowerBoundSolver"]
 
 
 @jax.tree_util.register_pytree_node_class
 class LowerBoundSolver:
-  """Lower bound OT solver :cite:`memoli:11`.
+  """Lower bound OT solver.
 
   Computes the third lower bound distance from :cite:`memoli:11`, def. 6.3.
 
   Args:
     epsilon: Entropy regularization for the resulting linear problem.
-    cost_fn: Univariate Wasserstein cost, used to compare two point clouds in
-      different spaces, where each point is seen as its distribution of costs
-      to other points in its point-cloud.
-    kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.univariate.UnivariateSolver`.
+    distrib_cost: Univariate Wasserstein cost, used to compare two point clouds
+      in different spaces, where each point is seen as its distribution of costs
+      to other points in its point cloud.
   """
 
   def __init__(
@@ -48,10 +46,12 @@ class LowerBoundSolver:
       distrib_cost: Optional["distrib_costs.UnivariateWasserstein"] = None,
   ):
     from ott.geometry import distrib_costs
+
     self.epsilon = epsilon
-    if distrib_cost is None:
-      distrib_cost = distrib_costs.UnivariateWasserstein()
-    self.distrib_cost = distrib_cost
+    self.distrib_cost = (
+        distrib_costs.UnivariateWasserstein()
+        if distrib_cost is None else distrib_cost
+    )
 
   def __call__(
       self,
@@ -69,9 +69,9 @@ class LowerBoundSolver:
 
     Args:
       prob: Quadratic OT problem.
-      epsilon: entropic regularization passed on to solve the linearization of
+      epsilon: Entropic regularization passed on to solve the linearization of
         the quadratic problem using 1D costs.
-      rng: random key, possibly used when computing 1D costs when using
+      rng: Random key, possibly used when computing 1D costs when using
         subsampling.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 

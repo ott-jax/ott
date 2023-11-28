@@ -17,13 +17,12 @@ solved with a :class:`~ott.solvers.linear.discrete_barycenter.FixedBarycenter`
 solver.
 
 When the problem is *not* convex, which describes pretty much all other pairings
-of problems/solvers in ``OTT``, notably quadratic and neural-network based
-below, initializers play a more important role: different initializations will
-very likely result in different end solutions.
+of problems/solvers in ``OTT``, notably the quadratic problem , initializers
+play a more important role: different initializations will very likely result
+in different end solutions.
 
 .. toctree::
     :maxdepth: 2
 
     linear
     quadratic
-    nn
