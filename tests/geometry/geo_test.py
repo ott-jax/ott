@@ -11,19 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple, Union
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
 import pytest
-from jax.experimental import sparse
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
-from ott.geometry import geometry, graph
+from ott.geometry import geodesic, geometry, graph
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 
 
@@ -73,12 +71,18 @@ def gt_geometry(
   return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
 
 
-class TestGraph:
+class TestGeodesic:
 
-  def test_kernel_is_symmetric_positive_definite(self, rng: jax.Array):
-    n, tol = 65, 0.02
+  def test_kernel_is_symmetric_positive_definite(
+      self,
+      rng: jax.Array,
+  ):
+    n, tol = 100, 0.02
+    t = 1
+    order = 50
     x = jax.random.normal(rng, (n,))
-    geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
+    G = random_graph(n)
+    geom = geodesic.Geodesic.from_graph(G, t=t, order=order)
 
     kernel = geom.kernel_matrix
 
@@ -88,9 +92,12 @@ class TestGraph:
     vec_direct1 = geom.kernel_matrix @ x
 
     # we symmetrize the kernel explicitly when materializing it, because
-    # numerical error arise  for small `t` and `backward_euler`
-    np.testing.assert_array_equal(kernel, kernel.T)
-    np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
+    # numerical errors can make it non-symmetric.
+    np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
+    eigenvalues = jnp.linalg.eigvals(kernel)
+    neg_eigenvalues = eigenvalues[eigenvalues < 0]
+    # check that the negative eigenvalues are all very small
+    np.testing.assert_array_less(jnp.abs(neg_eigenvalues), 1e-3)
     # internally, the axis is ignored because the kernel is symmetric
     np.testing.assert_array_equal(vec0, vec1)
     np.testing.assert_array_equal(vec_direct0, vec_direct1)
@@ -98,73 +105,36 @@ class TestGraph:
     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
-  def test_automatic_t(self):
-    G = random_graph(38, return_laplacian=False)
-    geom = graph.Graph.from_graph(G, t=None)
-
-    expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
-    actual = geom.t
-    np.testing.assert_equal(actual, expected)
+    # compute the distance matrix and check that it is symmetric
+    cost_matrix = geom.cost_matrix
+    np.testing.assert_array_equal(cost_matrix, cost_matrix.T)
+    # and all dissimilarities are positive
+    np.testing.assert_array_less(0, cost_matrix)
 
   @pytest.mark.fast.with_args(
-      numerical_scheme=["backward_euler", "crank_nicolson"],
-      only_fast=0,
-  )
-  def test_approximates_ground_truth(
-      self,
-      rng: jax.Array,
-      numerical_scheme: Literal["backward_euler", "crank_nicolson"],
-  ):
-    eps, n_steps = 1e-5, 20
-    G = random_graph(37, p=0.5)
-    x = jax.random.normal(rng, (G.shape[0],))
-
-    gt_geom = gt_geometry(G, epsilon=eps)
-    graph_geom = graph.Graph.from_graph(
-        G, t=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
-    )
-
-    np.testing.assert_allclose(
-        gt_geom.kernel_matrix, graph_geom.kernel_matrix, rtol=1e-2, atol=1e-2
-    )
-    np.testing.assert_allclose(
-        gt_geom.apply_kernel(x),
-        graph_geom.apply_kernel(x),
-        rtol=1e-2,
-        atol=1e-2
-    )
-
-  @pytest.mark.fast.with_args(
-      n_steps=[50, 100, 200],
+      order=[50, 100, 200],
       t=[1e-4, 1e-5],
-      only_fast=0,
   )
-  def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
-    tol = 5 * t
+  def test_approximates_ground_truth(self, t: Optional[float], order: int):
+    tol = 1e-2
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray(), dtype=float)
     eye = jnp.eye(G.shape[0])
-
-    be_geom = graph.Graph.from_graph(
-        G, t=t, n_steps=n_steps, numerical_scheme="backward_euler"
-    )
-    cn_geom = graph.Graph.from_graph(
-        G, t=t, n_steps=n_steps, numerical_scheme="crank_nicolson"
-    )
     eps = jnp.finfo(eye.dtype).tiny
 
-    be_cost = -t * jnp.log(be_geom.apply_kernel(eye) + eps)
-    cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
+    gt_geom = gt_geometry(G, epsilon=eps)
 
-    np.testing.assert_allclose(cn_cost, cn_cost.T, rtol=tol, atol=tol)
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
+    geo = geodesic.Geodesic.from_graph(G, t=t, order=order)
+
+    np.testing.assert_allclose(
+        gt_geom.kernel_matrix, geo.kernel_matrix, rtol=tol, atol=tol
+    )
 
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
     def create_graph(G: jnp.ndarray) -> graph.Graph:
-      return graph.Graph.from_graph(G, directed=True, normalize=normalize)
+      return geodesic.Geodesic.from_graph(G, directed=True, normalize=normalize)
 
     G = random_graph(16, p=0.25, directed=True)
     create_fn = jax.jit(create_graph) if jit else create_graph
@@ -173,7 +143,7 @@ class TestGraph:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(G, G.T)
 
-    L = geom.laplacian
+    L = geom.scaled_laplacian
 
     with pytest.raises(AssertionError):
       # make sure that original graph was directed
@@ -198,15 +168,22 @@ class TestGraph:
       return lap
 
     G = random_graph(51, p=0.35, directed=directed)
-    geom = graph.Graph.from_graph(G, directed=directed, normalize=normalize)
+    geom = geodesic.Geodesic.from_graph(
+        G, directed=directed, normalize=normalize
+    )
 
     expected = laplacian(G)
-    actual = geom.laplacian
+    eigenvalues = jnp.linalg.eigvals(expected)
+    eigval = jnp.max(eigenvalues)
+    #rescale the laplacian
+    expected = 2 * expected / eigval if eigval > 2 else expected
+
+    actual = geom.scaled_laplacian
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_graph_sinkhorn(self, rng: jax.Array, jit: bool):
+  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -218,10 +195,9 @@ class TestGraph:
     x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
-    graph_geom = graph.Graph.from_graph(G, t=eps)
+    graph_geom = geodesic.Geodesic.from_graph(G, t=eps)
 
     fn = jax.jit(callback) if jit else callback
-
     gt_out = fn(gt_geom)
     graph_out = fn(graph_geom)
 
@@ -243,61 +219,26 @@ class TestGraph:
         gt_out.matrix, graph_out.matrix, rtol=1e-1, atol=1e-1
     )
 
-  @pytest.mark.parametrize(
-      "implicit_diff",
-      [False, True],
-      ids=["not-implicit", "implicit"],
-  )
-  def test_dense_graph_differentiability(
-      self, rng: jax.Array, implicit_diff: bool
-  ):
+  def test_geometry_differentiability(self, rng: jax.Array):
 
-    def callback(
-        data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
-        shape: Tuple[int, int]
-    ) -> float:
-      G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
+    def callback(geom) -> float:
 
-      geom = graph.Graph.from_graph(G, t=1.)
-      solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
+      solver = sinkhorn.Sinkhorn(lse_mode=False)
       problem = linear_problem.LinearProblem(geom)
 
       return solver(problem).reg_ot_cost
 
-    if implicit_diff:
-      kwargs = {"implicit_diff": implicit_lib.ImplicitDiff()}
-    else:
-      kwargs = {"implicit_diff": None}
-
     eps = 1e-3
     G = random_graph(20, p=0.5)
-    G = sparse.BCOO.fromdense(G)
+    geom = geodesic.Geodesic.from_graph(G, t=1.)
 
-    w, rows, cols = G.data, G.indices[:, 0], G.indices[:, 1]
-    v_w = jax.random.normal(rng, shape=w.shape)
+    v_w = jax.random.normal(rng, shape=G.shape)
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
-    grad_w = jax.grad(callback)(w, rows, cols, shape=G.shape)
+    grad_sl = jax.grad(callback)(geom).scaled_laplacian
+    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.)
+    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.)
 
-    expected = callback(w + v_w, rows, cols,
-                        G.shape) - callback(w - v_w, rows, cols, G.shape)
-    actual = 2 * jnp.vdot(v_w, grad_w)
+    expected = callback(geom__finite_right) - callback(geom__finite_left)
+    actual = 2 * jnp.vdot(v_w, grad_sl)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
-
-  def test_tolerance_hilbert_metric(self, rng: jax.Array):
-    n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
-    G = random_graph(n, p=0.15)
-    x = jnp.abs(jax.random.normal(rng, (n,)))
-
-    graph_no_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=-1)
-    graph_low_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=2.5e-4)
-    graph_high_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-1)
-
-    app_no_tol = graph_no_tol.apply_kernel(x)
-    app_low_tol = graph_low_tol.apply_kernel(x)  # does 1 iteration
-    app_high_tol = graph_high_tol.apply_kernel(x)  # does 961 iterations
-
-    np.testing.assert_allclose(app_no_tol, app_low_tol, rtol=tol, atol=tol)
-    np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=5e-2, atol=5e-2)
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(app_no_tol, app_high_tol, rtol=tol, atol=tol)
