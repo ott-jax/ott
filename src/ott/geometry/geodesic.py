@@ -29,7 +29,7 @@ __all__ = ["Geodesic"]
 
 @jax.tree_util.register_pytree_node_class
 class Geodesic(geometry.Geometry):
-  r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
+  r"""Graph distance approximation using heat kernel :cite:`huguet:2023`.
 
   .. note::
     This constructor is not meant to be called by the user,
