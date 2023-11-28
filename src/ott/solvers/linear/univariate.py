@@ -292,9 +292,8 @@ def quantile_distance(
     entries, but sums to 1.0
 
   Notes:
-    Implementation inspired by ``scipy`` implementation for
-    :func:`~scipy.stats.wasserstein_distance`, but can be used with other costs,
-    not just :math:`c(x, y) = |x - y|`.
+    Inspired by :func:`~scipy.stats.wasserstein_distance`,
+    but can be used with other costs, not just :math:`c(x, y) = |x - y|`.
   """
   x, i_x = mu.sort_and_argsort(x, argsort=True)
   y, i_y = mu.sort_and_argsort(y, argsort=True)

@@ -57,6 +57,7 @@ class UnivariateWasserstein(costs.CostFn):
     )
     self._solver = univariate.UnivariateSolver() if solver is None else solver
     self._kwargs_solve = kwargs
+    # ensure transport solutions are neither computed nor stored
     self._kwargs_solve["return_transport"] = False
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
