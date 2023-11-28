@@ -218,3 +218,27 @@ class TestGeodesic:
     np.testing.assert_allclose(
         gt_out.matrix, graph_out.matrix, rtol=1e-1, atol=1e-1
     )
+
+  def test_geometry_differentiability(self, rng: jax.Array):
+
+    def callback(geom) -> float:
+
+      solver = sinkhorn.Sinkhorn(lse_mode=False)
+      problem = linear_problem.LinearProblem(geom)
+
+      return solver(problem).reg_ot_cost
+
+    eps = 1e-3
+    G = random_graph(20, p=0.5)
+    geom = geodesic.Geodesic.from_graph(G, t=1.)
+
+    v_w = jax.random.normal(rng, shape=G.shape)
+    v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
+
+    grad_sl = jax.grad(callback)(geom).scaled_laplacian
+    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.)
+    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.)
+
+    expected = callback(geom__finite_right) - callback(geom__finite_left)
+    actual = 2 * jnp.vdot(v_w, grad_sl)
+    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
