@@ -16,7 +16,7 @@ from typing import Protocol, Union
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
-__all__ = ["Transport"]
+__all__ = ["Transport", "Array_g"]
 
 # TODO(michalk8): introduce additional types here
 
