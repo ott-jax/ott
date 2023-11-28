@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
@@ -46,7 +45,6 @@ class Geodesic(geometry.Geometry):
     eigval: The largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
     t: Time parameter for the heat kernel.
-    order: Max order of Chebyshev polynomial.
     kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -241,18 +239,18 @@ def compute_largest_eigenvalue(
 
 
 def expm_multiply(
-    L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, phi: float
+    L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
 ) -> jnp.ndarray:
 
   def body(carry, c):
     T0, T1, Y = carry
-    T2 = (2.0 / phi) * L @ T1 - 2.0 * T1 - T0
+    T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
     return (T1, T2, Y), None
 
   T0 = X
   Y = 0.5 * coeff[0] * T0
-  T1 = (1.0 / phi) * L @ X - T0
+  T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
   initial_state = (T0, T1, Y)
@@ -261,7 +259,7 @@ def expm_multiply(
 
 
 def compute_chebychev_coeff_all(
-    phi: float, tau: float, K: int, dtype: np.dtype
+    eigval: float, tau: float, K: int, dtype: np.dtype
 ) -> jnp.ndarray:
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
   result_shape_dtype = jax.ShapeDtypeStruct(
@@ -269,8 +267,8 @@ def compute_chebychev_coeff_all(
       dtype=dtype,
   )
 
-  chebychev_coeff = lambda phi, tau, K: (
-      2.0 * ive(np.arange(0, K + 1), -tau * phi)
+  chebychev_coeff = lambda eigval, tau, K: (
+      2.0 * ive(np.arange(0, K + 1), -tau * eigval)
   ).astype(dtype)
 
-  return jax.pure_callback(chebychev_coeff, result_shape_dtype, phi, tau, K)
+  return jax.pure_callback(chebychev_coeff, result_shape_dtype, eigval, tau, K)

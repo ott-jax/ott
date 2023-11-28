@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -48,12 +48,16 @@ def random_graph(
   return jnp.asarray(G.toarray())
 
 
-def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
+def gt_geometry(
+    G: Union[jnp.ndarray, nx.Graph],
+    *,
+    epsilon: float = 1e-2
+) -> geometry.Geometry:
   if not isinstance(G, nx.Graph):
     G = nx.from_numpy_array(np.asarray(G))
 
   n = len(G)
-  cost = np.zeros((n, n), dtype=float)
+  cost = np.zeros((n, n))
 
   path = dict(
       shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
@@ -70,7 +74,8 @@ def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
 class TestGeodesic:
 
   def test_kernel_is_symmetric_positive_definite(
-      self, rng: jax.random.PRNGKeyArray
+      self,
+      rng: jax.Array,
   ):
     n, tol = 100, 0.02
     t = 1
@@ -178,7 +183,7 @@ class TestGeodesic:
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_graph_sinkhorn(self, rng: jax.random.PRNGKeyArray, jit: bool):
+  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)

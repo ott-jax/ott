@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -50,12 +50,16 @@ def random_graph(
   return jnp.asarray(G.toarray())
 
 
-def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
+def gt_geometry(
+    G: Union[jnp.ndarray, nx.Graph],
+    *,
+    epsilon: float = 1e-2
+) -> geometry.Geometry:
   if not isinstance(G, nx.Graph):
     G = nx.from_numpy_array(np.asarray(G))
 
   n = len(G)
-  cost = np.zeros((n, n), dtype=float)
+  cost = np.zeros((n, n))
 
   path = dict(
       shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
