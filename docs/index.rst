@@ -32,7 +32,7 @@ Install ``OTT`` from `PyPI <https://pypi.org/project/ott-jax/>`_ as:
 
     pip install ott-jax
 
-or with the :mod:`neural OT solvers <ott.solvers.nn>` dependencies:
+or with the :mod:`neural OT <ott.neural>` dependencies:
 
 .. code-block:: bash
 
@@ -114,6 +114,7 @@ Packages
     problems/index
     solvers/index
     initializers/index
+    neural/index
     tools
     math
     utils

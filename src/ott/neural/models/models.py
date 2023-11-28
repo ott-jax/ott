@@ -15,11 +15,11 @@ import functools
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import jax
+import jax.numpy as jnp
 import optax
 from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
-from jax import numpy as jnp
 from jax.nn import initializers
 
 from ott import utils

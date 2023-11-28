@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import TYPE_CHECKING, Any, Optional
 
 import jax
+import jax.tree_util as jtu
 
 from ott.geometry import pointcloud
 from ott.problems.quadratic import quadratic_problem
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 __all__ = ["LowerBoundSolver"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class LowerBoundSolver:
   """Lower bound OT solver.
 
@@ -62,10 +62,10 @@ class LowerBoundSolver:
   ) -> sinkhorn.SinkhornOutput:
     """Compute a lower-bound for the GW problem using a simple linearization.
 
-    This solver handles a quadratic problem by computing first a proxy ``[n,m]``
-    cost-matrix, inject it into a linear OT solver, to output a first OT matrix
-    that can be used either to linearize/initialize the resolution of the GW
-    problem, or more simply as a simple GW solution.
+    This solver handles a quadratic problem by computing a proxy ``[n, m]``
+    cost-matrix, injecting it into a linear OT solver to output a first an OT
+    matrix that can be used either to linearize/initialize the resolution
+    ot the GW problem, or more simply as a simple GW solution.
 
     Args:
       prob: Quadratic OT problem.
