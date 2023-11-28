@@ -68,7 +68,7 @@ class TestOTFlowMatching:
 
     result_backward = fm.transport(
         batch["target_lin"],
-        condition=batch["target_conditions"],
+        condition=batch["source_conditions"],
         forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
@@ -116,7 +116,7 @@ class TestOTFlowMatching:
 
     result_backward = fm.transport(
         batch["target_lin"],
-        condition=batch["target_conditions"],
+        condition=batch["source_conditions"],
         forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
@@ -161,7 +161,7 @@ class TestOTFlowMatching:
 
     result_backward = fm.transport(
         batch["target_lin"],
-        condition=batch["target_conditions"],
+        condition=batch["source_conditions"],
         forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
@@ -214,7 +214,7 @@ class TestOTFlowMatching:
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
     result_xi = fm.evaluate_xi(
-        batch["target_lin"], condition=batch["target_conditions"]
+        batch["target_lin"], condition=batch["source_conditions"]
     )
     assert isinstance(result_xi, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_xi)) == 0
