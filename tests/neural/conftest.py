@@ -58,14 +58,12 @@ def genot_data_loader_linear_conditional():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  conditions_source = rng.normal(size=(100, 4))
-  conditions_target = rng.normal(size=(100, 4)) - 1.0
+  source_conditions = rng.normal(size=(100, 4))
   return OTDataLoader(
       16,
       source_lin=source,
       target_lin=target,
-      conditions_source=conditions_source,
-      conditions_target=conditions_target
+      source_conditions=source_conditions,
   )
 
 
@@ -84,13 +82,12 @@ def genot_data_loader_quad_conditional():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
-  conditions = rng.normal(size=(100, 7))
+  source_conditions = rng.normal(size=(100, 7))
   return OTDataLoader(
       16,
       source_quad=source,
       target_quad=target,
-      source_conditions=conditions,
-      target_conditions=conditions
+      source_conditions=source_conditions,
   )
 
 
@@ -119,13 +116,12 @@ def genot_data_loader_fused_conditional():
   target_q = rng.normal(size=(100, 1)) + 1.0
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
-  conditions = rng.normal(size=(100, 7))
+  source_conditions = rng.normal(size=(100, 7))
   return OTDataLoader(
       16,
       source_lin=source_lin,
       source_quad=source_q,
       target_lin=target_lin,
       target_quad=target_q,
-      source_conditions=conditions,
-      target_conditions=conditions
+      source_conditions=source_conditions,
   )

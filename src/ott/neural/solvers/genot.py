@@ -209,15 +209,14 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Train GENOT."""
     batch: Dict[str, jnp.array] = {}
     for iteration in range(self.iterations):
-      batch["source_lin"], batch["source_q"], batch["target_lin"], batch[
-          "target_q"], batch["condition"] = next(train_loader)
+      batch = next(train_loader)
 
       self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match, rng_step_fn = jax.random.split(
           self.rng, 6
       )
       batch_size = len(
           batch["source_lin"]
-      ) if batch["source_lin"] is not None else len(batch["source_q"])
+      ) if batch["source_lin"] is not None else len(batch["source_quad"])
       n_samples = batch_size * self.k_samples_per_x
       batch["time"] = self.time_sampler(rng_time, n_samples)
       batch["noise"] = self.sample_noise(rng_noise, n_samples)
@@ -226,34 +225,33 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
 
       tmat = self.match_fn(
-          batch["source_lin"], batch["source_q"], batch["target_lin"],
-          batch["target_q"]
+          batch["source_lin"], batch["source_quad"], batch["target_lin"],
+          batch["target_quad"]
       )
 
       batch["source"] = jnp.concatenate([
           batch[el]
-          for el in ["source_lin", "source_q"]
+          for el in ["source_lin", "source_quad"]
           if batch[el] is not None
       ],
                                         axis=1)
       batch["target"] = jnp.concatenate([
           batch[el]
-          for el in ["target_lin", "target_q"]
+          for el in ["target_lin", "target_quad"]
           if batch[el] is not None
       ],
                                         axis=1)
 
       batch = {
-          k: v
-          for k, v in batch.items()
-          if k in ["source", "target", "condition", "time", "noise", "latent"]
+          k: v for k, v in batch.items() if k in
+          ["source", "target", "source_conditions", "time", "noise", "latent"]
       }
 
-      (batch["source"], batch["condition"]
+      (batch["source"], batch["source_conditions"]
       ), (batch["target"],) = self._sample_conditional_indices_from_tmap(
           rng_resample,
           tmat,
-          self.k_samples_per_x, (batch["source"], batch["condition"]),
+          self.k_samples_per_x, (batch["source"], batch["source_conditions"]),
           (batch["target"],),
           source_is_balanced=(self.tau_a == 1.0)
       )
@@ -268,10 +266,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         rng_latent_data_match = jax.random.split(
             rng_latent_data_match, self.k_samples_per_x
         )
-        (batch["source"], batch["condition"]
+        (batch["source"], batch["source_conditions"]
         ), (batch["target"],) = jax.vmap(self._resample_data, 0, 0)(
             rng_latent_data_match, tmats_latent_data,
-            (batch["source"], batch["condition"]), (batch["target"],)
+            (batch["source"], batch["source_conditions"]), (batch["target"],)
         )
       batch = {
           key:
@@ -287,7 +285,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
             source=batch["source"],
             target=batch["target"],
-            condition=batch["condition"],
+            condition=batch["source_conditions"],
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
             state_eta=self.state_eta,
@@ -299,8 +297,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           states_to_save = {
               "state_neural_vector_field": self.state_neural_vector_field
           }
-          if self.state_mlp is not None:
-            states_to_save["state_eta"] = self.state_mlp
+          if self.state_eta is not None:
+            states_to_save["state_eta"] = self.state_eta
           if self.state_xi is not None:
             states_to_save["state_xi"] = self.state_xi
           self.checkpoint_manager.save(iteration, states_to_save)
@@ -326,7 +324,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         )
 
         cond_input = jnp.concatenate([
-            batch[el] for el in ["source", "condition"] if batch[el] is not None
+            batch[el]
+            for el in ["source", "source_conditions"]
+            if batch[el] is not None
         ],
                                      axis=1)
         v_t = jax.vmap(apply_fn)(
