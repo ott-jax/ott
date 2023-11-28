@@ -51,7 +51,7 @@ class SinkhornDivergenceOutput:  # noqa: D101
         f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
     )
 
-  def tree_flatten_foo(self):  # noqa: D102
+  def tree_flatten(self):  # noqa: D102
     return [
         self.divergence,
         self.potentials,
@@ -65,7 +65,7 @@ class SinkhornDivergenceOutput:  # noqa: D101
     }
 
   @classmethod
-  def tree_unflatten_foo(cls, aux_data, children):  # noqa: D102
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
     div, pots, geoms, a, b = children
     return cls(div, pots, geoms, a=a, b=b, **aux_data)
 

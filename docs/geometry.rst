@@ -45,6 +45,7 @@ Geometries
     pointcloud.PointCloud
     grid.Grid
     graph.Graph
+    geodesic.Geodesic
     low_rank.LRCGeometry
     epsilon_scheduler.Epsilon
 
@@ -66,6 +67,7 @@ Cost Functions
     costs.ElasticSTVS
     costs.ElasticSqKOverlap
     costs.SoftDTW
+    distrib_costs.UnivariateWasserstein
 
 Utilities
 ---------
