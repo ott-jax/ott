@@ -246,9 +246,8 @@ class Graph(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0
   ) -> jnp.ndarray:
-    """Since applying from potentials is not feasible in grids, use scalings."""
-    u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
-    return self.apply_transport_from_scalings(u, v, vec, axis=axis)
+    """Not implemented."""
+    raise ValueError("Not implemented.")
 
   def marginal_from_potentials(
       self,
