@@ -14,7 +14,17 @@
 import functools
 import types
 from collections import defaultdict
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
+from typing import (
+  Any,
+  Callable,
+  Dict,
+  Literal,
+  Mapping,
+  Optional,
+  Tuple,
+  Type,
+  Union,
+)
 
 import diffrax
 import jax
@@ -27,13 +37,13 @@ from orbax import checkpoint
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
+  BaseNeuralSolver,
+  ResampleMixin,
+  UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-    BaseFlow,
-    BaseTimeSampler,
+  BaseFlow,
+  BaseTimeSampler,
 )
 from ott.solvers import was_solver
 
@@ -56,6 +66,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     checkpoint_manager: Checkpoint manager.
     epsilon: Entropy regularization term of the OT OT problem solved by the `ot_solver`.
     cost_fn: Cost function for the OT problem solved by the `ot_solver`.
+    scale_cost: How to scale the cost matrix for the OT problem solved by the `ot_solver`.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
@@ -85,6 +96,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
+      scale_cost: Union[bool, int, float,
+                        Literal["mean", "max_norm", "max_bound", "max_cost",
+                                "median"]] = "mean",
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       mlp_eta: Callable[[jnp.ndarray], float] = None,
@@ -123,6 +137,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.optimizer = optimizer
     self.epsilon = epsilon
     self.cost_fn = cost_fn
+    self.scale_cost = scale_cost
     self.callback_fn = callback_fn
     self.checkpoint_manager = checkpoint_manager
     self.rng = rng
