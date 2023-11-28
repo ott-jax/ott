@@ -3,7 +3,11 @@ ott.neural.solvers
 .. module:: ott.neural.solvers
 .. currentmodule:: ott.neural.solvers
 
-Under reconstruction. .. TODO(marcocuturi): add some nice text here please.
+This module implements various solvers to estimate optimal transport between
+two probability measures, through samples, parameterized as neural networks.
+These neural networks are described in :mod:`ott.neural.models`, borrowing
+lower-level components from :mod:`ott.neural.layers` using
+`flax <https://flax.readthedocs.io/en/latest/>`__.
 
 Solvers
 -------
