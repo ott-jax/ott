@@ -13,7 +13,7 @@
 # limitations under the License.
 import functools
 import types
-from typing import Any, Callable, Dict, Literal, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union
 
 import diffrax
 import jax
@@ -27,24 +27,19 @@ from orbax import checkpoint
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-  BaseNeuralSolver,
-  ResampleMixin,
-  UnbalancednessMixin,
+    BaseNeuralSolver,
+    ResampleMixin,
+    UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-  BaseFlow,
-  BaseTimeSampler,
-  ConstantNoiseFlow,
-  UniformSampler,
+    BaseFlow,
+    BaseTimeSampler,
+    ConstantNoiseFlow,
+    UniformSampler,
 )
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
-
-Match_fn_T = Callable[[jax.random.PRNGKeyArray, jnp.array, jnp.array],
-                      Tuple[jnp.array, jnp.array, jnp.array, jnp.array]]
-Match_latent_fn_T = Callable[[jax.random.PRNGKeyArray, jnp.array, jnp.array],
-                             Tuple[jnp.array, jnp.array]]
 
 __all__ = ["GENOT"]
 

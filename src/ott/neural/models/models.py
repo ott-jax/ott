@@ -419,7 +419,7 @@ class Block(nn.Module):
 
   @nn.compact
   def __call__(self, x):
-    for i in range(self.num_layers):
+    for _ in range(self.num_layers):
       x = nn.Dense(self.dim)(x)
       x = self.act_fn(x)
     return nn.Dense(self.out_dim)(x)
