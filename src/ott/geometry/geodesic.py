@@ -31,14 +31,14 @@ __all__ = ["Geodesic"]
 class Geodesic(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
 
-  important::
-  This constructor is not meant to be called by the user,
-  please use the :meth:`from_graph` method instead.
+  .. important::
+    This constructor is not meant to be called by the user,
+    please use the :meth:`from_graph` method instead.
 
-  Approximates the heat kernel using `Chebyshev polynomials
-  <https://en.wikipedia.org/wiki/Chebyshev_polynomials>`_ of the first kind of
-  max order ``order``, which for small ``t`` approximates the
-  geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
+  Approximates the heat kernel using
+  `Chebyshev polynomials <https://en.wikipedia.org/wiki/Chebyshev_polynomials>`_
+  of the first kind of max order ``order``, which for small ``t``
+  approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
 
   Args:
     scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
