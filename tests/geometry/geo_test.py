@@ -93,7 +93,7 @@ class TestGeodesic:
 
     # we symmetrize the kernel explicitly when materializing it, because
     # numerical errors can make it non-symmetric.
-    np.testing.assert_array_equal(kernel, kernel.T)
+    np.testing.assert_allclose(kernel, kernel.T, rtol=tol, atol=tol)
     eigenvalues = jnp.linalg.eigvals(kernel)
     neg_eigenvalues = eigenvalues[eigenvalues < 0]
     # check that the negative eigenvalues are all very small
