@@ -13,15 +13,7 @@
 # limitations under the License.
 import functools
 import types
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Type, Union
 
 import diffrax
 import jax
@@ -35,15 +27,15 @@ from orbax import checkpoint
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
+  BaseNeuralSolver,
+  ResampleMixin,
+  UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-    BaseFlow,
-    BaseTimeSampler,
-    ConstantNoiseFlow,
-    UniformSampler,
+  BaseFlow,
+  BaseTimeSampler,
+  ConstantNoiseFlow,
+  UniformSampler,
 )
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
@@ -101,7 +93,12 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       ot_solver: Type[was_solver.WassersteinSolver],
       epsilon: float,
       cost_fn: Union[costs.CostFn, Dict[str, costs.CostFn]],
-      scale_cost: Union[Any, Dict[str, Any]],  #TODO: replace `Any`
+      scale_cost: Union[Union[bool, int, float,
+                              Literal["mean", "max_norm", "max_bound",
+                                      "max_cost", "median"]],
+                        Dict[str, Union[bool, int, float,
+                                        Literal["mean", "max_norm", "max_bound",
+                                                "max_cost", "median"]]]],
       optimizer: Type[optax.GradientTransformation],
       flow: Type[BaseFlow] = ConstantNoiseFlow(0.0),
       time_sampler: Type[BaseTimeSampler] = UniformSampler(),
