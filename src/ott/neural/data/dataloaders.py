@@ -16,8 +16,8 @@ from typing import Dict, Iterator, Mapping, Optional
 
 import numpy as np
 
+__all__ = ["OTDataLoader", "ConditionalDataLoader"]
 
-__all__ =[ "OTDataLoader", "ConditionalDataLoader"]
 
 class OTDataLoader:
   """Data loader for OT problems.

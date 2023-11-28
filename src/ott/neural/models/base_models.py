@@ -21,6 +21,7 @@ __all__ = ["BaseNeuralVectorField", "BaseRescalingNet"]
 
 
 class BaseNeuralVectorField(nn.Module, abc.ABC):
+  """Base class for neural vector field models."""
 
   @abc.abstractmethod
   def __call__(
@@ -29,11 +30,20 @@ class BaseNeuralVectorField(nn.Module, abc.ABC):
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
       keys_model: Optional[jnp.ndarray] = None
-  ) -> jnp.ndarray:  # noqa: D102):
+  ) -> jnp.ndarray:
+    """"Evaluate the vector field.
+
+    Args:
+      t: Time.
+      x: Input data.
+      condition: Condition.
+      keys_model: Random keys for the model.
+    """
     pass
 
 
 class BaseRescalingNet(nn.Module, abc.ABC):
+  """Base class for models to learn distributional rescaling factors."""
 
   @abc.abstractmethod
   def __call__(
@@ -41,4 +51,10 @@ class BaseRescalingNet(nn.Module, abc.ABC):
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None
   ) -> jnp.ndarray:
+    """Evaluate the model.
+
+    Args:
+      x: Input data.
+      condition: Condition.
+    """
     pass

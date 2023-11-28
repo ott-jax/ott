@@ -180,7 +180,9 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     return z.squeeze()
 
 
-class MLP(neuraldual.BaseW2NeuralDual):
+class MLP(
+    neuraldual.BaseW2NeuralDual
+):  #TODO don't let this inherit from BaseW2NeuralDual
   """A generic, typically not-convex (w.r.t input) MLP.
 
   Args:
@@ -418,12 +420,34 @@ class Block(nn.Module):
   @nn.compact
   def __call__(self, x):
     for i in range(self.num_layers):
-      x = nn.Dense(self.dim, name="fc{0}".format(i))(x)
+      x = nn.Dense(self.dim)(x)
       x = self.act_fn(x)
     return nn.Dense(self.out_dim)(x)
 
 
 class NeuralVectorField(BaseNeuralVectorField):
+  """Parameterized neural vector field.
+
+  Each of the input, condition, and time embeddings are passed through a block
+  consisting of ``num_layers_per_block`` layers of dimension ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``, respectively.
+  The output of each block is concatenated and passed through a final block of dimension ``joint_hidden_dim``.
+
+  Args:
+    output_dim: Dimensionality of the neural vector field.
+    condition_dim: Dimensionality of the conditioning vector.
+    latent_embed_dim: Dimensionality of the embedding of the data.
+    condition_embed_dim: Dimensionality of the embedding of the condition.
+      If ``None``, set to ``latent_embed_dim``.
+    t_embed_dim: Dimensionality of the time embedding.
+      If ``None``, set to ``latent_embed_dim``.
+    joint_hidden_dim: Dimensionality of the hidden layers of the joint network.
+      If ``None``, set to ``latent_embed_dim + condition_embed_dim +
+      t_embed_dim``.
+    num_layers_per_block: Number of layers per block.
+    act_fn: Activation function.
+    n_frequencies: Number of frequencies to use for the time embedding.
+
+  """
   output_dim: int
   condition_dim: int
   latent_embed_dim: int
@@ -435,6 +459,14 @@ class NeuralVectorField(BaseNeuralVectorField):
   n_frequencies: int = 128
 
   def time_encoder(self, t: jnp.ndarray) -> jnp.array:
+    """Encode the time.
+
+    Args:
+      t: Time.
+
+    Returns:
+      Encoded time.
+    """
     freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
     t = freq * t
     return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
@@ -469,7 +501,17 @@ class NeuralVectorField(BaseNeuralVectorField):
       condition: Optional[jnp.ndarray],
       keys_model: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
+    """Forward pass through the neural vector field.
 
+    Args:
+      t: Time.
+      x: Data.
+      condition: Conditioning vector.
+      keys_model: Random number generator.
+
+    Returns:
+      Output of the neural vector field.
+    """
     t = self.time_encoder(t)
     t = Block(
         dim=self.t_embed_dim,
@@ -524,6 +566,16 @@ class NeuralVectorField(BaseNeuralVectorField):
       optimizer: optax.OptState,
       input_dim: int,
   ) -> train_state.TrainState:
+    """Create the training state.
+
+    Args:
+      rng: Random number generator.
+      optimizer: Optimizer.
+      input_dim: Dimensionality of the input.
+
+    Returns:
+      Training state.
+    """
     params = self.init(
         rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
         jnp.ones((1, self.condition_dim))
@@ -534,6 +586,23 @@ class NeuralVectorField(BaseNeuralVectorField):
 
 
 class Rescaling_MLP(BaseRescalingNet):
+  """Network to learn distributional rescaling factors based on a MLP.
+
+  The input is passed through a block consisting of ``num_layers_per_block`` with size ``hidden_dim``.
+  If ``condition_dim`` is greater than 0, the conditioning vector is passed through a block of the same size.
+  Both outputs are concatenated and passed through another block of the same size.
+
+  To ensure non-negativity of the output, the output is exponentiated.
+
+  Args:
+    hidden_dim: Dimensionality of the hidden layers.
+    condition_dim: Dimensionality of the conditioning vector.
+    num_layers_per_block: Number of layers per block.
+    act_fn: Activation function.
+
+  Returns:
+    Rescaling factors.
+  """
   hidden_dim: int
   condition_dim: int
   num_layers_per_block: int = 3
@@ -582,6 +651,16 @@ class Rescaling_MLP(BaseRescalingNet):
       optimizer: optax.OptState,
       input_dim: int,
   ) -> train_state.TrainState:
+    """Create the training state.
+
+    Args:
+      rng: Random number generator.
+      optimizer: Optimizer.
+      input_dim: Dimensionality of the input.
+
+    Returns:
+      Training state.
+    """
     params = self.init(
         rng, jnp.ones((1, input_dim)), jnp.ones((1, self.condition_dim))
     )["params"]
