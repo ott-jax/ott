@@ -26,7 +26,7 @@ from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
 from ott.math import matrix_square_root
-from ott.neural.models import layers
+from ott.neural import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
@@ -177,7 +177,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
 
 
 class MLP(neuraldual.BaseW2NeuralDual):
-  """A generic, typically not-convex (w.r.t input) MLP.
+  """A generic, not-convex MLP.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The output

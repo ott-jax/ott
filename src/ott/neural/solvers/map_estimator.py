@@ -54,7 +54,7 @@ class MapEstimator:
 
   For instance, :math:`\Delta` can be the
   :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`
+  and :math:`R` the :func:`~ott.neural.losses.monge_gap_from_samples`
   :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
@@ -129,7 +129,7 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be e.g. the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`.
+    Can be, e.g. the :func:`~ott.neural.losses.monge_gap_from_samples`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default along with an empty set of log values.
@@ -142,8 +142,7 @@ class MapEstimator:
   def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Fitting loss to fit the marginal constraint.
 
-    Can be for instance the
-    :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    Can be, e.g. :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
     If no fitting_loss is passed for solver instantiation, return 0 by default,
     and no log values.
     """

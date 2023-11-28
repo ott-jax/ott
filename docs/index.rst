@@ -90,6 +90,8 @@ Packages
   When the problem is *not* convex, which is the case for most other uses of
   this toolbox, the initialization can play a decisive role to reach a useful
   solution.
+- :mod:`ott.neural`  .. TODO(marcocuturi): add some nice text here please.
+
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing
   approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
