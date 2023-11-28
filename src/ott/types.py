@@ -11,13 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Protocol
+from typing import Protocol, Union
 
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
 __all__ = ["Transport"]
 
 # TODO(michalk8): introduce additional types here
+
+# Either a dense or sparse array.
+Array_g = Union[jnp.ndarray, jesp.BCOO]
 
 
 class Transport(Protocol):

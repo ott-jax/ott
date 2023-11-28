@@ -16,8 +16,7 @@ dependencies = [
     "jax>=0.4.0",
     "jaxopt>=0.8",
     "lineax>=0.0.1; python_version >= '3.9'",
-    # https://github.com/numba/numba/issues/9130
-    "numpy>=1.18.4, <1.25.0",
+    "numpy>=1.20.0",
 ]
 keywords = [
     "optimal transport",
