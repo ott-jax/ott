@@ -134,10 +134,12 @@ subpopulation
 subpopulations
 subsample
 subsampled
+subsamples
 subsampling
 thresholding
 transcriptome
 undirected
+univariate
 unscaled
 url
 vectorized
