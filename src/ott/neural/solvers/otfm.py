@@ -15,15 +15,15 @@ import functools
 import types
 from collections import defaultdict
 from typing import (
-  Any,
-  Callable,
-  Dict,
-  Literal,
-  Mapping,
-  Optional,
-  Tuple,
-  Type,
-  Union,
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    Union,
 )
 
 import diffrax
@@ -37,13 +37,13 @@ from orbax import checkpoint
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
-  BaseNeuralSolver,
-  ResampleMixin,
-  UnbalancednessMixin,
+    BaseNeuralSolver,
+    ResampleMixin,
+    UnbalancednessMixin,
 )
 from ott.neural.solvers.flows import (
-  BaseFlow,
-  BaseTimeSampler,
+    BaseFlow,
+    BaseTimeSampler,
 )
 from ott.solvers import was_solver
 

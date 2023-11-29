@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import optax
 import pytest
 
-from ott.neural.models.models import NeuralVectorField, Rescaling_MLP
+from ott.neural.models.models import NeuralVectorField, RescalingMLP
 from ott.neural.solvers.flows import (
     BaseFlow,
     BrownianNoiseFlow,
@@ -188,8 +188,8 @@ class TestOTFlowMatching:
 
     tau_a = 0.9
     tau_b = 0.2
-    mlp_eta = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
-    mlp_xi = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_eta = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_xi = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     fm = OTFlowMatching(
         neural_vf,
         input_dim=source_dim,

@@ -35,7 +35,7 @@ from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
 __all__ = [
-    "ICNN", "MLP", "MetaInitializer", "NeuralVectorField", "Rescaling_MLP"
+    "ICNN", "MLP", "MetaInitializer", "NeuralVectorField", "RescalingMLP"
 ]
 
 
@@ -585,7 +585,7 @@ class NeuralVectorField(BaseNeuralVectorField):
     )
 
 
-class Rescaling_MLP(BaseRescalingNet):
+class RescalingMLP(BaseRescalingNet):
   """Network to learn distributional rescaling factors based on a MLP.
 
   The input is passed through a block consisting of ``num_layers_per_block`` with size ``hidden_dim``.

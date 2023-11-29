@@ -200,26 +200,26 @@ class ResampleMixin:
       fused_penalty: float,
   ) -> Callable:
     if isinstance(cost_fn, Mapping):
-      assert "x_cost_fn" in cost_fn
-      assert "y_cost_fn" in cost_fn
-      x_cost_fn = cost_fn["x_cost_fn"]
-      y_cost_fn = cost_fn["y_cost_fn"]
+      assert "cost_fn_xx" in cost_fn
+      assert "cost_fn_yy" in cost_fn
+      cost_fn_xx = cost_fn["cost_fn_xx"]
+      cost_fn_yy = cost_fn["cost_fn_yy"]
       if fused_penalty > 0:
-        assert "xy_cost_fn" in x_cost_fn
-        xy_cost_fn = cost_fn["xy_cost_fn"]
+        assert "cost_fn_xy" in cost_fn_xx
+        cost_fn_xy = cost_fn["cost_fn_xy"]
     else:
-      x_cost_fn = y_cost_fn = xy_cost_fn = cost_fn
+      cost_fn_xx = cost_fn_yy = cost_fn_xy = cost_fn
 
     if isinstance(scale_cost, Mapping):
-      assert "x_scale_cost" in scale_cost
-      assert "y_scale_cost" in scale_cost
-      x_scale_cost = scale_cost["x_scale_cost"]
-      y_scale_cost = scale_cost["y_scale_cost"]
+      assert "scale_cost_xx" in scale_cost
+      assert "scale_cost_yy" in scale_cost
+      scale_cost_xx = scale_cost["scale_cost_xx"]
+      scale_cost_yy = scale_cost["scale_cost_yy"]
       if fused_penalty > 0:
-        assert "xy_scale_cost" in scale_cost
-        xy_scale_cost = cost_fn["xy_scale_cost"]
+        assert "scale_cost_xy" in scale_cost
+        scale_cost_xy = cost_fn["scale_cost_xy"]
     else:
-      x_scale_cost = y_scale_cost = xy_scale_cost = scale_cost
+      scale_cost_xx = scale_cost_yy = scale_cost_xy = scale_cost
 
     def match_pairs(
         x_lin: Optional[jnp.ndarray],
@@ -228,14 +228,14 @@ class ResampleMixin:
         y_quad: Tuple[jnp.ndarray, jnp.ndarray],
     ) -> Tuple[jnp.array, jnp.array]:
       geom_xx = pointcloud.PointCloud(
-          x=x_quad, y=x_quad, cost_fn=x_cost_fn, scale_cost=x_scale_cost
+          x=x_quad, y=x_quad, cost_fn=cost_fn_xx, scale_cost=scale_cost_xx
       )
       geom_yy = pointcloud.PointCloud(
-          x=y_quad, y=y_quad, cost_fn=y_cost_fn, scale_cost=y_scale_cost
+          x=y_quad, y=y_quad, cost_fn=cost_fn_yy, scale_cost=scale_cost_yy
       )
       if fused_penalty > 0:
         geom_xy = pointcloud.PointCloud(
-            x=x_lin, y=y_lin, cost_fn=xy_cost_fn, scale_cost=xy_scale_cost
+            x=x_lin, y=y_lin, cost_fn=cost_fn_xy, scale_cost=scale_cost_xy
         )
       else:
         geom_xy = None

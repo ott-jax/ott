@@ -18,7 +18,7 @@ import optax
 import pytest
 
 from ott.geometry import costs
-from ott.neural.models.models import NeuralVectorField, Rescaling_MLP
+from ott.neural.models.models import NeuralVectorField, RescalingMLP
 from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.solvers.genot import GENOT
 from ott.solvers.linear import sinkhorn
@@ -90,9 +90,8 @@ class TestGENOT:
   ):
     None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     batch = next(genot_data_loader_quad)
-    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
-        "source_lin"], batch["source_quad"], batch["target_lin"], batch[
-            "target_quad"], batch["source_conditions"]
+    source_quad, target_quad, source_condition = batch["source_quad"], batch[
+        "target_quad"], batch["source_conditions"]
 
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
@@ -231,9 +230,8 @@ class TestGENOT:
   ):
     None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     batch = next(genot_data_loader_quad_conditional)
-    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
-        "source_lin"], batch["source_quad"], batch["target_lin"], batch[
-            "target_quad"], batch["source_conditions"]
+    source_quad, target_quad, source_condition = batch["source_quad"], batch[
+        "target_quad"], batch["source_conditions"]
 
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
@@ -331,9 +329,8 @@ class TestGENOT:
     data_loader = genot_data_loader_linear_conditional if conditional else genot_data_loader_linear
 
     batch = next(data_loader)
-    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
-        "source_lin"], batch["source_quad"], batch["target_lin"], batch[
-            "target_quad"], batch["source_conditions"]
+    source_lin, target_lin, source_condition = batch["source_lin"], batch[
+        "target_lin"], batch["source_conditions"]
 
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
@@ -349,8 +346,8 @@ class TestGENOT:
     optimizer = optax.adam(learning_rate=1e-3)
     tau_a = 0.9
     tau_b = 0.2
-    mlp_eta = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
-    mlp_xi = Rescaling_MLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_eta = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    mlp_xi = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,

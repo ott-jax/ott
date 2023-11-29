@@ -51,13 +51,13 @@ class GaussianMixture:
         rectangle
 
     batch_size: batch size of the samples
-    init_rng: initial PRNG key
+    rng: initial PRNG key
     scale: scale of the Gaussian means
     std: the standard deviation of the individual Gaussian samples
   """
   name: Name_t
   batch_size: int
-  init_rng: jnp.ndarray
+  rng: jnp.ndarray
   scale: float = 5.0
   std: float = 0.5
 
@@ -96,7 +96,7 @@ class GaussianMixture:
     return self._create_sample_generators()
 
   def _create_sample_generators(self) -> Iterator[jnp.array]:
-    rng = self.init_rng
+    rng = self.rng
     while True:
       rng1, rng2, rng = jax.random.split(rng, 3)
       means = jax.random.choice(rng1, self.centers, (self.batch_size,))
@@ -128,26 +128,18 @@ def create_gaussian_mixture_samplers(
   rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=train_batch_size, init_rng=rng1
-          )
+          GaussianMixture(name_source, batch_size=train_batch_size, rng=rng1)
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=train_batch_size, init_rng=rng2
-          )
+          GaussianMixture(name_target, batch_size=train_batch_size, rng=rng2)
       )
   )
   valid_dataset = Dataset(
       source_iter=iter(
-          GaussianMixture(
-              name_source, batch_size=valid_batch_size, init_rng=rng3
-          )
+          GaussianMixture(name_source, batch_size=valid_batch_size, rng=rng3)
       ),
       target_iter=iter(
-          GaussianMixture(
-              name_target, batch_size=valid_batch_size, init_rng=rng4
-          )
+          GaussianMixture(name_target, batch_size=valid_batch_size, rng=rng4)
       )
   )
   dim_data = 2
