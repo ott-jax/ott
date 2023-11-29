@@ -19,19 +19,19 @@ import jax.numpy as jnp
 import numpy as np
 from scipy.special import ive
 
+from ott import utils
 from ott.geometry import geometry
 from ott.math import utils as mu
 from ott.types import Array_g
-from ott.utils import default_prng_key
 
 __all__ = ["Geodesic"]
 
 
 @jax.tree_util.register_pytree_node_class
 class Geodesic(geometry.Geometry):
-  r"""Graph distance approximation using heat kernel :cite:`huguet:2022`.
+  r"""Graph distance approximation using heat kernel :cite:`huguet:2023`.
 
-  .. important::
+  .. note::
     This constructor is not meant to be called by the user,
     please use the :meth:`from_graph` method instead.
 
@@ -71,6 +71,7 @@ class Geodesic(geometry.Geometry):
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
+      rng: Optional[jax.Array] = None,
       **kwargs: Any
   ) -> "Geodesic":
     r"""Construct a Geodesic geometry from an adjacency matrix.
@@ -81,44 +82,44 @@ class Geodesic(geometry.Geometry):
         If `None`, it defaults to :math:`\frac{1}{|E|} \sum_{(u, v) \in E}
         \text{weight}(u, v)` :cite:`crane:13`. In this case, the ``graph``
         must be specified and the edge weights are assumed to be positive.
-      eigval: Largest eigenvalue of the Laplacian. If `None`, it's computed
-        at initialization.
+      eigval: Largest eigenvalue of the Laplacian. If :obj:`None`, it's
+        computed using :func:`jax.experimental.sparse.linalg.lobpcg_standard`.
       order: Max order of Chebyshev polynomials.
-      directed: Whether the ``graph`` is directed. If `True`, it's made
+      directed: Whether the ``graph`` is directed. If :obj:`True`, it's made
         undirected as :math:`G + G^T`. This parameter is ignored when passing
         the Laplacian directly, assumed to be symmetric.
       normalize: Whether to normalize the Laplacian as
         :math:`L^{sym} = \left(D^+\right)^{\frac{1}{2}} L
         \left(D^+\right)^{\frac{1}{2}}`, where :math:`L` is the
         non-normalized Laplacian and :math:`D` is the degree matrix.
+      rng: Random key used when computing the largest eigenvalue.
       kwargs: Keyword arguments for :class:`~ott.geometry.geodesic.Geodesic`.
 
     Returns:
       The Geodesic geometry.
     """
     assert G.shape[0] == G.shape[1], G.shape
+    rng = utils.default_prng_key(rng)
 
     if directed:
       G = G + G.T
+    if t is None:
+      t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2.0
 
     degree = jnp.sum(G, axis=1)
     laplacian = jnp.diag(degree) - G
-
     if normalize:
       inv_sqrt_deg = jnp.diag(
           jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
       )
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
-    eigval = compute_largest_eigenvalue(laplacian) if eigval is None else eigval
-
+    if eigval is None:
+      eigval = compute_largest_eigenvalue(laplacian, rng)
     scaled_laplacian = jax.lax.cond((eigval > 2.0), lambda l: 2.0 * l / eigval,
                                     lambda l: l, laplacian)
 
-    if t is None:
-      t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2.0
-
-    # Compute the coeffs of the Chebyshev pols approx using Bessel functs.
+    # compute the coeffs of the Chebyshev pols approx using Bessel funcs
     chebyshev_coeffs = compute_chebychev_coeff_all(
         eigval, t, order, laplacian.dtype
     )
@@ -190,9 +191,8 @@ class Geodesic(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0
   ) -> jnp.ndarray:
-    """Since applying from potentials is not feasible in grids, use scalings."""
-    u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
-    return self.apply_transport_from_scalings(u, v, vec, axis=axis)
+    """Not implemented."""
+    raise ValueError("Not implemented.")
 
   def marginal_from_potentials(
       self,
@@ -219,12 +219,13 @@ class Geodesic(geometry.Geometry):
 
 
 def compute_largest_eigenvalue(
-    laplacian_matrix: jnp.ndarray, rng: Optional[jax.Array] = None
+    laplacian_matrix: jnp.ndarray,
+    rng: jax.Array,
 ) -> float:
   # Compute the largest eigenvalue of the Laplacian matrix.
   n = laplacian_matrix.shape[0]
   # Generate random initial directions for eigenvalue computation
-  initial_dirs = jax.random.normal(default_prng_key(rng), (n, 1))
+  initial_dirs = jax.random.normal(rng, (n, 1))
 
   # Create a sparse matrix-vector product function using sparsify
   # This function multiplies the sparse laplacian_matrix with a vector
@@ -235,7 +236,7 @@ def compute_largest_eigenvalue(
       lapl_vector_product,
       initial_dirs,
   )
-  return jnp.max(eigvals)
+  return eigvals[0]
 
 
 def expm_multiply(

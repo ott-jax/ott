@@ -235,8 +235,8 @@ class TestGraph:
     np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
 
     for axis in [0, 1]:
-      y_gt = gt_out.apply(x, axis=axis)
-      y_out = graph_out.apply(x, axis=axis)
+      y_gt = gt_out.apply(x, axis=axis, lse_mode=False)
+      y_out = graph_out.apply(x, axis=axis, lse_mode=False)
       # note the high tolerance
       np.testing.assert_allclose(y_gt, y_out, rtol=5e-1, atol=5e-1)
 

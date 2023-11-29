@@ -18,8 +18,8 @@ import numpy as np
 import pytest
 
 from ott import datasets
-from ott.neural.models import conjugate_solvers, models
-from ott.neural.solvers import neuraldual
+from ott.neural import models
+from ott.neural.solvers import conjugate, neuraldual
 
 ModelPair_t = Tuple[neuraldual.BaseW2NeuralDual, neuraldual.BaseW2NeuralDual]
 DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
@@ -54,7 +54,7 @@ class TestNeuralDual:
 
   @pytest.mark.fast.with_args(
       "back_and_forth,test_gaussian_init,amortization_loss,conjugate_solver", (
-          (True, True, "objective", conjugate_solvers.DEFAULT_CONJUGATE_SOLVER),
+          (True, True, "objective", conjugate.DEFAULT_CONJUGATE_SOLVER),
           (False, False, "regression", None),
       ),
       only_fast=0
@@ -66,7 +66,7 @@ class TestNeuralDual:
       back_and_forth: bool,
       amortization_loss: str,
       test_gaussian_init: bool,
-      conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
+      conjugate_solver: Optional[conjugate.FenchelConjugateSolver],
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 

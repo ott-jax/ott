@@ -20,7 +20,7 @@ from flax import linen as nn
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as linear_init
-from ott.neural.models import models as nn_init
+from ott.neural import models as nn_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 

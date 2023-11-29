@@ -26,11 +26,7 @@ from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
 from ott.math import matrix_square_root
-from ott.neural.models import layers
-from ott.neural.models.base_models import (
-    BaseNeuralVectorField,
-    BaseRescalingNet,
-)
+from ott.neural import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
@@ -180,10 +176,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     return z.squeeze()
 
 
-class MLP(
-    neuraldual.BaseW2NeuralDual
-):  #TODO don't let this inherit from BaseW2NeuralDual
-  """A generic, typically not-convex (w.r.t input) MLP.
+class MLP(neuraldual.BaseW2NeuralDual):
+  """A generic, not-convex MLP.
 
   Args:
     dim_hidden: sequence specifying size of hidden dimensions. The output

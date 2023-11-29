@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -46,8 +46,7 @@ class PositiveDense(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
+  kernel_init: Optional[Callable[[PRNGKey, Shape, Dtype], Array]] = None,
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -60,9 +59,12 @@ class PositiveDense(nn.Module):
     Returns:
       The transformed input.
     """
+    kernel_init = nn.initializers.lecun_normal(
+    ) if self.kernel_init is None else self.kernel_init
+
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
     kernel = jnp.asarray(kernel, self.dtype)
@@ -79,7 +81,7 @@ class PositiveDense(nn.Module):
 
 
 class PosDefPotentials(nn.Module):
-  """A layer to output  (0.5 || A_i^T (x - b_i)||^2)_i potentials.
+  r"""A layer to output :math:`\frac{1}{2} ||A_i^T (x - b_i)||^2_i` potentials.
 
   Args:
     use_bias: whether to add a bias to the output.
@@ -94,8 +96,7 @@ class PosDefPotentials(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
+  kernel_init: Optional[Callable[[PRNGKey, Shape, Dtype], Array]] = None
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -108,9 +109,11 @@ class PosDefPotentials(nn.Module):
     Returns:
       The transformed input.
     """
+    kernel_init = nn.initializers.lecun_normal(
+    ) if self.kernel_init is None else self.kernel_init
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        "kernel", self.kernel_init,
+        "kernel", kernel_init,
         (self.num_potentials, inputs.shape[-1], inputs.shape[-1])
     )
 
