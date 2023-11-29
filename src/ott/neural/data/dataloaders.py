@@ -103,10 +103,12 @@ class OTDataLoader:
 class ConditionalDataLoader:
   """Data loader for OT problems with conditions.
 
-  This data loader wraps several data loaders and samples from them according to their conditions.
+  This data loader wraps several data loaders and samples from them according
+  to their conditions.
 
   Args:
-    dataloaders: Dictionary of data loaders with keys corresponding to conditions.
+    dataloaders: Dictionary of data loaders with keys corresponding to
+      conditions.
     p: Probability of sampling from each data loader.
     seed: Random seed.
 

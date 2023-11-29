@@ -439,7 +439,10 @@ class UnbalancednessMixin:
       else:
         new_state_xi = xi_predictions = loss_b = None
 
-      return new_state_eta, new_state_xi, eta_predictions, xi_predictions, loss_a, loss_b
+      return (
+          new_state_eta, new_state_xi, eta_predictions, xi_predictions, loss_a,
+          loss_b
+      )
 
     return step_fn
 
@@ -449,7 +452,8 @@ class UnbalancednessMixin:
     """Evaluate the left learnt rescaling factor.
 
     Args:
-      source: Samples from the source distribution to evaluate rescaling function on.
+      source: Samples from the source distribution to evaluate rescaling
+        function on.
       condition: Condition belonging to the samples in the source distribution.
 
     Returns:
@@ -467,7 +471,8 @@ class UnbalancednessMixin:
     """Evaluate the right learnt rescaling factor.
 
     Args:
-      target: Samples from the target distribution to evaluate the rescaling function on.
+      target: Samples from the target distribution to evaluate the rescaling
+        function on.
       condition: Condition belonging to the samples in the target distribution.
 
     Returns:

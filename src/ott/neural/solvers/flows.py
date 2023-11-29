@@ -34,7 +34,10 @@ class BaseFlow(abc.ABC):
 
   @abc.abstractmethod
   def compute_mu_t(self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray):
-    """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
+    """Compute the mean of the probablitiy path.
+
+    Compute the mean of the probablitiy path between :math:`x` and :math:`y`
+    at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
@@ -56,7 +59,10 @@ class BaseFlow(abc.ABC):
   def compute_ut(
       self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
   ) -> jnp.ndarray:
-    """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
+    """Evaluate the conditional vector field.
+
+      Evaluate the conditional vector field defined between :math:`x_0` and
+      :math:`x_1` at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
@@ -69,7 +75,10 @@ class BaseFlow(abc.ABC):
       self, noise: jnp.ndarray, t: jnp.ndarray, x_0: jnp.ndarray,
       x_1: jnp.ndarray
   ) -> jnp.ndarray:
-    """Sample from the probability path between :math:`x_0` and :math:`x_1` at time :math:`t`.
+    """Sample from the probability path.
+
+      Sample from the probability path between :math:`x_0` and :math:`x_1` at
+      time :math:`t`.
 
     Args:
       noise: Noise sampled from a standard normal distribution.
@@ -78,7 +87,8 @@ class BaseFlow(abc.ABC):
       x_1: Sample from the target distribution.
 
     Returns:
-      Samples from the probability path between :math:`x_0` and :math:`x_1` at time :math:`t`.
+      Samples from the probability path between :math:`x_0` and :math:`x_1`
+        at time :math:`t`.
     """
     mu_t = self.compute_mu_t(t, x_0, x_1)
     sigma_t = self.compute_sigma_t(t)
@@ -91,7 +101,10 @@ class StraightFlow(BaseFlow, abc.ABC):
   def compute_mu_t(
       self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
   ) -> jnp.ndarray:
-    """Compute the mean of the probablitiy path between :math:`x` and :math:`y` at time :math:`t`.
+    """Compute the mean of the probablitiy path.
+
+      Compute the mean of the probablitiy path between :math:`x` and :math:`y`
+      at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
@@ -103,7 +116,10 @@ class StraightFlow(BaseFlow, abc.ABC):
   def compute_ut(
       self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
   ) -> jnp.ndarray:
-    """Evaluate the conditional vector field defined between :math:`x_0` and :math:`x_1` at time :math:`t`.
+    """Evaluate the conditional vector field.
+
+    Evaluate the conditional vector field defined between :math:`x_0` and
+      :math:`x_1` at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
@@ -132,7 +148,12 @@ class ConstantNoiseFlow(StraightFlow):
 
 
 class BrownianNoiseFlow(StraightFlow):
-  r"""Sampler for sampling noise implicitly defined by a Schroedinger Bridge problem with parameter `\sigma` such that :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`."""
+  r"""Brownian Bridge Flow.
+
+  Sampler for sampling noise implicitly defined by a Schroedinger Bridge
+  problem with parameter `\sigma` such that
+  :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`.
+  """
 
   def compute_sigma_t(self, t: jnp.ndarray):
     """Compute the standard deviation of the probablity path at time :math:`t`.
@@ -196,7 +217,10 @@ class UniformSampler(BaseTimeSampler):
 
 
 class OffsetUniformSampler(BaseTimeSampler):
-  """Sample :math:`t` from a uniform distribution :math:`[low, high]` with offset `offset`.
+  """Sample the time :math:`t`.
+
+  Sample :math:`t` from a uniform distribution :math:`[low, high]` with
+    offset `offset`.
 
   Args:
     offset: Offset of the uniform distribution.

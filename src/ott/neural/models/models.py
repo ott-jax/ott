@@ -427,8 +427,11 @@ class NeuralVectorField(BaseNeuralVectorField):
   """Parameterized neural vector field.
 
   Each of the input, condition, and time embeddings are passed through a block
-  consisting of ``num_layers_per_block`` layers of dimension ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``, respectively.
-  The output of each block is concatenated and passed through a final block of dimension ``joint_hidden_dim``.
+  consisting of ``num_layers_per_block`` layers of dimension
+  ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``,
+  respectively.
+  The output of each block is concatenated and passed through a final block of
+  dimension ``joint_hidden_dim``.
 
   Args:
     output_dim: Dimensionality of the neural vector field.
@@ -586,9 +589,12 @@ class NeuralVectorField(BaseNeuralVectorField):
 class RescalingMLP(BaseRescalingNet):
   """Network to learn distributional rescaling factors based on a MLP.
 
-  The input is passed through a block consisting of ``num_layers_per_block`` with size ``hidden_dim``.
-  If ``condition_dim`` is greater than 0, the conditioning vector is passed through a block of the same size.
-  Both outputs are concatenated and passed through another block of the same size.
+  The input is passed through a block consisting of ``num_layers_per_block``
+  with size ``hidden_dim``.
+  If ``condition_dim`` is greater than 0, the conditioning vector is passed
+  through a block of the same size.
+  Both outputs are concatenated and passed through another block of the same
+  size.
 
   To ensure non-negativity of the output, the output is exponentiated.
 
@@ -610,6 +616,15 @@ class RescalingMLP(BaseRescalingNet):
   def __call__(
       self, x: jnp.ndarray, condition: Optional[jnp.ndarray]
   ) -> jnp.ndarray:  # noqa: D102
+    """Forward pass through the rescaling network.
+
+    Args:
+      x: Data.
+      condition: Condition.
+
+    Returns:
+      Estimated rescaling factors.
+    """
     x = Block(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,

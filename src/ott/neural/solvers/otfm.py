@@ -51,7 +51,10 @@ __all__ = ["OTFlowMatching"]
 
 
 class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
-  """Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM (:cite`tong:23`, :cite:`pooladian:23`).
+  """(Optimal transport) flow matching class.
+
+  Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM
+  (:cite`tong:23`, :cite:`pooladian:23`).
 
   Args:
     neural_vector_field: Neural vector field parameterized by a neural network.
@@ -59,20 +62,26 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     cond_dim: Dimension of the conditioning variable.
     iterations: Number of iterations.
     valid_freq: Frequency of validation.
-    ot_solver: OT solver to match samples from the source and the target distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`. If `None`, no matching will be performed as proposed in :cite:`lipman:22`.
+    ot_solver: OT solver to match samples from the source and the target
+      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
+      If `None`, no matching will be performed as proposed in :cite:`lipman:22`.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for `neural_vector_field`.
     checkpoint_manager: Checkpoint manager.
-    epsilon: Entropy regularization term of the OT OT problem solved by the `ot_solver`.
+    epsilon: Entropy regularization term of the OT OT problem solved by the
+      `ot_solver`.
     cost_fn: Cost function for the OT problem solved by the `ot_solver`.
-    scale_cost: How to scale the cost matrix for the OT problem solved by the `ot_solver`.
+    scale_cost: How to scale the cost matrix for the OT problem solved by the
+      `ot_solver`.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function as suggested in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function as suggested in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+    mlp_eta: Neural network to learn the left rescaling function as suggested
+      in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function as suggested
+      in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
@@ -271,8 +280,10 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   ) -> diffrax.Solution:
     """Transport data with the learnt map.
 
-    This method solves the neural ODE parameterized by the :attr:`~ott.neural.solvers.OTFlowMatching.neural_vector_field` from
-    :attr:`~ott.neural.flows.BaseTimeSampler.low` to :attr:`~ott.neural.flows.BaseTimeSampler.high` if `forward` is `True`,
+    This method solves the neural ODE parameterized by the
+    :attr:`~ott.neural.solvers.OTFlowMatching.neural_vector_field` from
+    :attr:`~ott.neural.flows.BaseTimeSampler.low` to
+    :attr:`~ott.neural.flows.BaseTimeSampler.high` if `forward` is `True`,
     else the other way round.
 
     Args:
@@ -282,7 +293,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       diffeqsolve_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learnt transport plan.
+      The push-forward or pull-back distribution defined by the learnt 
+      transport plan.
 
     """
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
@@ -320,7 +332,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   @property
   def learn_rescaling(self) -> bool:
-    """Whether to learn at least one rescaling factor of the marginal distributions."""
+    """Whether to learn at least one rescaling factor."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
   def save(self, path: str) -> None:

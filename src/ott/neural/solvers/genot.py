@@ -54,24 +54,44 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     cond_dim: Dimension of the conditioning variable.
     iterations: Number of iterations.
     valid_freq: Frequency of validation.
-    ot_solver: OT solver to match samples from the source and the target distribution.
-    epsilon: Entropy regularization term of the OT problem solved by `ot_solver`.
-    cost_fn: Cost function for the OT problem solved by the `ot_solver`. In the linear case, this is always expected to be of type `str`. If the problem is of quadratic type and `cost_fn` is a string, the `cost_fn` is used for all terms, i.e. both quadratic terms and, if applicable, the linear temr. If of type :class:`dict`, the keys are expected to be `cost_fn_xx`, `cost_fn_yy`, and if applicable, `cost_fn_xy`.
-    scale_cost: How to scale the cost matrix for the OT problem solved by the `ot_solver`. In the linear case, this is always expected to be not a :class:`dict`. If the problem is of quadratic type and `scale_cost` is a string, the `scale_cost` argument is used for all terms, i.e. both quadratic terms and, if applicable, the linear temr. If of type :class:`dict`, the keys are expected to be `scale_cost_xx`, `scale_cost_yy`, and if applicable, `scale_cost_xy`.
+    ot_solver: OT solver to match samples from the source and the target
+      distribution.
+    epsilon: Entropy regularization term of the OT problem solved by
+      `ot_solver`.
+    cost_fn: Cost function for the OT problem solved by the `ot_solver`.
+      In the linear case, this is always expected to be of type `str`.
+      If the problem is of quadratic type and `cost_fn` is a string,
+      the `cost_fn` is used for all terms, i.e. both quadratic terms and,
+      if applicable, the linear temr. If of type :class:`dict`, the keys
+      are expected to be `cost_fn_xx`, `cost_fn_yy`, and if applicable,
+      `cost_fn_xy`.
+    scale_cost: How to scale the cost matrix for the OT problem solved by
+      the `ot_solver`. In the linear case, this is always expected to be
+      not a :class:`dict`. If the problem is of quadratic type and
+      `scale_cost` is a string, the `scale_cost` argument is used for all
+      terms, i.e. both quadratic terms and, if applicable, the linear temr.
+      If of type :class:`dict`, the keys are expected to be `scale_cost_xx`,
+      `scale_cost_yy`, and if applicable, `scale_cost_xy`.
     optimizer: Optimizer for `neural_vector_field`.
     flow: Flow between latent distribution and target distribution.
     time_sampler: Sampler for the time.
     checkpoint_manager: Checkpoint manager.
-    k_samples_per_x: Number of samples drawn from the conditional distribution of an input sample, see algorithm TODO.
-    solver_latent_to_data: Linear OT solver to match the latent distribution with the conditional distribution. Only applicable if `k_samples_per_x` is larger than :math:`1`. #TODO: adapt
-    kwargs_solver_latent_to_data: Keyword arguments for `solver_latent_to_data`. #TODO: adapt
-    fused_penalty: Fused penalty of the linear/fused term in the Fused Gromov-Wasserstein problem.
+    k_samples_per_x: Number of samples drawn from the conditional distribution
+      of an input sample, see algorithm TODO.
+    solver_latent_to_data: Linear OT solver to match the latent distribution
+      with the conditional distribution.
+    kwargs_solver_latent_to_data: Keyword arguments for `solver_latent_to_data`.
+      #TODO: adapt
+    fused_penalty: Fused penalty of the linear/fused term in the Fused
+      Gromov-Wasserstein problem.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function. If `None`, the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function. If `None`, the right rescaling factor is not learnt.
+    mlp_eta: Neural network to learn the left rescaling function. If `None`,
+      the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function. If `None`,
+      the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
    callback_fn: Callback function.
     rng: Random number generator.
@@ -107,7 +127,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       tau_b: float = 1.0,
       mlp_eta: Callable[[jnp.ndarray], float] = None,
       mlp_xi: Callable[[jnp.ndarray], float] = None,
-      unbalanced_kwargs: Dict[str, Any] = {},
+      unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       rng: random.PRNGKeyArray = random.PRNGKey(0),
@@ -133,8 +153,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         ot_solver, gromov_wasserstein.GromovWasserstein
     ) and epsilon is not None:
       raise ValueError(
-          "If `ot_solver` is `GromovWasserstein`, `epsilon` must be `None`. This check is performed "
-          "to ensure that in the (fused) Gromov case the `epsilon` parameter is passed via the `ot_solver`."
+          "If `ot_solver` is `GromovWasserstein`, `epsilon` must be `None`. " +
+          "This check is performed to ensure that in the (fused) Gromov case " +
+          "the `epsilon` parameter is passed via the `ot_solver`."
       )
 
     self.rng = rng
@@ -356,8 +377,11 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
     """Transport data with the learnt plan.
 
-    This method pushes-forward the `source` to its conditional distribution by solving the neural ODE parameterized by the :attr:`~ott.neural.solvers.GENOTg.neural_vector_field` from
-    :attr:`~ott.neural.flows.BaseTimeSampler.low` to :attr:`~ott.neural.flows.BaseTimeSampler.high`.
+    This method pushes-forward the `source` to its conditional distribution by
+      solving the neural ODE parameterized by the
+      :attr:`~ott.neural.solvers.GENOTg.neural_vector_field` from
+      :attr:`~ott.neural.flows.BaseTimeSampler.low` to
+      :attr:`~ott.neural.flows.BaseTimeSampler.high`.
 
     Args:
       source: Data to transport.
@@ -367,7 +391,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       diffeqsolve_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learnt transport plan.
+      The push-forward or pull-back distribution defined by the learnt
+      transport plan.
 
     """
     if not forward:
@@ -411,7 +436,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   @property
   def learn_rescaling(self) -> bool:
-    """Whether to learn at least one rescaling factor of the marginal distributions."""
+    """Whether to learn at least one rescaling factor."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
   def save(self, path: str) -> None:
