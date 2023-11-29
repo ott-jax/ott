@@ -36,7 +36,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural import models
+from ott.neural.models import models
 from ott.neural.solvers import conjugate
 from ott.problems.linear import potentials
 
