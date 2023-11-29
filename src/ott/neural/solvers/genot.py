@@ -133,6 +133,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                      Any]] = None,
       rng: Optional[jnp.ndarray] = None,
   ) -> None:
+    rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
