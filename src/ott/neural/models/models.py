@@ -26,9 +26,10 @@ from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
 from ott.math import matrix_square_root
-from ott.neural import layers
+from ott.neural.models import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
+from ott.neural.models.base_models import BaseNeuralVectorField, BaseRescalingNet
 
 __all__ = [
     "ICNN", "MLP", "MetaInitializer", "NeuralVectorField", "RescalingMLP"

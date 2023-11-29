@@ -18,7 +18,7 @@ import pytest
 
 from ott import datasets
 from ott.geometry import pointcloud
-from ott.neural import losses, models
+from ott.neural.models import losses, models
 from ott.neural.solvers import map_estimator
 from ott.tools import sinkhorn_divergence
 

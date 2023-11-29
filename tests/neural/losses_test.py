@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from ott.geometry import costs
-from ott.neural import losses, models
+from ott.neural.models import losses, models
 
 
 @pytest.mark.fast()
