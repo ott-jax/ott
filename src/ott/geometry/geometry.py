@@ -625,7 +625,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.

@@ -110,7 +110,7 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: Optional[jnp.ndarray] = None,
+    rng: Optional[jax.Array] = None,
 ) -> Tuple[Dataset, Dataset, int]:
   """Gaussian samplers.
 

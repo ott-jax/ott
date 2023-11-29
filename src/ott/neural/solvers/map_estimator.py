@@ -88,7 +88,7 @@ class MapEstimator:
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer

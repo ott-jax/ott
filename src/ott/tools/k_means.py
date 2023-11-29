@@ -352,7 +352,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    rng: Optional[jnp.ndarray] = None,
+    rng: Optional[jax.Array] = None,
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 

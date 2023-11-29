@@ -169,7 +169,7 @@ class LRInitializer(abc.ABC):
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
       *,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       **kwargs: Any
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.

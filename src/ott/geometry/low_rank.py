@@ -229,7 +229,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.0,
   ) -> "LRCGeometry":
     """Return self."""

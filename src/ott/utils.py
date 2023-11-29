@@ -69,7 +69,7 @@ def deprecate(  # noqa: D103
   return functools.wraps(func)(wrapper)
 
 
-def default_prng_key(rng: Optional[jnp.ndarray] = None) -> jnp.ndarray:
+def default_prng_key(rng: Optional[jax.Array] = None) -> jnp.ndarray:
   """Get the default PRNG key.
 
   Args:

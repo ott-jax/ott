@@ -136,7 +136,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_init: Optional[Union[jnp.ndarray, Tuple[jnp.ndarray,
                                                   jnp.ndarray]]] = None,
       a: Optional[jnp.ndarray] = None,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> GWBarycenterState:
     """Initialize the (fused) Gromov-Wasserstein barycenter state.
 

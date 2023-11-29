@@ -268,7 +268,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
       meta_model: nn.Module,
       opt: Optional[optax.GradientTransformation
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       state: Optional[train_state.TrainState] = None
   ):
     self.geom = geom
@@ -334,7 +334,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
       self,
       ot_prob: "linear_problem.LinearProblem",
       lse_mode: bool,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.

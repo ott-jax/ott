@@ -116,7 +116,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       logging_freq: int = 100,
       valid_freq: int = 5000,
       num_eval_samples: int = 1000,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> None:
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)

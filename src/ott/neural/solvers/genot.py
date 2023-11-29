@@ -131,7 +131,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> None:
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)
@@ -379,7 +379,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       self,
       source: jnp.ndarray,
       condition: Optional[jnp.ndarray],
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
   ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:

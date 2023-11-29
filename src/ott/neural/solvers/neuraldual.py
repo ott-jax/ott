@@ -243,7 +243,7 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jnp.ndarray] = None,
+      rng: Optional[jax.Array] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
       conjugate_solver: Optional[conjugate.FenchelConjugateSolver
