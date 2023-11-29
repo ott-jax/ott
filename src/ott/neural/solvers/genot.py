@@ -15,13 +15,13 @@ import functools
 import types
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union
 
-import diffrax
 import jax
 import jax.numpy as jnp
+
+import diffrax
 import optax
 from flax.training import train_state
 from flax.training.train_state import TrainState
-from jax import random
 from orbax import checkpoint
 
 from ott import utils
@@ -134,7 +134,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       rng: Optional[jnp.ndarray] = None,
   ) -> None:
     rng = utils.default_prng_key(rng)
-    rng, rng_unbalanced = random.split(rng)
+    rng, rng_unbalanced = jax.random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
@@ -343,7 +343,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
       def loss_fn(
           params: jnp.ndarray, batch: Dict[str, jnp.array],
-          keys_model: random.PRNGKeyArray
+          keys_model: jax.random.PRNGKeyArray
       ):
         x_t = self.flow.compute_xt(
             batch["noise"], batch["time"], batch["latent"], batch["target"]
@@ -366,7 +366,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         )
         return jnp.mean((v_t - u_t) ** 2)
 
-      keys_model = random.split(key, len(batch["noise"]))
+      keys_model = jax.random.split(key, len(batch["noise"]))
 
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
       loss, grads = grad_fn(state_neural_vector_field.params, batch, keys_model)
@@ -472,7 +472,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jnp.ndarray:
+  def sample_noise(
+      self, key: jax.random.PRNGKey, batch_size: int
+  ) -> jnp.ndarray:
     """Sample noise from a standard-normal distribution.
 
     Args:
@@ -482,4 +484,4 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Returns:
       Samples from the standard normal distribution.
     """
-    return random.normal(key, shape=(batch_size, self.output_dim))
+    return jax.random.normal(key, shape=(batch_size, self.output_dim))

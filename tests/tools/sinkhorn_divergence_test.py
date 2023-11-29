@@ -13,10 +13,11 @@
 # limitations under the License.
 from typing import Any, Dict, Optional
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import costs, geometry, pointcloud
 from ott.solvers import linear

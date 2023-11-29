@@ -13,10 +13,11 @@
 # limitations under the License.
 import functools
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 import scipy as sp
 
 from ott.geometry import costs, pointcloud

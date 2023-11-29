@@ -15,10 +15,11 @@ import os
 import sys
 from typing import Any, Literal, Optional, Tuple, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 from sklearn import datasets
 from sklearn.cluster import KMeans, kmeans_plusplus
 from sklearn.cluster._k_means_common import _is_same_clustering

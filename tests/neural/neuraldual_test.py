@@ -13,9 +13,10 @@
 # limitations under the License.
 from typing import Optional, Sequence, Tuple
 
+import pytest
+
 import jax
 import numpy as np
-import pytest
 
 from ott import datasets
 from ott.neural import models

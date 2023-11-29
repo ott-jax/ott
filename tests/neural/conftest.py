@@ -1,5 +1,6 @@
-import numpy as np
 import pytest
+
+import numpy as np
 
 from ott.neural.data.dataloaders import ConditionalDataLoader, OTDataLoader
 

@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
-import pytest
+
+import matplotlib.pyplot as plt
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem, potentials

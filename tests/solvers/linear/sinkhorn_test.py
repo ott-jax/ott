@@ -15,10 +15,11 @@ import io
 import sys
 from typing import Optional, Tuple
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott import utils
 from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud

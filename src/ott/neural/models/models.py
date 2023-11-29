@@ -14,13 +14,14 @@
 import functools
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
-import flax.linen as nn
 import jax
 import jax.numpy as jnp
+from jax.nn import initializers
+
+import flax.linen as nn
 import optax
 from flax.core import frozen_dict
 from flax.training import train_state
-from jax.nn import initializers
 
 from ott import utils
 from ott.geometry import geometry

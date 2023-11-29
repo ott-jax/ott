@@ -15,11 +15,13 @@ import collections.abc
 import itertools
 from typing import Any, Mapping, Optional, Sequence
 
+from _pytest.python import Metafunc
+
+import pytest
+
 import jax
 import jax.experimental
 import jax.numpy as jnp
-import pytest
-from _pytest.python import Metafunc
 
 
 def pytest_generate_tests(metafunc: Metafunc) -> None:

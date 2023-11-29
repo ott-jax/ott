@@ -18,9 +18,9 @@ from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+
 import optax
 from flax.training import train_state
-from jax import random
 
 from ott.geometry import costs, pointcloud
 from ott.geometry.pointcloud import PointCloud
@@ -89,7 +89,7 @@ class ResampleMixin:
   ) -> Tuple[jnp.ndarray, ...]:
     """Resample a batch according to coupling `tmat`."""
     tmat_flattened = tmat.flatten()
-    indices = random.choice(key, len(tmat_flattened), shape=[tmat.shape[0]])
+    indices = jax.random.choice(key, len(tmat_flattened), shape=[tmat.shape[0]])
     indices_source = indices // tmat.shape[1]
     indices_target = indices % tmat.shape[1]
     return tuple(

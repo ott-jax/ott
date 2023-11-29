@@ -15,10 +15,11 @@
 import functools
 from typing import Callable
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from ott.geometry import costs, distrib_costs, pointcloud
 from ott.initializers.linear import initializers

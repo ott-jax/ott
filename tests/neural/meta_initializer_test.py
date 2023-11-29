@@ -13,9 +13,11 @@
 # limitations under the License.
 from typing import Optional
 
+import pytest
+
 import jax
 import jax.numpy as jnp
-import pytest
+
 from flax import linen as nn
 
 from ott.geometry import pointcloud

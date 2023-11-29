@@ -14,8 +14,9 @@
 import abc
 from typing import Optional
 
-import flax.linen as nn
 import jax.numpy as jnp
+
+import flax.linen as nn
 
 __all__ = ["BaseNeuralVectorField", "BaseRescalingNet"]
 

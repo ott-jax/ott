@@ -14,11 +14,12 @@
 from typing import Any, Callable, Optional, TypeVar
 
 import equinox as eqx
+import lineax as lx
+from jaxtyping import Array, Float, PyTree
+
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-import lineax as lx
-from jaxtyping import Array, Float, PyTree
 
 _T = TypeVar("_T")
 _FlatPyTree = tuple[list[_T], jtu.PyTreeDef]

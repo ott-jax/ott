@@ -26,12 +26,12 @@ from typing import (
     Union,
 )
 
-import diffrax
 import jax
 import jax.numpy as jnp
+
+import diffrax
 import optax
 from flax.training import train_state
-from jax import random
 from orbax import checkpoint
 
 from ott import utils
@@ -42,10 +42,7 @@ from ott.neural.solvers.base_solver import (
     ResampleMixin,
     UnbalancednessMixin,
 )
-from ott.neural.solvers.flows import (
-    BaseFlow,
-    BaseTimeSampler,
-)
+from ott.neural.solvers.flows import BaseFlow, BaseTimeSampler
 from ott.solvers import was_solver
 
 __all__ = ["OTFlowMatching"]
@@ -122,7 +119,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       rng: Optional[jnp.ndarray] = None,
   ) -> None:
     rng = utils.default_prng_key(rng)
-    rng, rng_unbalanced = random.split(rng)
+    rng, rng_unbalanced = jax.random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
@@ -183,14 +180,14 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     @jax.jit
     def step_fn(
-        key: random.PRNGKeyArray,
+        key: jax.random.PRNGKeyArray,
         state_neural_vector_field: train_state.TrainState,
         batch: Dict[str, jnp.ndarray],
     ) -> Tuple[Any, Any]:
 
       def loss_fn(
           params: jnp.ndarray, t: jnp.ndarray, noise: jnp.ndarray,
-          batch: Dict[str, jnp.ndarray], keys_model: random.PRNGKeyArray
+          batch: Dict[str, jnp.ndarray], keys_model: jax.random.PRNGKeyArray
       ) -> jnp.ndarray:
 
         x_t = self.flow.compute_xt(
@@ -209,8 +206,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         return jnp.mean((v_t - u_t) ** 2)
 
       batch_size = len(batch["source_lin"])
-      key_noise, key_t, key_model = random.split(key, 3)
-      keys_model = random.split(key_model, batch_size)
+      key_noise, key_t, key_model = jax.random.split(key, 3)
+      keys_model = jax.random.split(key_model, batch_size)
       t = self.time_sampler(key_t, batch_size)
       noise = self.sample_noise(key_noise, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
@@ -235,7 +232,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     curr_loss = 0.0
 
     for iter in range(self.iterations):
-      rng_resample, rng_step_fn, self.rng = random.split(self.rng, 3)
+      rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
       batch = next(train_loader)
       if self.ot_solver is not None:
         tmat = self.match_fn(batch["source_lin"], batch["target_lin"])
@@ -366,7 +363,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise(self, key: random.PRNGKey, batch_size: int) -> jnp.ndarray:
+  def sample_noise(
+      self, key: jax.random.PRNGKey, batch_size: int
+  ) -> jnp.ndarray:
     """Sample noise from a standard-normal distribution.
 
     Args:
@@ -376,4 +375,4 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Returns:
       Samples from the standard normal distribution.
     """
-    return random.normal(key, shape=(batch_size, self.input_dim))
+    return jax.random.normal(key, shape=(batch_size, self.input_dim))

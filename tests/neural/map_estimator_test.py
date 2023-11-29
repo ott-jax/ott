@@ -13,8 +13,9 @@
 # limitations under the License.
 from typing import Optional
 
-import jax.numpy as jnp
 import pytest
+
+import jax.numpy as jnp
 
 from ott import datasets
 from ott.geometry import pointcloud

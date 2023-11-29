@@ -13,9 +13,11 @@
 # limitations under the License.
 from typing import Iterator, Type
 
-import jax.numpy as jnp
-import optax
 import pytest
+
+import jax.numpy as jnp
+
+import optax
 
 from ott.neural.models.models import NeuralVectorField, RescalingMLP
 from ott.neural.solvers.flows import (

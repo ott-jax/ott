@@ -27,9 +27,10 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+
+import flax.linen as nn
 import optax
 from flax import core, struct
-from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
 

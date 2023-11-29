@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import jax
+
 import matplotlib.pyplot as plt
 
 import ott
