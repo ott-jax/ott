@@ -44,7 +44,7 @@ class ScaleTriL:
   @classmethod
   def from_random(
       cls,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: jnp.dtype = jnp.float32,

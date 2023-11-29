@@ -29,7 +29,7 @@ from ott.solvers.linear import univariate
 class TestUnivariate:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self.rng = rng
     self.n = 7
     self.m = 5
@@ -120,7 +120,7 @@ class TestUnivariate:
   @pytest.mark.fast()
   def test_univariate_grad(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
   ):
     # TODO: Once a `check_grad` function is implemented, replace the code
     # blocks before with `check_grad`'s.

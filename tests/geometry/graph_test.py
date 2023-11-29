@@ -78,7 +78,7 @@ def gt_geometry(
 
 class TestGraph:
 
-  def test_kernel_is_symmetric_positive_definite(self, rng: jnp.ndarray):
+  def test_kernel_is_symmetric_positive_definite(self, rng: jax.Array):
     n, tol = 65, 0.02
     x = jax.random.normal(rng, (n,))
     geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
@@ -115,7 +115,7 @@ class TestGraph:
   )
   def test_approximates_ground_truth(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       numerical_scheme: Literal["backward_euler", "crank_nicolson"],
   ):
     eps, n_steps = 1e-5, 20
@@ -209,7 +209,7 @@ class TestGraph:
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_graph_sinkhorn(self, rng: jnp.ndarray, jit: bool):
+  def test_graph_sinkhorn(self, rng: jax.Array, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -252,7 +252,7 @@ class TestGraph:
       ids=["not-implicit", "implicit"],
   )
   def test_dense_graph_differentiability(
-      self, rng: jnp.ndarray, implicit_diff: bool
+      self, rng: jax.Array, implicit_diff: bool
   ):
 
     def callback(
@@ -287,7 +287,7 @@ class TestGraph:
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
-  def test_tolerance_hilbert_metric(self, rng: jnp.ndarray):
+  def test_tolerance_hilbert_metric(self, rng: jax.Array):
     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
     G = random_graph(n, p=0.15)
     x = jnp.abs(jax.random.normal(rng, (n,)))

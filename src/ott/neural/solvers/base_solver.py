@@ -258,7 +258,7 @@ class UnbalancednessMixin:
 
   def __init__(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       source_dim: int,
       target_dim: int,
       cond_dim: Optional[int],

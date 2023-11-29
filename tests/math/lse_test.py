@@ -23,7 +23,7 @@ from ott.math import utils as mu
 @pytest.mark.fast()
 class TestGeometryLse:
 
-  def test_lse(self, rng: jnp.ndarray):
+  def test_lse(self, rng: jax.Array):
     """Test consistency of custom lse's jvp."""
     n, m = 12, 8
     rngs = jax.random.split(rng, 5)

@@ -195,7 +195,7 @@ def _get_dist_sq(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
 
 
 def _get_locs(
-    rng: jnp.ndarray, points: jnp.ndarray, n_components: int
+    rng: jax.Array, points: jnp.ndarray, n_components: int
 ) -> jnp.ndarray:
   """Get the initial component means.
 
@@ -229,7 +229,7 @@ def _get_locs(
 
 
 def from_kmeans_plusplus(
-    rng: jnp.ndarray,
+    rng: jax.Array,
     points: jnp.ndarray,
     point_weights: Optional[jnp.ndarray],
     n_components: int,
@@ -265,7 +265,7 @@ def from_kmeans_plusplus(
 
 
 def initialize(
-    rng: jnp.ndarray,
+    rng: jax.Array,
     points: jnp.ndarray,
     point_weights: Optional[jnp.ndarray],
     n_components: int,

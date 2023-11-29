@@ -32,7 +32,7 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("as_pc", [False, True])
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
-      self, rng: jnp.ndarray, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+      self, rng: jax.Array, as_pc: bool, rank: Union[int, Tuple[int, ...]]
   ):
     n, m, d1, d2, d = 100, 120, 4, 6, 10
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
@@ -88,7 +88,7 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
-  def test_gw_implicit_conversion_mixed_input(self, rng: jnp.ndarray):
+  def test_gw_implicit_conversion_mixed_input(self, rng: jax.Array):
     n, m, d1, d2 = 13, 77, 3, 4
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n, d1))
@@ -108,7 +108,7 @@ class TestQuadraticProblem:
 class TestGromovWasserstein:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     d_x = 2
     d_y = 3
     self.n, self.m = 6, 7
@@ -311,7 +311,7 @@ class TestGromovWasserstein:
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
   @pytest.mark.fast()
-  def test_gw_lr(self, rng: jnp.ndarray):
+  def test_gw_lr(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same problem."""
     rngs = jax.random.split(rng, 4)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -335,7 +335,7 @@ class TestGromovWasserstein:
         ot_gwlr.primal_cost, ot_gw.primal_cost, rtol=5e-2
     )
 
-  def test_gw_lr_matches_fused(self, rng: jnp.ndarray):
+  def test_gw_lr_matches_fused(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same fused problem."""
     rngs = jax.random.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
@@ -386,7 +386,7 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
   def test_relative_epsilon(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       scale_cost: Union[float, str],
   ):
     eps = 1e-2

@@ -196,7 +196,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 def iterations(
     solver: FreeWassersteinBarycenter, bar_size: int,
     bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
-    rng: jnp.ndarray
+    rng: jax.Array
 ) -> FreeBarycenterState:
   """Jittable Wasserstein barycenter outer loop."""
 

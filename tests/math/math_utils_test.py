@@ -27,7 +27,7 @@ class TestNorm:
   @pytest.mark.parametrize("ord", [1.1, 2.0, jnp.inf])
   def test_norm(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       ord,
   ):
     d = 5

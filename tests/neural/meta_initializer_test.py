@@ -42,7 +42,7 @@ class MetaMLP(nn.Module):
 
 
 def create_ot_problem(
-    rng: jnp.ndarray,
+    rng: jax.Array,
     n: int,
     m: int,
     d: int,
@@ -88,7 +88,7 @@ def run_sinkhorn(
 class TestMetaInitializer:
 
   @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_meta_initializer(self, rng: jnp.ndarray, lse_mode: bool):
+  def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2

@@ -35,7 +35,7 @@ class Probabilities:
   @classmethod
   def from_random(
       cls,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
       dtype: Optional[jnp.dtype] = None
@@ -76,7 +76,7 @@ class Probabilities:
     """Get the probabilities."""
     return jax.nn.softmax(self.unnormalized_log_probs())
 
-  def sample(self, rng: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
     """Sample from the distribution."""
     return jax.random.categorical(
         key=rng, logits=self.unnormalized_log_probs(), shape=(size,)

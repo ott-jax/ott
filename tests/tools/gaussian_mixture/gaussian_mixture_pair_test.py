@@ -23,7 +23,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 class TestGaussianMixturePair:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self.n_components = 3
     self.n_dimensions = 2
     self.epsilon = 1.e-3

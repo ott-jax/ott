@@ -180,7 +180,7 @@ class BaseTimeSampler(abc.ABC):
     self.high = high
 
   @abc.abstractmethod
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
@@ -201,7 +201,7 @@ class UniformSampler(BaseTimeSampler):
   def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
     super().__init__(low=low, high=high)
 
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:
@@ -234,7 +234,7 @@ class OffsetUniformSampler(BaseTimeSampler):
     super().__init__(low=low, high=high)
     self.offset = offset
 
-  def __call__(self, rng: jnp.ndarray, num_samples: int) -> jnp.ndarray:
+  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
     """Generate `num_samples` samples of the time `math`:t:.
 
     Args:

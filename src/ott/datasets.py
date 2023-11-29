@@ -57,7 +57,7 @@ class GaussianMixture:
   """
   name: Name_t
   batch_size: int
-  rng: jnp.ndarray
+  rng: jax.Array
   scale: float = 5.0
   std: float = 0.5
 

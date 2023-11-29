@@ -29,7 +29,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 class TestSinkhornDivergence:
 
   @pytest.fixture(autouse=True)
-  def setUp(self, rng: jnp.ndarray):
+  def setUp(self, rng: jax.Array):
     self._dim = 4
     self._num_points = 13, 17
     self.rng, *rngs = jax.random.split(rng, 3)
@@ -390,7 +390,7 @@ class TestSinkhornDivergence:
 class TestSinkhornDivergenceGrad:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self._dim = 3
     self._num_points = 13, 12
     self.rng, *rngs = jax.random.split(rng, 3)

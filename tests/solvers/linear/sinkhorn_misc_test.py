@@ -39,7 +39,7 @@ class TestSinkhornAnderson:
       only_fast=0,
   )
   def test_anderson(
-      self, rng: jnp.ndarray, lse_mode: bool, tau_a: float, tau_b: float
+      self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float
   ):
     """Test efficiency of Anderson acceleration.
 
@@ -131,7 +131,7 @@ class TestSinkhornBures:
   @pytest.mark.parametrize(("unbalanced", "thresh"), [(False, 1e-3),
                                                       (True, 1e-4)])
   def test_bures_point_cloud(
-      self, rng: jnp.ndarray, lse_mode: bool, unbalanced: bool, thresh: float
+      self, rng: jax.Array, lse_mode: bool, unbalanced: bool, thresh: float
   ):
     """Two point clouds of Gaussians, tested with various parameters."""
     if unbalanced:
@@ -172,7 +172,7 @@ class TestSinkhornBures:
 class TestSinkhornOnline:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self.dim = 3
     self.n = 100
     self.m = 42
@@ -237,7 +237,7 @@ class TestSinkhornOnline:
 class TestSinkhornUnbalanced:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self.dim = 4
     self.n = 17
     self.m = 23
@@ -318,7 +318,7 @@ class TestSinkhornJIT:
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     self.dim = 3
     self.n = 10
     self.m = 11

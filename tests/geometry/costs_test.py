@@ -36,7 +36,7 @@ def _proj(matrix: jnp.ndarray) -> jnp.ndarray:
 @pytest.mark.fast()
 class TestCostFn:
 
-  def test_cosine(self, rng: jnp.ndarray):
+  def test_cosine(self, rng: jax.Array):
     """Test the cosine cost function."""
     x = jnp.array([0, 0])
     y = jnp.array([0, 0])
@@ -85,7 +85,7 @@ class TestCostFn:
 @pytest.mark.fast()
 class TestBuresBarycenter:
 
-  def test_bures(self, rng: jnp.ndarray):
+  def test_bures(self, rng: jax.Array):
     d = 3
     r = jnp.array([1.2036, 0.2825, 0.013])
     Sigma1 = r * jnp.eye(d)
@@ -142,7 +142,7 @@ class TestRegTICost:
   )
   def test_reg_cost_legendre(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       scaling_reg: float,
       cost_fn_t: Type[costs.RegTICost],
       use_mat: bool,
@@ -164,7 +164,7 @@ class TestRegTICost:
 
   @pytest.mark.parametrize("k", [1, 3, 10])
   @pytest.mark.parametrize("d", [10, 50])
-  def test_elastic_sq_k_overlap(self, rng: jnp.ndarray, k: int, d: int):
+  def test_elastic_sq_k_overlap(self, rng: jax.Array, k: int, d: int):
     expected = jax.random.normal(rng, (d,))
 
     cost_fn = costs.ElasticSqKOverlap(k=k, scaling_reg=1e-2)
@@ -179,9 +179,7 @@ class TestRegTICost:
           costs.ElasticSqKOverlap(k=3, scaling_reg=17)
       ]
   )
-  def test_sparse_displacement(
-      self, rng: jnp.ndarray, cost_fn: costs.RegTICost
-  ):
+  def test_sparse_displacement(self, rng: jax.Array, cost_fn: costs.RegTICost):
     frac_sparse = 0.7
     rng1, rng2 = jax.random.split(rng, 2)
     d = 17
@@ -197,7 +195,7 @@ class TestRegTICost:
 
   @pytest.mark.parametrize("cost_type_t", [costs.ElasticL1, costs.ElasticSTVS])
   def test_stronger_regularization_increases_sparsity(
-      self, rng: jnp.ndarray, cost_type_t: Type[costs.RegTICost]
+      self, rng: jax.Array, cost_type_t: Type[costs.RegTICost]
   ):
     d, rngs = 17, jax.random.split(rng, 4)
     x = jax.random.normal(rngs[0], (50, d))
@@ -226,7 +224,7 @@ class TestSoftDTW:
   @pytest.mark.parametrize("n", [7, 10])
   @pytest.mark.parametrize("m", [9, 10])
   @pytest.mark.parametrize("gamma", [1e-3, 5])
-  def test_soft_dtw(self, rng: jnp.ndarray, n: int, m: int, gamma: float):
+  def test_soft_dtw(self, rng: jax.Array, n: int, m: int, gamma: float):
     rng1, rng2 = jax.random.split(rng, 2)
     t1 = jax.random.normal(rng1, (n,))
     t2 = jax.random.normal(rng2, (m,))
@@ -239,7 +237,7 @@ class TestSoftDTW:
   @pytest.mark.parametrize(("debiased", "jit"), [(False, True), (True, False)])
   def test_soft_dtw_debiased(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       debiased: bool,
       jit: bool,
   ):
@@ -266,7 +264,7 @@ class TestSoftDTW:
   @pytest.mark.parametrize(("debiased", "jit"), [(False, False), (True, True)])
   @pytest.mark.parametrize("gamma", [1e-2, 1])
   def test_soft_dtw_grad(
-      self, rng: jnp.ndarray, debiased: bool, jit: bool, gamma: float
+      self, rng: jax.Array, debiased: bool, jit: bool, gamma: float
   ):
     rngs = jax.random.split(rng, 4)
     eps, tol = 1e-3, 1e-5

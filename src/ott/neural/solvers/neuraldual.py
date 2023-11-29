@@ -149,7 +149,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
 
   def create_train_state(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       optimizer: optax.OptState,
       input: Union[int, Tuple[int, ...]],
       **kwargs: Any,
@@ -289,7 +289,7 @@ class W2NeuralDual:
 
   def setup(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       neural_f: BaseW2NeuralDual,
       neural_g: BaseW2NeuralDual,
       dim_data: int,

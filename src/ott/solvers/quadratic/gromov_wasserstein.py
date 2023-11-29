@@ -272,7 +272,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       prob: quadratic_problem.QuadraticProblem,
       init: linear_problem.LinearProblem,
-      rng: jnp.ndarray,
+      rng: jax.Array,
   ) -> GWState:
     """Initialize the state of the Gromov-Wasserstein iterations.
 
@@ -361,7 +361,7 @@ def iterations(
     solver: GromovWasserstein,
     prob: quadratic_problem.QuadraticProblem,
     init: linear_problem.LinearProblem,
-    rng: jnp.ndarray,
+    rng: jax.Array,
 ) -> GWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 

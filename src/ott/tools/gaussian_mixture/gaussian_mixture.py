@@ -78,7 +78,7 @@ class GaussianMixture:
   @classmethod
   def from_random(
       cls,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       n_components: int,
       n_dimensions: int,
       stdev_mean: float = 0.1,
@@ -219,7 +219,7 @@ class GaussianMixture:
     """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 
-  def sample(self, rng: jnp.ndarray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
     subrng0, subrng1 = jax.random.split(rng)
     component = self.component_weight_ob.sample(rng=subrng0, size=size)

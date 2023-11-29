@@ -24,7 +24,7 @@ from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 class TestFitGmm:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jnp.ndarray):
+  def initialize(self, rng: jax.Array):
     mean_generator = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
     cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
                                [[0.5, 0.4], [0.4, 0.5]]])

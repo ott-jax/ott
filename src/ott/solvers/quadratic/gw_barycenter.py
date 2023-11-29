@@ -282,7 +282,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
 @partial(jax.vmap, in_axes=[None, 0, None, 0, None])
 def init_transports(
-    solver, rng: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+    solver, rng: jax.Array, a: jnp.ndarray, b: jnp.ndarray,
     epsilon: Optional[float]
 ) -> jnp.ndarray:
   """Initialize random 2D point cloud and solve the linear OT problem.
