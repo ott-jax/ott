@@ -172,7 +172,10 @@ class TestOTFlowMatching:
       self, conditional: bool, data_loader_gaussian: Iterator,
       data_loader_gaussian_conditional: Iterator
   ):
-    data_loader = data_loader_gaussian_conditional if conditional else data_loader_gaussian
+    data_loader = (
+        data_loader_gaussian_conditional
+        if conditional else data_loader_gaussian
+    )
     batch = next(data_loader)
     source_dim = batch["source_lin"].shape[1]
     condition_dim = batch["source_conditions"].shape[1] if conditional else 0

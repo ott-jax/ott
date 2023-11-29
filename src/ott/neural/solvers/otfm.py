@@ -34,6 +34,7 @@ from flax.training import train_state
 from jax import random
 from orbax import checkpoint
 
+from ott import utils
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
@@ -104,7 +105,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
-      cost_fn: Type[costs.CostFn] = costs.SqEuclidean(),
+      cost_fn: Optional[Type[costs.CostFn]] = None,
       scale_cost: Union[bool, int, float,
                         Literal["mean", "max_norm", "max_bound", "max_cost",
                                 "median"]] = "mean",
@@ -112,14 +113,15 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       tau_b: float = 1.0,
       mlp_eta: Callable[[jnp.ndarray], float] = None,
       mlp_xi: Callable[[jnp.ndarray], float] = None,
-      unbalanced_kwargs: Dict[str, Any] = {},
+      unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       logging_freq: int = 100,
       valid_freq: int = 5000,
       num_eval_samples: int = 1000,
-      rng: random.PRNGKeyArray = random.PRNGKey(0),
+      rng: Optional[jnp.ndarray] = None,
   ) -> None:
+    rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = random.split(rng)
     BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
@@ -158,8 +160,10 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def setup(self) -> None:
     """Setup :class:`OTFlowMatching`."""
-    self.state_neural_vector_field = self.neural_vector_field.create_train_state(
-        self.rng, self.optimizer, self.input_dim
+    self.state_neural_vector_field = (
+        self.neural_vector_field.create_train_state(
+            self.rng, self.optimizer, self.input_dim
+        )
     )
 
     self.step_fn = self._get_step_fn()
@@ -250,7 +254,10 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         self._training_logs["loss"].append(curr_loss / self.logging_freq)
         curr_loss = 0.0
       if self.learn_rescaling:
-        self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
+        (
+            self.state_eta, self.state_xi, eta_predictions, xi_predictions,
+            loss_a, loss_b
+        ) = self.unbalancedness_step_fn(
             source=batch["source_lin"],
             target=batch["target_lin"],
             condition=batch["source_conditions"],
@@ -293,7 +300,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       diffeqsolve_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learnt 
+      The push-forward or pull-back distribution defined by the learnt
       transport plan.
 
     """

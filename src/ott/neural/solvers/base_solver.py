@@ -152,7 +152,7 @@ class ResampleMixin:
       self,
       ot_solver: Any,
       epsilon: float = 1e-2,
-      cost_fn: costs.CostFn = costs.SqEuclidean(),
+      cost_fn: Optional[costs.CostFn] = None,
       scale_cost: Union[bool, int, float,
                         Literal["mean", "max_norm", "max_bound", "max_cost",
                                 "median"]] = "mean",

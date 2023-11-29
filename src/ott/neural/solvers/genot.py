@@ -24,6 +24,7 @@ from flax.training.train_state import TrainState
 from jax import random
 from orbax import checkpoint
 
+from ott import utils
 from ott.geometry import costs
 from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
@@ -130,7 +131,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
-      rng: random.PRNGKeyArray = random.PRNGKey(0),
+      rng: Optional[jnp.ndarray] = None,
   ) -> None:
     rng, rng_unbalanced = random.split(rng)
     BaseNeuralSolver.__init__(
@@ -158,7 +159,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           "the `epsilon` parameter is passed via the `ot_solver`."
       )
 
-    self.rng = rng
+    self.rng = utils.default_prng_key(rng)
     self.neural_vector_field = neural_vector_field
     self.state_neural_vector_field: Optional[TrainState] = None
     self.flow = flow
@@ -198,8 +199,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     kwargs
     Keyword arguments for the setup function
     """
-    self.state_neural_vector_field = self.neural_vector_field.create_train_state(
-        self.rng, self.optimizer, self.output_dim
+    self.state_neural_vector_field = (
+        self.neural_vector_field.create_train_state(
+            self.rng, self.optimizer, self.output_dim
+        )
     )
     self.step_fn = self._get_step_fn()
     if self.solver_latent_to_data is not None:
@@ -232,9 +235,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     for iteration in range(self.iterations):
       batch = next(train_loader)
 
-      self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match, rng_step_fn = jax.random.split(
-          self.rng, 6
-      )
+      (
+          self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match,
+          rng_step_fn
+      ) = jax.random.split(self.rng, 6)
       batch_size = len(
           batch["source_lin"]
       ) if batch["source_lin"] is not None else len(batch["source_quad"])
@@ -303,7 +307,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           rng_step_fn, self.state_neural_vector_field, batch
       )
       if self.learn_rescaling:
-        self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a, loss_b = self.unbalancedness_step_fn(
+        (
+            self.state_eta, self.state_xi, eta_predictions, xi_predictions,
+            loss_a, loss_b
+        ) = self.unbalancedness_step_fn(
             source=batch["source"],
             target=batch["target"],
             condition=batch["source_conditions"],
@@ -371,7 +378,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       self,
       source: jnp.ndarray,
       condition: Optional[jnp.ndarray],
-      rng: random.PRNGKeyArray = random.PRNGKey(0),
+      rng: Optional[jnp.ndarray] = None,
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
   ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
@@ -395,6 +402,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       transport plan.
 
     """
+    rng = utils.default_prng_key(rng)
     if not forward:
       raise NotImplementedError
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)

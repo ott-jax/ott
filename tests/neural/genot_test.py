@@ -34,11 +34,12 @@ class TestGENOT:
       self, genot_data_loader_linear: Iterator, k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
-    solver_latent_to_data = None if solver_latent_to_data is None else sinkhorn.Sinkhorn(
+    solver_latent_to_data = (
+        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     )
     batch = next(genot_data_loader_linear)
-    source_lin, target_lin,  source_condition = batch[
-        "source_lin"],  batch["target_lin"], batch["source_conditions"]
+    source_lin, target_lin, source_condition = batch["source_lin"], batch[
+        "target_lin"], batch["source_conditions"]
 
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
@@ -133,7 +134,7 @@ class TestGENOT:
   ):
     None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     batch = next(genot_data_loader_fused)
-    batch = source_lin, source_quad, target_lin, target_quad, source_condition = batch[
+    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
         "source_lin"], batch["source_quad"], batch["target_lin"], batch[
             "target_quad"], batch["source_conditions"]
 
@@ -324,7 +325,10 @@ class TestGENOT:
       genot_data_loader_linear_conditional: Iterator
   ):
     None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
-    data_loader = genot_data_loader_linear_conditional if conditional else genot_data_loader_linear
+    data_loader = (
+        genot_data_loader_linear_conditional
+        if conditional else genot_data_loader_linear
+    )
 
     batch = next(data_loader)
     source_lin, target_lin, source_condition = batch["source_lin"], batch[
