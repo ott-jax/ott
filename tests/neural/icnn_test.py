@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.neural import models
+from ott.neural.models import models
 
 
 @pytest.mark.fast()
