@@ -43,6 +43,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
       dim_data: data dimensionality.
       dim_hidden: sequence specifying size of hidden dimensions. The
         output dimension of the last layer is 1 by default.
+      rank: rank of the quadratic layers. If ``0``, quadratic layers are not used.
       init_std: value of standard deviation of weight initialization method.
       init_fn: choice of initialization method for weight matrices (default:
         :func:`jax.nn.initializers.normal`).
@@ -51,6 +52,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
       pos_weights: Enforce positive weights with a projection.
         If ``False``, the positive weights should be enforced with clipping
         or regularization in the loss.
+      rectifier_fn: function to ensure the non negativity of the weights.
       gaussian_map_samples: Tuple of source and target points, used to initialize
         the ICNN to mimic the linear Bures map that morphs the (Gaussian
         approximation) of the input measure to that of the target measure. If
@@ -64,7 +66,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     init_std: float = 1e-2
     init_fn: Callable = jax.nn.initializers.normal
     act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
-    pos_weights: bool = True
+    pos_weights: bool = False
+    rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
     gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
     @property
@@ -73,30 +76,46 @@ class ICNN(neuraldual.BaseW2NeuralDual):
 
     def setup(self) -> None:  # noqa: D102
         self.num_hidden = len(self.dim_hidden)
-
-        if self.pos_weights:
-            hid_dense = layers.PositiveDense
-        else:
-            hid_dense = nn.Dense
-
         w_zs = []
 
         for i in range(1, self.num_hidden):
-            w_zs.append(
-                hid_dense(
+            if self.pos_weights:
+                w_zs.append(
+                layers.PositiveDense(
                     self.dim_hidden[i],
+                    kernel_init=self.init_fn(self.init_std),
+                    use_bias=False,
+                    rectifier_fn=self.rectifier_fn,
+                    )
+                )
+            else:
+                w_zs.append(
+                nn.Dense(
+                    self.dim_hidden[i],
+                    kernel_init=self.init_fn(self.init_std),
+                    use_bias=False,
+                    )
+                )
+
+        # final layer computes average, still with normalized rescaling
+        if self.pos_weights:
+            w_zs.append(
+                layers.PositiveDense(
+                    1,
+                    kernel_init=self.init_fn(self.init_std),
+                    use_bias=False,
+                    rectifier_fn=self.rectifier_fn,
+                )
+            )
+        else:
+            w_zs.append(
+                nn.Dense(
+                    1,
                     kernel_init=self.init_fn(self.init_std),
                     use_bias=False,
                 )
             )
-        # final layer computes average, still with normalized rescaling
-        w_zs.append(
-            hid_dense(
-                1,
-                kernel_init=self.init_fn(self.init_std),
-                use_bias=False,
-            )
-        )
+
         self.w_zs = w_zs
 
         # check if Gaussian map was provided

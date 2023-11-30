@@ -24,15 +24,12 @@ Shape = Tuple[int, ...]
 Dtype = Any
 Array = Any
 
-
 class PositiveDense(nn.Module):
     """A linear transformation using a weight matrix with all entries positive.
 
     Args:
       dim_hidden: the number of output dim_hidden.
       rectifier_fn: choice of rectifier function (default: softplus function).
-      inv_rectifier_fn: choice of inverse rectifier function
-        (default: inverse softplus function).
       dtype: the dtype of the computation (default: float32).
       precision: numerical precision of computation see `jax.lax.Precision`
         for details.
@@ -41,8 +38,7 @@ class PositiveDense(nn.Module):
     """
 
     dim_hidden: int
-    rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
-    inv_rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = lambda x: jnp.log(jnp.exp(x) - 1)
+    rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
     use_bias: bool = True
     dtype: Any = jnp.float32
     precision: Any = None
