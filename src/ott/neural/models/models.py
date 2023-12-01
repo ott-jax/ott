@@ -28,16 +28,10 @@ from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
 from ott.math import matrix_square_root
 from ott.neural.models import layers
-from ott.neural.models.base_models import (
-    BaseNeuralVectorField,
-    BaseRescalingNet,
-)
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
-__all__ = [
-    "ICNN", "MLP", "MetaInitializer", "NeuralVectorField", "RescalingMLP"
-]
+__all__ = ["ICNN", "MLP", "MetaInitializer", "VelocityField", "RescalingMLP"]
 
 
 class ICNN(neuraldual.BaseW2NeuralDual):
@@ -76,7 +70,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   def is_potential(self) -> bool:  # noqa: D102
     return True
 
-  def setup(self) -> None:  # noqa: D102
+  def setup(self):  # noqa: D102
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
@@ -410,21 +404,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
     }
 
 
-class Block(nn.Module):
-  dim: int = 128
-  num_layers: int = 3
-  act_fn: Any = nn.silu
-  out_dim: int = 32
-
-  @nn.compact
-  def __call__(self, x):
-    for _ in range(self.num_layers):
-      x = nn.Dense(self.dim)(x)
-      x = self.act_fn(x)
-    return nn.Dense(self.out_dim)(x)
-
-
-class NeuralVectorField(BaseNeuralVectorField):
+class VelocityField(nn.Module):
   """Parameterized neural vector field.
 
   Each of the input, condition, and time embeddings are passed through a block
@@ -515,7 +495,7 @@ class NeuralVectorField(BaseNeuralVectorField):
       Output of the neural vector field.
     """
     t = self.time_encoder(t)
-    t = Block(
+    t = layers.MLPBlock(
         dim=self.t_embed_dim,
         out_dim=self.t_embed_dim,
         num_layers=self.num_layers_per_block,
@@ -524,7 +504,7 @@ class NeuralVectorField(BaseNeuralVectorField):
         t
     )
 
-    x = Block(
+    x = layers.MLPBlock(
         dim=self.latent_embed_dim,
         out_dim=self.latent_embed_dim,
         num_layers=self.num_layers_per_block,
@@ -534,7 +514,7 @@ class NeuralVectorField(BaseNeuralVectorField):
     )
 
     if self.condition_dim > 0:
-      condition = Block(
+      condition = layers.MLPBlock(
           dim=self.condition_embed_dim,
           out_dim=self.condition_embed_dim,
           num_layers=self.num_layers_per_block,
@@ -546,7 +526,7 @@ class NeuralVectorField(BaseNeuralVectorField):
     else:
       concatenated = jnp.concatenate((t, x), axis=-1)
 
-    out = Block(
+    out = layers.MLPBlock(
         dim=self.joint_hidden_dim,
         out_dim=self.joint_hidden_dim,
         num_layers=self.num_layers_per_block,
@@ -564,7 +544,7 @@ class NeuralVectorField(BaseNeuralVectorField):
 
   def create_train_state(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       optimizer: optax.OptState,
       input_dim: int,
   ) -> train_state.TrainState:
@@ -587,7 +567,7 @@ class NeuralVectorField(BaseNeuralVectorField):
     )
 
 
-class RescalingMLP(BaseRescalingNet):
+class RescalingMLP(nn.Module):
   """Network to learn distributional rescaling factors based on a MLP.
 
   The input is passed through a block consisting of ``num_layers_per_block``
@@ -626,7 +606,7 @@ class RescalingMLP(BaseRescalingNet):
     Returns:
       Estimated rescaling factors.
     """
-    x = Block(
+    x = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
@@ -636,7 +616,7 @@ class RescalingMLP(BaseRescalingNet):
     )
     if self.condition_dim > 0:
       condition = jnp.atleast_1d(condition)
-      condition = Block(
+      condition = layers.MLPBlock(
           dim=self.hidden_dim,
           out_dim=self.hidden_dim,
           num_layers=self.num_layers_per_block,
@@ -648,7 +628,7 @@ class RescalingMLP(BaseRescalingNet):
     else:
       concatenated = x
 
-    out = Block(
+    out = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
@@ -661,7 +641,7 @@ class RescalingMLP(BaseRescalingNet):
 
   def create_train_state(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       optimizer: optax.OptState,
       input_dim: int,
   ) -> train_state.TrainState:

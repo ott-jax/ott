@@ -26,7 +26,6 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
     BaseNeuralSolver,
     ResampleMixin,
@@ -100,7 +99,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
-      neural_vector_field: Type[BaseNeuralVectorField],
+      neural_vector_field: Callable[[
+          jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
+      ], jnp.ndarray],
       input_dim: int,
       output_dim: int,
       cond_dim: int,
@@ -132,7 +133,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       rng: Optional[jax.Array] = None,
-  ) -> None:
+  ):
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)
     BaseNeuralSolver.__init__(
@@ -192,7 +193,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.callback_fn = callback_fn
     self.setup()
 
-  def setup(self) -> None:
+  def setup(self):
     """Set up the model.
 
     Parameters
@@ -230,7 +231,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           self.fused_penalty
       )
 
-  def __call__(self, train_loader, valid_loader) -> None:
+  def __call__(self, train_loader, valid_loader):
     """Train GENOT."""
     batch: Dict[str, jnp.array] = {}
     for iteration in range(self.iterations):
@@ -439,7 +440,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     return jax.vmap(solve_ode)(latent_batch, cond_input)
 
-  def _valid_step(self, valid_loader, iter) -> None:
+  def _valid_step(self, valid_loader, iter):
     """TODO."""
     next(valid_loader)
 
@@ -448,7 +449,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Whether to learn at least one rescaling factor."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
-  def save(self, path: str) -> None:
+  def save(self, path: str):
     """Save the model.
 
     Args:

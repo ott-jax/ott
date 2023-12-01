@@ -19,7 +19,7 @@ import jax.numpy as jnp
 
 import optax
 
-from ott.neural.models.models import NeuralVectorField, RescalingMLP
+from ott.neural.models.models import RescalingMLP, VelocityField
 from ott.neural.solvers.flows import (
     BaseFlow,
     BrownianNoiseFlow,
@@ -40,7 +40,7 @@ class TestOTFlowMatching:
        BrownianNoiseFlow(0.2)]
   )
   def test_flow_matching(self, data_loader_gaussian, flow: Type[BaseFlow]):
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
@@ -85,7 +85,7 @@ class TestOTFlowMatching:
   def test_flow_matching_with_conditions(
       self, data_loader_gaussian_with_conditions, flow: Type[BaseFlow]
   ):
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=2,
         condition_dim=1,
         latent_embed_dim=5,
@@ -133,7 +133,7 @@ class TestOTFlowMatching:
   def test_flow_matching_conditional(
       self, data_loader_gaussian_conditional, flow: Type[BaseFlow]
   ):
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
@@ -181,7 +181,7 @@ class TestOTFlowMatching:
     batch = next(data_loader)
     source_dim = batch["source_lin"].shape[1]
     condition_dim = batch["source_conditions"].shape[1] if conditional else 0
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,

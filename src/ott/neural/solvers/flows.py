@@ -29,11 +29,13 @@ class BaseFlow(abc.ABC):
     sigma: Constant noise used for computing time-dependent noise schedule.
   """
 
-  def __init__(self, sigma: float) -> None:
+  def __init__(self, sigma: float):
     self.sigma = sigma
 
   @abc.abstractmethod
-  def compute_mu_t(self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray):
+  def compute_mu_t(
+      self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
+  ) -> jnp.ndarray:
     """Compute the mean of the probablitiy path.
 
     Compute the mean of the probablitiy path between :math:`x` and :math:`y`
@@ -44,7 +46,6 @@ class BaseFlow(abc.ABC):
       x_0: Sample from the source distribution.
       x_1: Sample from the target distribution.
     """
-    pass
 
   @abc.abstractmethod
   def compute_sigma_t(self, t: jnp.ndarray):
@@ -53,7 +54,6 @@ class BaseFlow(abc.ABC):
     Args:
       t: Time :math:`t`.
     """
-    pass
 
   @abc.abstractmethod
   def compute_ut(
@@ -61,15 +61,14 @@ class BaseFlow(abc.ABC):
   ) -> jnp.ndarray:
     """Evaluate the conditional vector field.
 
-      Evaluate the conditional vector field defined between :math:`x_0` and
-      :math:`x_1` at time :math:`t`.
+    Evaluate the conditional vector field defined between :math:`x_0` and
+    :math:`x_1` at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
       x_0: Sample from the source distribution.
       x_1: Sample from the target distribution.
     """
-    pass
 
   def compute_xt(
       self, noise: jnp.ndarray, t: jnp.ndarray, x_0: jnp.ndarray,
@@ -77,8 +76,8 @@ class BaseFlow(abc.ABC):
   ) -> jnp.ndarray:
     """Sample from the probability path.
 
-      Sample from the probability path between :math:`x_0` and :math:`x_1` at
-      time :math:`t`.
+    Sample from the probability path between :math:`x_0` and :math:`x_1` at
+    time :math:`t`.
 
     Args:
       noise: Noise sampled from a standard normal distribution.
@@ -88,7 +87,7 @@ class BaseFlow(abc.ABC):
 
     Returns:
       Samples from the probability path between :math:`x_0` and :math:`x_1`
-        at time :math:`t`.
+      at time :math:`t`.
     """
     mu_t = self.compute_mu_t(t, x_0, x_1)
     sigma_t = self.compute_sigma_t(t)
@@ -101,16 +100,6 @@ class StraightFlow(BaseFlow, abc.ABC):
   def compute_mu_t(
       self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
   ) -> jnp.ndarray:
-    """Compute the mean of the probablitiy path.
-
-      Compute the mean of the probablitiy path between :math:`x` and :math:`y`
-      at time :math:`t`.
-
-    Args:
-      t: Time :math:`t`.
-      x_0: Sample from the source distribution.
-      x_1: Sample from the target distribution.
-    """
     return t * x_0 + (1 - t) * x_1
 
   def compute_ut(
@@ -119,7 +108,7 @@ class StraightFlow(BaseFlow, abc.ABC):
     """Evaluate the conditional vector field.
 
     Evaluate the conditional vector field defined between :math:`x_0` and
-      :math:`x_1` at time :math:`t`.
+    :math:`x_1` at time :math:`t`.
 
     Args:
       t: Time :math:`t`.
@@ -175,7 +164,7 @@ class BaseTimeSampler(abc.ABC):
     high: Upper bound of the distribution to sample from .
   """
 
-  def __init__(self, low: float, high: float) -> None:
+  def __init__(self, low: float, high: float):
     self.low = low
     self.high = high
 
@@ -187,7 +176,6 @@ class BaseTimeSampler(abc.ABC):
       rng: Random number generator.
       num_samples: Number of samples to generate.
     """
-    pass
 
 
 class UniformSampler(BaseTimeSampler):
@@ -198,7 +186,7 @@ class UniformSampler(BaseTimeSampler):
     high: Upper bound of the uniform distribution.
   """
 
-  def __init__(self, low: float = 0.0, high: float = 1.0) -> None:
+  def __init__(self, low: float = 0.0, high: float = 1.0):
     super().__init__(low=low, high=high)
 
   def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
@@ -228,9 +216,7 @@ class OffsetUniformSampler(BaseTimeSampler):
     high: Upper bound of the uniform distribution.
   """
 
-  def __init__(
-      self, offset: float, low: float = 0.0, high: float = 1.0
-  ) -> None:
+  def __init__(self, offset: float, low: float = 0.0, high: float = 1.0):
     super().__init__(low=low, high=high)
     self.offset = offset
 

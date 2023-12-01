@@ -69,10 +69,6 @@ class W2NeuralTrainState(train_state.TrainState):
                                   )
 
 
-class BaseNeuralVectorField(nn.Module):
-  pass
-
-
 class BaseW2NeuralDual(abc.ABC, nn.Module):
   """Base class for the neural solver models."""
 
@@ -295,7 +291,7 @@ class W2NeuralDual:
       dim_data: int,
       optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
-  ) -> None:
+  ):
     """Setup all components required to train the network."""
     # split random number generator
     rng, rng_f, rng_g = jax.random.split(rng, 3)
@@ -700,7 +696,7 @@ class W2NeuralDual:
       loss_f: jnp.ndarray,
       loss_g: jnp.ndarray,
       w_dist: jnp.ndarray,
-  ) -> None:
+  ):
     logs["loss_f"].append(float(loss_f))
     logs["loss_g"].append(float(loss_g))
     logs["w_dist"].append(float(w_dist))

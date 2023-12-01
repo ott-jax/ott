@@ -36,7 +36,6 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.models.models import BaseNeuralVectorField
 from ott.neural.solvers.base_solver import (
     BaseNeuralSolver,
     ResampleMixin,
@@ -92,7 +91,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
-      neural_vector_field: Type[BaseNeuralVectorField],
+      neural_vector_field: Callable[[
+          jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
+      ], jnp.ndarray],
       input_dim: int,
       cond_dim: int,
       iterations: int,
@@ -117,7 +118,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       valid_freq: int = 5000,
       num_eval_samples: int = 1000,
       rng: Optional[jax.Array] = None,
-  ) -> None:
+  ):
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)
     BaseNeuralSolver.__init__(
@@ -155,7 +156,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     self.setup()
 
-  def setup(self) -> None:
+  def setup(self):
     """Setup :class:`OTFlowMatching`."""
     self.state_neural_vector_field = (
         self.neural_vector_field.create_train_state(
@@ -218,7 +219,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     return step_fn
 
-  def __call__(self, train_loader, valid_loader) -> None:
+  def __call__(self, train_loader, valid_loader):
     """Train :class:`OTFlowMatching`.
 
     Args;
@@ -330,7 +331,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     return jax.vmap(solve_ode)(data, condition)
 
-  def _valid_step(self, valid_loader, iter) -> None:
+  def _valid_step(self, valid_loader, iter):
     next(valid_loader)
     # TODO: add callback and logging
 
@@ -339,7 +340,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Whether to learn at least one rescaling factor."""
     return self.mlp_eta is not None or self.mlp_xi is not None
 
-  def save(self, path: str) -> None:
+  def save(self, path: str):
     """Save the model.
 
     Args:

@@ -23,8 +23,6 @@ import optax
 from flax.training import train_state
 
 from ott.geometry import costs, pointcloud
-from ott.geometry.pointcloud import PointCloud
-from ott.neural.models import models
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn
@@ -38,47 +36,38 @@ class BaseNeuralSolver(ABC):
     valid_freq: Frequency at which to run validation.
   """
 
-  def __init__(self, iterations: int, valid_freq: int, **_: Any) -> None:
+  def __init__(self, iterations: int, valid_freq: int, **_: Any):
     self.iterations = iterations
     self.valid_freq = valid_freq
 
   @abstractmethod
-  def setup(self, *args: Any, **kwargs: Any) -> None:
+  def setup(self, *args: Any, **kwargs: Any):
     """Setup the model."""
-    pass
 
   @abstractmethod
-  def __call__(self, *args: Any, **kwargs: Any) -> None:
+  def __call__(self, *args: Any, **kwargs: Any):
     """Train the model."""
-    pass
 
   @abstractmethod
   def transport(self, *args: Any, forward: bool, **kwargs: Any) -> Any:
     """Transport."""
-    pass
 
   @abstractmethod
   def save(self, path: Path):
     """Save the model."""
-    pass
 
   @abstractmethod
   def load(self, path: Path):
     """Load the model."""
-    pass
 
   @property
   @abstractmethod
   def training_logs(self) -> Dict[str, Any]:
     """Return the training logs."""
-    pass
 
 
 class ResampleMixin:
   """Mixin class for mini-batch OT in neural optimal transport solvers."""
-
-  def __init__(*args, **kwargs):
-    pass
 
   def _resample_data(
       self,
@@ -264,8 +253,10 @@ class UnbalancednessMixin:
       cond_dim: Optional[int],
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Optional[models.BaseRescalingNet] = None,
-      mlp_xi: Optional[models.BaseRescalingNet] = None,
+      mlp_eta: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
+                                 jnp.ndarray]] = None,
+      mlp_xi: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
+                                jnp.ndarray]] = None,
       seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
@@ -274,7 +265,7 @@ class UnbalancednessMixin:
                                                   "median"]] = "mean",
       sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
       **_: Any,
-  ) -> None:
+  ):
     self.rng_unbalanced = rng
     self.source_dim = source_dim
     self.target_dim = target_dim
@@ -313,7 +304,7 @@ class UnbalancednessMixin:
     def compute_unbalanced_marginals(
         batch_source: jnp.ndarray, batch_target: jnp.ndarray
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-      geom = PointCloud(
+      geom = pointcloud.PointCloud(
           batch_source,
           batch_target,
           epsilon=resample_epsilon,

@@ -43,7 +43,7 @@ class OTDataLoader:
       source_conditions: Optional[np.ndarray] = None,
       target_conditions: Optional[np.ndarray] = None,
       seed: int = 0,
-  ) -> None:
+  ):
     super().__init__()
     if source_lin is not None:
       if source_quad is not None:
@@ -115,11 +115,8 @@ class ConditionalDataLoader:
   """
 
   def __init__(
-      self,
-      dataloaders: Dict[str, Iterator],
-      p: np.ndarray,
-      seed: int = 0
-  ) -> None:
+      self, dataloaders: Dict[str, Iterator], p: np.ndarray, seed: int = 0
+  ):
     super().__init__()
     self.dataloaders = dataloaders
     self.conditions = list(dataloaders.keys())

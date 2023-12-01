@@ -18,12 +18,26 @@ import jax.numpy as jnp
 
 import flax.linen as nn
 
-__all__ = ["PositiveDense", "PosDefPotentials"]
+__all__ = ["PositiveDense", "PosDefPotentials", "MLPBlock"]
 
-PRNGKey = jnp.ndarray
+PRNGKey = jax.Array
 Shape = Tuple[int, ...]
 Dtype = Any
 Array = Any
+
+
+class MLPBlock(nn.Module):
+  dim: int = 128
+  num_layers: int = 3
+  act_fn: Any = nn.silu
+  out_dim: int = 32
+
+  @nn.compact
+  def __call__(self, x):
+    for _ in range(self.num_layers):
+      x = nn.Dense(self.dim)(x)
+      x = self.act_fn(x)
+    return nn.Dense(self.out_dim)(x)
 
 
 class PositiveDense(nn.Module):

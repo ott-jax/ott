@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import optax
 
 from ott.geometry import costs
-from ott.neural.models.models import NeuralVectorField, RescalingMLP
+from ott.neural.models.models import RescalingMLP, VelocityField
 from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.solvers.genot import GENOT
 from ott.solvers.linear import sinkhorn
@@ -47,7 +47,7 @@ class TestGENOT:
     target_dim = target_lin.shape[1]
     condition_dim = 0
 
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -97,7 +97,7 @@ class TestGENOT:
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
     condition_dim = 0
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -143,7 +143,7 @@ class TestGENOT:
     source_dim = source_lin.shape[1] + source_quad.shape[1]
     target_dim = target_lin.shape[1] + target_quad.shape[1]
     condition_dim = 0
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -190,7 +190,7 @@ class TestGENOT:
     target_dim = target_lin.shape[1]
     condition_dim = source_condition.shape[1]
 
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -237,7 +237,7 @@ class TestGENOT:
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
     condition_dim = source_condition.shape[1]
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -284,7 +284,7 @@ class TestGENOT:
     source_dim = source_lin.shape[1] + source_quad.shape[1]
     target_dim = target_lin.shape[1] + target_quad.shape[1]
     condition_dim = source_condition.shape[1]
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
@@ -340,7 +340,7 @@ class TestGENOT:
     target_dim = target_lin.shape[1]
     condition_dim = source_condition.shape[1] if conditional else 0
 
-    neural_vf = NeuralVectorField(
+    neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
