@@ -28,8 +28,8 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import optax
-from flax import core, struct
 from flax import linen as nn
+from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
