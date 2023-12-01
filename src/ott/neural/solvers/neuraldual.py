@@ -35,14 +35,14 @@ from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.models import conjugate_solvers, models
+from ott.neural import models
+from ott.neural.solvers import conjugate
 from ott.problems.linear import potentials
 
-__all__ = ["W2NeuralDual", "BaseW2NeuralDual", "W2NeuralTrainState"]
+__all__ = ["W2NeuralTrainState", "BaseW2NeuralDual", "W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
-Conj_t = Optional[conjugate_solvers.FenchelConjugateSolver]
 
 PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
@@ -52,8 +52,8 @@ class W2NeuralTrainState(train_state.TrainState):
   """Adds information about the model's value and gradient to the state.
 
   This extends :class:`~flax.training.train_state.TrainState` to include
-  the potential methods from :class:`~ott.neural.models.models.BaseW2NeuralDual`
-  used during training.
+  the potential methods from the
+  :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` used during training.
 
   Args:
     potential_value_fn: the potential's value function
@@ -170,8 +170,7 @@ class W2NeuralDual:
   denoted source and target, respectively. This is achieved by parameterizing
   a Kantorovich potential :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with an
-  :class:`~ott.solvers.nn.models.ICNN`, :class:`~ott.solvers.nn.models.MLP`,
-  or other :class:`~ott.solvers.nn.models.BaseW2NeuralDual`, where
+  :class:`~ott.neural.models.ICNN` or :class:`~ott.neural.models.MLP`, where
   :math:`\nabla f` transports source to target cells. This potential is learned
   by optimizing the dual form associated with the negative inner product cost
 
@@ -187,10 +186,10 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with :class:`~ott.solvers.nn.conjugate_solvers.FenchelConjugateSolver`,
+  with :class:`~ott.neural.solvers.conjugate.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
-  The :class:`~ott.solvers.nn.models.BaseW2NeuralDual` potentials for
+  The :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` potentials for
   ``neural_f`` and ``neural_g`` can
 
   1. both provide the values of the potentials :math:`f` and :math:`g`, or
@@ -199,7 +198,7 @@ class W2NeuralDual:
      via the Fenchel conjugate as discussed in :cite:`amos:23`.
 
   The potential's value or gradient mapping is specified via
-  :attr:`~ott.solvers.nn.models.BaseW2NeuralDual.is_potential`.
+  :attr:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual.is_potential`.
 
   Args:
     dim_data: input dimensionality of data required for network init
@@ -242,7 +241,8 @@ class W2NeuralDual:
       rng: Optional[jax.Array] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
+      conjugate_solver: Optional[conjugate.FenchelConjugateSolver
+                                ] = conjugate.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
   ):

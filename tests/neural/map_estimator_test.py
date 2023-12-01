@@ -17,8 +17,8 @@ import jax.numpy as jnp
 import pytest
 from ott import datasets
 from ott.geometry import pointcloud
-from ott.neural.models import models
-from ott.neural.solvers import losses, map_estimator
+from ott.neural import losses, models
+from ott.neural.solvers import map_estimator
 from ott.tools import sinkhorn_divergence
 
 

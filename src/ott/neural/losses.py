@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
@@ -48,7 +47,7 @@ def monge_gap(
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
   See :cite:`uscidda:23` Eq. (8). This function is a thin wrapper that calls
-  :func:`~ott.solvers.linear.nn.lossses.monge_gap_from_samples`.
+  :func:`~ott.neural.losses.monge_gap_from_samples`.
 
   Args:
     map_fn: Callable corresponding to map :math:`T` in definition above. The
@@ -69,7 +68,7 @@ def monge_gap(
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
     return_output: boolean to also return the
-      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
     kwargs: holds the kwargs to instantiate the or
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
       compute the regularized OT cost.
@@ -86,6 +85,7 @@ def monge_gap(
       epsilon=epsilon,
       relative_epsilon=relative_epsilon,
       scale_cost=scale_cost,
+      return_output=return_output,
       **kwargs
   )
 
@@ -104,13 +104,12 @@ def monge_gap_from_samples(
   r"""Monge gap, instantiated in terms of samples before / after applying map.
 
   .. math::
-
     \frac{1}{n} \sum_{i=1}^n c(x_i, y_i)) -
     W_{c, \varepsilon}(\frac{1}{n}\sum_i \delta_{x_i},
     \frac{1}{n}\sum_i \delta_{y_i})
 
   where :math:`W_{c, \varepsilon}` is an entropy-regularized optimal transport
-  cost, :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`
+  cost, the :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`.
 
   Args:
     source: samples from first measure, array of shape ``[n, d]``.
@@ -129,7 +128,7 @@ def monge_gap_from_samples(
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
       If `True`, use 'mean'.
     return_output: boolean to also return the
-      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
     kwargs: holds the kwargs to instantiate the or
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
       compute the regularized OT cost.

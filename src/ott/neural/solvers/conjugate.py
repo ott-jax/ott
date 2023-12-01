@@ -68,7 +68,7 @@ class FenchelConjugateSolver(abc.ABC):
 
 @utils.register_pytree_node
 class FenchelConjugateLBFGS(FenchelConjugateSolver):
-  """Solve for the conjugate using :class:`jaxopt.LBFGS`.
+  """Solve for the conjugate using :class:`~jaxopt.LBFGS`.
 
   Args:
     gtol: gradient tolerance

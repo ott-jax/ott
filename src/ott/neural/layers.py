@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -43,8 +43,7 @@ class PositiveDense(nn.Module):
   use_bias: bool = True
   dtype: Any = jnp.float32
   precision: Any = None
-  kernel_init: Callable[[PRNGKey, Shape, Dtype],
-                        Array] = nn.initializers.lecun_normal()
+  kernel_init: Optional[Callable[[PRNGKey, Shape, Dtype], Array]] = None,
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
 
   @nn.compact
@@ -57,9 +56,12 @@ class PositiveDense(nn.Module):
     Returns:
     The transformed input.
     """
+    kernel_init = nn.initializers.lecun_normal(
+    ) if self.kernel_init is None else self.kernel_init
+
     inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
     kernel = jnp.asarray(kernel, self.dtype)
@@ -123,7 +125,6 @@ class PosDefPotentials(nn.Module):
         "diag_kernel", self.kernel_diagonal_init,
         (1, dim_data, self.num_potentials)
     )
-
     # ensures the diag_kernel parameter stays non negative
     diag_kernel = nn.activation.relu(diag_kernel)
     y = 0.5 * jnp.sum(jnp.multiply(inputs[..., None], diag_kernel) ** 2, axis=1)
