@@ -111,7 +111,6 @@ class ConditionalDataLoader:
       conditions.
     p: Probability of sampling from each data loader.
     seed: Random seed.
-
   """
 
   def __init__(

@@ -27,6 +27,8 @@ from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn
 
+__all__ = ["BaseNeuralSolver", "ResampleMixin", "UnbalancednessMixin"]
+
 
 class BaseNeuralSolver(ABC):
   """Base class for neural solvers.

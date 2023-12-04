@@ -97,7 +97,7 @@ class BaseFlow(abc.ABC):
 class StraightFlow(BaseFlow, abc.ABC):
   """Base class for flows with straight paths."""
 
-  def compute_mu_t(
+  def compute_mu_t(  # noqa: D102
       self, t: jnp.ndarray, x_0: jnp.ndarray, x_1: jnp.ndarray
   ) -> jnp.ndarray:
     return t * x_0 + (1 - t) * x_1

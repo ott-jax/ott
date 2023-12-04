@@ -26,16 +26,16 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.solvers.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
-)
-from ott.neural.solvers.flows import (
+from ott.neural.flows.flows import (
     BaseFlow,
     BaseTimeSampler,
     ConstantNoiseFlow,
     UniformSampler,
+)
+from ott.neural.models.base_solver import (
+    BaseNeuralSolver,
+    ResampleMixin,
+    UnbalancednessMixin,
 )
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn

@@ -19,8 +19,8 @@ import jax
 import numpy as np
 
 from ott import datasets
+from ott.neural.duality import conjugate, neuraldual
 from ott.neural.models import models
-from ott.neural.solvers import conjugate, neuraldual
 
 ModelPair_t = Tuple[neuraldual.BaseW2NeuralDual, neuraldual.BaseW2NeuralDual]
 DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]

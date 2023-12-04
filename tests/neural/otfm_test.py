@@ -19,15 +19,16 @@ import jax.numpy as jnp
 
 import optax
 
-from ott.neural.models.models import RescalingMLP, VelocityField
-from ott.neural.solvers.flows import (
+from ott.neural.flows.flows import (
     BaseFlow,
     BrownianNoiseFlow,
     ConstantNoiseFlow,
     OffsetUniformSampler,
     UniformSampler,
 )
-from ott.neural.solvers.otfm import OTFlowMatching
+from ott.neural.flows.models import VelocityField
+from ott.neural.flows.otfm import OTFlowMatching
+from ott.neural.models.models import RescalingMLP
 from ott.solvers.linear import sinkhorn
 
 

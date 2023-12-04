@@ -36,12 +36,12 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.solvers.base_solver import (
+from ott.neural.flows.flows import BaseFlow, BaseTimeSampler
+from ott.neural.models.base_solver import (
     BaseNeuralSolver,
     ResampleMixin,
     UnbalancednessMixin,
 )
-from ott.neural.solvers.flows import BaseFlow, BaseTimeSampler
 from ott.solvers import was_solver
 
 __all__ = ["OTFlowMatching"]

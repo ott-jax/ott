@@ -1,0 +1,188 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from typing import Callable, Optional
+
+import jax
+import jax.numpy as jnp
+
+import flax.linen as nn
+import optax
+from flax.training import train_state
+
+from ott.neural.models import layers
+
+__all__ = ["VelocityField"]
+
+
+class VelocityField(nn.Module):
+  """Parameterized neural vector field.
+
+  Each of the input, condition, and time embeddings are passed through a block
+  consisting of ``num_layers_per_block`` layers of dimension
+  ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``,
+  respectively.
+  The output of each block is concatenated and passed through a final block of
+  dimension ``joint_hidden_dim``.
+
+  Args:
+    output_dim: Dimensionality of the neural vector field.
+    condition_dim: Dimensionality of the conditioning vector.
+    latent_embed_dim: Dimensionality of the embedding of the data.
+    condition_embed_dim: Dimensionality of the embedding of the condition.
+      If ``None``, set to ``latent_embed_dim``.
+    t_embed_dim: Dimensionality of the time embedding.
+      If ``None``, set to ``latent_embed_dim``.
+    joint_hidden_dim: Dimensionality of the hidden layers of the joint network.
+      If ``None``, set to ``latent_embed_dim + condition_embed_dim +
+      t_embed_dim``.
+    num_layers_per_block: Number of layers per block.
+    act_fn: Activation function.
+    n_frequencies: Number of frequencies to use for the time embedding.
+
+  """
+  output_dim: int
+  condition_dim: int
+  latent_embed_dim: int
+  condition_embed_dim: Optional[int] = None
+  t_embed_dim: Optional[int] = None
+  joint_hidden_dim: Optional[int] = None
+  num_layers_per_block: int = 3
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
+  n_frequencies: int = 128
+
+  def time_encoder(self, t: jnp.ndarray) -> jnp.array:
+    """Encode the time.
+
+    Args:
+      t: Time.
+
+    Returns:
+      Encoded time.
+    """
+    freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
+    t = freq * t
+    return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
+
+  def __post_init__(self):
+
+    # set embedded dim from latent embedded dim
+    if self.condition_embed_dim is None:
+      self.condition_embed_dim = self.latent_embed_dim
+    if self.t_embed_dim is None:
+      self.t_embed_dim = self.latent_embed_dim
+
+    # set joint hidden dim from all embedded dim
+    concat_embed_dim = (
+        self.latent_embed_dim + self.condition_embed_dim + self.t_embed_dim
+    )
+    if self.joint_hidden_dim is not None:
+      assert (self.joint_hidden_dim >= concat_embed_dim), (
+          "joint_hidden_dim must be greater than or equal to the sum of "
+          "all embedded dimensions. "
+      )
+      self.joint_hidden_dim = self.latent_embed_dim
+    else:
+      self.joint_hidden_dim = concat_embed_dim
+    super().__post_init__()
+
+  @nn.compact
+  def __call__(
+      self,
+      t: jnp.ndarray,
+      x: jnp.ndarray,
+      condition: Optional[jnp.ndarray],
+      keys_model: Optional[jnp.ndarray] = None,
+  ) -> jnp.ndarray:
+    """Forward pass through the neural vector field.
+
+    Args:
+      t: Time.
+      x: Data.
+      condition: Conditioning vector.
+      keys_model: Random number generator.
+
+    Returns:
+      Output of the neural vector field.
+    """
+    t = self.time_encoder(t)
+    t = layers.MLPBlock(
+        dim=self.t_embed_dim,
+        out_dim=self.t_embed_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn,
+    )(
+        t
+    )
+
+    x = layers.MLPBlock(
+        dim=self.latent_embed_dim,
+        out_dim=self.latent_embed_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn
+    )(
+        x
+    )
+
+    if self.condition_dim > 0:
+      condition = layers.MLPBlock(
+          dim=self.condition_embed_dim,
+          out_dim=self.condition_embed_dim,
+          num_layers=self.num_layers_per_block,
+          act_fn=self.act_fn
+      )(
+          condition
+      )
+      concatenated = jnp.concatenate((t, x, condition), axis=-1)
+    else:
+      concatenated = jnp.concatenate((t, x), axis=-1)
+
+    out = layers.MLPBlock(
+        dim=self.joint_hidden_dim,
+        out_dim=self.joint_hidden_dim,
+        num_layers=self.num_layers_per_block,
+        act_fn=self.act_fn,
+    )(
+        concatenated
+    )
+
+    return nn.Dense(
+        self.output_dim,
+        use_bias=True,
+    )(
+        out
+    )
+
+  def create_train_state(
+      self,
+      rng: jax.Array,
+      optimizer: optax.OptState,
+      input_dim: int,
+  ) -> train_state.TrainState:
+    """Create the training state.
+
+    Args:
+      rng: Random number generator.
+      optimizer: Optimizer.
+      input_dim: Dimensionality of the input.
+
+    Returns:
+      Training state.
+    """
+    params = self.init(
+        rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
+        jnp.ones((1, self.condition_dim))
+    )["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )

@@ -20,9 +20,10 @@ import jax.numpy as jnp
 import optax
 
 from ott.geometry import costs
-from ott.neural.models.models import RescalingMLP, VelocityField
-from ott.neural.solvers.flows import OffsetUniformSampler, UniformSampler
-from ott.neural.solvers.genot import GENOT
+from ott.neural.flows.flows import OffsetUniformSampler, UniformSampler
+from ott.neural.flows.genot import GENOT
+from ott.neural.flows.models import VelocityField
+from ott.neural.models.models import RescalingMLP
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
