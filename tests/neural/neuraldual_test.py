@@ -19,8 +19,7 @@ import jax
 import numpy as np
 
 from ott import datasets
-from ott.neural.duality import conjugate, neuraldual
-from ott.neural.models import models
+from ott.neural.duality import conjugate, models, neuraldual
 
 ModelPair_t = Tuple[neuraldual.BaseW2NeuralDual, neuraldual.BaseW2NeuralDual]
 DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
@@ -42,11 +41,12 @@ def neural_models(request: str) -> ModelPair_t:
                     dim_hidden=[32]), models.ICNN(dim_data=2, dim_hidden=[32])
     )
   if request.param == "mlps":
-    return models.MLP(dim_hidden=[32]), models.MLP(dim_hidden=[32]),
+    return models.PotentialMLP(dim_hidden=[32]
+                              ), models.PotentialMLP(dim_hidden=[32]),
   if request.param == "mlps-grad":
     return (
-        models.MLP(dim_hidden=[32]),
-        models.MLP(is_potential=False, dim_hidden=[128])
+        models.PotentialMLP(dim_hidden=[32]),
+        models.PotentialMLP(is_potential=False, dim_hidden=[128])
     )
   raise ValueError(f"Invalid request: {request.param}")
 

@@ -18,8 +18,8 @@ import jax
 import numpy as np
 
 from ott.geometry import costs
-from ott.neural import models
 from ott.neural.gaps import monge_gap
+from ott.neural.models import models
 
 
 @pytest.mark.fast()

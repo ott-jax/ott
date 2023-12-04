@@ -66,6 +66,27 @@ class MLP(nn.Module):
 
     return z.squeeze(0) if squeeze else z
 
+  def create_train_state(
+      self,
+      rng: jax.Array,
+      optimizer: optax.OptState,
+      input_dim: int,
+  ) -> train_state.TrainState:
+    """Create the training state.
+
+    Args:
+      rng: Random number generator.
+      optimizer: Optimizer.
+      input_dim: Dimensionality of the input.
+
+    Returns:
+      Training state.
+    """
+    params = self.init(rng, jnp.ones(input_dim))["params"]
+    return train_state.TrainState.create(
+        apply_fn=self.apply, params=params, tx=optimizer
+    )
+
 
 class RescalingMLP(nn.Module):
   """Network to learn distributional rescaling factors based on a MLP.

@@ -36,8 +36,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.duality import conjugate
-from ott.neural.models import models
+from ott.neural.duality import conjugate, models
 from ott.problems.linear import potentials
 
 __all__ = ["W2NeuralTrainState", "BaseW2NeuralDual", "W2NeuralDual"]
@@ -326,7 +325,7 @@ class W2NeuralDual:
 
     # default to using back_and_forth with the non-convex models
     if self.back_and_forth is None:
-      self.back_and_forth = isinstance(neural_f, models.MLP)
+      self.back_and_forth = isinstance(neural_f, models.PotentialMLP)
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(

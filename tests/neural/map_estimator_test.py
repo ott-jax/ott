@@ -20,6 +20,7 @@ import jax.numpy as jnp
 from ott import datasets
 from ott.geometry import pointcloud
 from ott.neural.gaps import map_estimator, monge_gap
+from ott.neural.models import models
 from ott.tools import sinkhorn_divergence
 
 
@@ -50,7 +51,7 @@ class TestMapEstimator:
       return gap, out.n_iters
 
     # define the model
-    model = monge_gap.MLP(dim_hidden=[16, 8], is_potential=False)
+    model = models.MLP(dim_hidden=[16, 8], is_potential=False)
 
     # generate data
     train_dataset, valid_dataset, dim_data = (
