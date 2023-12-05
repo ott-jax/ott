@@ -54,7 +54,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   (:cite`tong:23`, :cite:`pooladian:23`).
 
   Args:
-    neural_vector_field: Neural vector field parameterized by a neural network.
+    velocity_field: Neural vector field parameterized by a neural network.
     input_dim: Dimension of the input data.
     cond_dim: Dimension of the conditioning variable.
     iterations: Number of iterations.
@@ -65,7 +65,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       :cite:`lipman:22`.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
-    optimizer: Optimizer for `neural_vector_field`.
+    optimizer: Optimizer for `velocity_field`.
     checkpoint_manager: Checkpoint manager.
     epsilon: Entropy regularization term of the OT OT problem solved by the
       `ot_solver`.
@@ -90,7 +90,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
-      neural_vector_field: Callable[[
+      velocity_field: Callable[[
           jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
       ], jnp.ndarray],
       input_dim: int,
@@ -137,7 +137,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         unbalanced_kwargs=unbalanced_kwargs,
     )
 
-    self.neural_vector_field = neural_vector_field
+    self.velocity_field = velocity_field
     self.input_dim = input_dim
     self.ot_solver = ot_solver
     self.flow = flow
@@ -157,8 +157,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def setup(self):
     """Setup :class:`OTFlowMatching`."""
-    self.state_neural_vector_field = (
-        self.neural_vector_field.create_train_state(
+    self.state_velocity_field = (
+        self.velocity_field.create_train_state(
             self.rng, self.optimizer, self.input_dim
         )
     )
@@ -181,7 +181,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     @jax.jit
     def step_fn(
         key: jax.random.PRNGKeyArray,
-        state_neural_vector_field: train_state.TrainState,
+        state_velocity_field: train_state.TrainState,
         batch: Dict[str, jnp.ndarray],
     ) -> Tuple[Any, Any]:
 
@@ -194,7 +194,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
             noise, t, batch["source_lin"], batch["target_lin"]
         )
         apply_fn = functools.partial(
-            state_neural_vector_field.apply_fn, {"params": params}
+            state_velocity_field.apply_fn, {"params": params}
         )
         v_t = jax.vmap(apply_fn)(
             t=t, x=x_t, condition=batch["source_conditions"], rng=rng
@@ -209,9 +209,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       noise = self.sample_noise(key_noise, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
       loss, grads = grad_fn(
-          state_neural_vector_field.params, t, noise, batch, keys_model
+          state_velocity_field.params, t, noise, batch, keys_model
       )
-      return state_neural_vector_field.apply_gradients(grads=grads), loss
+      return state_velocity_field.apply_gradients(grads=grads), loss
 
     return step_fn
 
@@ -237,8 +237,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                 (batch["source_lin"], batch["source_conditions"]),
                 (batch["target_lin"], batch["target_conditions"])
             )
-      self.state_neural_vector_field, loss = self.step_fn(
-          rng_step_fn, self.state_neural_vector_field, batch
+      self.state_velocity_field, loss = self.step_fn(
+          rng_step_fn, self.state_velocity_field, batch
       )
       curr_loss += loss
       if iter % self.logging_freq == 0:
@@ -260,9 +260,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       if iter % self.valid_freq == 0:
         self._valid_step(valid_loader, iter)
         if self.checkpoint_manager is not None:
-          states_to_save = {
-              "state_neural_vector_field": self.state_neural_vector_field
-          }
+          states_to_save = {"state_velocity_field": self.state_velocity_field}
           if self.state_eta is not None:
             states_to_save["state_eta"] = self.state_eta
           if self.state_xi is not None:
@@ -279,7 +277,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """Transport data with the learnt map.
 
     This method solves the neural ODE parameterized by the
-    :attr:`~ott.neural.solvers.OTFlowMatching.neural_vector_field` from
+    :attr:`~ott.neural.solvers.OTFlowMatching.velocity_field` from
     :attr:`~ott.neural.flows.BaseTimeSampler.low` to
     :attr:`~ott.neural.flows.BaseTimeSampler.high` if `forward` is `True`,
     else the other way round.
@@ -304,8 +302,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
-              lambda t, x, args: self.state_neural_vector_field.
-              apply_fn({"params": self.state_neural_vector_field.params},
+              lambda t, x, args: self.state_velocity_field.
+              apply_fn({"params": self.state_velocity_field.params},
                        t=t,
                        x=x,
                        condition=cond)

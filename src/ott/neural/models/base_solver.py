@@ -164,6 +164,7 @@ class ResampleMixin:
           linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
       ).matrix
 
+    @jax.jit
     def match_pairs_filtered(
         x_lin: jnp.ndarray, x_quad: jnp.ndarray, y_lin: jnp.ndarray,
         y_quad: jnp.ndarray
@@ -213,6 +214,7 @@ class ResampleMixin:
     else:
       scale_cost_xx = scale_cost_yy = scale_cost_xy = scale_cost
 
+    @jax.jit
     def match_pairs(
         x_lin: Optional[jnp.ndarray],
         x_quad: Tuple[jnp.ndarray, jnp.ndarray],

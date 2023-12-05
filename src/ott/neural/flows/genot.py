@@ -44,7 +44,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
 
   Args:
-    neural_vector_field: Neural vector field parameterized by a neural network.
+    velocity_field: Neural vector field parameterized by a neural network.
     input_dim: Dimension of the data in the source distribution.
     output_dim: Dimension of the data in the target distribution.
     cond_dim: Dimension of the conditioning variable.
@@ -68,7 +68,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       terms, i.e. both quadratic terms and, if applicable, the linear temr.
       If of type :class:`dict`, the keys are expected to be `scale_cost_xx`,
       `scale_cost_yy`, and if applicable, `scale_cost_xy`.
-    optimizer: Optimizer for `neural_vector_field`.
+    optimizer: Optimizer for `velocity_field`.
     flow: Flow between latent distribution and target distribution.
     time_sampler: Sampler for the time.
     checkpoint_manager: Checkpoint manager.
@@ -95,7 +95,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
   def __init__(
       self,
-      neural_vector_field: Callable[[
+      velocity_field: Callable[[
           jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
       ], jnp.ndarray],
       input_dim: int,
@@ -158,8 +158,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
 
     self.rng = utils.default_prng_key(rng)
-    self.neural_vector_field = neural_vector_field
-    self.state_neural_vector_field: Optional[TrainState] = None
+    self.velocity_field = velocity_field
+    self.state_velocity_field: Optional[TrainState] = None
     self.flow = flow
     self.time_sampler = time_sampler
     self.optimizer = optimizer
@@ -197,8 +197,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     kwargs
     Keyword arguments for the setup function
     """
-    self.state_neural_vector_field = (
-        self.neural_vector_field.create_train_state(
+    self.state_velocity_field = (
+        self.velocity_field.create_train_state(
             self.rng, self.optimizer, self.output_dim
         )
     )
@@ -301,8 +301,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
           for key, arr in batch.items()
       }
 
-      self.state_neural_vector_field, loss = self.step_fn(
-          rng_step_fn, self.state_neural_vector_field, batch
+      self.state_velocity_field, loss = self.step_fn(
+          rng_step_fn, self.state_velocity_field, batch
       )
       if self.learn_rescaling:
         (
@@ -320,9 +320,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       if iteration % self.valid_freq == 0:
         self._valid_step(valid_loader, iteration)
         if self.checkpoint_manager is not None:
-          states_to_save = {
-              "state_neural_vector_field": self.state_neural_vector_field
-          }
+          states_to_save = {"state_velocity_field": self.state_velocity_field}
           if self.state_eta is not None:
             states_to_save["state_eta"] = self.state_eta
           if self.state_xi is not None:
@@ -334,7 +332,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     @jax.jit
     def step_fn(
         key: jax.random.PRNGKeyArray,
-        state_neural_vector_field: train_state.TrainState,
+        state_velocity_field: train_state.TrainState,
         batch: Dict[str, jnp.array],
     ):
 
@@ -346,7 +344,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
             batch["noise"], batch["time"], batch["latent"], batch["target"]
         )
         apply_fn = functools.partial(
-            state_neural_vector_field.apply_fn, {"params": params}
+            state_velocity_field.apply_fn, {"params": params}
         )
 
         cond_input = jnp.concatenate([
@@ -365,9 +363,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       keys_model = jax.random.split(key, len(batch["noise"]))
 
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-      loss, grads = grad_fn(state_neural_vector_field.params, batch, keys_model)
+      loss, grads = grad_fn(state_velocity_field.params, batch, keys_model)
 
-      return state_neural_vector_field.apply_gradients(grads=grads), loss
+      return state_velocity_field.apply_gradients(grads=grads), loss
 
     return step_fn
 
@@ -383,9 +381,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     This method pushes-forward the `source` to its conditional distribution by
       solving the neural ODE parameterized by the
-      :attr:`~ott.neural.solvers.GENOTg.neural_vector_field` from
-      :attr:`~ott.neural.flows.BaseTimeSampler.low` to
-      :attr:`~ott.neural.flows.BaseTimeSampler.high`.
+      :attr:`~ott.neural.flows.genot.velocity_field`
 
     Args:
       source: Data to transport.
@@ -415,8 +411,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
-              lambda t, x, args: self.state_neural_vector_field.
-              apply_fn({"params": self.state_neural_vector_field.params},
+              lambda t, x, args: self.state_velocity_field.
+              apply_fn({"params": self.state_velocity_field.params},
                        t=t,
                        x=x,
                        condition=cond)
