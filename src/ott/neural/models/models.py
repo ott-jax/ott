@@ -107,7 +107,7 @@ class RescalingMLP(nn.Module):
     act_fn: Activation function.
 
   Returns:
-    Rescaling factors.
+    Non-negative rescaling factors.
   """
   hidden_dim: int
   condition_dim: Optional[int] = None

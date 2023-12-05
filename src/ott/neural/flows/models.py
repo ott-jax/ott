@@ -27,7 +27,15 @@ __all__ = ["VelocityField"]
 
 
 class VelocityField(nn.Module):
-  """Parameterized neural vector field.
+  r"""Parameterized neural vector field.
+
+  The `VelocityField` learns a map
+  :math:`v: \\mathbb{R}\times \\mathbb{R}^d\rightarrow \\mathbb{R}^d` solving
+  the ODE :math:`\frac{dx}{dt} = v(t, x)`. Given a source distribution at time
+  :math:`t=0`, the `VelocityField` can be used to transport the source
+  distribution given at :math:`t_0` to a target distribution given at
+  :math:`t_1` by integrating :math:`v(t, x)` from :math:`t=t_0` to
+  :math:`t=t_1`.
 
   Each of the input, condition, and time embeddings are passed through a block
   consisting of ``num_layers_per_block`` layers of dimension
