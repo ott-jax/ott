@@ -104,7 +104,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = functools.patial(sample_uniformly, offset=1e-2)
+    time_sampler = functools.partial(sample_uniformly, offset=1e-2)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
