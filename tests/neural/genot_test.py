@@ -350,8 +350,8 @@ class TestGENOT:
     optimizer = optax.adam(learning_rate=1e-3)
     tau_a = 0.9
     tau_b = 0.2
-    mlp_eta = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    mlp_xi = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_a = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_b = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,
@@ -367,8 +367,8 @@ class TestGENOT:
         time_sampler=time_sampler,
         tau_a=tau_a,
         tau_b=tau_b,
-        mlp_eta=mlp_eta,
-        mlp_xi=mlp_xi,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b,
     )
 
     genot(data_loader, data_loader)

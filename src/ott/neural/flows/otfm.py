@@ -73,13 +73,15 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     scale_cost: How to scale the cost matrix for the OT problem solved by the
       `ot_solver`.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
-    on the first marginal.
+      on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-    on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function as suggested
-      in :cite:`TODO`. If :obj:`None`, the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function as suggested
-      in :cite:`TODO`. If :obj:`None`, the right rescaling factor is not learnt.
+      on the second marginal.
+    rescaling_a: Neural network to learn the left rescaling function as
+      suggested in :cite:`eyring:23`. If :obj:`None`, the left rescaling factor
+      is not learnt.
+    rescaling_b: Neural network to learn the right rescaling function as
+      suggested in :cite:`eyring:23`. If :obj:`None`, the right rescaling factor
+      is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
@@ -106,8 +108,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                 "median"]] = "mean",
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jnp.ndarray], float] = None,
-      mlp_xi: Callable[[jnp.ndarray], float] = None,
+      rescaling_a: Callable[[jnp.ndarray], float] = None,
+      rescaling_b: Callable[[jnp.ndarray], float] = None,
       unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
@@ -130,8 +132,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         cond_dim=cond_dim,
         tau_a=tau_a,
         tau_b=tau_b,
-        mlp_eta=mlp_eta,
-        mlp_xi=mlp_xi,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b,
         unbalanced_kwargs=unbalanced_kwargs,
     )
 
@@ -332,7 +334,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   @property
   def learn_rescaling(self) -> bool:
     """Whether to learn at least one rescaling factor."""
-    return self.mlp_eta is not None or self.mlp_xi is not None
+    return self.rescaling_a is not None or self.rescaling_b is not None
 
   def save(self, path: str):
     """Save the model.

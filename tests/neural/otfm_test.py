@@ -194,8 +194,8 @@ class TestOTFlowMatching:
 
     tau_a = 0.9
     tau_b = 0.2
-    mlp_eta = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    mlp_xi = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_a = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_b = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     fm = OTFlowMatching(
         neural_vf,
         input_dim=source_dim,
@@ -208,8 +208,8 @@ class TestOTFlowMatching:
         optimizer=optimizer,
         tau_a=tau_a,
         tau_b=tau_b,
-        mlp_eta=mlp_eta,
-        mlp_xi=mlp_xi,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b,
     )
     fm(data_loader, data_loader)
 

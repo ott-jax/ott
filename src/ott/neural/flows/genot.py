@@ -84,9 +84,9 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function. If
+    rescaling_a: Neural network to learn the left rescaling function. If
       :obj:`None`, the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function. If
+    rescaling_b: Neural network to learn the right rescaling function. If
       :obj:`None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
    callback_fn: Callback function.
@@ -123,8 +123,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       fused_penalty: float = 0.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Callable[[jnp.ndarray], float] = None,
-      mlp_xi: Callable[[jnp.ndarray], float] = None,
+      rescaling_a: Callable[[jnp.ndarray], float] = None,
+      rescaling_b: Callable[[jnp.ndarray], float] = None,
       unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
@@ -144,8 +144,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         cond_dim=cond_dim,
         tau_a=tau_a,
         tau_b=tau_b,
-        mlp_eta=mlp_eta,
-        mlp_xi=mlp_xi,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b,
         unbalanced_kwargs=unbalanced_kwargs,
     )
     if isinstance(
@@ -443,7 +443,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   @property
   def learn_rescaling(self) -> bool:
     """Whether to learn at least one rescaling factor."""
-    return self.mlp_eta is not None or self.mlp_xi is not None
+    return self.rescaling_a is not None or self.rescaling_b is not None
 
   def save(self, path: str):
     """Save the model.

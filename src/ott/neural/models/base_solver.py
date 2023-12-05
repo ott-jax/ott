@@ -256,10 +256,10 @@ class UnbalancednessMixin:
       cond_dim: Optional[int],
       tau_a: float = 1.0,
       tau_b: float = 1.0,
-      mlp_eta: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
-                                 jnp.ndarray]] = None,
-      mlp_xi: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
-                                jnp.ndarray]] = None,
+      rescaling_a: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
+                                     jnp.ndarray]] = None,
+      rescaling_b: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
+                                     jnp.ndarray]] = None,
       seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
@@ -275,8 +275,8 @@ class UnbalancednessMixin:
     self.cond_dim = cond_dim
     self.tau_a = tau_a
     self.tau_b = tau_b
-    self.mlp_eta = mlp_eta
-    self.mlp_xi = mlp_xi
+    self.rescaling_a = rescaling_a
+    self.rescaling_b = rescaling_b
     self.seed = seed
     self.opt_eta = opt_eta
     self.opt_xi = opt_xi
@@ -338,20 +338,20 @@ class UnbalancednessMixin:
         self.rng_unbalanced, 3
     )
     self.unbalancedness_step_fn = self._get_rescaling_step_fn()
-    if self.mlp_eta is not None:
+    if self.rescaling_a is not None:
       self.opt_eta = (
           self.opt_eta if self.opt_eta is not None else
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
-      self.state_eta = self.mlp_eta.create_train_state(
+      self.state_eta = self.rescaling_a.create_train_state(
           rng_eta, self.opt_eta, source_dim
       )
-    if self.mlp_xi is not None:
+    if self.rescaling_b is not None:
       self.opt_xi = (
           self.opt_xi if self.opt_xi is not None else
           optax.adamw(learning_rate=1e-4, weight_decay=1e-10)
       )
-      self.state_xi = self.mlp_xi.create_train_state(
+      self.state_xi = self.rescaling_b.create_train_state(
           rng_xi, self.opt_xi, target_dim
       )
 
