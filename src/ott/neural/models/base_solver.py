@@ -153,6 +153,7 @@ class ResampleMixin:
       filter_input: bool = False,
   ) -> Callable:
 
+    @jax.jit
     def match_pairs(
         x: jnp.ndarray, y: jnp.ndarray
     ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
