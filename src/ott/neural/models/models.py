@@ -110,7 +110,7 @@ class RescalingMLP(nn.Module):
     Non-negative escaling factors.
   """
   hidden_dim: int
-  condition_dim: Optional[int] = None
+  condition_dim: int = 0
   num_layers_per_block: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.selu
 
@@ -137,7 +137,7 @@ class RescalingMLP(nn.Module):
     )
     x = x_layer(x)
 
-    if self.condition_dim is not None:
+    if self.condition_dim > 0:
       condition_layer = layers.MLPBlock(
           dim=self.hidden_dim,
           out_dim=self.hidden_dim,
