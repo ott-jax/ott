@@ -11,39 +11,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Tuple
+import abc
 
-import jax
 import jax.numpy as jnp
 
 import flax.linen as nn
 
-__all__ = ["MLPBlock"]
-
-PRNGKey = jax.Array
-Shape = Tuple[int, ...]
-Dtype = Any
-Array = Any
+__all__ = ["TimeEncoder", "CyclicalTimeEncoder"]
 
 
-class MLPBlock(nn.Module):
-  """An MLP block."""
-  dim: int = 128
-  num_layers: int = 3
-  act_fn: Any = nn.silu
-  out_dim: int = 128
+class TimeEncoder(nn.Module, abc.ABC):
+  """A time encoder."""
 
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Apply the MLP block.
+  @abc.abstractmethod
+  def __call__(self, t: jnp.ndarray) -> jnp.ndarray:
+    """Encode the time.
 
     Args:
-      x: Input data of shape (batch_size, dim)
+      t: Input time of shape (batch_size, 1).
 
     Returns:
-      Output data of shape (batch_size, out_dim).
+      The encoded time.
     """
-    for _ in range(self.num_layers):
-      x = nn.Dense(self.dim)(x)
-      x = self.act_fn(x)
-    return nn.Dense(self.out_dim)(x)
+    pass
+
+
+class CyclicalTimeEncoder(nn.Module):
+  """A cyclical time encoder."""
+  n_frequencies: int = 128
+
+  @nn.compact
+  def __call__(self, t: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
+    freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
+    t = freq * t
+    return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)

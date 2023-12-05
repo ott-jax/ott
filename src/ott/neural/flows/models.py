@@ -20,6 +20,7 @@ import flax.linen as nn
 import optax
 from flax.training import train_state
 
+import ott.neural.flows.layers as flow_layers
 from ott.neural.models import layers
 
 __all__ = ["VelocityField"]
@@ -60,19 +61,6 @@ class VelocityField(nn.Module):
   num_layers_per_block: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_frequencies: int = 128
-
-  def time_encoder(self, t: jnp.ndarray) -> jnp.array:
-    """Encode the time.
-
-    Args:
-      t: Time.
-
-    Returns:
-      Encoded time.
-    """
-    freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
-    t = freq * t
-    return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
 
   def __post_init__(self):
 
@@ -115,7 +103,7 @@ class VelocityField(nn.Module):
     Returns:
       Output of the neural vector field.
     """
-    t = self.time_encoder(t)
+    t = flow_layers.CyclicalTimeEncoder(n_frequencies=self.n_frequencies)(t)
     t = layers.MLPBlock(
         dim=self.t_embed_dim,
         out_dim=self.t_embed_dim,
