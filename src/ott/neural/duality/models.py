@@ -54,7 +54,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     gaussian_map_samples: Tuple of source and target points, used to initialize
       the ICNN to mimic the linear Bures map that morphs the (Gaussian
       approximation) of the input measure to that of the target measure. If
-      ``None``, the identity initialization is used, and ICNN mimics half the
+      :obj:`None`, the identity initialization is used, and ICNN mimics half the
       squared Euclidean norm.
   """
   dim_data: int
@@ -234,7 +234,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
     geom: The fixed geometry of the problem instances.
     meta_model: The model to predict the potential :math:`f` from the measures.
       TODO(marcocuturi): add explanation here what arguments to expect.
-    opt: The optimizer to update the parameters. If ``None``, use
+    opt: The optimizer to update the parameters. If :obj:`None`, use
       :func:`optax.adam` with :math:`0.001` learning rate.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.

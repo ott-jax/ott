@@ -61,7 +61,8 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     valid_freq: Frequency of validation.
     ot_solver: OT solver to match samples from the source and the target
       distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
-      If `None`, no matching will be performed as proposed in :cite:`lipman:22`.
+      If :obj:`None`, no matching will be performed as proposed in
+      :cite:`lipman:22`.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for `neural_vector_field`.
@@ -76,9 +77,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
     mlp_eta: Neural network to learn the left rescaling function as suggested
-      in :cite:`TODO`. If `None`, the left rescaling factor is not learnt.
+      in :cite:`TODO`. If :obj:`None`, the left rescaling factor is not learnt.
     mlp_xi: Neural network to learn the right rescaling function as suggested
-      in :cite:`TODO`. If `None`, the right rescaling factor is not learnt.
+      in :cite:`TODO`. If :obj:`None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
@@ -279,7 +280,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def transport(
       self,
       data: jnp.array,
-      condition: Optional[jnp.ndarray],
+      condition: Optional[jnp.ndarray] = None,
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:

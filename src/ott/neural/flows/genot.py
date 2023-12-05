@@ -88,10 +88,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
     on the second marginal.
-    mlp_eta: Neural network to learn the left rescaling function. If `None`,
-      the left rescaling factor is not learnt.
-    mlp_xi: Neural network to learn the right rescaling function. If `None`,
-      the right rescaling factor is not learnt.
+    mlp_eta: Neural network to learn the left rescaling function. If
+      :obj:`None`, the left rescaling factor is not learnt.
+    mlp_xi: Neural network to learn the right rescaling function. If
+      :obj:`None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
    callback_fn: Callback function.
     rng: Random number generator.
@@ -379,7 +379,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   def transport(
       self,
       source: jnp.ndarray,
-      condition: Optional[jnp.ndarray],
+      condition: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
       forward: bool = True,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),

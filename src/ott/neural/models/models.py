@@ -110,13 +110,15 @@ class RescalingMLP(nn.Module):
     Rescaling factors.
   """
   hidden_dim: int
-  condition_dim: int
+  condition_dim: Optional[int] = None
   num_layers_per_block: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.selu
 
   @nn.compact
   def __call__(
-      self, x: jnp.ndarray, condition: Optional[jnp.ndarray]
+      self,
+      x: jnp.ndarray,
+      condition: Optional[jnp.ndarray] = None
   ) -> jnp.ndarray:  # noqa: D102
     """Forward pass through the rescaling network.
 
@@ -127,6 +129,8 @@ class RescalingMLP(nn.Module):
     Returns:
       Estimated rescaling factors.
     """
+    if self.condition_dim is None:
+      assert condition is None
     x = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,
@@ -135,8 +139,7 @@ class RescalingMLP(nn.Module):
     )(
         x
     )
-    if self.condition_dim > 0:
-      condition = jnp.atleast_1d(condition)
+    if self.condition_dim is not None:
       condition = layers.MLPBlock(
           dim=self.hidden_dim,
           out_dim=self.hidden_dim,

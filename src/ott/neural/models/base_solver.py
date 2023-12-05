@@ -441,7 +441,9 @@ class UnbalancednessMixin:
     return step_fn
 
   def evaluate_eta(
-      self, source: jnp.ndarray, condition: Optional[jnp.ndarray]
+      self,
+      source: jnp.ndarray,
+      condition: Optional[jnp.ndarray] = None
   ) -> jnp.ndarray:
     """Evaluate the left learnt rescaling factor.
 
@@ -460,7 +462,9 @@ class UnbalancednessMixin:
                                    condition=condition)
 
   def evaluate_xi(
-      self, target: jnp.ndarray, condition: Optional[jnp.ndarray]
+      self,
+      target: jnp.ndarray,
+      condition: Optional[jnp.ndarray] = None
   ) -> jnp.ndarray:
     """Evaluate the right learnt rescaling factor.
 

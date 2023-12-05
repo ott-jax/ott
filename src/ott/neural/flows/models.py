@@ -38,14 +38,14 @@ class VelocityField(nn.Module):
 
   Args:
     output_dim: Dimensionality of the neural vector field.
-    condition_dim: Dimensionality of the conditioning vector.
     latent_embed_dim: Dimensionality of the embedding of the data.
+    condition_dim: Dimensionality of the conditioning vector.
     condition_embed_dim: Dimensionality of the embedding of the condition.
-      If ``None``, set to ``latent_embed_dim``.
+      If :obj:`None`, set to ``latent_embed_dim``.
     t_embed_dim: Dimensionality of the time embedding.
-      If ``None``, set to ``latent_embed_dim``.
+      If :obj:`None`, set to ``latent_embed_dim``.
     joint_hidden_dim: Dimensionality of the hidden layers of the joint network.
-      If ``None``, set to ``latent_embed_dim + condition_embed_dim +
+      If :obj:`None`, set to ``latent_embed_dim + condition_embed_dim +
       t_embed_dim``.
     num_layers_per_block: Number of layers per block.
     act_fn: Activation function.
@@ -53,8 +53,8 @@ class VelocityField(nn.Module):
 
   """
   output_dim: int
-  condition_dim: int
   latent_embed_dim: int
+  condition_dim: Optional[int] = None
   condition_embed_dim: Optional[int] = None
   t_embed_dim: Optional[int] = None
   joint_hidden_dim: Optional[int] = None
@@ -89,26 +89,29 @@ class VelocityField(nn.Module):
       self,
       t: jnp.ndarray,
       x: jnp.ndarray,
-      condition: Optional[jnp.ndarray],
+      condition: Optional[jnp.ndarray] = None,
       keys_model: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Forward pass through the neural vector field.
 
     Args:
-      t: Time.
-      x: Data.
+      t: Time of shape (batch_size, 1).
+      x: Data of shape (batch_size, output_dim).
       condition: Conditioning vector.
       keys_model: Random number generator.
 
     Returns:
       Output of the neural vector field.
     """
+    if self.condition_dim is None:
+      assert condition is None
+
     t = flow_layers.CyclicalTimeEncoder(n_frequencies=self.n_frequencies)(t)
     t = layers.MLPBlock(
         dim=self.t_embed_dim,
         out_dim=self.t_embed_dim,
         num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn,
+        act_fn=self.act_fn
     )(
         t
     )
@@ -122,7 +125,7 @@ class VelocityField(nn.Module):
         x
     )
 
-    if self.condition_dim > 0:
+    if self.condition_dim is not None:
       condition = layers.MLPBlock(
           dim=self.condition_embed_dim,
           out_dim=self.condition_embed_dim,
@@ -139,17 +142,12 @@ class VelocityField(nn.Module):
         dim=self.joint_hidden_dim,
         out_dim=self.joint_hidden_dim,
         num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn,
+        act_fn=self.act_fn
     )(
         concatenated
     )
 
-    return nn.Dense(
-        self.output_dim,
-        use_bias=True,
-    )(
-        out
-    )
+    return nn.Dense(self.output_dim, use_bias=True)(out)
 
   def create_train_state(
       self,
