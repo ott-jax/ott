@@ -13,12 +13,13 @@
 # limitations under the License.
 import abc
 
-import jax
 import jax.numpy as jnp
 
 __all__ = [
-    "BaseFlow", "StraightFlow", "ConstantNoiseFlow", "BrownianNoiseFlow",
-    "BaseTimeSampler", "UniformSampler", "OffsetUniformSampler"
+    "BaseFlow",
+    "StraightFlow",
+    "ConstantNoiseFlow",
+    "BrownianNoiseFlow",
 ]
 
 
@@ -154,83 +155,3 @@ class BrownianNoiseFlow(StraightFlow):
       Standard deviation of the probablity path at time :math:`t`.
     """
     return jnp.sqrt(self.sigma * t * (1 - t))
-
-
-class BaseTimeSampler(abc.ABC):
-  """Base class for time samplers.
-
-  Args:
-    low: Lower bound of the distribution to sample from.
-    high: Upper bound of the distribution to sample from .
-  """
-
-  def __init__(self, low: float, high: float):
-    self.low = low
-    self.high = high
-
-  @abc.abstractmethod
-  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
-    """Generate `num_samples` samples of the time `math`:t:.
-
-    Args:
-      rng: Random number generator.
-      num_samples: Number of samples to generate.
-    """
-
-
-class UniformSampler(BaseTimeSampler):
-  """Sample :math:`t` from a uniform distribution :math:`[low, high]`.
-
-  Args:
-    low: Lower bound of the uniform distribution.
-    high: Upper bound of the uniform distribution.
-  """
-
-  def __init__(self, low: float = 0.0, high: float = 1.0):
-    super().__init__(low=low, high=high)
-
-  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
-    """Generate `num_samples` samples of the time `math`:t:.
-
-    Args:
-      rng: Random number generator.
-      num_samples: Number of samples to generate.
-
-    Returns:
-      `num_samples` samples of the time :math:`t``.
-    """
-    return jax.random.uniform(
-        rng, (num_samples, 1), minval=self.low, maxval=self.high
-    )
-
-
-class OffsetUniformSampler(BaseTimeSampler):
-  """Sample the time :math:`t`.
-
-  Sample :math:`t` from a uniform distribution :math:`[low, high]` with
-    offset `offset`.
-
-  Args:
-    offset: Offset of the uniform distribution.
-    low: Lower bound of the uniform distribution.
-    high: Upper bound of the uniform distribution.
-  """
-
-  def __init__(self, offset: float, low: float = 0.0, high: float = 1.0):
-    super().__init__(low=low, high=high)
-    self.offset = offset
-
-  def __call__(self, rng: jax.Array, num_samples: int) -> jnp.ndarray:
-    """Generate `num_samples` samples of the time `math`:t:.
-
-    Args:
-      rng: Random number generator.
-      num_samples: Number of samples to generate.
-
-    Returns:
-    An array with `num_samples` samples of the time `math`:t:.
-    """
-    return (
-        jax.random.uniform(rng, (1, 1), minval=self.low, maxval=self.high) +
-        jnp.arange(num_samples)[:, None] / num_samples
-    ) % ((self.high - self.low) - self.offset)

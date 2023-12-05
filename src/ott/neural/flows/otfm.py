@@ -36,7 +36,7 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.flows.flows import BaseFlow, BaseTimeSampler
+from ott.neural.flows.flows import BaseFlow
 from ott.neural.models.base_solver import (
     BaseNeuralSolver,
     ResampleMixin,
@@ -96,7 +96,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       iterations: int,
       ot_solver: Optional[Type[was_solver.WassersteinSolver]],
       flow: Type[BaseFlow],
-      time_sampler: Type[BaseTimeSampler],
+      time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: Type[optax.GradientTransformation],
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,

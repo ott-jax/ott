@@ -26,12 +26,8 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.flows.flows import (
-    BaseFlow,
-    BaseTimeSampler,
-    ConstantNoiseFlow,
-    UniformSampler,
-)
+from ott.neural.flows.flows import BaseFlow, ConstantNoiseFlow
+from ott.neural.flows.samplers import sample_uniformly
 from ott.neural.models.base_solver import (
     BaseNeuralSolver,
     ResampleMixin,
@@ -118,7 +114,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                                 "max_cost", "median"]]]],
       optimizer: Type[optax.GradientTransformation],
       flow: Type[BaseFlow] = ConstantNoiseFlow(0.0),
-      time_sampler: Type[BaseTimeSampler] = UniformSampler(),
+      time_sampler: Callable[[jax.Array, int], jnp.ndarray] = sample_uniformly,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       k_samples_per_x: int = 1,
       solver_latent_to_data: Optional[Type[was_solver.WassersteinSolver]
