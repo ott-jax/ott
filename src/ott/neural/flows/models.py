@@ -107,46 +107,41 @@ class VelocityField(nn.Module):
       assert condition is None
 
     t = flow_layers.CyclicalTimeEncoder(n_frequencies=self.n_frequencies)(t)
-    t = layers.MLPBlock(
+    t_layer = layers.MLPBlock(
         dim=self.t_embed_dim,
         out_dim=self.t_embed_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
-    )(
-        t
     )
+    t = t_layer(t)
 
-    x = layers.MLPBlock(
+    x_layer = layers.MLPBlock(
         dim=self.latent_embed_dim,
         out_dim=self.latent_embed_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
-    )(
-        x
     )
+    x = x_layer(x)
 
     if self.condition_dim is not None:
-      condition = layers.MLPBlock(
+      condition_layer = layers.MLPBlock(
           dim=self.condition_embed_dim,
           out_dim=self.condition_embed_dim,
           num_layers=self.num_layers_per_block,
           act_fn=self.act_fn
-      )(
-          condition
       )
+      condition = condition_layer(condition)
       concatenated = jnp.concatenate((t, x, condition), axis=-1)
     else:
       concatenated = jnp.concatenate((t, x), axis=-1)
 
-    out = layers.MLPBlock(
+    out_layer = layers.MLPBlock(
         dim=self.joint_hidden_dim,
         out_dim=self.joint_hidden_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
-    )(
-        concatenated
     )
-
+    out = out_layer(concatenated)
     return nn.Dense(self.output_dim, use_bias=True)(out)
 
   def create_train_state(

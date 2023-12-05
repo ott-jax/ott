@@ -131,36 +131,35 @@ class RescalingMLP(nn.Module):
     """
     if self.condition_dim is None:
       assert condition is None
-    x = layers.MLPBlock(
+    x_layer = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
-    )(
-        x
     )
+    x = x_layer(x)
+
     if self.condition_dim is not None:
-      condition = layers.MLPBlock(
+      condition_layer = layers.MLPBlock(
           dim=self.hidden_dim,
           out_dim=self.hidden_dim,
           num_layers=self.num_layers_per_block,
           act_fn=self.act_fn
-      )(
-          condition
       )
+
+      condition = condition_layer(condition)
       concatenated = jnp.concatenate((x, condition), axis=-1)
     else:
       concatenated = x
 
-    out = layers.MLPBlock(
+    out_layer = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,
         num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn,
-    )(
-        concatenated
+        act_fn=self.act_fn
     )
 
+    out = out_layer(concatenated)
     return jnp.exp(out)
 
   def create_train_state(
