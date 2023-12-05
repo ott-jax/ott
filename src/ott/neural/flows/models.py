@@ -62,7 +62,7 @@ class VelocityField(nn.Module):
   """
   output_dim: int
   latent_embed_dim: int
-  condition_dim: Optional[int] = None
+  condition_dim: int = 0
   condition_embed_dim: Optional[int] = None
   t_embed_dim: Optional[int] = None
   joint_hidden_dim: Optional[int] = None
@@ -111,9 +111,6 @@ class VelocityField(nn.Module):
     Returns:
       Output of the neural vector field.
     """
-    if self.condition_dim is None:
-      assert condition is None
-
     t = flow_layers.CyclicalTimeEncoder(n_frequencies=self.n_frequencies)(t)
     t_layer = layers.MLPBlock(
         dim=self.t_embed_dim,
@@ -131,7 +128,7 @@ class VelocityField(nn.Module):
     )
     x = x_layer(x)
 
-    if self.condition_dim is not None:
+    if self.condition_dim > 0:
       condition_layer = layers.MLPBlock(
           dim=self.condition_embed_dim,
           out_dim=self.condition_embed_dim,

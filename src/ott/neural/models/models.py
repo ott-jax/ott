@@ -107,7 +107,7 @@ class RescalingMLP(nn.Module):
     act_fn: Activation function.
 
   Returns:
-    Non-negative rescaling factors.
+    Non-negative escaling factors.
   """
   hidden_dim: int
   condition_dim: Optional[int] = None
@@ -129,8 +129,6 @@ class RescalingMLP(nn.Module):
     Returns:
       Estimated rescaling factors.
     """
-    if self.condition_dim is None:
-      assert condition is None
     x_layer = layers.MLPBlock(
         dim=self.hidden_dim,
         out_dim=self.hidden_dim,

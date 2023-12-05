@@ -272,20 +272,22 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       data: jnp.array,
       condition: Optional[jnp.ndarray] = None,
       forward: bool = True,
+      t_0: float = 0.0,
+      t_1: float = 1.0,
       diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
   ) -> diffrax.Solution:
     """Transport data with the learnt map.
 
-    This method solves the neural ODE parameterized by the
-    :attr:`~ott.neural.solvers.OTFlowMatching.velocity_field` from
-    :attr:`~ott.neural.flows.BaseTimeSampler.low` to
-    :attr:`~ott.neural.flows.BaseTimeSampler.high` if `forward` is `True`,
-    else the other way round.
+    This method pushes-forward the `source` by
+    solving the neural ODE parameterized by the
+    :attr:`~ott.neural.flows.OTFlowMatching.velocity_field`.
 
     Args:
       data: Initial condition of the ODE.
       condition: Condition of the input data.
       forward: If `True` integrates forward, otherwise backwards.
+      t_0: Starting point of integration.
+      t_1: End point of integration.
       diffeqsolve_kwargs: Keyword arguments for the ODE solver.
 
     Returns:
@@ -295,8 +297,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     """
     diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
 
-    t0, t1 = (self.time_sampler.low, self.time_sampler.high
-             ) if forward else (self.time_sampler.high, self.time_sampler.low)
+    t0, t1 = (t_0, t_1) if forward else (t_1, t_0)
 
     @jax.jit
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
