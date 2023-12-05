@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Iterator, Type
 
 import pytest
@@ -23,11 +24,10 @@ from ott.neural.flows.flows import (
     BaseFlow,
     BrownianNoiseFlow,
     ConstantNoiseFlow,
-    OffsetUniformSampler,
-    UniformSampler,
 )
 from ott.neural.flows.models import VelocityField
 from ott.neural.flows.otfm import OTFlowMatching
+from ott.neural.flows.samplers import sample_uniformly
 from ott.neural.models.models import RescalingMLP
 from ott.solvers.linear import sinkhorn
 
@@ -47,7 +47,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     fm = OTFlowMatching(
         neural_vf,
@@ -92,7 +92,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = OffsetUniformSampler(1e-6)
+    time_sampler = functools.partial(sample_uniformly, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
     fm = OTFlowMatching(
         neural_vf,
@@ -140,7 +140,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     fm = OTFlowMatching(
         neural_vf,
@@ -188,7 +188,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     flow = ConstantNoiseFlow(1.0)
     optimizer = optax.adam(learning_rate=1e-3)
 

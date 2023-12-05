@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Iterator, Optional
 
 import pytest
@@ -20,9 +21,9 @@ import jax.numpy as jnp
 import optax
 
 from ott.geometry import costs
-from ott.neural.flows.flows import OffsetUniformSampler, UniformSampler
 from ott.neural.flows.genot import GENOT
 from ott.neural.flows.models import VelocityField
+from ott.neural.flows.samplers import sample_uniformly
 from ott.neural.models.models import RescalingMLP
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
@@ -53,7 +54,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -103,7 +104,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = OffsetUniformSampler(1e-3)
+    time_sampler = functools.patial(sample_uniformly, offset=1e-2)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -149,7 +150,6 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    UniformSampler()
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -196,7 +196,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -243,7 +243,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -290,7 +290,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -346,7 +346,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = UniformSampler()
+    time_sampler = sample_uniformly
     optimizer = optax.adam(learning_rate=1e-3)
     tau_a = 0.9
     tau_b = 0.2
