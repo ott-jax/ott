@@ -340,7 +340,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
       def loss_fn(
           params: jnp.ndarray, batch: Dict[str, jnp.array],
-          keys_model: jax.random.PRNGKeyArray
+          rng: jax.random.PRNGKeyArray
       ):
         x_t = self.flow.compute_xt(
             batch["noise"], batch["time"], batch["latent"], batch["target"]
@@ -355,9 +355,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
             if batch[el] is not None
         ],
                                      axis=1)
-        v_t = jax.vmap(apply_fn)(
-            t=batch["time"], x=x_t, condition=cond_input, keys_model=keys_model
-        )
+        v_t = jax.vmap(apply_fn
+                      )(t=batch["time"], x=x_t, condition=cond_input, rng=rng)
         u_t = self.flow.compute_ut(
             batch["time"], batch["latent"], batch["target"]
         )

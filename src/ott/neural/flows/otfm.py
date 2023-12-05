@@ -187,7 +187,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
       def loss_fn(
           params: jnp.ndarray, t: jnp.ndarray, noise: jnp.ndarray,
-          batch: Dict[str, jnp.ndarray], keys_model: jax.random.PRNGKeyArray
+          batch: Dict[str, jnp.ndarray], rng: jax.random.PRNGKeyArray
       ) -> jnp.ndarray:
 
         x_t = self.flow.compute_xt(
@@ -197,10 +197,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
             state_neural_vector_field.apply_fn, {"params": params}
         )
         v_t = jax.vmap(apply_fn)(
-            t=t,
-            x=x_t,
-            condition=batch["source_conditions"],
-            keys_model=keys_model
+            t=t, x=x_t, condition=batch["source_conditions"], rng=rng
         )
         u_t = self.flow.compute_ut(t, batch["source_lin"], batch["target_lin"])
         return jnp.mean((v_t - u_t) ** 2)

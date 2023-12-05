@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from pathlib import Path
-from types import MappingProxyType
+import pathlib
+import types
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
@@ -55,11 +55,11 @@ class BaseNeuralSolver(abc.ABC):
     """Transport."""
 
   @abc.abstractmethod
-  def save(self, path: Path):
+  def save(self, path: pathlib.Path):
     """Save the model."""
 
   @abc.abstractmethod
-  def load(self, path: Path):
+  def load(self, path: pathlib.Path):
     """Load the model."""
 
   @property
@@ -266,7 +266,7 @@ class UnbalancednessMixin:
       resample_epsilon: float = 1e-2,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
-      sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
+      sinkhorn_kwargs: Mapping[str, Any] = types.MappingProxyType({}),
       **_: Any,
   ):
     self.rng_unbalanced = rng
@@ -299,7 +299,7 @@ class UnbalancednessMixin:
       resample_epsilon: float,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
-      sinkhorn_kwargs: Dict[str, Any] = MappingProxyType({}),
+      sinkhorn_kwargs: Dict[str, Any] = types.MappingProxyType({}),
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the unbalanced source and target marginals for a batch."""
 
