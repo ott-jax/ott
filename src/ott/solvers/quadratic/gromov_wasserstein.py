@@ -129,7 +129,7 @@ class GWState(NamedTuple):
   linear_state: LinearOutput
   linear_pb: linear_problem.LinearProblem
   old_transport_mass: float
-  rngs: Optional[jnp.ndarray] = None
+  rngs: Optional[jax.Array] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "GWState":

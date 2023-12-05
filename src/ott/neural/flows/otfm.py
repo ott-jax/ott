@@ -84,10 +84,6 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
     rng: Random number generator.
-
-  Returns:
-    None
-
   """
 
   def __init__(
@@ -226,9 +222,6 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Args;
       train_loader: Dataloader for the training data.
       valid_loader: Dataloader for the validation data.
-
-    Returns:
-      None
     """
     batch: Mapping[str, jnp.ndarray] = {}
     curr_loss = 0.0

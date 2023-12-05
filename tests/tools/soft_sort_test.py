@@ -109,7 +109,7 @@ class TestSoftSort:
 
     # Check passing custom sampler, must be still symmetric / centered on {.5}^d
     # Check passing custom epsilon also works.
-    def ball_sampler(k: jnp.ndarray, s: Tuple[int, int]) -> jnp.ndarray:
+    def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
       return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
 
     num_target_samples = 473

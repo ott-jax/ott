@@ -18,7 +18,6 @@ import warnings
 from typing import Any, Callable, NamedTuple, Optional, Tuple
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 try:
@@ -69,7 +68,7 @@ def deprecate(  # noqa: D103
   return functools.wraps(func)(wrapper)
 
 
-def default_prng_key(rng: Optional[jax.Array] = None) -> jnp.ndarray:
+def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
   """Get the default PRNG key.
 
   Args:

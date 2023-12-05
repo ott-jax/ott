@@ -38,7 +38,7 @@ class MLPBlock(nn.Module):
     """Apply the MLP block.
 
     Args:
-      x: Input data of shape (batch_size, dim)
+      x: Input data of shape (batch_size, dim).
 
     Returns:
       Output data of shape (batch_size, out_dim).

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from abc import ABC, abstractmethod
+import abc
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
@@ -30,7 +30,7 @@ from ott.solvers.linear import sinkhorn
 __all__ = ["BaseNeuralSolver", "ResampleMixin", "UnbalancednessMixin"]
 
 
-class BaseNeuralSolver(ABC):
+class BaseNeuralSolver(abc.ABC):
   """Base class for neural solvers.
 
   Args:
@@ -42,28 +42,28 @@ class BaseNeuralSolver(ABC):
     self.iterations = iterations
     self.valid_freq = valid_freq
 
-  @abstractmethod
+  @abc.abstractmethod
   def setup(self, *args: Any, **kwargs: Any):
     """Setup the model."""
 
-  @abstractmethod
+  @abc.abstractmethod
   def __call__(self, *args: Any, **kwargs: Any):
     """Train the model."""
 
-  @abstractmethod
+  @abc.abstractmethod
   def transport(self, *args: Any, forward: bool, **kwargs: Any) -> Any:
     """Transport."""
 
-  @abstractmethod
+  @abc.abstractmethod
   def save(self, path: Path):
     """Save the model."""
 
-  @abstractmethod
+  @abc.abstractmethod
   def load(self, path: Path):
     """Load the model."""
 
   @property
-  @abstractmethod
+  @abc.abstractmethod
   def training_logs(self) -> Dict[str, Any]:
     """Return the training logs."""
 
@@ -327,7 +327,7 @@ class UnbalancednessMixin:
       batch: Tuple[jnp.ndarray, ...],
       marginals: jnp.ndarray,
   ) -> Tuple[jnp.ndarray, ...]:
-    """Resample a batch based upon marginals."""
+    """Resample a batch based on marginals."""
     indices = jax.random.choice(
         key, a=len(marginals), p=jnp.squeeze(marginals), shape=[len(marginals)]
     )

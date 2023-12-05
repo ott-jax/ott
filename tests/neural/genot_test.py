@@ -29,7 +29,6 @@ from ott.solvers.quadratic import gromov_wasserstein
 
 
 class TestGENOT:
-  #TODO: add tests for unbalancedness
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])

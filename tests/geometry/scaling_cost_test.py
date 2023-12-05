@@ -189,7 +189,7 @@ class TestScaleCost:
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.parametrize("batch_size", [5, 12])
-  def test_mascale_cost_xx_low_rank_with_batch(self, batch_size: int):
+  def test_max_scale_cost_low_rank_with_batch(self, batch_size: int):
     """Test max_cost options for low rank with batch_size fixed."""
 
     geom0 = low_rank.LRCGeometry(
@@ -200,7 +200,7 @@ class TestScaleCost:
         geom0.inv_scale_cost, 1.0 / jnp.max(self.cost_lr), rtol=1e-4
     )
 
-  def test_mascale_cost_xx_low_rank_large_array(self):
+  def test_max_scale_cost_low_rank_large_array(self):
     """Test max_cost options for large matrices."""
 
     _, *rngs = jax.random.split(self.rng, 3)
