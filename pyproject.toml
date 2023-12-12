@@ -87,6 +87,7 @@ docs = [
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinxcontrib-spelling>=7.7.0",
     "myst-nb>=0.17.1",
+    "scikit-learn>=1.0",
 ]
 
 [tool.setuptools]
