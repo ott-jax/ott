@@ -34,11 +34,11 @@ class PositiveDense(nn.Module):
 
   Args:
     dim_hidden: Number of output dimensions.
-    rectifier_fn: The rectifier function.
+    rectifier_fn: Rectifier function.
+    use_bias: Whether to add bias to the output.
     kernel_init: Initializer for the matrix.
     bias_init: Initializer for the bias. Only used when ``use_bias = True``.
-    precision: Numerical precision of computation,
-      see :class:`~jax.lax.Precision` for details.
+    precision: Numerical precision of the computation.
   """
 
   dim_hidden: int
@@ -73,7 +73,7 @@ class PositiveDense(nn.Module):
 
 
 class PosDefPotentials(nn.Module):
-  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x + c_i` potentials.
+  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x^2 + c_i` potentials.
 
   .. note::
     The quadratic potential has diagonal + low-rank structure.
@@ -81,18 +81,17 @@ class PosDefPotentials(nn.Module):
   Args:
     num_potentials: Dimension of the output.
     rank: Rank of the matrices :math:`A_i` used as low-rank factors
-      for quadratic potentials.
-    rectifier_fn: The rectifier function to ensure non-negativity of
+      for the quadratic potentials.
+    rectifier_fn: Rectifier function to ensure non-negativity of
       the diagonals :math:`d_i`.
     use_linear: Whether to add a linear layer :math:`b_i` to the output.
-    use_bias: Whether to add a bias :math:`c_i` to the output.
+    use_bias: Whether to add bias :math:`c_i` to the output.
     kernel_lr_init: Initializer for the matrices :math:`A_i`
       of the quadratic potentials. Only used when ``rank > 0``.
     kernel_diag_init: Initializer for the diagonals :math:`d_i`.
     kernel_linear_init: Initializer for the linear layers :math:`b_i`.
     bias_init: Initializer for the bias. Only used when ``use_bias = True``.
-    precision: Numerical precision of computation,
-      see :class:`~jax.lax.Precision` for details.
+    precision: Numerical precision of the computation.
   """  # noqa: E501
 
   num_potentials: int
@@ -130,7 +129,7 @@ class PosDefPotentials(nn.Module):
     diag_kernel = self.rectifier_fn(diag_kernel)
 
     # (batch, dim_data, 1), (1, dim_data, num_potentials)
-    y = 0.5 * jnp.sum((x[..., None] * diag_kernel[None]), axis=1)
+    y = 0.5 * jnp.sum(((x ** 2)[..., None] * diag_kernel[None]), axis=1)
 
     if self.rank > 0:
       quad_kernel = self.param(
@@ -174,7 +173,7 @@ class PosDefPotentials(nn.Module):
 
     kwargs["use_linear"] = True
     return cls(
-        kernel_quad_init=lambda *_, **__: factor,
+        kernel_lr_init=lambda *_, **__: factor,
         kernel_linear_init=lambda *_, **__: mean.T,
         **kwargs,
     )

@@ -114,7 +114,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
         use_linear=True,
         use_bias=True,
         kernel_diag_init=nn.initializers.zeros,
-        kernel_quad_init=self.init_fn(self.init_std),
+        kernel_lr_init=self.init_fn(self.init_std),
         kernel_linear_init=self.init_fn(self.init_std),
         bias_init=self.init_fn(self.init_std),
     )
@@ -131,7 +131,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
       return layers.PosDefPotentials(
           rank=self.rank,
           kernel_diag_init=nn.initializers.ones,
-          kernel_quad_init=nn.initializers.zeros,
+          kernel_lr_init=nn.initializers.zeros,
           kernel_linear_init=nn.initializers.zeros,
           **kwargs,
       )
