@@ -24,7 +24,8 @@ Shape = Tuple[int, ...]
 Dtype = Any
 Array = jnp.ndarray
 
-DEFAULT_KERNEL_INIT = nn.initializers.lecun_normal()
+# wrap to silence docs linter
+DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.lecun_normal()(*a, **k)
 DEFAULT_BIAS_INIT = nn.initializers.zeros
 DEFAULT_RECTIFIER = nn.activation.relu
 

@@ -30,7 +30,8 @@ from ott.problems.linear import linear_problem
 
 __all__ = ["ICNN", "MLP", "MetaInitializer"]
 
-DEFAULT_KERNEL_INITIALIZER = nn.initializers.normal()
+# wrap to silence docs linter
+DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.normal()(*a, **k)
 DEFAULT_RECTIFIER = nn.activation.relu
 DEFAULT_ACTIVATION = nn.activation.relu
 
@@ -67,7 +68,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   dim_hidden: Sequence[int]
   rank: int = 1
   init_fn: Callable[[jax.Array, Tuple[int, ...], Any],
-                    jnp.ndarray] = DEFAULT_KERNEL_INITIALIZER
+                    jnp.ndarray] = DEFAULT_KERNEL_INIT
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_ACTIVATION
   pos_weights: bool = False
   rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
