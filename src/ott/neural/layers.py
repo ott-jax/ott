@@ -42,36 +42,32 @@ class PositiveDense(nn.Module):
   """
 
   dim_hidden: int
-  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
+  rectifier_fn: Callable[[Array], Array] = DEFAULT_RECTIFIER
   use_bias: bool = True
   kernel_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
   precision: Optional[jax.lax.Precision] = None
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
     """Applies a linear transformation to inputs along the last dimension.
 
     Args:
-      inputs: Array to be transformed.
+      x: Array of shape ``[batch, ..., features]``.
 
     Returns:
-      The transformed input.
+      The output, array of shape ``[batch, ..., dim_hidden]``.
     """
     kernel = self.param(
-        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", self.kernel_init, (x.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
 
-    y = jax.lax.dot_general(
-        inputs,
-        kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
-        precision=self.precision
-    )
+    x = jnp.tensordot(x, kernel, axes=(-1, 0), precision=self.precision)
     if self.use_bias:
-      y = y + self.param("bias", self.bias_init, (self.dim_hidden,))
+      x = x + self.param("bias", self.bias_init, (self.dim_hidden,))
 
-    return y
+    return x
 
 
 # TODO(michalk8): update the docstring
@@ -157,8 +153,20 @@ class PosDefPotentials(nn.Module):
   def init_from_samples(
       cls, source: jnp.ndarray, target: jnp.ndarray, **kwargs: Any
   ) -> "PosDefPotentials":
-    """TODO."""
+    """Initialize the layer using Gaussian approximation :cite:`bunne:22`.
+
+    Args:
+      source: Samples from the source distribution, array of shape ``[n, d]``.
+      target: Samples from the target distribution, array of shape ``[m, d]``.
+      kwargs: Keyword arguments for initialization. Note that ``use_linear``
+        will be always set to :obj:`True`.
+
+    Returns:
+      The positive-definite potentials.
+    """
     factor, mean = _compute_gaussian_map_params(source, target)
+
+    kwargs["use_linear"] = True
     return cls(
         kernel_quad_init=lambda *_, **__: factor,
         kernel_linear_init=lambda *_, **__: mean.T,
