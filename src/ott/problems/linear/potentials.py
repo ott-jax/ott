@@ -299,7 +299,7 @@ class DualPotentials:
       num_grid: number of points to discretize the domain into a grid
         along each dimension
       contourf_kwargs: additional kwargs passed into
-      :meth:`~matplotlib.axes.Axes.contourf`
+        :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns:
       Figure and axes.
