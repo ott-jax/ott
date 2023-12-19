@@ -92,9 +92,6 @@ class PosDefPotentials(nn.Module):
   matrix. Finally, the :math:`c_i` are contained in a vector of size
   ``(num_potentials,)``.
 
-  .. note::
-    The quadratic potential has diagonal + low-rank structure.
-
   Args:
     num_potentials: Dimension of the output.
     rank: Rank of the matrices :math:`A_i` used as low-rank factors
