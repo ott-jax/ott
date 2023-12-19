@@ -109,10 +109,7 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
       interpolation of a potential.
     """
     if self.is_potential:
-      # TODO(michalk8): nicer impl.
-      return lambda x: self.apply({
-          "params": params
-      }, jnp.atleast_2d(x)).squeeze()
+      return lambda x: self.apply({"params": params}, x)
 
     assert other_potential_value_fn is not None, \
       "The value of the gradient-based potential depends " \

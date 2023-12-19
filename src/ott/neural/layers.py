@@ -58,7 +58,8 @@ class PositiveDense(nn.Module):
     Returns:
       Array of shape ``[batch, ..., dim_hidden]``.
     """
-    assert x.ndim > 1, x.ndim
+    # TODO(michalk8): update when refactoring neuraldual
+    # assert x.ndim > 1, x.ndim
 
     kernel = self.param(
         "kernel", self.kernel_init, (x.shape[-1], self.dim_hidden)
@@ -117,7 +118,8 @@ class PosDefPotentials(nn.Module):
     Returns:
       Array of shape ``[batch, ..., num_potentials]``.
     """
-    assert x.ndim > 1, x.ndim
+    # TODO(michalk8): update when refactoring neuraldual
+    # assert x.ndim > 1, x.ndim
 
     dim_data = x.shape[-1]
     x = x.reshape((-1, dim_data))
