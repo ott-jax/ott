@@ -109,7 +109,10 @@ class BaseW2NeuralDual(abc.ABC, nn.Module):
       interpolation of a potential.
     """
     if self.is_potential:
-      return lambda x: self.apply({"params": params}, x)
+      # TODO(michalk8): nicer impl.
+      return lambda x: self.apply({
+          "params": params
+      }, jnp.atleast_2d(x)).squeeze()
 
     assert other_potential_value_fn is not None, \
       "The value of the gradient-based potential depends " \
@@ -315,12 +318,12 @@ class W2NeuralDual:
     self.state_f = neural_f.create_train_state(
         rng_f,
         optimizer_f,
-        dim_data,
+        (1, dim_data),  # also include the batch dimension
     )
     self.state_g = neural_g.create_train_state(
         rng_g,
         optimizer_g,
-        dim_data,
+        (1, dim_data),
     )
 
     # default to using back_and_forth with the non-convex models
