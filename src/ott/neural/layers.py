@@ -80,6 +80,18 @@ class PositiveDense(nn.Module):
 class PosDefPotentials(nn.Module):
   r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x^2 + c_i` potentials.
 
+  This class implements a layer that takes (batched) ``d``-dimensional vectors
+  ``x`` in, to output a ``num_potentials``-dimensional vector. Each of the
+  entries in that output is a positive definite quadratic form evaluated at
+  ``x``; each of these quadratic terms is parameterized as a low-rank plus
+  diagonal matrix. The low-rank term is parameterized as :math:`A_i A_i^T`,
+  where each of these matrices is of size ``(rank, d)``. Taken together,
+  these matrices form a tensor ``(num_potentials, rank, d)``.
+  The diagonal terms :math:`d_i` form a ``(num_potentials, d)`` matrix of
+  positive values; the linear terms :math:`b_i` form a ``(num_potentials, d)``
+  matrix. Finally, the :math:`c_i` are contained in a vector of size
+  ``(num_potentials,)``.
+
   .. note::
     The quadratic potential has diagonal + low-rank structure.
 
@@ -89,8 +101,8 @@ class PosDefPotentials(nn.Module):
       for the quadratic potentials.
     rectifier_fn: Rectifier function to ensure non-negativity of the diagonals
       :math:`d_i`. The default is :func:`~flax.linen.activation.relu`.
-    use_linear: Whether to add a linear layer :math:`b_i` to the output.
-    use_bias: Whether to add bias :math:`c_i` to the output.
+    use_linear: Whether to add a linear layers :math:`b_i` to the outputs.
+    use_bias: Whether to add biases :math:`c_i` to the outputs.
     kernel_lr_init: Initializer for the matrices :math:`A_i`
       of the quadratic potentials when ``rank > 0``.
       The default is :func:`~flax.linen.initializers.lecun_normal`.
@@ -118,7 +130,7 @@ class PosDefPotentials(nn.Module):
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Apply a few quadratic forms.
+    """Compute quadratic forms of the input.
 
     Args:
       x: Array of shape ``[batch, ..., features]``.
