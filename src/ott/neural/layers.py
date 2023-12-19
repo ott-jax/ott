@@ -95,9 +95,12 @@ class PosDefPotentials(nn.Module):
   rank: int = 0
   use_linear: bool = True
   use_bias: bool = True
-  kernel_quad_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
-  kernel_diag_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.ones
-  kernel_linear_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
+  kernel_quad_init: Callable[[PRNGKey, Shape, Dtype],
+                             Array] = DEFAULT_KERNEL_INIT
+  kernel_diag_init: Callable[[PRNGKey, Shape, Dtype],
+                             Array] = nn.initializers.ones
+  kernel_linear_init: Callable[[PRNGKey, Shape, Dtype],
+                               Array] = DEFAULT_KERNEL_INIT
   bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
   precision: Optional[jax.lax.Precision] = None
 
@@ -149,3 +152,30 @@ class PosDefPotentials(nn.Module):
       y = y + self.param("bias", self.bias_init, (1, self.num_potentials))
 
     return y
+
+  @classmethod
+  def init_from_samples(
+      cls, source: jnp.ndarray, target: jnp.ndarray, **kwargs: Any
+  ) -> "PosDefPotentials":
+    """TODO."""
+    factor, mean = _compute_gaussian_map_params(source, target)
+    return cls(
+        kernel_quad_init=lambda *_, **__: factor,
+        kernel_linear_init=lambda *_, **__: mean.T,
+        **kwargs,
+    )
+
+
+def _compute_gaussian_map_params(
+    source: jnp.ndarray, target: jnp.ndarray
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  from ott.math import matrix_square_root
+  from ott.tools.gaussian_mixture import gaussian
+
+  g_s = gaussian.Gaussian.from_samples(source)
+  g_t = gaussian.Gaussian.from_samples(target)
+  lin_op = g_s.scale.gaussian_map(g_t.scale)
+  b = jnp.squeeze(g_t.loc) - lin_op @ jnp.squeeze(g_s.loc)
+  lin_op = matrix_square_root.sqrtm_only(lin_op)
+
+  return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
