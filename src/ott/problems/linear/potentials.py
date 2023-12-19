@@ -174,9 +174,9 @@ class DualPotentials:
     }
 
   @classmethod
-  def tree_unflatten(
+  def tree_unflatten(  # noqa: D102
       cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "DualPotentials":  # noqa: D102
+  ) -> "DualPotentials":
     return cls(*children, **aux_data)
 
   def plot_ot_map(
@@ -205,7 +205,7 @@ class DualPotentials:
         :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
-      Figure and axis with the plots
+      Figure and axes.
     """
     if mpl is None:
       raise RuntimeError("Please install `matplotlib` first.")
