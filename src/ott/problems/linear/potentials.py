@@ -48,12 +48,12 @@ class DualPotentials:
   OT Kantorovich problem, supposedly optimal for a given pair of measures.
 
   Args:
-  f: The first dual potential function.
-  g: The second dual potential function.
-  cost_fn: The cost function used to solve the OT problem.
-  corr: Whether the duals solve the problem in distance form, or correlation
-  form (as used for instance for ICNNs, see, e.g., top right of p.3 in
-  :cite:`makkuva:20`)
+    f: The first dual potential function.
+    g: The second dual potential function.
+    cost_fn: The cost function used to solve the OT problem.
+    corr: Whether the duals solve the problem in distance form, or correlation
+      form (as used for instance for ICNNs, see, e.g., top right of p.3 in
+      :cite:`makkuva:20`)
   """
 
   def __init__(
@@ -89,12 +89,12 @@ class DualPotentials:
     :math:`\nabla f` for backward.
 
     Args:
-    vec: Points to transport, array of shape ``[n, d]``.
-    forward: Whether to transport the points from source  to the target
-    distribution or vice-versa.
+      vec: Points to transport, array of shape ``[n, d]``.
+      forward: Whether to transport the points from source  to the target
+        distribution or vice-versa.
 
     Returns:
-    The transported points.
+      The transported points.
     """
     from ott.geometry import costs
 
@@ -120,11 +120,11 @@ class DualPotentials:
     taken into account.
 
     Args:
-    src: Samples from the source distribution, array of shape ``[n, d]``.
-    tgt: Samples from the target distribution, array of shape ``[m, d]``.
+      src: Samples from the source distribution, array of shape ``[n, d]``.
+      tgt: Samples from the target distribution, array of shape ``[m, d]``.
 
     Returns:
-    Wasserstein distance using specified cost function.
+      Wasserstein distance using specified cost function.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
     f = jax.vmap(self.f)
@@ -186,26 +186,26 @@ class DualPotentials:
       samples: Optional[jnp.ndarray] = None,
       forward: bool = True,
       ax: Optional["plt.Axes"] = None,
-      legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
+      legend_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
-    source: samples from the source measure
-    target: samples from the target measure
-    samples: extra samples to transport, either ``source`` (if ``forward``) or
-    ``target`` (if not ``forward``) by default.
-    forward: use the forward map from the potentials if ``True``,
-    otherwise use the inverse map.
-    ax: axis to add the plot to
-    scatter_kwargs: additional kwargs passed into
-    :meth:`~matplotlib.axes.Axes.scatter`
-    legend_kwargs: additional kwargs passed into
-    :meth:`~matplotlib.axes.Axes.legend`
+      source: samples from the source measure
+      target: samples from the target measure
+      samples: extra samples to transport, either ``source`` (if ``forward``) or
+        ``target`` (if not ``forward``) by default.
+      forward: use the forward map from the potentials if ``True``,
+        otherwise use the inverse map.
+      ax: axis to add the plot to
+      scatter_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.scatter`
+      legend_kwargs: additional kwargs passed into
+        :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
-    a `matplotlib` figure and axis with the plots
+      Figure and axis with the plots
     """
     if mpl is None:
       raise RuntimeError("Please install `matplotlib` first.")
@@ -287,22 +287,22 @@ class DualPotentials:
     r"""Plot the potential.
 
     Args:
-    forward: use the forward map from the potentials
-    if ``True``, otherwise use the inverse map
-    quantile: quantile to filter the potentials with
-    kantorovich: whether to plot the Kantorovich potential
-    ax: axis to add the plot to
-    x_bounds: x-axis bounds of the plot
-    :math:`(x_{\text{min}}, x_{\text{max}})`
-    y_bounds: y-axis bounds of the plot
-    :math:`(y_{\text{min}}, y_{\text{max}})`
-    num_grid: number of points to discretize the domain into a grid
-    along each dimension
-    contourf_kwargs: additional kwargs passed into
-    :meth:`~matplotlib.axes.Axes.contourf`
+      forward: use the forward map from the potentials
+        if ``True``, otherwise use the inverse map
+      quantile: quantile to filter the potentials with
+      kantorovich: whether to plot the Kantorovich potential
+      ax: axis to add the plot to
+      x_bounds: x-axis bounds of the plot
+        :math:`(x_{\text{min}}, x_{\text{max}})`
+      y_bounds: y-axis bounds of the plot
+        :math:`(y_{\text{min}}, y_{\text{max}})`
+      num_grid: number of points to discretize the domain into a grid
+        along each dimension
+      contourf_kwargs: additional kwargs passed into
+      :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns:
-    a `matplotlib` figure with axis, with the plots.
+      Figure and axes.
     """
     if contourf_kwargs is None:
       contourf_kwargs = {}
@@ -340,14 +340,14 @@ class EntropicPotentials(DualPotentials):
   """Dual potential functions from finite samples :cite:`pooladian:21`.
 
   Args:
-  f_xy: The first dual potential vector of shape ``[n,]``.
-  g_xy: The second dual potential vector of shape ``[m,]``.
-  prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
-  geometry that was used to compute the dual potentials using, e.g.,
-  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
-  f_xx: The first dual potential vector of shape ``[n,]`` used for debiasing
-  :cite:`pooladian:22`.
-  g_yy: The second dual potential vector of shape ``[m,]`` used for debiasing.
+    f_xy: The first dual potential vector of shape ``[n,]``.
+    g_xy: The second dual potential vector of shape ``[m,]``.
+    prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
+      geometry that was used to compute the dual potentials using, e.g.,
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+    f_xx: The first dual potential vector of shape ``[n,]`` used for debiasing
+      :cite:`pooladian:22`.
+    g_yy: The second dual potential vector of shape ``[m,]`` used for debiasing.
   """
 
   def __init__(
