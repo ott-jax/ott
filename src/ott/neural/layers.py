@@ -22,122 +22,116 @@ __all__ = ["PositiveDense", "PosDefPotentials"]
 PRNGKey = jax.Array
 Shape = Tuple[int, ...]
 Dtype = Any
-Array = Any
+Array = jnp.ndarray
+
+DEFAULT_KERNEL_INIT = nn.initializers.lecun_normal()
+DEFAULT_BIAS_INIT = nn.initializers.zeros
+DEFAULT_RECTIFIER = nn.activation.relu
 
 
 class PositiveDense(nn.Module):
   """A linear transformation using a weight matrix with all entries positive.
 
   Args:
-  dim_hidden: the number of output dim_hidden.
-  rectifier_fn: choice of rectifier function (default: softplus function).
-  dtype: the dtype of the computation (default: float32).
-  precision: numerical precision of computation see `jax.lax.Precision`
-  for details.
-  kernel_init: initializer function for the weight matrix.
-  bias_init: initializer function for the bias.
+    dim_hidden: Number of output dimensions.
+    rectifier_fn: The rectifier function.
+    kernel_init: Initializer for the weight matrix.
+    bias_init: Initializer for the bias.
+    precision: Numerical precision of computation,
+      see :class:`~jax.lax.Precision` for details.
   """
 
   dim_hidden: int
-  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
   use_bias: bool = True
-  dtype: Any = jnp.float32
-  precision: Any = None
-  kernel_init: Optional[Callable[[PRNGKey, Shape, Dtype], Array]] = None,
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.zeros
+  kernel_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
+  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
+  precision: Optional[jax.lax.Precision] = None
 
   @nn.compact
   def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
     """Applies a linear transformation to inputs along the last dimension.
 
     Args:
-    inputs: Array to be transformed.
+      inputs: Array to be transformed.
 
     Returns:
-    The transformed input.
+      The transformed input.
     """
-    kernel_init = nn.initializers.lecun_normal(
-    ) if self.kernel_init is None else self.kernel_init
-
-    inputs = jnp.asarray(inputs, self.dtype)
     kernel = self.param(
-        "kernel", kernel_init, (inputs.shape[-1], self.dim_hidden)
+        "kernel", self.kernel_init, (inputs.shape[-1], self.dim_hidden)
     )
     kernel = self.rectifier_fn(kernel)
-    kernel = jnp.asarray(kernel, self.dtype)
+
     y = jax.lax.dot_general(
         inputs,
         kernel, (((inputs.ndim - 1,), (0,)), ((), ())),
         precision=self.precision
     )
     if self.use_bias:
-      bias = self.param("bias", self.bias_init, (self.dim_hidden,))
-      bias = jnp.asarray(bias, self.dtype)
-      return y + bias
+      y = y + self.param("bias", self.bias_init, (self.dim_hidden,))
+
     return y
 
 
+# TODO(michalk8): update the docstring
 class PosDefPotentials(nn.Module):
   """A layer to output  0.5 x^T(A_i A_i^T + Diag(d_i^2))x + b_i^T x + c_i potentials.
 
   Args:
-  num_potentials: the dimension of the output
-  rank: the rank of the matrix used for the quadratic layer
-  use_linear: whether to add a linear layer to the output
-  use_bias: whether to add a bias to the output.
-  dtype: the dtype of the computation.
-  precision: numerical precision of computation see `jax.lax.Precision` for details.
-  kernel_quadratic_init: initializer function for the weight matrix of the quadratic layer.
-  kernel_linear_init: initializer function for the weight matrix of the linea layer.
-  bias_init: initializer function for the bias.
-  """  # noqa: E501
+    num_potentials: the dimension of the output
+    rank: The rank of the matrix used for the quadratic layer.
+    use_linear: Whether to add a linear layer to the output.
+    use_bias: Whether to add a bias to the output.
+    kernel_quad_init: Initializer for the weight matrix of the quadratic layer.
+    kernel_diag_init: Initializer for the weight matrix of the diagonal layer.
+    kernel_linear_init: Initializer for the weight matrix of the linear layer.
+    bias_init: Initializer for the bias.
+    precision: Numerical precision of computation,
+      see :class:`~jax.lax.Precision` for details.
+  """
 
   num_potentials: int
   rank: int = 0
   use_linear: bool = True
   use_bias: bool = True
-  dtype: Any = jnp.float32
-  precision: Any = None
-  kernel_quadratic_init: Callable[[PRNGKey, Shape, Dtype],
-                                  Array] = nn.initializers.lecun_normal()
-  kernel_diagonal_init: Callable[[PRNGKey, Shape, Dtype],
-                                 Array] = nn.initializers.ones
-  kernel_linear_init: Callable[[PRNGKey, Shape, Dtype],
-                               Array] = nn.initializers.lecun_normal()
-  bias_init: Callable[[PRNGKey, Shape, Dtype],
-                      Array] = nn.initializers.lecun_normal()
+  kernel_quad_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
+  kernel_diag_init: Callable[[PRNGKey, Shape, Dtype], Array] = nn.initializers.ones
+  kernel_linear_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
+  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
+  precision: Optional[jax.lax.Precision] = None
 
   @nn.compact
   def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
     """Apply a few quadratic forms.
 
     Args:
-    inputs: Array to be transformed (possibly batched).
+      inputs: Array to be transformed (possibly batched).
 
     Returns:
-    The transformed input.
+      The transformed input.
     """
     dim_data = inputs.shape[-1]
-    inputs = jnp.asarray(inputs, self.dtype)
     inputs = inputs.reshape((-1, dim_data))
 
     diag_kernel = self.param(
-        "diag_kernel", self.kernel_diagonal_init,
+        "diag_kernel", self.kernel_diag_init,
         (1, dim_data, self.num_potentials)
     )
     # ensures the diag_kernel parameter stays non negative
-    diag_kernel = nn.activation.relu(diag_kernel)
+    diag_kernel = DEFAULT_RECTIFIER(diag_kernel)
     y = 0.5 * jnp.sum(jnp.multiply(inputs[..., None], diag_kernel) ** 2, axis=1)
 
     if self.rank > 0:
-      quadratic_kernel = self.param(
-          "quad_kernel", self.kernel_quadratic_init,
+      quad_kernel = self.param(
+          "quad_kernel", self.kernel_quad_init,
           (self.num_potentials, dim_data, self.rank)
       )
+      # TODO(michalk8): nicer formatting
       y += jnp.sum(
           0.5 * jnp.tensordot(
               inputs,
-              quadratic_kernel,
+              quad_kernel,
               axes=((inputs.ndim - 1,), (1,)),
               precision=self.precision
           ) ** 2,
@@ -152,8 +146,6 @@ class PosDefPotentials(nn.Module):
       y = y + jnp.dot(inputs, linear_kernel, precision=self.precision)
 
     if self.use_bias:
-      bias = self.param("bias", self.bias_init, (1, self.num_potentials))
-      bias = jnp.asarray(bias, self.dtype)
-      y = y + bias
+      y = y + self.param("bias", self.bias_init, (1, self.num_potentials))
 
     return y

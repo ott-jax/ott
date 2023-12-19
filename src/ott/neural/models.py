@@ -127,8 +127,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
       self.pos_def_potential = layers.PosDefPotentials(
           rank=self.dim_data,
           num_potentials=1,
-          kernel_diagonal_init=nn.initializers.zeros,
-          kernel_quadratic_init=lambda *_: factor,
+          kernel_diag_init=nn.initializers.zeros,
+          kernel_quad_init=lambda *_: factor,
           kernel_linear_init=lambda *_: mean.T,
           bias_init=initializers.zeros,
           use_linear=True,
@@ -138,8 +138,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
       self.pos_def_potential = layers.PosDefPotentials(
           rank=self.rank,
           num_potentials=1,
-          kernel_diagonal_init=nn.initializers.ones,
-          kernel_quadratic_init=nn.initializers.zeros,
+          kernel_diag_init=nn.initializers.ones,
+          kernel_quad_init=nn.initializers.zeros,
           kernel_linear_init=nn.initializers.zeros,
           bias_init=initializers.zeros,
           use_linear=True,
@@ -155,8 +155,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
               num_potentials=self.dim_hidden[i],
               use_linear=True,
               use_bias=True,
-              kernel_diagonal_init=nn.initializers.zeros,
-              kernel_quadratic_init=self.init_fn(self.init_std),
+              kernel_diag_init=nn.initializers.zeros,
+              kernel_quad_init=self.init_fn(self.init_std),
               kernel_linear_init=self.init_fn(self.init_std),
               bias_init=self.init_fn(self.init_std),
           )
@@ -168,8 +168,8 @@ class ICNN(neuraldual.BaseW2NeuralDual):
             num_potentials=1,
             use_linear=True,
             use_bias=True,
-            kernel_diagonal_init=nn.initializers.zeros,
-            kernel_quadratic_init=self.init_fn(self.init_std),
+            kernel_diag_init=nn.initializers.zeros,
+            kernel_quad_init=self.init_fn(self.init_std),
             kernel_linear_init=self.init_fn(self.init_std),
             bias_init=self.init_fn(self.init_std),
         )
