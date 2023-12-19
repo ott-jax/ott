@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -46,8 +46,11 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     dim_data: data dimensionality.
     dim_hidden: sequence specifying size of hidden dimensions. The
       output dimension of the last layer is 1 by default.
-    rank: rank of the matrices :math:`A_i` used as low-rank factors
-      for the quadratic potentials.
+    ranks: ranks of the matrices :math:`A_i` used as low-rank factors
+      for the quadratic potentials. If a sequence is passed, it must contain
+      ``len(dim_hidden) + 2`` elements, where the last 2 elements correspond
+      to the ranks of the final layer with dimension 1 and the potentials,
+      respectively.
     init_fn: Initializer for the kernel weight matrices.
       The default is :func:`~flax.linen.initializers.normal`.
     act_fn: choice of activation function used in network architecture,
@@ -66,7 +69,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
 
   dim_data: int
   dim_hidden: Sequence[int]
-  rank: int = 1
+  ranks: Union[int, Tuple[int, ...]] = 1
   init_fn: Callable[[jax.Array, Tuple[int, ...], Any],
                     jnp.ndarray] = DEFAULT_KERNEL_INIT
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_ACTIVATION
@@ -74,17 +77,17 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
   gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
-  @property
-  def is_potential(self) -> bool:  # noqa: D102
-    return True
-
   def setup(self) -> None:  # noqa: D102
     dim_hidden = list(self.dim_hidden) + [1]
+    *ranks, pos_def_rank = self._normalize_ranks()
+
     # final layer computes average, still with normalized rescaling
     self.w_zs = [self._get_wz(dim) for dim in dim_hidden[1:]]
     # subsequent layers re-injected into convex functions
-    self.w_xs = [self._get_wx(dim) for dim in dim_hidden]
-    self.pos_def_potentials = self._get_pos_def_potentials()
+    self.w_xs = [
+        self._get_wx(dim, rank) for dim, rank in zip(dim_hidden, ranks)
+    ]
+    self.pos_def_potentials = self._get_pos_def_potentials(pos_def_rank)
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
@@ -113,20 +116,19 @@ class ICNN(neuraldual.BaseW2NeuralDual):
         use_bias=False,
     )
 
-  def _get_wx(self, dim: int) -> nn.Module:
+  def _get_wx(self, dim: int, rank: int) -> nn.Module:
     return layers.PosDefPotentials(
-        rank=self.rank,
+        rank=rank,
         num_potentials=dim,
         use_linear=True,
         use_bias=True,
         kernel_diag_init=nn.initializers.zeros,
         kernel_lr_init=self.init_fn,
         kernel_linear_init=self.init_fn,
-        # TODO(michalk8): why us this for bias?
-        bias_init=self.init_fn,
+        bias_init=nn.initializers.zeros,
     )
 
-  def _get_pos_def_potentials(self) -> layers.PosDefPotentials:
+  def _get_pos_def_potentials(self, rank: int) -> layers.PosDefPotentials:
     kwargs = {
         "num_potentials": 1,
         "use_linear": True,
@@ -136,7 +138,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
 
     if self.gaussian_map_samples is None:
       return layers.PosDefPotentials(
-          rank=self.rank,
+          rank=rank,
           kernel_diag_init=nn.initializers.ones,
           kernel_lr_init=nn.initializers.zeros,
           kernel_linear_init=nn.initializers.zeros,
@@ -148,10 +150,22 @@ class ICNN(neuraldual.BaseW2NeuralDual):
         source,
         target,
         rank=self.dim_data,
-        # TODO(michalk8): double check if this makes sense
         kernel_diag_init=nn.initializers.zeros,
         **kwargs,
     )
+
+  def _normalize_ranks(self) -> Tuple[int, ...]:
+    # +2 for the newly added layer with 1 + the final potentials
+    n_ranks = len(self.dim_hidden) + 2
+    if isinstance(self.ranks, int):
+      return (self.ranks,) * n_ranks
+
+    assert len(self.ranks) == n_ranks, (len(self.ranks), n_ranks)
+    return tuple(self.ranks)
+
+  @property
+  def is_potential(self) -> bool:  # noqa: D102
+    return True
 
 
 class MLP(neuraldual.BaseW2NeuralDual):
