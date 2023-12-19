@@ -34,10 +34,13 @@ class PositiveDense(nn.Module):
 
   Args:
     dim_hidden: Number of output dimensions.
-    rectifier_fn: Rectifier function.
+    rectifier_fn: Rectifier function. The default is
+      :func:`~flax.linen.activation.relu`.
     use_bias: Whether to add bias to the output.
-    kernel_init: Initializer for the matrix.
-    bias_init: Initializer for the bias. Only used when ``use_bias = True``.
+    kernel_init: Initializer for the matrix. The default is
+      :func:`~flax.linen.initializers.lecun_normal`.
+    bias_init: Initializer for the bias. The default is
+      :func:`~flax.linen.initializers.zeros`.
     precision: Numerical precision of the computation.
   """
 
@@ -83,15 +86,19 @@ class PosDefPotentials(nn.Module):
     num_potentials: Dimension of the output.
     rank: Rank of the matrices :math:`A_i` used as low-rank factors
       for the quadratic potentials.
-    rectifier_fn: Rectifier function to ensure non-negativity of
-      the diagonals :math:`d_i`.
+    rectifier_fn: Rectifier function to ensure non-negativity of the diagonals
+      :math:`d_i`. The default is :func:`~flax.linen.activation.relu`.
     use_linear: Whether to add a linear layer :math:`b_i` to the output.
     use_bias: Whether to add bias :math:`c_i` to the output.
     kernel_lr_init: Initializer for the matrices :math:`A_i`
-      of the quadratic potentials. Only used when ``rank > 0``.
+      of the quadratic potentials when ``rank > 0``.
+      The default is :func:`~flax.linen.initializers.lecun_normal`.
     kernel_diag_init: Initializer for the diagonals :math:`d_i`.
+      The default is :func:`~flax.linen.initializers.ones`.
     kernel_linear_init: Initializer for the linear layers :math:`b_i`.
-    bias_init: Initializer for the bias. Only used when ``use_bias = True``.
+      The default is :func:`~flax.linen.initializers.lecun_normal`.
+    bias_init: Initializer for the bias. The default is
+      :func:`~flax.linen.initializers.zeros`.
     precision: Numerical precision of the computation.
   """  # noqa: E501
 

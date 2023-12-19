@@ -30,9 +30,13 @@ from ott.problems.linear import linear_problem
 
 __all__ = ["ICNN", "MLP", "MetaInitializer"]
 
+DEFAULT_KERNEL_INITIALIZER = nn.initializers.normal()
+DEFAULT_RECTIFIER = nn.activation.relu
+DEFAULT_ACTIVATION = nn.activation.relu
+
 
 class ICNN(neuraldual.BaseW2NeuralDual):
-  """Input convex neural network (ICNN) architecture with initialization.
+  """Input convex neural network (ICNN).
 
   Implementation of input convex neural networks as introduced in
   :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
@@ -40,32 +44,33 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   Args:
     dim_data: data dimensionality.
     dim_hidden: sequence specifying size of hidden dimensions. The
-    output dimension of the last layer is 1 by default.
-    rank: rank of the quadratic layers. If ``0``, quadratic layers are not used.
-    init_std: value of standard deviation of weight initialization method.
-    init_fn: choice of initialization method for weight matrices (default:
-      :func:`jax.nn.initializers.normal`).
-    act_fn: choice of activation function used in network architecture
-      (needs to be convex, default: :obj:`jax.nn.relu`).
+      output dimension of the last layer is 1 by default.
+    rank: rank of the matrices :math:`A_i` used as low-rank factors
+      for the quadratic potentials.
+    init_fn: Initializer for the kernel weight matrices.
+      The default is :func:`~flax.linen.initializers.normal`.
+    act_fn: choice of activation function used in network architecture,
+      needs to be convex. The default is :func:`~flax.linen.activation.relu`.
     pos_weights: Enforce positive weights with a projection.
       If :obj:`False`, the positive weights should be enforced with clipping
       or regularization in the loss.
     rectifier_fn: function to ensure the non negativity of the weights.
+      The default is :func:`~flax.linen.activation.relu`.
     gaussian_map_samples: Tuple of source and target points, used to initialize
       the ICNN to mimic the linear Bures map that morphs the (Gaussian
       approximation) of the input measure to that of the target measure. If
-      ``None``, the identity initialization is used, and ICNN mimics half the
+      :obj:`None`, the identity initialization is used, and ICNN mimics half the
       squared Euclidean norm.
   """
 
   dim_data: int
   dim_hidden: Sequence[int]
   rank: int = 1
-  init_std: float = 1e-2
-  init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+  init_fn: Callable[[jax.Array, Tuple[int, ...], Any],
+                    jnp.ndarray] = DEFAULT_KERNEL_INITIALIZER
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_ACTIVATION
   pos_weights: bool = False
-  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
   gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
 
   @property
@@ -96,14 +101,14 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     if self.pos_weights:
       return layers.PositiveDense(
           dim,
-          kernel_init=self.init_fn(self.init_std),
+          kernel_init=self.init_fn,
           use_bias=False,
           rectifier_fn=self.rectifier_fn,
       )
 
     return nn.Dense(
         dim,
-        kernel_init=self.init_fn(self.init_std),
+        kernel_init=self.init_fn,
         use_bias=False,
     )
 
@@ -114,9 +119,10 @@ class ICNN(neuraldual.BaseW2NeuralDual):
         use_linear=True,
         use_bias=True,
         kernel_diag_init=nn.initializers.zeros,
-        kernel_lr_init=self.init_fn(self.init_std),
-        kernel_linear_init=self.init_fn(self.init_std),
-        bias_init=self.init_fn(self.init_std),
+        kernel_lr_init=self.init_fn,
+        kernel_linear_init=self.init_fn,
+        # TODO(michalk8): why us this for bias?
+        bias_init=self.init_fn,
     )
 
   def _get_pos_def_potentials(self) -> layers.PosDefPotentials:
@@ -141,7 +147,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
         source,
         target,
         rank=self.dim_data,
-        # TODO(michalk8): double check
+        # TODO(michalk8): double check if this makes sense
         kernel_diag_init=nn.initializers.zeros,
         **kwargs,
     )
@@ -165,7 +171,6 @@ class MLP(neuraldual.BaseW2NeuralDual):
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
-    # TODO(michalk8): clean the squeeze logic.
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
