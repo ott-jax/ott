@@ -30,13 +30,13 @@ DEFAULT_RECTIFIER = nn.activation.relu
 
 
 class PositiveDense(nn.Module):
-  """A linear transformation using a weight matrix with all entries positive.
+  """A linear transformation using a matrix with all entries non-negative.
 
   Args:
     dim_hidden: Number of output dimensions.
     rectifier_fn: The rectifier function.
-    kernel_init: Initializer for the weight matrix.
-    bias_init: Initializer for the bias.
+    kernel_init: Initializer for the matrix.
+    bias_init: Initializer for the bias. Only used when ``use_bias = True``.
     precision: Numerical precision of computation,
       see :class:`~jax.lax.Precision` for details.
   """
@@ -50,14 +50,16 @@ class PositiveDense(nn.Module):
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Applies a linear transformation to inputs along the last dimension.
+    """Applies a linear transformation to x along the last dimension.
 
     Args:
       x: Array of shape ``[batch, ..., features]``.
 
     Returns:
-      The output, array of shape ``[batch, ..., dim_hidden]``.
+      Array of shape ``[batch, ..., dim_hidden]``.
     """
+    assert x.ndim > 1, x.ndim
+
     kernel = self.param(
         "kernel", self.kernel_init, (x.shape[-1], self.dim_hidden)
     )
@@ -70,29 +72,35 @@ class PositiveDense(nn.Module):
     return x
 
 
-# TODO(michalk8): update the docstring
 class PosDefPotentials(nn.Module):
-  """A layer to output  0.5 x^T(A_i A_i^T + Diag(d_i^2))x + b_i^T x + c_i potentials.
+  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x + c_i` potentials.
+
+  .. note::
+    The quadratic potential has diagonal + low-rank structure.
 
   Args:
-    num_potentials: the dimension of the output
-    rank: The rank of the matrix used for the quadratic layer.
-    use_linear: Whether to add a linear layer to the output.
-    use_bias: Whether to add a bias to the output.
-    kernel_quad_init: Initializer for the weight matrix of the quadratic layer.
-    kernel_diag_init: Initializer for the weight matrix of the diagonal layer.
-    kernel_linear_init: Initializer for the weight matrix of the linear layer.
-    bias_init: Initializer for the bias.
+    num_potentials: Dimension of the output.
+    rank: Rank of the matrices :math:`A_i` used as low-rank factors
+      for quadratic potentials.
+    rectifier_fn: The rectifier function to ensure non-negativity of
+      the diagonals :math:`d_i`.
+    use_linear: Whether to add a linear layer :math:`b_i` to the output.
+    use_bias: Whether to add a bias :math:`c_i` to the output.
+    kernel_lr_init: Initializer for the matrices :math:`A_i`
+      of the quadratic potentials. Only used when ``rank > 0``.
+    kernel_diag_init: Initializer for the diagonals :math:`d_i`.
+    kernel_linear_init: Initializer for the linear layers :math:`b_i`.
+    bias_init: Initializer for the bias. Only used when ``use_bias = True``.
     precision: Numerical precision of computation,
       see :class:`~jax.lax.Precision` for details.
-  """
+  """  # noqa: E501
 
   num_potentials: int
   rank: int = 0
+  rectifier_fn: Callable[[Array], Array] = DEFAULT_RECTIFIER
   use_linear: bool = True
   use_bias: bool = True
-  kernel_quad_init: Callable[[PRNGKey, Shape, Dtype],
-                             Array] = DEFAULT_KERNEL_INIT
+  kernel_lr_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
   kernel_diag_init: Callable[[PRNGKey, Shape, Dtype],
                              Array] = nn.initializers.ones
   kernel_linear_init: Callable[[PRNGKey, Shape, Dtype],
@@ -101,51 +109,49 @@ class PosDefPotentials(nn.Module):
   precision: Optional[jax.lax.Precision] = None
 
   @nn.compact
-  def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
     """Apply a few quadratic forms.
 
     Args:
-      inputs: Array to be transformed (possibly batched).
+      x: Array of shape ``[batch, ..., features]``.
 
     Returns:
-      The transformed input.
+      Array of shape ``[batch, ..., num_potentials]``.
     """
-    dim_data = inputs.shape[-1]
-    inputs = inputs.reshape((-1, dim_data))
+    assert x.ndim > 1, x.ndim
+
+    dim_data = x.shape[-1]
+    x = x.reshape((-1, dim_data))
 
     diag_kernel = self.param(
-        "diag_kernel", self.kernel_diag_init,
-        (1, dim_data, self.num_potentials)
+        "diag_kernel", self.kernel_diag_init, (dim_data, self.num_potentials)
     )
     # ensures the diag_kernel parameter stays non negative
-    diag_kernel = DEFAULT_RECTIFIER(diag_kernel)
-    y = 0.5 * jnp.sum(jnp.multiply(inputs[..., None], diag_kernel) ** 2, axis=1)
+    diag_kernel = self.rectifier_fn(diag_kernel)
+
+    # (batch, dim_data, 1), (1, dim_data, num_potentials)
+    y = 0.5 * jnp.sum((x[..., None] * diag_kernel[None]), axis=1)
 
     if self.rank > 0:
       quad_kernel = self.param(
-          "quad_kernel", self.kernel_quad_init,
+          "quad_kernel", self.kernel_lr_init,
           (self.num_potentials, dim_data, self.rank)
       )
-      # TODO(michalk8): nicer formatting
-      y += jnp.sum(
-          0.5 * jnp.tensordot(
-              inputs,
-              quad_kernel,
-              axes=((inputs.ndim - 1,), (1,)),
-              precision=self.precision
-          ) ** 2,
-          axis=2,
-      )
+      # (batch, num_potentials, rank)
+      quad = 0.5 * jnp.tensordot(
+          x, quad_kernel, axes=(-1, 1), precision=self.precision
+      ) ** 2
+      y = y + jnp.sum(quad, axis=-1)
 
     if self.use_linear:
       linear_kernel = self.param(
           "lin_kernel", self.kernel_linear_init,
           (dim_data, self.num_potentials)
       )
-      y = y + jnp.dot(inputs, linear_kernel, precision=self.precision)
+      y = y + jnp.dot(x, linear_kernel, precision=self.precision)
 
     if self.use_bias:
-      y = y + self.param("bias", self.bias_init, (1, self.num_potentials))
+      y = y + self.param("bias", self.bias_init, (self.num_potentials,))
 
     return y
 
@@ -162,7 +168,7 @@ class PosDefPotentials(nn.Module):
         will be always set to :obj:`True`.
 
     Returns:
-      The positive-definite potentials.
+      The layer with fixed linear and quadratic initialization.
     """
     factor, mean = _compute_gaussian_map_params(source, target)
 

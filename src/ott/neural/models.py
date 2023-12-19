@@ -219,6 +219,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
     ``geom`` is the fixed geometry.
 
     .. code-block:: python
+
       meta_initializer = init_lib.MetaInitializer(geom)
       while training():
         a, b = sample_batch()
