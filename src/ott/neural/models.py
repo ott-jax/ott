@@ -258,7 +258,6 @@ class MetaInitializer(lin_init.DefaultInitializer):
       state: Optional[train_state.TrainState] = None,
   ):
     self.geom = geom
-    self.dtype = geom.x.dtype
     self.opt = opt
     self.rng = utils.default_prng_key(rng)
 
@@ -267,10 +266,8 @@ class MetaInitializer(lin_init.DefaultInitializer):
 
     if state is None:
       # Initialize the model's training state.
-      a_placeholder = jnp.zeros(na, dtype=self.dtype)
-      b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(self.rng, a_placeholder,
-                                    b_placeholder)["params"]
+      placeholder = jnp.concatenate([jnp.zeros(na), jnp.zeros(nb)], axis=-1)
+      params = self.meta_model.init(self.rng, placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
@@ -386,7 +383,8 @@ class MetaInitializer(lin_init.DefaultInitializer):
     Returns:
       The :math:`f` potential.
     """
-    return self.meta_model.apply({"params": params}, a, b)
+    return self.meta_model.apply({"params": params},
+                                 jnp.concatenate([a, b], axis=-1))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
