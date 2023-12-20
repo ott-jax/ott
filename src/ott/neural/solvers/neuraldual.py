@@ -28,8 +28,8 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import optax
-from flax import core, struct
 from flax import linen as nn
+from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
@@ -315,12 +315,12 @@ class W2NeuralDual:
     self.state_f = neural_f.create_train_state(
         rng_f,
         optimizer_f,
-        dim_data,
+        (1, dim_data),  # also include the batch dimension
     )
     self.state_g = neural_g.create_train_state(
         rng_g,
         optimizer_g,
-        dim_data,
+        (1, dim_data),
     )
 
     # default to using back_and_forth with the non-convex models
@@ -674,12 +674,11 @@ class W2NeuralDual:
 
   @staticmethod
   def _clip_weights_icnn(params):
-    params = params.unfreeze()
     for k in params:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
-    return core.freeze(params)
+    return params
 
   @staticmethod
   def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:
