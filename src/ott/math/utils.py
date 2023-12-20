@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -30,6 +30,7 @@ __all__ = [
     "gen_js",
     "logsumexp",
     "softmin",
+    "sort_and_argsort",
     "barycentric_projection",
 ]
 
@@ -228,3 +229,15 @@ def lambertw(z: jnp.ndarray) -> jnp.ndarray:
   return jax.pure_callback(
       lambda z: scipy.special.lambertw(z).real.astype(z.dtype), z, z
   )
+
+
+def sort_and_argsort(
+    x: jnp.array,
+    *,
+    argsort: bool = False
+) -> Tuple[jnp.ndarray, Optional[jnp.ndarray]]:
+  """Unified function that returns both sort and argsort, if latter needed."""
+  if argsort:
+    i_x = jnp.argsort(x)
+    return x[i_x], i_x
+  return jnp.sort(x), None

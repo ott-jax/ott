@@ -35,7 +35,7 @@ class TestLRInitializers:
   )
   @pytest.mark.parametrize("partial_init", ["q", "r", "g"])
   def test_partial_initialization(
-      self, rng: jax.random.PRNGKeyArray, initializer: str, partial_init: str
+      self, rng: jax.Array, initializer: str, partial_init: str
   ):
     n, d, rank = 27, 5, 6
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
@@ -63,7 +63,7 @@ class TestLRInitializers:
 
   @pytest.mark.fast.with_args("rank", [2, 4, 10, 13], only_fast=True)
   def test_generalized_k_means_has_correct_rank(
-      self, rng: jax.random.PRNGKeyArray, rank: int
+      self, rng: jax.Array, rank: int
   ):
     n, d = 27, 5
     x = jax.random.normal(rng, (n, d))
@@ -80,9 +80,7 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
 
-  def test_generalized_k_means_matches_k_means(
-      self, rng: jax.random.PRNGKeyArray
-  ):
+  def test_generalized_k_means_matches_k_means(self, rng: jax.Array):
     n, d, rank = 27, 7, 5
     eps = 1e-1
     rng1, rng2 = jax.random.split(rng, 2)
@@ -112,9 +110,7 @@ class TestLRInitializers:
     )
 
   @pytest.mark.parametrize("epsilon", [0., 1e-1])
-  def test_better_initialization_helps(
-      self, rng: jax.random.PRNGKeyArray, epsilon: float
-  ):
+  def test_better_initialization_helps(self, rng: jax.Array, epsilon: float):
     n, d, rank = 81, 13, 3
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n, d))

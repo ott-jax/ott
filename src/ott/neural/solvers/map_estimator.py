@@ -30,7 +30,8 @@ import optax
 from flax.core import frozen_dict
 from flax.training import train_state
 
-from ott.solvers.nn import models
+from ott import utils
+from ott.neural.solvers import neuraldual
 
 __all__ = ["MapEstimator"]
 
@@ -53,7 +54,7 @@ class MapEstimator:
 
   For instance, :math:`\Delta` can be the
   :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`
+  and :math:`R` the :func:`~ott.neural.losses.monge_gap_from_samples`
   :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
@@ -76,7 +77,7 @@ class MapEstimator:
   def __init__(
       self,
       dim_data: int,
-      model: models.ModelBase,
+      model: neuraldual.BaseW2NeuralDual,
       optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       Tuple[float, Optional[Any]]]] = None,
@@ -86,7 +87,7 @@ class MapEstimator:
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jax.random.PRNGKey] = None,
+      rng: Optional[jax.Array] = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -100,7 +101,7 @@ class MapEstimator:
     self.num_train_iters = num_train_iters
     self.logging = logging
     self.valid_freq = valid_freq
-    self.rng = jax.random.PRNGKey(0) if rng is None else rng
+    self.rng = utils.default_prng_key(rng)
 
     # set default optimizer
     if optimizer is None:
@@ -112,7 +113,7 @@ class MapEstimator:
   def setup(
       self,
       dim_data: int,
-      neural_net: models.ModelBase,
+      neural_net: neuraldual.BaseW2NeuralDual,
       optimizer: optax.OptState,
   ):
     """Setup all components required to train the network."""
@@ -128,7 +129,7 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be e.g. the :func:`~ott.solvers.nn.losses.monge_gap_from_samples`.
+    Can be, e.g. the :func:`~ott.neural.losses.monge_gap_from_samples`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default along with an empty set of log values.
@@ -141,8 +142,7 @@ class MapEstimator:
   def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Fitting loss to fit the marginal constraint.
 
-    Can be for instance the
-    :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    Can be, e.g. :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
     If no fitting_loss is passed for solver instantiation, return 0 by default,
     and no log values.
     """

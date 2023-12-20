@@ -63,7 +63,7 @@ class Gaussian:
   @classmethod
   def from_random(
       cls,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
@@ -138,7 +138,7 @@ class Gaussian:
         -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2., axis=-1))
     )  # (?, k)
 
-  def sample(self, rng: jax.random.PRNGKeyArray, size: int) -> jnp.ndarray:
+  def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
     std_samples_t = jax.random.normal(key=rng, shape=(self.n_dimensions, size))
     return self.loc[None] + (

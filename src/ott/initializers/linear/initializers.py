@@ -36,7 +36,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling f_u.
 
@@ -54,7 +54,7 @@ class SinkhornInitializer(abc.ABC):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     """Initialize Sinkhorn potential/scaling g_v.
 
@@ -73,7 +73,7 @@ class SinkhornInitializer(abc.ABC):
       a: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray],
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
@@ -128,7 +128,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
@@ -137,7 +137,7 @@ class DefaultInitializer(SinkhornInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     del rng
     return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
@@ -158,7 +158,7 @@ class GaussianInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
@@ -245,7 +245,7 @@ class SortingInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       init_f: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Apply DualSort algorithm.
@@ -324,7 +324,7 @@ class SubsampleInitializer(DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> jnp.ndarray:
     from ott.solvers import linear
 

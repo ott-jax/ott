@@ -15,11 +15,8 @@
 import jax
 import numpy as np
 import pytest
-
-_ = pytest.importorskip("flax")
-
 from ott.geometry import costs
-from ott.solvers.nn import losses, models
+from ott.neural import losses, models
 
 
 @pytest.mark.fast()
@@ -28,7 +25,7 @@ class TestMongeGap:
   @pytest.mark.parametrize("n_samples", [5, 25])
   @pytest.mark.parametrize("n_features", [10, 50, 100])
   def test_monge_gap_non_negativity(
-      self, rng: jax.random.PRNGKey, n_samples: int, n_features: int
+      self, rng: jax.Array, n_samples: int, n_features: int
   ):
 
     # generate data
@@ -54,7 +51,7 @@ class TestMongeGap:
 
     np.testing.assert_array_equal(monge_gap_value, monge_gap_from_samples_value)
 
-  def test_monge_gap_jit(self, rng: jax.random.PRNGKey):
+  def test_monge_gap_jit(self, rng: jax.Array):
     n_samples, n_features = 31, 17
     # generate data
     rng1, rng2 = jax.random.split(rng, 2)
@@ -86,7 +83,7 @@ class TestMongeGap:
       ],
   )
   def test_monge_gap_from_samples_different_cost(
-      self, rng: jax.random.PRNGKeyArray, cost_fn: costs.CostFn, n_samples: int,
+      self, rng: jax.Array, cost_fn: costs.CostFn, n_samples: int,
       n_features: int
   ):
     """Test that the Monge gap for different costs.

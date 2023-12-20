@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import warnings
 from typing import (
+    Any,
     Callable,
     Dict,
     Iterator,
@@ -26,18 +28,138 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import optax
-from flax import core
+from flax import linen as nn
+from flax import struct
+from flax.core import frozen_dict
+from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
+from ott.neural import models
+from ott.neural.solvers import conjugate
 from ott.problems.linear import potentials
-from ott.solvers.nn import conjugate_solvers, models
 
-__all__ = ["W2NeuralDual"]
+__all__ = ["W2NeuralTrainState", "BaseW2NeuralDual", "W2NeuralDual"]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, potentials.DualPotentials], None]
-Conj_t = Optional[conjugate_solvers.FenchelConjugateSolver]
+
+PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+
+
+class W2NeuralTrainState(train_state.TrainState):
+  """Adds information about the model's value and gradient to the state.
+
+  This extends :class:`~flax.training.train_state.TrainState` to include
+  the potential methods from the
+  :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` used during training.
+
+  Args:
+    potential_value_fn: the potential's value function
+    potential_gradient_fn: the potential's gradient function
+  """
+  potential_value_fn: Callable[
+      [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
+      PotentialValueFn_t] = struct.field(pytree_node=False)
+  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+                                  PotentialGradientFn_t] = struct.field(
+                                      pytree_node=False
+                                  )
+
+
+class BaseW2NeuralDual(abc.ABC, nn.Module):
+  """Base class for the neural solver models."""
+
+  @property
+  @abc.abstractmethod
+  def is_potential(self) -> bool:
+    """Indicates if the module implements a potential value or a vector field.
+
+    Returns:
+      ``True`` if the module defines a potential, ``False`` if it defines a
+       vector field.
+    """
+
+  def potential_value_fn(
+      self,
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      other_potential_value_fn: Optional[PotentialValueFn_t] = None,
+  ) -> PotentialValueFn_t:
+    r"""Return a function giving the value of the potential.
+
+    Applies the module if :attr:`is_potential` is ``True``, otherwise
+    constructs the value of the potential from the gradient with
+
+    .. math::
+
+      g(y) = -f(\nabla_y g(y)) + y^T \nabla_y g(y)
+
+    where :math:`\nabla_y g(y)` is detached for the envelope theorem
+    :cite:`danskin:67,bertsekas:71`
+    to give the appropriate first derivatives of this construction.
+
+    Args:
+      params: parameters of the module
+      other_potential_value_fn: function giving the value of the other
+        potential. Only needed when :attr:`is_potential` is ``False``.
+
+    Returns:
+      A function that can be evaluated to obtain a potential value, or a linear
+      interpolation of a potential.
+    """
+    if self.is_potential:
+      return lambda x: self.apply({"params": params}, x)
+
+    assert other_potential_value_fn is not None, \
+      "The value of the gradient-based potential depends " \
+      "on the value of the other potential."
+
+    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+      squeeze = x.ndim == 1
+      if squeeze:
+        x = jnp.expand_dims(x, 0)
+      grad_g_x = jax.lax.stop_gradient(self.apply({"params": params}, x))
+      value = -other_potential_value_fn(grad_g_x) + \
+              jax.vmap(jnp.dot)(grad_g_x, x)
+      return value.squeeze(0) if squeeze else value
+
+    return value_fn
+
+  def potential_gradient_fn(
+      self,
+      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+  ) -> PotentialGradientFn_t:
+    """Return a function returning a vector or the gradient of the potential.
+
+    Args:
+      params: parameters of the module
+
+    Returns:
+      A function that can be evaluated to obtain the potential's gradient
+    """
+    if self.is_potential:
+      return jax.vmap(jax.grad(self.potential_value_fn(params)))
+    return lambda x: self.apply({"params": params}, x)
+
+  def create_train_state(
+      self,
+      rng: jax.Array,
+      optimizer: optax.OptState,
+      input: Union[int, Tuple[int, ...]],
+      **kwargs: Any,
+  ) -> W2NeuralTrainState:
+    """Create initial training state."""
+    params = self.init(rng, jnp.ones(input))["params"]
+
+    return W2NeuralTrainState.create(
+        apply_fn=self.apply,
+        params=params,
+        tx=optimizer,
+        potential_value_fn=self.potential_value_fn,
+        potential_gradient_fn=self.potential_gradient_fn,
+        **kwargs,
+    )
 
 
 class W2NeuralDual:
@@ -48,15 +170,14 @@ class W2NeuralDual:
   denoted source and target, respectively. This is achieved by parameterizing
   a Kantorovich potential :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with an
-  :class:`~ott.solvers.nn.models.ICNN`, :class:`~ott.solvers.nn.models.MLP`,
-  or other :class:`~ott.solvers.nn.models.ModelBase`, where :math:`\nabla f`
-  transports source to target cells. This potential is learned by optimizing
-  the dual form associated with the negative inner product cost
+  :class:`~ott.neural.models.ICNN` or :class:`~ott.neural.models.MLP`, where
+  :math:`\nabla f` transports source to target cells. This potential is learned
+  by optimizing the dual form associated with the negative inner product cost
 
   .. math::
 
     \text{argsup}_{\theta}\; -\mathbb{E}_{x\sim\alpha}[f_\theta(x)] -
-      \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)],
+    \mathbb{E}_{y\sim\beta}[f^\star_\theta(y)],
 
   where :math:`f^\star(y) := -\inf_{x\in\mathbb{R}^n} f(x)-\langle x, y\rangle`
   is the convex conjugate.
@@ -65,10 +186,10 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with :class:`~ott.solvers.nn.conjugate_solvers.FenchelConjugateSolver`,
+  with :class:`~ott.neural.solvers.conjugate.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
-  The :class:`~ott.solvers.nn.models.ModelBase` potentials for
+  The :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` potentials for
   ``neural_f`` and ``neural_g`` can
 
   1. both provide the values of the potentials :math:`f` and :math:`g`, or
@@ -77,7 +198,7 @@ class W2NeuralDual:
      via the Fenchel conjugate as discussed in :cite:`amos:23`.
 
   The potential's value or gradient mapping is specified via
-  :attr:`~ott.solvers.nn.models.ModelBase.is_potential`.
+  :attr:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual.is_potential`.
 
   Args:
     dim_data: input dimensionality of data required for network init
@@ -107,8 +228,8 @@ class W2NeuralDual:
   def __init__(
       self,
       dim_data: int,
-      neural_f: Optional[models.ModelBase] = None,
-      neural_g: Optional[models.ModelBase] = None,
+      neural_f: Optional[BaseW2NeuralDual] = None,
+      neural_g: Optional[BaseW2NeuralDual] = None,
       optimizer_f: Optional[optax.OptState] = None,
       optimizer_g: Optional[optax.OptState] = None,
       num_train_iters: int = 20000,
@@ -117,10 +238,11 @@ class W2NeuralDual:
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       pos_weights: bool = True,
       beta: float = 1.0,
-      conjugate_solver: Conj_t = conjugate_solvers.DEFAULT_CONJUGATE_SOLVER,
+      conjugate_solver: Optional[conjugate.FenchelConjugateSolver
+                                ] = conjugate.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
   ):
@@ -162,9 +284,9 @@ class W2NeuralDual:
 
   def setup(
       self,
-      rng: jax.random.PRNGKeyArray,
-      neural_f: models.ModelBase,
-      neural_g: models.ModelBase,
+      rng: jax.Array,
+      neural_f: BaseW2NeuralDual,
+      neural_g: BaseW2NeuralDual,
       dim_data: int,
       optimizer_f: optax.OptState,
       optimizer_g: optax.OptState,
@@ -193,12 +315,12 @@ class W2NeuralDual:
     self.state_f = neural_f.create_train_state(
         rng_f,
         optimizer_f,
-        dim_data,
+        (1, dim_data),  # also include the batch dimension
     )
     self.state_g = neural_g.create_train_state(
         rng_g,
         optimizer_g,
-        dim_data,
+        (1, dim_data),
     )
 
     # default to using back_and_forth with the non-convex models
@@ -456,7 +578,7 @@ class W2NeuralDual:
             f"Optimization target {to_optimize} has been misspecified."
         )
 
-      if self.pos_weights:
+      if not self.pos_weights:
         # Penalize the weights of both networks, even though one
         # of them will be exactly clipped.
         # Having both here is necessary in case this is being called with
@@ -552,12 +674,11 @@ class W2NeuralDual:
 
   @staticmethod
   def _clip_weights_icnn(params):
-    params = params.unfreeze()
     for k in params:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
-    return core.freeze(params)
+    return params
 
   @staticmethod
   def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:

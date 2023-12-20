@@ -62,7 +62,7 @@ def compute_assignment(
 class TestKmeansPlusPlus:
 
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
-  def test_n_local_trials(self, rng: jax.random.PRNGKeyArray, n_local_trials):
+  def test_n_local_trials(self, rng: jax.Array, n_local_trials):
     n, k = 100, 4
     rng1, rng2 = jax.random.split(rng)
     geom, _, c = make_blobs(
@@ -77,7 +77,7 @@ class TestKmeansPlusPlus:
     assert shift1 > shift2
 
   @pytest.mark.fast.with_args("k", [3, 5], only_fast=0)
-  def test_matches_sklearn(self, rng: jax.random.PRNGKeyArray, k: int):
+  def test_matches_sklearn(self, rng: jax.Array, k: int):
     ndim = 2
     geom, _, _ = make_blobs(
         n_samples=100,
@@ -101,7 +101,7 @@ class TestKmeansPlusPlus:
     )
     assert jnp.abs(pred_inertia - gt_inertia) <= 200
 
-  def test_initialization_differentiable(self, rng: jax.random.PRNGKeyArray):
+  def test_initialization_differentiable(self, rng: jax.Array):
 
     def callback(x: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x)
@@ -121,7 +121,7 @@ class TestKmeans:
 
   @pytest.mark.fast()
   @pytest.mark.parametrize("k", [1, 6])
-  def test_k_means_output(self, rng: jax.random.PRNGKeyArray, k: int):
+  def test_k_means_output(self, rng: jax.Array, k: int):
     max_iter, ndim = 10, 4
     geom, gt_assignment, _ = make_blobs(
         n_samples=50, n_features=ndim, centers=k, random_state=42
@@ -159,7 +159,7 @@ class TestKmeans:
       ["k-means++", "random", "callable", "wrong-callable"],
       only_fast=1,
   )
-  def test_init_method(self, rng: jax.random.PRNGKeyArray, init: str):
+  def test_init_method(self, rng: jax.Array, init: str):
     if init == "callable":
       init_fn = lambda geom, k, _: geom.x[:k]
     elif init == "wrong-callable":
@@ -175,9 +175,7 @@ class TestKmeans:
     else:
       _ = k_means.k_means(geom, k, init=init_fn)
 
-  def test_k_means_plus_plus_better_than_random(
-      self, rng: jax.random.PRNGKeyArray
-  ):
+  def test_k_means_plus_plus_better_than_random(self, rng: jax.Array):
     k = 5
     rng1, rng2 = jax.random.split(rng, 2)
     geom, _, _ = make_blobs(n_samples=50, centers=k, random_state=10)
@@ -190,7 +188,7 @@ class TestKmeans:
     assert res_kpp.iteration < res_random.iteration
     assert res_kpp.error <= res_random.error
 
-  def test_larger_n_init_helps(self, rng: jax.random.PRNGKeyArray):
+  def test_larger_n_init_helps(self, rng: jax.Array):
     k = 10
     geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
 
@@ -200,9 +198,7 @@ class TestKmeans:
     assert res_larger_n_init.error < res.error
 
   @pytest.mark.parametrize("max_iter", [8, 16])
-  def test_store_inner_errors(
-      self, rng: jax.random.PRNGKeyArray, max_iter: int
-  ):
+  def test_store_inner_errors(self, rng: jax.Array, max_iter: int):
     ndim, k = 10, 4
     geom, _, _ = make_blobs(
         n_samples=40, n_features=ndim, centers=k, random_state=43
@@ -218,7 +214,7 @@ class TestKmeans:
     # check if error is decreasing
     np.testing.assert_array_equal(jnp.diff(errors[::-1]) >= 0., True)
 
-  def test_strict_tolerance(self, rng: jax.random.PRNGKeyArray):
+  def test_strict_tolerance(self, rng: jax.Array):
     k = 11
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
@@ -232,9 +228,7 @@ class TestKmeans:
   @pytest.mark.parametrize(
       "tol", [1e-3, 0.], ids=["weak-convergence", "strict-convergence"]
   )
-  def test_convergence_force_scan(
-      self, rng: jax.random.PRNGKeyArray, tol: float
-  ):
+  def test_convergence_force_scan(self, rng: jax.Array, tol: float):
     k, n_iter = 9, 20
     geom, _, _ = make_blobs(n_samples=100, centers=k, random_state=37)
 
@@ -252,7 +246,7 @@ class TestKmeans:
     assert res.iteration == n_iter
     np.testing.assert_array_equal(res.inner_errors == -1, False)
 
-  def test_k_means_min_iterations(self, rng: jax.random.PRNGKeyArray):
+  def test_k_means_min_iterations(self, rng: jax.Array):
     k, min_iter = 8, 12
     geom, _, _ = make_blobs(n_samples=160, centers=k, random_state=38)
 
@@ -269,9 +263,7 @@ class TestKmeans:
     assert res.converged
     assert jnp.sum(res.inner_errors != -1) >= min_iter
 
-  def test_weight_scaling_effects_only_inertia(
-      self, rng: jax.random.PRNGKeyArray
-  ):
+  def test_weight_scaling_effects_only_inertia(self, rng: jax.Array):
     k = 10
     rng1, rng2 = jax.random.split(rng)
     geom, _, _ = make_blobs(n_samples=130, centers=k, random_state=3)
@@ -292,7 +284,7 @@ class TestKmeans:
     )
 
   @pytest.mark.fast()
-  def test_empty_weights(self, rng: jax.random.PRNGKeyArray):
+  def test_empty_weights(self, rng: jax.Array):
     n, ndim, k, d = 20, 2, 3, 5.
     gen = np.random.RandomState(0)
     x = gen.normal(size=(n, ndim))
@@ -340,7 +332,7 @@ class TestKmeans:
 
   @pytest.mark.fast.with_args("init", ["k-means++", "random"], only_fast=0)
   def test_k_means_jitting(
-      self, rng: jax.random.PRNGKeyArray, init: Literal["k-means++", "random"]
+      self, rng: jax.Array, init: Literal["k-means++", "random"]
   ):
 
     def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
@@ -372,7 +364,7 @@ class TestKmeans:
                                                    (False, True)],
                            ids=["jit-while-loop", "nojit-for-loop"])
   def test_k_means_differentiability(
-      self, rng: jax.random.PRNGKeyArray, jit: bool, force_scan: bool
+      self, rng: jax.Array, jit: bool, force_scan: bool
   ):
 
     def inertia(x: jnp.ndarray, w: jnp.ndarray) -> float:
@@ -411,7 +403,7 @@ class TestKmeans:
   @pytest.mark.parametrize("tol", [1e-3, 0.])
   @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 6)])
   def test_clustering_matches_sklearn(
-      self, rng: jax.random.PRNGKeyArray, n: int, k: int, tol: float
+      self, rng: jax.Array, n: int, k: int, tol: float
   ):
     x, _, _ = make_blobs(n_samples=n, centers=k, random_state=41)
 

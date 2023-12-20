@@ -18,7 +18,6 @@ import warnings
 from typing import Any, Callable, NamedTuple, Optional, Tuple
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 try:
@@ -29,7 +28,6 @@ except ImportError:
 __all__ = [
     "register_pytree_node",
     "deprecate",
-    "is_jax_array",
     "default_prng_key",
     "default_progress_fn",
     "tqdm_progress_fn",
@@ -70,17 +68,7 @@ def deprecate(  # noqa: D103
   return functools.wraps(func)(wrapper)
 
 
-def is_jax_array(obj: Any) -> bool:
-  """Check if an object is a Jax array."""
-  if hasattr(jax, "Array"):
-    # https://jax.readthedocs.io/en/latest/jax_array_migration.html
-    return isinstance(obj, jax.Array)
-  return isinstance(obj, jnp.DeviceArray)
-
-
-def default_prng_key(
-    rng: Optional[jax.random.PRNGKeyArray] = None,
-) -> jax.random.PRNGKeyArray:
+def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
   """Get the default PRNG key.
 
   Args:

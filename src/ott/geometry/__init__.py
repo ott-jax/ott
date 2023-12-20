@@ -13,7 +13,9 @@
 # limitations under the License.
 from . import (
     costs,
+    distrib_costs,
     epsilon_scheduler,
+    geodesic,
     geometry,
     graph,
     grid,

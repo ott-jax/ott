@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import numpy as np
 
 from ott import utils
 from ott.geometry import epsilon_scheduler
@@ -200,8 +201,7 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> float:
     """Compute and return inverse of scaling factor for cost matrix."""
-    if isinstance(self._scale_cost,
-                  (int, float)) or utils.is_jax_array(self._scale_cost):
+    if isinstance(self._scale_cost, (int, float, np.number, jax.Array)):
       return 1.0 / self._scale_cost
     self = self._masked_geom(mask_value=jnp.nan)
     if self._scale_cost == "max_cost":
@@ -625,7 +625,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.

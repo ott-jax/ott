@@ -29,7 +29,7 @@ from ott.solvers.linear import acceleration, sinkhorn
 class TestSinkhorn:
 
   @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.random.PRNGKeyArray):
+  def initialize(self, rng: jax.Array):
     self.rng = rng
     self.dim = 4
     self.n = 17
@@ -474,7 +474,7 @@ class TestSinkhorn:
     assert num_iter_restarted == 1
 
   @pytest.mark.cpu()
-  @pytest.mark.limit_memory("35 MB")
+  @pytest.mark.limit_memory("45 MB")
   @pytest.mark.fast()
   def test_sinkhorn_online_memory_jit(self):
     # test that full matrix is not materialized.

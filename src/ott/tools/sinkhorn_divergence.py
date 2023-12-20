@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple, Optional, Tuple, Type
+from typing import Any, Mapping, Optional, Tuple, Type
 
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
@@ -29,7 +30,8 @@ __all__ = [
 Potentials_t = Tuple[jnp.ndarray, jnp.ndarray]
 
 
-class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
+@utils.register_pytree_node
+class SinkhornDivergenceOutput:  # noqa: D101
   divergence: float
   potentials: Tuple[Potentials_t, Potentials_t, Potentials_t]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
@@ -48,6 +50,24 @@ class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
     return potentials.EntropicPotentials(
         f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
     )
+
+  def tree_flatten(self):  # noqa: D102
+    return [
+        self.divergence,
+        self.potentials,
+        self.geoms,
+        self.a,
+        self.b,
+    ], {
+        "n_iters": self.n_iters,
+        "converged": self.converged,
+        "errors": self.errors
+    }
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    div, pots, geoms, a, b = children
+    return cls(div, pots, geoms, a=a, b=b, **aux_data)
 
 
 def sinkhorn_divergence(

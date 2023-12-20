@@ -459,11 +459,21 @@ class SinkhornOutput(NamedTuple):
     """Sum of transport matrix."""
     return self.marginal(0).sum()
 
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply(
+      self,
+      inputs: jnp.ndarray,
+      axis: int = 0,
+      lse_mode: bool = True
+  ) -> jnp.ndarray:
     """Apply the transport to a ndarray; axis=1 for its transpose."""
-    return self.ot_prob.geom.apply_transport_from_potentials(
-        self.f, self.g, inputs, axis=axis
-    )
+    geom = self.ot_prob.geom
+    if lse_mode:
+      return geom.apply_transport_from_potentials(
+          self.f, self.g, inputs, axis=axis
+      )
+    u = geom.scaling_from_potential(self.f)
+    v = geom.scaling_from_potential(self.g)
+    return geom.apply_transport_from_scalings(u, v, inputs, axis=axis)
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
@@ -833,7 +843,7 @@ class Sinkhorn:
       self,
       ot_prob: linear_problem.LinearProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 

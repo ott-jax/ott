@@ -336,7 +336,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       ot_prob: quadratic_problem.QuadraticProblem,
       init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                   Optional[jnp.ndarray]] = (None, None, None),
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> LRGWOutput:
     """Run low-rank Gromov-Wasserstein solver.

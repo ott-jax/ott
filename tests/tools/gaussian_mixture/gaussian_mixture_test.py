@@ -22,7 +22,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 class TestGaussianMixture:
 
   def test_get_summary_stats_from_points_and_assignment_probs(
-      self, rng: jax.random.PRNGKeyArray
+      self, rng: jax.Array
   ):
     n = 50
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
@@ -55,7 +55,7 @@ class TestGaussianMixture:
     np.testing.assert_allclose(expected_cov, cov, atol=1e-4, rtol=1e-4)
     np.testing.assert_allclose(expected_wt, comp_wt, atol=1e-4, rtol=1e-4)
 
-  def test_from_random(self, rng: jax.random.PRNGKeyArray):
+  def test_from_random(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )
@@ -78,7 +78,7 @@ class TestGaussianMixture:
         comp_wts, gmm.component_weights, atol=1e-4, rtol=1e-4
     )
 
-  def test_covariance(self, rng: jax.random.PRNGKeyArray):
+  def test_covariance(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )
@@ -88,7 +88,7 @@ class TestGaussianMixture:
           cov[i], component.covariance(), atol=1e-4, rtol=1e-4
       )
 
-  def test_sample(self, rng: jax.random.PRNGKeyArray):
+  def test_sample(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
         mean=jnp.array([[-1., 0.], [1., 0.]]),
         cov=jnp.array([[[0.01, 0.], [0., 0.01]], [[0.01, 0.], [0., 0.01]]]),
@@ -110,7 +110,7 @@ class TestGaussianMixture:
         atol=1.e-1
     )
 
-  def test_log_prob(self, rng: jax.random.PRNGKeyArray):
+  def test_log_prob(self, rng: jax.Array):
     n_components = 3
     size = 100
     subrng0, subrng1 = jax.random.split(rng, num=2)
@@ -134,7 +134,7 @@ class TestGaussianMixture:
 
     np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
-  def test_log_component_posterior(self, rng: jax.random.PRNGKeyArray):
+  def test_log_component_posterior(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )
@@ -148,7 +148,7 @@ class TestGaussianMixture:
         expected, gmm.get_log_component_posterior(x), atol=1e-4, rtol=1e-4
     )
 
-  def test_flatten_unflatten(self, rng: jax.random.PRNGKeyArray):
+  def test_flatten_unflatten(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )
@@ -157,7 +157,7 @@ class TestGaussianMixture:
 
     assert gmm == gmm_new
 
-  def test_pytree_mapping(self, rng: jax.random.PRNGKeyArray):
+  def test_pytree_mapping(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )

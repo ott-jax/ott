@@ -67,7 +67,7 @@ class LRInitializer(abc.ABC):
   def init_q(
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -88,7 +88,7 @@ class LRInitializer(abc.ABC):
   def init_r(
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -109,7 +109,7 @@ class LRInitializer(abc.ABC):
   def init_g(
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Initialize the low-rank factor :math:`g`.
@@ -169,7 +169,7 @@ class LRInitializer(abc.ABC):
       r: Optional[jnp.ndarray] = None,
       g: Optional[jnp.ndarray] = None,
       *,
-      rng: Optional[jax.random.PRNGKeyArray] = None,
+      rng: Optional[jax.Array] = None,
       **kwargs: Any
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
@@ -232,7 +232,7 @@ class RandomInitializer(LRInitializer):
   def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -245,7 +245,7 @@ class RandomInitializer(LRInitializer):
   def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -258,7 +258,7 @@ class RandomInitializer(LRInitializer):
   def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs
@@ -289,16 +289,15 @@ class Rank2Initializer(LRInitializer):
     lambda_1 = jnp.min(
         jnp.array([jnp.min(a), jnp.min(init_g),
                    jnp.min(b)])
-    ) * .5
+    ) * 0.5
 
-    # normalization to 1 can overflow in i32 (e.g., n=128k)
-    # using the formula: r * (r + 1) / 2 will raise:
-    # OverflowError: Python int 16384128000 too large to convert to int32
-    # normalizing by `jnp.sum()` overflows silently
-    g1 = 2. * jnp.arange(1, r + 1) / (r ** 2 + r)
-    g2 = (init_g - lambda_1 * g1) / (1. - lambda_1)
-    x = 2. * jnp.arange(1, n + 1) / (n ** 2 + n)
-    y = (marginal - lambda_1 * x) / (1. - lambda_1)
+    g1 = jnp.arange(1, r + 1)
+    g1 /= g1.astype(float).sum()
+    g2 = (init_g - lambda_1 * g1) / (1.0 - lambda_1)
+
+    x = jnp.arange(1, n + 1)
+    x /= x.astype(float).sum()
+    y = (marginal - lambda_1 * x) / (1.0 - lambda_1)
 
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
             ((1 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
@@ -306,7 +305,7 @@ class Rank2Initializer(LRInitializer):
   def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -317,7 +316,7 @@ class Rank2Initializer(LRInitializer):
   def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -328,7 +327,7 @@ class Rank2Initializer(LRInitializer):
   def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del rng, kwargs
@@ -377,7 +376,7 @@ class KMeansInitializer(LRInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       which: Literal["q", "r"],
@@ -419,7 +418,7 @@ class KMeansInitializer(LRInitializer):
   def init_q(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -431,7 +430,7 @@ class KMeansInitializer(LRInitializer):
   def init_r(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       **kwargs: Any,
@@ -443,7 +442,7 @@ class KMeansInitializer(LRInitializer):
   def init_g(  # noqa: D102
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       **kwargs: Any,
   ) -> jnp.ndarray:
     del rng, kwargs
@@ -512,7 +511,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       *,
       init_g: jnp.ndarray,
       which: Literal["q", "r"],

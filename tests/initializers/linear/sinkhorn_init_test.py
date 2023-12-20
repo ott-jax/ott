@@ -24,7 +24,7 @@ from ott.solvers.linear import sinkhorn
 
 
 def create_sorting_problem(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     n: int,
     epsilon: float = 1e-2,
     batch_size: Optional[int] = None
@@ -54,7 +54,7 @@ def create_sorting_problem(
 
 
 def create_ot_problem(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     n: int,
     m: int,
     d: int,
@@ -131,9 +131,8 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
                                                         (True, False),
                                                         (False, True)])
-  def test_sorting_init(self, vector_min: bool, lse_mode: bool):
+  def test_sorting_init(self, vector_min: bool, lse_mode: bool, rng: jax.Array):
     """Tests sorting dual initializer."""
-    rng = jax.random.PRNGKey(42)
     n = 50
     epsilon = 1e-2
 
@@ -166,7 +165,7 @@ class TestSinkhornInitializers:
       assert sink_out_init.converged
       assert sink_out_base.n_iters > sink_out_init.n_iters
 
-  def test_sorting_init_online(self, rng: jax.random.PRNGKeyArray):
+  def test_sorting_init_online(self, rng: jax.Array):
     n = 10
     epsilon = 1e-2
 
@@ -177,7 +176,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"online"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_sorting_init_square_cost(self, rng: jax.random.PRNGKeyArray):
+  def test_sorting_init_square_cost(self, rng: jax.Array):
     n, m, d = 10, 15, 1
     epsilon = 1e-2
 
@@ -186,7 +185,7 @@ class TestSinkhornInitializers:
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_dual_a(ot_problem, lse_mode=True)
 
-  def test_default_initializer(self, rng: jax.random.PRNGKeyArray):
+  def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2
@@ -204,7 +203,7 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(0., default_potential_a)
     np.testing.assert_array_equal(0., default_potential_b)
 
-  def test_gauss_pointcloud_geom(self, rng: jax.random.PRNGKeyArray):
+  def test_gauss_pointcloud_geom(self, rng: jax.Array):
     n, m, d = 20, 20, 2
     epsilon = 1e-2
 
@@ -225,7 +224,7 @@ class TestSinkhornInitializers:
   @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
   def test_initializer_n_iter(
-      self, rng: jax.random.PRNGKeyArray, lse_mode: bool, jit: bool,
+      self, rng: jax.Array, lse_mode: bool, jit: bool,
       initializer: Literal["sorting", "gaussian", "subsample"]
   ):
     """Tests Gaussian initializer"""

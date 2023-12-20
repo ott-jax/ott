@@ -32,7 +32,7 @@ Install ``OTT`` from `PyPI <https://pypi.org/project/ott-jax/>`_ as:
 
     pip install ott-jax
 
-or with the :mod:`neural OT solvers <ott.solvers.nn>` dependencies:
+or with the :mod:`neural OT <ott.neural>` dependencies:
 
 .. code-block:: bash
 
@@ -90,6 +90,8 @@ Packages
   When the problem is *not* convex, which is the case for most other uses of
   this toolbox, the initialization can play a decisive role to reach a useful
   solution.
+- :mod:`ott.neural` provides tools to parameterize optimal transport maps,
+  couplings or conditional probabilities as neural networks.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing
   approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
@@ -114,6 +116,7 @@ Packages
     problems/index
     solvers/index
     initializers/index
+    neural/index
     tools
     math
     utils

@@ -24,7 +24,7 @@ from ott.solvers.linear import sinkhorn
 class TestSinkhornGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_separable_grid(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
+  def test_separable_grid(self, rng: jax.Array, lse_mode: bool):
     """Two histograms in a grid of size 5 x 6 x 7  in the hypercube^3."""
     grid_size = (5, 6, 7)
     rngs = jax.random.split(rng, 2)
@@ -45,9 +45,7 @@ class TestSinkhornGrid:
     assert threshold > err
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
-  def test_grid_vs_euclidean(
-      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
-  ):
+  def test_grid_vs_euclidean(self, rng: jax.Array, lse_mode: bool):
     grid_size = (5, 6, 7)
     rngs = jax.random.split(rng, 2)
     a = jax.random.uniform(rngs[0], grid_size)
@@ -70,9 +68,7 @@ class TestSinkhornGrid:
     )
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
-  def test_apply_transport_grid(
-      self, rng: jax.random.PRNGKeyArray, lse_mode: bool
-  ):
+  def test_apply_transport_grid(self, rng: jax.Array, lse_mode: bool):
     grid_size = (5, 6, 7)
     rngs = jax.random.split(rng, 4)
     a = jax.random.uniform(rngs[0], grid_size)
@@ -121,7 +117,7 @@ class TestSinkhornGrid:
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
   @pytest.mark.fast()
-  def test_apply_cost(self, rng: jax.random.PRNGKeyArray):
+  def test_apply_cost(self, rng: jax.Array):
     grid_size = (5, 6, 7)
 
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)

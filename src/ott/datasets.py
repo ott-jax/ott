@@ -52,14 +52,14 @@ class GaussianMixture:
 
     batch_size: batch size of the samples
     init_rng: initial PRNG key
-    scale: scale of the individual Gaussian samples
-    variance: the variance of the individual Gaussian samples
+    scale: scale of the Gaussian means
+    std: the standard deviation of the individual Gaussian samples
   """
   name: Name_t
   batch_size: int
-  init_rng: jax.random.PRNGKeyArray
+  init_rng: jax.Array
   scale: float = 5.0
-  variance: float = 0.5
+  std: float = 0.5
 
   def __post_init__(self):
     gaussian_centers = {
@@ -101,7 +101,7 @@ class GaussianMixture:
       rng1, rng2, rng = jax.random.split(rng, 3)
       means = jax.random.choice(rng1, self.centers, (self.batch_size,))
       normal_samples = jax.random.normal(rng2, (self.batch_size, 2))
-      samples = self.scale * means + self.variance ** 2 * normal_samples
+      samples = self.scale * means + (self.std ** 2) * normal_samples
       yield samples
 
 
@@ -110,9 +110,9 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: Optional[jax.random.PRNGKeyArray] = None,
+    rng: Optional[jax.Array] = None,
 ) -> Tuple[Dataset, Dataset, int]:
-  """Gaussian samplers for :class:`~ott.solvers.nn.neuraldual.W2NeuralDual`.
+  """Gaussian samplers.
 
   Args:
     name_source: name of the source sampler

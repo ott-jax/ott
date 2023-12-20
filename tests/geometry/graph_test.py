@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -50,12 +50,16 @@ def random_graph(
   return jnp.asarray(G.toarray())
 
 
-def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
+def gt_geometry(
+    G: Union[jnp.ndarray, nx.Graph],
+    *,
+    epsilon: float = 1e-2
+) -> geometry.Geometry:
   if not isinstance(G, nx.Graph):
     G = nx.from_numpy_array(np.asarray(G))
 
   n = len(G)
-  cost = np.zeros((n, n), dtype=float)
+  cost = np.zeros((n, n))
 
   path = dict(
       shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
@@ -71,9 +75,7 @@ def gt_geometry(G: jnp.ndarray, *, epsilon: float = 1e-2) -> geometry.Geometry:
 
 class TestGraph:
 
-  def test_kernel_is_symmetric_positive_definite(
-      self, rng: jax.random.PRNGKeyArray
-  ):
+  def test_kernel_is_symmetric_positive_definite(self, rng: jax.Array):
     n, tol = 65, 0.02
     x = jax.random.normal(rng, (n,))
     geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
@@ -110,7 +112,7 @@ class TestGraph:
   )
   def test_approximates_ground_truth(
       self,
-      rng: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       numerical_scheme: Literal["backward_euler", "crank_nicolson"],
   ):
     eps, n_steps = 1e-5, 20
@@ -204,7 +206,7 @@ class TestGraph:
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_graph_sinkhorn(self, rng: jax.random.PRNGKeyArray, jit: bool):
+  def test_graph_sinkhorn(self, rng: jax.Array, jit: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -232,8 +234,8 @@ class TestGraph:
     np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
 
     for axis in [0, 1]:
-      y_gt = gt_out.apply(x, axis=axis)
-      y_out = graph_out.apply(x, axis=axis)
+      y_gt = gt_out.apply(x, axis=axis, lse_mode=False)
+      y_out = graph_out.apply(x, axis=axis, lse_mode=False)
       # note the high tolerance
       np.testing.assert_allclose(y_gt, y_out, rtol=5e-1, atol=5e-1)
 
@@ -247,7 +249,7 @@ class TestGraph:
       ids=["not-implicit", "implicit"],
   )
   def test_dense_graph_differentiability(
-      self, rng: jax.random.PRNGKeyArray, implicit_diff: bool
+      self, rng: jax.Array, implicit_diff: bool
   ):
 
     def callback(
@@ -282,7 +284,7 @@ class TestGraph:
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
-  def test_tolerance_hilbert_metric(self, rng: jax.random.PRNGKeyArray):
+  def test_tolerance_hilbert_metric(self, rng: jax.Array):
     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
     G = random_graph(n, p=0.15)
     x = jnp.abs(jax.random.normal(rng, (n,)))

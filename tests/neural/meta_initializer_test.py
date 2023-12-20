@@ -16,18 +16,28 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 import pytest
-
-_ = pytest.importorskip("flax")
-
+from flax import linen as nn
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as linear_init
-from ott.initializers.nn import initializers as nn_init
+from ott.neural import models as nn_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
 
+class MetaMLP(nn.Module):
+  potential_size: int
+  num_hidden_units: int = 512
+  num_hidden_layers: int = 3
+
+  @nn.compact
+  def __call__(self, z: jnp.ndarray) -> jnp.ndarray:
+    for _ in range(self.num_hidden_layers):
+      z = nn.relu(nn.Dense(self.num_hidden_units)(z))
+    return nn.Dense(self.potential_size)(z)
+
+
 def create_ot_problem(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     n: int,
     m: int,
     d: int,
@@ -73,7 +83,7 @@ def run_sinkhorn(
 class TestMetaInitializer:
 
   @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_meta_initializer(self, rng: jax.random.PRNGKeyArray, lse_mode: bool):
+  def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
     """Tests Meta initializer"""
     n, m, d = 20, 20, 2
     epsilon = 1e-2
@@ -95,7 +105,8 @@ class TestMetaInitializer:
     )
 
     # overfit the initializer to the problem.
-    meta_initializer = nn_init.MetaInitializer(geom)
+    meta_model = MetaMLP(n)
+    meta_initializer = nn_init.MetaInitializer(geom, meta_model)
     for _ in range(50):
       _, _, meta_initializer.state = meta_initializer.update(
           meta_initializer.state, a=a, b=b

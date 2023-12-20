@@ -5,11 +5,10 @@ ott.solvers.linear
 
 Linear solvers are the bread-and-butter of OT solvers. They can be called on
 their own, either the Sinkhorn
-:class:`ott.solvers.linear.sinkhorn.Sinkhorn` or Low-Rank
-:class:`ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, to match two
+:class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or Low-Rank
+:class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, to match two
 datasets. They also appear as subroutines for more advanced solvers in the
-:mod:`ott.solvers` module, notably :mod:`ott.solvers.quadratic` or
-:mod:`ott.solvers.nn`.
+:mod:`ott.solvers` module, notably :mod:`ott.solvers.quadratic`.
 
 Sinkhorn Solvers
 ----------------
@@ -33,6 +32,13 @@ Barycenter Solvers
     continuous_barycenter.FreeBarycenterState
     discrete_barycenter.FixedBarycenter
     discrete_barycenter.SinkhornBarycenterOutput
+
+Other Solvers
+-------------
+.. autosummary::
+    :toctree: _autosummary
+
+    univariate.UnivariateSolver
 
 Sinkhorn Acceleration
 ---------------------

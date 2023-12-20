@@ -189,9 +189,12 @@ class Graph(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    # force symmetry because of numerical imprecision
+    # Symmetrize the kernel if needed. Numerical imprecision
     # happens when `numerical_scheme='backward_euler'` and small `t`
-    return (kernel + kernel.T) * 0.5
+    return jax.lax.cond(
+        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
+        lambda x: (x + x.T) / 2.0, kernel
+    )
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
@@ -243,9 +246,8 @@ class Graph(geometry.Geometry):
       vec: jnp.ndarray,
       axis: int = 0
   ) -> jnp.ndarray:
-    """Since applying from potentials is not feasible in grids, use scalings."""
-    u, v = self.scaling_from_potential(f), self.scaling_from_potential(g)
-    return self.apply_transport_from_scalings(u, v, vec, axis=axis)
+    """Not implemented."""
+    raise ValueError("Not implemented.")
 
   def marginal_from_potentials(
       self,

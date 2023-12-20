@@ -21,7 +21,7 @@ from ott.tools.gaussian_mixture import gaussian, scale_tril
 @pytest.mark.fast()
 class TestGaussian:
 
-  def test_from_random(self, rng: jax.random.PRNGKeyArray):
+  def test_from_random(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng=rng, n_dimensions=3)
 
     np.testing.assert_array_equal(g.loc.shape, (3,))
@@ -35,7 +35,7 @@ class TestGaussian:
     np.testing.assert_array_equal(mean, g.loc)
     np.testing.assert_allclose(cov, g.covariance(), atol=1e-4, rtol=1e-4)
 
-  def test_to_z(self, rng: jax.random.PRNGKeyArray):
+  def test_to_z(self, rng: jax.Array):
     g = gaussian.Gaussian(
         loc=jnp.array([1., 2.]),
         scale=scale_tril.ScaleTriL(
@@ -51,7 +51,7 @@ class TestGaussian:
     np.testing.assert_allclose(sample_mean, jnp.zeros(2), atol=0.1)
     np.testing.assert_allclose(sample_cov, jnp.eye(2), atol=0.1)
 
-  def test_from_z(self, rng: jax.random.PRNGKeyArray):
+  def test_from_z(self, rng: jax.Array):
     g = gaussian.Gaussian(
         loc=jnp.array([0., 0.]),
         scale=scale_tril.ScaleTriL(
@@ -63,7 +63,7 @@ class TestGaussian:
     xnew = g.from_z(z)
     np.testing.assert_allclose(x, xnew, atol=1e-4, rtol=1e-4)
 
-  def test_log_prob(self, rng: jax.random.PRNGKeyArray):
+  def test_log_prob(self, rng: jax.Array):
     g = gaussian.Gaussian(
         loc=jnp.array([0., 0.]),
         scale=scale_tril.ScaleTriL(
@@ -77,7 +77,7 @@ class TestGaussian:
     )
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)
 
-  def test_sample(self, rng: jax.random.PRNGKeyArray):
+  def test_sample(self, rng: jax.Array):
     mean = jnp.array([1., 2.])
     cov = jnp.diag(jnp.array([1., 4.]))
     g = gaussian.Gaussian.from_mean_and_cov(mean, cov)
@@ -88,7 +88,7 @@ class TestGaussian:
     np.testing.assert_allclose(sample_mean, mean, atol=3. * 2. / 100.)
     np.testing.assert_allclose(sample_cov, cov, atol=2e-1)
 
-  def test_w2_dist(self, rng: jax.random.PRNGKeyArray):
+  def test_w2_dist(self, rng: jax.Array):
     # make sure distance between a random normal and itself is 0
     rng, subrng = jax.random.split(rng)
     n = gaussian.Gaussian.from_random(rng=subrng, n_dimensions=3)
@@ -117,7 +117,7 @@ class TestGaussian:
     expected = delta_mean + delta_sigma
     np.testing.assert_allclose(expected, w2, rtol=1e-6, atol=1e-6)
 
-  def test_transport(self, rng: jax.random.PRNGKeyArray):
+  def test_transport(self, rng: jax.Array):
     diag0 = jnp.array([1.])
     diag1 = jnp.array([4.])
     g0 = gaussian.Gaussian(
@@ -133,14 +133,14 @@ class TestGaussian:
     expected = 2. * points + 1.
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)
 
-  def test_flatten_unflatten(self, rng: jax.random.PRNGKeyArray):
+  def test_flatten_unflatten(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)
     children, aux_data = jax.tree_util.tree_flatten(g)
     g_new = jax.tree_util.tree_unflatten(aux_data, children)
 
     assert g == g_new
 
-  def test_pytree_mapping(self, rng: jax.random.PRNGKeyArray):
+  def test_pytree_mapping(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)
     g_x_2 = jax.tree_map(lambda x: 2 * x, g)
 

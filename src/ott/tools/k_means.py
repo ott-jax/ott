@@ -29,7 +29,7 @@ Init_t = Union[Literal["k-means++", "random"],
 
 
 class KPPState(NamedTuple):  # noqa: D101
-  rng: jax.random.PRNGKeyArray
+  rng: jax.Array
   centroids: jnp.ndarray
   centroid_dists: jnp.ndarray
 
@@ -109,7 +109,7 @@ class KMeansOutput(NamedTuple):
 
 
 def _random_init(
-    geom: pointcloud.PointCloud, k: int, rng: jax.random.PRNGKeyArray
+    geom: pointcloud.PointCloud, k: int, rng: jax.Array
 ) -> jnp.ndarray:
   ixs = jnp.arange(geom.shape[0])
   ixs = jax.random.choice(rng, ixs, shape=(k,), replace=False)
@@ -119,13 +119,11 @@ def _random_init(
 def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     n_local_trials: Optional[int] = None,
 ) -> jnp.ndarray:
 
-  def init_fn(
-      geom: pointcloud.PointCloud, rng: jax.random.PRNGKeyArray
-  ) -> KPPState:
+  def init_fn(geom: pointcloud.PointCloud, rng: jax.Array) -> KPPState:
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
@@ -226,7 +224,7 @@ def _update_centroids(
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
 def _k_means(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     geom: pointcloud.PointCloud,
     k: int,
     weights: Optional[jnp.ndarray] = None,
@@ -354,7 +352,7 @@ def k_means(
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    rng: Optional[jax.random.PRNGKeyArray] = None,
+    rng: Optional[jax.Array] = None,
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 

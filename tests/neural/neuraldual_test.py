@@ -11,28 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for implementation of the neural Kantorovich dual."""
 from typing import Optional, Sequence, Tuple
 
 import jax
 import numpy as np
 import pytest
+from ott import datasets
+from ott.neural import models
+from ott.neural.solvers import conjugate, neuraldual
 
-_ = pytest.importorskip("flax")
-
-from ott.problems.nn import dataset
-from ott.solvers.nn import conjugate_solvers, models, neuraldual
-
-ModelPair_t = Tuple[models.ModelBase, models.ModelBase]
-DatasetPair_t = Tuple[dataset.Dataset, dataset.Dataset]
+ModelPair_t = Tuple[neuraldual.BaseW2NeuralDual, neuraldual.BaseW2NeuralDual]
+DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
 
 
 @pytest.fixture(params=[("simple", "circle")])
-def datasets(request: Tuple[str, str]) -> DatasetPair_t:
-  train_dataset, valid_dataset, _ = dataset.create_gaussian_mixture_samplers(
+def ds(request: Tuple[str, str]) -> DatasetPair_t:
+  train_dataset, valid_dataset, _ = datasets.create_gaussian_mixture_samplers(
       request.param[0], request.param[1], rng=jax.random.PRNGKey(0)
   )
-  return (train_dataset, valid_dataset)
+  return train_dataset, valid_dataset
 
 
 @pytest.fixture(params=["icnns", "mlps", "mlps-grad"])
@@ -56,19 +53,19 @@ class TestNeuralDual:
 
   @pytest.mark.fast.with_args(
       "back_and_forth,test_gaussian_init,amortization_loss,conjugate_solver", (
-          (True, True, "objective", conjugate_solvers.DEFAULT_CONJUGATE_SOLVER),
+          (True, True, "objective", conjugate.DEFAULT_CONJUGATE_SOLVER),
           (False, False, "regression", None),
       ),
       only_fast=0
   )
   def test_neural_dual_convergence(
       self,
-      datasets: DatasetPair_t,
+      ds: DatasetPair_t,
       neural_models: ModelPair_t,
       back_and_forth: bool,
       amortization_loss: str,
       test_gaussian_init: bool,
-      conjugate_solver: Optional[conjugate_solvers.FenchelConjugateSolver],
+      conjugate_solver: Optional[conjugate.FenchelConjugateSolver],
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 
@@ -80,7 +77,7 @@ class TestNeuralDual:
 
     num_train_iters, log_freq = 10, 10
 
-    train_dataset, valid_dataset = datasets
+    train_dataset, valid_dataset = ds
 
     if test_gaussian_init:
       neural_f = models.ICNN(
@@ -120,13 +117,13 @@ class TestNeuralDual:
     assert increasing(logs["train_logs"]["loss_f"])
     assert decreasing(logs["train_logs"]["loss_g"])
 
-  def test_neural_dual_jit(self, datasets: DatasetPair_t):
+  def test_neural_dual_jit(self, ds: DatasetPair_t):
     num_train_iters = 4
     # initialize neural dual
     neural_dual_solver = neuraldual.W2NeuralDual(
         dim_data=2, num_train_iters=num_train_iters
     )
-    train_dataset, valid_dataset = datasets
+    train_dataset, valid_dataset = ds
     neural_dual = neural_dual_solver(*train_dataset, *valid_dataset)
 
     data_source = next(train_dataset.source_iter)
