@@ -248,10 +248,6 @@ def lambertw(
     denom = 1.0 + 0.45495740 * jnp.log1p(y)
     return -1.0 + 2.036 * jnp.log(num / denom)
 
-  def _initial_winitzki(z: jnp.ndarray) -> jnp.ndarray:
-    log1p_z = jnp.log1p(z)
-    return log1p_z * (1.0 - jnp.log1p(log1p_z) / (2.0 - log1p_z))
-
   def cond_fun(cont):
     it, converged, _ = cont
     return jnp.logical_and(jnp.any(~converged), it < max_iter)

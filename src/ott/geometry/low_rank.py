@@ -354,11 +354,15 @@ class LRCGeometry(geometry.Geometry):
 class LRKGeometry(geometry.Geometry):
   """Low-rank kernel geometry :cite:`scetbon:20`.
 
+  .. note::
+    This constructor is not meant to be called by the user,
+    please use the :meth:`from_pointcloud` method instead.
+
   Args:
-    k1: TODO.
-    k2: TODO.
-    epsilon: TODO.
-    kwargs: TODO.
+    k1: Array of shape ``[num_a, r]`` with positive features.
+    k2: Array of shape ``[num_b, r]`` with positive features.
+    epsilon: Epsilon regularization.
+    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -380,42 +384,45 @@ class LRKGeometry(geometry.Geometry):
       *,
       kernel: Literal["gaussian", "arccos"],
       rank: int = 100,
-      eps: float = 1e-1,
       std: float = 1.0,
       s: float = 1.0,
       rng: Optional[jax.Array] = None
   ) -> "LRKGeometry":
-    """TODO :cite:`scetbon:20`.
+    r"""Low-rank kernel approximation from positive features :cite:`scetbon:20`.
 
     Args:
-      x: TODO.
-      y: TODO.
-      kernel: TODO.
-      rank: TODO.
-      eps: TODO.
-      std: TODO.
-      s: TODO
-      rng: TODO.
+      x: Array of shape ``[n, d]``.
+      y: Array of shape ``[m, d]``.
+      kernel: Type of the kernel to approximate.
+      rank: Rank of the approximation.
+      std: Depending on the ``kernel`` approximation:
+
+        - ``'gaussian'`` - scale of the Gibbs kernel.
+        - ``'arccos'`` - standard deviation of the random projections.
+      s: Power in the rectified polynomial function
+        :math:`\sqrt{2} \max(0, w)^s`.
+      rng: Random key used for seeding.
 
     Returns:
       Low-rank kernel geometry.
     """
     rng = utils.default_prng_key(rng)
-
     if kernel == "gaussian":
       r = jnp.maximum(
           jnp.linalg.norm(x, axis=-1).max(),
           jnp.linalg.norm(y, axis=-1).max()
       )
-      k1 = _gaussian_kernel(rng, x, rank, eps=eps, R=r)
-      k2 = _gaussian_kernel(rng, y, rank, eps=eps, R=r)
+      k1 = _gaussian_kernel(rng, x, rank, eps=std, R=r)
+      k2 = _gaussian_kernel(rng, y, rank, eps=std, R=r)
+      eps = std
     elif kernel == "arccos":
       k1 = _arccos_kernel(rng, x, rank, s=s, std=std)
       k2 = _arccos_kernel(rng, y, rank, s=s, std=std)
+      eps = 1.0
     else:
       raise NotImplementedError(kernel)
 
-    return cls(k1, k2, epsilon=1.0)
+    return cls(k1, k2, epsilon=eps)
 
   def apply_kernel(  # noqa: D102
       self,
@@ -480,7 +487,6 @@ def _gaussian_kernel(
   cost = cost_fn.all_pairs(x, u)
   norm_u = cost_fn.norm(u)
 
-  # tmp = 2.0 * ((-cost / eps) + (norm_u / (eps + 2 * R ** 2)))
   tmp = -2.0 * (cost / eps) + (norm_u / (eps * q))
   phi = (2 * q) ** (d / 4) * jnp.exp(tmp)
 
