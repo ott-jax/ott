@@ -23,7 +23,7 @@ from ott.math import utils as mu
 __all__ = ["LRCGeometry", "LRKGeometry"]
 
 if TYPE_CHECKING:
-  from ott.geometry import pointcloud
+  pass
 
 
 @jax.tree_util.register_pytree_node_class
@@ -38,8 +38,8 @@ class LRCGeometry(geometry.Geometry):
   if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
-    cost_1: jnp.ndarray<float>[num_a, r]
-    cost_2: jnp.ndarray<float>[num_b, r]
+    cost_1: Array of shape ``[num_a, r]``.
+    cost_2: Array of shape ``[num_a, r]``.
     bias: constant added to entire cost matrix.
     scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
@@ -357,7 +357,7 @@ class LRKGeometry(geometry.Geometry):
   Args:
     k1: TODO.
     k2: TODO.
-    epsilno: TODO.
+    epsilon: TODO.
     kwargs: TODO.
   """
 
@@ -375,19 +375,25 @@ class LRKGeometry(geometry.Geometry):
   @classmethod
   def from_pointcloud(
       cls,
-      geom: "pointcloud.PointCloud",
+      x: jnp.ndarray,
+      y: jnp.ndarray,
       *,
       kernel: Literal["gaussian", "arccos"],
-      rank: int,
+      rank: int = 100,
+      eps: float = 1e-1,
+      std: float = 1.0,
       s: float = 1.0,
-      rng: Optional[jax.random.PRNGKeyArray] = None
+      rng: Optional[jax.Array] = None
   ) -> "LRKGeometry":
-    """TODO.
+    """TODO :cite:`scetbon:20`.
 
     Args:
-      geom: TODO.
+      x: TODO.
+      y: TODO.
       kernel: TODO.
       rank: TODO.
+      eps: TODO.
+      std: TODO.
       s: TODO
       rng: TODO.
 
@@ -396,24 +402,20 @@ class LRKGeometry(geometry.Geometry):
     """
     rng = utils.default_prng_key(rng)
 
-    assert geom.is_squared_euclidean, "TODO"
-    eps = geom.epsilon
-
     if kernel == "gaussian":
       r = jnp.maximum(
-          jnp.linalg.norm(geom.x, axis=-1).max(),
-          jnp.linalg.norm(geom.y, axis=-1).max()
+          jnp.linalg.norm(x, axis=-1).max(),
+          jnp.linalg.norm(y, axis=-1).max()
       )
-
-      k1 = _gaussian_kernel(rng, geom.x, rank, eps=eps, R=r)
-      k2 = _gaussian_kernel(rng, geom.y, rank, eps=eps, R=r)
+      k1 = _gaussian_kernel(rng, x, rank, eps=eps, R=r)
+      k2 = _gaussian_kernel(rng, y, rank, eps=eps, R=r)
     elif kernel == "arccos":
-      k1 = _arccos_kernel(rng, geom.x, rank, s=s)
-      k2 = _arccos_kernel(rng, geom.y, rank, s=s)
+      k1 = _arccos_kernel(rng, x, rank, s=s, std=std)
+      k2 = _arccos_kernel(rng, y, rank, s=s, std=std)
     else:
-      raise NotImplementedError("TODO(michalk8): error message")
+      raise NotImplementedError(kernel)
 
-    return cls(k1, k2, epsilon=eps)
+    return cls(k1, k2, epsilon=1.0)
 
   def apply_kernel(  # noqa: D102
       self,
@@ -461,7 +463,7 @@ class LRKGeometry(geometry.Geometry):
 
 
 def _gaussian_kernel(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     x: jnp.ndarray,
     n_features: int,
     eps: float,
@@ -472,19 +474,21 @@ def _gaussian_kernel(
 
   y = (R ** 2) / (eps * d)
   q = y / (2.0 * mu.lambertw(y))
+  sigma = jnp.sqrt(q * eps * 0.25)
 
-  u = jax.random.normal(rng, shape=(n_features, d)) * jnp.sqrt(q * eps) * 0.5
+  u = jax.random.normal(rng, shape=(n_features, d)) * sigma
   cost = cost_fn.all_pairs(x, u)
   norm_u = cost_fn.norm(u)
 
-  tmp = 2.0 * (-cost / eps + norm_u / (eps + 2 * R ** 2))
-  # tmp = -2.0 * cost / eps + norm_u / (eps * q)
+  # tmp = 2.0 * ((-cost / eps) + (norm_u / (eps + 2 * R ** 2)))
+  tmp = -2.0 * (cost / eps) + (norm_u / (eps * q))
   phi = (2 * q) ** (d / 4) * jnp.exp(tmp)
+
   return (1.0 / jnp.sqrt(n_features)) * phi
 
 
 def _arccos_kernel(
-    rng: jax.random.PRNGKeyArray,
+    rng: jax.Array,
     x: jnp.ndarray,
     n_features: int,
     s: float = 1.0,
