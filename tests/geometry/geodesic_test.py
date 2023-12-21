@@ -254,7 +254,7 @@ class TestGeodesic:
 
     expected = callback(geom__finite_right) - callback(geom__finite_left)
     actual = 2 * jnp.vdot(v_w, grad_sl)
-    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("normalize", [False, True])
   def test_heat_approx(self, normalize: bool):
