@@ -61,6 +61,7 @@ Cost Functions
     costs.SqEuclidean
     costs.Euclidean
     costs.Cosine
+    costs.Arccos
     costs.Bures
     costs.UnbalancedBures
     costs.ElasticL1
