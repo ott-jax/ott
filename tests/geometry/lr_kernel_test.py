@@ -28,7 +28,7 @@ class TestLRCGeometry:
     np.testing.assert_array_equal(geom.k2 >= 0.0, True)
 
   @pytest.mark.parametrize("eps", [1e-3, 1e-2, 1e-1, 5e-1, 1.0])
-  def test_gaussian_approximation_rank(self, rng: jax.Array, eps: float):
+  def test_gaussian_approximation(self, rng: jax.Array, eps: float):
     rng, rng1, rng2 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, (230, 5))
     y = jax.random.normal(rng2, (260, 5))
@@ -50,6 +50,9 @@ class TestLRCGeometry:
     np.testing.assert_array_equal(np.diff(max_abs_diff) <= 0.0, True)
 
   def test_arccos_approximation(self, rng: jax.Array):
+    pass
+
+  def test_sinkhorn_approximation(self, rng: jax.Array):
     pass
 
   def test_sinkhorn_diff(self, rng: jax.Array):
