@@ -14,7 +14,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -30,6 +30,7 @@ __all__ = [
     "Euclidean",
     "SqEuclidean",
     "Cosine",
+    "Arccos",
     "ElasticL1",
     "ElasticL2",
     "ElasticSTVS",
@@ -311,15 +312,49 @@ class Cosine(CostFn):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
-    ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
-    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
+    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     return 1.0 - cosine_similarity
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
+
+
+class Arccos(CostFn):
+  """TODO(michalk8)."""
+
+  def __init__(self, s: Literal[0, 1, 2]):
+    self.s = s
+    # TODO(michalk8)
+    self._ridge = 1e-8
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
+    x_norm = jnp.linalg.norm(x, axis=-1)
+    y_norm = jnp.linalg.norm(y, axis=-1)
+    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
+    theta = jnp.arccos(cosine_similarity)
+
+    if self.s == 0:
+      m = 1.0 - theta / jnp.pi
+    elif self.s == 1:
+      j = jnp.sin(theta) + (jnp.pi - theta) * jnp.cos(theta)
+      m = (x_norm * y_norm) * (j / jnp.pi)
+    elif self.s == 2:
+      raise NotImplementedError("TODO")
+    else:
+      raise NotImplementedError(self.s)
+
+    return -jnp.log(m + self._ridge)
+
+  def tree_flatten(self):  # noqa: D102
+    return [], {"s": self.s}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(**aux_data)
 
 
 class RegTICost(TICost, abc.ABC):
