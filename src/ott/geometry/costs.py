@@ -323,12 +323,16 @@ class Cosine(CostFn):
 
 
 class Arccos(CostFn):
-  """TODO(michalk8)."""
+  """TODO(michalk8).
 
-  def __init__(self, s: Literal[0, 1, 2]):
+  Args:
+    s: TODO.
+    ridge: TODO.
+  """
+
+  def __init__(self, s: Literal[0, 1, 2], ridge: float = 1e-8):
     self.s = s
-    # TODO(michalk8)
-    self._ridge = 1e-8
+    self._ridge = ridge
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
     x_norm = jnp.linalg.norm(x, axis=-1)
@@ -342,14 +346,17 @@ class Arccos(CostFn):
       j = jnp.sin(theta) + (jnp.pi - theta) * jnp.cos(theta)
       m = (x_norm * y_norm) * (j / jnp.pi)
     elif self.s == 2:
-      raise NotImplementedError("TODO")
+      j = 3.0 * jnp.sin(theta) * jnp.cos(theta) + (jnp.pi - theta) * (
+          1.0 + 2.0 * jnp.cos(theta) ** 2
+      )
+      m = (x_norm * y_norm) ** 2 * (j / jnp.pi)
     else:
       raise NotImplementedError(self.s)
 
     return -jnp.log(m + self._ridge)
 
   def tree_flatten(self):  # noqa: D102
-    return [], {"s": self.s}
+    return [], {"s": self.s, "ridge": self._ridge}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
