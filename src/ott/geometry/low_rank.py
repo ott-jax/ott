@@ -385,7 +385,7 @@ class LRKGeometry(geometry.Geometry):
       s: float = 1.0,
       rng: Optional[jax.Array] = None
   ) -> "LRKGeometry":
-    r"""Low-rank kernel approximation from positive features :cite:`scetbon:20`.
+    r"""Low-rank kernel approximation :cite:`scetbon:20`.
 
     Args:
       x: Array of shape ``[n, d]``.
