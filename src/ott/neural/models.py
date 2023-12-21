@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -20,21 +20,24 @@ import optax
 from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
-from jax.nn import initializers
 
 from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
-from ott.math import matrix_square_root
 from ott.neural import layers
 from ott.neural.solvers import neuraldual
 from ott.problems.linear import linear_problem
 
 __all__ = ["ICNN", "MLP", "MetaInitializer"]
 
+# wrap to silence docs linter
+DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.normal()(*a, **k)
+DEFAULT_RECTIFIER = nn.activation.relu
+DEFAULT_ACTIVATION = nn.activation.relu
+
 
 class ICNN(neuraldual.BaseW2NeuralDual):
-  """Input convex neural network (ICNN) architecture with initialization.
+  """Input convex neural network (ICNN).
 
   Implementation of input convex neural networks as introduced in
   :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
@@ -43,137 +46,126 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     dim_data: data dimensionality.
     dim_hidden: sequence specifying size of hidden dimensions. The
       output dimension of the last layer is 1 by default.
-    init_std: value of standard deviation of weight initialization method.
-    init_fn: choice of initialization method for weight matrices (default:
-      :func:`jax.nn.initializers.normal`).
-    act_fn: choice of activation function used in network architecture
-      (needs to be convex, default: :obj:`jax.nn.relu`).
+    ranks: ranks of the matrices :math:`A_i` used as low-rank factors
+      for the quadratic potentials. If a sequence is passed, it must contain
+      ``len(dim_hidden) + 2`` elements, where the last 2 elements correspond
+      to the ranks of the final layer with dimension 1 and the potentials,
+      respectively.
+    init_fn: Initializer for the kernel weight matrices.
+      The default is :func:`~flax.linen.initializers.normal`.
+    act_fn: choice of activation function used in network architecture,
+      needs to be convex. The default is :func:`~flax.linen.activation.relu`.
     pos_weights: Enforce positive weights with a projection.
-      If ``False``, the positive weights should be enforced with clipping
+      If :obj:`False`, the positive weights should be enforced with clipping
       or regularization in the loss.
+    rectifier_fn: function to ensure the non negativity of the weights.
+      The default is :func:`~flax.linen.activation.relu`.
     gaussian_map_samples: Tuple of source and target points, used to initialize
       the ICNN to mimic the linear Bures map that morphs the (Gaussian
       approximation) of the input measure to that of the target measure. If
-      ``None``, the identity initialization is used, and ICNN mimics half the
+      :obj:`None`, the identity initialization is used, and ICNN mimics half the
       squared Euclidean norm.
   """
+
   dim_data: int
   dim_hidden: Sequence[int]
-  init_std: float = 1e-2
-  init_fn: Callable = jax.nn.initializers.normal
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
-  pos_weights: bool = True
+  ranks: Union[int, Tuple[int, ...]] = 1
+  init_fn: Callable[[jax.Array, Tuple[int, ...], Any],
+                    jnp.ndarray] = DEFAULT_KERNEL_INIT
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_ACTIVATION
+  pos_weights: bool = False
+  rectifier_fn: Callable[[jnp.ndarray], jnp.ndarray] = DEFAULT_RECTIFIER
   gaussian_map_samples: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None
+
+  def setup(self) -> None:  # noqa: D102
+    dim_hidden = list(self.dim_hidden) + [1]
+    *ranks, pos_def_rank = self._normalize_ranks()
+
+    # final layer computes average, still with normalized rescaling
+    self.w_zs = [self._get_wz(dim) for dim in dim_hidden[1:]]
+    # subsequent layers re-injected into convex functions
+    self.w_xs = [
+        self._get_wx(dim, rank) for dim, rank in zip(dim_hidden, ranks)
+    ]
+    self.pos_def_potentials = self._get_pos_def_potentials(pos_def_rank)
+
+  @nn.compact
+  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+    w_x, *w_xs = self.w_xs
+    assert len(self.w_zs) == len(w_xs), (len(self.w_zs), len(w_xs))
+
+    z = self.act_fn(w_x(x))
+    for w_z, w_x in zip(self.w_zs, w_xs):
+      z = self.act_fn(w_z(z) + w_x(x))
+    z = z + self.pos_def_potentials(x)
+
+    return z.squeeze()
+
+  def _get_wz(self, dim: int) -> nn.Module:
+    if self.pos_weights:
+      return layers.PositiveDense(
+          dim,
+          kernel_init=self.init_fn,
+          use_bias=False,
+          rectifier_fn=self.rectifier_fn,
+      )
+
+    return nn.Dense(
+        dim,
+        kernel_init=self.init_fn,
+        use_bias=False,
+    )
+
+  def _get_wx(self, dim: int, rank: int) -> nn.Module:
+    return layers.PosDefPotentials(
+        rank=rank,
+        num_potentials=dim,
+        use_linear=True,
+        use_bias=True,
+        kernel_diag_init=nn.initializers.zeros,
+        kernel_lr_init=self.init_fn,
+        kernel_linear_init=self.init_fn,
+        bias_init=nn.initializers.zeros,
+    )
+
+  def _get_pos_def_potentials(self, rank: int) -> layers.PosDefPotentials:
+    kwargs = {
+        "num_potentials": 1,
+        "use_linear": True,
+        "use_bias": True,
+        "bias_init": nn.initializers.zeros
+    }
+
+    if self.gaussian_map_samples is None:
+      return layers.PosDefPotentials(
+          rank=rank,
+          kernel_diag_init=nn.initializers.ones,
+          kernel_lr_init=nn.initializers.zeros,
+          kernel_linear_init=nn.initializers.zeros,
+          **kwargs,
+      )
+
+    source, target = self.gaussian_map_samples
+    return layers.PosDefPotentials.init_from_samples(
+        source,
+        target,
+        rank=self.dim_data,
+        kernel_diag_init=nn.initializers.zeros,
+        **kwargs,
+    )
+
+  def _normalize_ranks(self) -> Tuple[int, ...]:
+    # +2 for the newly added layer with 1 + the final potentials
+    n_ranks = len(self.dim_hidden) + 2
+    if isinstance(self.ranks, int):
+      return (self.ranks,) * n_ranks
+
+    assert len(self.ranks) == n_ranks, (len(self.ranks), n_ranks)
+    return tuple(self.ranks)
 
   @property
   def is_potential(self) -> bool:  # noqa: D102
     return True
-
-  def setup(self) -> None:  # noqa: D102
-    self.num_hidden = len(self.dim_hidden)
-
-    if self.pos_weights:
-      hid_dense = layers.PositiveDense
-      # this function needs to be the inverse map of function
-      # used in PositiveDense layers
-      rescale = hid_dense.inv_rectifier_fn
-    else:
-      hid_dense = nn.Dense
-      rescale = lambda x: x
-    self.use_init = False
-    # check if Gaussian map was provided
-    if self.gaussian_map_samples is not None:
-      factor, mean = self._compute_gaussian_map_params(
-          self.gaussian_map_samples
-      )
-    else:
-      factor, mean = self._compute_identity_map_params(self.dim_data)
-
-    w_zs = []
-    # keep track of previous size to normalize accordingly
-    normalization = 1
-
-    for i in range(1, self.num_hidden):
-      w_zs.append(
-          hid_dense(
-              self.dim_hidden[i],
-              kernel_init=initializers.constant(rescale(1.0 / normalization)),
-              use_bias=False,
-          )
-      )
-      normalization = self.dim_hidden[i]
-    # final layer computes average, still with normalized rescaling
-    w_zs.append(
-        hid_dense(
-            1,
-            kernel_init=initializers.constant(rescale(1.0 / normalization)),
-            use_bias=False,
-        )
-    )
-    self.w_zs = w_zs
-
-    # positive definite potential (the identity mapping or linear OT)
-    self.pos_def_potential = layers.PosDefPotentials(
-        self.dim_data,
-        num_potentials=1,
-        kernel_init=lambda *_: factor,
-        bias_init=lambda *_: mean,
-        use_bias=True,
-    )
-
-    # subsequent layers re-injected into convex functions
-    w_xs = []
-    for i in range(self.num_hidden):
-      w_xs.append(
-          nn.Dense(
-              self.dim_hidden[i],
-              kernel_init=self.init_fn(self.init_std),
-              bias_init=initializers.constant(0.),
-              use_bias=True,
-          )
-      )
-    # final layer, to output number
-    w_xs.append(
-        nn.Dense(
-            1,
-            kernel_init=self.init_fn(self.init_std),
-            bias_init=initializers.constant(0.),
-            use_bias=True,
-        )
-    )
-    self.w_xs = w_xs
-
-  @staticmethod
-  def _compute_gaussian_map_params(
-      samples: Tuple[jnp.ndarray, jnp.ndarray]
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    from ott.tools.gaussian_mixture import gaussian
-    source, target = samples
-    # print(source)
-    # print(type(source))
-    g_s = gaussian.Gaussian.from_samples(source)
-    g_t = gaussian.Gaussian.from_samples(target)
-    lin_op = g_s.scale.gaussian_map(g_t.scale)
-    b = jnp.squeeze(g_t.loc) - jnp.linalg.solve(lin_op, jnp.squeeze(g_t.loc))
-    lin_op = matrix_square_root.sqrtm_only(lin_op)
-    return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
-
-  @staticmethod
-  def _compute_identity_map_params(
-      input_dim: int
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    A = jnp.eye(input_dim).reshape((1, input_dim, input_dim))
-    b = jnp.zeros((1, input_dim))
-    return A, b
-
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    z = self.act_fn(self.w_xs[0](x))
-    for i in range(self.num_hidden):
-      z = jnp.add(self.w_zs[i](z), self.w_xs[i + 1](x))
-      z = self.act_fn(z)
-    z += self.pos_def_potential(x)
-    return z.squeeze()
 
 
 class MLP(neuraldual.BaseW2NeuralDual):
@@ -235,8 +227,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
   Args:
     geom: The fixed geometry of the problem instances.
     meta_model: The model to predict the potential :math:`f` from the measures.
-      TODO(marcocuturi): add explanation here what arguments to expect.
-    opt: The optimizer to update the parameters. If ``None``, use
+    opt: The optimizer to update the parameters. If :obj:`None`, use
       :func:`optax.adam` with :math:`0.001` learning rate.
     rng: The PRNG key to use for initializing the model.
     state: The training state of the model to start from.
@@ -264,23 +255,19 @@ class MetaInitializer(lin_init.DefaultInitializer):
       opt: Optional[optax.GradientTransformation
                    ] = optax.adam(learning_rate=1e-3),  # noqa: B008
       rng: Optional[jax.Array] = None,
-      state: Optional[train_state.TrainState] = None
+      state: Optional[train_state.TrainState] = None,
   ):
     self.geom = geom
-    self.dtype = geom.x.dtype
     self.opt = opt
     self.rng = utils.default_prng_key(rng)
 
     na, nb = geom.shape
-    # TODO(michalk8): add again some default MLP
     self.meta_model = meta_model
 
     if state is None:
       # Initialize the model's training state.
-      a_placeholder = jnp.zeros(na, dtype=self.dtype)
-      b_placeholder = jnp.zeros(nb, dtype=self.dtype)
-      params = self.meta_model.init(self.rng, a_placeholder,
-                                    b_placeholder)["params"]
+      placeholder = jnp.concatenate([jnp.zeros(na), jnp.zeros(nb)], axis=-1)
+      params = self.meta_model.init(self.rng, placeholder)["params"]
       self.state = train_state.TrainState.create(
           apply_fn=self.meta_model.apply, params=params, tx=opt
       )
@@ -302,7 +289,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
 
     .. math::
       \min_\theta\; {\mathbb E}_{(\alpha,\beta)\sim{\mathcal{D}}}\;
-        J(\hat f_\theta(a, b); \alpha, \beta),
+      J(\hat f_\theta(a, b); \alpha, \beta),
 
     where :math:`a,b` are the probabilities of the measures :math:`\alpha,\beta`
     ,:math:`\mathcal{D}` is a meta distribution of optimal transport problems,
@@ -358,7 +345,7 @@ class MetaInitializer(lin_init.DefaultInitializer):
       g_pred = self.geom.update_potential(
           f_pred, jnp.zeros_like(b), jnp.log(b), 0, axis=0
       )
-      g_pred = jnp.where(jnp.isfinite(g_pred), g_pred, 0.)
+      g_pred = jnp.where(jnp.isfinite(g_pred), g_pred, 0.0)
 
       ot_prob = linear_problem.LinearProblem(geom=self.geom, a=a, b=b)
       dual_obj = sinkhorn.compute_kl_reg_cost(
@@ -396,7 +383,8 @@ class MetaInitializer(lin_init.DefaultInitializer):
     Returns:
       The :math:`f` potential.
     """
-    return self.meta_model.apply({"params": params}, a, b)
+    return self.meta_model.apply({"params": params},
+                                 jnp.concatenate([a, b], axis=-1))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
