@@ -70,17 +70,24 @@ def gt_geometry(
   kernel = jnp.asarray(np.exp(-cost / epsilon))
   return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
 
-def exact_heat_kernel(G: Union[jnp.ndarray, nx.Graph], normalize: bool = False, t: float=10):
-    L = jnp.diag(jnp.sum(G, axis=1)) - G
-    if normalize:
-      inv_sqrt_deg = jnp.diag(jnp.where(jnp.sum(G, axis=1) > 0.0, 1.0 / jnp.sqrt(jnp.sum(G, axis=1)), 0.0))
-      L = inv_sqrt_deg @ L @ inv_sqrt_deg
-    
-    e, v = jnp.linalg.eigh(L)
-    e = jnp.clip(e, 0, None)
 
-    return v @ jnp.diag(jnp.exp(-t * e)) @ v.T
-    
+def exact_heat_kernel(
+    G: Union[jnp.ndarray, nx.Graph], normalize: bool = False, t: float = 10
+):
+  L = jnp.diag(jnp.sum(G, axis=1)) - G
+  if normalize:
+    inv_sqrt_deg = jnp.diag(
+        jnp.where(
+            jnp.sum(G, axis=1) > 0.0, 1.0 / jnp.sqrt(jnp.sum(G, axis=1)), 0.0
+        )
+    )
+    L = inv_sqrt_deg @ L @ inv_sqrt_deg
+
+  e, v = jnp.linalg.eigh(L)
+  e = jnp.clip(e, 0, None)
+
+  return v @ jnp.diag(jnp.exp(-t * e)) @ v.T
+
 
 class TestGeodesic:
 
@@ -255,6 +262,8 @@ class TestGeodesic:
     t = 10
     order = 30
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
-    geom = geodesic.Geodesic.from_graph(G, t=t, order=order, normalize=normalize)
+    geom = geodesic.Geodesic.from_graph(
+        G, t=t, order=order, normalize=normalize
+    )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
     np.testing.assert_allclose(exact, approx, rtol=1e-2, atol=1e-2)
