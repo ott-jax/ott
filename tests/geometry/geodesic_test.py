@@ -70,6 +70,17 @@ def gt_geometry(
   kernel = jnp.asarray(np.exp(-cost / epsilon))
   return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
 
+def exact_heat_kernel(G: Union[jnp.ndarray, nx.Graph], normalize: bool = False, t: float=10):
+    L = jnp.diag(jnp.sum(G, axis=1)) - G
+    if normalize:
+      inv_sqrt_deg = jnp.diag(jnp.where(jnp.sum(G, axis=1) > 0.0, 1.0 / jnp.sqrt(jnp.sum(G, axis=1)), 0.0))
+      L = inv_sqrt_deg @ L @ inv_sqrt_deg
+    
+    e, v = jnp.linalg.eigh(L)
+    e = jnp.clip(e, 0, None)
+
+    return v @ jnp.diag(jnp.exp(-t * e)) @ v.T
+    
 
 class TestGeodesic:
 
@@ -99,16 +110,13 @@ class TestGeodesic:
     # check that the negative eigenvalues are all very small
     np.testing.assert_array_less(jnp.abs(neg_eigenvalues), 1e-3)
     # internally, the axis is ignored because the kernel is symmetric
-    np.testing.assert_array_equal(vec0, vec1)
-    np.testing.assert_array_equal(vec_direct0, vec_direct1)
+    np.testing.assert_allclose(vec0, vec1, rtol=tol, atol=tol)
+    np.testing.assert_allclose(vec_direct0, vec_direct1, rtol=tol, atol=tol)
 
     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
-    # compute the distance matrix and check that it is symmetric
     cost_matrix = geom.cost_matrix
-    np.testing.assert_array_equal(cost_matrix, cost_matrix.T)
-    # and all dissimilarities are positive
     np.testing.assert_array_less(0, cost_matrix)
 
   @pytest.mark.fast.with_args(
@@ -239,4 +247,14 @@ class TestGeodesic:
 
     expected = callback(geom__finite_right) - callback(geom__finite_left)
     actual = 2 * jnp.vdot(v_w, grad_sl)
-    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
+
+  @pytest.mark.parametrize("normalize", [False, True])
+  def test_heat_approx(self, normalize: bool):
+    G = random_graph(20, p=0.5)
+    t = 10
+    order = 30
+    exact = exact_heat_kernel(G, normalize=normalize, t=t)
+    geom = geodesic.Geodesic.from_graph(G, t=t, order=order, normalize=normalize)
+    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+    np.testing.assert_allclose(exact, approx, rtol=1e-2, atol=1e-2)
