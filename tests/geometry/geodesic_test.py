@@ -203,7 +203,7 @@ class TestGeodesic:
     x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
-    graph_geom = geodesic.Geodesic.from_graph(G, t=eps)
+    graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
 
     fn = jax.jit(callback) if jit else callback
     gt_out = fn(gt_geom)
