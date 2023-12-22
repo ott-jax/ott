@@ -324,15 +324,15 @@ class Cosine(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class Arccos(CostFn):
-  """TODO(michalk8).
+  """Arc-cosine cost function :cite:`cho:09`.
 
   Args:
-    s: TODO.
-    ridge: TODO.
+    n: Order of the kernel.
+    ridge: Ridge regularization.
   """
 
-  def __init__(self, s: Literal[0, 1, 2], ridge: float = 1e-8):
-    self.s = s
+  def __init__(self, n: Literal[0, 1, 2], ridge: float = 1e-8):
+    self.n = n
     self._ridge = ridge
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
@@ -341,23 +341,23 @@ class Arccos(CostFn):
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     theta = jnp.arccos(cosine_similarity)
 
-    if self.s == 0:
+    if self.n == 0:
       m = 1.0 - theta / jnp.pi
-    elif self.s == 1:
+    elif self.n == 1:
       j = jnp.sin(theta) + (jnp.pi - theta) * jnp.cos(theta)
       m = (x_norm * y_norm) * (j / jnp.pi)
-    elif self.s == 2:
+    elif self.n == 2:
       j = 3.0 * jnp.sin(theta) * jnp.cos(theta) + (jnp.pi - theta) * (
           1.0 + 2.0 * jnp.cos(theta) ** 2
       )
       m = (x_norm * y_norm) ** 2 * (j / jnp.pi)
     else:
-      raise NotImplementedError(self.s)
+      raise NotImplementedError(self.n)
 
     return -jnp.log(m + self._ridge)
 
   def tree_flatten(self):  # noqa: D102
-    return [], {"s": self.s, "ridge": self._ridge}
+    return [], {"n": self.n, "ridge": self._ridge}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102

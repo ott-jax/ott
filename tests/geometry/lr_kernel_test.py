@@ -37,11 +37,11 @@ class TestLRCGeometry:
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float
   ):
     rng, rng1, rng2 = jax.random.split(rng, 3)
-    s = 1
     x = jax.random.normal(rng1, (230, 5))
     y = jax.random.normal(rng2, (260, 5))
+    n = 1
 
-    cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(s)
+    cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(n)
     pc = pointcloud.PointCloud(x, y, epsilon=std, cost_fn=cost_fn)
     gt_cost = pc.cost_matrix
 
@@ -49,7 +49,7 @@ class TestLRCGeometry:
     for rank in [10, 50, 100, 200]:
       rng, rng_approx = jax.random.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
-          x, y, rank=rank, kernel=kernel, std=std, s=s, rng=rng_approx
+          x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
       )
       pred_cost = geom.cost_matrix
       max_abs_diff.append(np.max(np.abs(gt_cost - pred_cost)))
@@ -58,18 +58,18 @@ class TestLRCGeometry:
     np.testing.assert_array_equal(np.diff(max_abs_diff) <= 0.0, True)
 
   @pytest.mark.parametrize("std", [1e-2, 1e-1, 1.0])
-  @pytest.mark.parametrize(("kernel", "s"), [("gaussian", 0), ("arccos", 0),
+  @pytest.mark.parametrize(("kernel", "n"), [("gaussian", 0), ("arccos", 0),
                                              ("arccos", 1), ("arccos", 2)])
   def test_sinkhorn_approximation(
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float,
-      s: Literal[0, 1, 2]
+      n: Literal[0, 1, 2]
   ):
     rng, rng1, rng2 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, (83, 5))
     y = jax.random.normal(rng2, (96, 5))
     solve_fn = jax.jit(linear.solve, static_argnames="lse_mode")
 
-    cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(s)
+    cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(n)
     geom = pointcloud.PointCloud(x, y, epsilon=std, cost_fn=cost_fn)
     gt_out = solve_fn(geom, lse_mode=False)
 
@@ -77,7 +77,7 @@ class TestLRCGeometry:
     for rank in [3, 5, 20]:
       rng, rng_approx = jax.random.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
-          x, y, rank=rank, kernel=kernel, std=std, s=s, rng=rng_approx
+          x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
       )
 
       pred_out = solve_fn(geom, lse_mode=False)

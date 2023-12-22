@@ -382,7 +382,7 @@ class LRKGeometry(geometry.Geometry):
       kernel: Literal["gaussian", "arccos"],
       rank: int = 100,
       std: float = 1.0,
-      s: float = 1.0,
+      n: Literal[0, 1, 2] = 1,
       rng: Optional[jax.Array] = None
   ) -> "LRKGeometry":
     r"""Low-rank kernel approximation :cite:`scetbon:20`.
@@ -396,8 +396,7 @@ class LRKGeometry(geometry.Geometry):
 
         - ``'gaussian'`` - scale of the Gibbs kernel.
         - ``'arccos'`` - standard deviation of the random projections.
-      s: Power in the rectified polynomial function
-        :math:`\sqrt{2} \max(0, w)^s`.
+      n: Order of the arc-cosine kernel.
       rng: Random key used for seeding.
 
     Returns:
@@ -413,8 +412,8 @@ class LRKGeometry(geometry.Geometry):
       k2 = _gaussian_kernel(rng, y, rank, eps=std, R=r)
       eps = std
     elif kernel == "arccos":
-      k1 = _arccos_kernel(rng, x, rank, s=s, std=std)
-      k2 = _arccos_kernel(rng, y, rank, s=s, std=std)
+      k1 = _arccos_kernel(rng, x, rank, n=n, std=std)
+      k2 = _arccos_kernel(rng, y, rank, n=n, std=std)
       eps = 1.0
     else:
       raise NotImplementedError(kernel)
@@ -494,16 +493,16 @@ def _arccos_kernel(
     rng: jax.Array,
     x: jnp.ndarray,
     n_features: int,
-    s: float = 1.0,
+    n: int,
     std: float = 1.0,
     kappa: float = 1e-6,
 ) -> jnp.ndarray:
-  n, d = x.shape
+  n_points, d = x.shape
   c = jnp.sqrt(2) * (std ** (d / 2))
 
   u = jax.random.normal(rng, shape=(n_features, d)) * std
   tmp = -(1 / 4) * jnp.sum(u ** 2, axis=-1) * (1.0 - (1.0 / (std ** 2)))
-  phi = c * (jnp.maximum(0.0, (x @ u.T)) ** s) * jnp.exp(tmp)
+  phi = c * (jnp.maximum(0.0, (x @ u.T)) ** n) * jnp.exp(tmp)
 
   return jnp.c_[(1.0 / jnp.sqrt(n_features)) * phi,
-                jnp.full((n,), fill_value=kappa)]
+                jnp.full((n_points,), fill_value=kappa)]
