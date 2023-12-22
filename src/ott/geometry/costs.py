@@ -322,6 +322,7 @@ class Cosine(CostFn):
     return jnp.ones((1, dim))
 
 
+@jax.tree_util.register_pytree_node_class
 class Arccos(CostFn):
   """TODO(michalk8).
 

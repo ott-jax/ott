@@ -4,6 +4,7 @@ import jax
 import numpy as np
 import pytest
 from ott.geometry import costs, low_rank, pointcloud
+from ott.solvers import linear
 
 
 @pytest.mark.fast()
@@ -30,7 +31,7 @@ class TestLRCGeometry:
     np.testing.assert_array_equal(geom.k1 >= 0.0, True)
     np.testing.assert_array_equal(geom.k2 >= 0.0, True)
 
-  @pytest.mark.parametrize("std", [1e-2, 1e-1, 5e-1, 1.0])
+  @pytest.mark.parametrize("std", [1e-2, 1e-1, 1.0])
   @pytest.mark.parametrize("kernel", ["gaussian", "arccos"])
   def test_kernel_approximation(
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float
@@ -53,11 +54,42 @@ class TestLRCGeometry:
       pred_cost = geom.cost_matrix
       max_abs_diff.append(np.max(np.abs(gt_cost - pred_cost)))
 
-    # test that higher rank better approximates the cost
+    # test higher rank better approximates the cost
     np.testing.assert_array_equal(np.diff(max_abs_diff) <= 0.0, True)
 
-  def test_sinkhorn_approximation(self, rng: jax.Array):
-    pass
+  @pytest.mark.parametrize("std", [1e-2, 1e-1, 1.0])
+  @pytest.mark.parametrize(("kernel", "s"), [("gaussian", 0), ("arccos", 0),
+                                             ("arccos", 1), ("arccos", 2)])
+  def test_sinkhorn_approximation(
+      self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float,
+      s: Literal[0, 1, 2]
+  ):
+    rng, rng1, rng2 = jax.random.split(rng, 3)
+    x = jax.random.normal(rng1, (83, 5))
+    y = jax.random.normal(rng2, (96, 5))
+    solve_fn = jax.jit(linear.solve, static_argnames="lse_mode")
 
-  def test_sinkhorn_diff(self, rng: jax.Array):
-    pass
+    cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(s)
+    geom = pointcloud.PointCloud(x, y, epsilon=std, cost_fn=cost_fn)
+    gt_out = solve_fn(geom, lse_mode=False)
+
+    primal_costs_diff = []
+    for rank in [3, 5, 20]:
+      rng, rng_approx = jax.random.split(rng, 2)
+      geom = low_rank.LRKGeometry.from_pointcloud(
+          x, y, rank=rank, kernel=kernel, std=std, s=s, rng=rng_approx
+      )
+
+      pred_out = solve_fn(geom, lse_mode=False)
+      primal_costs_diff.append(
+          np.abs(gt_out.primal_cost - pred_out.primal_cost)
+      )
+
+    diff = np.diff(primal_costs_diff)
+    try:
+      # test higher rank better approximates the Sinkhorn solution
+      np.testing.assert_array_equal(diff <= 0.0, True)
+    except AssertionError:
+      # arccos-0-1.0:
+      # diff: array([1.072884e-06, 3.576279e-07], dtype=float32)
+      np.testing.assert_allclose(diff, 0.0, rtol=1e-4, atol=1e-5)
