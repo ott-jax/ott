@@ -1,6 +1,7 @@
 from typing import Literal
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 from ott.geometry import costs, low_rank, pointcloud
@@ -30,6 +31,28 @@ class TestLRCGeometry:
       assert geom.rank == rank + 1
     np.testing.assert_array_equal(geom.k1 >= 0.0, True)
     np.testing.assert_array_equal(geom.k2 >= 0.0, True)
+
+  @pytest.mark.parametrize("n", [0, 1, 2])
+  def test_arccos_j_function(self, rng: jax.Array, n: int):
+
+    def j(theta: float) -> float:
+      if n == 0:
+        return jnp.pi - theta
+      if n == 1:
+        return jnp.sin(theta) + (jnp.pi - theta) * jnp.cos(theta)
+      if n == 2:
+        return 3.0 * jnp.sin(theta) * jnp.cos(theta) + (jnp.pi - theta) * (
+            1.0 + 2.0 * jnp.cos(theta) ** 2
+        )
+      raise NotImplementedError(n)
+
+    x = jnp.abs(jax.random.normal(rng, (32,)))
+    cost_fn = costs.Arccos(n)
+
+    gt = jax.vmap(j)(x)
+    pred = jax.vmap(cost_fn._j)(x)
+
+    np.testing.assert_allclose(gt, pred, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("std", [1e-2, 1e-1, 1.0])
   @pytest.mark.parametrize("kernel", ["gaussian", "arccos"])
@@ -61,8 +84,11 @@ class TestLRCGeometry:
   @pytest.mark.parametrize(("kernel", "n"), [("gaussian", 0), ("arccos", 0),
                                              ("arccos", 1), ("arccos", 2)])
   def test_sinkhorn_approximation(
-      self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float,
-      n: Literal[0, 1, 2]
+      self,
+      rng: jax.Array,
+      kernel: Literal["gaussian", "arccos"],
+      std: float,
+      n: int,
   ):
     rng, rng1, rng2 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, (83, 5))
