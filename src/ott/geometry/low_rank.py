@@ -382,7 +382,7 @@ class LRKGeometry(geometry.Geometry):
       kernel: Literal["gaussian", "arccos"],
       rank: int = 100,
       std: float = 1.0,
-      n: Literal[0, 1, 2] = 1,
+      n: int = 1,
       rng: Optional[jax.Array] = None
   ) -> "LRKGeometry":
     r"""Low-rank kernel approximation :cite:`scetbon:20`.
@@ -396,7 +396,7 @@ class LRKGeometry(geometry.Geometry):
 
         - ``'gaussian'`` - scale of the Gibbs kernel.
         - ``'arccos'`` - standard deviation of the random projections.
-      n: Order of the arc-cosine kernel.
+      n: Order of the arc-cosine kernel, see :cite:`cho:09` for reference.
       rng: Random key used for seeding.
 
     Returns:

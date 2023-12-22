@@ -14,7 +14,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -324,14 +324,25 @@ class Cosine(CostFn):
 
 @jax.tree_util.register_pytree_node_class
 class Arccos(CostFn):
-  """Arc-cosine cost function :cite:`cho:09`.
+  r"""Arc-cosine cost function :cite:`cho:09`.
+
+  The cost is implemented as:
+
+  .. math::
+    c_n(x, y) = -\log(\frac{1}{\pi} \|x\|^n \|y\|^n J_n(\theta))
+
+  where :math:`\theta := \arccos(\frac{x \cdot y}{\|x\| \|y\|})` and
+  :math:`J_n(\theta) := (-1)^n (\sin \theta)^{2n + 1}
+  (\frac{1}{\sin \theta}\frac{\partial}{\partial \theta})^n
+  (\frac{\pi - \theta}{\sin \theta})`.
 
   Args:
-    n: Order of the kernel.
+    n: Order of the kernel. For :math:`n > 2`, successive applications of
+      :func:`~jax.grad` are used to compute the :math:`J_n(\theta)`.
     ridge: Ridge regularization.
   """
 
-  def __init__(self, n: Literal[0, 1, 2], ridge: float = 1e-8):
+  def __init__(self, n: int, ridge: float = 1e-8):
     self.n = n
     self._ridge = ridge
 
@@ -352,9 +363,21 @@ class Arccos(CostFn):
       )
       m = (x_norm * y_norm) ** 2 * (j / jnp.pi)
     else:
-      raise NotImplementedError(self.n)
+      j = self._j(theta)  # less optimized version using autodiff
+      m = (x_norm * y_norm) ** self.n * (j / jnp.pi)
 
     return -jnp.log(m + self._ridge)
+
+  @jax.jit
+  def _j(self, theta: float) -> float:
+
+    def f(t: float, i: int) -> float:
+      if i == 0:
+        return (jnp.pi - t) / jnp.sin(t)
+      return jax.grad(f)(t, i - 1) / jnp.sin(t)
+
+    n = self.n
+    return (-1) ** n * jnp.sin(theta) ** (2.0 * n + 1.0) * f(theta, n)
 
   def tree_flatten(self):  # noqa: D102
     return [], {"n": self.n, "ridge": self._ridge}
