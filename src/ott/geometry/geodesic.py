@@ -123,7 +123,7 @@ class Geodesic(geometry.Geometry):
 
     # compute the coeffs of the Chebyshev pols approx using Bessel funcs
     chebyshev_coeffs = compute_chebychev_coeff_all(
-        eigval / 2.0, t, order, laplacian.dtype
+        0.5 * eigval, t, order, laplacian.dtype
     )
 
     return cls(
@@ -151,7 +151,7 @@ class Geodesic(geometry.Geometry):
       Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.scaled_laplacian, scaling, self.chebyshev_coeffs, self.eigval / 2.0
+        self.scaled_laplacian, scaling, self.chebyshev_coeffs, 0.5 * self.eigval
     )
 
   @property
