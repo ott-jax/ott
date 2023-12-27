@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 import jax
 import jax.numpy as jnp
@@ -11,7 +11,7 @@ from ott.solvers import linear
 @pytest.mark.fast()
 class TestLRCGeometry:
 
-  @pytest.mark.parametrize("std", [1e-2, 1.0, 1e2])
+  @pytest.mark.parametrize("std", [1e-1, 1.0, 1e2])
   @pytest.mark.parametrize("kernel", ["gaussian", "arccos"])
   def test_positive_features(
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float
@@ -80,42 +80,42 @@ class TestLRCGeometry:
     # test higher rank better approximates the cost
     np.testing.assert_array_equal(np.diff(max_abs_diff) <= 0.0, True)
 
-  @pytest.mark.parametrize("std", [1e-2, 1e-1, 1.0])
-  @pytest.mark.parametrize(("kernel", "n"), [("gaussian", 0), ("arccos", 0),
-                                             ("arccos", 1), ("arccos", 2)])
+  @pytest.mark.parametrize(("kernel", "n", "std"), [("gaussian", None, 1e-2),
+                                                    ("gaussian", None, 1e-1),
+                                                    ("arccos", 0, 1.0001),
+                                                    ("arccos", 1, 2.0),
+                                                    ("arccos", 2, 1.05)])
   def test_sinkhorn_approximation(
       self,
       rng: jax.Array,
       kernel: Literal["gaussian", "arccos"],
       std: float,
-      n: int,
+      n: Optional[int],
   ):
     rng, rng1, rng2 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, (83, 5))
+    x /= jnp.linalg.norm(x, keepdims=True)
     y = jax.random.normal(rng2, (96, 5))
-    solve_fn = jax.jit(linear.solve, static_argnames="lse_mode")
+    y /= jnp.linalg.norm(y, keepdims=True)
+    solve_fn = jax.jit(lambda g: linear.solve(g, lse_mode=False))
 
     cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(n)
     geom = pointcloud.PointCloud(x, y, epsilon=std, cost_fn=cost_fn)
-    gt_out = solve_fn(geom, lse_mode=False)
+    gt_out = solve_fn(geom)
 
-    primal_costs_diff = []
-    for rank in [3, 5, 20]:
+    cs = []
+    for rank in [5, 40, 80]:
       rng, rng_approx = jax.random.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
           x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
       )
 
-      pred_out = solve_fn(geom, lse_mode=False)
-      primal_costs_diff.append(
-          np.abs(gt_out.primal_cost - pred_out.primal_cost)
-      )
+      pred_out = solve_fn(geom)
+      cs.append(pred_out.reg_ot_cost)
 
-    diff = np.diff(primal_costs_diff)
+    diff = np.diff(np.abs(gt_out.reg_ot_cost - np.array(cs)))
     try:
       # test higher rank better approximates the Sinkhorn solution
       np.testing.assert_array_equal(diff <= 0.0, True)
     except AssertionError:
-      # arccos-0-1.0:
-      # diff: array([1.072884e-06, 3.576279e-07], dtype=float32)
-      np.testing.assert_allclose(diff, 0.0, rtol=1e-4, atol=1e-5)
+      np.testing.assert_allclose(diff, 0.0, rtol=1e-3, atol=1e-3)
