@@ -116,12 +116,14 @@ class Geodesic(geometry.Geometry):
 
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
-    scaled_laplacian = jax.lax.cond((eigval > 2.0), lambda l: 2.0 * l / eigval,
-                                    lambda l: l, laplacian)
+
+    scaled_laplacian, eigval = jax.lax.cond((eigval > 2.0), lambda l:
+                                            (2.0 * l / eigval, 2.0), lambda l:
+                                            (l, eigval), laplacian)
 
     # compute the coeffs of the Chebyshev pols approx using Bessel funcs
     chebyshev_coeffs = compute_chebychev_coeff_all(
-        eigval, t, order, laplacian.dtype
+        0.5 * eigval, t, order, laplacian.dtype
     )
 
     return cls(
@@ -149,7 +151,7 @@ class Geodesic(geometry.Geometry):
       Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.scaled_laplacian, scaling, self.chebyshev_coeffs, self.eigval
+        self.scaled_laplacian, scaling, self.chebyshev_coeffs, 0.5 * self.eigval
     )
 
   @property
