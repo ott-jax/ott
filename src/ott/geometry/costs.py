@@ -30,6 +30,7 @@ __all__ = [
     "Euclidean",
     "SqEuclidean",
     "Cosine",
+    "Arccos",
     "ElasticL1",
     "ElasticL2",
     "ElasticSTVS",
@@ -311,15 +312,80 @@ class Cosine(CostFn):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
-    ridge = self._ridge
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
-    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + ridge)
+    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     return 1.0 - cosine_similarity
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
+
+
+@jax.tree_util.register_pytree_node_class
+class Arccos(CostFn):
+  r"""Arc-cosine cost function :cite:`cho:09`.
+
+  The cost is implemented as:
+
+  .. math::
+    c_n(x, y) = -\log(\frac{1}{\pi} \|x\|^n \|y\|^n J_n(\theta))
+
+  where :math:`\theta := \arccos(\frac{x \cdot y}{\|x\| \|y\|})` and
+  :math:`J_n(\theta) := (-1)^n (\sin \theta)^{2n + 1}
+  (\frac{1}{\sin \theta}\frac{\partial}{\partial \theta})^n
+  (\frac{\pi - \theta}{\sin \theta})`.
+
+  Args:
+    n: Order of the kernel. For :math:`n > 2`, successive applications of
+      :func:`~jax.grad` are used to compute the :math:`J_n(\theta)`.
+    ridge: Ridge regularization.
+  """
+
+  def __init__(self, n: int, ridge: float = 1e-8):
+    self.n = n
+    self._ridge = ridge
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
+    x_norm = jnp.linalg.norm(x, axis=-1)
+    y_norm = jnp.linalg.norm(y, axis=-1)
+    cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
+    theta = jnp.arccos(cosine_similarity)
+
+    if self.n == 0:
+      m = 1.0 - theta / jnp.pi
+    elif self.n == 1:
+      j = jnp.sin(theta) + (jnp.pi - theta) * jnp.cos(theta)
+      m = (x_norm * y_norm) * (j / jnp.pi)
+    elif self.n == 2:
+      j = 3.0 * jnp.sin(theta) * jnp.cos(theta) + (jnp.pi - theta) * (
+          1.0 + 2.0 * jnp.cos(theta) ** 2
+      )
+      m = (x_norm * y_norm) ** 2 * (j / jnp.pi)
+    else:
+      j = self._j(theta)  # less optimized version using autodiff
+      m = (x_norm * y_norm) ** self.n * (j / jnp.pi)
+
+    return -jnp.log(m + self._ridge)
+
+  @jax.jit
+  def _j(self, theta: float) -> float:
+
+    def f(t: float, i: int) -> float:
+      if i == 0:
+        return (jnp.pi - t) / jnp.sin(t)
+      return jax.grad(f)(t, i - 1) / jnp.sin(t)
+
+    n = self.n
+    return (-1) ** n * jnp.sin(theta) ** (2.0 * n + 1.0) * f(theta, n)
+
+  def tree_flatten(self):  # noqa: D102
+    return [], {"n": self.n, "ridge": self._ridge}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(**aux_data)
 
 
 class RegTICost(TICost, abc.ABC):

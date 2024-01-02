@@ -47,6 +47,7 @@ Geometries
     graph.Graph
     geodesic.Geodesic
     low_rank.LRCGeometry
+    low_rank.LRKGeometry
     epsilon_scheduler.Epsilon
 
 Cost Functions
@@ -60,6 +61,7 @@ Cost Functions
     costs.SqEuclidean
     costs.Euclidean
     costs.Cosine
+    costs.Arccos
     costs.Bures
     costs.UnbalancedBures
     costs.ElasticL1
