@@ -36,7 +36,7 @@ class LRCGeometry(geometry.Geometry):
 
   Args:
     cost_1: Array of shape ``[num_a, r]``.
-    cost_2: Array of shape ``[num_a, r]``.
+    cost_2: Array of shape ``[num_b, r]``.
     bias: constant added to entire cost matrix.
     scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
@@ -349,7 +349,7 @@ class LRCGeometry(geometry.Geometry):
 
 @jax.tree_util.register_pytree_node_class
 class LRKGeometry(geometry.Geometry):
-  """Low-rank kernel geometry :cite:`scetbon:20`.
+  """Low-rank kernel geometry.
 
   .. note::
     This constructor is not meant to be called by the user,
