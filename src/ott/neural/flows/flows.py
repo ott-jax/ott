@@ -154,4 +154,4 @@ class BrownianNoiseFlow(StraightFlow):
     Returns:
       Standard deviation of the probablity path at time :math:`t`.
     """
-    return jnp.sqrt(self.sigma * t * (1 - t))
+    return self.sigma * jnp.sqrt(t * (1 - t))
