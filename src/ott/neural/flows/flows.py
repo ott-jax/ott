@@ -101,7 +101,7 @@ class StraightFlow(BaseFlow, abc.ABC):
   def compute_mu_t(  # noqa: D102
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
   ) -> jnp.ndarray:
-    return t * src + (1 - t) * tgt
+    return (1 - t) * src + t * tgt
 
   def compute_ut(
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
