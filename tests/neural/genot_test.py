@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Union, Literal
 
 import pytest
 
@@ -31,10 +31,11 @@ from ott.solvers.quadratic import gromov_wasserstein
 
 class TestGENOT:
 
+  @pytest.mark.parameterize("scale_cost", ["mean", 2.0])
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_unconditional(
-      self, genot_data_loader_linear: Iterator, k_samples_per_x: int,
+      self, genot_data_loader_linear: Iterator, scale_cost: Union[float, Literal["mean"]], k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
     solver_latent_to_data = (
