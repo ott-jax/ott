@@ -205,7 +205,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.step_fn = self._get_step_fn()
     if self.solver_latent_to_data is not None:
       self.match_latent_to_data_fn = self._get_sinkhorn_match_fn(
-          ot_solver=self.solver_latent_to_data, **self.kwargs_solver_latent_to_data
+          ot_solver=self.solver_latent_to_data,
+          **self.kwargs_solver_latent_to_data
       )
     else:
       self.match_latent_to_data_fn = lambda key, x, y, **_: (x, y)
@@ -223,13 +224,17 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       )
     else:
       self.match_fn = self._get_gromov_match_fn(
-          ot_solver=self.ot_solver, cost_fn=self.cost_fn, scale_cost=self.scale_cost, tau_a=self.tau_a, tau_b=self.tau_b,
+          ot_solver=self.ot_solver,
+          cost_fn=self.cost_fn,
+          scale_cost=self.scale_cost,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
           fused_penalty=self.fused_penalty
       )
 
   def __call__(self, train_loader, valid_loader):
     """Train GENOT.
-    
+
     Args:
       train_loader: Data loader for the training data.
       valid_loader: Data loader for the validation data.
