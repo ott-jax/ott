@@ -31,7 +31,7 @@ from ott.solvers.quadratic import gromov_wasserstein
 
 class TestGENOT:
 
-  @pytest.mark.parameterize("scale_cost", ["mean", 2.0])
+  @pytest.mark.parametrize("scale_cost", ["mean", 2.0])
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_unconditional(
@@ -67,7 +67,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         epsilon=0.1,
         cost_fn=costs.SqEuclidean(),
-        scale_cost=1.0,
+        scale_cost=scale_cost,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
