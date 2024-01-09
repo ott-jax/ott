@@ -195,7 +195,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     Parameters
     ----------
     kwargs
-    Keyword arguments for the setup function
+    Keyword arguments for the setup function.
     """
     self.state_velocity_field = (
         self.velocity_field.create_train_state(
@@ -205,7 +205,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.step_fn = self._get_step_fn()
     if self.solver_latent_to_data is not None:
       self.match_latent_to_data_fn = self._get_sinkhorn_match_fn(
-          self.solver_latent_to_data, **self.kwargs_solver_latent_to_data
+          ot_solver=self.solver_latent_to_data, **self.kwargs_solver_latent_to_data
       )
     else:
       self.match_latent_to_data_fn = lambda key, x, y, **_: (x, y)
@@ -213,22 +213,27 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     # TODO: add graph construction function
     if isinstance(self.ot_solver, sinkhorn.Sinkhorn):
       self.match_fn = self._get_sinkhorn_match_fn(
-          self.ot_solver,
-          self.epsilon,
-          self.cost_fn,
-          self.tau_a,
-          self.tau_b,
-          self.scale_cost,
+          ot_solver=self.ot_solver,
+          epsilon=self.epsilon,
+          cost_fn=self.cost_fn,
+          scale_cost=self.scale_cost,
+          tau_a=self.tau_a,
+          tau_b=self.tau_b,
           filter_input=True
       )
     else:
       self.match_fn = self._get_gromov_match_fn(
-          self.ot_solver, self.cost_fn, self.tau_a, self.tau_b, self.scale_cost,
-          self.fused_penalty
+          ot_solver=self.ot_solver, cost_fn=self.cost_fn, scale_cost=self.scale_cost, tau_a=self.tau_a, tau_b=self.tau_b,
+          fused_penalty=self.fused_penalty
       )
 
   def __call__(self, train_loader, valid_loader):
-    """Train GENOT."""
+    """Train GENOT.
+    
+    Args:
+      train_loader: Data loader for the training data.
+      valid_loader: Data loader for the validation data.
+    """
     batch: Dict[str, jnp.array] = {}
     for iteration in range(self.iterations):
       batch = next(train_loader)
