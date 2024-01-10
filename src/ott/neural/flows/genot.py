@@ -418,6 +418,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                                                                   axis=-1)
     t0, t1 = (0.0, 1.0)
 
+    @jax.jit
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
