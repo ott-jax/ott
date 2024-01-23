@@ -369,7 +369,8 @@ def quantile(
   Args:
    inputs: an Array of any shape.
    q: values of the quantile level to be computed, e.g. [0.5] for median.
-     These values should all lie in :math:`[0,1]`.
+     These values should all lie within the segment :math:`]0,1[`, excluding
+     boundary values :math:`0` and :math:`1`.
    axis: the axis on which to apply the operator.
    weight: the weight assigned to each quantile target value in the OT problem.
      This weight should be small, typically of the order of ``1/n``, where ``n``
