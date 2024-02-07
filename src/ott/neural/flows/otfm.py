@@ -11,20 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
 import functools
 import types
-from collections import defaultdict
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
@@ -36,18 +26,17 @@ from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.flows.flows import BaseFlow
-from ott.neural.models.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
-)
+from ott.neural.flows import flows
+from ott.neural.models import base_solver
 from ott.solvers import was_solver
 
 __all__ = ["OTFlowMatching"]
 
 
-class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
+class OTFlowMatching(
+    base_solver.UnbalancednessMixin, base_solver.ResampleMixin,
+    base_solver.BaseNeuralSolver
+):
   """(Optimal transport) flow matching class.
 
   Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM
@@ -97,9 +86,9 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cond_dim: int,
       iterations: int,
       ot_solver: Optional[Type[was_solver.WassersteinSolver]],
-      flow: Type[BaseFlow],
+      flow: Type[flows.BaseFlow],
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
-      optimizer: Type[optax.GradientTransformation],
+      optimizer: optax.GradientTransformation,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Optional[Type[costs.CostFn]] = None,
@@ -120,11 +109,11 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   ):
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)
-    BaseNeuralSolver.__init__(
+    base_solver.BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
-    ResampleMixin.__init__(self)
-    UnbalancednessMixin.__init__(
+    base_solver.ResampleMixin.__init__(self)
+    base_solver.UnbalancednessMixin.__init__(
         self,
         rng=rng_unbalanced,
         source_dim=input_dim,
@@ -151,11 +140,11 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.rng = rng
     self.logging_freq = logging_freq
     self.num_eval_samples = num_eval_samples
-    self._training_logs: Mapping[str, Any] = defaultdict(list)
+    self._training_logs: Mapping[str, Any] = collections.defaultdict(list)
 
     self.setup()
 
-  def setup(self):
+  def setup(self) -> None:
     """Setup :class:`OTFlowMatching`."""
     self.state_velocity_field = (
         self.velocity_field.create_train_state(
@@ -180,7 +169,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     @jax.jit
     def step_fn(
-        key: jax.random.PRNGKeyArray,
+        rng: jax.Array,
         state_velocity_field: train_state.TrainState,
         batch: Dict[str, jnp.ndarray],
     ) -> Tuple[Any, Any]:
@@ -203,7 +192,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         return jnp.mean((v_t - u_t) ** 2)
 
       batch_size = len(batch["source_lin"])
-      key_noise, key_t, key_model = jax.random.split(key, 3)
+      key_noise, key_t, key_model = jax.random.split(rng, 3)
       keys_model = jax.random.split(key_model, batch_size)
       t = self.time_sampler(key_t, batch_size)
       noise = self.sample_noise(key_noise, batch_size)
@@ -300,7 +289,7 @@ class OTFlowMatching(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     t0, t1 = (t_0, t_1) if forward else (t_1, t_0)
 
     @jax.jit
-    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
+    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
               lambda t, x, args: self.state_velocity_field.

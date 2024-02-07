@@ -39,7 +39,7 @@ class BaseFlow(abc.ABC):
   ) -> jnp.ndarray:
     """Compute the mean of the probablitiy path.
 
-    Compute the mean of the probablitiy path between :math:`x` and :math:`y`
+    Compute the mean of the probablitiy path between :math:`x_0` and :math:`x_1`
     at time :math:`t`.
 
     Args:
@@ -69,6 +69,9 @@ class BaseFlow(abc.ABC):
       t: Time :math:`t`.
       src: Sample from the source distribution.
       tgt: Sample from the target distribution.
+
+    Returns:
+      Conditional vector field evaluated at time :math:`t`.
     """
 
   def compute_xt(
@@ -101,7 +104,7 @@ class StraightFlow(BaseFlow, abc.ABC):
   def compute_mu_t(  # noqa: D102
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
   ) -> jnp.ndarray:
-    return (1 - t) * src + t * tgt
+    return (1.0 - t) * src + t * tgt
 
   def compute_ut(
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
@@ -119,6 +122,7 @@ class StraightFlow(BaseFlow, abc.ABC):
     Returns:
       Conditional vector field evaluated at time :math:`t`.
     """
+    del t
     return tgt - src
 
 
@@ -134,15 +138,19 @@ class ConstantNoiseFlow(StraightFlow):
     Returns:
       Constant, time-independent standard deviation :math:`\sigma`.
     """
-    return self.sigma
+    return jnp.full_like(t, fill_value=self.sigma)
 
 
 class BrownianNoiseFlow(StraightFlow):
   r"""Brownian Bridge Flow.
 
   Sampler for sampling noise implicitly defined by a Schroedinger Bridge
-  problem with parameter `\sigma` such that
+  problem with parameter :math:`\sigma` such that
   :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`.
+
+  Returns:
+    Samples from the probability path between :math:`x_0` and :math:`x_1`
+    at time :math:`t`.
   """
 
   def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:
@@ -154,4 +162,4 @@ class BrownianNoiseFlow(StraightFlow):
     Returns:
       Standard deviation of the probablity path at time :math:`t`.
     """
-    return self.sigma * jnp.sqrt(t * (1 - t))
+    return self.sigma * jnp.sqrt(t * (1.0 - t))

@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import pathlib
-import types
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
@@ -43,7 +42,7 @@ class BaseNeuralSolver(abc.ABC):
     self.valid_freq = valid_freq
 
   @abc.abstractmethod
-  def setup(self, *args: Any, **kwargs: Any):
+  def setup(self, *args: Any, **kwargs: Any) -> None:
     """Setup the model."""
 
   @abc.abstractmethod
@@ -73,14 +72,14 @@ class ResampleMixin:
 
   def _resample_data(
       self,
-      key: jax.random.KeyArray,
+      rng: jax.Array,
       tmat: jnp.ndarray,
       source_arrays: Tuple[jnp.ndarray, ...],
       target_arrays: Tuple[jnp.ndarray, ...],
   ) -> Tuple[jnp.ndarray, ...]:
     """Resample a batch according to coupling `tmat`."""
     tmat_flattened = tmat.flatten()
-    indices = jax.random.choice(key, len(tmat_flattened), shape=[tmat.shape[0]])
+    indices = jax.random.choice(rng, len(tmat_flattened), shape=[tmat.shape[0]])
     indices_source = indices // tmat.shape[1]
     indices_target = indices % tmat.shape[1]
     return tuple(
@@ -91,7 +90,7 @@ class ResampleMixin:
 
   def _sample_conditional_indices_from_tmap(
       self,
-      key: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       tmat: jnp.ndarray,
       k_samples_per_x: Union[int, jnp.ndarray],
       source_arrays: Tuple[jnp.ndarray, ...],
@@ -102,22 +101,19 @@ class ResampleMixin:
     batch_size = tmat.shape[0]
     left_marginals = tmat.sum(axis=1)
     if not source_is_balanced:
-      key, key2 = jax.random.split(key, 2)
+      rng, key2 = jax.random.split(rng, 2)
       indices = jax.random.choice(
           key=key2,
           a=jnp.arange(len(left_marginals)),
           p=left_marginals,
           shape=(len(left_marginals),)
       )
+      tmat_adapted = tmat[indices]
     else:
-      indices = jnp.arange(batch_size)
-    tmat_adapted = tmat[indices]
+      tmat_adapted = tmat
     indices_per_row = jax.vmap(
-        lambda tmat_adapted: jax.random.choice(
-            key=key,
-            a=jnp.arange(batch_size),
-            p=tmat_adapted,
-            shape=(k_samples_per_x,)
+        lambda row: jax.random.choice(
+            key=rng, a=jnp.arange(batch_size), p=row, shape=(k_samples_per_x,)
         ),
         in_axes=0,
         out_axes=0,
@@ -134,8 +130,8 @@ class ResampleMixin:
                                         -1)) if b is not None else None
         for b in source_arrays
     ), tuple(
-        jnp.reshape(b[indices_target, :], (k_samples_per_x, batch_size,
-                                           -1)) if b is not None else None
+        jnp.reshape(b[indices_target], (k_samples_per_x, batch_size,
+                                        -1)) if b is not None else None
         for b in target_arrays
     )
 
@@ -154,9 +150,7 @@ class ResampleMixin:
   ) -> Callable:
 
     @jax.jit
-    def match_pairs(
-        x: jnp.ndarray, y: jnp.ndarray
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def match_pairs(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
       geom = pointcloud.PointCloud(
           x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
       )
@@ -168,7 +162,7 @@ class ResampleMixin:
     def match_pairs_filtered(
         x_lin: jnp.ndarray, x_quad: jnp.ndarray, y_lin: jnp.ndarray,
         y_quad: jnp.ndarray
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> jnp.ndarray:
       geom = pointcloud.PointCloud(
           x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
       )
@@ -220,7 +214,7 @@ class ResampleMixin:
         x_quad: Tuple[jnp.ndarray, jnp.ndarray],
         y_lin: Optional[jnp.ndarray],
         y_quad: Tuple[jnp.ndarray, jnp.ndarray],
-    ) -> Tuple[jnp.array, jnp.array]:
+    ) -> jnp.ndarray:
       geom_xx = pointcloud.PointCloud(
           x=x_quad, y=x_quad, cost_fn=cost_fn_xx, scale_cost=scale_cost_xx
       )
@@ -262,14 +256,12 @@ class UnbalancednessMixin:
                                      jnp.ndarray]] = None,
       rescaling_b: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
                                      jnp.ndarray]] = None,
-      seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
-      sinkhorn_kwargs: Mapping[str, Any] = types.MappingProxyType({}),
-      **_: Any,
+      **kwargs: Mapping[str, Any],
   ):
     self.rng_unbalanced = rng
     self.source_dim = source_dim
@@ -279,7 +271,6 @@ class UnbalancednessMixin:
     self.tau_b = tau_b
     self.rescaling_a = rescaling_a
     self.rescaling_b = rescaling_b
-    self.seed = seed
     self.opt_eta = opt_eta
     self.opt_xi = opt_xi
     self.resample_epsilon = resample_epsilon
@@ -290,7 +281,7 @@ class UnbalancednessMixin:
         tau_b=tau_b,
         resample_epsilon=resample_epsilon,
         scale_cost=scale_cost,
-        sinkhorn_kwargs=sinkhorn_kwargs
+        sinkorn_kwargs=kwargs
     )
     self._setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
 
@@ -301,7 +292,7 @@ class UnbalancednessMixin:
       resample_epsilon: float,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
-      sinkhorn_kwargs: Dict[str, Any] = types.MappingProxyType({}),
+      **kwargs: Dict[str, Any],
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the unbalanced source and target marginals for a batch."""
 
@@ -315,23 +306,23 @@ class UnbalancednessMixin:
           epsilon=resample_epsilon,
           scale_cost=scale_cost
       )
-      out = sinkhorn.Sinkhorn(**sinkhorn_kwargs)(
+      out = sinkhorn.Sinkhorn(**kwargs)(
           linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
       )
-      return out.matrix.sum(axis=1), out.matrix.sum(axis=0)
+      return out.marginal(axis=1), out.marginal(axis=0)
 
     return compute_unbalanced_marginals
 
   @jax.jit
   def _resample_unbalanced(
       self,
-      key: jax.random.KeyArray,
+      rng: jax.Array,
       batch: Tuple[jnp.ndarray, ...],
       marginals: jnp.ndarray,
   ) -> Tuple[jnp.ndarray, ...]:
     """Resample a batch based on marginals."""
     indices = jax.random.choice(
-        key, a=len(marginals), p=jnp.squeeze(marginals), shape=[len(marginals)]
+        rng, a=len(marginals), p=jnp.squeeze(marginals), shape=[len(marginals)]
     )
     return tuple(b[indices] if b is not None else None for b in batch)
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -22,70 +22,7 @@ from flax.training import train_state
 
 from ott.neural.models import layers
 
-__all__ = ["MLP", "RescalingMLP"]
-
-
-class MLP(nn.Module):
-  """A generic, not-convex MLP.
-
-  Args:
-    dim_hidden: sequence specifying size of hidden dimensions. The output
-      dimension of the last layer is automatically set to 1 if
-      :attr:`is_potential` is ``True``, or the dimension of the input otherwise
-    is_potential: Model the potential if ``True``, otherwise
-      model the gradient of the potential
-    act_fn: Activation function
-  """
-
-  dim_hidden: Sequence[int]
-  is_potential: bool = True
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
-
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
-    squeeze = x.ndim == 1
-    if squeeze:
-      x = jnp.expand_dims(x, 0)
-    assert x.ndim == 2, x.ndim
-    n_input = x.shape[-1]
-
-    z = x
-    for n_hidden in self.dim_hidden:
-      Wx = nn.Dense(n_hidden, use_bias=True)
-      z = self.act_fn(Wx(z))
-
-    if self.is_potential:
-      Wx = nn.Dense(1, use_bias=True)
-      z = Wx(z).squeeze(-1)
-
-      quad_term = 0.5 * jax.vmap(jnp.dot)(x, x)
-      z += quad_term
-    else:
-      Wx = nn.Dense(n_input, use_bias=True)
-      z = x + Wx(z)
-
-    return z.squeeze(0) if squeeze else z
-
-  def create_train_state(
-      self,
-      rng: jax.Array,
-      optimizer: optax.OptState,
-      input_dim: int,
-  ) -> train_state.TrainState:
-    """Create the training state.
-
-    Args:
-      rng: Random number generator.
-      optimizer: Optimizer.
-      input_dim: Dimensionality of the input.
-
-    Returns:
-      Training state.
-    """
-    params = self.init(rng, jnp.ones(input_dim))["params"]
-    return train_state.TrainState.create(
-        apply_fn=self.apply, params=params, tx=optimizer
-    )
+__all__ = ["RescalingMLP"]
 
 
 class RescalingMLP(nn.Module):
@@ -119,12 +56,12 @@ class RescalingMLP(nn.Module):
       self,
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None
-  ) -> jnp.ndarray:  # noqa: D102
+  ) -> jnp.ndarray:
     """Forward pass through the rescaling network.
 
     Args:
-      x: Data.
-      condition: Condition.
+      x: Data of shape ``[n, ...]``.
+      condition: Condition of shape ``[n, condition_dim]``.
 
     Returns:
       Estimated rescaling factors.

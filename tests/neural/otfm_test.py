@@ -20,36 +20,31 @@ import jax.numpy as jnp
 
 import optax
 
-from ott.neural.flows.flows import (
-    BaseFlow,
-    BrownianNoiseFlow,
-    ConstantNoiseFlow,
-)
-from ott.neural.flows.models import VelocityField
-from ott.neural.flows.otfm import OTFlowMatching
-from ott.neural.flows.samplers import sample_uniformly
-from ott.neural.models.models import RescalingMLP
+from ott.neural.flows import flows, models, otfm, samplers
 from ott.solvers.linear import sinkhorn
 
 
 class TestOTFlowMatching:
 
   @pytest.mark.parametrize(
-      "flow",
-      [ConstantNoiseFlow(0.0),
-       ConstantNoiseFlow(1.0),
-       BrownianNoiseFlow(0.2)]
+      "flow", [
+          flows.ConstantNoiseFlow(0.0),
+          flows.ConstantNoiseFlow(1.0),
+          flows.BrownianNoiseFlow(0.2)
+      ]
   )
-  def test_flow_matching(self, data_loader_gaussian, flow: Type[BaseFlow]):
-    neural_vf = VelocityField(
+  def test_flow_matching(
+      self, data_loader_gaussian, flow: Type[flows.BaseFlow]
+  ):
+    neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
+    time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    fm = OTFlowMatching(
+    fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=2,
         cond_dim=0,
@@ -78,23 +73,24 @@ class TestOTFlowMatching:
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
-      "flow",
-      [ConstantNoiseFlow(0.0),
-       ConstantNoiseFlow(1.0),
-       BrownianNoiseFlow(0.2)]
+      "flow", [
+          flows.ConstantNoiseFlow(0.0),
+          flows.ConstantNoiseFlow(1.0),
+          flows.BrownianNoiseFlow(0.2)
+      ]
   )
   def test_flow_matching_with_conditions(
-      self, data_loader_gaussian_with_conditions, flow: Type[BaseFlow]
+      self, data_loader_gaussian_with_conditions, flow: Type[flows.BaseFlow]
   ):
-    neural_vf = VelocityField(
+    neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=1,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = functools.partial(sample_uniformly, offset=1e-5)
+    time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
-    fm = OTFlowMatching(
+    fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=2,
         cond_dim=1,
@@ -126,23 +122,24 @@ class TestOTFlowMatching:
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
-      "flow",
-      [ConstantNoiseFlow(0.0),
-       ConstantNoiseFlow(1.0),
-       BrownianNoiseFlow(0.2)]
+      "flow", [
+          flows.ConstantNoiseFlow(0.0),
+          flows.ConstantNoiseFlow(1.0),
+          flows.BrownianNoiseFlow(0.2)
+      ]
   )
   def test_flow_matching_conditional(
-      self, data_loader_gaussian_conditional, flow: Type[BaseFlow]
+      self, data_loader_gaussian_conditional, flow: Type[flows.BaseFlow]
   ):
-    neural_vf = VelocityField(
+    neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
+    time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    fm = OTFlowMatching(
+    fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=2,
         cond_dim=0,
@@ -182,21 +179,21 @@ class TestOTFlowMatching:
     batch = next(data_loader)
     source_dim = batch["source_lin"].shape[1]
     condition_dim = batch["source_conditions"].shape[1] if conditional else 0
-    neural_vf = VelocityField(
+    neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
-    flow = ConstantNoiseFlow(1.0)
+    time_sampler = samplers.uniform_sampler
+    flow = flows.ConstantNoiseFlow(1.0)
     optimizer = optax.adam(learning_rate=1e-3)
 
     tau_a = 0.9
     tau_b = 0.2
-    rescaling_a = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    rescaling_b = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    fm = OTFlowMatching(
+    rescaling_a = models.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_b = models.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=source_dim,
         cond_dim=condition_dim,

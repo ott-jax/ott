@@ -13,16 +13,7 @@
 # limitations under the License.
 import collections
 import functools
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Dict, Iterator, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp

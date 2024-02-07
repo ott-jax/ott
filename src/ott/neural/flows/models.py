@@ -70,15 +70,12 @@ class VelocityField(nn.Module):
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_frequencies: int = 128
 
-  def __post_init__(self):
-
-    # set embedded dim from latent embedded dim
+  def __post_init__(self) -> None:
     if self.condition_embed_dim is None:
       self.condition_embed_dim = self.latent_embed_dim
     if self.t_embed_dim is None:
       self.t_embed_dim = self.latent_embed_dim
 
-    # set joint hidden dim from all embedded dim
     concat_embed_dim = (
         self.latent_embed_dim + self.condition_embed_dim + self.t_embed_dim
     )

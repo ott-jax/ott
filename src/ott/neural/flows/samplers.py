@@ -16,16 +16,16 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 
-__all__ = ["sample_uniformly"]
+__all__ = ["uniform_sampler"]
 
 
-def sample_uniformly(
+def uniform_sampler(
     rng: jax.Array,
     num_samples: int,
     low: float = 0.0,
     high: float = 1.0,
     offset: Optional[float] = None
-):
+) -> jnp.ndarray:
   """Sample from a uniform distribution.
 
   Sample :math:`t` from a uniform distribution :math:`[low, high]` with

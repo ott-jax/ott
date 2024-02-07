@@ -16,12 +16,7 @@ from typing import List, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
-from ott.tools.gaussian_mixture import (
-    gaussian,
-    linalg,
-    probabilities,
-    scale_tril,
-)
+from ott.tools.gaussian_mixture import gaussian, linalg, probabilities, scale_tril
 
 __all__ = ["GaussianMixture"]
 

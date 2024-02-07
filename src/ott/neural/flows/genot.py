@@ -21,18 +21,12 @@ import jax.numpy as jnp
 import diffrax
 import optax
 from flax.training import train_state
-from flax.training.train_state import TrainState
 from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.flows.flows import BaseFlow, ConstantNoiseFlow
-from ott.neural.flows.samplers import sample_uniformly
-from ott.neural.models.base_solver import (
-    BaseNeuralSolver,
-    ResampleMixin,
-    UnbalancednessMixin,
-)
+from ott.neural.flows import flows, samplers
+from ott.neural.models import base_solver
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
@@ -40,7 +34,10 @@ from ott.solvers.quadratic import gromov_wasserstein
 __all__ = ["GENOT"]
 
 
-class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
+class GENOT(
+    base_solver.UnbalancednessMixin, base_solver.ResampleMixin,
+    base_solver.BaseNeuralSolver
+):
   """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
 
   Args:
@@ -81,15 +78,15 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     fused_penalty: Fused penalty of the linear/fused term in the Fused
       Gromov-Wasserstein problem.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
-    on the first marginal.
+      on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-    on the second marginal.
+      on the second marginal.
     rescaling_a: Neural network to learn the left rescaling function. If
       :obj:`None`, the left rescaling factor is not learnt.
     rescaling_b: Neural network to learn the right rescaling function. If
       :obj:`None`, the right rescaling factor is not learnt.
     unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
-   callback_fn: Callback function.
+    callback_fn: Callback function.
     rng: Random number generator.
   """
 
@@ -103,7 +100,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
       cond_dim: int,
       iterations: int,
       valid_freq: int,
-      ot_solver: Type[was_solver.WassersteinSolver],
+      ot_solver: was_solver.WassersteinSolver,
       epsilon: float,
       cost_fn: Union[costs.CostFn, Dict[str, costs.CostFn]],
       scale_cost: Union[Union[bool, int, float,
@@ -112,9 +109,10 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
                         Dict[str, Union[bool, int, float,
                                         Literal["mean", "max_norm", "max_bound",
                                                 "max_cost", "median"]]]],
-      optimizer: Type[optax.GradientTransformation],
-      flow: Type[BaseFlow] = ConstantNoiseFlow(0.0),
-      time_sampler: Callable[[jax.Array, int], jnp.ndarray] = sample_uniformly,
+      optimizer: optax.GradientTransformation,
+      flow: Type[flows.BaseFlow] = flows.ConstantNoiseFlow(0.0),  # noqa: B008
+      time_sampler: Callable[[jax.Array, int],
+                             jnp.ndarray] = samplers.uniform_sampler,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       k_samples_per_x: int = 1,
       solver_latent_to_data: Optional[Type[was_solver.WassersteinSolver]
@@ -132,11 +130,11 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
   ):
     rng = utils.default_prng_key(rng)
     rng, rng_unbalanced = jax.random.split(rng)
-    BaseNeuralSolver.__init__(
+    base_solver.BaseNeuralSolver.__init__(
         self, iterations=iterations, valid_freq=valid_freq
     )
-    ResampleMixin.__init__(self)
-    UnbalancednessMixin.__init__(
+    base_solver.ResampleMixin.__init__(self)
+    base_solver.UnbalancednessMixin.__init__(
         self,
         rng=rng_unbalanced,
         source_dim=input_dim,
@@ -159,7 +157,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     self.rng = utils.default_prng_key(rng)
     self.velocity_field = velocity_field
-    self.state_velocity_field: Optional[TrainState] = None
+    self.state_velocity_field: Optional[train_state.TrainState] = None
     self.flow = flow
     self.time_sampler = time_sampler
     self.optimizer = optimizer
@@ -189,14 +187,8 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     self.callback_fn = callback_fn
     self.setup()
 
-  def setup(self):
-    """Set up the model.
-
-    Parameters
-    ----------
-    kwargs
-    Keyword arguments for the setup function.
-    """
+  def setup(self) -> None:
+    """Set up the model."""
     self.state_velocity_field = (
         self.velocity_field.create_train_state(
             self.rng, self.optimizer, self.output_dim
@@ -341,7 +333,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
 
     @jax.jit
     def step_fn(
-        key: jax.random.PRNGKeyArray,
+        rng: jax.Array,
         state_velocity_field: train_state.TrainState,
         batch: Dict[str, jnp.array],
     ):
@@ -370,7 +362,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
         )
         return jnp.mean((v_t - u_t) ** 2)
 
-      keys_model = jax.random.split(key, len(batch["noise"]))
+      keys_model = jax.random.split(rng, len(batch["noise"]))
 
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
       loss, grads = grad_fn(state_velocity_field.params, batch, keys_model)
@@ -419,7 +411,7 @@ class GENOT(UnbalancednessMixin, ResampleMixin, BaseNeuralSolver):
     t0, t1 = (0.0, 1.0)
 
     @jax.jit
-    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray):
+    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
       return diffrax.diffeqsolve(
           diffrax.ODETerm(
               lambda t, x, args: self.state_velocity_field.

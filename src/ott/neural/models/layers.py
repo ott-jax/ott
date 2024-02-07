@@ -11,23 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Tuple
+from typing import Any
 
-import jax
 import jax.numpy as jnp
 
 import flax.linen as nn
 
 __all__ = ["MLPBlock"]
 
-PRNGKey = jax.Array
-Shape = Tuple[int, ...]
-Dtype = Any
-Array = Any
-
 
 class MLPBlock(nn.Module):
-  """An MLP block."""
+  """An MLP block.
+
+  Args:
+    dim: Dimensionality of the input data.
+    num_layers: Number of layers in the MLP block.
+    act_fn: Activation function.
+    out_dim: Dimensionality of the output data.
+  """
   dim: int = 128
   num_layers: int = 3
   act_fn: Any = nn.silu

@@ -15,7 +15,7 @@ import pytest
 
 import numpy as np
 
-from ott.neural.data.dataloaders import ConditionalDataLoader, OTDataLoader
+from ott.neural.data import dataloaders
 
 
 @pytest.fixture(scope="module")
@@ -24,7 +24,7 @@ def data_loader_gaussian():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  return OTDataLoader(16, source_lin=source, target_lin=target)
+  return dataloaders.OTDataLoader(16, source_lin=source, target_lin=target)
 
 
 @pytest.fixture(scope="module")
@@ -36,20 +36,23 @@ def data_loader_gaussian_conditional():
 
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) - 2.0
-  dl0 = OTDataLoader(
+  dl0 = dataloaders.OTDataLoader(
       16,
       source_lin=source_0,
       target_lin=target_0,
       source_conditions=np.zeros_like(source_0) * 0.0
   )
-  dl1 = OTDataLoader(
+  dl1 = dataloaders.OTDataLoader(
       16,
       source_lin=source_1,
       target_lin=target_1,
       source_conditions=np.ones_like(source_1) * 1.0
   )
 
-  return ConditionalDataLoader({"0": dl0, "1": dl1}, np.array([0.5, 0.5]))
+  return dataloaders.ConditionalDataLoader({
+      "0": dl0,
+      "1": dl1
+  }, np.array([0.5, 0.5]))
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +63,7 @@ def data_loader_gaussian_with_conditions():
   target = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 1))
   target_conditions = rng.normal(size=(100, 1)) - 1.0
-  return OTDataLoader(
+  return dataloaders.OTDataLoader(
       16,
       source_lin=source,
       target_lin=target,
@@ -75,7 +78,7 @@ def genot_data_loader_linear():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  return OTDataLoader(16, source_lin=source, target_lin=target)
+  return dataloaders.OTDataLoader(16, source_lin=source, target_lin=target)
 
 
 @pytest.fixture(scope="module")
@@ -85,7 +88,7 @@ def genot_data_loader_linear_conditional():
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 4))
-  return OTDataLoader(
+  return dataloaders.OTDataLoader(
       16,
       source_lin=source,
       target_lin=target,
@@ -99,7 +102,7 @@ def genot_data_loader_quad():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
-  return OTDataLoader(16, source_quad=source, target_quad=target)
+  return dataloaders.OTDataLoader(16, source_quad=source, target_quad=target)
 
 
 @pytest.fixture(scope="module")
@@ -109,7 +112,7 @@ def genot_data_loader_quad_conditional():
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
   source_conditions = rng.normal(size=(100, 7))
-  return OTDataLoader(
+  return dataloaders.OTDataLoader(
       16,
       source_quad=source,
       target_quad=target,
@@ -125,7 +128,7 @@ def genot_data_loader_fused():
   target_q = rng.normal(size=(100, 1)) + 1.0
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
-  return OTDataLoader(
+  return dataloaders.OTDataLoader(
       16,
       source_lin=source_lin,
       source_quad=source_q,
@@ -143,7 +146,7 @@ def genot_data_loader_fused_conditional():
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 7))
-  return OTDataLoader(
+  return dataloaders.OTDataLoader(
       16,
       source_lin=source_lin,
       source_quad=source_q,

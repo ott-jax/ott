@@ -23,7 +23,7 @@ import optax
 from ott.geometry import costs
 from ott.neural.flows.genot import GENOT
 from ott.neural.flows.models import VelocityField
-from ott.neural.flows.samplers import sample_uniformly
+from ott.neural.flows.samplers import uniform_sampler
 from ott.neural.models.models import RescalingMLP
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
@@ -56,7 +56,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
+    time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -106,7 +106,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = functools.partial(sample_uniformly, offset=1e-2)
+    time_sampler = functools.partial(uniform_sampler, offset=1e-2)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -198,7 +198,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
+    time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -245,7 +245,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = sample_uniformly
+    time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -292,7 +292,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
-    time_sampler = sample_uniformly
+    time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -348,7 +348,7 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = sample_uniformly
+    time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     tau_a = 0.9
     tau_b = 0.2

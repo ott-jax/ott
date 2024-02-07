@@ -103,7 +103,6 @@ include = '\.ipynb$'
 
 [tool.isort]
 profile = "black"
-line_length = 80
 include_trailing_comma = true
 multi_line_output = 3
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "TEST", "NUMERIC", "NEURAL", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
@@ -289,6 +288,7 @@ ignore = [
 line-length = 80
 select = [
     "D", # flake8-docstrings
+    "I", # isort
     "E", # pycodestyle
     "F", # pyflakes
     "W", # pycodestyle
@@ -304,7 +304,7 @@ select = [
     "T20",  # flake8-print
     "RET", # flake8-raise
 ]
-unfixable = ["I", "B", "UP", "C4", "BLE", "T20", "RET"]
+unfixable = ["B", "UP", "C4", "BLE", "T20", "RET"]
 target-version = "py38"
 [tool.ruff.per-file-ignores]
 # TODO(michalk8): PO004 - remove `self.initialize`

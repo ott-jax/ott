@@ -61,7 +61,7 @@ class GaussianMixture:
   scale: float = 5.0
   std: float = 0.5
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     gaussian_centers = {
         "simple":
             np.array([[0, 0]]),

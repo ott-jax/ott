@@ -69,7 +69,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
   def is_potential(self) -> bool:  # noqa: D102
     return True
 
-  def setup(self):  # noqa: D102
+  def setup(self) -> None:  # noqa: D102
     self.num_hidden = len(self.dim_hidden)
 
     if self.pos_weights:
