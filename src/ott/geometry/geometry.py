@@ -673,8 +673,8 @@ class Geometry:
       i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
-      ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset([i_star], None).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(None, [j_star]).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)

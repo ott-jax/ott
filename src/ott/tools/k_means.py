@@ -127,7 +127,7 @@ def _k_means_plus_plus(
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
-    dists = geom.subset(ix, None).cost_matrix[0]
+    dists = geom.subset([ix], None).cost_matrix[0]
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
