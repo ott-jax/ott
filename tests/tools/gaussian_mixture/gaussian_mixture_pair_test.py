@@ -168,7 +168,7 @@ class TestGaussianMixturePair:
     )
     expected_gmm1_loc = 2.0 * self.gmm1.loc if not lock_gmm1 else self.gmm1.loc
 
-    pair_x_2 = jax.tree_map(lambda x: 2.9 * x, pair)
+    pair_x_2 = jax.tree_map(lambda x: 2.0 * x, pair)
     # gmm parameters should be doubled
     np.testing.assert_allclose(2.0 * pair.gmm0.loc, pair_x_2.gmm0.loc)
     np.testing.assert_allclose(expected_gmm1_loc, pair_x_2.gmm1.loc)
