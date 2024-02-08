@@ -141,7 +141,7 @@ class TestKmeans:
 
   @pytest.mark.fast()
   def test_k_means_simple_example(self):
-    expected_labels = np.asarray([1, 1, 0, 0], dtype=np.int32)
+    expected_labels = np.asarray([1, 1, 0, 0])
     expected_centers = np.asarray([[0.75, 1], [0.25, 0]])
 
     x = jnp.asarray([[0, 0], [0.5, 0], [0.5, 1], [1, 1]])

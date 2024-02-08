@@ -100,11 +100,11 @@ class TestGaussian:
     # https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    loc0 = jax.random.normal(key=subrng0, shape=(size,))
-    loc1 = jax.random.normal(key=subrng1, shape=(size,))
+    loc0 = jax.random.normal(subrng0, shape=(size,))
+    loc1 = jax.random.normal(subrng1, shape=(size,))
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    diag0 = jnp.exp(jax.random.normal(key=subrng0, shape=(size,)))
-    diag1 = jnp.exp(jax.random.normal(key=subrng1, shape=(size,)))
+    diag0 = jnp.exp(jax.random.normal(subrng0, shape=(size,)))
+    diag1 = jnp.exp(jax.random.normal(subrng1, shape=(size,)))
     g0 = gaussian.Gaussian(
         loc=loc0, scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     )
@@ -128,7 +128,7 @@ class TestGaussian:
         loc=jnp.array([1.]),
         scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     )
-    points = jax.random.normal(key=rng, shape=(10, 1))
+    points = jax.random.normal(rng, shape=(10, 1))
     actual = g0.transport(dest=g1, points=points)
     expected = 2. * points + 1.
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)

@@ -151,7 +151,7 @@ def fit_model_em(
     A GMM with updated parameters.
   """
   if point_weights is None:
-    point_weights = jnp.ones(points.shape[:-1], dtype=points.dtype)
+    point_weights = jnp.ones(points.shape[:-1])
   loss_fn = log_prob_loss
   get_q_fn = get_q
   e_step_fn = get_assignment_probs
@@ -211,7 +211,7 @@ def _get_locs(
   n_points = points.shape[0]
   weights = jnp.ones(n_points) / n_points
   rng, subrng = jax.random.split(rng)
-  index = jax.random.choice(key=subrng, a=points.shape[0], p=weights)
+  index = jax.random.choice(subrng, a=points.shape[0], p=weights)
   loc = points[index]
   points = jnp.concatenate([points[:index], points[index + 1:]], axis=0)
 
@@ -221,7 +221,7 @@ def _get_locs(
     min_dist_sq = jnp.min(dist_sq, axis=-1)
     weights = min_dist_sq / jnp.sum(min_dist_sq)
     rng, subrng = jax.random.split(rng)
-    index = jax.random.choice(key=subrng, a=points.shape[0], p=weights)
+    index = jax.random.choice(subrng, a=points.shape[0], p=weights)
     loc = points[index]
     points = jnp.concatenate([points[:index], points[index + 1:]], axis=0)
     locs = jnp.concatenate([locs, loc[None]], axis=0)

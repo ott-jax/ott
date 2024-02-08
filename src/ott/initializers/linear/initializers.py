@@ -339,10 +339,10 @@ class SubsampleInitializer(DefaultInitializer):
 
     # subsample
     sub_x = jax.random.choice(
-        key=rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
+        rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
     )
     sub_y = jax.random.choice(
-        key=rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
+        rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
     )
 
     # create subsampled point cloud geometry

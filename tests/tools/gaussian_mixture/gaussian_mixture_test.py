@@ -26,14 +26,14 @@ class TestGaussianMixture:
   ):
     n = 50
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    points0 = jax.random.normal(key=subrng0, shape=(n, 2))
+    points0 = jax.random.normal(subrng0, shape=(n, 2))
     points1 = (
-        2. * jax.random.normal(key=subrng1, shape=(n, 2)) + jnp.array([6., 8.])
+        2. * jax.random.normal(subrng1, shape=(n, 2)) + jnp.array([6., 8.])
     )
     points = jnp.concatenate([points0, points1], axis=0)
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    weights0 = jax.random.uniform(key=subrng0, shape=(n,))
-    weights1 = jax.random.uniform(key=subrng1, shape=(n,))
+    weights0 = jax.random.uniform(subrng0, shape=(n,))
+    weights1 = jax.random.uniform(subrng1, shape=(n,))
     weights = jnp.concatenate([weights0, weights1], axis=0)
     aprobs0 = jnp.stack([jnp.ones((n,)), jnp.zeros((n,))], axis=-1)
     aprobs1 = jnp.stack([jnp.zeros((n,)), jnp.ones((n,))], axis=-1)

@@ -38,13 +38,9 @@ class Probabilities:
       rng: jax.Array,
       n_dimensions: int,
       stdev: Optional[float] = 0.1,
-      dtype: Optional[jnp.dtype] = None
   ) -> "Probabilities":
     """Construct a random Probabilities."""
-    return cls(
-        params=jax.random
-        .normal(key=rng, shape=(n_dimensions - 1,), dtype=dtype) * stdev
-    )
+    return cls(params=jax.random.normal(rng, shape=(n_dimensions - 1,)) * stdev)
 
   @classmethod
   def from_probs(cls, probs: jnp.ndarray) -> "Probabilities":
@@ -64,9 +60,7 @@ class Probabilities:
 
   def unnormalized_log_probs(self) -> jnp.ndarray:
     """Get the unnormalized log probabilities."""
-    return jnp.concatenate([self._params,
-                            jnp.zeros((1,), dtype=self.dtype)],
-                           axis=-1)
+    return jnp.concatenate([self._params, jnp.zeros((1,))], axis=-1)
 
   def log_probs(self) -> jnp.ndarray:
     """Get the log probabilities."""
@@ -79,7 +73,7 @@ class Probabilities:
   def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
     """Sample from the distribution."""
     return jax.random.categorical(
-        key=rng, logits=self.unnormalized_log_probs(), shape=(size,)
+        rng, logits=self.unnormalized_log_probs(), shape=(size,)
     )
 
   def tree_flatten(self):  # noqa: D102

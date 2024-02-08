@@ -142,7 +142,7 @@ class TestGraph:
   def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
-    G = jnp.asarray(G.toarray(), dtype=float)
+    G = jnp.asarray(G.toarray())
     eye = jnp.eye(G.shape[0])
 
     be_geom = graph.Graph.from_graph(

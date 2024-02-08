@@ -76,8 +76,8 @@ class TestScaleTriL:
     # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    diag0 = jnp.exp(jax.random.normal(key=subrng0, shape=(size,)))
-    diag1 = jnp.exp(jax.random.normal(key=subrng1, shape=(size,)))
+    diag0 = jnp.exp(jax.random.normal(subrng0, shape=(size,)))
+    diag1 = jnp.exp(jax.random.normal(subrng1, shape=(size,)))
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
@@ -87,13 +87,13 @@ class TestScaleTriL:
   def test_transport(self, rng: jax.Array):
     size = 4
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    diag0 = jnp.exp(jax.random.normal(key=subrng0, shape=(size,)))
+    diag0 = jnp.exp(jax.random.normal(subrng0, shape=(size,)))
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
-    diag1 = jnp.exp(jax.random.normal(key=subrng1, shape=(size,)))
+    diag1 = jnp.exp(jax.random.normal(subrng1, shape=(size,)))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
 
     rng, subrng = jax.random.split(rng)
-    x = jax.random.normal(key=subrng, shape=(100, size))
+    x = jax.random.normal(subrng, shape=(100, size))
     transported = s0.transport(s1, points=x)
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
     np.testing.assert_allclose(expected, transported, atol=1e-4, rtol=1e-4)

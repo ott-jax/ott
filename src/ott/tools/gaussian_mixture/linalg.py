@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -71,7 +71,7 @@ def flat_to_tril(x: jnp.ndarray, size: int) -> jnp.ndarray:
   Returns:
     Lower triangular matrices.
   """
-  m = jnp.zeros(tuple(list(x.shape[:-1]) + [size, size]), dtype=x.dtype)
+  m = jnp.zeros(x.shape[:-1] + (size, size))
   tril = jnp.tril_indices(size)
   return m.at[..., tril[0], tril[1]].set(x)
 
@@ -96,7 +96,7 @@ def apply_to_diag(
   """Apply a function to the diagonal of a matrix."""
   size = m.shape[-1]
   diag = jnp.diagonal(m, axis1=-2, axis2=-1)
-  ind = jnp.arange(size, dtype=jnp.int32)
+  ind = jnp.arange(size)
   return m.at[..., ind, ind].set(fn(diag))
 
 
@@ -131,10 +131,8 @@ def invmatvectril(
   )
 
 
-def get_random_orthogonal(
-    rng: jax.Array, dim: int, dtype: Optional[jnp.dtype] = None
-) -> jnp.ndarray:
+def get_random_orthogonal(rng: jax.Array, dim: int) -> jnp.ndarray:
   """Get a random orthogonal matrix with the specified dimension."""
-  m = jax.random.normal(key=rng, shape=[dim, dim], dtype=dtype)
+  m = jax.random.normal(rng, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
   return q
