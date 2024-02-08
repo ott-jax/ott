@@ -56,7 +56,7 @@ class Geodesic(geometry.Geometry):
       t: float = 1e-3,
       **kwargs: Any
   ):
-    super().__init__(epsilon=1., **kwargs)
+    super().__init__(epsilon=1.0, **kwargs)
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
@@ -104,7 +104,7 @@ class Geodesic(geometry.Geometry):
     if directed:
       G = G + G.T
     if t is None:
-      t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2.0
+      t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
 
     degree = jnp.sum(G, axis=1)
     laplacian = jnp.diag(degree) - G

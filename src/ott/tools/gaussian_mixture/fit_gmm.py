@@ -188,7 +188,7 @@ def _get_dist_sq(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
   """Get the squared distance from each point to each loc."""
 
   def _dist_sq_one_loc(points: jnp.ndarray, loc: jnp.ndarray) -> jnp.ndarray:
-    return jnp.sum((points - loc[None]) ** 2., axis=-1)
+    return jnp.sum((points - loc[None]) ** 2, axis=-1)
 
   dist_sq_fn = jax.vmap(_dist_sq_one_loc, in_axes=(None, 0), out_axes=1)
   return dist_sq_fn(points, loc)

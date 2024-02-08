@@ -263,7 +263,7 @@ class LRSinkhornOutput(NamedTuple):
 
   @property
   def _inv_g(self) -> jnp.ndarray:
-    return 1. / self.g
+    return 1.0 / self.g
 
 
 @jax.tree_util.register_pytree_node_class
@@ -307,7 +307,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __init__(
       self,
       rank: int,
-      gamma: float = 10.,
+      gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
       initializer: Union[Literal["random", "rank2", "k-means",
@@ -477,9 +477,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       g_r = _softm(f2, g2_old, c_r, axis=0)
 
       # Second Projection
-      h = (1. / 3.) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3. * gamma)
-      h += g_r / (3. * gamma)
+      h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
+      h += g_q / (3.0 * gamma)
+      h += g_r / (3.0 * gamma)
       g1 = h + g1_old - g_q / gamma
       g2 = h + g2_old - g_r / gamma
 

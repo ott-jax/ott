@@ -67,7 +67,7 @@ class TestMapEstimator:
         fitting_loss=fitting_loss,
         regularizer=regularizer,
         model=model,
-        regularizer_strength=1.,
+        regularizer_strength=1.0,
         num_train_iters=15,
         logging=True,
         valid_freq=5,

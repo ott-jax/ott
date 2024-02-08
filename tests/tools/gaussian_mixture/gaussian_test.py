@@ -28,8 +28,8 @@ class TestGaussian:
     np.testing.assert_array_equal(g.covariance().shape, (3, 3))
 
   def test_from_mean_and_cov(self):
-    mean = jnp.array([1., 2., 3.])
-    cov = jnp.diag(jnp.array([4., 5., 6.]))
+    mean = jnp.array([1.0, 2.0, 3.0])
+    cov = jnp.diag(jnp.array([4.0, 5.0, 6.0]))
     g = gaussian.Gaussian.from_mean_and_cov(mean=mean, cov=cov)
 
     np.testing.assert_array_equal(mean, g.loc)
@@ -37,9 +37,9 @@ class TestGaussian:
 
   def test_to_z(self, rng: jax.Array):
     g = gaussian.Gaussian(
-        loc=jnp.array([1., 2.]),
+        loc=jnp.array([1.0, 2.0]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([0., 0.25, jnp.log(0.5)]), size=2
+            params=jnp.array([0.0, 0.25, jnp.log(0.5)]), size=2
         )
     )
     samples = g.sample(rng=rng, size=1000)
@@ -53,9 +53,9 @@ class TestGaussian:
 
   def test_from_z(self, rng: jax.Array):
     g = gaussian.Gaussian(
-        loc=jnp.array([0., 0.]),
+        loc=jnp.array([0.0, 0.0]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([jnp.log(2.), 0., 0.]), size=2
+            params=jnp.array([jnp.log(2.0), 0.0, 0.0]), size=2
         )
     )
     x = g.sample(rng=rng, size=100)
@@ -65,9 +65,9 @@ class TestGaussian:
 
   def test_log_prob(self, rng: jax.Array):
     g = gaussian.Gaussian(
-        loc=jnp.array([0., 0.]),
+        loc=jnp.array([0.0, 0.0]),
         scale=scale_tril.ScaleTriL(
-            params=jnp.array([jnp.log(2.), 0., 0.]), size=2
+            params=jnp.array([jnp.log(2.0), 0.0, 0.0]), size=2
         )
     )
     x = g.sample(rng=rng, size=100)
@@ -78,14 +78,14 @@ class TestGaussian:
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)
 
   def test_sample(self, rng: jax.Array):
-    mean = jnp.array([1., 2.])
-    cov = jnp.diag(jnp.array([1., 4.]))
+    mean = jnp.array([1.0, 2.0])
+    cov = jnp.diag(jnp.array([1.0, 4.0]))
     g = gaussian.Gaussian.from_mean_and_cov(mean, cov)
     samples = g.sample(rng=rng, size=10000)
     sample_mean = jnp.mean(samples, axis=0)
     sample_cov = jnp.cov(samples, rowvar=False)
 
-    np.testing.assert_allclose(sample_mean, mean, atol=3. * 2. / 100.)
+    np.testing.assert_allclose(sample_mean, mean, atol=3.0 * 2.0 / 100.0)
     np.testing.assert_allclose(sample_cov, cov, atol=2e-1)
 
   def test_w2_dist(self, rng: jax.Array):
@@ -93,7 +93,7 @@ class TestGaussian:
     rng, subrng = jax.random.split(rng)
     n = gaussian.Gaussian.from_random(rng=subrng, n_dimensions=3)
     w2 = n.w2_dist(n)
-    np.testing.assert_almost_equal(w2, 0., decimal=5)
+    np.testing.assert_almost_equal(w2, 0.0, decimal=5)
 
     # When covariances commute (e.g. if covariance is diagonal), have
     # distance between covariances = frobenius norm^2 of (delta cholesky), see
@@ -112,25 +112,25 @@ class TestGaussian:
         loc=loc1, scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     )
     w2 = g0.w2_dist(g1)
-    delta_mean = jnp.sum((loc1 - loc0) ** 2., axis=-1)
-    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
+    delta_mean = jnp.sum((loc1 - loc0) ** 2, axis=-1)
+    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2)
     expected = delta_mean + delta_sigma
     np.testing.assert_allclose(expected, w2, rtol=1e-6, atol=1e-6)
 
   def test_transport(self, rng: jax.Array):
-    diag0 = jnp.array([1.])
-    diag1 = jnp.array([4.])
+    diag0 = jnp.array([1.0])
+    diag1 = jnp.array([4.0])
     g0 = gaussian.Gaussian(
-        loc=jnp.array([0.]),
+        loc=jnp.array([0.0]),
         scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     )
     g1 = gaussian.Gaussian(
-        loc=jnp.array([1.]),
+        loc=jnp.array([1.0]),
         scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     )
     points = jax.random.normal(rng, shape=(10, 1))
     actual = g0.transport(dest=g1, points=points)
-    expected = 2. * points + 1.
+    expected = 2.0 * points + 1.0
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)
 
   def test_flatten_unflatten(self, rng: jax.Array):
@@ -144,5 +144,5 @@ class TestGaussian:
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)
     g_x_2 = jax.tree_map(lambda x: 2 * x, g)
 
-    np.testing.assert_allclose(2. * g.loc, g_x_2.loc)
-    np.testing.assert_allclose(2. * g.scale.params, g_x_2.scale.params)
+    np.testing.assert_allclose(2.0 * g.loc, g_x_2.loc)
+    np.testing.assert_allclose(2.0 * g.scale.params, g_x_2.scale.params)

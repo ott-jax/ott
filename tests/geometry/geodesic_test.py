@@ -68,7 +68,7 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
+  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
 
 
 def exact_heat_kernel(G: jnp.ndarray, normalize: bool = False, t: float = 10):
@@ -241,14 +241,14 @@ class TestGeodesic:
 
     eps = 1e-3
     G = random_graph(20, p=0.5)
-    geom = geodesic.Geodesic.from_graph(G, t=1.)
+    geom = geodesic.Geodesic.from_graph(G, t=1.0)
 
     v_w = jax.random.normal(rng, shape=G.shape)
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_sl = jax.grad(callback)(geom).scaled_laplacian
-    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.)
-    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.)
+    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.0)
+    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.0)
 
     expected = callback(geom__finite_right) - callback(geom__finite_left)
     actual = 2 * jnp.vdot(v_w, grad_sl)

@@ -108,10 +108,10 @@ class SinkhornState(NamedTuple):
     if ot_prob.is_balanced:
       # center the potentials for numerical stability
       is_finite = jnp.isfinite(f)
-      shift = jnp.sum(jnp.where(is_finite, f, 0.)) / jnp.sum(is_finite)
+      shift = jnp.sum(jnp.where(is_finite, f, 0.0)) / jnp.sum(is_finite)
       return f - shift, g + shift
 
-    if ot_prob.tau_a == 1. or ot_prob.tau_b == 1.:
+    if ot_prob.tau_a == 1.0 or ot_prob.tau_b == 1.0:
       # re-centering wasn't done during the lse-step, ignore
       return f, g
 
@@ -890,7 +890,7 @@ class Sinkhorn:
 
     def xi(tau_i: float, tau_j: float) -> float:
       k_ij = k(tau_i, tau_j)
-      return k_ij / (1. - k_ij)
+      return k_ij / (1.0 - k_ij)
 
     def smin(
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
@@ -900,7 +900,7 @@ class Sinkhorn:
 
     # only for an unbalanced problems with `tau_{a,b} < 1`
     recenter = (
-        self.recenter_potentials and ot_prob.tau_a < 1. and ot_prob.tau_b < 1.
+        self.recenter_potentials and ot_prob.tau_a < 1.0 and ot_prob.tau_b < 1.0
     )
     w = self.momentum.weight(state, iteration)
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b

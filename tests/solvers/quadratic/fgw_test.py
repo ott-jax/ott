@@ -282,9 +282,9 @@ class TestFusedGromovWasserstein:
   def test_fgw_scale_cost(self, scale_cost: Literal["mean", "max_cost"]):
     epsilon = 0.1
     fused_penalty = 1
-    geom_x = pointcloud.PointCloud(self.x, scale_cost=1.)
-    geom_y = pointcloud.PointCloud(self.y, scale_cost=1.)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2, scale_cost=1.)
+    geom_x = pointcloud.PointCloud(self.x, scale_cost=1.0)
+    geom_y = pointcloud.PointCloud(self.y, scale_cost=1.0)
+    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2, scale_cost=1.0)
     geom_x_scaled = pointcloud.PointCloud(self.x, scale_cost=scale_cost)
     geom_y_scaled = pointcloud.PointCloud(self.y, scale_cost=scale_cost)
     geom_xy_scaled = pointcloud.PointCloud(

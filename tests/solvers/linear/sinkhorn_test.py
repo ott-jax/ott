@@ -98,8 +98,8 @@ class TestSinkhorn:
         geom_1,
         a=self.a,
         b=self.b,
-        tau_a=.99,
-        tau_b=.97,
+        tau_a=0.99,
+        tau_b=0.97,
     ).f
 
     # Second geom does not provide whether epsilon is relative.
@@ -125,9 +125,9 @@ class TestSinkhorn:
   @pytest.mark.fast.with_args(
       lse_mode=[False, True],
       init=[5],
-      decay=[.9],
-      tau_a=[1.0, .93],
-      tau_b=[1.0, .91],
+      decay=[0.9],
+      tau_a=[1.0, 0.93],
+      tau_b=[1.0, 0.91],
       only_fast=0
   )
   def test_autoepsilon_with_decay(
@@ -550,9 +550,9 @@ class TestSinkhorn:
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, recenter_potentials=True)
 
     f = solver(prob).f
-    f_mean = jnp.mean(jnp.where(jnp.isfinite(f), f, 0.))
+    f_mean = jnp.mean(jnp.where(jnp.isfinite(f), f, 0.0))
 
-    np.testing.assert_allclose(f_mean, 0., rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(f_mean, 0.0, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.parametrize(("use_tqdm", "custom_buffer"), [(False, False),
                                                            (False, True),

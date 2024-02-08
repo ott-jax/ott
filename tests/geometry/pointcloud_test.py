@@ -134,7 +134,7 @@ class TestPointCloudCosineConversion:
     assert eucl.is_squared_euclidean
 
     np.testing.assert_allclose(
-        2. * eucl.inv_scale_cost, cosine.inv_scale_cost, rtol=1e-6, atol=1e-6
+        2.0 * eucl.inv_scale_cost, cosine.inv_scale_cost, rtol=1e-6, atol=1e-6
     )
     np.testing.assert_allclose(
         eucl.mean_cost_matrix, cosine.mean_cost_matrix, rtol=1e-6, atol=1e-6

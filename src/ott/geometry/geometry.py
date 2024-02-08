@@ -626,7 +626,7 @@ class Geometry:
       rank: int = 0,
       tol: float = 1e-2,
       rng: Optional[jax.Array] = None,
-      scale: float = 1.
+      scale: float = 1.0
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
@@ -697,7 +697,7 @@ class Geometry:
       _, d, v = jnp.linalg.svd(U.T @ U)  # (k,), (k, k)
       v = v.T / jnp.sqrt(d)[None, :]
 
-      inv_scale = (1. / jnp.sqrt(n_subset))
+      inv_scale = (1.0 / jnp.sqrt(n_subset))
       col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
@@ -757,7 +757,7 @@ class Geometry:
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> "Geometry":
     """Mask rows or columns of a geometry.
 
@@ -855,7 +855,7 @@ class Geometry:
         self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
     ).dtype
 
-  def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
+  def _masked_geom(self, mask_value: float = 0.0) -> "Geometry":
     """Mask geometry based on :attr:`src_mask` and :attr:`tgt_mask`."""
     src_mask, tgt_mask = self.src_mask, self.tgt_mask
     if src_mask is None and tgt_mask is None:

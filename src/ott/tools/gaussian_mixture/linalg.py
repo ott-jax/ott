@@ -31,7 +31,7 @@ def get_mean_and_var(
   centered = points - mean[None, :]  # (n, d) - (1, d)
   var = (
       # matmul((1, n), (n, d)) -> (1, d)
-      jnp.matmul(weights, centered ** 2.) / weights_sum
+      jnp.matmul(weights, centered ** 2) / weights_sum
   )
   return mean, var
 

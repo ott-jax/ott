@@ -135,7 +135,7 @@ class TestKmeans:
 
     assert res.centroids.shape == (k, ndim)
     assert res.converged
-    assert res.error >= 0.
+    assert res.error >= 0.0
     assert res.inner_errors is None
     assert _is_same_clustering(pred_assignment, gt_assignment, k)
 
@@ -210,23 +210,23 @@ class TestKmeans:
 
     errors = res.inner_errors
     assert errors.shape == (max_iter,)
-    assert res.iteration == jnp.sum(errors > 0.)
+    assert res.iteration == jnp.sum(errors > 0.0)
     # check if error is decreasing
-    np.testing.assert_array_equal(jnp.diff(errors[::-1]) >= 0., True)
+    np.testing.assert_array_equal(jnp.diff(errors[::-1]) >= 0.0, True)
 
   def test_strict_tolerance(self, rng: jax.Array):
     k = 11
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
-    res = k_means.k_means(geom, k=k, tol=1., rng=rng)
-    res_strict = k_means.k_means(geom, k=k, tol=0., rng=rng)
+    res = k_means.k_means(geom, k=k, tol=1.0, rng=rng)
+    res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=rng)
 
     assert res.converged
     assert res_strict.converged
     assert res.iteration < res_strict.iteration
 
   @pytest.mark.parametrize(
-      "tol", [1e-3, 0.], ids=["weak-convergence", "strict-convergence"]
+      "tol", [1e-3, 0.0], ids=["weak-convergence", "strict-convergence"]
   )
   def test_convergence_force_scan(self, rng: jax.Array, tol: float):
     k, n_iter = 9, 20
@@ -256,7 +256,7 @@ class TestKmeans:
         store_inner_errors=True,
         min_iterations=min_iter,
         max_iterations=20,
-        tol=0.,
+        tol=0.0,
         rng=rng
     )
 
@@ -285,7 +285,7 @@ class TestKmeans:
 
   @pytest.mark.fast()
   def test_empty_weights(self, rng: jax.Array):
-    n, ndim, k, d = 20, 2, 3, 5.
+    n, ndim, k, d = 20, 2, 3, 5.0
     gen = np.random.RandomState(0)
     x = gen.normal(size=(n, ndim))
     x[:, 0] += d
@@ -301,7 +301,7 @@ class TestKmeans:
     w[:, 1] += d
     x = jnp.concatenate((x, y, z, w))
     # ignore `x` by setting its weights to 0
-    weights = jnp.ones((x.shape[0],)).at[:n].set(0.)
+    weights = jnp.ones((x.shape[0],)).at[:n].set(0.0)
 
     expected_centroids = jnp.stack([w.mean(0), z.mean(0), y.mean(0)])
     res = k_means.k_means(x, k=k, weights=weights, rng=rng)
@@ -312,12 +312,12 @@ class TestKmeans:
     np.testing.assert_array_equal(jnp.sort(ixs), jnp.arange(k))
 
     total_shift = jnp.sum(cost[jnp.arange(k), ixs])
-    np.testing.assert_allclose(total_shift, 0., rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(total_shift, 0.0, rtol=1e-3, atol=1e-3)
 
   def test_cosine_cost_fn(self):
     k = 4
     geom, _, _ = make_blobs(n_samples=75)
-    geom_scaled = pointcloud.PointCloud(geom * 10., cost_fn=costs.Cosine())
+    geom_scaled = pointcloud.PointCloud(geom * 10.0, cost_fn=costs.Cosine())
     geom = pointcloud.PointCloud(geom, cost_fn=costs.Cosine())
 
     res_scaled = k_means.k_means(geom_scaled, k=k)
@@ -400,7 +400,7 @@ class TestKmeans:
     actual = 2 * jnp.vdot(v_w, grad_w)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-  @pytest.mark.parametrize("tol", [1e-3, 0.])
+  @pytest.mark.parametrize("tol", [1e-3, 0.0])
   @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 6)])
   def test_clustering_matches_sklearn(
       self, rng: jax.Array, n: int, k: int, tol: float

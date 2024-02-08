@@ -36,8 +36,8 @@ class TestSinkhornImplicit:
     self.rngs = rngs
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,)) + .1
-    b = jax.random.uniform(rngs[3], (self.m,)) + .1
+    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
@@ -46,7 +46,7 @@ class TestSinkhornImplicit:
   def test_implicit_differentiation_versus_autodiff(
       self, lse_mode: bool, threshold: float, pcg: bool
   ):
-    epsilon = 0.05
+    epsilon = 5e-2
 
     def loss_g(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
@@ -341,8 +341,8 @@ class TestSinkhornJacobian:
 
   @pytest.mark.fast.with_args(
       "lse_mode,tau_a,tau_b,arg,axis",
-      ((True, 1.0, 1.0, 0, 1), (False, 1.0, 1.0, 1, 0), (True, .93, 1.0, 1, 1),
-       (True, .93, .95, 0, 0)),
+      ((True, 1.0, 1.0, 0, 1), (False, 1.0, 1.0, 1, 0), (True, 0.93, 1.0, 1, 1),
+       (True, 0.93, 0.95, 0, 0)),
       only_fast=0
   )
   def test_apply_transport_jacobian(
@@ -369,11 +369,11 @@ class TestSinkhornJacobian:
     rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
     y = jax.random.uniform(rngs[1], (m, dim)) / dim
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
-    vec = jax.random.uniform(rngs[4], (m if axis else n,)) - .5
+    vec = jax.random.uniform(rngs[4], (m if axis else n,)) - 0.5
 
     delta_a = jax.random.uniform(rngs[5], (n,))
     if tau_a == 1.0:
@@ -451,8 +451,8 @@ class TestSinkhornJacobian:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .93],
-      tau_b=[1.0, .91],
+      tau_a=[1.0, 0.93],
+      tau_b=[1.0, 0.91],
       shape=[(22, 25), (27, 18)],
       arg=[0, 1],
       only_fast=0,
@@ -470,8 +470,8 @@ class TestSinkhornJacobian:
     rngs = jax.random.split(rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
     random_dir = jax.random.uniform(rngs[4], (n,)) / n
@@ -546,8 +546,8 @@ class TestSinkhornGradGrid:
     eps = 1e-3  # perturbation magnitude
     rngs = jax.random.split(rng, 6)
     x = (
-        jnp.array([.0, 1.0]), jnp.array([.3, .4,
-                                         .7]), jnp.array([1.0, 1.3, 2.4, 3.7])
+        jnp.array([0.0, 1.0]), jnp.array([0.3, 0.4,
+                                          0.7]), jnp.array([1.0, 1.3, 2.4, 3.7])
     )
     grid_size = tuple(xs.shape[0] for xs in x)
     a = jax.random.uniform(rngs[0], grid_size) + 1.0
@@ -592,8 +592,8 @@ class TestSinkhornGradGrid:
     rngs = jax.random.split(rng, 3)
     # yapf: disable
     x = (
-        jnp.asarray([.0, 1.0]),
-        jnp.asarray([.3, .4, .7]),
+        jnp.asarray([0.0, 1.0]),
+        jnp.asarray([0.3, 0.4, 0.7]),
         jnp.asarray([1.0, 1.3, 2.4, 3.7])
     )
     # yapf: enable
@@ -629,8 +629,8 @@ class TestSinkhornJacobianPreconditioning:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .94],
-      tau_b=[1.0, .91],
+      tau_a=[1.0, 0.94],
+      tau_b=[1.0, 0.91],
       shape=[(18, 19), (27, 18)],
       arg=[0, 1],
       only_fast=[0, -1],
@@ -648,8 +648,8 @@ class TestSinkhornJacobianPreconditioning:
     rngs = jax.random.split(rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
     random_dir = jax.random.uniform(rngs[4], (n,)) / n

@@ -21,7 +21,7 @@ from ott.tools.gaussian_mixture import scale_tril
 
 @pytest.fixture()
 def chol() -> scale_tril.ScaleTriL:
-  params = jnp.array([0., 2., jnp.log(3.)])
+  params = jnp.array([0.0, 2.0, jnp.log(3.0)])
   return scale_tril.ScaleTriL(params=params, size=2)
 
 
@@ -29,11 +29,11 @@ def chol() -> scale_tril.ScaleTriL:
 class TestScaleTriL:
 
   def test_cholesky(self, chol: scale_tril.ScaleTriL):
-    expected = jnp.array([[1., 0.], [2., 3.]])
+    expected = jnp.array([[1.0, 0.0], [2.0, 3.0]])
     np.testing.assert_allclose(chol.cholesky(), expected, atol=1e-4, rtol=1e-4)
 
   def test_covariance(self, chol: scale_tril.ScaleTriL):
-    expected = jnp.array([[1., 0.], [2., 3.]])
+    expected = jnp.array([[1.0, 0.0], [2.0, 3.0]])
     np.testing.assert_allclose(chol.covariance(), expected @ expected.T)
 
   def test_covariance_sqrt(self, chol: scale_tril.ScaleTriL):
@@ -58,7 +58,7 @@ class TestScaleTriL:
   def test_from_cholesky(self, rng: jax.Array):
     n_dimensions = 4
     cholesky = scale_tril.ScaleTriL.from_random(
-        rng=rng, n_dimensions=n_dimensions, stdev=1.
+        rng=rng, n_dimensions=n_dimensions, stdev=1.0
     ).cholesky()
     scale = scale_tril.ScaleTriL.from_cholesky(cholesky)
     np.testing.assert_allclose(cholesky, scale.cholesky(), atol=1e-4, rtol=1e-4)
@@ -68,7 +68,7 @@ class TestScaleTriL:
     rng, subrng = jax.random.split(rng)
     s = scale_tril.ScaleTriL.from_random(rng=subrng, n_dimensions=3)
     w2 = s.w2_dist(s)
-    expected = 0.
+    expected = 0.0
     np.testing.assert_allclose(expected, w2, atol=1e-4, rtol=1e-4)
 
     # When covariances commute (e.g. if covariance is diagonal), have
@@ -81,7 +81,7 @@ class TestScaleTriL:
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
-    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2.)
+    delta_sigma = jnp.sum((jnp.sqrt(diag0) - jnp.sqrt(diag1)) ** 2)
     np.testing.assert_allclose(delta_sigma, w2, atol=1e-4, rtol=1e-4)
 
   def test_transport(self, rng: jax.Array):
@@ -108,4 +108,4 @@ class TestScaleTriL:
   def test_pytree_mapping(self, rng: jax.Array):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)
     scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
-    np.testing.assert_allclose(2. * scale.params, scale_x_2.params)
+    np.testing.assert_allclose(2.0 * scale.params, scale_x_2.params)

@@ -123,7 +123,7 @@ class ScaleTriL:
   def log_det_covariance(self) -> jnp.ndarray:
     """Get the log of the determinant of the covariance matrix."""
     diag = jnp.diagonal(self.cholesky(), axis1=-2, axis2=-1)
-    return 2. * jnp.sum(jnp.log(diag), axis=-1)
+    return 2.0 * jnp.sum(jnp.log(diag), axis=-1)
 
   def centered_to_z(self, x_centered: jnp.ndarray) -> jnp.ndarray:
     """Map centered points to standardized centered points (i.e. cov(z) = I)."""

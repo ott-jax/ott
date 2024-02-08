@@ -42,7 +42,7 @@ def safe_log(  # noqa: D103
 ) -> jnp.ndarray:
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
-  return jnp.where(x > 0., jnp.log(x), jnp.log(eps))
+  return jnp.where(x > 0.0, jnp.log(x), jnp.log(eps))
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnums=[1, 2, 3])

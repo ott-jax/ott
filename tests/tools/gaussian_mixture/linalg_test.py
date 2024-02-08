@@ -91,7 +91,7 @@ class TestLinalg:
     for i in range(size):
       for j in range(size):
         if j > i:
-          m = m.at[..., i, j].set(0.)
+          m = m.at[..., i, j].set(0.0)
     m = jnp.array(m)
     flat = linalg.tril_to_flat(m)
 
@@ -121,8 +121,8 @@ class TestLinalg:
     inv_m = jnp.linalg.inv(m)
     msq = jnp.matmul(m, m)
     actual = linalg.matrix_powers(msq, powers=(0.5, -0.5))
-    np.testing.assert_allclose(m, actual[0], rtol=1.e-5)
-    np.testing.assert_allclose(inv_m, actual[1], rtol=1.e-4)
+    np.testing.assert_allclose(m, actual[0], rtol=1e-5)
+    np.testing.assert_allclose(inv_m, actual[1], rtol=1e-4)
 
   def test_invmatvectril(self, rng: jax.Array):
     rng, subrng = jax.random.split(rng)
@@ -135,7 +135,7 @@ class TestLinalg:
     inv_cholesky = jnp.linalg.inv(cholesky)
     expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
     actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)
-    np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1.e-4)
+    np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
   def test_get_random_orthogonal(self, rng: jax.Array):
     rng, subrng = jax.random.split(rng)

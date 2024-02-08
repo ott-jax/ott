@@ -79,8 +79,8 @@ class TestDiscreteBarycenter:
     ma = 0.2
     mb = 0.8
     # define two narrow Gaussian bumps in segment [0,1]
-    a = jnp.exp(-(jnp.arange(0, n) / (n - 1) - ma) ** 2 / .01) + 1e-10
-    b = jnp.exp(-(jnp.arange(0, n) / (n - 1) - mb) ** 2 / .01) + 1e-10
+    a = jnp.exp(-(jnp.arange(0, n) / (n - 1) - ma) ** 2 / 0.01) + 1e-10
+    b = jnp.exp(-(jnp.arange(0, n) / (n - 1) - mb) ** 2 / 0.01) + 1e-10
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
 
@@ -90,7 +90,7 @@ class TestDiscreteBarycenter:
     # choose a different support, half the size, for the barycenter.
     # note this is the reason why we do not use debiasing in this case.
     x_support_bar = jnp.atleast_2d((jnp.arange(0, (n / 2)) /
-                                    (n / 2 - 1) - .5) * .9 + .5).T
+                                    (n / 2 - 1) - 0.5) * 0.9 + 0.5).T
 
     geom = pointcloud.PointCloud(x, x_support_bar, epsilon=epsilon)
     fixed_bp = bp.FixedBarycenterProblem(geom, a=jnp.stack((a, b)))

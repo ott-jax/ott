@@ -284,7 +284,7 @@ class SqEuclidean(TICost):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
-    return -2. * jnp.vdot(x, y)
+    return -2.0 * jnp.vdot(x, y)
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)

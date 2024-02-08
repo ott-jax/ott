@@ -415,7 +415,7 @@ def quantile(
       safe_weight = jnp.concatenate([
           safe_weight,
           jnp.array(
-              [.02]
+              [0.02]
           ),  # reasonable mass per quantile for a small number of points
           jnp.array(
               [1.5 / num_points]

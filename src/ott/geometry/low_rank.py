@@ -261,7 +261,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> "LRCGeometry":
 
     def mask_fn(

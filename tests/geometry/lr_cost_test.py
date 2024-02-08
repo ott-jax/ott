@@ -42,7 +42,9 @@ class TestLRGeometry:
             rtol=1e-4
         )
 
-  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost", "max_bound", 42.])
+  @pytest.mark.parametrize(
+      "scale_cost", ["mean", "max_cost", "max_bound", 42.0]
+  )
   def test_conversion_pointcloud(
       self, rng: jax.Array, scale_cost: Union[str, float]
   ):
@@ -139,19 +141,19 @@ class TestLRGeometry:
     rng1, rng2 = jax.random.split(rng, 2)
 
     geom1 = pointcloud.PointCloud(
-        jax.random.normal(rng1, (n, d)) + 10.,
+        jax.random.normal(rng1, (n, d)) + 10.0,
         epsilon=epsilon,
         scale_cost=scale_cost
     )
     geom2 = pointcloud.PointCloud(
-        jax.random.normal(rng2, (n, d)) + 20.,
+        jax.random.normal(rng2, (n, d)) + 20.0,
         epsilon=epsilon,
         scale_cost=scale_cost
     )
     geom_lr = geom1.to_LRCGeometry(scale=1 - scale) + \
         geom2.to_LRCGeometry(scale=scale)
 
-    expected = (1 - scale) * geom1.cost_matrix + scale * geom2.cost_matrix
+    expected = (1.0 - scale) * geom1.cost_matrix + scale * geom2.cost_matrix
     actual = geom_lr.cost_matrix
 
     np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)

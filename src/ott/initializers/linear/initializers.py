@@ -105,8 +105,8 @@ class SinkhornInitializer(abc.ABC):
     ), f"Expected `g_v` to have shape `{m,}`, found `{b.shape}`."
 
     # cancel dual variables for zero weights
-    a = jnp.where(ot_prob.a > 0., a, -jnp.inf if lse_mode else 0.)
-    b = jnp.where(ot_prob.b > 0., b, -jnp.inf if lse_mode else 0.)
+    a = jnp.where(ot_prob.a > 0.0, a, -jnp.inf if lse_mode else 0.0)
+    b = jnp.where(ot_prob.b > 0.0, b, -jnp.inf if lse_mode else 0.0)
 
     return a, b
 

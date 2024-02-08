@@ -80,13 +80,13 @@ class PointCloud(geometry.Geometry):
   def _norm_x(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self.cost_fn.norm(self.x)
-    return 0.
+    return 0.0
 
   @property
   def _norm_y(self) -> Union[float, jnp.ndarray]:
     if self._axis_norm == 0:
       return self.cost_fn.norm(self.y)
-    return 0.
+    return 0.0
 
   @property
   def can_LRC(self):  # noqa: D102
@@ -583,7 +583,7 @@ class PointCloud(geometry.Geometry):
     x = x / jnp.linalg.norm(x, axis=-1, keepdims=True)
     y = y / jnp.linalg.norm(y, axis=-1, keepdims=True)
     # TODO(michalk8): find a better way
-    aux_data["scale_cost"] = 2. / self.inv_scale_cost
+    aux_data["scale_cost"] = 2.0 / self.inv_scale_cost
     cost_fn = costs.SqEuclidean()
     return type(self).tree_unflatten(aux_data, [x, y] + args + [cost_fn])
 
@@ -658,7 +658,7 @@ class PointCloud(geometry.Geometry):
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> "PointCloud":
 
     def mask_fn(

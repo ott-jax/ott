@@ -30,7 +30,7 @@ def _get_random_spd_matrix(dim: int, rng: jax.Array):
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
   # number is reasonable.
-  eigs = 2. ** (2. * jax.random.uniform(subrng1, shape=(dim,)) - 1.)
+  eigs = 2.0 ** (2.0 * jax.random.uniform(subrng1, shape=(dim,)) - 1.0)
 
   return jnp.matmul(eigs[None, :] * q, jnp.transpose(q))
 
@@ -51,7 +51,7 @@ def _get_test_fn(
   m1 = _get_random_spd_matrix(dim=dim, rng=subrng1)
   dx = _get_random_spd_matrix(dim=dim, rng=subrng2)
   unit = jax.random.normal(subrng3, shape=(dim, dim))
-  unit /= jnp.sqrt(jnp.sum(unit ** 2.))
+  unit /= jnp.sqrt(jnp.sum(unit ** 2))
 
   def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
     # m is the product of 2 symmetric, positive definite matrices
@@ -154,7 +154,7 @@ class TestMatrixSquareRoot:
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[0], b=self.b[0], c=self.c[0]
     )
-    np.testing.assert_allclose(self.x[0], x, atol=1.e-5)
+    np.testing.assert_allclose(self.x[0], x, atol=1e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
@@ -162,15 +162,15 @@ class TestMatrixSquareRoot:
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a, b=self.b, c=self.c
     )
-    np.testing.assert_allclose(self.x, x, atol=1.e-5)
+    np.testing.assert_allclose(self.x, x, atol=1e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None], b=self.b[None], c=self.c[None]
     )
-    np.testing.assert_allclose(self.x, x[0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0], atol=1e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None, None], b=self.b[None, None], c=self.c[None, None]
     )
-    np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0, 0], atol=1e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
@@ -196,6 +196,6 @@ class TestMatrixSquareRoot:
     for _ in range(n_tests):
       rng, subrng = jax.random.split(rng)
       test_fn = _get_test_fn(fn, dim=dim, rng=subrng, threshold=1e-5)
-      expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
-      actual = jax.grad(test_fn)(0.)
+      expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2.0 * epsilon)
+      actual = jax.grad(test_fn)(0.0)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)
