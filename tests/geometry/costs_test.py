@@ -90,7 +90,7 @@ class TestBuresBarycenter:
     s = jnp.array([3.3075, 0.8545, 0.1110])
     Sigma2 = s * jnp.eye(d)
     # initializing Bures cost function
-    weights = jnp.array([.3, .7])
+    weights = jnp.array([0.3, 0.7])
     tolerance = 1e-6
     min_iterations = 2
     inner_iterations = 1

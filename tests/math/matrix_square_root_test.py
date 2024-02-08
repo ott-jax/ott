@@ -23,14 +23,14 @@ from ott.math import matrix_square_root
 def _get_random_spd_matrix(dim: int, rng: jax.Array):
   # Get a random symmetric, positive definite matrix of a specified size.
 
-  rng, subrng0, subrng1 = jax.random.split(rng, num=3)
+  rng, subrng0, subrng1 = jax.random.split(rng, 3)
   # Step 1: generate a random orthogonal matrix
-  m = jax.random.normal(key=subrng0, shape=[dim, dim])
+  m = jax.random.normal(subrng0, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
   # number is reasonable.
-  eigs = 2. ** (2. * jax.random.uniform(key=subrng1, shape=(dim,)) - 1.)
+  eigs = 2.0 ** (2.0 * jax.random.uniform(subrng1, shape=(dim,)) - 1.0)
 
   return jnp.matmul(eigs[None, :] * q, jnp.transpose(q))
 
@@ -50,8 +50,8 @@ def _get_test_fn(
   m0 = _get_random_spd_matrix(dim=dim, rng=subrng0)
   m1 = _get_random_spd_matrix(dim=dim, rng=subrng1)
   dx = _get_random_spd_matrix(dim=dim, rng=subrng2)
-  unit = jax.random.normal(key=subrng3, shape=(dim, dim))
-  unit /= jnp.sqrt(jnp.sum(unit ** 2.))
+  unit = jax.random.normal(subrng3, shape=(dim, dim))
+  unit /= jnp.sqrt(jnp.sum(unit ** 2))
 
   def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
     # m is the product of 2 symmetric, positive definite matrices
@@ -79,9 +79,9 @@ class TestMatrixSquareRoot:
     m = 3
     n = 2
     rng, subrng0, subrng1, subrng2 = jax.random.split(rng, 4)
-    self.a = jax.random.normal(key=subrng0, shape=(2, m, m))
-    self.b = jax.random.normal(key=subrng1, shape=(2, n, n))
-    self.x = jax.random.normal(key=subrng2, shape=(2, m, n))
+    self.a = jax.random.normal(subrng0, shape=(2, m, m))
+    self.b = jax.random.normal(subrng1, shape=(2, n, n))
+    self.x = jax.random.normal(subrng2, shape=(2, m, n))
     # make sure the system has a solution
     self.c = jnp.matmul(self.a, self.x) - jnp.matmul(self.x, self.b)
 
@@ -154,7 +154,7 @@ class TestMatrixSquareRoot:
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[0], b=self.b[0], c=self.c[0]
     )
-    np.testing.assert_allclose(self.x[0], x, atol=1.e-5)
+    np.testing.assert_allclose(self.x[0], x, atol=1e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
@@ -162,15 +162,15 @@ class TestMatrixSquareRoot:
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a, b=self.b, c=self.c
     )
-    np.testing.assert_allclose(self.x, x, atol=1.e-5)
+    np.testing.assert_allclose(self.x, x, atol=1e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None], b=self.b[None], c=self.c[None]
     )
-    np.testing.assert_allclose(self.x, x[0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0], atol=1e-5)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None, None], b=self.b[None, None], c=self.c[None, None]
     )
-    np.testing.assert_allclose(self.x, x[0, 0], atol=1.e-5)
+    np.testing.assert_allclose(self.x, x[0, 0], atol=1e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
@@ -196,6 +196,6 @@ class TestMatrixSquareRoot:
     for _ in range(n_tests):
       rng, subrng = jax.random.split(rng)
       test_fn = _get_test_fn(fn, dim=dim, rng=subrng, threshold=1e-5)
-      expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2. * epsilon)
-      actual = jax.grad(test_fn)(0.)
+      expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2.0 * epsilon)
+      actual = jax.grad(test_fn)(0.0)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)

@@ -51,8 +51,8 @@ class GaussianMixturePair:
       self,
       gmm0: gaussian_mixture.GaussianMixture,
       gmm1: gaussian_mixture.GaussianMixture,
-      epsilon: float = 1.e-2,
-      tau: float = 1.,
+      epsilon: float = 1e-2,
+      tau: float = 1.0,
       lock_gmm1: bool = False,
   ):
     """Constructor.
@@ -104,7 +104,7 @@ class GaussianMixturePair:
 
   @property
   def rho(self):  # noqa: D102
-    return self.epsilon * self.tau / (1. - self.tau)
+    return self.epsilon * self.tau / (1.0 - self.tau)
 
   @property
   def lock_gmm1(self):  # noqa: D102

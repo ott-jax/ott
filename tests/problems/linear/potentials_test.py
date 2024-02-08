@@ -165,7 +165,7 @@ class TestEntropicPotentials:
       div = sdiv(x, z).divergence
 
     div_0 = sdiv(x, y).divergence
-    mult = .1 if p > 1.0 else .25
+    mult = 0.1 if p > 1.0 else 0.25
     # check we have moved points much closer to target
     assert div < mult * div_0
 
@@ -212,7 +212,7 @@ class TestEntropicPotentials:
 
       div_0 = sdiv(x, y).divergence
       # check we have moved points much closer to target
-      assert div < .1 * div_0
+      assert div < 0.1 * div_0
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(self, rng: jax.Array, jit: bool):
@@ -233,7 +233,7 @@ class TestEntropicPotentials:
     dx = grad_dist(x, y)
 
     expected = pots.distance(x + v_x, y) - pots.distance(x - v_x, y)
-    actual = 2. * jnp.vdot(v_x, dx)
+    actual = 2.0 * jnp.vdot(v_x, dx)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("eps", [None, 1e-1, 1e1, 1e2, 1e3])
@@ -241,7 +241,7 @@ class TestEntropicPotentials:
     rng1, rng2, rng3 = jax.random.split(rng, 3)
     n, m, d = 32, 36, 4
     fwd = True
-    mu0, mu1 = -5., 5.
+    mu0, mu1 = -5.0, 5.0
 
     x = jax.random.normal(rng1, (n, d)) + mu0
     y = jax.random.normal(rng2, (m, d)) + mu1

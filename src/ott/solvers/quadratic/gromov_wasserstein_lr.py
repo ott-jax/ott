@@ -497,9 +497,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       g_r = _softm(f2, g2_old, c_r, axis=0)
 
       # Second Projection
-      h = (1. / 3.) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3. * gamma)
-      h += g_r / (3. * gamma)
+      h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
+      h += g_q / (3.0 * gamma)
+      h += g_r / (3.0 * gamma)
       g1 = h + g1_old - g_q / gamma
       g2 = h + g2_old - g_r / gamma
 

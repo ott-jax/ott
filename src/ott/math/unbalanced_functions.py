@@ -75,7 +75,7 @@ def diag_jacobian_of_marginal_fit(
     a vector of the same size as c or h.
   """
   if tau == 1.0:
-    return 0.
+    return 0.0
 
   r = rho(epsilon, tau)
   # here no minus sign because we are taking derivative w.r.t -h
@@ -87,4 +87,4 @@ def diag_jacobian_of_marginal_fit(
 
 
 def rho(epsilon: float, tau: float) -> float:  # noqa: D103
-  return (epsilon * tau) / (1. - tau)
+  return (epsilon * tau) / (1.0 - tau)

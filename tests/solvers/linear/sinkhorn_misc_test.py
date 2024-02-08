@@ -30,8 +30,8 @@ class TestSinkhornAnderson:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .98],
-      tau_b=[1.0, .985],
+      tau_a=[1.0, 0.98],
+      tau_b=[1.0, 0.985],
       only_fast=0,
   )
   def test_anderson(
@@ -49,7 +49,7 @@ class TestSinkhornAnderson:
     dim = 4
     rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
-    y = jax.random.uniform(rngs[1], (m, dim)) / dim + .2
+    y = jax.random.uniform(rngs[1], (m, dim)) / dim + 0.2
     a = jax.random.uniform(rngs[2], (n,))
     b = jax.random.uniform(rngs[3], (m,))
     a = a.at[0].set(0)
@@ -118,8 +118,8 @@ class TestSinkhornBures:
     self.y = jnp.concatenate(
         (m_y.reshape((self.m, -1)), sig_y.reshape((self.m, -1))), axis=1
     )
-    a = jax.random.uniform(self.rngs[4], (self.n,)) + .1
-    b = jax.random.uniform(self.rngs[5], (self.m,)) + .1
+    a = jax.random.uniform(self.rngs[4], (self.n,)) + 0.1
+    b = jax.random.uniform(self.rngs[5], (self.m,)) + 0.1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
@@ -134,7 +134,7 @@ class TestSinkhornBures:
       rng1, rng2 = jax.random.split(rng, 2)
       ws_x = jnp.abs(jax.random.normal(rng1, (self.x.shape[0], 1))) + 1e-1
       ws_y = jnp.abs(jax.random.normal(rng2, (self.y.shape[0], 1))) + 1e-1
-      ws_x = ws_x.at[0].set(0.)
+      ws_x = ws_x.at[0].set(0.0)
       x = jnp.concatenate([ws_x, self.x], axis=1)
       y = jnp.concatenate([ws_y, self.y], axis=1)
       cost_fn = costs.UnbalancedBures(dimension=self.dim, gamma=0.9, sigma=0.98)
@@ -322,8 +322,8 @@ class TestSinkhornJIT:
     self.rngs = rngs
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,)) + .1
-    b = jax.random.uniform(rngs[3], (self.m,)) + .1
+    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
 
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
@@ -383,8 +383,8 @@ class TestSinkhornJIT:
     non_jitted_loss, non_jitted_grad = val_grad(self.a, self.x)
 
     chex.assert_trees_all_close(
-        jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.
+        jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.0
     )
     chex.assert_trees_all_close(
-        jitted_grad, non_jitted_grad, atol=1e-6, rtol=0.
+        jitted_grad, non_jitted_grad, atol=1e-6, rtol=0.0
     )

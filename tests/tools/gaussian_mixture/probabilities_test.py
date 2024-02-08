@@ -22,21 +22,21 @@ from ott.tools.gaussian_mixture import probabilities
 class TestProbabilities:
 
   def test_probs(self):
-    pp = probabilities.Probabilities(jnp.array([1., 2.]))
+    pp = probabilities.Probabilities(jnp.array([1.0, 2.0]))
     probs = pp.probs()
     np.testing.assert_array_equal(probs.shape, (3,))
     np.testing.assert_allclose(jnp.sum(probs), 1.0, rtol=1e-6, atol=1e-6)
-    np.testing.assert_array_equal(probs > 0., True)
+    np.testing.assert_array_equal(probs > 0.0, True)
 
   def test_log_probs(self):
-    pp = probabilities.Probabilities(jnp.array([1., 2.]))
+    pp = probabilities.Probabilities(jnp.array([1.0, 2.0]))
     log_probs = pp.log_probs()
     probs = jnp.exp(log_probs)
 
     np.testing.assert_array_equal(log_probs.shape, (3,))
     np.testing.assert_array_equal(probs.shape, (3,))
     np.testing.assert_allclose(jnp.sum(probs), 1.0, rtol=1e-6, atol=1e-6)
-    np.testing.assert_array_equal(probs > 0., True)
+    np.testing.assert_array_equal(probs > 0.0, True)
 
   def test_from_random(self, rng: jax.Array):
     n_dimensions = 4
@@ -52,11 +52,11 @@ class TestProbabilities:
 
   def test_sample(self, rng: jax.Array):
     p = 0.4
-    probs = jnp.array([p, 1. - p])
+    probs = jnp.array([p, 1.0 - p])
     pp = probabilities.Probabilities.from_probs(probs)
-    samples = pp.sample(rng=rng, size=10000)
-    sd = jnp.sqrt(p * (1. - p))
-    np.testing.assert_allclose(jnp.mean(samples == 0), p, atol=3. * sd)
+    samples = pp.sample(rng, size=10000)
+    sd = jnp.sqrt(p * (1.0 - p))
+    np.testing.assert_allclose(jnp.mean(samples == 0.0), p, atol=3.0 * sd)
 
   def test_flatten_unflatten(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
@@ -71,5 +71,5 @@ class TestProbabilities:
     pp = probabilities.Probabilities.from_probs(probs)
     pp_x_2 = jax.tree_map(lambda x: 2 * x, pp)
     np.testing.assert_allclose(
-        2. * pp.params, pp_x_2.params, rtol=1e-6, atol=1e-6
+        2.0 * pp.params, pp_x_2.params, rtol=1e-6, atol=1e-6
     )

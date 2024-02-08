@@ -24,7 +24,7 @@ class TestGaussianMixturePair:
   def initialize(self, rng: jax.Array):
     self.n_components = 3
     self.n_dimensions = 2
-    self.epsilon = 1.e-3
+    self.epsilon = 1e-3
     self.rho = 0.1
     self.tau = self.rho / (self.rho + self.epsilon)
     self.rng, subrng0, subrng1 = jax.random.split(rng, num=3)
@@ -39,7 +39,7 @@ class TestGaussianMixturePair:
         n_dimensions=self.n_dimensions
     )
     self.balanced_pair = gaussian_mixture_pair.GaussianMixturePair(
-        gmm0=self.gmm0, gmm1=self.gmm1, epsilon=self.epsilon, tau=1.
+        gmm0=self.gmm0, gmm1=self.gmm1, epsilon=self.epsilon, tau=1.0
     )
     self.unbalanced_pair = gaussian_mixture_pair.GaussianMixturePair(
         gmm0=self.gmm0, gmm1=self.gmm1, epsilon=self.epsilon, tau=self.tau
@@ -59,7 +59,7 @@ class TestGaussianMixturePair:
         gmm0=gmm,
         gmm1=gmm,  # use same GMM for both gmm0 and gmm1
         epsilon=self.epsilon,
-        tau=1.
+        tau=1.0
     )
     cost_matrix = pair.get_cost_matrix()
     sinkhorn_output = pair.get_sinkhorn(cost_matrix=cost_matrix)
@@ -70,7 +70,7 @@ class TestGaussianMixturePair:
   @pytest.mark.fast()
   def test_get_sinkhorn_to_shifted_is_almost_shift(self):
     loc_shift = jnp.stack([
-        2. * jnp.ones(self.n_components),
+        2.0 * jnp.ones(self.n_components),
         jnp.zeros(self.n_components)
     ],
                           axis=-1)
@@ -80,7 +80,7 @@ class TestGaussianMixturePair:
         component_weight_ob=self.gmm0.component_weight_ob
     )
     pair = gaussian_mixture_pair.GaussianMixturePair(
-        gmm0=self.gmm0, gmm1=gmm1, epsilon=self.epsilon, tau=1.
+        gmm0=self.gmm0, gmm1=gmm1, epsilon=self.epsilon, tau=1.0
     )
     cost_matrix = pair.get_cost_matrix()
     sinkhorn_output = pair.get_sinkhorn(cost_matrix=cost_matrix)
@@ -95,7 +95,7 @@ class TestGaussianMixturePair:
         gmm0=gmm,
         gmm1=gmm,  # use same GMM for both gmm0 and gmm1
         epsilon=self.epsilon,
-        tau=1.
+        tau=1.0
     )
     cost_matrix = pair.get_cost_matrix()
     sinkhorn_output = pair.get_sinkhorn(cost_matrix=cost_matrix)
@@ -108,7 +108,7 @@ class TestGaussianMixturePair:
 
   def test_get_coupling_to_shifted(self):
     loc_shift = jnp.stack([
-        2. * jnp.ones(self.n_components),
+        2.0 * jnp.ones(self.n_components),
         jnp.zeros(self.n_components)
     ],
                           axis=-1)
@@ -118,7 +118,7 @@ class TestGaussianMixturePair:
         component_weight_ob=self.gmm0.component_weight_ob
     )
     pair = gaussian_mixture_pair.GaussianMixturePair(
-        gmm0=self.gmm0, gmm1=gmm1, epsilon=self.epsilon, tau=1.
+        gmm0=self.gmm0, gmm1=gmm1, epsilon=self.epsilon, tau=1.0
     )
     cost_matrix = pair.get_cost_matrix()
     sinkhorn_output = pair.get_sinkhorn(cost_matrix=cost_matrix)
@@ -166,11 +166,11 @@ class TestGaussianMixturePair:
         tau=tau,
         lock_gmm1=lock_gmm1
     )
-    expected_gmm1_loc = 2. * self.gmm1.loc if not lock_gmm1 else self.gmm1.loc
+    expected_gmm1_loc = 2.0 * self.gmm1.loc if not lock_gmm1 else self.gmm1.loc
 
-    pair_x_2 = jax.tree_map(lambda x: 2 * x, pair)
+    pair_x_2 = jax.tree_map(lambda x: 2.0 * x, pair)
     # gmm parameters should be doubled
-    np.testing.assert_allclose(2. * pair.gmm0.loc, pair_x_2.gmm0.loc)
+    np.testing.assert_allclose(2.0 * pair.gmm0.loc, pair_x_2.gmm0.loc)
     np.testing.assert_allclose(expected_gmm1_loc, pair_x_2.gmm1.loc)
     # epsilon and tau should not
     assert pair.epsilon == pair_x_2.epsilon

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -85,7 +85,6 @@ class GaussianMixture:
       stdev_cov: float = 0.1,
       stdev_weights: float = 0.1,
       ridge: Union[float, jnp.array] = 0,
-      dtype: Optional[jnp.dtype] = None
   ) -> "GaussianMixture":
     """Construct a random GMM."""
     loc = []
@@ -93,19 +92,20 @@ class GaussianMixture:
     for _ in range(n_components):
       rng, subrng = jax.random.split(rng)
       component = gaussian.Gaussian.from_random(
-          rng=subrng,
+          subrng,
           n_dimensions=n_dimensions,
           stdev_mean=stdev_mean,
           stdev_cov=stdev_cov,
           ridge=ridge,
-          dtype=dtype
       )
       loc.append(component.loc)
       scale_params.append(component.scale.params)
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        rng=subrng, n_dimensions=n_components, stdev=stdev_weights, dtype=dtype
+        subrng,
+        n_dimensions=n_components,
+        stdev=stdev_weights,
     )
     return cls(
         loc=loc, scale_params=scale_params, component_weight_ob=weight_ob
@@ -223,9 +223,7 @@ class GaussianMixture:
     """Generate samples from the distribution."""
     subrng0, subrng1 = jax.random.split(rng)
     component = self.component_weight_ob.sample(rng=subrng0, size=size)
-    std_samples = jax.random.normal(
-        key=subrng1, shape=(size, self.n_dimensions)
-    )
+    std_samples = jax.random.normal(subrng1, shape=(size, self.n_dimensions))
 
     def _transform_single_component(k, scale, loc):
 

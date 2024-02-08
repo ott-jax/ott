@@ -121,7 +121,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         transport: jnp.ndarray,
         fn: Optional[quadratic_costs.Loss],
     ) -> jnp.ndarray:
-      geom = self._create_y_geometry(y, mask=b > 0.)
+      geom = self._create_y_geometry(y, mask=b > 0.0)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
       tmp = geom.apply_cost(
@@ -240,8 +240,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       f: Optional[jnp.ndarray] = None
   ) -> quadratic_problem.QuadraticProblem:
     # TODO(michalk8): in future, mask in the problem for convenience?
-    bary_mask = state.a > 0.
-    y_mask = b > 0.
+    bary_mask = state.a > 0.0
+    y_mask = b > 0.0
 
     geom_xx = self._create_bary_geometry(state.cost, mask=bary_mask)
     geom_yy = self._create_y_geometry(y, mask=y_mask)

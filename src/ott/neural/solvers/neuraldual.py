@@ -589,7 +589,7 @@ class W2NeuralDual:
       # compute Wasserstein-2 distance
       C = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
           jnp.mean(jnp.sum(target ** 2, axis=-1))
-      W2_dist = C - 2. * (f_source.mean() + f_star_target.mean())
+      W2_dist = C - 2.0 * (f_source.mean() + f_star_target.mean())
 
       return loss, (dual_loss, amor_loss, W2_dist)
 

@@ -21,7 +21,7 @@ from ott.tools.gaussian_mixture import scale_tril
 
 __all__ = ["Gaussian"]
 
-LOG2PI = math.log(2. * math.pi)
+LOG2PI = math.log(2.0 * math.pi)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -68,7 +68,6 @@ class Gaussian:
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
       ridge: Union[float, jnp.ndarray] = 0,
-      dtype: Optional[jnp.dtype] = None
   ) -> "Gaussian":
     """Construct a random Gaussian.
 
@@ -79,17 +78,14 @@ class Gaussian:
         (means for both are 0)
       stdev_cov: standard deviated of the covariance
       ridge: Offset for means.
-      dtype: data type
 
     Returns:
       A random Gaussian.
     """
     rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    loc = jax.random.normal(
-        key=subrng0, shape=(n_dimensions,), dtype=dtype
-    ) * stdev_mean + ridge
+    loc = jax.random.normal(subrng0, shape=(n_dimensions,)) * stdev_mean + ridge
     scale = scale_tril.ScaleTriL.from_random(
-        rng=subrng1, n_dimensions=n_dimensions, stdev=stdev_cov, dtype=dtype
+        subrng1, n_dimensions=n_dimensions, stdev=stdev_cov
     )
     return cls(loc=loc, scale=scale)
 
@@ -135,12 +131,12 @@ class Gaussian:
     z = self.to_z(x)
     log_det = self.scale.log_det_covariance()
     return (
-        -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2., axis=-1))
+        -0.5 * (d * LOG2PI + log_det[None] + jnp.sum(z ** 2, axis=-1))
     )  # (?, k)
 
   def sample(self, rng: jax.Array, size: int) -> jnp.ndarray:
     """Generate samples from the distribution."""
-    std_samples_t = jax.random.normal(key=rng, shape=(self.n_dimensions, size))
+    std_samples_t = jax.random.normal(rng, shape=(self.n_dimensions, size))
     return self.loc[None] + (
         jnp.swapaxes(
             jnp.matmul(self.scale.cholesky(), std_samples_t),
@@ -163,7 +159,7 @@ class Gaussian:
     Returns:
       The :math:`W_2^2` distance between self and other
     """
-    delta_mean = jnp.sum((self.loc - other.loc) ** 2., axis=-1)
+    delta_mean = jnp.sum((self.loc - other.loc) ** 2, axis=-1)
     delta_sigma = self.scale.w2_dist(other.scale)
     return delta_mean + delta_sigma
 

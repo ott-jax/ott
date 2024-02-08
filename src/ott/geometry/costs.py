@@ -284,7 +284,7 @@ class SqEuclidean(TICost):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
-    return -2. * jnp.vdot(x, y)
+    return -2.0 * jnp.vdot(x, y)
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
@@ -806,7 +806,6 @@ class Bures(CostFn):
     min_iterations = kwargs.pop("min_iterations", 1)
     max_iterations = kwargs.pop("max_iterations", 100)
     inner_iterations = kwargs.pop("inner_iterations", 5)
-    dtype = covs.dtype
 
     @functools.partial(jax.vmap, in_axes=[None, 0, 0])
     def scale_covariances(
@@ -838,10 +837,7 @@ class Bures(CostFn):
 
     def init_state() -> Tuple[jnp.ndarray, float]:
       cov_init = jnp.eye(self._dimension)
-      diffs = -jnp.ones(
-          (np.ceil(max_iterations / inner_iterations).astype(int),),
-          dtype=dtype
-      )
+      diffs = -jnp.ones(math.ceil(max_iterations / inner_iterations))
       return cov_init, diffs
 
     cov, diffs = fixed_point_loop.fixpoint_iter(
@@ -990,7 +986,7 @@ class UnbalancedBures(CostFn):
     diff_means = mean_x - mean_y
 
     # Identity matrix of suitable size
-    iden = jnp.eye(self._dimension, dtype=x.dtype)
+    iden = jnp.eye(self._dimension)
 
     # Creates matrices needed in the computation
     tilde_a = 0.5 * gam * (iden - lam * jnp.linalg.inv(cov_x + lam * iden))

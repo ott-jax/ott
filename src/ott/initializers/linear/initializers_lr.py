@@ -262,7 +262,7 @@ class RandomInitializer(LRInitializer):
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs
-    init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.
+    init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.0
     return init_g / jnp.sum(init_g)
 
 
@@ -300,7 +300,7 @@ class Rank2Initializer(LRInitializer):
     y = (marginal - lambda_1 * x) / (1.0 - lambda_1)
 
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
-            ((1 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
+            ((1.0 - lambda_1) * y[:, None] @ g2.reshape(1, -1)))
 
   def init_q(  # noqa: D102
       self,
@@ -477,7 +477,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   def __init__(
       self,
       rank: int,
-      gamma: float = 10.,
+      gamma: float = 10.0,
       min_iterations: int = 0,
       max_iterations: int = 100,
       inner_iterations: int = 10,
@@ -523,7 +523,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     def init_fn() -> GeneralizedKMeansInitializer.State:
       n = geom.shape[0]
-      factor = jnp.abs(jax.random.normal(rng, (n, self.rank))) + 1.  # (n, r)
+      factor = jnp.abs(jax.random.normal(rng, (n, self.rank))) + 1.0  # (n, r)
       factor *= consts.marginal[:, None] / jnp.sum(
           factor, axis=1, keepdims=True
       )
@@ -586,7 +586,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
       norm = jnp.max(jnp.abs(grad)) ** 2
       gamma = consts.gamma / norm
-      eps = 1. / gamma
+      eps = 1.0 / gamma
 
       cost = grad - eps * mu.safe_log(state.factor)  # (n, r)
       cost = geometry.Geometry(

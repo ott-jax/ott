@@ -108,7 +108,7 @@ class TestSoftSort:
     # Check passing custom sampler, must be still symmetric / centered on {.5}^d
     # Check passing custom epsilon also works.
     def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
-      return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.)
+      return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.0)
 
     num_target_samples = 473
 
@@ -209,7 +209,7 @@ class TestSoftSort:
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantiles(self, rng: jax.Array, jit: bool):
     inputs = jax.random.uniform(rng, (100, 2, 3))
-    q = jnp.array([.1, .8, .4])
+    q = jnp.array([0.1, 0.8, 0.4])
     quantile_fn = soft_sort.quantile
     if jit:
       quantile_fn = jax.jit(quantile_fn, static_argnames="axis")

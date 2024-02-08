@@ -22,7 +22,7 @@ from ott.tools.gaussian_mixture import linalg
 class TestLinalg:
 
   def test_get_mean_and_var(self, rng: jax.Array):
-    points = jax.random.normal(key=rng, shape=(10, 2))
+    points = jax.random.normal(rng, shape=(10, 2))
     weights = jnp.ones(10)
     expected_mean = jnp.mean(points, axis=0)
     expected_var = jnp.var(points, axis=0)
@@ -33,7 +33,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_var, actual_var, atol=1E-5, rtol=1E-5)
 
   def test_get_mean_and_var_nonuniform_weights(self, rng: jax.Array):
-    points = jax.random.normal(key=rng, shape=(10, 2))
+    points = jax.random.normal(rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)
     expected_var = jnp.var(points[:5], axis=0)
@@ -44,7 +44,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_var, actual_var, rtol=1e-6, atol=1e-6)
 
   def test_get_mean_and_cov(self, rng: jax.Array):
-    points = jax.random.normal(key=rng, shape=(10, 2))
+    points = jax.random.normal(rng, shape=(10, 2))
     weights = jnp.ones(10)
     expected_mean = jnp.mean(points, axis=0)
     expected_cov = jnp.cov(points, rowvar=False, bias=True)
@@ -55,7 +55,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected_cov, actual_cov, atol=1e-5, rtol=1e-5)
 
   def test_get_mean_and_cov_nonuniform_weights(self, rng: jax.Array):
-    points = jax.random.normal(key=rng, shape=(10, 2))
+    points = jax.random.normal(rng, shape=(10, 2))
     weights = jnp.concatenate([jnp.ones(5), jnp.zeros(5)], axis=-1)
     expected_mean = jnp.mean(points[:5], axis=0)
     expected_cov = jnp.cov(points[:5], rowvar=False, bias=True)
@@ -67,7 +67,7 @@ class TestLinalg:
 
   def test_flat_to_tril(self, rng: jax.Array):
     size = 3
-    x = jax.random.normal(key=rng, shape=(5, 4, size * (size + 1) // 2))
+    x = jax.random.normal(rng, shape=(5, 4, size * (size + 1) // 2))
     m = linalg.flat_to_tril(x, size)
     # check size of m
     np.testing.assert_array_equal(m.shape, (5, 4, size, size))
@@ -87,11 +87,11 @@ class TestLinalg:
 
   def test_tril_to_flat(self, rng: jax.Array):
     size = 3
-    m = jax.random.normal(key=rng, shape=(5, 4, size, size))
+    m = jax.random.normal(rng, shape=(5, 4, size, size))
     for i in range(size):
       for j in range(size):
         if j > i:
-          m = m.at[..., i, j].set(0.)
+          m = m.at[..., i, j].set(0.0)
     m = jnp.array(m)
     flat = linalg.tril_to_flat(m)
 
@@ -104,7 +104,7 @@ class TestLinalg:
 
   def test_apply_to_diag(self, rng: jax.Array):
     size = 3
-    m = jax.random.normal(key=rng, shape=(5, 4, size, size))
+    m = jax.random.normal(rng, shape=(5, 4, size, size))
     mnew = linalg.apply_to_diag(m, jnp.exp)
     for i in range(size):
       for j in range(size):
@@ -115,27 +115,27 @@ class TestLinalg:
 
   def test_matrix_powers(self, rng: jax.Array):
     rng, subrng = jax.random.split(rng)
-    m = jax.random.normal(key=subrng, shape=(4, 4))
+    m = jax.random.normal(subrng, shape=(4, 4))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
     m = jnp.matmul(m, m)  # symmetric, pos def
     inv_m = jnp.linalg.inv(m)
     msq = jnp.matmul(m, m)
     actual = linalg.matrix_powers(msq, powers=(0.5, -0.5))
-    np.testing.assert_allclose(m, actual[0], rtol=1.e-5)
-    np.testing.assert_allclose(inv_m, actual[1], rtol=1.e-4)
+    np.testing.assert_allclose(m, actual[0], rtol=1e-5)
+    np.testing.assert_allclose(inv_m, actual[1], rtol=1e-4)
 
   def test_invmatvectril(self, rng: jax.Array):
     rng, subrng = jax.random.split(rng)
-    m = jax.random.normal(key=subrng, shape=(2, 2))
+    m = jax.random.normal(subrng, shape=(2, 2))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
     m = jnp.matmul(m, m)  # symmetric, pos def
     cholesky = jnp.linalg.cholesky(m)  # lower triangular
     rng, subrng = jax.random.split(rng)
-    x = jax.random.normal(key=subrng, shape=(10, 2))
+    x = jax.random.normal(subrng, shape=(10, 2))
     inv_cholesky = jnp.linalg.inv(cholesky)
     expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
     actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)
-    np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1.e-4)
+    np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
   def test_get_random_orthogonal(self, rng: jax.Array):
     rng, subrng = jax.random.split(rng)

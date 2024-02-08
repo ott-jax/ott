@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+import math
 from typing import Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from ott.math import fixed_point_loop
 
@@ -87,7 +87,7 @@ def sqrtm(
     y = 1.5 * y - jnp.matmul(y, w)
     z = 1.5 * z - jnp.matmul(w, z)
 
-    err = jnp.where(compute_error, new_err(x, norm_x, y), np.inf)
+    err = jnp.where(compute_error, new_err(x, norm_x, y), jnp.inf)
 
     errors = errors.at[iteration // inner_iterations].set(err)
 
@@ -98,13 +98,11 @@ def sqrtm(
     norm_fn = functools.partial(jnp.linalg.norm, axis=(-2, -1))
     return jnp.max(norm_fn(res) / norm_fn(x))
 
-  dtype = x.dtype
   y = x / norm_x
-  z = jnp.eye(dimension, dtype=dtype)
+  z = jnp.eye(dimension)
   if jnp.ndim(x) > 2:
     z = jnp.tile(z, list(x.shape[:-2]) + [1, 1])
-  errors = -jnp.ones((np.ceil(max_iterations / inner_iterations).astype(int),),
-                     dtype=dtype)
+  errors = -jnp.ones(math.ceil(max_iterations / inner_iterations))
   state = (errors, y, z)
   const = (x, threshold)
   errors, y, z = fixed_point_loop.fixpoint_iter_backprop(
@@ -139,7 +137,7 @@ def solve_sylvester_bartels_stewart(
   )
   # The solution in the transformed space will in general be complex, too.
   y = jnp.zeros(a.shape[:-2] + (m, n)) + 0j
-  idx = jnp.arange(m, dtype=jnp.int32)
+  idx = jnp.arange(m)
   for j in range(n):
     lhs = r.at[..., idx, idx].add(-s[..., j:j + 1, j])
     rhs = d[..., j] + jnp.matmul(y[..., :j], s[..., :j, j:j + 1])[..., 0]

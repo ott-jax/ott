@@ -111,7 +111,7 @@ class TestBarycenter:
     # (this is because sampled points were equally set in either [0,1]^4
     # or [2,3]^4)
     assert jnp.all(out.x.ravel() < 2.3)
-    assert jnp.all(out.x.ravel() > .7)
+    assert jnp.all(out.x.ravel() > 0.7)
 
   @pytest.mark.parametrize("segment_before", [False, True])
   def test_barycenter_jit(self, rng: jax.Array, segment_before: bool):
@@ -164,7 +164,7 @@ class TestBarycenter:
     # (this is because sampled points were equally set in either [0,1]^4
     # or [2,3]^4)
     assert jnp.all(out.x.ravel() < 2.3)
-    assert jnp.all(out.x.ravel() > .7)
+    assert jnp.all(out.x.ravel() > 0.7)
 
   @pytest.mark.fast()
   def test_bures_barycenter(
@@ -181,8 +181,8 @@ class TestBarycenter:
     barycentric_weights = jnp.asarray([0.5, 0.5])
     bures_cost = costs.Bures(dimension=dimension)
 
-    means1 = jnp.array([[-1., 1.], [-1., -1.]])
-    means2 = jnp.array([[1., 1.], [1., -1.]])
+    means1 = jnp.array([[-1.0, 1.0], [-1.0, -1.0]])
+    means2 = jnp.array([[1.0, 1.0], [1.0, -1.0]])
     sigma = 0.01
     covs1 = sigma * jnp.asarray([
         jnp.eye(dimension) for _ in range(num_components)
@@ -238,18 +238,24 @@ class TestBarycenter:
 
     try:
       np.testing.assert_allclose(
-          means_bary, jnp.array([[0., 1.], [0., -1.]]), rtol=1e-02, atol=1e-02
+          means_bary,
+          jnp.array([[0.0, 1.0], [0.0, -1.0]]),
+          rtol=1e-2,
+          atol=1e-2
       )
     except AssertionError:
       np.testing.assert_allclose(
-          means_bary, jnp.array([[0., -1.], [0., 1.]]), rtol=1e-02, atol=1e-02
+          means_bary,
+          jnp.array([[0.0, -1.0], [0.0, 1.0]]),
+          rtol=1e-2,
+          atol=1e-2
       )
 
     np.testing.assert_allclose(
         covs_bary,
         jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
-        rtol=1e-05,
-        atol=1e-05
+        rtol=1e-5,
+        atol=1e-5
     )
 
   @pytest.mark.fast()
@@ -257,7 +263,7 @@ class TestBarycenter:
       self,
       rng: jax.Array,
   ):
-    alpha = 5.
+    alpha = 5.0
     epsilon = 0.01
     dim = 3
     jit = True
@@ -280,7 +286,7 @@ class TestBarycenter:
     ridges = jnp.array([jnp.ones(dim), 5 * jnp.ones(dim)])
     stdev_means = 0.1 * jnp.mean(ridges, axis=1)
     stdev_covs = jax.random.uniform(
-        rngs[1], shape=(num_measures,), minval=0., maxval=10.
+        rngs[1], shape=(num_measures,), minval=0.0, maxval=10.0
     )
 
     seeds = jax.random.randint(

@@ -127,7 +127,7 @@ def _k_means_plus_plus(
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
-    dists = geom.subset(ix, None).cost_matrix[0]
+    dists = geom.subset([ix], None).cost_matrix[0]
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
@@ -181,7 +181,7 @@ def _reallocate_centroids(
     centroid: jnp.ndarray,
     weight: jnp.ndarray,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  is_empty = weight <= 0.
+  is_empty = weight <= 0.0
   new_centroid = (1 - is_empty) * centroid + is_empty * const.x[ix]  # (ndim,)
   centroid_to_remove = is_empty * const.weighted_x[ix]  # (ndim,)
   weight_to_remove = is_empty * const.weights[ix]  # (1,)
@@ -219,7 +219,7 @@ def _update_centroids(
   centroids -= to_remove[:, :-1]
   ws -= to_remove[:, -1:]
 
-  return centroids * jnp.where(ws > 0., 1. / ws, 1.)
+  return centroids * jnp.where(ws > 0.0, 1.0 / ws, 1.0)
 
 
 @functools.partial(jax.vmap, in_axes=[0] + [None] * 9)
@@ -266,9 +266,9 @@ def _k_means(
     #   KeyError: dtype([('float0', 'V')])
     # E   The stack trace below excludes JAX-internal frames.
     # E   The preceding is the original exception that occurred, unmodified.
-    prev_assignment = jnp.full((n,), -2.)
-    assignment = jnp.full((n,), -1.)
-    errors = jnp.full((max_iterations,), -1.)
+    prev_assignment = jnp.full((n,), -2.0)
+    assignment = jnp.full((n,), -1.0)
+    errors = jnp.full((max_iterations,), -1.0)
 
     return KMeansState(
         centroids=centroids,

@@ -29,8 +29,9 @@ class TestFitGmmPair:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
-    mean_generator0 = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
-    cov_generator0 = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
+    mean_generator0 = jnp.array([[2.0, -1.0], [-2.0, 0.0], [4.0, 3.0]])
+    cov_generator0 = jnp.array([[[0.2, 0.0], [0.0, 0.1]],
+                                [[0.6, 0.0], [0.0, 0.3]],
                                 [[0.5, 0.4], [0.4, 0.5]]])
     weights_generator0 = jnp.array([0.3, 0.3, 0.4])
 
@@ -43,10 +44,10 @@ class TestFitGmmPair:
     )
 
     # shift the means to the right by varying amounts
-    mean_generator1 = mean_generator0 + jnp.array([[1., -0.5], [-1., -1.],
-                                                   [-1., 0.]])
+    mean_generator1 = mean_generator0 + jnp.array([[1.0, -0.5], [-1.0, -1.0],
+                                                   [-1.0, 0.0]])
     cov_generator1 = cov_generator0
-    weights_generator1 = weights_generator0 + jnp.array([0., 0.1, -0.1])
+    weights_generator1 = weights_generator0 + jnp.array([0.0, 0.1, -0.1])
 
     gmm_generator1 = (
         gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
@@ -56,7 +57,7 @@ class TestFitGmmPair:
         )
     )
 
-    self.epsilon = 1.e-2
+    self.epsilon = 1e-2
     self.rho = 0.1
     self.tau = self.rho / (self.rho + self.epsilon)
 

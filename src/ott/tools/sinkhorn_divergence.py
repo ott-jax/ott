@@ -193,6 +193,7 @@ def _sinkhorn_divergence(
     # Create dummy output, corresponds to scenario where static_b is True.
     # This choice ensures that `converged`` of this dummy output is True.
     out_yy = sinkhorn.SinkhornOutput(
+        (None, None),
         errors=jnp.array([-jnp.inf]),
         reg_ot_cost=0.0,
         threshold=0.0,
@@ -318,8 +319,8 @@ def segment_sinkhorn_divergence(
       padded_weight_x: jnp.ndarray,
       padded_weight_y: jnp.ndarray,
   ) -> float:
-    mask_x = padded_weight_x > 0.
-    mask_y = padded_weight_y > 0.
+    mask_x = padded_weight_x > 0.0
+    mask_y = padded_weight_y > 0.0
     return sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,

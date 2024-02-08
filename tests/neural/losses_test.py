@@ -96,7 +96,7 @@ class TestMongeGap:
     # generate data
     rng1, rng2 = jax.random.split(rng, 2)
     source = jax.random.normal(rng1, (n_samples, n_features))
-    target = jax.random.normal(rng2, (n_samples, n_features)) * .1 + 3.
+    target = jax.random.normal(rng2, (n_samples, n_features)) * 0.1 + 3.0
 
     # compute the Monge gaps for the euclidean cost
     monge_gap_from_samples_value_eucl = losses.monge_gap_from_samples(
