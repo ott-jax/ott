@@ -42,10 +42,10 @@ class TestPointCloudApply:
     geom = geometry.Geometry(cost)
     prod0_geom = geom.apply_cost(vec0, axis=0)
     prod1_geom = geom.apply_cost(vec1, axis=1)
-    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-3, atol=1e-2)
 
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.Euclidean(), batch_size=4)
     prod0_online = geom.apply_cost(vec0, axis=0)
@@ -55,8 +55,8 @@ class TestPointCloudApply:
     )
     prod0 = geom.apply_cost(vec0, axis=0)
     prod1 = geom.apply_cost(vec1, axis=1)
-    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-3, atol=1e-2)
 
     geom = pointcloud.PointCloud(x, y, batch_size=5)
     prod0_online = geom.apply_kernel(vec0, axis=0)
@@ -64,8 +64,8 @@ class TestPointCloudApply:
     geom = pointcloud.PointCloud(x, y, batch_size=None)
     prod0 = geom.apply_kernel(vec0, axis=0)
     prod1 = geom.apply_kernel(vec1, axis=1)
-    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(prod0_online, prod0, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod1_online, prod1, rtol=1e-3, atol=1e-2)
 
   def test_general_cost_fn(self, rng: jax.Array):
     """Test non-vec cost apply to vec."""
@@ -85,8 +85,8 @@ class TestPointCloudApply:
     prod0_geom = geom.apply_cost(vec0, axis=0)
     prod1_geom = geom.apply_cost(vec1, axis=1)
 
-    np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-03, atol=1e-02)
-    np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-03, atol=1e-02)
+    np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-3, atol=1e-2)
+    np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-3, atol=1e-2)
 
   def test_correct_shape(self):
     n, m, d = 11, 12, 17

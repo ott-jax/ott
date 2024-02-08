@@ -99,9 +99,10 @@ class TestSinkhornImplicit:
     reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-02,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-2,
+        atol=1e-2,
     )
     # note how we removed gradients below. This is because gradients are only
     # determined up to additive constant here (the primal variable is in the
@@ -109,8 +110,8 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(
         grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
         grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
-        rtol=1e-02,
-        atol=1e-02
+        rtol=1e-2,
+        atol=1e-2,
     )
 
     # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
@@ -119,12 +120,13 @@ class TestSinkhornImplicit:
     reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-02,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-2,
+        atol=1e-2,
     )
     np.testing.assert_allclose(
-        grad_loss_imp[1], grad_loss_auto[1], rtol=1e-02, atol=1e-02
+        grad_loss_imp[1], grad_loss_auto[1], rtol=1e-2, atol=1e-2
     )
 
 
@@ -171,9 +173,10 @@ class TestSinkhornJacobian:
 
     assert not jnp.any(jnp.isnan(delta_dot_grad))
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
   @pytest.mark.parametrize(("lse_mode", "shape_data"), [(True, (7, 9)),
@@ -215,14 +218,14 @@ class TestSinkhornJacobian:
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(cost_matrix + eps * delta)
     loss_delta_minus, _ = loss_fn(cost_matrix - eps * delta)
-    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
+    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2.0 * eps)
 
-    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-2, atol=1e-2)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        other_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
@@ -305,14 +308,14 @@ class TestSinkhornJacobian:
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(x + eps * delta, y)
     loss_delta_minus, _ = loss_fn(x - eps * delta, y)
-    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
+    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2.0 * eps)
 
-    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-2, atol=1e-2)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        other_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
@@ -578,9 +581,10 @@ class TestSinkhornGradGrid:
         ])
     )
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -619,9 +623,10 @@ class TestSinkhornGradGrid:
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
     delta_dot_grad = jnp.sum(delta * grad_reg_ot)
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
 

@@ -240,22 +240,22 @@ class TestBarycenter:
       np.testing.assert_allclose(
           means_bary,
           jnp.array([[0.0, 1.0], [0.0, -1.0]]),
-          rtol=1e-02,
-          atol=1e-02
+          rtol=1e-2,
+          atol=1e-2
       )
     except AssertionError:
       np.testing.assert_allclose(
           means_bary,
           jnp.array([[0.0, -1.0], [0.0, 1.0]]),
-          rtol=1e-02,
-          atol=1e-02
+          rtol=1e-2,
+          atol=1e-2
       )
 
     np.testing.assert_allclose(
         covs_bary,
         jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
-        rtol=1e-05,
-        atol=1e-05
+        rtol=1e-5,
+        atol=1e-5
     )
 
   @pytest.mark.fast()
