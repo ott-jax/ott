@@ -740,9 +740,9 @@ class Geometry:
       if arr is None:
         return None
       if src_ixs is not None:
-        arr = arr[jnp.atleast_1d(src_ixs)]
+        arr = arr[src_ixs, ...]
       if tgt_ixs is not None:
-        arr = arr[:, jnp.atleast_1d(tgt_ixs)]
+        arr = arr[:, tgt_ixs]
       return arr  # noqa: RET504
 
     return self._mask_subset_helper(
@@ -877,12 +877,11 @@ class Geometry:
     return arr / jnp.sum(arr)
 
   @staticmethod
-  def _normalize_mask(mask: Optional[Union[int, jnp.ndarray]],
+  def _normalize_mask(mask: Optional[jnp.ndarray],
                       size: int) -> Optional[jnp.ndarray]:
     """Convert array of indices to a boolean mask."""
     if mask is None:
       return None
-    mask = jnp.atleast_1d(mask)
     if not jnp.issubdtype(mask, (bool, jnp.bool_)):
       mask = jnp.isin(jnp.arange(size), mask)
     assert mask.shape == (size,)

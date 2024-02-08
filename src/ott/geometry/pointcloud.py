@@ -648,7 +648,7 @@ class PointCloud(geometry.Geometry):
         arr: Optional[jnp.ndarray],
         ixs: Optional[jnp.ndarray],
     ) -> jnp.ndarray:
-      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
+      return arr if arr is None or ixs is None else arr[ixs, ...]
 
     return self._mask_subset_helper(
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
