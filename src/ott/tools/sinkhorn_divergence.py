@@ -193,6 +193,7 @@ def _sinkhorn_divergence(
     # Create dummy output, corresponds to scenario where static_b is True.
     # This choice ensures that `converged`` of this dummy output is True.
     out_yy = sinkhorn.SinkhornOutput(
+        (None, None),
         errors=jnp.array([-jnp.inf]),
         reg_ot_cost=0.0,
         threshold=0.0,

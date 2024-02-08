@@ -106,7 +106,7 @@ class AndersonAcceleration:
     fu = jnp.where(
         trigger_update, fu if lse_mode else geom.scaling_from_potential(fu), fu
     )
-    return state.set(fu=fu, old_fus=old_fus)
+    return state.set(potentials=(fu, state.gv), old_fus=old_fus)
 
   def init_maps(
       self, pb, state: "sinkhorn.SinkhornState"

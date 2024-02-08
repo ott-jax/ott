@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Literal,
@@ -40,10 +39,7 @@ from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 
-if TYPE_CHECKING:
-  from ott.solvers.linear.sinkhorn_lr import LRSinkhornOutput
-
-__all__ = ["Sinkhorn", "SinkhornOutput", "solve"]
+__all__ = ["Sinkhorn", "SinkhornOutput"]
 
 ProgressCallbackFn_t = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
@@ -52,9 +48,8 @@ ProgressCallbackFn_t = Callable[
 class SinkhornState(NamedTuple):
   """Holds the state variables used to solve OT with Sinkhorn."""
 
+  potentials: Tuple[jnp.ndarray, ...]
   errors: Optional[jnp.ndarray] = None
-  fu: Optional[jnp.ndarray] = None
-  gv: Optional[jnp.ndarray] = None
   old_fus: Optional[jnp.ndarray] = None
   old_mapped_fus: Optional[jnp.ndarray] = None
 
@@ -129,6 +124,16 @@ class SinkhornState(NamedTuple):
         mu.logsumexp(-g / rho_b, b=ot_prob.b)
     )
     return f + shift, g - shift
+
+  @property
+  def fu(self) -> jnp.ndarray:
+    """The first dual potential or scaling."""
+    return self.potentials[0]
+
+  @property
+  def gv(self) -> jnp.ndarray:
+    """The second dual potential or scaling."""
+    return self.potentials[1]
 
 
 def solution_error(
@@ -320,8 +325,7 @@ class SinkhornOutput(NamedTuple):
       computations of errors.
   """
 
-  f: Optional[jnp.ndarray] = None
-  g: Optional[jnp.ndarray] = None
+  potentials: Tuple[jnp.ndarray, ...]
   errors: Optional[jnp.ndarray] = None
   reg_ot_cost: Optional[float] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
@@ -488,6 +492,16 @@ class SinkhornOutput(NamedTuple):
   def to_dual_potentials(self) -> potentials.EntropicPotentials:
     """Return the entropic map estimator."""
     return potentials.EntropicPotentials(self.f, self.g, self.ot_prob)
+
+  @property
+  def f(self) -> jnp.ndarray:
+    """The first dual potential."""
+    return self.potentials[0]
+
+  @property
+  def g(self) -> jnp.ndarray:
+    """The second dual potential."""
+    return self.potentials[1]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -917,7 +931,7 @@ class Sinkhorn:
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
     fu = self.momentum(w, old_fu, new_fu, self.lse_mode)
 
-    return state.set(fu=fu, gv=gv)
+    return state.set(potentials=(fu, gv))
 
   def kernel_step(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
@@ -937,7 +951,7 @@ class Sinkhorn:
         axis=1
     ) ** ot_prob.tau_a
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
-    return state.set(fu=fu, gv=gv)
+    return state.set(potentials=(fu, gv))
 
   def one_iteration(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
@@ -1029,10 +1043,8 @@ class Sinkhorn:
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
-    fu, gv = init
-    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
-                       dtype=fu.dtype)
-    state = SinkhornState(errors=errors, fu=fu, gv=gv)
+    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
+    state = SinkhornState(init, errors=errors)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
   def output_from_state(
@@ -1086,14 +1098,11 @@ class Sinkhorn:
         < self.threshold
     )[0]
 
-    return SinkhornOutput(
-        f=f,
-        g=g,
-        errors=state.errors[:, 0],
-        threshold=jnp.array(self.threshold),
-        converged=converged,
-        inner_iterations=self.inner_iterations
-    )
+    return SinkhornOutput((f, g),
+                          errors=state.errors[:, 0],
+                          threshold=jnp.array(self.threshold),
+                          converged=converged,
+                          inner_iterations=self.inner_iterations)
 
   @property
   def norm_error(self) -> Tuple[int, ...]:
@@ -1192,7 +1201,7 @@ def _iterations_taped(
   return state, (state.f, state.g, ot_prob, solver)
 
 
-def _iterations_implicit_bwd(res, gr):
+def _iterations_implicit_bwd(res, gr: SinkhornOutput):
   """Run Sinkhorn in backward mode, using implicit differentiation.
 
   Args:
@@ -1207,30 +1216,13 @@ def _iterations_implicit_bwd(res, gr):
     a tuple of gradients: PyTree for geom, one jnp.ndarray for each of a and b.
   """
   f, g, ot_prob, solver = res
-  gr = gr[:2]
-  return (
-      *solver.implicit_diff.gradient(ot_prob, f, g, solver.lse_mode, gr), None,
-      None
+  out = solver.implicit_diff.gradient(
+      ot_prob, f, g, solver.lse_mode, gr.potentials
   )
+  return *out, None, None
 
 
 # sets threshold, norm_errors, geom, a and b to be differentiable, as those are
 # non-static. Only differentiability w.r.t. geom, a and b will be used.
 _iterations_implicit = jax.custom_vjp(iterations)
 _iterations_implicit.defvjp(_iterations_taped, _iterations_implicit_bwd)
-
-
-@utils.deprecate(alt="Please use `ott.solvers.linear.solve()` instead.")
-def solve(*args: Any,
-          **kwargs: Any) -> Union[SinkhornOutput, "LRSinkhornOutput"]:
-  """Solve linear regularized OT problem using Sinkhorn iterations.
-
-  Args:
-    args: Position arguments for :func:`ott.solvers.linear.solve`.
-    kwargs: Keyword arguments for :func:`ott.solvers.linear.solve`.
-
-  Returns:
-    The Sinkhorn output.
-  """
-  from ott.solvers.linear import solve
-  return solve(*args, **kwargs)
