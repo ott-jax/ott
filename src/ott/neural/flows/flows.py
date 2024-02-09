@@ -14,6 +14,7 @@
 import abc
 
 import jax.numpy as jnp
+import jax
 
 __all__ = [
     "BaseFlow",
@@ -75,7 +76,7 @@ class BaseFlow(abc.ABC):
     """
 
   def compute_xt(
-      self, noise: jnp.ndarray, t: jnp.ndarray, src: jnp.ndarray,
+      self, rng: jax.Array, t: jnp.ndarray, src: jnp.ndarray,
       tgt: jnp.ndarray
   ) -> jnp.ndarray:
     """Sample from the probability path.
@@ -84,7 +85,7 @@ class BaseFlow(abc.ABC):
     time :math:`t`.
 
     Args:
-      noise: Noise sampled from a standard normal distribution.
+      rng: Random number generator.
       t: Time :math:`t`.
       src: Sample from the source distribution.
       tgt: Sample from the target distribution.
@@ -93,6 +94,7 @@ class BaseFlow(abc.ABC):
       Samples from the probability path between :math:`x_0` and :math:`x_1`
       at time :math:`t`.
     """
+    noise = jax.random.normal(rng, shape=(src.shape))
     mu_t = self.compute_mu_t(t, src, tgt)
     sigma_t = self.compute_sigma_t(t)
     return mu_t + sigma_t * noise

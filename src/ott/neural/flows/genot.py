@@ -217,7 +217,6 @@ class GENOT(
       ) if batch["source_lin"] is not None else len(batch["source_quad"])
       n_samples = batch_size * self.k_samples_per_x
       batch["time"] = self.time_sampler(rng_time, n_samples)
-      batch["noise"] = self.sample_noise(rng_noise, n_samples)
       batch["latent"] = self.latent_noise_fn(
           rng_noise, shape=(self.k_samples_per_x, batch_size)
       )
@@ -309,7 +308,7 @@ class GENOT(
           rng: jax.random.PRNGKeyArray
       ):
         x_t = self.flow.compute_xt(
-            batch["noise"], batch["time"], batch["latent"], batch["target"]
+            rng, batch["time"], batch["latent"], batch["target"]
         )
         apply_fn = functools.partial(
             state_velocity_field.apply_fn, {"params": params}
@@ -322,16 +321,14 @@ class GENOT(
         ],
                                      axis=1)
         v_t = jax.vmap(apply_fn
-                      )(t=batch["time"], x=x_t, condition=cond_input, rng=rng)
+                      )(t=batch["time"], x=x_t, condition=cond_input)
         u_t = self.flow.compute_ut(
             batch["time"], batch["latent"], batch["target"]
         )
         return jnp.mean((v_t - u_t) ** 2)
 
-      keys_model = jax.random.split(rng, len(batch["noise"]))
-
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-      loss, grads = grad_fn(state_velocity_field.params, batch, keys_model)
+      loss, grads = grad_fn(state_velocity_field.params, batch, rng)
 
       return state_velocity_field.apply_gradients(grads=grads), loss
 
@@ -435,17 +432,3 @@ class GENOT(
   def training_logs(self) -> Dict[str, Any]:
     """Logs of the training."""
     raise NotImplementedError
-
-  def sample_noise(
-      self, key: jax.random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:
-    """Sample noise from a standard-normal distribution.
-
-    Args:
-      key: Random key for seeding.
-      batch_size: Number of samples to draw.
-
-    Returns:
-      Samples from the standard normal distribution.
-    """
-    return jax.random.normal(key, shape=(batch_size, self.output_dim))

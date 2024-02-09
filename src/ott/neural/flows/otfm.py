@@ -33,6 +33,7 @@ from ott.solvers import was_solver
 __all__ = ["OTFlowMatching"]
 
 
+
 class OTFlowMatching(
     base_solver.ResampleMixin,
 ):
@@ -145,30 +146,29 @@ class OTFlowMatching(
     ) -> Tuple[Any, Any]:
 
       def loss_fn(
-          params: jnp.ndarray, t: jnp.ndarray, noise: jnp.ndarray,
-          batch: Dict[str, jnp.ndarray], rng: jax.random.PRNGKeyArray
+          params: jnp.ndarray, t: jnp.ndarray,
+          batch: Dict[str, jnp.ndarray], rng: jax.Array
       ) -> jnp.ndarray:
 
         x_t = self.flow.compute_xt(
-            noise, t, batch["source_lin"], batch["target_lin"]
+            rng, t, batch["source_lin"], batch["target_lin"]
         )
         apply_fn = functools.partial(
             state_velocity_field.apply_fn, {"params": params}
         )
         v_t = jax.vmap(apply_fn)(
-            t=t, x=x_t, condition=batch["source_conditions"], rng=rng
+            t=t, x=x_t, condition=batch["source_conditions"]
         )
         u_t = self.flow.compute_ut(t, batch["source_lin"], batch["target_lin"])
         return jnp.mean((v_t - u_t) ** 2)
 
       batch_size = len(batch["source_lin"])
-      key_noise, key_t, key_model = jax.random.split(rng, 3)
+      key_t, key_model = jax.random.split(rng, 2)
       keys_model = jax.random.split(key_model, batch_size)
       t = self.time_sampler(key_t, batch_size)
-      noise = self.sample_noise(key_noise, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
       loss, grads = grad_fn(
-          state_velocity_field.params, t, noise, batch, keys_model
+          state_velocity_field.params, t, batch, keys_model
       )
       return state_velocity_field.apply_gradients(grads=grads), loss
 
@@ -312,16 +312,3 @@ class OTFlowMatching(
     """Logs of the training."""
     raise NotImplementedError
 
-  def sample_noise(
-      self, key: jax.random.PRNGKey, batch_size: int
-  ) -> jnp.ndarray:
-    """Sample noise from a standard-normal distribution.
-
-    Args:
-      key: Random key for seeding.
-      batch_size: Number of samples to draw.
-
-    Returns:
-      Samples from the standard normal distribution.
-    """
-    return jax.random.normal(key, shape=(batch_size, self.input_dim))

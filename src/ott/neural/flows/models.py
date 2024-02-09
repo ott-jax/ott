@@ -95,7 +95,6 @@ class VelocityField(nn.Module):
       t: jnp.ndarray,
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
-      rng: Optional[jnp.ndarray] = None,
   ) -> jnp.ndarray:
     """Forward pass through the neural vector field.
 
@@ -103,7 +102,6 @@ class VelocityField(nn.Module):
       t: Time of shape (batch_size, 1).
       x: Data of shape (batch_size, output_dim).
       condition: Conditioning vector.
-      rng: Random number generator.
 
     Returns:
       Output of the neural vector field.
