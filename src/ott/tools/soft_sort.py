@@ -457,7 +457,7 @@ def quantile(
 
 def multivariate_cdf_quantile_maps(
     inputs: jnp.ndarray,
-    target_sampler: Optional[Callable[[jnp.ndarray, Tuple[int, int]],
+    target_sampler: Optional[Callable[[jax.Array, Tuple[int, int]],
                                       jax.Array]] = None,
     rng: Optional[jax.Array] = None,
     num_target_samples: Optional[int] = None,

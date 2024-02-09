@@ -26,10 +26,12 @@ def uniform_sampler(
     high: float = 1.0,
     offset: Optional[float] = None
 ) -> jnp.ndarray:
-  """Sample from a uniform distribution.
+  r"""Sample from a uniform distribution.
 
-  Sample :math:`t` from a uniform distribution :math:`[low, high]` with
-    offset `offset`.
+  Sample :math:`t` from a uniform distribution :math:`[low, high]`.
+  If `offset` is not :obj:`None`, one element :math:`t` is sampled from 
+  :math:`[low, high]` and the K samples are constructed via
+  :math:`(t + k)/K \mod (high - low - offset) + low`.
 
   Args:
     rng: Random number generator.
@@ -44,7 +46,6 @@ def uniform_sampler(
   """
   if offset is None:
     return jax.random.uniform(rng, (num_samples, 1), minval=low, maxval=high)
-  return (
-      jax.random.uniform(rng, (1, 1), minval=low, maxval=high) +
-      jnp.arange(num_samples)[:, None] / num_samples
-  ) % ((high - low) - offset)
+  t = jax.random.uniform(rng, (1, 1), minval=low, maxval=high)
+  mod_term = ((high - low) - offset)
+  return (t + jnp.arange(num_samples)[:, None] / num_samples) % mod_term
