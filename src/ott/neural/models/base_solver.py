@@ -42,7 +42,7 @@ class BaseNeuralSolver(abc.ABC):
     self.valid_freq = valid_freq
 
   @abc.abstractmethod
-  def setup(self, *args: Any, **kwargs: Any) -> None:
+  def setup(self, *args: Any, **kwargs: Any):
     """Setup the model."""
 
   @abc.abstractmethod
@@ -90,7 +90,7 @@ class ResampleMixin:
 
   def _sample_conditional_indices_from_tmap(
       self,
-      rng: jax.Array,
+      key: jax.random.PRNGKeyArray,
       tmat: jnp.ndarray,
       k_samples_per_x: Union[int, jnp.ndarray],
       source_arrays: Tuple[jnp.ndarray, ...],
@@ -101,19 +101,22 @@ class ResampleMixin:
     batch_size = tmat.shape[0]
     left_marginals = tmat.sum(axis=1)
     if not source_is_balanced:
-      rng, key2 = jax.random.split(rng, 2)
+      key, key2 = jax.random.split(key, 2)
       indices = jax.random.choice(
           key=key2,
           a=jnp.arange(len(left_marginals)),
           p=left_marginals,
           shape=(len(left_marginals),)
       )
-      tmat_adapted = tmat[indices]
     else:
-      tmat_adapted = tmat
+      indices = jnp.arange(batch_size)
+    tmat_adapted = tmat[indices]
     indices_per_row = jax.vmap(
-        lambda row: jax.random.choice(
-            key=rng, a=jnp.arange(batch_size), p=row, shape=(k_samples_per_x,)
+        lambda tmat_adapted: jax.random.choice(
+            key=key,
+            a=jnp.arange(batch_size),
+            p=tmat_adapted,
+            shape=(k_samples_per_x,)
         ),
         in_axes=0,
         out_axes=0,
@@ -121,7 +124,7 @@ class ResampleMixin:
         tmat_adapted
     )
 
-    indices_source = jnp.repeat(indices_per_row, k_samples_per_x)
+    indices_source = jnp.repeat(indices, k_samples_per_x)
     indices_target = jnp.reshape(
         indices_per_row % tmat.shape[1], (batch_size * k_samples_per_x,)
     )
@@ -130,8 +133,8 @@ class ResampleMixin:
                                         -1)) if b is not None else None
         for b in source_arrays
     ), tuple(
-        jnp.reshape(b[indices_target], (k_samples_per_x, batch_size,
-                                        -1)) if b is not None else None
+        jnp.reshape(b[indices_target, :], (k_samples_per_x, batch_size,
+                                           -1)) if b is not None else None
         for b in target_arrays
     )
 
@@ -256,6 +259,7 @@ class UnbalancednessMixin:
                                      jnp.ndarray]] = None,
       rescaling_b: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
                                      jnp.ndarray]] = None,
+      seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
@@ -271,6 +275,7 @@ class UnbalancednessMixin:
     self.tau_b = tau_b
     self.rescaling_a = rescaling_a
     self.rescaling_b = rescaling_b
+    self.seed = seed
     self.opt_eta = opt_eta
     self.opt_xi = opt_xi
     self.resample_epsilon = resample_epsilon
@@ -281,7 +286,7 @@ class UnbalancednessMixin:
         tau_b=tau_b,
         resample_epsilon=resample_epsilon,
         scale_cost=scale_cost,
-        sinkorn_kwargs=kwargs
+        **kwargs
     )
     self._setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
 
@@ -292,7 +297,7 @@ class UnbalancednessMixin:
       resample_epsilon: float,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
-      **kwargs: Dict[str, Any],
+      **kwargs: Mapping[str, Any],
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the unbalanced source and target marginals for a batch."""
 
