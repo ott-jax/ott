@@ -17,6 +17,7 @@ from typing import Iterator, Literal, Optional, Union
 import pytest
 
 import jax.numpy as jnp
+from jax import random
 
 import optax
 
@@ -24,7 +25,8 @@ from ott.geometry import costs
 from ott.neural.flows.genot import GENOT
 from ott.neural.flows.models import VelocityField
 from ott.neural.flows.samplers import uniform_sampler
-from ott.neural.models.models import RescalingMLP
+from ott.neural.models import base_solver
+from ott.neural.models.nets import RescalingMLP
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
@@ -32,7 +34,7 @@ from ott.solvers.quadratic import gromov_wasserstein
 class TestGENOT:
 
   @pytest.mark.parametrize("scale_cost", ["mean", 2.0])
-  @pytest.mark.parametrize("k_samples_per_x", [1, 2])
+  @pytest.mark.parametrize("k_samples_per_x", [1, 3])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
   def test_genot_linear_unconditional(
       self, genot_data_loader_linear: Iterator,
@@ -50,16 +52,15 @@ class TestGENOT:
     target_dim = target_lin.shape[1]
     condition_dim = 0
 
-    print("source dim is ", source_dim)
-    print("target dim is ", target_dim)
-    print("condition dim is ", condition_dim)
-
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
@@ -75,6 +76,7 @@ class TestGENOT:
         scale_cost=scale_cost,
         optimizer=optimizer,
         time_sampler=time_sampler,
+        unbalancedness_handler=unbalancedness_handler,
         k_samples_per_x=k_samples_per_x,
         solver_latent_to_data=solver_latent_to_data,
     )
@@ -110,6 +112,11 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
+
     time_sampler = functools.partial(uniform_sampler, offset=1e-2)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
@@ -122,6 +129,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         epsilon=None,
         cost_fn=costs.SqEuclidean(),
+        unbalancedness_handler=unbalancedness_handler,
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
@@ -156,6 +164,10 @@ class TestGENOT:
         latent_embed_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
+
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -168,6 +180,7 @@ class TestGENOT:
         ot_solver=ot_solver,
         cost_fn=costs.SqEuclidean(),
         scale_cost=1.0,
+        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         fused_penalty=0.5,
         k_samples_per_x=k_samples_per_x,
@@ -203,6 +216,10 @@ class TestGENOT:
     )
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = uniform_sampler
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
+
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -215,6 +232,7 @@ class TestGENOT:
         epsilon=0.1,
         cost_fn=costs.SqEuclidean(),
         scale_cost=1.0,
+        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -250,6 +268,10 @@ class TestGENOT:
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
     time_sampler = uniform_sampler
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
+
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOT(
         neural_vf,
@@ -262,6 +284,7 @@ class TestGENOT:
         epsilon=None,
         cost_fn=costs.SqEuclidean(),
         scale_cost=1.0,
+        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -298,9 +321,10 @@ class TestGENOT:
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    print("source dim is ", source_dim)
-    print("target dim is ", target_dim)
-    print("condition dim is ", condition_dim)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), source_dim, target_dim, condition_dim
+    )
+
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,
@@ -312,6 +336,7 @@ class TestGENOT:
         epsilon=None,
         cost_fn=costs.SqEuclidean(),
         scale_cost=1.0,
+        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -357,10 +382,23 @@ class TestGENOT:
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
+
     tau_a = 0.9
     tau_b = 0.2
     rescaling_a = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     rescaling_b = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0),
+        source_dim,
+        target_dim,
+        condition_dim,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b
+    )
+
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,
@@ -374,18 +412,19 @@ class TestGENOT:
         scale_cost=1.0,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b,
+        unbalancedness_handler=unbalancedness_handler,
     )
 
     genot(data_loader, data_loader)
 
-    result_eta = genot.evaluate_eta(source_lin, condition=source_condition)
+    result_eta = genot.unbalancedness_handler.evaluate_eta(
+        source_lin, condition=source_condition
+    )
     assert isinstance(result_eta, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
-    result_xi = genot.evaluate_xi(target_lin, condition=source_condition)
+    result_xi = genot.unbalancedness_handler.evaluate_xi(
+        target_lin, condition=source_condition
+    )
     assert isinstance(result_xi, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_xi)) == 0

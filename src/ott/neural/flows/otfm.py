@@ -34,8 +34,7 @@ __all__ = ["OTFlowMatching"]
 
 
 class OTFlowMatching(
-    base_solver.UnbalancednessMixin, base_solver.ResampleMixin,
-    base_solver.BaseNeuralSolver
+    base_solver.ResampleMixin,
 ):
   """(Optimal transport) flow matching class.
 
@@ -61,17 +60,6 @@ class OTFlowMatching(
     cost_fn: Cost function for the OT problem solved by the `ot_solver`.
     scale_cost: How to scale the cost matrix for the OT problem solved by the
       `ot_solver`.
-    tau_a: If :math:`<1`, defines how much unbalanced the problem is
-      on the first marginal.
-    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-      on the second marginal.
-    rescaling_a: Neural network to learn the left rescaling function as
-      suggested in :cite:`eyring:23`. If :obj:`None`, the left rescaling factor
-      is not learnt.
-    rescaling_b: Neural network to learn the right rescaling function as
-      suggested in :cite:`eyring:23`. If :obj:`None`, the right rescaling factor
-      is not learnt.
-    unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
     rng: Random number generator.
@@ -89,17 +77,13 @@ class OTFlowMatching(
       flow: Type[flows.BaseFlow],
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
+      unbalancedness_handler: base_solver.UnbalancednessHandler,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Optional[Type[costs.CostFn]] = None,
       scale_cost: Union[bool, int, float,
                         Literal["mean", "max_norm", "max_bound", "max_cost",
                                 "median"]] = "mean",
-      tau_a: float = 1.0,
-      tau_b: float = 1.0,
-      rescaling_a: Callable[[jnp.ndarray], float] = None,
-      rescaling_b: Callable[[jnp.ndarray], float] = None,
-      unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       logging_freq: int = 100,
@@ -108,24 +92,10 @@ class OTFlowMatching(
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
-    rng, rng_unbalanced = jax.random.split(rng)
-    base_solver.BaseNeuralSolver.__init__(
-        self, iterations=iterations, valid_freq=valid_freq
-    )
     base_solver.ResampleMixin.__init__(self)
-    base_solver.UnbalancednessMixin.__init__(
-        self,
-        rng=rng_unbalanced,
-        source_dim=input_dim,
-        target_dim=input_dim,
-        cond_dim=cond_dim,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b,
-        unbalanced_kwargs=unbalanced_kwargs,
-    )
-
+    self.unbalancedness_handler = unbalancedness_handler
+    self.iterations = iterations
+    self.valid_freq = valid_freq
     self.velocity_field = velocity_field
     self.input_dim = input_dim
     self.ot_solver = ot_solver
@@ -159,8 +129,8 @@ class OTFlowMatching(
           epsilon=self.epsilon,
           cost_fn=self.cost_fn,
           scale_cost=self.scale_cost,
-          tau_a=self.tau_a,
-          tau_b=self.tau_b,
+          tau_a=self.unbalancedness_handler.tau_a,
+          tau_b=self.unbalancedness_handler.tau_b,
       )
     else:
       self.match_fn = None
@@ -235,26 +205,20 @@ class OTFlowMatching(
         curr_loss = 0.0
       if self.learn_rescaling:
         (
-            self.state_eta, self.state_xi, eta_predictions, xi_predictions,
-            loss_a, loss_b
-        ) = self.unbalancedness_step_fn(
+            self.unbalancedness_handler.state_eta,
+            self.unbalancedness_handler.state_xi, eta_predictions,
+            xi_predictions, loss_a, loss_b
+        ) = self.unbalancedness_handler.step_fn(
             source=batch["source_lin"],
             target=batch["target_lin"],
             condition=batch["source_conditions"],
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
-            state_eta=self.state_eta,
-            state_xi=self.state_xi,
+            state_eta=self.unbalancedness_handler.state_eta,
+            state_xi=self.unbalancedness_handler.state_xi,
         )
       if iter % self.valid_freq == 0:
         self._valid_step(valid_loader, iter)
-        if self.checkpoint_manager is not None:
-          states_to_save = {"state_velocity_field": self.state_velocity_field}
-          if self.state_eta is not None:
-            states_to_save["state_eta"] = self.state_eta
-          if self.state_xi is not None:
-            states_to_save["state_xi"] = self.state_xi
-          self.checkpoint_manager.save(iter, states_to_save)
 
   def transport(
       self,
@@ -319,7 +283,10 @@ class OTFlowMatching(
   @property
   def learn_rescaling(self) -> bool:
     """Whether to learn at least one rescaling factor."""
-    return self.rescaling_a is not None or self.rescaling_b is not None
+    return (
+        self.unbalancedness_handler.rescaling_a is not None or
+        self.unbalancedness_handler.rescaling_b is not None
+    )
 
   def save(self, path: str):
     """Save the model.

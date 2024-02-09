@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
-import pathlib
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
@@ -24,47 +22,114 @@ from flax.training import train_state
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
+from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
+from ott.solvers.quadratic import gromov_wasserstein
 
-__all__ = ["BaseNeuralSolver", "ResampleMixin", "UnbalancednessMixin"]
+__all__ = ["ResampleMixin", "UnbalancednessHandler"]
 
 
-class BaseNeuralSolver(abc.ABC):
-  """Base class for neural solvers.
+def _get_sinkhorn_match_fn(
+    ot_solver: Any,
+    epsilon: float = 1e-2,
+    cost_fn: Optional[costs.CostFn] = None,
+    scale_cost: Union[bool, int, float, Literal["mean", "max_norm", "max_bound",
+                                                "max_cost", "median"]] = "mean",
+    tau_a: float = 1.0,
+    tau_b: float = 1.0,
+    *,
+    filter_input: bool = False,
+) -> Callable:
 
-  Args:
-    iterations: Number of iterations to train for.
-    valid_freq: Frequency at which to run validation.
-  """
+  @jax.jit
+  def match_pairs(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    geom = pointcloud.PointCloud(
+        x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
+    )
+    return ot_solver(
+        linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
+    )
 
-  def __init__(self, iterations: int, valid_freq: int, **_: Any):
-    self.iterations = iterations
-    self.valid_freq = valid_freq
+  @jax.jit
+  def match_pairs_filtered(
+      x_lin: jnp.ndarray, x_quad: jnp.ndarray, y_lin: jnp.ndarray,
+      y_quad: jnp.ndarray
+  ) -> jnp.ndarray:
+    geom = pointcloud.PointCloud(
+        x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
+    )
+    return ot_solver(
+        linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
+    )
 
-  @abc.abstractmethod
-  def setup(self, *args: Any, **kwargs: Any):
-    """Setup the model."""
+  return match_pairs_filtered if filter_input else match_pairs
 
-  @abc.abstractmethod
-  def __call__(self, *args: Any, **kwargs: Any):
-    """Train the model."""
 
-  @abc.abstractmethod
-  def transport(self, *args: Any, forward: bool, **kwargs: Any) -> Any:
-    """Transport."""
+def _get_gromov_match_fn(
+    ot_solver: Any,
+    cost_fn: Union[Any, Mapping[str, Any]],
+    scale_cost: Union[Union[bool, int, float,
+                            Literal["mean", "max_norm", "max_bound", "max_cost",
+                                    "median"]],
+                      Dict[str, Union[bool, int, float,
+                                      Literal["mean", "max_norm", "max_bound",
+                                              "max_cost", "median"]]]],
+    tau_a: float,
+    tau_b: float,
+    fused_penalty: float,
+) -> Callable:
+  if isinstance(cost_fn, Mapping):
+    assert "cost_fn_xx" in cost_fn
+    assert "cost_fn_yy" in cost_fn
+    cost_fn_xx = cost_fn["cost_fn_xx"]
+    cost_fn_yy = cost_fn["cost_fn_yy"]
+    if fused_penalty > 0:
+      assert "cost_fn_xy" in cost_fn_xx
+      cost_fn_xy = cost_fn["cost_fn_xy"]
+  else:
+    cost_fn_xx = cost_fn_yy = cost_fn_xy = cost_fn
 
-  @abc.abstractmethod
-  def save(self, path: pathlib.Path):
-    """Save the model."""
+  if isinstance(scale_cost, Mapping):
+    assert "scale_cost_xx" in scale_cost
+    assert "scale_cost_yy" in scale_cost
+    scale_cost_xx = scale_cost["scale_cost_xx"]
+    scale_cost_yy = scale_cost["scale_cost_yy"]
+    if fused_penalty > 0:
+      assert "scale_cost_xy" in scale_cost
+      scale_cost_xy = cost_fn["scale_cost_xy"]
+  else:
+    scale_cost_xx = scale_cost_yy = scale_cost_xy = scale_cost
 
-  @abc.abstractmethod
-  def load(self, path: pathlib.Path):
-    """Load the model."""
+  @jax.jit
+  def match_pairs(
+      x_lin: Optional[jnp.ndarray],
+      x_quad: Tuple[jnp.ndarray, jnp.ndarray],
+      y_lin: Optional[jnp.ndarray],
+      y_quad: Tuple[jnp.ndarray, jnp.ndarray],
+  ) -> jnp.ndarray:
+    geom_xx = pointcloud.PointCloud(
+        x=x_quad, y=x_quad, cost_fn=cost_fn_xx, scale_cost=scale_cost_xx
+    )
+    geom_yy = pointcloud.PointCloud(
+        x=y_quad, y=y_quad, cost_fn=cost_fn_yy, scale_cost=scale_cost_yy
+    )
+    if fused_penalty > 0:
+      geom_xy = pointcloud.PointCloud(
+          x=x_lin, y=y_lin, cost_fn=cost_fn_xy, scale_cost=scale_cost_xy
+      )
+    else:
+      geom_xy = None
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx,
+        geom_yy,
+        geom_xy,
+        fused_penalty=fused_penalty,
+        tau_a=tau_a,
+        tau_b=tau_b
+    )
+    return ot_solver(prob)
 
-  @property
-  @abc.abstractmethod
-  def training_logs(self) -> Dict[str, Any]:
-    """Return the training logs."""
+  return match_pairs
 
 
 class ResampleMixin:
@@ -83,14 +148,14 @@ class ResampleMixin:
     indices_source = indices // tmat.shape[1]
     indices_target = indices % tmat.shape[1]
     return tuple(
-        b[indices_source, :] if b is not None else None for b in source_arrays
+        b[indices_source] if b is not None else None for b in source_arrays
     ), tuple(
-        b[indices_target, :] if b is not None else None for b in target_arrays
+        b[indices_target] if b is not None else None for b in target_arrays
     )
 
   def _sample_conditional_indices_from_tmap(
       self,
-      key: jax.random.PRNGKeyArray,
+      rng: jax.Array,
       tmat: jnp.ndarray,
       k_samples_per_x: Union[int, jnp.ndarray],
       source_arrays: Tuple[jnp.ndarray, ...],
@@ -101,9 +166,9 @@ class ResampleMixin:
     batch_size = tmat.shape[0]
     left_marginals = tmat.sum(axis=1)
     if not source_is_balanced:
-      key, key2 = jax.random.split(key, 2)
+      rng, rng_2 = jax.random.split(rng, 2)
       indices = jax.random.choice(
-          key=key2,
+          key=rng_2,
           a=jnp.arange(len(left_marginals)),
           p=left_marginals,
           shape=(len(left_marginals),)
@@ -112,11 +177,8 @@ class ResampleMixin:
       indices = jnp.arange(batch_size)
     tmat_adapted = tmat[indices]
     indices_per_row = jax.vmap(
-        lambda tmat_adapted: jax.random.choice(
-            key=key,
-            a=jnp.arange(batch_size),
-            p=tmat_adapted,
-            shape=(k_samples_per_x,)
+        lambda row: jax.random.choice(
+            key=rng, a=jnp.arange(batch_size), p=row, shape=(k_samples_per_x,)
         ),
         in_axes=0,
         out_axes=0,
@@ -133,119 +195,60 @@ class ResampleMixin:
                                         -1)) if b is not None else None
         for b in source_arrays
     ), tuple(
-        jnp.reshape(b[indices_target, :], (k_samples_per_x, batch_size,
-                                           -1)) if b is not None else None
+        jnp.reshape(b[indices_target], (k_samples_per_x, batch_size,
+                                        -1)) if b is not None else None
         for b in target_arrays
     )
 
-  def _get_sinkhorn_match_fn(
-      self,
-      ot_solver: Any,
-      epsilon: float = 1e-2,
-      cost_fn: Optional[costs.CostFn] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = "mean",
-      tau_a: float = 1.0,
-      tau_b: float = 1.0,
-      *,
-      filter_input: bool = False,
-  ) -> Callable:
+  def _get_sinkhorn_match_fn(self, *args, **kwargs) -> jnp.ndarray:
+    fn = _get_sinkhorn_match_fn(*args, **kwargs)
 
     @jax.jit
-    def match_pairs(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-      geom = pointcloud.PointCloud(
-          x, y, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
-      )
-      return ot_solver(
-          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
-      ).matrix
+    def match_pairs(*args, **kwargs):
+      return fn(*args, **kwargs).matrix
+
+    return match_pairs
+
+  def _get_gromov_match_fn(self, *args, **kwargs) -> jnp.ndarray:
+    fn = _get_gromov_match_fn(*args, **kwargs)
 
     @jax.jit
-    def match_pairs_filtered(
-        x_lin: jnp.ndarray, x_quad: jnp.ndarray, y_lin: jnp.ndarray,
-        y_quad: jnp.ndarray
-    ) -> jnp.ndarray:
-      geom = pointcloud.PointCloud(
-          x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
-      )
-      return ot_solver(
-          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
-      ).matrix
-
-    return match_pairs_filtered if filter_input else match_pairs
-
-  def _get_gromov_match_fn(
-      self,
-      ot_solver: Any,
-      cost_fn: Union[Any, Mapping[str, Any]],
-      scale_cost: Union[Union[bool, int, float,
-                              Literal["mean", "max_norm", "max_bound",
-                                      "max_cost", "median"]],
-                        Dict[str, Union[bool, int, float,
-                                        Literal["mean", "max_norm", "max_bound",
-                                                "max_cost", "median"]]]],
-      tau_a: float,
-      tau_b: float,
-      fused_penalty: float,
-  ) -> Callable:
-    if isinstance(cost_fn, Mapping):
-      assert "cost_fn_xx" in cost_fn
-      assert "cost_fn_yy" in cost_fn
-      cost_fn_xx = cost_fn["cost_fn_xx"]
-      cost_fn_yy = cost_fn["cost_fn_yy"]
-      if fused_penalty > 0:
-        assert "cost_fn_xy" in cost_fn_xx
-        cost_fn_xy = cost_fn["cost_fn_xy"]
-    else:
-      cost_fn_xx = cost_fn_yy = cost_fn_xy = cost_fn
-
-    if isinstance(scale_cost, Mapping):
-      assert "scale_cost_xx" in scale_cost
-      assert "scale_cost_yy" in scale_cost
-      scale_cost_xx = scale_cost["scale_cost_xx"]
-      scale_cost_yy = scale_cost["scale_cost_yy"]
-      if fused_penalty > 0:
-        assert "scale_cost_xy" in scale_cost
-        scale_cost_xy = cost_fn["scale_cost_xy"]
-    else:
-      scale_cost_xx = scale_cost_yy = scale_cost_xy = scale_cost
-
-    @jax.jit
-    def match_pairs(
-        x_lin: Optional[jnp.ndarray],
-        x_quad: Tuple[jnp.ndarray, jnp.ndarray],
-        y_lin: Optional[jnp.ndarray],
-        y_quad: Tuple[jnp.ndarray, jnp.ndarray],
-    ) -> jnp.ndarray:
-      geom_xx = pointcloud.PointCloud(
-          x=x_quad, y=x_quad, cost_fn=cost_fn_xx, scale_cost=scale_cost_xx
-      )
-      geom_yy = pointcloud.PointCloud(
-          x=y_quad, y=y_quad, cost_fn=cost_fn_yy, scale_cost=scale_cost_yy
-      )
-      if fused_penalty > 0:
-        geom_xy = pointcloud.PointCloud(
-            x=x_lin, y=y_lin, cost_fn=cost_fn_xy, scale_cost=scale_cost_xy
-        )
-      else:
-        geom_xy = None
-      prob = quadratic_problem.QuadraticProblem(
-          geom_xx,
-          geom_yy,
-          geom_xy,
-          fused_penalty=fused_penalty,
-          tau_a=tau_a,
-          tau_b=tau_b
-      )
-      out = ot_solver(prob)
-      return out.matrix
+    def match_pairs(*args, **kwargs):
+      return fn(*args, **kwargs).matrix
 
     return match_pairs
 
 
-class UnbalancednessMixin:
-  """Mixin class to incorporate unbalancedness into neural OT models."""
+class UnbalancednessHandler:
+  """Class to incorporate unbalancedness into neural OT models.
+
+  This class implements the concepts introduced in :cite:`eyring:23`
+  in the Monge Map scenario and :cite:`klein:23` for the entropic OT case
+  for linear and quadratic cases.
+
+  Args:
+    rng: Random number generator.
+    source_dim: Dimension of the source domain.
+    target_dim: Dimension of the target domain.
+    cond_dim: Dimension of the conditioning variable.
+    If :obj:`None`, no conditioning is used.
+    tau_a: Unbalancedness parameter for the source distribution.
+    tau_b: Unbalancedness parameter for the target distribution.
+    rescaling_a: Rescaling function for the source distribution.
+    If :obj:`None`, the left rescaling factor is not learnt.
+    rescaling_b: Rescaling function for the target distribution.
+    If :obj:`None`, the right rescaling factor is not learnt.
+    opt_eta: Optimizer for the left rescaling function.
+    opt_xi: Optimzier for the right rescaling function.
+    resample_epsilon: Epsilon for resampling.
+    scale_cost: Scaling of the cost matrix for estimating the rescaling factors.
+    ot_solver: Solver to compute unbalanced marginals. If `ot_solver` is `None`,
+    the method
+    :meth:`ott.neural.models.base_solver.UnbalancednessHandler.compute_unbalanced_marginals`
+    is not available, and hence the unbalanced marginals must be computed by the neural solver.
+    kwargs: Additional keyword arguments.
+
+  """
 
   def __init__(
       self,
@@ -259,12 +262,12 @@ class UnbalancednessMixin:
                                      jnp.ndarray]] = None,
       rescaling_b: Optional[Callable[[jnp.ndarray, Optional[jnp.ndarray]],
                                      jnp.ndarray]] = None,
-      seed: Optional[int] = None,
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
       scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
                                                   "median"]] = "mean",
+      ot_solver: Optional[was_solver.WassersteinSolver] = None,
       **kwargs: Mapping[str, Any],
   ):
     self.rng_unbalanced = rng
@@ -275,48 +278,51 @@ class UnbalancednessMixin:
     self.tau_b = tau_b
     self.rescaling_a = rescaling_a
     self.rescaling_b = rescaling_b
-    self.seed = seed
     self.opt_eta = opt_eta
     self.opt_xi = opt_xi
     self.resample_epsilon = resample_epsilon
     self.scale_cost = scale_cost
+    self.ot_solver = ot_solver
 
-    self._compute_unbalanced_marginals = self._get_compute_unbalanced_marginals(
-        tau_a=tau_a,
-        tau_b=tau_b,
-        resample_epsilon=resample_epsilon,
-        scale_cost=scale_cost,
-        **kwargs
-    )
-    self._setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
+    if isinstance(ot_solver, sinkhorn.Sinkhorn):
+      self.compute_unbalanced_marginals = (
+          self._get_compute_unbalanced_marginals_lin(
+              tau_a=tau_a,
+              tau_b=tau_b,
+              resample_epsilon=resample_epsilon,
+              scale_cost=scale_cost,
+              **kwargs
+          )
+      )
+    elif isinstance(ot_solver, gromov_wasserstein.GromovWasserstein):
+      self.compute_unbalanced_marginals = self._get_compute_unbalanced_marginals_quad
+    self.setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
 
-  def _get_compute_unbalanced_marginals(
-      self,
-      tau_a: float,
-      tau_b: float,
-      resample_epsilon: float,
-      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
-                                                  "median"]] = "mean",
-      **kwargs: Mapping[str, Any],
+  def _get_compute_unbalanced_marginals_lin(
+      self, *args: Any, **kwargs: Mapping[str, Any]
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the unbalanced source and target marginals for a batch."""
+    fn = _get_sinkhorn_match_fn(*args, **kwargs)
 
     @jax.jit
-    def compute_unbalanced_marginals(
-        batch_source: jnp.ndarray, batch_target: jnp.ndarray
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-      geom = pointcloud.PointCloud(
-          batch_source,
-          batch_target,
-          epsilon=resample_epsilon,
-          scale_cost=scale_cost
-      )
-      out = sinkhorn.Sinkhorn(**kwargs)(
-          linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
-      )
-      return out.marginal(axis=1), out.marginal(axis=0)
+    def compute_unbalanced_marginals_lin(*args, **kwargs):
+      out = fn(*args, **kwargs)
+      return out.marginals(axis=1), out.marginals(axis=0)
 
-    return compute_unbalanced_marginals
+    return compute_unbalanced_marginals_lin
+
+  def _get_compute_unbalanced_marginals_quad(
+      self, *args: Any, **kwargs: Mapping[str, Any]
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Compute the unbalanced source and target marginals for a batch."""
+    fn = _get_sinkhorn_match_fn(*args, **kwargs)
+
+    @jax.jit
+    def compute_unbalanced_marginals_quad(*args, **kwargs):
+      out = fn(*args, **kwargs)
+      return out.marginals(axis=1), out.marginals(axis=0)
+
+    return compute_unbalanced_marginals_quad
 
   @jax.jit
   def _resample_unbalanced(
@@ -331,11 +337,19 @@ class UnbalancednessMixin:
     )
     return tuple(b[indices] if b is not None else None for b in batch)
 
-  def _setup(self, source_dim: int, target_dim: int, cond_dim: int):
+  def setup(self, source_dim: int, target_dim: int, cond_dim: int):
+    """Setup the model.
+
+    Args:
+      source_dim: Dimension of the source domain.
+      target_dim: Dimension of the target domain.
+      cond_dim: Dimension of the conditioning variable.
+      If :obj:`None`, no conditioning is used.
+    """
     self.rng_unbalanced, rng_eta, rng_xi = jax.random.split(
         self.rng_unbalanced, 3
     )
-    self.unbalancedness_step_fn = self._get_rescaling_step_fn()
+    self.step_fn = self._get_rescaling_step_fn()
     if self.rescaling_a is not None:
       self.opt_eta = (
           self.opt_eta if self.opt_eta is not None else

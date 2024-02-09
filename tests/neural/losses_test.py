@@ -19,7 +19,7 @@ import numpy as np
 
 from ott.geometry import costs
 from ott.neural.gaps import monge_gap
-from ott.neural.models import models
+from ott.neural.models import nets
 
 
 @pytest.mark.fast()
@@ -35,7 +35,7 @@ class TestMongeGap:
     rng1, rng2 = jax.random.split(rng, 2)
     reference_points = jax.random.normal(rng1, (n_samples, n_features))
 
-    model = models.MLP(dim_hidden=[8, 8], is_potential=False)
+    model = nets.MLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=reference_points[0])
     target = model.apply(params, reference_points)
 

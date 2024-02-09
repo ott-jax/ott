@@ -21,7 +21,6 @@ import jax.numpy as jnp
 import diffrax
 import optax
 from flax.training import train_state
-from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
@@ -35,8 +34,7 @@ __all__ = ["GENOT"]
 
 
 class GENOT(
-    base_solver.UnbalancednessMixin, base_solver.ResampleMixin,
-    base_solver.BaseNeuralSolver
+    base_solver.ResampleMixin,
 ):
   """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
 
@@ -68,7 +66,7 @@ class GENOT(
     optimizer: Optimizer for `velocity_field`.
     flow: Flow between latent distribution and target distribution.
     time_sampler: Sampler for the time.
-    checkpoint_manager: Checkpoint manager.
+    unbalancedness_handler: Handler for unbalancedness.
     k_samples_per_x: Number of samples drawn from the conditional distribution
       of an input sample, see algorithm TODO.
     solver_latent_to_data: Linear OT solver to match the latent distribution
@@ -77,15 +75,6 @@ class GENOT(
       #TODO: adapt
     fused_penalty: Fused penalty of the linear/fused term in the Fused
       Gromov-Wasserstein problem.
-    tau_a: If :math:`<1`, defines how much unbalanced the problem is
-      on the first marginal.
-    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-      on the second marginal.
-    rescaling_a: Neural network to learn the left rescaling function. If
-      :obj:`None`, the left rescaling factor is not learnt.
-    rescaling_b: Neural network to learn the right rescaling function. If
-      :obj:`None`, the right rescaling factor is not learnt.
-    unbalanced_kwargs: Keyword arguments for the unbalancedness solver.
     callback_fn: Callback function.
     rng: Random number generator.
   """
@@ -109,43 +98,23 @@ class GENOT(
                         Dict[str, Union[bool, int, float,
                                         Literal["mean", "max_norm", "max_bound",
                                                 "max_cost", "median"]]]],
+      unbalancedness_handler: base_solver.UnbalancednessHandler,
       optimizer: optax.GradientTransformation,
       flow: Type[flows.BaseFlow] = flows.ConstantNoiseFlow(0.0),  # noqa: B008
       time_sampler: Callable[[jax.Array, int],
                              jnp.ndarray] = samplers.uniform_sampler,
-      checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       k_samples_per_x: int = 1,
       solver_latent_to_data: Optional[Type[was_solver.WassersteinSolver]
                                      ] = None,
       kwargs_solver_latent_to_data: Dict[str, Any] = types.MappingProxyType({}),
       fused_penalty: float = 0.0,
-      tau_a: float = 1.0,
-      tau_b: float = 1.0,
-      rescaling_a: Callable[[jnp.ndarray], float] = None,
-      rescaling_b: Callable[[jnp.ndarray], float] = None,
-      unbalanced_kwargs: Dict[str, Any] = types.MappingProxyType({}),
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                      Any]] = None,
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
-    rng, rng_unbalanced = jax.random.split(rng)
-    base_solver.BaseNeuralSolver.__init__(
-        self, iterations=iterations, valid_freq=valid_freq
-    )
     base_solver.ResampleMixin.__init__(self)
-    base_solver.UnbalancednessMixin.__init__(
-        self,
-        rng=rng_unbalanced,
-        source_dim=input_dim,
-        target_dim=input_dim,
-        cond_dim=cond_dim,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b,
-        unbalanced_kwargs=unbalanced_kwargs,
-    )
+
     if isinstance(
         ot_solver, gromov_wasserstein.GromovWasserstein
     ) and epsilon is not None:
@@ -156,12 +125,13 @@ class GENOT(
       )
 
     self.rng = utils.default_prng_key(rng)
+    self.iterations = iterations
+    self.valid_freq = valid_freq
     self.velocity_field = velocity_field
     self.state_velocity_field: Optional[train_state.TrainState] = None
     self.flow = flow
     self.time_sampler = time_sampler
     self.optimizer = optimizer
-    self.checkpoint_manager = checkpoint_manager
     self.latent_noise_fn = jax.tree_util.Partial(
         jax.random.multivariate_normal,
         mean=jnp.zeros((output_dim,)),
@@ -171,6 +141,9 @@ class GENOT(
     self.output_dim = output_dim
     self.cond_dim = cond_dim
     self.k_samples_per_x = k_samples_per_x
+
+    # unbalancedness
+    self.unbalancedness_handler = unbalancedness_handler
 
     # OT data-data matching parameters
     self.ot_solver = ot_solver
@@ -210,8 +183,8 @@ class GENOT(
           epsilon=self.epsilon,
           cost_fn=self.cost_fn,
           scale_cost=self.scale_cost,
-          tau_a=self.tau_a,
-          tau_b=self.tau_b,
+          tau_a=self.unbalancedness_handler.tau_a,
+          tau_b=self.unbalancedness_handler.tau_b,
           filter_input=True
       )
     else:
@@ -219,8 +192,8 @@ class GENOT(
           ot_solver=self.ot_solver,
           cost_fn=self.cost_fn,
           scale_cost=self.scale_cost,
-          tau_a=self.tau_a,
-          tau_b=self.tau_b,
+          tau_a=self.unbalancedness_handler.tau_a,
+          tau_b=self.unbalancedness_handler.tau_b,
           fused_penalty=self.fused_penalty
       )
 
@@ -278,7 +251,7 @@ class GENOT(
           tmat,
           self.k_samples_per_x, (batch["source"], batch["source_conditions"]),
           (batch["target"],),
-          source_is_balanced=(self.tau_a == 1.0)
+          source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
       )
       jax.random.split(rng_noise, batch_size * self.k_samples_per_x)
 
@@ -310,24 +283,17 @@ class GENOT(
         (
             self.state_eta, self.state_xi, eta_predictions, xi_predictions,
             loss_a, loss_b
-        ) = self.unbalancedness_step_fn(
+        ) = self.unbalancedness_handler.step_fn(
             source=batch["source"],
             target=batch["target"],
             condition=batch["source_conditions"],
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
-            state_eta=self.state_eta,
-            state_xi=self.state_xi,
+            state_eta=self.unbalancedness_handler.state_eta,
+            state_xi=self.unbalancedness_handler.state_xi,
         )
       if iteration % self.valid_freq == 0:
         self._valid_step(valid_loader, iteration)
-        if self.checkpoint_manager is not None:
-          states_to_save = {"state_velocity_field": self.state_velocity_field}
-          if self.state_eta is not None:
-            states_to_save["state_eta"] = self.state_eta
-          if self.state_xi is not None:
-            states_to_save["state_xi"] = self.state_xi
-          self.checkpoint_manager.save(iteration, states_to_save)
 
   def _get_step_fn(self) -> Callable:
 
@@ -441,7 +407,10 @@ class GENOT(
   @property
   def learn_rescaling(self) -> bool:
     """Whether to learn at least one rescaling factor."""
-    return self.rescaling_a is not None or self.rescaling_b is not None
+    return (
+        self.unbalancedness_handler.rescaling_a is not None or
+        self.unbalancedness_handler.rescaling_b is not None
+    )
 
   def save(self, path: str):
     """Save the model.

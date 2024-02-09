@@ -17,10 +17,12 @@ from typing import Iterator, Type
 import pytest
 
 import jax.numpy as jnp
+from jax import random
 
 import optax
 
 from ott.neural.flows import flows, models, otfm, samplers
+from ott.neural.models import base_solver, nets
 from ott.solvers.linear import sinkhorn
 
 
@@ -36,6 +38,8 @@ class TestOTFlowMatching:
   def test_flow_matching(
       self, data_loader_gaussian, flow: Type[flows.BaseFlow]
   ):
+    input_dim = 2
+    condition_dim = 0
     neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
@@ -44,16 +48,20 @@ class TestOTFlowMatching:
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), input_dim, input_dim, condition_dim
+    )
     fm = otfm.OTFlowMatching(
         neural_vf,
-        input_dim=2,
-        cond_dim=0,
+        input_dim=input_dim,
+        cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
         flow=flow,
         time_sampler=time_sampler,
-        optimizer=optimizer
+        optimizer=optimizer,
+        unbalancedness_handler=unbalancedness_handler
     )
     fm(data_loader_gaussian, data_loader_gaussian)
 
@@ -82,6 +90,8 @@ class TestOTFlowMatching:
   def test_flow_matching_with_conditions(
       self, data_loader_gaussian_with_conditions, flow: Type[flows.BaseFlow]
   ):
+    input_dim = 2
+    condition_dim = 1
     neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=1,
@@ -90,6 +100,10 @@ class TestOTFlowMatching:
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), input_dim, input_dim, condition_dim
+    )
+
     fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=2,
@@ -99,7 +113,8 @@ class TestOTFlowMatching:
         ot_solver=ot_solver,
         flow=flow,
         time_sampler=time_sampler,
-        optimizer=optimizer
+        optimizer=optimizer,
+        unbalancedness_handler=unbalancedness_handler
     )
     fm(
         data_loader_gaussian_with_conditions,
@@ -131,24 +146,31 @@ class TestOTFlowMatching:
   def test_flow_matching_conditional(
       self, data_loader_gaussian_conditional, flow: Type[flows.BaseFlow]
   ):
+    dim = 2
+    condition_dim = 0
     neural_vf = models.VelocityField(
-        output_dim=2,
-        condition_dim=0,
+        output_dim=dim,
+        condition_dim=condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0), dim, dim, condition_dim
+    )
+
     fm = otfm.OTFlowMatching(
         neural_vf,
-        input_dim=2,
-        cond_dim=0,
+        input_dim=dim,
+        cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
         ot_solver=ot_solver,
         flow=flow,
         time_sampler=time_sampler,
-        optimizer=optimizer
+        optimizer=optimizer,
+        unbalancedness_handler=unbalancedness_handler
     )
     fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
 
@@ -191,8 +213,19 @@ class TestOTFlowMatching:
 
     tau_a = 0.9
     tau_b = 0.2
-    rescaling_a = models.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    rescaling_b = models.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_a = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    rescaling_b = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    unbalancedness_handler = base_solver.UnbalancednessHandler(
+        random.PRNGKey(0),
+        source_dim,
+        source_dim,
+        condition_dim,
+        tau_a=tau_a,
+        tau_b=tau_b,
+        rescaling_a=rescaling_a,
+        rescaling_b=rescaling_b
+    )
+
     fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=source_dim,
@@ -203,20 +236,17 @@ class TestOTFlowMatching:
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b,
+        unbalancedness_handler=unbalancedness_handler,
     )
     fm(data_loader, data_loader)
 
-    result_eta = fm.evaluate_eta(
+    result_eta = fm.unbalancedness_handler.evaluate_eta(
         batch["source_lin"], condition=batch["source_conditions"]
     )
     assert isinstance(result_eta, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
-    result_xi = fm.evaluate_xi(
+    result_xi = fm.unbalancedness_handler.evaluate_xi(
         batch["target_lin"], condition=batch["source_conditions"]
     )
     assert isinstance(result_xi, jnp.ndarray)
