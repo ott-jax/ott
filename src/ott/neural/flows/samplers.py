@@ -29,7 +29,7 @@ def uniform_sampler(
   r"""Sample from a uniform distribution.
 
   Sample :math:`t` from a uniform distribution :math:`[low, high]`.
-  If `offset` is not :obj:`None`, one element :math:`t` is sampled from 
+  If `offset` is not :obj:`None`, one element :math:`t` is sampled from
   :math:`[low, high]` and the K samples are constructed via
   :math:`(t + k)/K \mod (high - low - offset) + low`.
 

@@ -320,8 +320,7 @@ class GENOT(
             if batch[el] is not None
         ],
                                      axis=1)
-        v_t = jax.vmap(apply_fn
-                      )(t=batch["time"], x=x_t, condition=cond_input)
+        v_t = jax.vmap(apply_fn)(t=batch["time"], x=x_t, condition=cond_input)
         u_t = self.flow.compute_ut(
             batch["time"], batch["latent"], batch["target"]
         )
