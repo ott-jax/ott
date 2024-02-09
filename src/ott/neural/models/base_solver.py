@@ -26,7 +26,7 @@ from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
-__all__ = ["ResampleMixin", "UnbalancednessHandler"]
+__all__ = ["OTMatcher", "UnbalancednessHandler"]
 
 
 def _get_sinkhorn_match_fn(
@@ -132,8 +132,37 @@ def _get_gromov_match_fn(
   return match_pairs
 
 
-class ResampleMixin:
-  """Mixin class for mini-batch OT in neural optimal transport solvers."""
+class OTMatcher:
+  """Class for mini-batch OT in neural optimal transport solvers.
+
+  Args:
+    ot_solver: OT solver to match samples from the source and the target
+      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
+      If :obj:`None`, no matching will be performed as proposed in
+      :cite:`lipman:22`.
+  """
+
+  def __init__(
+      self,
+      ot_solver: was_solver.WassersteinSolver,
+      epsilon: float = 1e-2,
+      cost_fn: Optional[costs.CostFn] = None,
+      scale_cost: Union[bool, int, float,
+                        Literal["mean", "max_norm", "max_bound", "max_cost",
+                                "median"]] = "mean",
+      tau_a: float = 1.0,
+      tau_b: float = 1.0
+  ) -> None:
+    self.ot_solver = ot_solver
+    self.epsilon = epsilon
+    self.cost_fn = cost_fn
+    self.scale_cost = scale_cost
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.match_fn = self._get_sinkhorn_match_fn(
+        self.ot_solver, self.epsilon, self.cost_fn, self.scale_cost, self.tau_a,
+        self.tau_b
+    )
 
   def _resample_data(
       self,
@@ -233,19 +262,21 @@ class UnbalancednessHandler:
     cond_dim: Dimension of the conditioning variable.
     If :obj:`None`, no conditioning is used.
     tau_a: Unbalancedness parameter for the source distribution.
+      Only used if `ot_solver` is not :obj:`None`.
     tau_b: Unbalancedness parameter for the target distribution.
+      Only used if `ot_solver` is not :obj:`None`.
     rescaling_a: Rescaling function for the source distribution.
-    If :obj:`None`, the left rescaling factor is not learnt.
+      If :obj:`None`, the left rescaling factor is not learnt.
     rescaling_b: Rescaling function for the target distribution.
-    If :obj:`None`, the right rescaling factor is not learnt.
+      If :obj:`None`, the right rescaling factor is not learnt.
     opt_eta: Optimizer for the left rescaling function.
     opt_xi: Optimzier for the right rescaling function.
     resample_epsilon: Epsilon for resampling.
     scale_cost: Scaling of the cost matrix for estimating the rescaling factors.
     ot_solver: Solver to compute unbalanced marginals. If `ot_solver` is `None`,
-    the method
+      the method
     :meth:`ott.neural.models.base_solver.UnbalancednessHandler.compute_unbalanced_marginals`
-    is not available, and hence the unbalanced marginals must be computed by the neural solver.
+      is not available, and hence the unbalanced marginals must be computed by the neural solver.
     kwargs: Additional keyword arguments.
 
   """
@@ -296,6 +327,8 @@ class UnbalancednessHandler:
       )
     elif isinstance(ot_solver, gromov_wasserstein.GromovWasserstein):
       self.compute_unbalanced_marginals = self._get_compute_unbalanced_marginals_quad
+    else:
+      self.compute_unbalanced_marginals = None
     self.setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
 
   def _get_compute_unbalanced_marginals_lin(

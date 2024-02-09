@@ -13,7 +13,6 @@
 # limitations under the License.
 import collections
 import functools
-import types
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Type, Union
 
 import jax
@@ -28,14 +27,11 @@ from ott import utils
 from ott.geometry import costs
 from ott.neural.flows import flows
 from ott.neural.models import base_solver
-from ott.solvers import was_solver
 
 __all__ = ["OTFlowMatching"]
 
 
-class OTFlowMatching(
-    base_solver.ResampleMixin,
-):
+class OTFlowMatching:
   """(Optimal transport) flow matching class.
 
   Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM
@@ -47,19 +43,10 @@ class OTFlowMatching(
     cond_dim: Dimension of the conditioning variable.
     iterations: Number of iterations.
     valid_freq: Frequency of validation.
-    ot_solver: OT solver to match samples from the source and the target
-      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
-      If :obj:`None`, no matching will be performed as proposed in
-      :cite:`lipman:22`.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for `velocity_field`.
     checkpoint_manager: Checkpoint manager.
-    epsilon: Entropy regularization term of the OT OT problem solved by the
-      `ot_solver`.
-    cost_fn: Cost function for the OT problem solved by the `ot_solver`.
-    scale_cost: How to scale the cost matrix for the OT problem solved by the
-      `ot_solver`.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
     rng: Random number generator.
@@ -73,10 +60,10 @@ class OTFlowMatching(
       input_dim: int,
       cond_dim: int,
       iterations: int,
-      ot_solver: Optional[Type[was_solver.WassersteinSolver]],
       flow: Type[flows.BaseFlow],
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
+      ot_matcher: base_solver.OTMatcher,
       unbalancedness_handler: base_solver.UnbalancednessHandler,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
@@ -92,13 +79,12 @@ class OTFlowMatching(
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
-    base_solver.ResampleMixin.__init__(self)
     self.unbalancedness_handler = unbalancedness_handler
     self.iterations = iterations
     self.valid_freq = valid_freq
     self.velocity_field = velocity_field
     self.input_dim = input_dim
-    self.ot_solver = ot_solver
+    self.ot_matcher = ot_matcher
     self.flow = flow
     self.time_sampler = time_sampler
     self.optimizer = optimizer
@@ -123,17 +109,6 @@ class OTFlowMatching(
     )
 
     self.step_fn = self._get_step_fn()
-    if self.ot_solver is not None:
-      self.match_fn = self._get_sinkhorn_match_fn(
-          self.ot_solver,
-          epsilon=self.epsilon,
-          cost_fn=self.cost_fn,
-          scale_cost=self.scale_cost,
-          tau_a=self.unbalancedness_handler.tau_a,
-          tau_b=self.unbalancedness_handler.tau_b,
-      )
-    else:
-      self.match_fn = None
 
   def _get_step_fn(self) -> Callable:
 
@@ -182,11 +157,13 @@ class OTFlowMatching(
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
       batch = next(train_loader)
-      if self.ot_solver is not None:
-        tmat = self.match_fn(batch["source_lin"], batch["target_lin"])
+      if self.ot_matcher is not None:
+        tmat = self.ot_matcher.match_fn(
+            batch["source_lin"], batch["target_lin"]
+        )
         (batch["source_lin"], batch["source_conditions"]
         ), (batch["target_lin"],
-            batch["target_conditions"]) = self._resample_data(
+            batch["target_conditions"]) = self.ot_matcher._resample_data(
                 rng_resample, tmat,
                 (batch["source_lin"], batch["source_conditions"]),
                 (batch["target_lin"], batch["target_conditions"])
@@ -222,7 +199,7 @@ class OTFlowMatching(
       forward: bool = True,
       t_0: float = 0.0,
       t_1: float = 1.0,
-      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({})
+      **kwargs: Any,
   ) -> diffrax.Solution:
     """Transport data with the learnt map.
 
@@ -236,15 +213,13 @@ class OTFlowMatching(
       forward: If `True` integrates forward, otherwise backwards.
       t_0: Starting point of integration.
       t_1: End point of integration.
-      diffeqsolve_kwargs: Keyword arguments for the ODE solver.
+      kwargs: Keyword arguments for the ODE solver.
 
     Returns:
       The push-forward or pull-back distribution defined by the learnt
       transport plan.
 
     """
-    diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
-
     t0, t1 = (t_0, t_1) if forward else (t_1, t_0)
 
     @jax.jit
@@ -257,16 +232,16 @@ class OTFlowMatching(
                        x=x,
                        condition=cond)
           ),
-          diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+          kwargs.pop("solver", diffrax.Tsit5()),
           t0=t0,
           t1=t1,
-          dt0=diffeqsolve_kwargs.pop("dt0", None),
+          dt0=kwargs.pop("dt0", None),
           y0=input,
-          stepsize_controller=diffeqsolve_kwargs.pop(
+          stepsize_controller=kwargs.pop(
               "stepsize_controller",
               diffrax.PIDController(rtol=1e-5, atol=1e-5)
           ),
-          **diffeqsolve_kwargs,
+          **kwargs,
       ).ys[0]
 
     return jax.vmap(solve_ode)(data, condition)

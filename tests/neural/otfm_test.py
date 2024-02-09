@@ -46,6 +46,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    ot_matcher = base_solver.OTMatcher(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     unbalancedness_handler = base_solver.UnbalancednessHandler(
@@ -57,7 +58,7 @@ class TestOTFlowMatching:
         cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
-        ot_solver=ot_solver,
+        ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
@@ -98,6 +99,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    ot_matcher = base_solver.OTMatcher(ot_solver)
     time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
     unbalancedness_handler = base_solver.UnbalancednessHandler(
@@ -110,7 +112,7 @@ class TestOTFlowMatching:
         cond_dim=1,
         iterations=3,
         valid_freq=2,
-        ot_solver=ot_solver,
+        ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
@@ -154,6 +156,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
+    ot_matcher = base_solver.OTMatcher(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     unbalancedness_handler = base_solver.UnbalancednessHandler(
@@ -166,7 +169,7 @@ class TestOTFlowMatching:
         cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
-        ot_solver=ot_solver,
+        ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
@@ -215,6 +218,11 @@ class TestOTFlowMatching:
     tau_b = 0.2
     rescaling_a = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     rescaling_b = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
+    ot_matcher = base_solver.OTMatcher(
+        ot_solver,
+        tau_a=tau_a,
+        tau_b=tau_b,
+    )
     unbalancedness_handler = base_solver.UnbalancednessHandler(
         random.PRNGKey(0),
         source_dim,
@@ -232,7 +240,7 @@ class TestOTFlowMatching:
         cond_dim=condition_dim,
         iterations=3,
         valid_freq=2,
-        ot_solver=ot_solver,
+        ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,

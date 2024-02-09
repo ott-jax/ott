@@ -33,9 +33,7 @@ from ott.solvers.quadratic import gromov_wasserstein
 __all__ = ["GENOT"]
 
 
-class GENOT(
-    base_solver.ResampleMixin,
-):
+class GENOT:
   """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
 
   Args:
@@ -113,7 +111,6 @@ class GENOT(
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
-    base_solver.ResampleMixin.__init__(self)
 
     if isinstance(
         ot_solver, gromov_wasserstein.GromovWasserstein
@@ -252,7 +249,6 @@ class GENOT(
           (batch["target"],),
           source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
       )
-      jax.random.split(rng_noise, batch_size * self.k_samples_per_x)
 
       if self.solver_latent_to_data is not None:
         tmats_latent_data = jnp.array(
@@ -339,7 +335,7 @@ class GENOT(
       condition: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
       forward: bool = True,
-      diffeqsolve_kwargs: Dict[str, Any] = types.MappingProxyType({}),
+      **kwargs: Any,
   ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
     """Transport data with the learnt plan.
 
@@ -352,7 +348,7 @@ class GENOT(
       condition: Condition of the input data.
       rng: random seed for sampling from the latent distribution.
       forward: If `True` integrates forward, otherwise backwards.
-      diffeqsolve_kwargs: Keyword arguments for the ODE solver.
+      kwargs: Keyword arguments for the ODE solver.
 
     Returns:
       The push-forward or pull-back distribution defined by the learnt
@@ -362,7 +358,6 @@ class GENOT(
     rng = utils.default_prng_key(rng)
     if not forward:
       raise NotImplementedError
-    diffeqsolve_kwargs = dict(diffeqsolve_kwargs)
     assert len(source) == len(condition) if condition is not None else True
 
     latent_batch = self.latent_noise_fn(rng, shape=(len(source),))
@@ -382,16 +377,16 @@ class GENOT(
                        x=x,
                        condition=cond)
           ),
-          diffeqsolve_kwargs.pop("solver", diffrax.Tsit5()),
+          kwargs.pop("solver", diffrax.Tsit5()),
           t0=t0,
           t1=t1,
-          dt0=diffeqsolve_kwargs.pop("dt0", None),
+          dt0=kwargs.pop("dt0", None),
           y0=input,
-          stepsize_controller=diffeqsolve_kwargs.pop(
+          stepsize_controller=kwargs.pop(
               "stepsize_controller",
               diffrax.PIDController(rtol=1e-5, atol=1e-5)
           ),
-          **diffeqsolve_kwargs,
+          **kwargs,
       ).ys[0]
 
     return jax.vmap(solve_ode)(latent_batch, cond_input)
