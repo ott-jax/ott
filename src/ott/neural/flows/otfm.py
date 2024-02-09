@@ -63,7 +63,7 @@ class OTFlowMatching:
       flow: Type[flows.BaseFlow],
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
-      ot_matcher: base_solver.OTMatcher,
+      ot_matcher: base_solver.OTMatcherLinear,
       unbalancedness_handler: base_solver.UnbalancednessHandler,
       checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,

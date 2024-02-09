@@ -26,7 +26,9 @@ from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein
 
-__all__ = ["OTMatcher", "UnbalancednessHandler"]
+__all__ = [
+    "BaseOTMatcher", "OTMatcherLinear", "OTMatcherQuad", "UnbalancednessHandler"
+]
 
 
 def _get_sinkhorn_match_fn(
@@ -132,37 +134,8 @@ def _get_gromov_match_fn(
   return match_pairs
 
 
-class OTMatcher:
-  """Class for mini-batch OT in neural optimal transport solvers.
-
-  Args:
-    ot_solver: OT solver to match samples from the source and the target
-      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
-      If :obj:`None`, no matching will be performed as proposed in
-      :cite:`lipman:22`.
-  """
-
-  def __init__(
-      self,
-      ot_solver: was_solver.WassersteinSolver,
-      epsilon: float = 1e-2,
-      cost_fn: Optional[costs.CostFn] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = "mean",
-      tau_a: float = 1.0,
-      tau_b: float = 1.0
-  ) -> None:
-    self.ot_solver = ot_solver
-    self.epsilon = epsilon
-    self.cost_fn = cost_fn
-    self.scale_cost = scale_cost
-    self.tau_a = tau_a
-    self.tau_b = tau_b
-    self.match_fn = self._get_sinkhorn_match_fn(
-        self.ot_solver, self.epsilon, self.cost_fn, self.scale_cost, self.tau_a,
-        self.tau_b
-    )
+class BaseOTMatcher:
+  """Base class for mini-batch neural OT matching classes."""
 
   def _resample_data(
       self,
@@ -229,6 +202,48 @@ class OTMatcher:
         for b in target_arrays
     )
 
+
+class OTMatcherLinear(BaseOTMatcher):
+  """Class for mini-batch OT in neural optimal transport solvers.
+
+  Args:
+    ot_solver: OT solver to match samples from the source and the target
+      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
+      If :obj:`None`, no matching will be performed as proposed in
+      :cite:`lipman:22`.
+  """
+
+  def __init__(
+      self,
+      ot_solver: was_solver.WassersteinSolver,
+      epsilon: float = 1e-2,
+      cost_fn: Optional[costs.CostFn] = None,
+      scale_cost: Union[bool, int, float,
+                        Literal["mean", "max_norm", "max_bound", "max_cost",
+                                "median"]] = "mean",
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+  ) -> None:
+
+    if isinstance(
+        ot_solver, gromov_wasserstein.GromovWasserstein
+    ) and epsilon is not None:
+      raise ValueError(
+          "If `ot_solver` is `GromovWasserstein`, `epsilon` must be `None`. " +
+          "This check is performed to ensure that in the (fused) Gromov case " +
+          "the `epsilon` parameter is passed via the `ot_solver`."
+      )
+    self.ot_solver = ot_solver
+    self.epsilon = epsilon
+    self.cost_fn = cost_fn
+    self.scale_cost = scale_cost
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.match_fn = None if ot_solver is None else self._get_sinkhorn_match_fn(
+        self.ot_solver, self.epsilon, self.cost_fn, self.scale_cost, self.tau_a,
+        self.tau_b
+    )
+
   def _get_sinkhorn_match_fn(self, *args, **kwargs) -> jnp.ndarray:
     fn = _get_sinkhorn_match_fn(*args, **kwargs)
 
@@ -237,6 +252,43 @@ class OTMatcher:
       return fn(*args, **kwargs).matrix
 
     return match_pairs
+
+
+class OTMatcherQuad(BaseOTMatcher):
+  """Class for mini-batch OT in neural optimal transport solvers.
+
+  Args:
+    ot_solver: OT solver to match samples from the source and the target
+      distribution as proposed in :cite:`tong:23`, :cite:`pooladian:23`.
+      If :obj:`None`, no matching will be performed as proposed in
+      :cite:`lipman:22`.
+  """
+
+  def __init__(
+      self,
+      ot_solver: was_solver.WassersteinSolver,
+      cost_fn: Optional[costs.CostFn] = None,
+      scale_cost: Union[bool, int, float,
+                        Literal["mean", "max_norm", "max_bound", "max_cost",
+                                "median"]] = "mean",
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+      fused_penalty: float = 0.0,
+  ) -> None:
+    self.ot_solver = ot_solver
+    self.cost_fn = cost_fn
+    self.scale_cost = scale_cost
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.fused_penalty = fused_penalty
+    self.match_fn = self._get_gromov_match_fn(
+        self.ot_solver,
+        self.cost_fn,
+        self.scale_cost,
+        self.tau_a,
+        self.tau_b,
+        fused_penalty=self.fused_penalty
+    )
 
   def _get_gromov_match_fn(self, *args, **kwargs) -> jnp.ndarray:
     fn = _get_gromov_match_fn(*args, **kwargs)
@@ -326,7 +378,7 @@ class UnbalancednessHandler:
           )
       )
     elif isinstance(ot_solver, gromov_wasserstein.GromovWasserstein):
-      self.compute_unbalanced_marginals = self._get_compute_unbalanced_marginals_quad
+      raise NotImplementedError
     else:
       self.compute_unbalanced_marginals = None
     self.setup(source_dim=source_dim, target_dim=target_dim, cond_dim=cond_dim)
