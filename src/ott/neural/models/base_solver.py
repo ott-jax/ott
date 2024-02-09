@@ -121,7 +121,7 @@ class ResampleMixin:
         tmat_adapted
     )
 
-    indices_source = jnp.repeat(indices, k_samples_per_x)
+    indices_source = jnp.repeat(indices_per_row, k_samples_per_x)
     indices_target = jnp.reshape(
         indices_per_row % tmat.shape[1], (batch_size * k_samples_per_x,)
     )

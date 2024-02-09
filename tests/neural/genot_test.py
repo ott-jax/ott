@@ -50,6 +50,10 @@ class TestGENOT:
     target_dim = target_lin.shape[1]
     condition_dim = 0
 
+    print("source dim is ", source_dim)
+    print("target dim is ", target_dim)
+    print("condition dim is ", condition_dim)
+
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
@@ -294,6 +298,9 @@ class TestGENOT:
     ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
+    print("source dim is ", source_dim)
+    print("target dim is ", target_dim)
+    print("condition dim is ", condition_dim)
     genot = GENOT(
         neural_vf,
         input_dim=source_dim,
