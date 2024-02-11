@@ -376,6 +376,7 @@ class TestGENOTQuad:
         if len(batch["source_conditions"]) else None,
         jnp.array(batch["target_quad"])
     )
+
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
     condition_dim = source_conditions.shape[1]
