@@ -13,7 +13,7 @@
 # limitations under the License.
 import functools
 import types
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
@@ -30,7 +30,13 @@ __all__ = ["GENOTBase", "GENOTLin", "GENOTQuad"]
 
 
 class GENOTBase:
-  """The GENOT training class as introduced in :cite:`klein_uscidda:23`.
+  """Base class for GENOT models (:cite:`klein_uscidda:23`).
+
+  GENOT (Generative Entropic Neural Optimal Transport) is a neural solver
+  for entropic OT prooblems, in the linear
+  (:class:`ott.neural.flows.genot.GENOTLin`), the Gromov-Wasserstein, and 
+  the Fused Gromov-Wasserstein ((:class:`ott.neural.flows.genot.GENOTQUad`)) 
+  setting.
 
   Args:
     velocity_field: Neural vector field parameterized by a neural network.
@@ -148,34 +154,35 @@ class GENOTBase:
     def step_fn(
         rng: jax.Array,
         state_velocity_field: train_state.TrainState,
-        batch: Dict[str, jnp.array],
+        time: jnp.ndarray,
+        source: jnp.ndarray,
+        target: jnp.ndarray,
+        latent: jnp.ndarray,
+        source_conditions: Optional[jnp.ndarray],
     ):
 
       def loss_fn(
-          params: jnp.ndarray, batch: Dict[str, jnp.array],
-          rng: jax.random.PRNGKeyArray
+          params: jnp.ndarray, time: jnp.ndarray, source: jnp.ndarray,
+          target: jnp.ndarray, latent: jnp.ndarray,
+          source_conditions: Optional[jnp.ndarray], rng: jax.random.PRNGKeyArray
       ):
-        x_t = self.flow.compute_xt(
-            rng, batch["time"], batch["latent"], batch["target"]
-        )
+        x_t = self.flow.compute_xt(rng, time, latent, target)
         apply_fn = functools.partial(
             state_velocity_field.apply_fn, {"params": params}
         )
 
         cond_input = jnp.concatenate([
-            batch[el]
-            for el in ["source", "source_conditions"]
-            if batch[el] is not None
-        ],
-                                     axis=1)
-        v_t = jax.vmap(apply_fn)(t=batch["time"], x=x_t, condition=cond_input)
-        u_t = self.flow.compute_ut(
-            batch["time"], batch["latent"], batch["target"]
-        )
+            source, source_conditions
+        ], axis=1) if source_conditions is not None else source
+        v_t = jax.vmap(apply_fn)(t=time, x=x_t, condition=cond_input)
+        u_t = self.flow.compute_ut(time, latent, target)
         return jnp.mean((v_t - u_t) ** 2)
 
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
-      loss, grads = grad_fn(state_velocity_field.params, batch, rng)
+      loss, grads = grad_fn(
+          state_velocity_field.params, time, source, target, latent,
+          source_conditions, rng
+      )
 
       return state_velocity_field.apply_gradients(grads=grads), loss
 
@@ -255,8 +262,20 @@ class GENOTBase:
         self.unbalancedness_handler.rescaling_b is not None
     )
 
+  def _reshape_samples(self, arrays: Tuple[jnp.ndarray, ...],
+                       batch_size: int) -> Tuple[jnp.ndarray, ...]:
+    return tuple(
+        jnp.reshape(arr, (batch_size * self.k_samples_per_x,
+                          -1)) if arr is not None else None for arr in arrays
+    )
+
 
 class GENOTLin(GENOTBase):
+  """Implementation of GENOT-L (:cite:`klein:23`).
+
+  GENOT-L (Generative Entropic Neural Optimal Transport, linear) solves the
+  entropic (linear) OT problem.
+  """
 
   def __call__(self, train_loader, valid_loader):
     """Train GENOT.
@@ -273,63 +292,61 @@ class GENOTLin(GENOTBase):
           self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match,
           rng_step_fn
       ) = jax.random.split(self.rng, 6)
+      source, source_conditions, target = batch["source_lin"], batch[
+          "source_conditions"], batch["target_lin"]
+
       batch_size = len(batch["source_lin"])
       n_samples = batch_size * self.k_samples_per_x
-      batch["time"] = self.time_sampler(rng_time, n_samples)
-      batch["latent"] = self.latent_noise_fn(
+      time = self.time_sampler(rng_time, n_samples)
+      latent = self.latent_noise_fn(
           rng_noise, shape=(self.k_samples_per_x, batch_size)
       )
 
       tmat = self.ot_matcher.match_fn(
-          batch["source_lin"],
-          batch["target_lin"],
+          source,
+          target,
       )
 
-      batch["source"] = batch["source_lin"]
-      batch["target"] = batch["target_lin"]
-
-      (batch["source"], batch["source_conditions"]), (
-          batch["target"],
-      ) = self.ot_matcher._sample_conditional_indices_from_tmap(
-          rng_resample,
-          tmat,
-          self.k_samples_per_x, (batch["source"], batch["source_conditions"]),
-          (batch["target"],),
+      (source, source_conditions
+      ), (target,) = self.ot_matcher._sample_conditional_indices_from_tmap(
+          rng=rng_resample,
+          tmat=tmat,
+          k_samples_per_x=self.k_samples_per_x,
+          source_arrays=(source, source_conditions),
+          target_arrays=(target,),
           source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
       )
 
       if self.matcher_latent_to_data.match_fn is not None:
         tmats_latent_data = jnp.array(
             jax.vmap(self.matcher_latent_to_data.match_fn, 0,
-                     0)(x=batch["latent"], y=batch["target"])
+                     0)(x=latent, y=target)
         )
 
         rng_latent_data_match = jax.random.split(
             rng_latent_data_match, self.k_samples_per_x
         )
-        (batch["source"], batch["source_conditions"]
-        ), (batch["target"],) = jax.vmap(self.ot_matcher._resample_data, 0, 0)(
+        (source, source_conditions
+        ), (target,) = jax.vmap(self.ot_matcher._resample_data, 0, 0)(
             rng_latent_data_match, tmats_latent_data,
-            (batch["source"], batch["source_conditions"]), (batch["target"],)
+            (source, source_conditions), (target,)
         )
-      batch = {
-          key:
-              jnp.reshape(arr, (batch_size * self.k_samples_per_x,
-                                -1)) if arr is not None else None
-          for key, arr in batch.items()
-      }
 
+      source, source_conditions, target, latent = self._reshape_samples(
+          (source, source_conditions, target, latent), batch_size
+      )
       self.state_velocity_field, loss = self.step_fn(
-          rng_step_fn, self.state_velocity_field, batch
+          rng_step_fn, self.state_velocity_field, time, source, target, latent,
+          source_conditions
       )
       if self.learn_rescaling:
         (
             self.state_eta, self.state_xi, eta_predictions, xi_predictions,
             loss_a, loss_b
         ) = self.unbalancedness_handler.step_fn(
-            source=batch["source"],
-            target=batch["target"],
-            condition=batch["source_conditions"],
+            source=source,
+            target=target,
+            condition=source_conditions,
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
             state_eta=self.unbalancedness_handler.state_eta,
@@ -340,6 +357,13 @@ class GENOTLin(GENOTBase):
 
 
 class GENOTQuad(GENOTBase):
+  """Implementation of GENOT-Q and GENOT-F (:cite:`klein:23`).
+
+  GENOT-Q (Generative Entropic Neural Optimal Transport, quadratic) and
+  GENOT-F (Generative Entropic Neural Optimal Transport, fused) solve the
+  entropic Gromov-Wasserstein and the entropic Fused Gromov-Wasserstein problem,
+  respectively.
+  """
 
   def __call__(self, train_loader, valid_loader):
     """Train GENOT.
@@ -356,73 +380,71 @@ class GENOTQuad(GENOTBase):
           self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match,
           rng_step_fn
       ) = jax.random.split(self.rng, 6)
-      batch_size = len(
-          batch["source_lin"]
-      ) if batch["source_lin"] is not None else len(batch["source_quad"])
+      (source_lin, source_quad, source_conditions, target_lin, target_quad) = (
+          batch["source_lin"], batch["source_quad"], batch["source_conditions"],
+          batch["target_lin"], batch["target_quad"]
+      )
+      batch_size = len(source_quad)
       n_samples = batch_size * self.k_samples_per_x
-      batch["time"] = self.time_sampler(rng_time, n_samples)
-      batch["latent"] = self.latent_noise_fn(
+      time = self.time_sampler(rng_time, n_samples)
+      latent = self.latent_noise_fn(
           rng_noise, shape=(self.k_samples_per_x, batch_size)
       )
 
       tmat = self.ot_matcher.match_fn(
-          batch["source_lin"], batch["source_quad"], batch["target_lin"],
-          batch["target_quad"]
+          source_lin, source_quad, target_lin, target_quad
       )
 
       if self.ot_matcher.fused_penalty > 0.0:
-        batch["source"] = jnp.concatenate(
-            (batch["source_lin"], batch["source_quad"]), axis=1
-        )
-        batch["target"] = jnp.concatenate(
-            (batch["target_lin"], batch["target_quad"]), axis=1
-        )
+        source = jnp.concatenate((source_lin, source_quad), axis=1)
+        target = jnp.concatenate((target_lin, target_quad), axis=1)
       else:
-        batch["source"] = batch["source_quad"]
-        batch["target"] = batch["target_quad"]
+        source = source_quad
+        target = target_quad
 
-      (batch["source"], batch["source_conditions"]), (
-          batch["target"],
-      ) = self.ot_matcher._sample_conditional_indices_from_tmap(
-          rng_resample,
-          tmat,
-          self.k_samples_per_x, (batch["source"], batch["source_conditions"]),
-          (batch["target"],),
-          source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
+      (source, source_conditions), (target,) = (
+          self.ot_matcher._sample_conditional_indices_from_tmap(
+              rng=rng_resample,
+              tmat=tmat,
+              k_samples_per_x=self.k_samples_per_x,
+              source_arrays=(source, source_conditions),
+              target_arrays=(target,),
+              source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
+          )
       )
 
       if self.matcher_latent_to_data.match_fn is not None:
         tmats_latent_data = jnp.array(
             jax.vmap(self.matcher_latent_to_data.match_fn, 0,
-                     0)(x=batch["latent"], y=batch["target"])
+                     0)(x=latent, y=target)
         )
 
         rng_latent_data_match = jax.random.split(
             rng_latent_data_match, self.k_samples_per_x
         )
-        (batch["source"], batch["source_conditions"]
-        ), (batch["target"],) = jax.vmap(self.ot_matcher._resample_data, 0, 0)(
+
+        (source, source_conditions
+        ), (target,) = jax.vmap(self.ot_matcher._resample_data, 0, 0)(
             rng_latent_data_match, tmats_latent_data,
-            (batch["source"], batch["source_conditions"]), (batch["target"],)
+            (source, source_conditions), (target,)
         )
-      batch = {
-          key:
-              jnp.reshape(arr, (batch_size * self.k_samples_per_x,
-                                -1)) if arr is not None else None
-          for key, arr in batch.items()
-      }
+
+      source, source_conditions, target, latent = self._reshape_samples(
+          (source, source_conditions, target, latent), batch_size
+      )
 
       self.state_velocity_field, loss = self.step_fn(
-          rng_step_fn, self.state_velocity_field, batch
+          rng_step_fn, self.state_velocity_field, time, source, target, latent,
+          source_conditions
       )
       if self.learn_rescaling:
         (
             self.state_eta, self.state_xi, eta_predictions, xi_predictions,
             loss_a, loss_b
         ) = self.unbalancedness_handler.step_fn(
-            source=batch["source"],
-            target=batch["target"],
-            condition=batch["source_conditions"],
+            source=source,
+            target=target,
+            condition=source_conditions,
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
             state_eta=self.unbalancedness_handler.state_eta,

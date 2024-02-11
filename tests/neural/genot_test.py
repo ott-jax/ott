@@ -400,6 +400,9 @@ class TestGENOTQuad:
       self, genot_data_loader_fused_conditional: Iterator, k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
+    solver_latent_to_data = (
+        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    )
     matcher_latent_to_data = base_solver.OTMatcherLinear(solver_latent_to_data)
     batch = next(genot_data_loader_fused_conditional)
     source_lin, source_quad, target_lin, target_quad, source_condition = batch[

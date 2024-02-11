@@ -21,7 +21,6 @@ import jax.numpy as jnp
 import diffrax
 import optax
 from flax.training import train_state
-from orbax import checkpoint
 
 from ott import utils
 from ott.geometry import costs
@@ -46,7 +45,6 @@ class OTFlowMatching:
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for `velocity_field`.
-    checkpoint_manager: Checkpoint manager.
     callback_fn: Callback function.
     num_eval_samples: Number of samples to evaluate on during evaluation.
     rng: Random number generator.
@@ -65,7 +63,6 @@ class OTFlowMatching:
       optimizer: optax.GradientTransformation,
       ot_matcher: base_solver.OTMatcherLinear,
       unbalancedness_handler: base_solver.UnbalancednessHandler,
-      checkpoint_manager: Type[checkpoint.CheckpointManager] = None,
       epsilon: float = 1e-2,
       cost_fn: Optional[Type[costs.CostFn]] = None,
       scale_cost: Union[bool, int, float,
@@ -92,7 +89,6 @@ class OTFlowMatching:
     self.cost_fn = cost_fn
     self.scale_cost = scale_cost
     self.callback_fn = callback_fn
-    self.checkpoint_manager = checkpoint_manager
     self.rng = rng
     self.logging_freq = logging_freq
     self.num_eval_samples = num_eval_samples
@@ -116,30 +112,33 @@ class OTFlowMatching:
     def step_fn(
         rng: jax.Array,
         state_velocity_field: train_state.TrainState,
-        batch: Dict[str, jnp.ndarray],
+        source: jnp.ndarray,
+        target: jnp.ndarray,
+        source_conditions: Optional[jnp.ndarray],
     ) -> Tuple[Any, Any]:
 
       def loss_fn(
-          params: jnp.ndarray, t: jnp.ndarray, batch: Dict[str, jnp.ndarray],
+          params: jnp.ndarray, t: jnp.ndarray, source: jnp.ndarray,
+          target: jnp.ndarray, source_conditions: Optional[jnp.ndarray],
           rng: jax.Array
       ) -> jnp.ndarray:
 
-        x_t = self.flow.compute_xt(
-            rng, t, batch["source_lin"], batch["target_lin"]
-        )
+        x_t = self.flow.compute_xt(rng, t, source, target)
         apply_fn = functools.partial(
             state_velocity_field.apply_fn, {"params": params}
         )
-        v_t = jax.vmap(apply_fn
-                      )(t=t, x=x_t, condition=batch["source_conditions"])
-        u_t = self.flow.compute_ut(t, batch["source_lin"], batch["target_lin"])
+        v_t = jax.vmap(apply_fn)(t=t, x=x_t, condition=source_conditions)
+        u_t = self.flow.compute_ut(t, source, target)
         return jnp.mean((v_t - u_t) ** 2)
 
-      batch_size = len(batch["source_lin"])
+      batch_size = len(source)
       key_t, key_model = jax.random.split(rng, 2)
       t = self.time_sampler(key_t, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
-      loss, grads = grad_fn(state_velocity_field.params, t, batch, key_model)
+      loss, grads = grad_fn(
+          state_velocity_field.params, t, source, target, source_conditions,
+          key_model
+      )
       return state_velocity_field.apply_gradients(grads=grads), loss
 
     return step_fn
@@ -157,19 +156,16 @@ class OTFlowMatching:
     for iter in range(self.iterations):
       rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
       batch = next(train_loader)
+      source, source_conditions, target = batch["source_lin"], batch[
+          "source_conditions"], batch["target_lin"]
       if self.ot_matcher is not None:
-        tmat = self.ot_matcher.match_fn(
-            batch["source_lin"], batch["target_lin"]
+        tmat = self.ot_matcher.match_fn(source, target)
+        (source, source_conditions), (target,) = self.ot_matcher._resample_data(
+            rng_resample, tmat, (source, source_conditions), (target,)
         )
-        (batch["source_lin"], batch["source_conditions"]
-        ), (batch["target_lin"],
-            batch["target_conditions"]) = self.ot_matcher._resample_data(
-                rng_resample, tmat,
-                (batch["source_lin"], batch["source_conditions"]),
-                (batch["target_lin"], batch["target_conditions"])
-            )
       self.state_velocity_field, loss = self.step_fn(
-          rng_step_fn, self.state_velocity_field, batch
+          rng_step_fn, self.state_velocity_field, source, target,
+          source_conditions
       )
       curr_loss += loss
       if iter % self.logging_freq == 0:
@@ -181,9 +177,9 @@ class OTFlowMatching:
             self.unbalancedness_handler.state_xi, eta_predictions,
             xi_predictions, loss_a, loss_b
         ) = self.unbalancedness_handler.step_fn(
-            source=batch["source_lin"],
-            target=batch["target_lin"],
-            condition=batch["source_conditions"],
+            source=source,
+            target=target,
+            condition=source_conditions,
             a=tmat.sum(axis=1),
             b=tmat.sum(axis=0),
             state_eta=self.unbalancedness_handler.state_eta,

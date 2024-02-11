@@ -159,10 +159,10 @@ class BaseOTMatcher:
       self,
       rng: jax.Array,
       tmat: jnp.ndarray,
+      *,
       k_samples_per_x: Union[int, jnp.ndarray],
       source_arrays: Tuple[jnp.ndarray, ...],
       target_arrays: Tuple[jnp.ndarray, ...],
-      *,
       source_is_balanced: bool,
   ) -> Tuple[jnp.array, jnp.array]:
     batch_size = tmat.shape[0]
