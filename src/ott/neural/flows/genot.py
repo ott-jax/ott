@@ -34,8 +34,8 @@ class GENOTBase:
 
   GENOT (Generative Entropic Neural Optimal Transport) is a neural solver
   for entropic OT prooblems, in the linear
-  (:class:`ott.neural.flows.genot.GENOTLin`), the Gromov-Wasserstein, and 
-  the Fused Gromov-Wasserstein ((:class:`ott.neural.flows.genot.GENOTQUad`)) 
+  (:class:`ott.neural.flows.genot.GENOTLin`), the Gromov-Wasserstein, and
+  the Fused Gromov-Wasserstein ((:class:`ott.neural.flows.genot.GENOTQUad`))
   setting.
 
   Args:
@@ -317,7 +317,7 @@ class GENOTLin(GENOTBase):
           source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
       )
 
-      if self.matcher_latent_to_data.match_fn is not None:
+      if self.matcher_latent_to_data is not None:
         tmats_latent_data = jnp.array(
             jax.vmap(self.matcher_latent_to_data.match_fn, 0,
                      0)(x=latent, y=target)
@@ -413,7 +413,7 @@ class GENOTQuad(GENOTBase):
           )
       )
 
-      if self.matcher_latent_to_data.match_fn is not None:
+      if self.matcher_latent_to_data is not None:
         tmats_latent_data = jnp.array(
             jax.vmap(self.matcher_latent_to_data.match_fn, 0,
                      0)(x=latent, y=target)

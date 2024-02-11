@@ -41,8 +41,9 @@ class TestGENOTLin:
       scale_cost: Union[float, Literal["mean"]], k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
     batch = next(genot_data_loader_linear)
     source_lin, target_lin, source_condition = batch["source_lin"], batch[
@@ -98,9 +99,11 @@ class TestGENOTLin:
       self, genot_data_loader_linear_conditional: Iterator,
       k_samples_per_x: int, solver_latent_to_data: Optional[str]
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
+
     batch = next(genot_data_loader_linear_conditional)
     source_lin, target_lin, source_condition = batch["source_lin"], batch[
         "target_lin"], batch["source_conditions"]
@@ -154,9 +157,11 @@ class TestGENOTLin:
       solver_latent_to_data: Optional[str],
       genot_data_loader_linear_conditional: Iterator
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
+
     data_loader = (
         genot_data_loader_linear_conditional
         if conditional else genot_data_loader_linear
@@ -236,9 +241,11 @@ class TestGENOTQuad:
       self, genot_data_loader_quad: Iterator, k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
+
     batch = next(genot_data_loader_quad)
     source_quad, target_quad, source_condition = batch["source_quad"], batch[
         "target_quad"], batch["source_conditions"]
@@ -290,9 +297,11 @@ class TestGENOTQuad:
       self, genot_data_loader_fused: Iterator, k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
+
     batch = next(genot_data_loader_fused)
     source_lin, source_quad, target_lin, target_quad, source_condition = batch[
         "source_lin"], batch["source_quad"], batch["target_lin"], batch[
@@ -345,9 +354,11 @@ class TestGENOTQuad:
       self, genot_data_loader_quad_conditional: Iterator, k_samples_per_x: int,
       solver_latent_to_data: Optional[str]
   ):
-    matcher_latent_to_data = base_solver.OTMatcherLinear(
-        None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
+
     batch = next(genot_data_loader_quad_conditional)
     source_quad, target_quad, source_condition = batch["source_quad"], batch[
         "target_quad"], batch["source_conditions"]
@@ -403,7 +414,10 @@ class TestGENOTQuad:
     solver_latent_to_data = (
         None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
     )
-    matcher_latent_to_data = base_solver.OTMatcherLinear(solver_latent_to_data)
+    matcher_latent_to_data = (
+        None if solver_latent_to_data is None else
+        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
+    )
     batch = next(genot_data_loader_fused_conditional)
     source_lin, source_quad, target_lin, target_quad, source_condition = batch[
         "source_lin"], batch["source_quad"], batch["target_lin"], batch[
