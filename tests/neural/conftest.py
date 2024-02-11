@@ -14,6 +14,8 @@
 import pytest
 
 import numpy as np
+import torch
+from torch.utils.data import DataLoader as Torch_loader
 
 from ott.neural.data import dataloaders
 
@@ -24,7 +26,8 @@ def data_loader_gaussian():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  return dataloaders.OTDataLoader(16, source_lin=source, target_lin=target)
+  dataset = dataloaders.OTDataSet(source_lin=source, target_lin=target)
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -36,23 +39,22 @@ def data_loader_gaussian_conditional():
 
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) - 2.0
-  dl0 = dataloaders.OTDataLoader(
-      16,
+  ds0 = dataloaders.OTDataSet(
       source_lin=source_0,
       target_lin=target_0,
       source_conditions=np.zeros_like(source_0) * 0.0
   )
-  dl1 = dataloaders.OTDataLoader(
-      16,
+  ds1 = dataloaders.OTDataSet(
       source_lin=source_1,
       target_lin=target_1,
       source_conditions=np.ones_like(source_1) * 1.0
   )
+  sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
+  sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
+  dl0 = Torch_loader(ds0, batch_size=16, sampler=sampler0)
+  dl1 = Torch_loader(ds1, batch_size=16, sampler=sampler1)
 
-  return dataloaders.ConditionalDataLoader({
-      "0": dl0,
-      "1": dl1
-  }, np.array([0.5, 0.5]))
+  return dataloaders.ConditionalOTDataLoader((dl0, dl1))
 
 
 @pytest.fixture(scope="module")
@@ -63,13 +65,14 @@ def data_loader_gaussian_with_conditions():
   target = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 1))
   target_conditions = rng.normal(size=(100, 1)) - 1.0
-  return dataloaders.OTDataLoader(
-      16,
+
+  dataset = dataloaders.OTDataSet(
       source_lin=source,
       target_lin=target,
       source_conditions=source_conditions,
       target_conditions=target_conditions
   )
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +81,8 @@ def genot_data_loader_linear():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  return dataloaders.OTDataLoader(16, source_lin=source, target_lin=target)
+  dataset = dataloaders.OTDataSet(source_lin=source, target_lin=target)
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -88,8 +92,7 @@ def genot_data_loader_linear_conditional():
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 4))
-  return dataloaders.OTDataLoader(
-      16,
+  return dataloaders.OTDataSet(
       source_lin=source,
       target_lin=target,
       source_conditions=source_conditions,
@@ -102,7 +105,8 @@ def genot_data_loader_quad():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
-  return dataloaders.OTDataLoader(16, source_quad=source, target_quad=target)
+  dataset = dataloaders.OTDataSet(source_quad=source, target_quad=target)
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -112,12 +116,12 @@ def genot_data_loader_quad_conditional():
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
   source_conditions = rng.normal(size=(100, 7))
-  return dataloaders.OTDataLoader(
-      16,
+  dataset = dataloaders.OTDataSet(
       source_quad=source,
       target_quad=target,
       source_conditions=source_conditions,
   )
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -128,13 +132,13 @@ def genot_data_loader_fused():
   target_q = rng.normal(size=(100, 1)) + 1.0
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
-  return dataloaders.OTDataLoader(
-      16,
+  dataset = dataloaders.OTDataSet(
       source_lin=source_lin,
       source_quad=source_q,
       target_lin=target_lin,
       target_quad=target_q
   )
+  return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
 @pytest.fixture(scope="module")
@@ -146,11 +150,11 @@ def genot_data_loader_fused_conditional():
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
   source_conditions = rng.normal(size=(100, 7))
-  return dataloaders.OTDataLoader(
-      16,
+  dataset = dataloaders.OTDataSet(
       source_lin=source_lin,
       source_quad=source_q,
       target_lin=target_lin,
       target_quad=target_q,
       source_conditions=source_conditions,
   )
+  return Torch_loader(dataset, batch_size=16, shuffle=True)

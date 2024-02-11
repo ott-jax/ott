@@ -45,9 +45,13 @@ class TestGENOTLin:
         None if solver_latent_to_data is None else
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
-    batch = next(genot_data_loader_linear)
-    source_lin, target_lin, source_condition = batch["source_lin"], batch[
-        "target_lin"], batch["source_conditions"]
+    batch = next(iter(genot_data_loader_linear))
+    source_lin, source_conditions, target_lin = jnp.array(
+        batch["source_lin"]
+    ), jnp.array(batch["source_conditions"]) if len(batch["source_conditions"]
+                                                   ) else None, jnp.array(
+                                                       batch["target_lin"]
+                                                   )
 
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
@@ -83,12 +87,9 @@ class TestGENOTLin:
     )
     genot(genot_data_loader_linear, genot_data_loader_linear)
 
-    batch = next(genot_data_loader_linear)
-    source_lin, target_lin, source_condition = batch["source_lin"], batch[
-        "target_lin"], batch["source_conditions"]
-
+    batch = next(iter(genot_data_loader_linear))
     result_forward = genot.transport(
-        source_lin, condition=source_condition, forward=True
+        source_lin, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -104,12 +105,16 @@ class TestGENOTLin:
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
 
-    batch = next(genot_data_loader_linear_conditional)
-    source_lin, target_lin, source_condition = batch["source_lin"], batch[
-        "target_lin"], batch["source_conditions"]
+    batch = next(iter(genot_data_loader_linear_conditional))
+    source_lin, source_conditions, target_lin = jnp.array(
+        batch["source_lin"]
+    ), jnp.array(batch["source_conditions"]) if len(batch["source_conditions"]
+                                                   ) else None, jnp.array(
+                                                       batch["target_lin"]
+                                                   )
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
-    condition_dim = source_condition.shape[1]
+    condition_dim = source_conditions.shape[1]
 
     neural_vf = VelocityField(
         output_dim=target_dim,
@@ -145,7 +150,7 @@ class TestGENOTLin:
         genot_data_loader_linear_conditional
     )
     result_forward = genot.transport(
-        source_lin, condition=source_condition, forward=True
+        source_lin, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -167,9 +172,10 @@ class TestGENOTLin:
         if conditional else genot_data_loader_linear
     )
 
-    batch = next(data_loader)
-    source_lin, target_lin, source_condition = batch["source_lin"], batch[
-        "target_lin"], batch["source_conditions"]
+    batch = next(iter(data_loader))
+    source_lin, target_lin, source_condition = jnp.array(
+        batch["source_lin"]
+    ), jnp.array(batch["target_lin"]), jnp.array(batch["source_conditions"])
 
     source_dim = source_lin.shape[1]
     target_dim = target_lin.shape[1]
@@ -246,10 +252,12 @@ class TestGENOTQuad:
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
 
-    batch = next(genot_data_loader_quad)
-    source_quad, target_quad, source_condition = batch["source_quad"], batch[
-        "target_quad"], batch["source_conditions"]
-
+    batch = next(iter(genot_data_loader_quad))
+    (source_quad, source_conditions, target_quad) = (
+        jnp.array(batch["source_quad"]), jnp.array(batch["source_conditions"])
+        if len(batch["source_conditions"]) else None,
+        jnp.array(batch["target_quad"])
+    )
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
     condition_dim = 0
@@ -286,7 +294,7 @@ class TestGENOTQuad:
     genot(genot_data_loader_quad, genot_data_loader_quad)
 
     result_forward = genot.transport(
-        source_quad, condition=source_condition, forward=True
+        source_quad, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -302,11 +310,14 @@ class TestGENOTQuad:
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
 
-    batch = next(genot_data_loader_fused)
-    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
-        "source_lin"], batch["source_quad"], batch["target_lin"], batch[
-            "target_quad"], batch["source_conditions"]
-
+    batch = next(iter(genot_data_loader_fused))
+    (source_lin, source_quad, source_conditions, target_lin, target_quad) = (
+        jnp.array(batch["source_lin"]) if len(batch["source_lin"]) else None,
+        jnp.array(batch["source_quad"]), jnp.array(batch["source_conditions"])
+        if len(batch["source_conditions"]) else None,
+        jnp.array(batch["target_lin"]) if len(batch["target_lin"]) else None,
+        jnp.array(batch["target_quad"])
+    )
     source_dim = source_lin.shape[1] + source_quad.shape[1]
     target_dim = target_lin.shape[1] + target_quad.shape[1]
     condition_dim = 0
@@ -342,7 +353,7 @@ class TestGENOTQuad:
 
     result_forward = genot.transport(
         jnp.concatenate((source_lin, source_quad), axis=1),
-        condition=source_condition,
+        condition=source_conditions,
         forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
@@ -359,13 +370,15 @@ class TestGENOTQuad:
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
 
-    batch = next(genot_data_loader_quad_conditional)
-    source_quad, target_quad, source_condition = batch["source_quad"], batch[
-        "target_quad"], batch["source_conditions"]
-
+    batch = next(iter(genot_data_loader_quad_conditional))
+    (source_quad, source_conditions, target_quad) = (
+        jnp.array(batch["source_quad"]), jnp.array(batch["source_conditions"])
+        if len(batch["source_conditions"]) else None,
+        jnp.array(batch["target_quad"])
+    )
     source_dim = source_quad.shape[1]
     target_dim = target_quad.shape[1]
-    condition_dim = source_condition.shape[1]
+    condition_dim = source_conditions.shape[1]
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
@@ -400,7 +413,7 @@ class TestGENOTQuad:
     )
 
     result_forward = genot.transport(
-        source_quad, condition=source_condition, forward=True
+        source_quad, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
@@ -418,13 +431,17 @@ class TestGENOTQuad:
         None if solver_latent_to_data is None else
         base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
     )
-    batch = next(genot_data_loader_fused_conditional)
-    source_lin, source_quad, target_lin, target_quad, source_condition = batch[
-        "source_lin"], batch["source_quad"], batch["target_lin"], batch[
-            "target_quad"], batch["source_conditions"]
+    batch = next(iter(genot_data_loader_fused_conditional))
+    (source_lin, source_quad, source_conditions, target_lin, target_quad) = (
+        jnp.array(batch["source_lin"]) if len(batch["source_lin"]) else None,
+        jnp.array(batch["source_quad"]), jnp.array(batch["source_conditions"])
+        if len(batch["source_conditions"]) else None,
+        jnp.array(batch["target_lin"]) if len(batch["target_lin"]) else None,
+        jnp.array(batch["target_quad"])
+    )
     source_dim = source_lin.shape[1] + source_quad.shape[1]
     target_dim = target_lin.shape[1] + target_quad.shape[1]
-    condition_dim = source_condition.shape[1]
+    condition_dim = source_conditions.shape[1]
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
@@ -460,7 +477,7 @@ class TestGENOTQuad:
 
     result_forward = genot.transport(
         jnp.concatenate((source_lin, source_quad), axis=1),
-        condition=source_condition,
+        condition=source_conditions,
         forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)

@@ -35,7 +35,7 @@ class TestOTFlowMatching:
           flows.BrownianNoiseFlow(0.2)
       ]
   )
-  def test_flow_matching(
+  def test_flow_matching_unconditional(
       self, data_loader_gaussian, flow: Type[flows.BaseFlow]
   ):
     input_dim = 2
@@ -66,17 +66,20 @@ class TestOTFlowMatching:
     )
     fm(data_loader_gaussian, data_loader_gaussian)
 
-    batch = next(data_loader_gaussian)
+    batch = next(iter(data_loader_gaussian))
+    source = jnp.asarray(batch["source_lin"])
+    target = jnp.asarray(batch["target_lin"])
+    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
+        batch["source_conditions"]
+    ) > 0 else None
     result_forward = fm.transport(
-        batch["source_lin"], condition=batch["source_conditions"], forward=True
+        source, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(
-        batch["target_lin"],
-        condition=batch["source_conditions"],
-        forward=False
+        target, condition=source_conditions, forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
@@ -123,17 +126,20 @@ class TestOTFlowMatching:
         data_loader_gaussian_with_conditions
     )
 
-    batch = next(data_loader_gaussian_with_conditions)
+    batch = next(iter(data_loader_gaussian_with_conditions))
+    source = jnp.asarray(batch["source_lin"])
+    target = jnp.asarray(batch["target_lin"])
+    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
+        batch["source_conditions"]
+    ) > 0 else None
     result_forward = fm.transport(
-        batch["source_lin"], condition=batch["source_conditions"], forward=True
+        source, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(
-        batch["target_lin"],
-        condition=batch["source_conditions"],
-        forward=False
+        target, condition=source_conditions, forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
@@ -177,17 +183,20 @@ class TestOTFlowMatching:
     )
     fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
 
-    batch = next(data_loader_gaussian_conditional)
+    batch = next(iter(data_loader_gaussian_conditional))
+    source = jnp.asarray(batch["source_lin"])
+    target = jnp.asarray(batch["target_lin"])
+    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
+        batch["source_conditions"]
+    ) > 0 else None
     result_forward = fm.transport(
-        batch["source_lin"], condition=batch["source_conditions"], forward=True
+        source, condition=source_conditions, forward=True
     )
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(
-        batch["target_lin"],
-        condition=batch["source_conditions"],
-        forward=False
+        target, condition=source_conditions, forward=False
     )
     assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
@@ -201,9 +210,15 @@ class TestOTFlowMatching:
         data_loader_gaussian_conditional
         if conditional else data_loader_gaussian
     )
-    batch = next(data_loader)
-    source_dim = batch["source_lin"].shape[1]
-    condition_dim = batch["source_conditions"].shape[1] if conditional else 0
+    batch = next(iter(data_loader))
+    source = jnp.asarray(batch["source_lin"])
+    target = jnp.asarray(batch["target_lin"])
+    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
+        batch["source_conditions"]
+    ) > 0 else None
+
+    source_dim = source.shape[1]
+    condition_dim = source_conditions.shape[1] if conditional else 0
     neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
@@ -249,13 +264,13 @@ class TestOTFlowMatching:
     fm(data_loader, data_loader)
 
     result_eta = fm.unbalancedness_handler.evaluate_eta(
-        batch["source_lin"], condition=batch["source_conditions"]
+        source, condition=source_conditions
     )
     assert isinstance(result_eta, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_eta)) == 0
 
     result_xi = fm.unbalancedness_handler.evaluate_xi(
-        batch["target_lin"], condition=batch["source_conditions"]
+        target, condition=source_conditions
     )
     assert isinstance(result_xi, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_xi)) == 0

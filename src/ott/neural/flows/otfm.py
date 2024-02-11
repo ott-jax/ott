@@ -151,42 +151,50 @@ class OTFlowMatching:
       valid_loader: Dataloader for the validation data.
     """
     batch: Mapping[str, jnp.ndarray] = {}
-    curr_loss = 0.0
 
-    for iter in range(self.iterations):
-      rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
-      batch = next(train_loader)
-      source, source_conditions, target = batch["source_lin"], batch[
-          "source_conditions"], batch["target_lin"]
-      if self.ot_matcher is not None:
-        tmat = self.ot_matcher.match_fn(source, target)
-        (source, source_conditions), (target,) = self.ot_matcher._resample_data(
-            rng_resample, tmat, (source, source_conditions), (target,)
+    iter = -1
+    while True:
+      for batch in train_loader:
+        iter += 1
+        if iter >= self.iterations:
+          stop = True
+          break
+        rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
+        source, source_conditions, target = jnp.array(
+            batch["source_lin"]
+        ), jnp.array(batch["source_conditions"]
+                    ) if batch["source_conditions"] else None, jnp.array(
+                        batch["target_lin"]
+                    )
+        if self.ot_matcher is not None:
+          tmat = self.ot_matcher.match_fn(source, target)
+          (source,
+           source_conditions), (target,) = self.ot_matcher._resample_data(
+               rng_resample, tmat, (source, source_conditions), (target,)
+           )
+        self.state_velocity_field, loss = self.step_fn(
+            rng_step_fn, self.state_velocity_field, source, target,
+            source_conditions
         )
-      self.state_velocity_field, loss = self.step_fn(
-          rng_step_fn, self.state_velocity_field, source, target,
-          source_conditions
-      )
-      curr_loss += loss
-      if iter % self.logging_freq == 0:
-        self._training_logs["loss"].append(curr_loss / self.logging_freq)
-        curr_loss = 0.0
-      if self.learn_rescaling:
-        (
-            self.unbalancedness_handler.state_eta,
-            self.unbalancedness_handler.state_xi, eta_predictions,
-            xi_predictions, loss_a, loss_b
-        ) = self.unbalancedness_handler.step_fn(
-            source=source,
-            target=target,
-            condition=source_conditions,
-            a=tmat.sum(axis=1),
-            b=tmat.sum(axis=0),
-            state_eta=self.unbalancedness_handler.state_eta,
-            state_xi=self.unbalancedness_handler.state_xi,
-        )
-      if iter % self.valid_freq == 0:
-        self._valid_step(valid_loader, iter)
+        self._training_logs["loss"].append(loss)
+        if self.learn_rescaling:
+          (
+              self.unbalancedness_handler.state_eta,
+              self.unbalancedness_handler.state_xi, eta_predictions,
+              xi_predictions, loss_a, loss_b
+          ) = self.unbalancedness_handler.step_fn(
+              source=source,
+              target=target,
+              condition=source_conditions,
+              a=tmat.sum(axis=1),
+              b=tmat.sum(axis=0),
+              state_eta=self.unbalancedness_handler.state_eta,
+              state_xi=self.unbalancedness_handler.state_xi,
+          )
+        if iter % self.valid_freq == 0:
+          self._valid_step(valid_loader, iter)
+      if stop:
+        break
 
   def transport(
       self,
@@ -243,8 +251,7 @@ class OTFlowMatching:
     return jax.vmap(solve_ode)(data, condition)
 
   def _valid_step(self, valid_loader, iter):
-    next(valid_loader)
-    # TODO: add callback and logging
+    pass
 
   @property
   def learn_rescaling(self) -> bool:
