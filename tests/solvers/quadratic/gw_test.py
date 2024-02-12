@@ -193,10 +193,10 @@ class TestGromovWasserstein:
       )
 
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-2, atol=1e-2
     )
 
   @pytest.mark.fast()
@@ -286,10 +286,10 @@ class TestGromovWasserstein:
       assert not jnp.any(jnp.isnan(grad_matrices[i][1]))
 
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-02, atol=1e-02
+        grad_matrices[0][1], grad_matrices[1][1], rtol=1e-2, atol=1e-2
     )
 
   def test_gw_adaptive_threshold(self):

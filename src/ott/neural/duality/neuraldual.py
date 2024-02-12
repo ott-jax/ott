@@ -20,7 +20,7 @@ import jax.numpy as jnp
 
 import flax.linen as nn
 import optax
-from flax import core, struct
+from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
@@ -305,12 +305,12 @@ class W2NeuralDual:
     self.state_f = neural_f.create_train_state(
         rng_f,
         optimizer_f,
-        dim_data,
+        (1, dim_data),  # also include the batch dimension
     )
     self.state_g = neural_g.create_train_state(
         rng_g,
         optimizer_g,
-        dim_data,
+        (1, dim_data),
     )
 
     # default to using back_and_forth with the non-convex models
@@ -579,7 +579,7 @@ class W2NeuralDual:
       # compute Wasserstein-2 distance
       C = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
           jnp.mean(jnp.sum(target ** 2, axis=-1))
-      W2_dist = C - 2. * (f_source.mean() + f_star_target.mean())
+      W2_dist = C - 2.0 * (f_source.mean() + f_star_target.mean())
 
       return loss, (dual_loss, amor_loss, W2_dist)
 
@@ -664,12 +664,11 @@ class W2NeuralDual:
 
   @staticmethod
   def _clip_weights_icnn(params):
-    params = params.unfreeze()
     for k in params:
       if k.startswith("w_z"):
         params[k]["kernel"] = jnp.clip(params[k]["kernel"], a_min=0)
 
-    return core.freeze(params)
+    return params
 
   @staticmethod
   def _penalize_weights_icnn(params: Dict[str, jnp.ndarray]) -> float:

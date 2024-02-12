@@ -73,7 +73,7 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
+  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
 
 
 class TestGraph:
@@ -93,7 +93,7 @@ class TestGraph:
     # we symmetrize the kernel explicitly when materializing it, because
     # numerical error arise  for small `t` and `backward_euler`
     np.testing.assert_array_equal(kernel, kernel.T)
-    np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0., True)
+    np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0.0, True)
     # internally, the axis is ignored because the kernel is symmetric
     np.testing.assert_array_equal(vec0, vec1)
     np.testing.assert_array_equal(vec_direct0, vec_direct1)
@@ -105,7 +105,7 @@ class TestGraph:
     G = random_graph(38, return_laplacian=False)
     geom = graph.Graph.from_graph(G, t=None)
 
-    expected = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
+    expected = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
     actual = geom.t
     np.testing.assert_equal(actual, expected)
 
@@ -145,7 +145,7 @@ class TestGraph:
   def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
-    G = jnp.asarray(G.toarray(), dtype=float)
+    G = jnp.asarray(G.toarray())
     eye = jnp.eye(G.shape[0])
 
     be_geom = graph.Graph.from_graph(
@@ -261,7 +261,7 @@ class TestGraph:
     ) -> float:
       G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 
-      geom = graph.Graph.from_graph(G, t=1.)
+      geom = graph.Graph.from_graph(G, t=1.0)
       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
       problem = linear_problem.LinearProblem(geom)
 

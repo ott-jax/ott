@@ -61,7 +61,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
 @pytest.mark.fast()
 class TestMaskPointCloud:
 
-  @pytest.mark.parametrize("tgt_ixs", [7, jnp.arange(5)])
+  @pytest.mark.parametrize("tgt_ixs", [[1], jnp.arange(5)])
   @pytest.mark.parametrize("src_ixs", [None, (3, 3)])
   @pytest.mark.parametrize(
       "clazz", [geometry.Geometry, pointcloud.PointCloud, low_rank.LRCGeometry]
@@ -80,12 +80,8 @@ class TestMaskPointCloud:
       geom = clazz(cost_matrix=x @ y.T, scale_cost="mean")
     else:
       geom = clazz(x, y, scale_cost="max_cost", batch_size=5)
-    n = geom.shape[0] if src_ixs is None else 1 if isinstance(
-        src_ixs, int
-    ) else len(src_ixs)
-    m = geom.shape[1] if tgt_ixs is None else 1 if isinstance(
-        tgt_ixs, int
-    ) else len(tgt_ixs)
+    n = geom.shape[0] if src_ixs is None else len(src_ixs)
+    m = geom.shape[1] if tgt_ixs is None else len(tgt_ixs)
 
     if clazz is geometry.Geometry:
       geom_sub = geom.subset(src_ixs, tgt_ixs)

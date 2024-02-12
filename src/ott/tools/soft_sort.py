@@ -129,7 +129,7 @@ def _sort(
     start_index = 1
     b = jnp.concatenate([
         jnp.array([(num_points - topk) / num_points]),
-        jnp.ones(topk, dtype=inputs.dtype) / num_points
+        jnp.ones(topk) / num_points
     ])
   else:
     # Use the "sorting" initializer if default uniform weights of same size.
@@ -369,7 +369,8 @@ def quantile(
   Args:
    inputs: an Array of any shape.
    q: values of the quantile level to be computed, e.g. [0.5] for median.
-     These values should all lie in :math:`[0,1]`.
+     These values should all lie within the segment :math:`]0,1[`, excluding
+     boundary values :math:`0` and :math:`1`.
    axis: the axis on which to apply the operator.
    weight: the weight assigned to each quantile target value in the OT problem.
      This weight should be small, typically of the order of ``1/n``, where ``n``
@@ -414,7 +415,7 @@ def quantile(
       safe_weight = jnp.concatenate([
           safe_weight,
           jnp.array(
-              [.02]
+              [0.02]
           ),  # reasonable mass per quantile for a small number of points
           jnp.array(
               [1.5 / num_points]
@@ -635,12 +636,12 @@ def sort_with(
     An Array of size [batch | topk, dim].
   """
   num_points = criterion.shape[0]
-  weights = jnp.ones(num_points, dtype=criterion.dtype) / num_points
+  weights = jnp.ones(num_points) / num_points
   if 0 < topk < num_points:
     start_index = 1
     target_weights = jnp.concatenate([
         jnp.array([(num_points - topk) / num_points]),
-        jnp.ones(topk, dtype=inputs.dtype) / num_points
+        jnp.ones(topk) / num_points
     ])
   else:
     start_index = 0

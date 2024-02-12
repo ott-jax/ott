@@ -32,8 +32,8 @@ def create_sorting_problem(
     batch_size: Optional[int] = None
 ) -> linear_problem.LinearProblem:
   # define ot problem
-  x_init = jnp.array([-1., 0, .22])
-  y_init = jnp.array([0., 0, 1.1])
+  x_init = jnp.array([-1.0, 0.0, 0.22])
+  y_init = jnp.array([0.0, 0.0, 1.1])
   x_rng, y_rng = jax.random.split(rng)
 
   x = jnp.concatenate([x_init, 10 + jnp.abs(jax.random.normal(x_rng, (n,)))])
@@ -202,8 +202,8 @@ class TestSinkhornInitializers:
     )
 
     # check default is 0
-    np.testing.assert_array_equal(0., default_potential_a)
-    np.testing.assert_array_equal(0., default_potential_b)
+    np.testing.assert_array_equal(0.0, default_potential_a)
+    np.testing.assert_array_equal(0.0, default_potential_b)
 
   def test_gauss_pointcloud_geom(self, rng: jax.Array):
     n, m, d = 20, 20, 2

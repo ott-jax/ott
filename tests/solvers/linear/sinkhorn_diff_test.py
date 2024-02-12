@@ -38,8 +38,8 @@ class TestSinkhornImplicit:
     self.rngs = rngs
     self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
     self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,)) + .1
-    b = jax.random.uniform(rngs[3], (self.m,)) + .1
+    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
+    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
@@ -48,7 +48,7 @@ class TestSinkhornImplicit:
   def test_implicit_differentiation_versus_autodiff(
       self, lse_mode: bool, threshold: float, pcg: bool
   ):
-    epsilon = 0.05
+    epsilon = 5e-2
 
     def loss_g(a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
@@ -101,9 +101,10 @@ class TestSinkhornImplicit:
     reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-02,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-2,
+        atol=1e-2,
     )
     # note how we removed gradients below. This is because gradients are only
     # determined up to additive constant here (the primal variable is in the
@@ -111,8 +112,8 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(
         grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
         grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
-        rtol=1e-02,
-        atol=1e-02
+        rtol=1e-2,
+        atol=1e-2,
     )
 
     # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
@@ -121,12 +122,13 @@ class TestSinkhornImplicit:
     reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-02,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-2,
+        atol=1e-2,
     )
     np.testing.assert_allclose(
-        grad_loss_imp[1], grad_loss_auto[1], rtol=1e-02, atol=1e-02
+        grad_loss_imp[1], grad_loss_auto[1], rtol=1e-2, atol=1e-2
     )
 
 
@@ -173,9 +175,10 @@ class TestSinkhornJacobian:
 
     assert not jnp.any(jnp.isnan(delta_dot_grad))
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
   @pytest.mark.parametrize(("lse_mode", "shape_data"), [(True, (7, 9)),
@@ -217,14 +220,14 @@ class TestSinkhornJacobian:
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(cost_matrix + eps * delta)
     loss_delta_minus, _ = loss_fn(cost_matrix - eps * delta)
-    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
+    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2.0 * eps)
 
-    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-2, atol=1e-2)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        other_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
@@ -307,14 +310,14 @@ class TestSinkhornJacobian:
     # third calculation of gradient
     loss_delta_plus, _ = loss_fn(x + eps * delta, y)
     loss_delta_minus, _ = loss_fn(x - eps * delta, y)
-    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
+    finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2.0 * eps)
 
-    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(custom_grad, other_grad, rtol=1e-2, atol=1e-2)
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(
-        other_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        other_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
@@ -343,8 +346,8 @@ class TestSinkhornJacobian:
 
   @pytest.mark.fast.with_args(
       "lse_mode,tau_a,tau_b,arg,axis",
-      ((True, 1.0, 1.0, 0, 1), (False, 1.0, 1.0, 1, 0), (True, .93, 1.0, 1, 1),
-       (True, .93, .95, 0, 0)),
+      ((True, 1.0, 1.0, 0, 1), (False, 1.0, 1.0, 1, 0), (True, 0.93, 1.0, 1, 1),
+       (True, 0.93, 0.95, 0, 0)),
       only_fast=0
   )
   def test_apply_transport_jacobian(
@@ -371,11 +374,11 @@ class TestSinkhornJacobian:
     rngs = jax.random.split(rng, 9)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
     y = jax.random.uniform(rngs[1], (m, dim)) / dim
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
-    vec = jax.random.uniform(rngs[4], (m if axis else n,)) - .5
+    vec = jax.random.uniform(rngs[4], (m if axis else n,)) - 0.5
 
     delta_a = jax.random.uniform(rngs[5], (n,))
     if tau_a == 1.0:
@@ -453,8 +456,8 @@ class TestSinkhornJacobian:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .93],
-      tau_b=[1.0, .91],
+      tau_a=[1.0, 0.93],
+      tau_b=[1.0, 0.91],
       shape=[(22, 25), (27, 18)],
       arg=[0, 1],
       only_fast=0,
@@ -472,8 +475,8 @@ class TestSinkhornJacobian:
     rngs = jax.random.split(rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
     random_dir = jax.random.uniform(rngs[4], (n,)) / n
@@ -548,8 +551,8 @@ class TestSinkhornGradGrid:
     eps = 1e-3  # perturbation magnitude
     rngs = jax.random.split(rng, 6)
     x = (
-        jnp.array([.0, 1.0]), jnp.array([.3, .4,
-                                         .7]), jnp.array([1.0, 1.3, 2.4, 3.7])
+        jnp.array([0.0, 1.0]), jnp.array([0.3, 0.4,
+                                          0.7]), jnp.array([1.0, 1.3, 2.4, 3.7])
     )
     grid_size = tuple(xs.shape[0] for xs in x)
     a = jax.random.uniform(rngs[0], grid_size) + 1.0
@@ -580,9 +583,10 @@ class TestSinkhornGradGrid:
         ])
     )
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -594,8 +598,8 @@ class TestSinkhornGradGrid:
     rngs = jax.random.split(rng, 3)
     # yapf: disable
     x = (
-        jnp.asarray([.0, 1.0]),
-        jnp.asarray([.3, .4, .7]),
+        jnp.asarray([0.0, 1.0]),
+        jnp.asarray([0.3, 0.4, 0.7]),
         jnp.asarray([1.0, 1.3, 2.4, 3.7])
     )
     # yapf: enable
@@ -621,9 +625,10 @@ class TestSinkhornGradGrid:
     reg_ot_delta_minus = reg_ot(a - eps * delta, b)
     delta_dot_grad = jnp.sum(delta * grad_reg_ot)
     np.testing.assert_allclose(
-        delta_dot_grad, (reg_ot_delta_plus - reg_ot_delta_minus) / (2 * eps),
-        rtol=1e-03,
-        atol=1e-02
+        delta_dot_grad,
+        (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
+        rtol=1e-3,
+        atol=1e-2,
     )
 
 
@@ -631,8 +636,8 @@ class TestSinkhornJacobianPreconditioning:
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
-      tau_a=[1.0, .94],
-      tau_b=[1.0, .91],
+      tau_a=[1.0, 0.94],
+      tau_b=[1.0, 0.91],
       shape=[(18, 19), (27, 18)],
       arg=[0, 1],
       only_fast=[0, -1],
@@ -650,8 +655,8 @@ class TestSinkhornJacobianPreconditioning:
     rngs = jax.random.split(rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + .2
-    b = jax.random.uniform(rngs[3], (m,)) + .2
+    a = jax.random.uniform(rngs[2], (n,)) + 0.2
+    b = jax.random.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
     random_dir = jax.random.uniform(rngs[4], (n,)) / n

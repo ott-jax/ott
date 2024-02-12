@@ -75,7 +75,7 @@ class MapEstimator:
                                       Tuple[float, Optional[Any]]]] = None,
       regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                      Tuple[float, Optional[Any]]]] = None,
-      regularizer_strength: Union[float, Sequence[float]] = 1.,
+      regularizer_strength: Union[float, Sequence[float]] = 1.0,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
@@ -128,7 +128,7 @@ class MapEstimator:
     """
     if self._regularizer is not None:
       return self._regularizer
-    return lambda *args, **kwargs: (0., None)
+    return lambda *_, **__: (0.0, None)
 
   @property
   def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
@@ -140,7 +140,7 @@ class MapEstimator:
     """
     if self._fitting_loss is not None:
       return self._fitting_loss
-    return lambda *args, **kwargs: (0., None)
+    return lambda *_, **__: (0.0, None)
 
   @staticmethod
   def _generate_batch(
@@ -204,7 +204,7 @@ class MapEstimator:
         # update the tqdm bar if tqdm is available
         if not isinstance(tbar, range):
           reg_msg = (
-              "NA" if current_logs["eval"]["regularizer"] == 0. else
+              "NA" if current_logs["eval"]["regularizer"] == 0.0 else
               f"{current_logs['eval']['regularizer']:.4f}"
           )
           postfix_str = (

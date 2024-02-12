@@ -49,7 +49,7 @@ class TestQuadraticInitializers:
     assert solver.initializer is q_init
     assert solver.initializer.rank == rank
 
-  @pytest.mark.parametrize("eps", [0., 1e-2])
+  @pytest.mark.parametrize("eps", [0.0, 1e-2])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
     n, m, d1, d2, rank = 83, 84, 8, 6, 4
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
@@ -85,5 +85,5 @@ class TestQuadraticInitializers:
     kmeans_errors = out_kmeans.errors[out_kmeans.errors > -1]
 
     np.testing.assert_array_less(kmeans_cost, random_cost)
-    np.testing.assert_array_equal(random_errors >= 0., True)
-    np.testing.assert_array_equal(kmeans_errors >= 0., True)
+    np.testing.assert_array_equal(random_errors >= 0.0, True)
+    np.testing.assert_array_equal(kmeans_errors >= 0.0, True)

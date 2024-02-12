@@ -109,8 +109,8 @@ def segment_sinkhorn(
       padded_weight_x: jnp.ndarray,
       padded_weight_y: jnp.ndarray,
   ) -> float:
-    mask_x = padded_weight_x > 0.
-    mask_y = padded_weight_y > 0.
+    mask_x = padded_weight_x > 0.0
+    mask_y = padded_weight_y > 0.0
 
     geom = pointcloud.PointCloud(
         padded_x,

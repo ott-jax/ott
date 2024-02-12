@@ -40,3 +40,4 @@ Miscellaneous
     utils.norm
     utils.logsumexp
     utils.softmin
+    utils.lambertw

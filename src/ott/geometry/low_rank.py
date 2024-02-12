@@ -16,9 +16,11 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import geometry
+from ott import utils
+from ott.geometry import costs, geometry
+from ott.math import utils as mu
 
-__all__ = ["LRCGeometry"]
+__all__ = ["LRCGeometry", "LRKGeometry"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -33,8 +35,8 @@ class LRCGeometry(geometry.Geometry):
   if :math:`C = AB^T` and :math:`D = EF^T` then :math:`C + D = [A,E][B,F]^T`
 
   Args:
-    cost_1: jnp.ndarray<float>[num_a, r]
-    cost_2: jnp.ndarray<float>[num_b, r]
+    cost_1: Array of shape ``[num_a, r]``.
+    cost_2: Array of shape ``[num_b, r]``.
     bias: constant added to entire cost matrix.
     scale: Value used to rescale the factors of the low-rank geometry.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
@@ -249,7 +251,7 @@ class LRCGeometry(geometry.Geometry):
         arr: Optional[jnp.ndarray],
         ixs: Optional[jnp.ndarray],
     ) -> jnp.ndarray:
-      return arr if arr is None or ixs is None else arr[jnp.atleast_1d(ixs)]
+      return arr if arr is None or ixs is None else arr[ixs, ...]
 
     return self._mask_subset_helper(
         src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
@@ -259,7 +261,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> "LRCGeometry":
 
     def mask_fn(
@@ -343,3 +345,164 @@ class LRCGeometry(geometry.Geometry):
         tgt_mask=tgt_mask,
         **aux_data
     )
+
+
+@jax.tree_util.register_pytree_node_class
+class LRKGeometry(geometry.Geometry):
+  """Low-rank kernel geometry.
+
+  .. note::
+    This constructor is not meant to be called by the user,
+    please use the :meth:`from_pointcloud` method instead.
+
+  Args:
+    k1: Array of shape ``[num_a, r]`` with positive features.
+    k2: Array of shape ``[num_b, r]`` with positive features.
+    epsilon: Epsilon regularization.
+    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+  """
+
+  def __init__(
+      self,
+      k1: jnp.ndarray,
+      k2: jnp.ndarray,
+      epsilon: Optional[float] = None,
+      **kwargs: Any
+  ):
+    super().__init__(epsilon=epsilon, relative_epsilon=False, **kwargs)
+    self.k1 = k1
+    self.k2 = k2
+
+  @classmethod
+  def from_pointcloud(
+      cls,
+      x: jnp.ndarray,
+      y: jnp.ndarray,
+      *,
+      kernel: Literal["gaussian", "arccos"],
+      rank: int = 100,
+      std: float = 1.0,
+      n: int = 1,
+      rng: Optional[jax.Array] = None
+  ) -> "LRKGeometry":
+    r"""Low-rank kernel approximation :cite:`scetbon:20`.
+
+    Args:
+      x: Array of shape ``[n, d]``.
+      y: Array of shape ``[m, d]``.
+      kernel: Type of the kernel to approximate.
+      rank: Rank of the approximation.
+      std: Depending on the ``kernel`` approximation:
+
+        - ``'gaussian'`` - scale of the Gibbs kernel.
+        - ``'arccos'`` - standard deviation of the random projections.
+      n: Order of the arc-cosine kernel, see :cite:`cho:09` for reference.
+      rng: Random key used for seeding.
+
+    Returns:
+      Low-rank kernel geometry.
+    """
+    rng = utils.default_prng_key(rng)
+    if kernel == "gaussian":
+      r = jnp.maximum(
+          jnp.linalg.norm(x, axis=-1).max(),
+          jnp.linalg.norm(y, axis=-1).max()
+      )
+      k1 = _gaussian_kernel(rng, x, rank, eps=std, R=r)
+      k2 = _gaussian_kernel(rng, y, rank, eps=std, R=r)
+      eps = std
+    elif kernel == "arccos":
+      k1 = _arccos_kernel(rng, x, rank, n=n, std=std)
+      k2 = _arccos_kernel(rng, y, rank, n=n, std=std)
+      eps = 1.0
+    else:
+      raise NotImplementedError(kernel)
+
+    return cls(k1, k2, epsilon=eps)
+
+  def apply_kernel(  # noqa: D102
+      self,
+      scaling: jnp.ndarray,
+      eps: Optional[float] = None,
+      axis: int = 0,
+  ) -> jnp.ndarray:
+    if axis == 0:
+      return self.k2 @ (self.k1.T @ scaling)
+    return self.k1 @ (self.k2.T @ scaling)
+
+  @property
+  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+    return self.k1 @ self.k2.T
+
+  @property
+  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+    eps = jnp.finfo(self.dtype).tiny
+    return -self.epsilon * jnp.log(self.kernel_matrix + eps)
+
+  @property
+  def rank(self) -> int:  # noqa: D102
+    return self.k1.shape[1]
+
+  @property
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
+    return self.k1.shape[0], self.k2.shape[0]
+
+  @property
+  def dtype(self) -> jnp.dtype:  # noqa: D102
+    return self.k1.dtype
+
+  def transport_from_potentials(
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
+    """Not implemented."""
+    raise ValueError("Not implemented.")
+
+  def tree_flatten(self):  # noqa: D102
+    return [self.k1, self.k2, self._epsilon_init], {}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(*children, **aux_data)
+
+
+def _gaussian_kernel(
+    rng: jax.Array,
+    x: jnp.ndarray,
+    n_features: int,
+    eps: float,
+    R: jnp.ndarray,
+) -> jnp.ndarray:
+  _, d = x.shape
+  cost_fn = costs.SqEuclidean()
+
+  y = (R ** 2) / (eps * d)
+  q = y / (2.0 * mu.lambertw(y))
+  sigma = jnp.sqrt(q * eps * 0.25)
+
+  u = jax.random.normal(rng, shape=(n_features, d)) * sigma
+  cost = cost_fn.all_pairs(x, u)
+  norm_u = cost_fn.norm(u)
+
+  tmp = -2.0 * (cost / eps) + (norm_u / (eps * q))
+  phi = (2 * q) ** (d / 4) * jnp.exp(tmp)
+
+  return (1.0 / jnp.sqrt(n_features)) * phi
+
+
+def _arccos_kernel(
+    rng: jax.Array,
+    x: jnp.ndarray,
+    n_features: int,
+    n: int,
+    std: float = 1.0,
+    kappa: float = 1e-6,
+) -> jnp.ndarray:
+  n_points, d = x.shape
+  c = jnp.sqrt(2) * (std ** (d / 2))
+
+  u = jax.random.normal(rng, shape=(n_features, d)) * std
+  tmp = -(1 / 4) * jnp.sum(u ** 2, axis=-1) * (1.0 - (1.0 / (std ** 2)))
+  phi = c * (jnp.maximum(0.0, (x @ u.T)) ** n) * jnp.exp(tmp)
+
+  return jnp.c_[(1.0 / jnp.sqrt(n_features)) * phi,
+                jnp.full((n_points,), fill_value=kappa)]

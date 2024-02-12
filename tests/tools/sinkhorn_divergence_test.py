@@ -434,5 +434,5 @@ class TestSinkhornDivergenceGrad:
     finite_diff_grad = (loss_delta_plus - loss_delta_minus) / (2 * eps)
 
     np.testing.assert_allclose(
-        custom_grad, finite_diff_grad, rtol=1e-02, atol=1e-02
+        custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )

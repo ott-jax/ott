@@ -45,8 +45,8 @@ class TestGeometryLse:
       val_meps = lse(mat - eps * delta_mat, axis, None, False)[0]
       np.testing.assert_allclose((val_peps - val_meps) / (2 * eps),
                                  jnp.sum(delta_mat * g[0]),
-                                 rtol=1e-03,
-                                 atol=1e-02)
+                                 rtol=1e-3,
+                                 atol=1e-2)
     for b, dim, axis in zip((b_0, b_1), (m, n), (1, 0)):
       delta_b = jax.random.normal(rngs[4], (dim,)).reshape(b.shape)
       _, g = lse(mat, axis, b, True)
@@ -56,5 +56,5 @@ class TestGeometryLse:
       np.testing.assert_allclose((val_peps - val_meps) / (2 * eps),
                                  jnp.sum(delta_mat * g[0]) +
                                  jnp.sum(delta_b * g[1]),
-                                 rtol=1e-03,
-                                 atol=1e-02)
+                                 rtol=1e-3,
+                                 atol=1e-2)

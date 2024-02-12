@@ -626,7 +626,7 @@ class Geometry:
       rank: int = 0,
       tol: float = 1e-2,
       rng: Optional[jax.Array] = None,
-      scale: float = 1.
+      scale: float = 1.0
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
 
@@ -673,8 +673,8 @@ class Geometry:
       i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
-      ci_star = self.subset(i_star, None).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(None, j_star).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset([i_star], None).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(None, [j_star]).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
@@ -697,7 +697,7 @@ class Geometry:
       _, d, v = jnp.linalg.svd(U.T @ U)  # (k,), (k, k)
       v = v.T / jnp.sqrt(d)[None, :]
 
-      inv_scale = (1. / jnp.sqrt(n_subset))
+      inv_scale = (1.0 / jnp.sqrt(n_subset))
       col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
@@ -740,9 +740,9 @@ class Geometry:
       if arr is None:
         return None
       if src_ixs is not None:
-        arr = arr[jnp.atleast_1d(src_ixs)]
+        arr = arr[src_ixs, ...]
       if tgt_ixs is not None:
-        arr = arr[:, jnp.atleast_1d(tgt_ixs)]
+        arr = arr[:, tgt_ixs]
       return arr  # noqa: RET504
 
     return self._mask_subset_helper(
@@ -757,7 +757,7 @@ class Geometry:
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> "Geometry":
     """Mask rows or columns of a geometry.
 
@@ -855,7 +855,7 @@ class Geometry:
         self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
     ).dtype
 
-  def _masked_geom(self, mask_value: float = 0.) -> "Geometry":
+  def _masked_geom(self, mask_value: float = 0.0) -> "Geometry":
     """Mask geometry based on :attr:`src_mask` and :attr:`tgt_mask`."""
     src_mask, tgt_mask = self.src_mask, self.tgt_mask
     if src_mask is None and tgt_mask is None:
@@ -877,12 +877,11 @@ class Geometry:
     return arr / jnp.sum(arr)
 
   @staticmethod
-  def _normalize_mask(mask: Optional[Union[int, jnp.ndarray]],
+  def _normalize_mask(mask: Optional[jnp.ndarray],
                       size: int) -> Optional[jnp.ndarray]:
     """Convert array of indices to a boolean mask."""
     if mask is None:
       return None
-    mask = jnp.atleast_1d(mask)
     if not jnp.issubdtype(mask, (bool, jnp.bool_)):
       mask = jnp.isin(jnp.arange(size), mask)
     assert mask.shape == (size,)

@@ -105,8 +105,8 @@ class SinkhornInitializer(abc.ABC):
     ), f"Expected `g_v` to have shape `{m,}`, found `{b.shape}`."
 
     # cancel dual variables for zero weights
-    a = jnp.where(ot_prob.a > 0., a, -jnp.inf if lse_mode else 0.)
-    b = jnp.where(ot_prob.b > 0., b, -jnp.inf if lse_mode else 0.)
+    a = jnp.where(ot_prob.a > 0.0, a, -jnp.inf if lse_mode else 0.0)
+    b = jnp.where(ot_prob.b > 0.0, b, -jnp.inf if lse_mode else 0.0)
 
     return a, b
 
@@ -339,10 +339,10 @@ class SubsampleInitializer(DefaultInitializer):
 
     # subsample
     sub_x = jax.random.choice(
-        key=rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
+        rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
     )
     sub_y = jax.random.choice(
-        key=rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
+        rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
     )
 
     # create subsampled point cloud geometry

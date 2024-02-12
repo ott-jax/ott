@@ -56,7 +56,7 @@ class Graph(geometry.Geometry):
       tol: float = -1.0,
       **kwargs: Any
   ):
-    super().__init__(epsilon=1., **kwargs)
+    super().__init__(epsilon=1.0, **kwargs)
     self.laplacian = laplacian
     self.t = t
     self.n_steps = n_steps
@@ -107,7 +107,7 @@ class Graph(geometry.Geometry):
       laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
 
     if t is None:
-      t = (jnp.sum(G) / jnp.sum(G > 0.)) ** 2
+      t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
 
     return cls(laplacian, t=t, **kwargs)
 
@@ -162,7 +162,7 @@ class Graph(geometry.Geometry):
     # axis we can ignore since the matrix is symmetric
     del eps, axis
 
-    force_scan = self.tol < 0.
+    force_scan = self.tol < 0.0
     fixpoint_fn = (
         fixed_point_loop.fixpoint_iter
         if force_scan else fixed_point_loop.fixpoint_iter_backprop
@@ -204,9 +204,9 @@ class Graph(geometry.Geometry):
   def _scale(self) -> float:
     """Constant used to scale the Laplacian."""
     if self.numerical_scheme == "backward_euler":
-      return self.t / (4. * self.n_steps)
+      return self.t / (4.0 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2. * self.n_steps)
+      return self.t / (2.0 * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )

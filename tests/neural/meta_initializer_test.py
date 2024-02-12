@@ -18,7 +18,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 
-from flax import linen as nn
+import flax.linen as nn
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as linear_init
@@ -33,12 +33,10 @@ class MetaMLP(nn.Module):
   num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
-    dtype = a.dtype
-    z = jnp.concatenate((a, b))
+  def __call__(self, z: jnp.ndarray) -> jnp.ndarray:
     for _ in range(self.num_hidden_layers):
-      z = nn.relu(nn.Dense(self.num_hidden_units, dtype=dtype)(z))
-    return nn.Dense(self.potential_size, dtype=dtype)(z)
+      z = nn.relu(nn.Dense(self.num_hidden_units)(z))
+    return nn.Dense(self.potential_size)(z)
 
 
 def create_ot_problem(

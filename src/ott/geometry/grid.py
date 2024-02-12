@@ -320,7 +320,7 @@ class Grid(geometry.Geometry):
       self,
       src_mask: Optional[jnp.ndarray],
       tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.,
+      mask_value: float = 0.0,
   ) -> NoReturn:
     """Not implemented."""
     raise NotImplementedError("Masking is not implemented for grids.")

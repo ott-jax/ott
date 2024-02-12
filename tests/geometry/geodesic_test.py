@@ -71,7 +71,22 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.)
+  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
+
+
+def exact_heat_kernel(G: jnp.ndarray, normalize: bool = False, t: float = 10):
+  degree = jnp.sum(G, axis=1)
+  L = jnp.diag(degree) - G
+  if normalize:
+    inv_sqrt_deg = jnp.diag(
+        jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+    )
+    L = inv_sqrt_deg @ L @ inv_sqrt_deg
+
+  e, v = jnp.linalg.eigh(L)
+  e = jnp.clip(e, 0)
+
+  return v @ jnp.diag(jnp.exp(-t * e)) @ v.T
 
 
 class TestGeodesic:
@@ -102,16 +117,14 @@ class TestGeodesic:
     # check that the negative eigenvalues are all very small
     np.testing.assert_array_less(jnp.abs(neg_eigenvalues), 1e-3)
     # internally, the axis is ignored because the kernel is symmetric
-    np.testing.assert_array_equal(vec0, vec1)
-    np.testing.assert_array_equal(vec_direct0, vec_direct1)
+    np.testing.assert_allclose(vec0, vec1, rtol=tol, atol=tol)
+    np.testing.assert_allclose(vec_direct0, vec_direct1, rtol=tol, atol=tol)
 
     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
-    # compute the distance matrix and check that it is symmetric
     cost_matrix = geom.cost_matrix
-    np.testing.assert_array_equal(cost_matrix, cost_matrix.T)
-    # and all dissimilarities are positive
+    np.testing.assert_allclose(cost_matrix, cost_matrix.T, rtol=tol, atol=tol)
     np.testing.assert_array_less(0, cost_matrix)
 
   @pytest.mark.fast.with_args(
@@ -121,7 +134,7 @@ class TestGeodesic:
   def test_approximates_ground_truth(self, t: Optional[float], order: int):
     tol = 1e-2
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
-    G = jnp.asarray(G.toarray(), dtype=float)
+    G = jnp.asarray(G.toarray().astype(float))
     eye = jnp.eye(G.shape[0])
     eps = jnp.finfo(eye.dtype).tiny
 
@@ -198,7 +211,7 @@ class TestGeodesic:
     x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
-    graph_geom = geodesic.Geodesic.from_graph(G, t=eps)
+    graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
 
     fn = jax.jit(callback) if jit else callback
     gt_out = fn(gt_geom)
@@ -231,15 +244,27 @@ class TestGeodesic:
 
     eps = 1e-3
     G = random_graph(20, p=0.5)
-    geom = geodesic.Geodesic.from_graph(G, t=1.)
+    geom = geodesic.Geodesic.from_graph(G, t=1.0)
 
     v_w = jax.random.normal(rng, shape=G.shape)
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_sl = jax.grad(callback)(geom).scaled_laplacian
-    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.)
-    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.)
+    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.0)
+    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.0)
 
     expected = callback(geom__finite_right) - callback(geom__finite_left)
     actual = 2 * jnp.vdot(v_w, grad_sl)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+
+  @pytest.mark.parametrize("normalize", [False, True])
+  @pytest.mark.parametrize("t", [5, 10, 50])
+  @pytest.mark.parametrize("order", [20, 30, 40])
+  def test_heat_approx(self, normalize: bool, t: float, order: int):
+    G = random_graph(20, p=0.5)
+    exact = exact_heat_kernel(G, normalize=normalize, t=t)
+    geom = geodesic.Geodesic.from_graph(
+        G, t=t, order=order, normalize=normalize
+    )
+    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+    np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)

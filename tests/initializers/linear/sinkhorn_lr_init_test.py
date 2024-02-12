@@ -111,7 +111,7 @@ class TestLRInitializers:
         pc_out.reg_ot_cost, geom_out.reg_ot_cost, atol=0.5, rtol=0.02
     )
 
-  @pytest.mark.parametrize("epsilon", [0., 1e-1])
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-1])
   def test_better_initialization_helps(self, rng: jax.Array, epsilon: float):
     n, d, rank = 81, 13, 3
     rng1, rng2 = jax.random.split(rng, 2)

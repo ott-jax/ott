@@ -92,8 +92,8 @@ class TestFusedGromovWasserstein:
     gi_a, gi_b = grad_matrices[0]
     g_a, g_b = grad_matrices[1]
 
-    np.testing.assert_allclose(g_a, gi_a, rtol=1e-02, atol=1e-02)
-    np.testing.assert_allclose(g_b, gi_b, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(g_a, gi_a, rtol=1e-2, atol=1e-2)
+    np.testing.assert_allclose(g_b, gi_b, rtol=1e-2, atol=1e-2)
 
   @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
                                                      (False, True)],
@@ -145,13 +145,13 @@ class TestFusedGromovWasserstein:
     gi_x, gi_y, gi_xy = grad_matrices[0]
     g_x, g_y, g_xy = grad_matrices[1]
 
-    np.testing.assert_allclose(g_x, gi_x, rtol=1e-02, atol=1e-02)
-    np.testing.assert_allclose(g_y, gi_y, rtol=1e-02, atol=1e-02)
+    np.testing.assert_allclose(g_x, gi_x, rtol=1e-2, atol=1e-2)
+    np.testing.assert_allclose(g_y, gi_y, rtol=1e-2, atol=1e-2)
     if is_cost:
-      np.testing.assert_allclose(g_xy, gi_xy, rtol=1e-02, atol=1e-02)
+      np.testing.assert_allclose(g_xy, gi_xy, rtol=1e-2, atol=1e-2)
     else:
-      np.testing.assert_allclose(g_xy[0], gi_xy[0], rtol=1e-02, atol=1e-02)
-      np.testing.assert_allclose(g_xy[1], gi_xy[1], rtol=1e-02, atol=1e-02)
+      np.testing.assert_allclose(g_xy[0], gi_xy[0], rtol=1e-2, atol=1e-2)
+      np.testing.assert_allclose(g_xy[1], gi_xy[1], rtol=1e-2, atol=1e-2)
 
   def test_fgw_adaptive_threshold(self):
     """Checking solution is improved with smaller threshold for convergence."""
@@ -212,7 +212,7 @@ class TestFusedGromovWasserstein:
       assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
 
     np.testing.assert_allclose(
-        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-02, atol=1e-02
+        grad_matrices[0][0], grad_matrices[1][0], rtol=1e-2, atol=1e-2
     )
 
   @pytest.mark.limit_memory("200 MB")
@@ -284,9 +284,9 @@ class TestFusedGromovWasserstein:
   def test_fgw_scale_cost(self, scale_cost: Literal["mean", "max_cost"]):
     epsilon = 0.1
     fused_penalty = 1
-    geom_x = pointcloud.PointCloud(self.x, scale_cost=1.)
-    geom_y = pointcloud.PointCloud(self.y, scale_cost=1.)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2, scale_cost=1.)
+    geom_x = pointcloud.PointCloud(self.x, scale_cost=1.0)
+    geom_y = pointcloud.PointCloud(self.y, scale_cost=1.0)
+    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2, scale_cost=1.0)
     geom_x_scaled = pointcloud.PointCloud(self.x, scale_cost=scale_cost)
     geom_y_scaled = pointcloud.PointCloud(self.y, scale_cost=scale_cost)
     geom_xy_scaled = pointcloud.PointCloud(

@@ -25,8 +25,9 @@ class TestFitGmm:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
-    mean_generator = jnp.array([[2., -1.], [-2., 0.], [4., 3.]])
-    cov_generator = jnp.array([[[0.2, 0.], [0., 0.1]], [[0.6, 0.], [0., 0.3]],
+    mean_generator = jnp.array([[2.0, -1.0], [-2.0, 0.0], [4.0, 3.0]])
+    cov_generator = jnp.array([[[0.2, 0.0], [0.0, 0.1]], [[0.6, 0.0],
+                                                          [0.0, 0.3]],
                                [[0.5, 0.4], [0.4, 0.5]]])
     weights_generator = jnp.array([0.3, 0.3, 0.4])
 

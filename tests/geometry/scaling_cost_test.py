@@ -44,7 +44,7 @@ class TestScaleCost:
     self.eps = 5e-2
 
   @pytest.mark.fast.with_args(
-      scale=["median", "mean", "max_cost", "max_norm", "max_bound", 100.],
+      scale=["median", "mean", "max_cost", "max_norm", "max_bound", 100.0],
       batch_size=[None, 4],
       only_fast=[0, -3],
   )
@@ -90,7 +90,7 @@ class TestScaleCost:
     )
 
   @pytest.mark.parametrize(
-      "scale", ["mean", "max_cost", "max_norm", "max_bound", 100.]
+      "scale", ["mean", "max_cost", "max_norm", "max_bound", 100.0]
   )
   def test_online_matches_offline_pointcloud(self, scale: Union[str, float]):
     """Tests that the scale factors for online matches the ones without."""
@@ -115,7 +115,7 @@ class TestScaleCost:
       np.testing.assert_allclose(1.0, geom1.cost_matrix.max(), rtol=1e-4)
 
   @pytest.mark.fast.with_args(
-      "scale", ["median", "mean", "max_cost", 100.], only_fast=1
+      "scale", ["median", "mean", "max_cost", 100.0], only_fast=1
   )
   def test_scale_cost_geometry(self, scale: Union[str, float]):
     """Test various scale cost options for geometry."""
@@ -152,7 +152,7 @@ class TestScaleCost:
     )
 
   @pytest.mark.fast.with_args(
-      "scale", ["mean", "max_bound", "max_cost", 100.], only_fast=2
+      "scale", ["mean", "max_bound", "max_cost", 100.0], only_fast=2
   )
   def test_scale_cost_low_rank(self, scale: Union[str, float]):
     """Test various scale cost options for low rank."""

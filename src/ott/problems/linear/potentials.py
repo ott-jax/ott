@@ -178,8 +178,8 @@ class DualPotentials:
       samples: Optional[jnp.ndarray] = None,
       forward: bool = True,
       ax: Optional["plt.Axes"] = None,
-      legend_kwargs: Optional[Dict[str, Any]] = None,
       scatter_kwargs: Optional[Dict[str, Any]] = None,
+      legend_kwargs: Optional[Dict[str, Any]] = None,
   ) -> Tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
@@ -197,7 +197,7 @@ class DualPotentials:
         :meth:`~matplotlib.axes.Axes.legend`
 
     Returns:
-      a `matplotlib` figure and axis with the plots
+      Figure and axes.
     """
     if mpl is None:
       raise RuntimeError("Please install `matplotlib` first.")
@@ -259,7 +259,7 @@ class DualPotentials:
           transported_samples[i, 0] - samples[i, 0],
           transported_samples[i, 1] - samples[i, 1],
           color=[0.5, 0.5, 1],
-          alpha=0.3
+          alpha=0.3,
       )
 
     ax.legend(**legend_kwargs)
@@ -269,6 +269,7 @@ class DualPotentials:
       self,
       forward: bool = True,
       quantile: float = 0.05,
+      kantorovich: bool = True,
       ax: Optional["mpl.axes.Axes"] = None,
       x_bounds: Tuple[float, float] = (-6, 6),
       y_bounds: Tuple[float, float] = (-6, 6),
@@ -281,6 +282,7 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       quantile: quantile to filter the potentials with
+      kantorovich: whether to plot the Kantorovich potential
       ax: axis to add the plot to
       x_bounds: x-axis bounds of the plot
         :math:`(x_{\text{min}}, x_{\text{max}})`
@@ -292,7 +294,7 @@ class DualPotentials:
         :meth:`~matplotlib.axes.Axes.contourf`
 
     Returns:
-      a `matplotlib` figure with axis, with the plots.
+      Figure and axes.
     """
     if contourf_kwargs is None:
       contourf_kwargs = {}
@@ -308,8 +310,10 @@ class DualPotentials:
     X1, X2 = jnp.meshgrid(x1, x2)
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
+    if kantorovich:
+      Zflat = 0.5 * (jnp.linalg.norm(X12flat, axis=-1) ** 2) - Zflat
     Zflat = np.asarray(Zflat)
-    vmin, vmax = np.quantile(Zflat, [quantile, 1. - quantile])
+    vmin, vmax = np.quantile(Zflat, [quantile, 1.0 - quantile])
     Zflat = Zflat.clip(vmin, vmax)
     Z = Zflat.reshape(X1.shape)
 
