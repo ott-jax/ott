@@ -13,7 +13,16 @@
 # limitations under the License.
 import contextlib
 
-from . import datasets, geometry, initializers, math, problems, solvers, tools, utils
+from . import (
+    datasets,
+    geometry,
+    initializers,
+    math,
+    problems,
+    solvers,
+    tools,
+    utils,
+)
 
 with contextlib.suppress(ImportError):
   # TODO(michalk8): add warning that neural module is not imported

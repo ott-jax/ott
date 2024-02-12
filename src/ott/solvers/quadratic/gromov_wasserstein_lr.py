@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the unbalanced low-rank GW algorithm."""
-from typing import Any, Callable, Literal, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.experimental

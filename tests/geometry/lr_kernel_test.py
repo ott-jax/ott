@@ -1,9 +1,11 @@
 from typing import Literal, Optional
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
 from ott.geometry import costs, low_rank, pointcloud
 from ott.solvers import linear
 

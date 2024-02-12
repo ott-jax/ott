@@ -13,7 +13,17 @@
 # limitations under the License.
 import abc
 import warnings
-from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp

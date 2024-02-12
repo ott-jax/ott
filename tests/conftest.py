@@ -15,9 +15,8 @@ import collections.abc
 import itertools
 from typing import Any, Mapping, Optional, Sequence
 
-from _pytest.python import Metafunc
-
 import pytest
+from _pytest.python import Metafunc
 
 import jax
 import jax.experimental

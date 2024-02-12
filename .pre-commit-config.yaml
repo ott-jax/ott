@@ -20,12 +20,12 @@ repos:
   - id: trailing-whitespace
   - id: check-case-conflict
 - repo: https://github.com/charliermarsh/ruff-pre-commit
-  rev: v0.1.6
+  rev: v0.2.1
   hooks:
   - id: ruff
     args: [--fix, --exit-non-zero-on-fix]
 - repo: https://github.com/pycqa/isort
-  rev: 5.12.0
+  rev: 5.13.2
   hooks:
   - id: isort
     name: isort
@@ -42,7 +42,7 @@ repos:
   - id: nbqa-black
   - id: nbqa-isort
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-  rev: v2.11.0
+  rev: v2.12.0
   hooks:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']

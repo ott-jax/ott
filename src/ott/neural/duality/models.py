@@ -16,7 +16,6 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from jax.nn import initializers
 
 import flax.linen as nn
 import optax

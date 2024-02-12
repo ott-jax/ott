@@ -326,12 +326,11 @@ class UnbalancednessHandler:
     resample_epsilon: Epsilon for resampling.
     scale_cost: Scaling of the cost matrix for estimating the rescaling factors.
     ot_solver: Solver to compute unbalanced marginals. If `ot_solver` is `None`,
-      the method
-    :meth:`ott.neural.models.base_solver.UnbalancednessHandler.compute_unbalanced_marginals`
-      is not available, and hence the unbalanced marginals must be computed by the neural solver.
+      the method :meth:`ott.neural.models.base_solver.UnbalancednessHandler.compute_unbalanced_marginals`
+      is not available, and hence the unbalanced marginals must be computed
+      by the neural solver.
     kwargs: Additional keyword arguments.
-
-  """
+  """  # noqa: E501  # TODO(MUCDK): fix me
 
   def __init__(
       self,
