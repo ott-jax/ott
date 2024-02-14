@@ -245,19 +245,26 @@ def expm_multiply(
     L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
 ) -> jnp.ndarray:
 
+  # move to sparse matrix
+  L = jax.experimental.sparse.BCOO.fromdense(L, nse=10)
+  X = jax.experimental.sparse.BCOO.fromdense(X, nse=1)
   def body(carry, c):
     T0, T1, Y = carry
+    T1, Y = T1.sort_indices(), Y.sort_indices()
     T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
     return (T1, T2, Y), None
 
   T0 = X
+  T0.unique_indices = False # FIXME: rm change attribute
   Y = 0.5 * coeff[0] * T0
   T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
   initial_state = (T0, T1, Y)
-  (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
+  (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:]) # FIXME scan does not work
+                                                              # because metadata unique_indices is changing
+                                                              # for 1st position of carry.
   return Y
 
 

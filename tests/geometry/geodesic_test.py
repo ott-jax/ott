@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import networkx as nx
 import numpy as np
 import pytest
+from jax.experimental import sparse
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from ott.geometry import geodesic, geometry, graph
@@ -265,3 +266,25 @@ class TestGeodesic:
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
+
+  def test_sparse_geodesic(self, rng: jax.Array):
+    G = random_graph(20, p=0.5)
+    # G = sparse.BCOO.fromdense(G)
+    geom = geodesic.Geodesic.from_graph(G, t=1.0)
+    kernel_matrix = geom.kernel_matrix
+
+    v = jax.random.normal(rng, (n,))
+    v = v / jnp.linalg.norm(v)
+
+    v = jax.device_put(v)
+    v = sparse.COO.from_numpy(v)
+
+    w = geom.apply_kernel(v, axis=0)
+    w = w.todense()
+    w = jnp.asarray(w)
+
+    np.testing.assert_allclose(w, geom.kernel_matrix @ v.todense())
+
+
+if __name__ == "__main__":
+  pytest.main([__file__])
