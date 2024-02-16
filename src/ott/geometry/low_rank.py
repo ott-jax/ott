@@ -42,7 +42,7 @@ class LRCGeometry(geometry.Geometry):
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'max_bound', 'mean' and 'max_cost'. Alternatively, a float
       factor can be given to rescale the cost such that
-      ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
+      ``cost_matrix /= scale_cost``.
     batch_size: optional size of the batch to compute online (without
       instantiating the matrix) the scale factor ``scale_cost`` of the
       :attr:`cost_matrix` when ``scale_cost = 'max_cost'``. If `None`, the batch
@@ -57,8 +57,8 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray,
       bias: float = 0.0,
       scale_factor: float = 1.0,
-      scale_cost: Union[bool, int, float, Literal["mean", "max_bound",
-                                                  "max_cost"]] = 1.0,
+      scale_cost: Union[int, float, Literal["mean", "max_bound",
+                                            "max_cost"]] = 1.0,
       batch_size: Optional[int] = None,
       **kwargs: Any,
   ):
@@ -67,7 +67,7 @@ class LRCGeometry(geometry.Geometry):
     self._cost_2 = cost_2
     self._bias = bias
     self._scale_factor = scale_factor
-    self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._scale_cost = scale_cost
     self.batch_size = batch_size
 
   @property

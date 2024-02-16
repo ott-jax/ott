@@ -90,7 +90,7 @@ class QuadraticProblem:
       geom_yy: geometry.Geometry,
       geom_xy: Optional[geometry.Geometry] = None,
       fused_penalty: float = 1.0,
-      scale_cost: Optional[Union[bool, float, str]] = False,
+      scale_cost: Optional[Union[float, str]] = False,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
