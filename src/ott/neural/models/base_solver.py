@@ -27,15 +27,13 @@ from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
-Scale_cost_lin_t = Union[bool, int, float, Literal["mean", "max_cost",
-                                                   "median"]]
-Scale_cost_quad_t = Union[Union[bool, int, float,
-                                Literal["mean", "max_norm", "max_bound",
-                                        "max_cost", "median"]],
-                          Dict[str,
-                               Union[bool, int, float,
-                                     Literal["mean", "max_norm", "max_bound",
-                                             "max_cost", "median"]]]],
+ScaleCostLin_t = Union[bool, int, float, Literal["mean", "max_cost", "median"]]
+ScaleCostQuad_t = Union[Union[bool, int, float,
+                              Literal["mean", "max_norm", "max_bound",
+                                      "max_cost", "median"]],
+                        Dict[str, Union[bool, int, float,
+                                        Literal["mean", "max_norm", "max_bound",
+                                                "max_cost", "median"]]]],
 
 __all__ = [
     "BaseOTMatcher", "OTMatcherLinear", "OTMatcherQuad", "UnbalancednessHandler"
@@ -67,7 +65,7 @@ def _get_sinkhorn_match_fn(
 def _get_gromov_match_fn(
     ot_solver: Any,
     cost_fn: Union[Any, Mapping[str, Any]],
-    scale_cost: Scale_cost_quad_t,
+    scale_cost: ScaleCostQuad_t,
     tau_a: float,
     tau_b: float,
     fused_penalty: float,
@@ -290,7 +288,7 @@ class OTMatcherQuad(BaseOTMatcher):
       ot_solver: Union[gromov_wasserstein.GromovWasserstein,
                        gromov_wasserstein_lr.LRGromovWasserstein],
       cost_fn: Optional[costs.CostFn] = None,
-      scale_cost: Scale_cost_quad_t = 1.0,
+      scale_cost: ScaleCostQuad_t = 1.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       fused_penalty: float = 0.0,
@@ -368,7 +366,7 @@ class UnbalancednessHandler:
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
-      scale_cost: Union[Scale_cost_lin_t, Scale_cost_quad_t] = 1.0,
+      scale_cost: Union[ScaleCostLin_t, ScaleCostQuad_t] = 1.0,
       ot_solver: Optional[was_solver.WassersteinSolver] = None,
       **kwargs: Mapping[str, Any],
   ):
