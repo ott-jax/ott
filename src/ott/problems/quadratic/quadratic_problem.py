@@ -51,15 +51,10 @@ class QuadraticProblem:
       reduces to a plain Gromov-Wasserstein problem :cite:`peyre:16`.
     fused_penalty: Multiplier of the linear term in fused Gromov-Wasserstein,
       i.e. ``problem = purely quadratic + fused_penalty * linear problem``.
-    scale_cost: option to rescale the cost matrices:
-
-      - if :obj:`True`, use the default for each geometry.
-      - if :obj:`False`, keep the original scaling in geometries.
-      - if :class:`str`, use a specific method available in
-        :class:`~ott.geometry.geometry.Geometry` or
-        :class:`~ott.geometry.pointcloud.PointCloud`.
-      - if :obj:`None`, do not scale the cost matrices.
-
+    scale_cost: How to rescale the cost matrices. If a :class:`str`,
+      use specific options available in :class:`~ott.geometry.geometry.Geometry`
+      or :class:`~ott.geometry.pointcloud.PointCloud`. If :obj:`None`, keep
+      the original scaling.
     a: The first marginal. If :obj:`None`, it will be uniform.
     b: The second marginal. If :obj:`None`, it will be uniform.
     loss: Gromov-Wasserstein loss function, see
@@ -90,7 +85,7 @@ class QuadraticProblem:
       geom_yy: geometry.Geometry,
       geom_xy: Optional[geometry.Geometry] = None,
       fused_penalty: float = 1.0,
-      scale_cost: Optional[Union[float, str]] = False,
+      scale_cost: Optional[Union[float, str]] = None,
       a: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
@@ -100,11 +95,15 @@ class QuadraticProblem:
       ranks: Union[int, Tuple[int, ...]] = -1,
       tolerances: Union[float, Tuple[float, ...]] = 1e-2,
   ):
-    self._geom_xx = geom_xx.set_scale_cost(scale_cost)
-    self._geom_yy = geom_yy.set_scale_cost(scale_cost)
-    self._geom_xy = (
-        None if geom_xy is None else geom_xy.set_scale_cost(scale_cost)
-    )
+    if scale_cost is not None:
+      geom_xx = geom_xx.set_scale_cost(scale_cost)
+      geom_yy = geom_yy.set_scale_cost(scale_cost)
+      if geom_xy is not None:
+        geom_xy = geom_xy.set_scale_cost(scale_cost)
+
+    self._geom_xx = geom_xx
+    self._geom_yy = geom_yy
+    self._geom_xy = geom_xy
     self.fused_penalty = fused_penalty
     self.scale_cost = scale_cost
     self._a = a
