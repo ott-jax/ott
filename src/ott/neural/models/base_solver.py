@@ -27,13 +27,8 @@ from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
-ScaleCostLin_t = Union[bool, int, float, Literal["mean", "max_cost", "median"]]
-ScaleCostQuad_t = Union[Union[bool, int, float,
-                              Literal["mean", "max_norm", "max_bound",
-                                      "max_cost", "median"]],
-                        Dict[str, Union[bool, int, float,
-                                        Literal["mean", "max_norm", "max_bound",
-                                                "max_cost", "median"]]]],
+ScaleCost_t = Union[int, float, Literal["mean", "max_cost", "median"]]
+ScaleCostQuad_t = Union[ScaleCost_t, Dict[str, ScaleCost_t]]
 
 __all__ = [
     "BaseOTMatcher", "OTMatcherLinear", "OTMatcherQuad", "UnbalancednessHandler"
@@ -44,8 +39,7 @@ def _get_sinkhorn_match_fn(
     ot_solver: Any,
     epsilon: float = 1e-2,
     cost_fn: Optional[costs.CostFn] = None,
-    scale_cost: Union[bool, int, float, Literal["mean", "max_norm", "max_bound",
-                                                "max_cost", "median"]] = "mean",
+    scale_cost: ScaleCost_t = 1.0,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
 ) -> Callable:
@@ -237,9 +231,7 @@ class OTMatcherLinear(BaseOTMatcher):
       ot_solver: sinkhorn.Sinkhorn,
       epsilon: float = 1e-2,
       cost_fn: Optional[costs.CostFn] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = 1.0,
+      scale_cost: ScaleCost_t = 1.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
   ) -> None:
@@ -366,7 +358,7 @@ class UnbalancednessHandler:
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
-      scale_cost: Union[ScaleCostLin_t, ScaleCostQuad_t] = 1.0,
+      scale_cost: Union[ScaleCost_t, ScaleCostQuad_t] = 1.0,
       ot_solver: Optional[was_solver.WassersteinSolver] = None,
       **kwargs: Mapping[str, Any],
   ):
