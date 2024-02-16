@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Iterator, Type
+from typing import Iterator, Literal, Type
 
 import pytest
 
@@ -87,8 +87,8 @@ class TestOTFlowMatching:
   @pytest.mark.parametrize(
       "flow", [
           flows.ConstantNoiseFlow(0.0),
-          flows.ConstantNoiseFlow(1.0),
-          flows.BrownianNoiseFlow(0.2)
+          flows.ConstantNoiseFlow(1.1),
+          flows.BrownianNoiseFlow(2.2)
       ]
   )
   def test_flow_matching_with_conditions(
@@ -145,14 +145,17 @@ class TestOTFlowMatching:
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
-      "flow", [
+      "flow",
+      [
           flows.ConstantNoiseFlow(0.0),
-          flows.ConstantNoiseFlow(1.0),
-          flows.BrownianNoiseFlow(0.2)
-      ]
+          flows.ConstantNoiseFlow(13.0),
+          flows.BrownianNoiseFlow(0.12)
+      ],
   )
+  @pytest.mark.parametrize("solver", ["sinkhorn", "lr_sinkhorn"])
   def test_flow_matching_conditional(
-      self, data_loader_gaussian_conditional, flow: Type[flows.BaseFlow]
+      self, data_loader_gaussian_conditional, flow: Type[flows.BaseFlow],
+      solver: Literal["sinkhorn", "lr_sinkhorn"]
   ):
     dim = 2
     condition_dim = 0
@@ -161,7 +164,8 @@ class TestOTFlowMatching:
         condition_dim=condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn()
+    ot_solver = sinkhorn.Sinkhorn(
+    ) if solver == "sinkhorn" else sinkhorn.LRSinkhorn()
     ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)

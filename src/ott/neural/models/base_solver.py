@@ -25,7 +25,17 @@ from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+
+Scale_cost_lin_t = Union[bool, int, float, Literal["mean", "max_cost",
+                                                   "median"]]
+Scale_cost_quad_t = Union[Union[bool, int, float,
+                                Literal["mean", "max_norm", "max_bound",
+                                        "max_cost", "median"]],
+                          Dict[str,
+                               Union[bool, int, float,
+                                     Literal["mean", "max_norm", "max_bound",
+                                             "max_cost", "median"]]]],
 
 __all__ = [
     "BaseOTMatcher", "OTMatcherLinear", "OTMatcherQuad", "UnbalancednessHandler"
@@ -57,12 +67,7 @@ def _get_sinkhorn_match_fn(
 def _get_gromov_match_fn(
     ot_solver: Any,
     cost_fn: Union[Any, Mapping[str, Any]],
-    scale_cost: Union[Union[bool, int, float,
-                            Literal["mean", "max_norm", "max_bound", "max_cost",
-                                    "median"]],
-                      Dict[str, Union[bool, int, float,
-                                      Literal["mean", "max_norm", "max_bound",
-                                              "max_cost", "median"]]]],
+    scale_cost: Scale_cost_quad_t,
     tau_a: float,
     tau_b: float,
     fused_penalty: float,
@@ -150,18 +155,17 @@ class BaseOTMatcher:
     )
     indices_source = indices // n_tgt
     indices_target = indices % n_tgt
-    return tree_util.tree_map(
-        lambda b: b[indices_source] if b is not None else b, source_arrays
-    ), tree_util.tree_map(
-        lambda b: b[indices_target] if b is not None else b, target_arrays
-    )
+    return tree_util.tree_map(lambda b: b[indices_source],
+                              source_arrays), tree_util.tree_map(
+                                  lambda b: b[indices_target], target_arrays
+                              )
 
   def sample_conditional_indices_from_tmap(
       self,
       rng: jax.Array,
       conditional_distributions: jnp.ndarray,
       *,
-      k_samples_per_x: Union[int, jnp.ndarray],
+      k_samples_per_x: int,
       source_arrays: Tuple[Optional[jnp.ndarray], ...],
       target_arrays: Tuple[Optional[jnp.ndarray], ...],
       source_is_balanced: bool,
@@ -198,7 +202,7 @@ class BaseOTMatcher:
     tmat_adapted = conditional_distributions[indices]
     indices_per_row = jax.vmap(
         lambda row: jax.random.
-        choice(key=rng, a=jnp.arange(n_tgt), p=row, shape=(k_samples_per_x,)),
+        choice(key=rng, a=n_tgt, p=row, shape=(k_samples_per_x,)),
         in_axes=0,
         out_axes=0,
     )(
@@ -211,12 +215,12 @@ class BaseOTMatcher:
     )
     return tree_util.tree_map(
         lambda b: jnp.
-        reshape(b[indices_source], (k_samples_per_x, n_src, *b.shape[1:]))
-        if b is not None else None, source_arrays
+        reshape(b[indices_source],
+                (k_samples_per_x, n_src, *b.shape[1:])), source_arrays
     ), tree_util.tree_map(
         lambda b: jnp.
-        reshape(b[indices_target], (k_samples_per_x, n_src, *b.shape[1:]))
-        if b is not None else b, target_arrays
+        reshape(b[indices_target],
+                (k_samples_per_x, n_src, *b.shape[1:])), target_arrays
     )
 
 
@@ -232,12 +236,12 @@ class OTMatcherLinear(BaseOTMatcher):
 
   def __init__(
       self,
-      ot_solver: was_solver.WassersteinSolver,
+      ot_solver: sinkhorn.Sinkhorn,
       epsilon: float = 1e-2,
       cost_fn: Optional[costs.CostFn] = None,
       scale_cost: Union[bool, int, float,
                         Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = "mean",
+                                "median"]] = 1.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
   ) -> None:
@@ -283,11 +287,10 @@ class OTMatcherQuad(BaseOTMatcher):
 
   def __init__(
       self,
-      ot_solver: was_solver.WassersteinSolver,
+      ot_solver: Union[gromov_wasserstein.GromovWasserstein,
+                       gromov_wasserstein_lr.LRGromovWasserstein],
       cost_fn: Optional[costs.CostFn] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = "mean",
+      scale_cost: Scale_cost_quad_t = 1.0,
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       fused_penalty: float = 0.0,
@@ -347,7 +350,8 @@ class UnbalancednessHandler:
       is not available, and hence the unbalanced marginals must be computed
       by the neural solver.
     kwargs: Additional keyword arguments.
-  """  # noqa: E501  # TODO(MUCDK): fix me
+
+  """  # noqa: E501
 
   def __init__(
       self,
@@ -364,8 +368,7 @@ class UnbalancednessHandler:
       opt_eta: Optional[optax.GradientTransformation] = None,
       opt_xi: Optional[optax.GradientTransformation] = None,
       resample_epsilon: float = 1e-2,
-      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
-                                                  "median"]] = "mean",
+      scale_cost: Union[Scale_cost_lin_t, Scale_cost_quad_t] = 1.0,
       ot_solver: Optional[was_solver.WassersteinSolver] = None,
       **kwargs: Mapping[str, Any],
   ):
@@ -443,9 +446,7 @@ class UnbalancednessHandler:
       Resampled arrays.
     """
     indices = jax.random.choice(rng, a=len(p), p=jnp.squeeze(p), shape=[len(p)])
-    return tree_util.tree_map(
-        lambda b: b[indices] if b is not None else b, arrays
-    )
+    return tree_util.tree_map(lambda b: b[indices], arrays)
 
   def setup(self, source_dim: int, target_dim: int, cond_dim: int):
     """Setup the model.
@@ -479,37 +480,19 @@ class UnbalancednessHandler:
 
   def _get_rescaling_step_fn(self) -> Callable:  # type:ignore[type-arg]
 
-    def loss_a_fn(
-        params_eta: Optional[jnp.ndarray],
-        apply_fn_eta: Callable[[Dict[str, jnp.ndarray], jnp.ndarray],
-                               jnp.ndarray],
+    def loss_marginal_fn(
+        params: jnp.ndarray,
+        apply_fn: Callable[[Dict[str, jnp.ndarray], jnp.ndarray],
+                           Optional[jnp.ndarray]],
         x: jnp.ndarray,
         condition: Optional[jnp.ndarray],
-        a: jnp.ndarray,
+        true_marginals: jnp.ndarray,
         expectation_reweighting: float,
     ) -> Tuple[float, jnp.ndarray]:
-      eta_predictions = apply_fn_eta({"params": params_eta}, x, condition)
-      return (
-          optax.l2_loss(eta_predictions[:, 0], a).mean() +
-          optax.l2_loss(jnp.mean(eta_predictions) - expectation_reweighting),
-          eta_predictions,
-      )
-
-    def loss_b_fn(
-        params_xi: Optional[jnp.ndarray],
-        apply_fn_xi: Callable[[Dict[str, jnp.ndarray], jnp.ndarray],
-                              jnp.ndarray],
-        x: jnp.ndarray,
-        condition: Optional[jnp.ndarray],
-        b: jnp.ndarray,
-        expectation_reweighting: float,
-    ) -> Tuple[float, jnp.ndarray]:
-      xi_predictions = apply_fn_xi({"params": params_xi}, x, condition)
-      return (
-          optax.l2_loss(xi_predictions[:, 0], b).mean() +
-          optax.l2_loss(jnp.mean(xi_predictions) - expectation_reweighting),
-          xi_predictions,
-      )
+      predictions = apply_fn({"params": params}, x, condition)
+      pred_loss = optax.l2_loss(jnp.squeeze(predictions), true_marginals).mean()
+      exp_loss = optax.l2_loss(jnp.mean(predictions) - expectation_reweighting)
+      return (pred_loss + exp_loss, predictions)
 
     @jax.jit
     def step_fn(
@@ -524,7 +507,9 @@ class UnbalancednessHandler:
         is_training: bool = True,
     ):
       if state_eta is not None:
-        grad_a_fn = jax.value_and_grad(loss_a_fn, argnums=0, has_aux=True)
+        grad_a_fn = jax.value_and_grad(
+            loss_marginal_fn, argnums=0, has_aux=True
+        )
         (loss_a, eta_predictions), grads_eta = grad_a_fn(
             state_eta.params,
             state_eta.apply_fn,
@@ -540,7 +525,9 @@ class UnbalancednessHandler:
       else:
         new_state_eta = eta_predictions = loss_a = None
       if state_xi is not None:
-        grad_b_fn = jax.value_and_grad(loss_b_fn, argnums=0, has_aux=True)
+        grad_b_fn = jax.value_and_grad(
+            loss_marginal_fn, argnums=0, has_aux=True
+        )
         (loss_b, xi_predictions), grads_xi = grad_b_fn(
             state_xi.params,
             state_xi.apply_fn,

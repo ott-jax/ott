@@ -27,8 +27,8 @@ from ott.neural.flow_models.models import VelocityField
 from ott.neural.flow_models.samplers import uniform_sampler
 from ott.neural.models import base_solver
 from ott.neural.models.nets import RescalingMLP
-from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 class TestGENOTLin:
@@ -36,10 +36,14 @@ class TestGENOTLin:
   @pytest.mark.parametrize("scale_cost", ["mean", 2.0])
   @pytest.mark.parametrize("k_samples_per_x", [1, 3])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["sinkhorn", "lr_sinkhorn"])
   def test_genot_linear_unconditional(
-      self, genot_data_loader_linear: Iterator,
-      scale_cost: Union[float, Literal["mean"]], k_samples_per_x: int,
-      solver_latent_to_data: Optional[str]
+      self,
+      genot_data_loader_linear: Iterator,
+      scale_cost: Union[float, Literal["mean"]],
+      k_samples_per_x: int,
+      solver_latent_to_data: Optional[str],
+      solver: Literal["sinkhorn", "lr_sinkhorn"],
   ):
     matcher_latent_to_data = (
         None if solver_latent_to_data is None else
@@ -62,7 +66,8 @@ class TestGENOTLin:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn()
+    ot_solver = sinkhorn.Sinkhorn(
+    ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn(rank=3)
     ot_matcher = base_solver.OTMatcherLinear(
         ot_solver, cost_fn=costs.SqEuclidean(), scale_cost=scale_cost
     )
@@ -96,9 +101,11 @@ class TestGENOTLin:
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["sinkhorn", "lr_sinkhorn"])
   def test_genot_linear_conditional(
       self, genot_data_loader_linear_conditional: Iterator,
-      k_samples_per_x: int, solver_latent_to_data: Optional[str]
+      k_samples_per_x: int, solver_latent_to_data: Optional[str],
+      solver: Literal["sinkhorn", "lr_sinkhorn"]
   ):
     matcher_latent_to_data = (
         None if solver_latent_to_data is None else
@@ -121,7 +128,8 @@ class TestGENOTLin:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn()
+    ot_solver = sinkhorn.Sinkhorn(
+    ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn(rank=3)
     ot_matcher = base_solver.OTMatcherLinear(
         ot_solver, cost_fn=costs.SqEuclidean()
     )
@@ -243,9 +251,11 @@ class TestGENOTQuad:
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["gromov", "gromov_lr"])
   def test_genot_quad_unconditional(
       self, genot_data_loader_quad: Iterator, k_samples_per_x: int,
-      solver_latent_to_data: Optional[str]
+      solver_latent_to_data: Optional[str], solver: Literal["gromov",
+                                                            "gromov_lr"]
   ):
     matcher_latent_to_data = (
         None if solver_latent_to_data is None else
@@ -266,7 +276,11 @@ class TestGENOTQuad:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    ot_solver = gromov_wasserstein.GromovWasserstein(
+        epsilon=1e-2
+    ) if solver == "gromov" else gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=3, epsilon=1e-2
+    )
     ot_matcher = base_solver.OTMatcherQuad(
         ot_solver, cost_fn=costs.SqEuclidean()
     )
@@ -301,9 +315,11 @@ class TestGENOTQuad:
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["gromov", "gromov_lr"])
   def test_genot_fused_unconditional(
       self, genot_data_loader_fused: Iterator, k_samples_per_x: int,
-      solver_latent_to_data: Optional[str]
+      solver_latent_to_data: Optional[str], solver: Literal["gromov",
+                                                            "gromov_lr"]
   ):
     matcher_latent_to_data = (
         None if solver_latent_to_data is None else
@@ -326,7 +342,11 @@ class TestGENOTQuad:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    ot_solver = gromov_wasserstein.GromovWasserstein(
+        epsilon=1e-2
+    ) if solver == "gromov" else gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=3, epsilon=1e-2
+    )
     ot_matcher = base_solver.OTMatcherQuad(
         ot_solver, cost_fn=costs.SqEuclidean(), fused_penalty=0.5
     )
@@ -361,9 +381,11 @@ class TestGENOTQuad:
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["gromov", "gromov_lr"])
   def test_genot_quad_conditional(
       self, genot_data_loader_quad_conditional: Iterator, k_samples_per_x: int,
-      solver_latent_to_data: Optional[str]
+      solver_latent_to_data: Optional[str], solver: Literal["gromov",
+                                                            "gromov_lr"]
   ):
     matcher_latent_to_data = (
         None if solver_latent_to_data is None else
@@ -385,7 +407,11 @@ class TestGENOTQuad:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    ot_solver = gromov_wasserstein.GromovWasserstein(
+        epsilon=1e-2
+    ) if solver == "gromov" else gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=3, epsilon=1e-2
+    )
     ot_matcher = base_solver.OTMatcherQuad(
         ot_solver, cost_fn=costs.SqEuclidean()
     )
@@ -421,9 +447,11 @@ class TestGENOTQuad:
 
   @pytest.mark.parametrize("k_samples_per_x", [1, 2])
   @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
+  @pytest.mark.parametrize("solver", ["gromov", "gromov_lr"])
   def test_genot_fused_conditional(
       self, genot_data_loader_fused_conditional: Iterator, k_samples_per_x: int,
-      solver_latent_to_data: Optional[str]
+      solver_latent_to_data: Optional[str], solver: Literal["gromov",
+                                                            "gromov_lr"]
   ):
     solver_latent_to_data = (
         None if solver_latent_to_data is None else sinkhorn.Sinkhorn()
@@ -448,7 +476,11 @@ class TestGENOTQuad:
         condition_dim=source_dim + condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = gromov_wasserstein.GromovWasserstein(epsilon=1e-2)
+    ot_solver = gromov_wasserstein.GromovWasserstein(
+        epsilon=1e-2
+    ) if solver == "gromov" else gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=3, epsilon=1e-2
+    )
     ot_matcher = base_solver.OTMatcherQuad(
         ot_solver, cost_fn=costs.SqEuclidean(), fused_penalty=0.5
     )

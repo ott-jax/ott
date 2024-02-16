@@ -84,6 +84,7 @@ class GENOTBase:
       velocity_field: Callable[[
           jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
       ], jnp.ndarray],
+      *,
       input_dim: int,
       output_dim: int,
       cond_dim: int,
@@ -194,6 +195,8 @@ class GENOTBase:
       condition: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
       forward: bool = True,
+      t_0: float = 0.0,
+      t_1: float = 1.0,
       **kwargs: Any,
   ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
     """Transport data with the learnt plan.
@@ -207,6 +210,8 @@ class GENOTBase:
       condition: Condition of the input data.
       rng: random seed for sampling from the latent distribution.
       forward: If `True` integrates forward, otherwise backwards.
+      t_0: Starting time of integration of neural ODE.
+      t_1: End time of integration of neural ODE.
       kwargs: Keyword arguments for the ODE solver.
 
     Returns:
@@ -217,36 +222,37 @@ class GENOTBase:
     rng = utils.default_prng_key(rng)
     if not forward:
       raise NotImplementedError
-    assert len(source) == len(condition) if condition is not None else True
-
+    if condition is not None:
+      assert len(source) == len(condition), (len(source), len(condition))
     latent_batch = self.latent_noise_fn(rng, shape=(len(source),))
-    cond_input = source if condition is None else jnp.concatenate([
-        source, condition
-    ],
-                                                                  axis=-1)
-    t0, t1 = (0.0, 1.0)
+    cond_input = source if condition is None else (
+        jnp.concatenate([source, condition], axis=-1)
+    )
 
     @jax.jit
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
-      return diffrax.diffeqsolve(
-          diffrax.ODETerm(
-              lambda t, x, args: self.state_velocity_field.
-              apply_fn({"params": self.state_velocity_field.params},
-                       t=t,
-                       x=x,
-                       condition=cond)
-          ),
-          kwargs.pop("solver", diffrax.Tsit5()),
-          t0=t0,
-          t1=t1,
+      ode_term = diffrax.ODETerm(
+          lambda t, x, args: self.state_velocity_field.
+          apply_fn({"params": self.state_velocity_field.params},
+                   t=t,
+                   x=x,
+                   condition=cond)
+      ),
+      solver = kwargs.pop("solver", diffrax.Tsit5())
+      stepsize_controller = kwargs.pop(
+          "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
+      )
+      sol = diffrax.diffeqsolve(
+          ode_term,
+          solver,
+          t0=t_0,
+          t1=t_1,
           dt0=kwargs.pop("dt0", None),
           y0=input,
-          stepsize_controller=kwargs.pop(
-              "stepsize_controller",
-              diffrax.PIDController(rtol=1e-5, atol=1e-5)
-          ),
+          stepsize_controller=stepsize_controller,
           **kwargs,
-      ).ys[0]
+      )
+      return sol.ys[0]
 
     return jax.vmap(solve_ode)(latent_batch, cond_input)
 
@@ -264,8 +270,8 @@ class GENOTBase:
   def _reshape_samples(self, arrays: Tuple[jnp.ndarray, ...],
                        batch_size: int) -> Tuple[jnp.ndarray, ...]:
     return jax.tree_util.tree_map(
-        lambda x: jnp.reshape(x, (batch_size * self.k_samples_per_x, -1))
-        if x is not None else None, arrays
+        lambda x: jnp.reshape(x, (batch_size * self.k_samples_per_x, -1)),
+        arrays
     )
 
 

@@ -79,6 +79,7 @@ test = [
     "tslearn>=0.5; python_version < '3.12'",
     "lineax; python_version >= '3.9'",
     "matplotlib",
+    "torch"
 ]
 docs = [
     "sphinx>=4.0",

@@ -11,7 +11,7 @@ Datasets
 .. autosummary::
     :toctree: _autosummary
 
-    dataloaders.OTDataset
+    dataloaders.OTDataSet
 
 Dataloaders
 -----------
