@@ -22,9 +22,9 @@ from jax import random
 import optax
 
 from ott.geometry import costs
-from ott.neural.flows.genot import GENOTLin, GENOTQuad
-from ott.neural.flows.models import VelocityField
-from ott.neural.flows.samplers import uniform_sampler
+from ott.neural.flow_models.genot import GENOTLin, GENOTQuad
+from ott.neural.flow_models.models import VelocityField
+from ott.neural.flow_models.samplers import uniform_sampler
 from ott.neural.models import base_solver
 from ott.neural.models.nets import RescalingMLP
 from ott.solvers.linear import sinkhorn

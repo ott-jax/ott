@@ -34,7 +34,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural.flows import flows
+from ott.neural.flow_models import flows
 from ott.neural.models import base_solver
 
 __all__ = ["OTFlowMatching"]
@@ -172,16 +172,14 @@ class OTFlowMatching:
         rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
         source, source_conditions, target = jnp.array(
             batch["source_lin"]
-        ), jnp.array(batch["source_conditions"]
-                    ) if batch["source_conditions"] else None, jnp.array(
-                        batch["target_lin"]
-                    )
+        ), jnp.array(batch["source_conditions"]) if len(
+            batch["source_conditions"]
+        ) > 0 else None, jnp.array(batch["target_lin"])
         if self.ot_matcher is not None:
           tmat = self.ot_matcher.match_fn(source, target)
-          (source,
-           source_conditions), (target,) = self.ot_matcher._resample_data(
-               rng_resample, tmat, (source, source_conditions), (target,)
-           )
+          (source, source_conditions), (target,) = self.ot_matcher.sample_joint(
+              rng_resample, tmat, (source, source_conditions), (target,)
+          )
         self.state_velocity_field, loss = self.step_fn(
             rng_step_fn, self.state_velocity_field, source, target,
             source_conditions

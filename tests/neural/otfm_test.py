@@ -21,7 +21,7 @@ from jax import random
 
 import optax
 
-from ott.neural.flows import flows, models, otfm, samplers
+from ott.neural.flow_models import flows, models, otfm, samplers
 from ott.neural.models import base_solver, nets
 from ott.solvers.linear import sinkhorn
 

@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, Literal, Mapping, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from jax import tree_util
 
 import optax
 from flax.training import train_state
@@ -39,8 +40,6 @@ def _get_sinkhorn_match_fn(
                                                 "max_cost", "median"]] = "mean",
     tau_a: float = 1.0,
     tau_b: float = 1.0,
-    *,
-    filter_input: bool = False,
 ) -> Callable:
 
   @jax.jit
@@ -52,19 +51,7 @@ def _get_sinkhorn_match_fn(
         linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
     )
 
-  @jax.jit
-  def match_pairs_filtered(
-      x_lin: jnp.ndarray, x_quad: jnp.ndarray, y_lin: jnp.ndarray,
-      y_quad: jnp.ndarray
-  ) -> jnp.ndarray:
-    geom = pointcloud.PointCloud(
-        x_lin, y_lin, epsilon=epsilon, scale_cost=scale_cost, cost_fn=cost_fn
-    )
-    return ot_solver(
-        linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
-    )
-
-  return match_pairs_filtered if filter_input else match_pairs
+  return match_pairs
 
 
 def _get_gromov_match_fn(
@@ -104,10 +91,10 @@ def _get_gromov_match_fn(
 
   @jax.jit
   def match_pairs(
-      x_lin: Optional[jnp.ndarray],
       x_quad: Tuple[jnp.ndarray, jnp.ndarray],
-      y_lin: Optional[jnp.ndarray],
       y_quad: Tuple[jnp.ndarray, jnp.ndarray],
+      x_lin: Optional[jnp.ndarray],
+      y_lin: Optional[jnp.ndarray],
   ) -> jnp.ndarray:
     geom_xx = pointcloud.PointCloud(
         x=x_quad, y=x_quad, cost_fn=cost_fn_xx, scale_cost=scale_cost_xx
@@ -137,36 +124,67 @@ def _get_gromov_match_fn(
 class BaseOTMatcher:
   """Base class for mini-batch neural OT matching classes."""
 
-  def _resample_data(
+  def sample_joint(
       self,
       rng: jax.Array,
-      tmat: jnp.ndarray,
-      source_arrays: Tuple[jnp.ndarray, ...],
-      target_arrays: Tuple[jnp.ndarray, ...],
+      joint_dist: jnp.ndarray,
+      source_arrays: Tuple[Optional[jnp.ndarray], ...],
+      target_arrays: Tuple[Optional[jnp.ndarray], ...],
   ) -> Tuple[jnp.ndarray, ...]:
-    """Resample a batch according to coupling `tmat`."""
-    tmat_flattened = tmat.flatten()
-    indices = jax.random.choice(rng, len(tmat_flattened), p=tmat_flattened, shape=[tmat.shape[0]])
-    indices_source = indices // tmat.shape[1]
-    indices_target = indices % tmat.shape[1]
-    return tuple(
-        b[indices_source] if b is not None else None for b in source_arrays
-    ), tuple(
-        b[indices_target] if b is not None else None for b in target_arrays
+    """Resample from arrays according to discrete joint distribution.
+
+    Args:
+      rng: Random number generator.
+      joint_dist: Joint distribution between source and target to sample from.
+      source_arrays: Arrays corresponding to source distriubution to sample
+        from.
+      target_arrays: Arrays corresponding to target arrays to sample from.
+
+    Returns:
+      Resampled source and target arrays.
+    """
+    _, n_tgt = joint_dist.shape
+    tmat_flattened = joint_dist.flatten()
+    indices = jax.random.choice(
+        rng, len(tmat_flattened), p=tmat_flattened, shape=[joint_dist.shape[0]]
+    )
+    indices_source = indices // n_tgt
+    indices_target = indices % n_tgt
+    return tree_util.tree_map(
+        lambda b: b[indices_source] if b is not None else b, source_arrays
+    ), tree_util.tree_map(
+        lambda b: b[indices_target] if b is not None else b, target_arrays
     )
 
-  def _sample_conditional_indices_from_tmap(
+  def sample_conditional_indices_from_tmap(
       self,
       rng: jax.Array,
-      tmat: jnp.ndarray,
+      conditional_distributions: jnp.ndarray,
       *,
       k_samples_per_x: Union[int, jnp.ndarray],
-      source_arrays: Tuple[jnp.ndarray, ...],
-      target_arrays: Tuple[jnp.ndarray, ...],
+      source_arrays: Tuple[Optional[jnp.ndarray], ...],
+      target_arrays: Tuple[Optional[jnp.ndarray], ...],
       source_is_balanced: bool,
-  ) -> Tuple[jnp.array, jnp.array]:
-    batch_size = tmat.shape[0]
-    left_marginals = tmat.sum(axis=1)
+  ) -> Tuple[jnp.ndarray, ...]:
+    """Sample from arrays according to discrete conditional distributions.
+
+    Args:
+      rng: Random number generator.
+      conditional_distributions: Conditional distributions to sample from.
+      k_samples_per_x: Expectation of number of samples to draw from each
+        conditional distribution.
+      source_arrays: Arrays corresponding to source distriubution to sample
+        from.
+      target_arrays: Arrays corresponding to target arrays to sample from.
+      source_is_balanced: Whether the source distribution is balanced.
+        If :obj:`False`, the number of samples drawn from each conditional
+        distribution `k_samples_per_x` is proportional to the left marginals.
+
+    Returns:
+      Resampled source and target arrays.
+    """
+    n_src, n_tgt = conditional_distributions.shape
+    left_marginals = conditional_distributions.sum(axis=1)
     if not source_is_balanced:
       rng, rng_2 = jax.random.split(rng, 2)
       indices = jax.random.choice(
@@ -176,12 +194,11 @@ class BaseOTMatcher:
           shape=(len(left_marginals),)
       )
     else:
-      indices = jnp.arange(batch_size)
-    tmat_adapted = tmat[indices]
+      indices = jnp.arange(n_src)
+    tmat_adapted = conditional_distributions[indices]
     indices_per_row = jax.vmap(
-        lambda row: jax.random.choice(
-            key=rng, a=jnp.arange(batch_size), p=row, shape=(k_samples_per_x,)
-        ),
+        lambda row: jax.random.
+        choice(key=rng, a=jnp.arange(n_tgt), p=row, shape=(k_samples_per_x,)),
         in_axes=0,
         out_axes=0,
     )(
@@ -190,16 +207,16 @@ class BaseOTMatcher:
 
     indices_source = jnp.repeat(indices, k_samples_per_x)
     indices_target = jnp.reshape(
-        indices_per_row % tmat.shape[1], (batch_size * k_samples_per_x,)
+        indices_per_row % n_tgt, (n_src * k_samples_per_x,)
     )
-    return tuple(
-        jnp.reshape(b[indices_source], (k_samples_per_x, batch_size,
-                                        -1)) if b is not None else None
-        for b in source_arrays
-    ), tuple(
-        jnp.reshape(b[indices_target], (k_samples_per_x, batch_size,
-                                        -1)) if b is not None else None
-        for b in target_arrays
+    return tree_util.tree_map(
+        lambda b: jnp.
+        reshape(b[indices_source], (k_samples_per_x, n_src, *b.shape[1:]))
+        if b is not None else None, source_arrays
+    ), tree_util.tree_map(
+        lambda b: jnp.
+        reshape(b[indices_target], (k_samples_per_x, n_src, *b.shape[1:]))
+        if b is not None else b, target_arrays
     )
 
 
@@ -409,17 +426,26 @@ class UnbalancednessHandler:
     return compute_unbalanced_marginals_quad
 
   @jax.jit
-  def _resample_unbalanced(
+  def resample_unbalanced(
       self,
       rng: jax.Array,
-      batch: Tuple[jnp.ndarray, ...],
-      marginals: jnp.ndarray,
+      arrays: Tuple[jnp.ndarray, ...],
+      p: jnp.ndarray,
   ) -> Tuple[jnp.ndarray, ...]:
-    """Resample a batch based on marginals."""
-    indices = jax.random.choice(
-        rng, a=len(marginals), p=jnp.squeeze(marginals), shape=[len(marginals)]
+    """Resample a batch based on marginals.
+
+    Args:
+      rng: Random number generator.
+      arrays: Arrays to resample from.
+      p: Probabilities according to which `arrays` are resampled.
+
+    Returns:
+      Resampled arrays.
+    """
+    indices = jax.random.choice(rng, a=len(p), p=jnp.squeeze(p), shape=[len(p)])
+    return tree_util.tree_map(
+        lambda b: b[indices] if b is not None else b, arrays
     )
-    return tuple(b[indices] if b is not None else None for b in batch)
 
   def setup(self, source_dim: int, target_dim: int, cond_dim: int):
     """Setup the model.

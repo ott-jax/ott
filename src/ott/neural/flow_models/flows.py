@@ -44,9 +44,9 @@ class BaseFlow(abc.ABC):
     at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
-      src: Sample from the source distribution.
-      tgt: Sample from the target distribution.
+      t: Time :math:`t` of shape `(batch_size, 1)`.
+      src: Sample from the source distribution of shape `(batch_size, ...)`.
+      tgt: Sample from the target distribution of shape `(batch_size, ...)`.
     """
 
   @abc.abstractmethod
@@ -54,7 +54,7 @@ class BaseFlow(abc.ABC):
     """Compute the standard deviation of the probablity path at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
+      t: Time :math:`t` of shape `(batch_size, 1)`.
     """
 
   @abc.abstractmethod
@@ -67,9 +67,9 @@ class BaseFlow(abc.ABC):
     :math:`x_1` at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
-      src: Sample from the source distribution.
-      tgt: Sample from the target distribution.
+      t: Time :math:`t` of shape `(batch_size, 1)`..
+      src: Sample from the source distribution of shape `(batch_size, ...)`.
+      tgt: Sample from the target distribution of shape `(batch_size, ...)`.
 
     Returns:
       Conditional vector field evaluated at time :math:`t`.
@@ -85,9 +85,9 @@ class BaseFlow(abc.ABC):
 
     Args:
       rng: Random number generator.
-      t: Time :math:`t`.
-      src: Sample from the source distribution.
-      tgt: Sample from the target distribution.
+      t: Time :math:`t` of shape `(batch_size, 1)`..
+      src: Sample from the source distribution of shape `(batch_size, ...)`.
+      tgt: Sample from the target distribution of shape `(batch_size, ...)`.
 
     Returns:
       Samples from the probability path between :math:`x_0` and :math:`x_1`
@@ -116,9 +116,9 @@ class StraightFlow(BaseFlow, abc.ABC):
     :math:`x_1` at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
-      src: Sample from the source distribution.
-      tgt: Sample from the target distribution.
+      t: Time :math:`t` of shape `(batch_size, 1)`.
+      src: Sample from the source distribution of shape `(batch_size, ...)`.
+      tgt: Sample from the target distribution of shape `(batch_size, ...)`..
 
     Returns:
       Conditional vector field evaluated at time :math:`t`.
@@ -134,7 +134,7 @@ class ConstantNoiseFlow(StraightFlow):
     r"""Compute noise of the flow at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
+      t: Time :math:`t` of shape `(batch_size, 1)`..
 
     Returns:
       Constant, time-independent standard deviation :math:`\sigma`.
@@ -147,7 +147,7 @@ class BrownianNoiseFlow(StraightFlow):
 
   Sampler for sampling noise implicitly defined by a Schroedinger Bridge
   problem with parameter :math:`\sigma` such that
-  :math:`\sigma_t = \sigma * \sqrt(t * (1-t))`.
+  :math:`\sigma_t = \sigma * \sqrt(t * (1-t))` (:cite:`tong:23`).
 
   Returns:
     Samples from the probability path between :math:`x_0` and :math:`x_1`
@@ -158,7 +158,7 @@ class BrownianNoiseFlow(StraightFlow):
     """Compute the standard deviation of the probablity path at time :math:`t`.
 
     Args:
-      t: Time :math:`t`.
+      t: Time :math:`t` of shape `(batch_size, 1)`..
 
     Returns:
       Standard deviation of the probablity path at time :math:`t`.

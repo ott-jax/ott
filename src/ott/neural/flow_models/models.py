@@ -20,7 +20,7 @@ import flax.linen as nn
 import optax
 from flax.training import train_state
 
-import ott.neural.flows.layers as flow_layers
+import ott.neural.flow_models.layers as flow_layers
 from ott.neural.models import layers
 
 __all__ = ["VelocityField"]
