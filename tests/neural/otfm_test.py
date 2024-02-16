@@ -23,7 +23,7 @@ import optax
 
 from ott.neural.flow_models import flows, models, otfm, samplers
 from ott.neural.models import base_solver, nets
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 
 class TestOTFlowMatching:
@@ -165,7 +165,7 @@ class TestOTFlowMatching:
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn(
-    ) if solver == "sinkhorn" else sinkhorn.LRSinkhorn()
+    ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn()
     ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)

@@ -88,8 +88,8 @@ def _get_gromov_match_fn(
 
   @jax.jit
   def match_pairs(
-      x_quad: Tuple[jnp.ndarray, jnp.ndarray],
-      y_quad: Tuple[jnp.ndarray, jnp.ndarray],
+      x_quad: jnp.ndarray,
+      y_quad: jnp.ndarray,
       x_lin: Optional[jnp.ndarray],
       y_lin: Optional[jnp.ndarray],
   ) -> jnp.ndarray:

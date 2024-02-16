@@ -290,6 +290,7 @@ class GENOTLin(GENOTBase):
       valid_loader: Data loader for the validation data.
     """
     iter = -1
+    stop = False
     while True:
       for batch in train_loader:
         iter += 1
@@ -388,6 +389,7 @@ class GENOTQuad(GENOTBase):
     """
     batch: Dict[str, jnp.array] = {}
     iter = -1
+    stop = False
     while True:
       for batch in train_loader:
         iter += 1
