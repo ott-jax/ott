@@ -274,6 +274,25 @@ class GENOTBase:
         arrays
     )
 
+  def _learn_rescaling(
+      self, source: jnp.ndarray, target: jnp.ndarray,
+      source_conditions: Optional[jnp.ndarray], tmat: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, float, float]:
+
+    (
+        self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a,
+        loss_b
+    ) = self.unbalancedness_handler.step_fn(
+        source=source,
+        target=target,
+        condition=source_conditions,
+        a=tmat.sum(axis=1),
+        b=tmat.sum(axis=0),
+        state_eta=self.unbalancedness_handler.state_eta,
+        state_xi=self.unbalancedness_handler.state_xi,
+    )
+    return eta_predictions, xi_predictions, float(loss_a), float(loss_b)
+
 
 class GENOTLin(GENOTBase):
   """Implementation of GENOT-L (:cite:`klein:23`).
@@ -304,7 +323,7 @@ class GENOTLin(GENOTBase):
         source, source_conditions, target = jnp.array(
             batch["source_lin"]
         ), jnp.array(batch["source_conditions"]
-                    ) if len(batch["source_conditions"]) else None, jnp.array(
+                    ) if "source_conditions" in batch else None, jnp.array(
                         batch["target_lin"]
                     )
 
@@ -353,18 +372,13 @@ class GENOTLin(GENOTBase):
             latent, source_conditions
         )
         if self.learn_rescaling:
-          (
-              self.state_eta, self.state_xi, eta_predictions, xi_predictions,
-              loss_a, loss_b
-          ) = self.unbalancedness_handler.step_fn(
+          eta_preds, xi_preds, loss_a, loss_b = self._learn_rescaling(
               source=source,
               target=target,
               condition=source_conditions,
-              a=tmat.sum(axis=1),
-              b=tmat.sum(axis=0),
-              state_eta=self.unbalancedness_handler.state_eta,
-              state_xi=self.unbalancedness_handler.state_xi,
+              tmat=tmat
           )
+
         if iter % self.valid_freq == 0:
           self._valid_step(valid_loader, iter)
       if stop:
@@ -403,12 +417,12 @@ class GENOTQuad(GENOTBase):
         ) = jax.random.split(self.rng, 6)
         (source_lin, source_quad, source_conditions, target_lin,
          target_quad) = (
-             jnp.array(batch["source_lin"]) if len(batch["source_lin"]) else
-             None, jnp.array(batch["source_quad"]),
+             jnp.array(batch["source_lin"]) if "source_lin" in batch else None,
+             jnp.array(batch["source_quad"]),
              jnp.array(batch["source_conditions"])
-             if len(batch["source_conditions"]) else None,
-             jnp.array(batch["target_lin"]) if len(batch["target_lin"]) else
-             None, jnp.array(batch["target_quad"])
+             if "source_conditions" in batch else None,
+             jnp.array(batch["target_lin"]) if "target_lin" in batch else None,
+             jnp.array(batch["target_quad"])
          )
         batch_size = len(source_quad)
         n_samples = batch_size * self.k_samples_per_x
@@ -464,17 +478,11 @@ class GENOTQuad(GENOTBase):
             latent, source_conditions
         )
         if self.learn_rescaling:
-          (
-              self.state_eta, self.state_xi, eta_predictions, xi_predictions,
-              loss_a, loss_b
-          ) = self.unbalancedness_handler.step_fn(
+          eta_preds, xi_preds, loss_a, loss_b = self._learn_rescaling(
               source=source,
               target=target,
               condition=source_conditions,
-              a=tmat.sum(axis=1),
-              b=tmat.sum(axis=0),
-              state_eta=self.unbalancedness_handler.state_eta,
-              state_xi=self.unbalancedness_handler.state_xi,
+              tmat=tmat
           )
         if iter % self.valid_freq == 0:
           self._valid_step(valid_loader, iter)
