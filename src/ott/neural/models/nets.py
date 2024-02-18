@@ -89,7 +89,7 @@ class RescalingMLP(nn.Module):
 
     out_layer = layers.MLPBlock(
         dim=self.hidden_dim,
-        out_dim=self.hidden_dim,
+        out_dim=1,
         num_layers=self.num_layers_per_block,
         act_fn=self.act_fn
     )
