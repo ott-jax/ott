@@ -153,28 +153,30 @@ class OTFlowMatching:
 
     return step_fn
 
-  def __call__(self, train_loader, valid_loader):
+  def __call__(
+      self, train_loader_source, train_loader_target, valid_loader_source,
+      valid_loader_target
+  ):
     """Train :class:`OTFlowMatching`.
 
     Args;
       train_loader: Dataloader for the training data.
       valid_loader: Dataloader for the validation data.
     """
-    batch: Mapping[str, jnp.ndarray] = {}
-
     iter = -1
     while True:
-      for batch in train_loader:
+      for batch_source, batch_target in zip(
+          train_loader_source, train_loader_target
+      ):
         iter += 1
         if iter >= self.iterations:
           stop = True
           break
         rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
-        source, source_conditions, target = jnp.array(
-            batch["source_lin"]
-        ), jnp.array(batch["source_conditions"]) if len(
-            batch["source_conditions"]
-        ) > 0 else None, jnp.array(batch["target_lin"])
+        source, source_conditions = jnp.array(batch_source["lin"]), jnp.array(
+            batch_source["conditions"]
+        ) if "conditions" in batch_source else None
+        target = jnp.array(batch_target["lin"])
         if self.ot_matcher is not None:
           tmat = self.ot_matcher.match_fn(source, target)
           (source, source_conditions), (target,) = self.ot_matcher.sample_joint(
@@ -200,7 +202,7 @@ class OTFlowMatching:
               state_xi=self.unbalancedness_handler.state_xi,
           )
         if iter % self.valid_freq == 0:
-          self._valid_step(valid_loader, iter)
+          self._valid_step(valid_loader_source, valid_loader_target, iter)
       if stop:
         break
 
@@ -258,7 +260,7 @@ class OTFlowMatching:
 
     return jax.vmap(solve_ode)(data, condition)
 
-  def _valid_step(self, valid_loader, iter):
+  def _valid_step(self, valid_loader_source, valid_loader_target, iter):
     pass
 
   @property

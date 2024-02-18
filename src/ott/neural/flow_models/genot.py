@@ -339,6 +339,11 @@ class GENOTLin(GENOTBase):
             target,
         )
 
+        jax.debug.print("source.shape {x}", x=source.shape)
+        jax.debug.print(
+            "source_conditions.shape {x}", x=source_conditions.shape
+        )
+        jax.debug.print("target.shape {x}", x=target.shape)
         (source, source_conditions
         ), (target,) = self.ot_matcher.sample_conditional_indices_from_tmap(
             rng=rng_resample,

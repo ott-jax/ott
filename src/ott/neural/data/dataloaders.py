@@ -14,6 +14,7 @@
 from typing import Any, List, Mapping, Optional
 
 import numpy as np
+from jax import tree_util
 
 __all__ = ["OTDataSet", "ConditionalOTDataLoader"]
 
@@ -22,72 +23,44 @@ class OTDataSet:
   """Data set for OT problems.
 
   Args:
-    source_lin: Linear part of the source measure.
-    source_quad: Quadratic part of the source measure.
-    target_lin: Linear part of the target measure.
-    target_quad: Quadratic part of the target measure.
-    source_conditions: Conditions of the source measure.
-    target_conditions: Conditions of the target measure.
+    lin: Linear part of the measure.
+    quad: Quadratic part of the measure.
+    conditions: Conditions of the source measure.
   """
 
   def __init__(
       self,
-      source_lin: Optional[np.ndarray] = None,
-      source_quad: Optional[np.ndarray] = None,
-      target_lin: Optional[np.ndarray] = None,
-      target_quad: Optional[np.ndarray] = None,
-      source_conditions: Optional[np.ndarray] = None,
-      target_conditions: Optional[np.ndarray] = None,
+      lin: Optional[np.ndarray] = None,
+      quad: Optional[np.ndarray] = None,
+      conditions: Optional[np.ndarray] = None,
   ):
-    if source_lin is not None:
-      if source_quad is not None:
-        assert len(source_lin) == len(source_quad)
-        self.n_source = len(source_lin)
+    if lin is not None:
+      if quad is not None:
+        assert len(lin) == len(quad)
+        self.n_samples = len(lin)
       else:
-        self.n_source = len(source_lin)
+        self.n_samples = len(lin)
     else:
-      self.n_source = len(source_quad)
-    if source_conditions is not None:
-      assert len(source_conditions) == self.n_source
-    if target_lin is not None:
-      if target_quad is not None:
-        assert len(target_lin) == len(target_quad)
-        self.n_target = len(target_lin)
-      else:
-        self.n_target = len(target_lin)
-    else:
-      self.n_target = len(target_quad)
-    if target_conditions is not None:
-      assert len(target_conditions) == self.n_target
+      self.n_samples = len(quad)
+    if conditions is not None:
+      assert len(conditions) == self.n_samples
 
-    self.source_lin = source_lin
-    self.target_lin = target_lin
-    self.source_quad = source_quad
-    self.target_quad = target_quad
-    self.source_conditions = source_conditions
-    self.target_conditions = target_conditions
+    self.lin = lin
+    self.quad = quad
+    self.conditions = conditions
+    self._tree = {}
+    if lin is not None:
+      self._tree["lin"] = lin
+    if quad is not None:
+      self._tree["quad"] = quad
+    if conditions is not None:
+      self._tree["conditions"] = conditions
 
   def __getitem__(self, idx: np.ndarray) -> Mapping[str, np.ndarray]:
-    return {
-        "source_lin":
-            self.source_lin[idx] if self.source_lin is not None else [],
-        "source_quad":
-            self.source_quad[idx] if self.source_quad is not None else [],
-        "target_lin":
-            self.target_lin[idx] if self.target_lin is not None else [],
-        "target_quad":
-            self.target_quad[idx] if self.target_quad is not None else [],
-        "source_conditions":
-            self.source_conditions[idx]
-            if self.source_conditions is not None else [],
-        "target_conditions":
-            self.target_conditions[idx]
-            if self.target_conditions is not None else [],
-    }
+    return tree_util.tree_map(lambda x: x[idx], self._tree)
 
   def __len__(self):
-    return len(self.source_lin
-              ) if self.source_lin is not None else len(self.source_quad)
+    return self.n_samples
 
 
 class ConditionalOTDataLoader:

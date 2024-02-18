@@ -36,7 +36,7 @@ class TestOTFlowMatching:
       ]
   )
   def test_flow_matching_unconditional(
-      self, data_loader_gaussian, flow: Type[flows.BaseFlow]
+      self, data_loaders_gaussian, flow: Type[flows.BaseFlow]
   ):
     input_dim = 2
     condition_dim = 0
@@ -64,14 +64,18 @@ class TestOTFlowMatching:
         optimizer=optimizer,
         unbalancedness_handler=unbalancedness_handler
     )
-    fm(data_loader_gaussian, data_loader_gaussian)
+    fm(
+        data_loaders_gaussian[0], data_loaders_gaussian[1],
+        data_loaders_gaussian[0], data_loaders_gaussian[1]
+    )
 
-    batch = next(iter(data_loader_gaussian))
-    source = jnp.asarray(batch["source_lin"])
-    target = jnp.asarray(batch["target_lin"])
-    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
-        batch["source_conditions"]
-    ) > 0 else None
+    batch_src = next(iter(data_loaders_gaussian[0]))
+    source = jnp.asarray(batch_src["lin"])
+    batch_tgt = next(iter(data_loaders_gaussian[1]))
+    target = jnp.asarray(batch_tgt["lin"])
+    source_conditions = jnp.asarray(
+        batch_src["conditions"]
+    ) if "conditions" in batch_src else None
     result_forward = fm.transport(
         source, condition=source_conditions, forward=True
     )

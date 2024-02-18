@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Tuple
+
 import pytest
 
 import numpy as np
@@ -21,13 +23,16 @@ from ott.neural.data import dataloaders
 
 
 @pytest.fixture(scope="module")
-def data_loader_gaussian():
+def data_loaders_gaussian() -> Tuple[Torch_loader, Torch_loader]:
   """Returns a data loader for a simple Gaussian mixture."""
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  dataset = dataloaders.OTDataSet(source_lin=source, target_lin=target)
-  return Torch_loader(dataset, batch_size=16, shuffle=True)
+  src_dataset = dataloaders.OTDataSet(lin=source)
+  tgt_dataset = dataloaders.OTDataSet(lin=target)
+  loader_src = Torch_loader(src_dataset, batch_size=16, shuffle=True)
+  loader_tgt = Torch_loader(tgt_dataset, batch_size=16, shuffle=True)
+  return loader_src, loader_tgt
 
 
 @pytest.fixture(scope="module")
@@ -40,14 +45,14 @@ def data_loader_gaussian_conditional():
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) - 2.0
   ds0 = dataloaders.OTDataSet(
-      source_lin=source_0,
+      lin=source_0,
       target_lin=target_0,
-      source_conditions=np.zeros_like(source_0) * 0.0
+      conditions=np.zeros_like(source_0) * 0.0
   )
   ds1 = dataloaders.OTDataSet(
-      source_lin=source_1,
+      lin=source_1,
       target_lin=target_1,
-      source_conditions=np.ones_like(source_1) * 1.0
+      conditions=np.ones_like(source_1) * 1.0
   )
   sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
   sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
@@ -67,9 +72,9 @@ def data_loader_gaussian_with_conditions():
   target_conditions = rng.normal(size=(100, 1)) - 1.0
 
   dataset = dataloaders.OTDataSet(
-      source_lin=source,
+      lin=source,
       target_lin=target,
-      source_conditions=source_conditions,
+      conditions=source_conditions,
       target_conditions=target_conditions
   )
   return Torch_loader(dataset, batch_size=16, shuffle=True)
@@ -81,7 +86,7 @@ def genot_data_loader_linear():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 2)) + 1.0
-  dataset = dataloaders.OTDataSet(source_lin=source, target_lin=target)
+  dataset = dataloaders.OTDataSet(lin=source, target_lin=target)
   return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
@@ -94,14 +99,14 @@ def genot_data_loader_linear_conditional():
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 2)) + 1.0
   ds0 = dataloaders.OTDataSet(
-      source_lin=source_0,
+      lin=source_0,
       target_lin=target_0,
-      source_conditions=np.zeros_like(source_0) * 0.0
+      conditions=np.zeros_like(source_0) * 0.0
   )
   ds1 = dataloaders.OTDataSet(
-      source_lin=source_1,
+      lin=source_1,
       target_lin=target_1,
-      source_conditions=np.ones_like(source_1) * 1.0
+      conditions=np.ones_like(source_1) * 1.0
   )
   sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
   sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
@@ -117,7 +122,7 @@ def genot_data_loader_quad():
   rng = np.random.default_rng(seed=0)
   source = rng.normal(size=(100, 2))
   target = rng.normal(size=(100, 1)) + 1.0
-  dataset = dataloaders.OTDataSet(source_quad=source, target_quad=target)
+  dataset = dataloaders.OTDataSet(quad=source, target_quad=target)
   return Torch_loader(dataset, batch_size=16, shuffle=True)
 
 
@@ -130,14 +135,14 @@ def genot_data_loader_quad_conditional():
   source_1 = rng.normal(size=(100, 2))
   target_1 = rng.normal(size=(100, 1)) + 1.0
   ds0 = dataloaders.OTDataSet(
-      source_quad=source_0,
+      quad=source_0,
       target_quad=target_0,
-      source_conditions=np.zeros_like(source_0) * 0.0
+      conditions=np.zeros_like(source_0) * 0.0
   )
   ds1 = dataloaders.OTDataSet(
-      source_quad=source_1,
+      quad=source_1,
       target_quad=target_1,
-      source_conditions=np.ones_like(source_1) * 1.0
+      conditions=np.ones_like(source_1) * 1.0
   )
   sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
   sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
@@ -156,8 +161,8 @@ def genot_data_loader_fused():
   source_lin = rng.normal(size=(100, 2))
   target_lin = rng.normal(size=(100, 2)) + 1.0
   dataset = dataloaders.OTDataSet(
-      source_lin=source_lin,
-      source_quad=source_q,
+      lin=source_lin,
+      quad=source_q,
       target_lin=target_lin,
       target_quad=target_q
   )
@@ -179,18 +184,18 @@ def genot_data_loader_fused_conditional():
   target_lin_1 = 2 * rng.normal(size=(100, 2)) + 1.0
 
   ds0 = dataloaders.OTDataSet(
-      source_lin=source_lin_0,
+      lin=source_lin_0,
       target_lin=target_lin_0,
-      source_quad=source_q_0,
+      quad=source_q_0,
       target_quad=target_q_0,
-      source_conditions=np.zeros_like(source_lin_0) * 0.0
+      conditions=np.zeros_like(source_lin_0) * 0.0
   )
   ds1 = dataloaders.OTDataSet(
-      source_lin=source_lin_1,
+      lin=source_lin_1,
       target_lin=target_lin_1,
-      source_quad=source_q_1,
+      quad=source_q_1,
       target_quad=target_q_1,
-      source_conditions=np.ones_like(source_lin_1) * 1.0
+      conditions=np.ones_like(source_lin_1) * 1.0
   )
   sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
   sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
