@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import jax.numpy as jnp
 
 import flax.linen as nn
@@ -22,9 +21,8 @@ __all__ = ["CyclicalTimeEncoder"]
 class CyclicalTimeEncoder(nn.Module):
   r"""A cyclical time encoder.
 
-  Encodes time :math:`t` as
-  :math:`cos(\tilde{t})` and :math:`sin(\tilde{t})`
-  where :math:`\tilde{t} = [2\\pi  t, 2\\pi 2 t,\\ldots, 2\\pi n_frequencies t]`
+  Encodes time :math:`t` as :math:`cos(\tilde{t})` and :math:`sin(\tilde{t})`
+  where :math:`\tilde{t} = [2\pi  t, 2\pi 2 t,\ldots, 2\pi n_frequencies t]`.
 
   Args:
     n_frequencies: Frequency of cyclical encoding.
@@ -39,8 +37,8 @@ class CyclicalTimeEncoder(nn.Module):
       t: Time of shape ``[n, 1]``.
 
     Returns:
-      Encoded time of shape ``[n, 2 * n_frequencies]``
+      Encoded time of shape ``[n, 2 * n_frequencies]``.
     """
     freq = 2 * jnp.arange(self.n_frequencies) * jnp.pi
     t = freq * t
-    return jnp.concatenate((jnp.cos(t), jnp.sin(t)), axis=-1)
+    return jnp.concatenate([jnp.cos(t), jnp.sin(t)], axis=-1)
