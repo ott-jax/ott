@@ -42,10 +42,11 @@ def uniform_sampler(
       used.
 
   Returns:
-    An array with `num_samples` samples of the time `math`:t:.
+    An array with `num_samples` samples of the time :math:`t`.
   """
   if offset is None:
     return jax.random.uniform(rng, (num_samples, 1), minval=low, maxval=high)
+
   t = jax.random.uniform(rng, (1, 1), minval=low, maxval=high)
   mod_term = ((high - low) - offset)
   return (t + jnp.arange(num_samples)[:, None] / num_samples) % mod_term

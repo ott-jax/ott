@@ -11,106 +11,66 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import collections
 import functools
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 import diffrax
 import optax
 from flax.training import train_state
 
 from ott import utils
-from ott.geometry import costs
-from ott.neural.flow_models import flows
+from ott.neural.flow_models import flows, models
 from ott.neural.models import base_solver
 
 __all__ = ["OTFlowMatching"]
 
 
 class OTFlowMatching:
-  """(Optimal transport) flow matching class.
+  """(Optimal transport) flow matching :cite:`lipman:22`.
 
-  Flow matching as introduced in :cite:`lipman:22`, with extension to OT-FM
-  (:cite`tong:23`, :cite:`pooladian:23`).
+  Includes an extension to OT-FM :cite`tong:23`, :cite:`pooladian:23`.
 
   Args:
-    velocity_field: Neural vector field parameterized by a neural network.
     input_dim: Dimension of the input data.
-    cond_dim: Dimension of the conditioning variable.
-    iterations: Number of iterations.
-    valid_freq: Frequency of validation.
+    velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
-    optimizer: Optimizer for `velocity_field`.
-    callback_fn: Callback function.
-    num_eval_samples: Number of samples to evaluate on during evaluation.
+    optimizer: Optimizer for the ``velocity_field``.
+    ot_matcher: TODO.
+    unbalancedness_handler: TODO.
     rng: Random number generator.
   """
 
+  # TODO(michalk8): in the future, `input_dim`, `optimizer` and `rng` will be
+  # in a separate function
   def __init__(
       self,
-      velocity_field: Callable[[
-          jnp.ndarray, jnp.ndarray, Optional[jnp.ndarray], Optional[jnp.ndarray]
-      ], jnp.ndarray],
       input_dim: int,
-      cond_dim: int,
-      iterations: int,
-      flow: Type[flows.BaseFlow],
+      velocity_field: models.VelocityField,
+      flow: flows.BaseFlow,
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
-      ot_matcher: Optional[base_solver.OTMatcherLinear],
-      unbalancedness_handler: base_solver.UnbalancednessHandler,
-      epsilon: float = 1e-2,
-      cost_fn: Optional[Type[costs.CostFn]] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = "mean",
-      callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
-                                     Any]] = None,
-      logging_freq: int = 100,
-      valid_freq: int = 5000,
-      num_eval_samples: int = 1000,
+      ot_matcher: Optional[base_solver.OTMatcherLinear] = None,
+      unbalancedness_handler: Optional[base_solver.UnbalancednessHandler
+                                      ] = None,
       rng: Optional[jax.Array] = None,
   ):
-    rng = utils.default_prng_key(rng)
-    self.unbalancedness_handler = unbalancedness_handler
-    self.iterations = iterations
-    self.valid_freq = valid_freq
-    self.velocity_field = velocity_field
     self.input_dim = input_dim
-    self.ot_matcher = ot_matcher
+    self.velocity_field = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
+    self.unbalancedness_handler = unbalancedness_handler
+    self.ot_matcher = ot_matcher
     self.optimizer = optimizer
-    self.epsilon = epsilon
-    self.cost_fn = cost_fn
-    self.scale_cost = scale_cost
-    self.callback_fn = callback_fn
-    self.rng = rng
-    self.logging_freq = logging_freq
-    self.num_eval_samples = num_eval_samples
-    self._training_logs: Mapping[str, Any] = collections.defaultdict(list)
 
-    self.setup()
-
-  def setup(self) -> None:
-    """Setup :class:`OTFlowMatching`."""
+    rng = utils.default_prng_key(rng)
     self.state_velocity_field = (
         self.velocity_field.create_train_state(
-            self.rng, self.optimizer, self.input_dim
+            rng, self.optimizer, self.input_dim
         )
     )
 
@@ -153,41 +113,46 @@ class OTFlowMatching:
 
     return step_fn
 
-  def __call__(
-      self, train_loader_source, train_loader_target, valid_loader_source,
-      valid_loader_target
-  ):
-    """Train :class:`OTFlowMatching`.
+  # TODO(michalk8): refactor in the future PR to just do one step
+  def __call__(  # noqa: D102
+      self,
+      n_iters: int,
+      train_source,
+      train_target,
+      valid_source,
+      valid_target,
+      valid_freq: int = 5000,
+      rng: Optional[jax.Array] = None,
+  ) -> Dict[str, Any]:
+    rng = utils.default_prng_key(rng)
+    training_logs = {"loss": []}
 
-    Args;
-      train_loader: Dataloader for the training data.
-      valid_loader: Dataloader for the validation data.
-    """
-    iter = -1
-    while True:
-      for batch_source, batch_target in zip(
-          train_loader_source, train_loader_target
-      ):
-        iter += 1
-        if iter >= self.iterations:
-          stop = True
-          break
-        rng_resample, rng_step_fn, self.rng = jax.random.split(self.rng, 3)
-        source, source_conditions = jnp.array(batch_source["lin"]), jnp.array(
-            batch_source["conditions"]
-        ) if "conditions" in batch_source else None
-        target = jnp.array(batch_target["lin"])
+    for it in range(n_iters):
+      for batch_source, batch_target in zip(train_source, train_target):
+        rng, rng_resample, rng_step_fn = jax.random.split(rng, 3)
+
+        batch_source = jtu.tree_map(jnp.asarray, batch_source)
+        batch_target = jtu.tree_map(jnp.asarray, batch_target)
+
+        source = batch_source["lin"]
+        source_conditions = batch_source.get("conditions", None)
+        target = batch_target["lin"]
+
         if self.ot_matcher is not None:
           tmat = self.ot_matcher.match_fn(source, target)
           (source, source_conditions), (target,) = self.ot_matcher.sample_joint(
               rng_resample, tmat, (source, source_conditions), (target,)
           )
+        else:
+          tmat = None
+
         self.state_velocity_field, loss = self.step_fn(
             rng_step_fn, self.state_velocity_field, source, target,
             source_conditions
         )
-        self._training_logs["loss"].append(loss)
-        if self.learn_rescaling:
+        training_logs["loss"].append(loss)
+
+        if self.unbalancedness_handler is not None and tmat is not None:
           (
               self.unbalancedness_handler.state_eta,
               self.unbalancedness_handler.state_xi, eta_predictions,
@@ -201,23 +166,24 @@ class OTFlowMatching:
               state_eta=self.unbalancedness_handler.state_eta,
               state_xi=self.unbalancedness_handler.state_xi,
           )
-        if iter % self.valid_freq == 0:
-          self._valid_step(valid_loader_source, valid_loader_target, iter)
-      if stop:
-        break
+
+        if it % valid_freq == 0:
+          self._valid_step(valid_source, valid_target, it)
+
+    return training_logs
 
   def transport(
       self,
       data: jnp.array,
       condition: Optional[jnp.ndarray] = None,
       forward: bool = True,
-      t_0: float = 0.0,
-      t_1: float = 1.0,
+      t0: float = 0.0,
+      t1: float = 1.0,
       **kwargs: Any,
-  ) -> diffrax.Solution:
+  ) -> jnp.ndarray:
     """Transport data with the learnt map.
 
-    This method pushes-forward the `source` by
+    This method pushes-forward the ``data`` by
     solving the neural ODE parameterized by the
     :attr:`~ott.neural.flows.OTFlowMatching.velocity_field`.
 
@@ -225,72 +191,44 @@ class OTFlowMatching:
       data: Initial condition of the ODE.
       condition: Condition of the input data.
       forward: If `True` integrates forward, otherwise backwards.
-      t_0: Starting point of integration.
-      t_1: End point of integration.
+      t0: Starting point of integration.
+      t1: End point of integration.
       kwargs: Keyword arguments for the ODE solver.
 
     Returns:
       The push-forward or pull-back distribution defined by the learnt
       transport plan.
-
     """
-    t0, t1 = (t_0, t_1) if forward else (t_1, t_0)
 
-    @jax.jit
     def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
-      return diffrax.diffeqsolve(
-          diffrax.ODETerm(
-              lambda t, x, args: self.state_velocity_field.
-              apply_fn({"params": self.state_velocity_field.params},
-                       t=t,
-                       x=x,
-                       condition=cond)
-          ),
-          kwargs.pop("solver", diffrax.Tsit5()),
+      ode_term = diffrax.ODETerm(
+          lambda t, x, args: self.state_velocity_field.
+          apply_fn({"params": self.state_velocity_field.params},
+                   t=t,
+                   x=x,
+                   condition=cond)
+      )
+
+      result = diffrax.diffeqsolve(
+          ode_term,
+          solver,
           t0=t0,
           t1=t1,
           dt0=kwargs.pop("dt0", None),
           y0=input,
-          stepsize_controller=kwargs.pop(
-              "stepsize_controller",
-              diffrax.PIDController(rtol=1e-5, atol=1e-5)
-          ),
+          stepsize_controller=stepsize_controller,
           **kwargs,
-      ).ys[0]
+      )
+      return result.ys[0]
 
-    return jax.vmap(solve_ode)(data, condition)
-
-  def _valid_step(self, valid_loader_source, valid_loader_target, iter):
-    pass
-
-  @property
-  def learn_rescaling(self) -> bool:
-    """Whether to learn at least one rescaling factor."""
-    return (
-        self.unbalancedness_handler.rescaling_a is not None or
-        self.unbalancedness_handler.rescaling_b is not None
+    if not forward:
+      t0, t1 = t1, t0
+    solver = kwargs.pop("solver", diffrax.Tsit5()),
+    stepsize_controller = kwargs.pop(
+        "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
     )
 
-  def save(self, path: str):
-    """Save the model.
+    return jax.jit(jax.vmap(solve_ode))(data, condition)
 
-    Args:
-      path: Where to save the model to.
-    """
-    raise NotImplementedError
-
-  def load(self, path: str) -> "OTFlowMatching":
-    """Load a model.
-
-    Args:
-      path: Where to load the model from.
-
-    Returns:
-      An instance of :class:`ott.neural.solvers.OTFlowMatching`.
-    """
-    raise NotImplementedError
-
-  @property
-  def training_logs(self) -> Dict[str, Any]:
-    """Logs of the training."""
-    raise NotImplementedError
+  def _valid_step(self, it: int, valid_source, valid_target) -> None:
+    pass
