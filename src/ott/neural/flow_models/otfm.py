@@ -59,21 +59,19 @@ class OTFlowMatching:
                                       ] = None,
       rng: Optional[jax.Array] = None,
   ):
+    rng = utils.default_prng_key(rng)
+
     self.input_dim = input_dim
-    self.velocity_field = velocity_field
+    self.vf = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
     self.unbalancedness_handler = unbalancedness_handler
     self.ot_matcher = ot_matcher
     self.optimizer = optimizer
 
-    rng = utils.default_prng_key(rng)
-    self.state_velocity_field = (
-        self.velocity_field.create_train_state(
-            rng, self.optimizer, self.input_dim
-        )
+    self.vf_state = self.vf.create_train_state(
+        rng, self.optimizer, self.input_dim
     )
-
     self.step_fn = self._get_step_fn()
 
   def _get_step_fn(self) -> Callable:
@@ -146,11 +144,10 @@ class OTFlowMatching:
         else:
           tmat = None
 
-        self.state_velocity_field, loss = self.step_fn(
-            rng_step_fn, self.state_velocity_field, source, target,
-            source_conditions
+        self.vf_state, loss = self.step_fn(
+            rng_step_fn, self.vf_state, source, target, source_conditions
         )
-        training_logs["loss"].append(loss)
+        training_logs["loss"].append(float(loss))
 
         if self.unbalancedness_handler is not None and tmat is not None:
           (
@@ -174,23 +171,20 @@ class OTFlowMatching:
 
   def transport(
       self,
-      data: jnp.array,
+      x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
-      forward: bool = True,
       t0: float = 0.0,
       t1: float = 1.0,
       **kwargs: Any,
   ) -> jnp.ndarray:
     """Transport data with the learnt map.
 
-    This method pushes-forward the ``data`` by
-    solving the neural ODE parameterized by the
-    :attr:`~ott.neural.flows.OTFlowMatching.velocity_field`.
+    This method pushes-forward the data by solving the neural ODE
+    parameterized by the velocity field.
 
     Args:
-      data: Initial condition of the ODE.
-      condition: Condition of the input data.
-      forward: If `True` integrates forward, otherwise backwards.
+      x: Initial condition of the ODE of shape `(batch_size, ...)`.
+      condition: Condition of the input data of shape `(batch_size, ...)`.
       t0: Starting point of integration.
       t1: End point of integration.
       kwargs: Keyword arguments for the ODE solver.
@@ -200,35 +194,34 @@ class OTFlowMatching:
       transport plan.
     """
 
-    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
-      ode_term = diffrax.ODETerm(
-          lambda t, x, args: self.state_velocity_field.
-          apply_fn({"params": self.state_velocity_field.params},
-                   t=t,
-                   x=x,
-                   condition=cond)
-      )
+    def vf(
+        t: jnp.ndarray, x: jnp.ndarray, cond: Optional[jnp.ndarray]
+    ) -> jnp.ndarray:
+      return self.vf_state.apply_fn({"params": self.vf_state.params},
+                                    t=t,
+                                    x=x,
+                                    condition=cond)
 
+    def solve_ode(x: jnp.ndarray, cond: Optional[jnp.ndarray]) -> jnp.ndarray:
+      ode_term = diffrax.ODETerm(vf)
       result = diffrax.diffeqsolve(
           ode_term,
-          solver,
           t0=t0,
           t1=t1,
-          dt0=kwargs.pop("dt0", None),
-          y0=input,
-          stepsize_controller=stepsize_controller,
+          y0=x,
+          args=cond,
           **kwargs,
       )
       return result.ys[0]
 
-    if not forward:
-      t0, t1 = t1, t0
-    solver = kwargs.pop("solver", diffrax.Tsit5()),
-    stepsize_controller = kwargs.pop(
+    kwargs.setdefault("dt0", None)
+    kwargs.setdefault("solver", diffrax.Tsit5())
+    kwargs.setdefault(
         "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
     )
 
-    return jax.jit(jax.vmap(solve_ode))(data, condition)
+    in_axes = [0, None if condition is None else 0]
+    return jax.jit(jax.vmap(solve_ode, in_axes))(x, condition)
 
   def _valid_step(self, it: int, valid_source, valid_target) -> None:
     pass

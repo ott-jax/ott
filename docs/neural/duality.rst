@@ -5,7 +5,7 @@ ott.neural.duality
 
 This module implements various solvers to estimate optimal transport between
 two probability measures, through samples, parameterized as neural networks.
-These solvers build uponn dual formulation of the optimal transport problem.
+These solvers build upon dual formulation of the optimal transport problem.
 
 Solvers
 -------

@@ -49,7 +49,7 @@ class OTDataset:
       raise ValueError(f"Not all arrays have the same size: {sizes}.")
 
   def __getitem__(self, idx: np.ndarray) -> Dict[str, np.ndarray]:
-    return jtu.tree_map(lambda x: x[idx], self.data)["lin"]
+    return jtu.tree_map(lambda x: x[idx], self.data)
 
   def __len__(self) -> int:
     for v in self.data.values():
