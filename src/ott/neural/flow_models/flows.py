@@ -28,7 +28,7 @@ class BaseFlow(abc.ABC):
   """Base class for all flows.
 
   Args:
-    sigma: Constant noise used for computing time-dependent noise schedule.
+    sigma: Noise used for computing time-dependent noise schedule.
   """
 
   def __init__(self, sigma: float):
@@ -103,7 +103,11 @@ class BaseFlow(abc.ABC):
 
 
 class StraightFlow(BaseFlow, abc.ABC):
-  """Base class for flows with straight paths."""
+  """Base class for flows with straight paths.
+
+  Args:
+    sigma: Noise used for computing time-dependent noise schedule.
+  """
 
   def compute_mu_t(  # noqa: D102
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
@@ -118,7 +122,11 @@ class StraightFlow(BaseFlow, abc.ABC):
 
 
 class ConstantNoiseFlow(StraightFlow):
-  r"""Flow with straight paths and constant flow noise :math:`\sigma`."""
+  r"""Flow with straight paths and constant flow noise :math:`\sigma`.
+
+  Args:
+    sigma: Constant noise used for computing time-independent noise schedule.
+  """
 
   def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:
     r"""Compute noise of the flow at time :math:`t`.
@@ -135,14 +143,22 @@ class ConstantNoiseFlow(StraightFlow):
 class BrownianNoiseFlow(StraightFlow):
   r"""Brownian Bridge Flow.
 
-  Sampler for sampling noise implicitly defined by a Schroedinger Bridge
+  Sampler for sampling noise implicitly defined by a Schrödinger Bridge
   problem with parameter :math:`\sigma` such that
-  :math:`\sigma_t = \sigma * \sqrt(t * (1-t))` (:cite:`tong:23`).
+  :math:`\sigma_t = \sigma \cdot \sqrt{t \cdot (1 - t)}` :cite:`tong:23`.
 
-  Returns:
-    Samples from the probability path between :math:`x_0` and :math:`x_1`
-    at time :math:`t`.
+  Args:
+    sigma: Noise used for computing time-dependent noise schedule.
   """
 
-  def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
+  def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:
+    r"""Compute noise of the flow at time :math:`t`.
+
+    Args:
+      t: Time :math:`t` of shape `(batch_size, 1)`.
+
+    Returns:
+      Samples from the probability path between :math:`x_0` and :math:`x_1`
+      at time :math:`t`.
+    """
     return self.sigma * jnp.sqrt(t * (1.0 - t))

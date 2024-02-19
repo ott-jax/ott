@@ -21,7 +21,7 @@ __all__ = ["CyclicalTimeEncoder"]
 class CyclicalTimeEncoder(nn.Module):
   r"""A cyclical time encoder.
 
-  Encodes time :math:`t` as :math:`cos(\tilde{t})` and :math:`sin(\tilde{t})`
+  Encodes time :math:`t` as :math:`cos(\hat{t})` and :math:`sin(\hat{t})`
   where :math:`\hat{t} = [2\pi t, 2\pi 2 t,\dots, 2\pi n_f t]`.
 
   Args:

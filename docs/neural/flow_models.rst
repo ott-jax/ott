@@ -16,8 +16,8 @@ Flows
     flows.ConstantNoiseFlow
     flows.BrownianNoiseFlow
 
-Optimal Transport Flow Matching
--------------------------------
+OT Flow Matching
+----------------
 .. autosummary::
     :toctree: _autosummary
 
