@@ -38,9 +38,9 @@ class BaseFlow(abc.ABC):
   def compute_mu_t(
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
   ) -> jnp.ndarray:
-    """Compute the mean of the probablitiy path.
+    """Compute the mean of the probability path.
 
-    Compute the mean of the probablitiy path between :math:`x_0` and :math:`x_1`
+    Compute the mean of the probability path between :math:`x_0` and :math:`x_1`
     at time :math:`t`.
 
     Args:
@@ -51,10 +51,13 @@ class BaseFlow(abc.ABC):
 
   @abc.abstractmethod
   def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:
-    """Compute the standard deviation of the probablity path at time :math:`t`.
+    """Compute the standard deviation of the probability path at time :math:`t`.
 
     Args:
       t: Time :math:`t` of shape `(batch_size, 1)`.
+
+    Returns:
+      Standard deviation of the probability path at time :math:`t`.
     """
 
   @abc.abstractmethod
@@ -67,7 +70,7 @@ class BaseFlow(abc.ABC):
     :math:`x_1` at time :math:`t`.
 
     Args:
-      t: Time :math:`t` of shape `(batch_size, 1)`..
+      t: Time :math:`t` of shape `(batch_size, 1)`.
       src: Sample from the source distribution of shape `(batch_size, ...)`.
       tgt: Sample from the target distribution of shape `(batch_size, ...)`.
 
@@ -107,22 +110,9 @@ class StraightFlow(BaseFlow, abc.ABC):
   ) -> jnp.ndarray:
     return (1.0 - t) * src + t * tgt
 
-  def compute_ut(
+  def compute_ut(  # noqa: D102
       self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
   ) -> jnp.ndarray:
-    """Evaluate the conditional vector field.
-
-    Evaluate the conditional vector field defined between :math:`x_0` and
-    :math:`x_1` at time :math:`t`.
-
-    Args:
-      t: Time :math:`t` of shape `(batch_size, 1)`.
-      src: Sample from the source distribution of shape `(batch_size, ...)`.
-      tgt: Sample from the target distribution of shape `(batch_size, ...)`..
-
-    Returns:
-      Conditional vector field evaluated at time :math:`t`.
-    """
     del t
     return tgt - src
 
@@ -134,7 +124,7 @@ class ConstantNoiseFlow(StraightFlow):
     r"""Compute noise of the flow at time :math:`t`.
 
     Args:
-      t: Time :math:`t` of shape `(batch_size, 1)`..
+      t: Time :math:`t` of shape `(batch_size, 1)`.
 
     Returns:
       Constant, time-independent standard deviation :math:`\sigma`.
@@ -154,13 +144,5 @@ class BrownianNoiseFlow(StraightFlow):
     at time :math:`t`.
   """
 
-  def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:
-    """Compute the standard deviation of the probablity path at time :math:`t`.
-
-    Args:
-      t: Time :math:`t` of shape `(batch_size, 1)`..
-
-    Returns:
-      Standard deviation of the probablity path at time :math:`t`.
-    """
+  def compute_sigma_t(self, t: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
     return self.sigma * jnp.sqrt(t * (1.0 - t))
