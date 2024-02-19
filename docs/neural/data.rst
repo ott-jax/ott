@@ -11,11 +11,5 @@ Datasets
 .. autosummary::
     :toctree: _autosummary
 
-    dataloaders.OTDataSet
-
-Dataloaders
------------
-.. autosummary::
-    :toctree: _autosummary
-
-    dataloaders.ConditionalOTDataLoader
+    datasets.OTDataset
+    datasets.ConditionalOTDataset
