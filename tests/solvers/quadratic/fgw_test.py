@@ -298,7 +298,7 @@ class TestFusedGromovWasserstein:
         geom_y_scaled,
         geom_xy_scaled,
         fused_penalty=fused_penalty,
-        scale_cost=False
+        scale_cost=None,
     )
     prob_scale = quadratic_problem.QuadraticProblem(
         geom_x,

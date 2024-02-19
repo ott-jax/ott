@@ -29,8 +29,7 @@ def monge_gap(
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
-    scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
-                                                "median"]] = 1.0,
+    scale_cost: Union[int, float, Literal["mean", "max_cost", "median"]] = 1.0,
     return_output: bool = False,
     **kwargs: Any
 ) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
@@ -66,7 +65,6 @@ def monge_gap(
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
-      If `True`, use 'mean'.
     return_output: boolean to also return the
       :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
     kwargs: holds the kwargs to instantiate the or
@@ -96,8 +94,7 @@ def monge_gap_from_samples(
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     relative_epsilon: Optional[bool] = None,
-    scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
-                                                "median"]] = 1.0,
+    scale_cost: Union[int, float, Literal["mean", "max_cost", "median"]] = 1.0,
     return_output: bool = False,
     **kwargs: Any
 ) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
@@ -126,7 +123,6 @@ def monge_gap_from_samples(
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
-      If `True`, use 'mean'.
     return_output: boolean to also return the
       :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
     kwargs: holds the kwargs to instantiate the or

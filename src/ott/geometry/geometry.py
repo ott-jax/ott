@@ -63,7 +63,6 @@ class Geometry:
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
       given to rescale the cost such that ``cost_matrix /= scale_cost``.
-      If `True`, use 'mean'.
     src_mask: Mask specifying valid rows when computing some statistics of
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
@@ -83,8 +82,8 @@ class Geometry:
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[bool] = None,
-      scale_cost: Union[bool, int, float, Literal["mean", "max_cost",
-                                                  "median"]] = 1.0,
+      scale_cost: Union[int, float, Literal["mean", "max_cost",
+                                            "median"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
@@ -97,7 +96,7 @@ class Geometry:
     ) else epsilon_scheduler.Epsilon(epsilon)
     self._relative_epsilon = relative_epsilon
 
-    self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._scale_cost = scale_cost
 
     self._src_mask = src_mask
     self._tgt_mask = tgt_mask
@@ -212,11 +211,11 @@ class Geometry:
       return 1.0 / jnp.nanmedian(self._cost_matrix)
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  def set_scale_cost(self, scale_cost: Union[bool, float, str]) -> "Geometry":
+  def set_scale_cost(self, scale_cost: Union[float, str]) -> "Geometry":
     """Modify how to rescale of the :attr:`cost_matrix`."""
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
-    if scale_cost is False or scale_cost == self._scale_cost:
+    if scale_cost == self._scale_cost:
       return self
     children, aux_data = self.tree_flatten()
     aux_data["scale_cost"] = scale_cost
