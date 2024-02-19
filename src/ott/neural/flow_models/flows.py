@@ -88,7 +88,7 @@ class BaseFlow(abc.ABC):
 
     Args:
       rng: Random number generator.
-      t: Time :math:`t` of shape `(batch_size, 1)`..
+      t: Time :math:`t` of shape `(batch_size, 1)`.
       src: Sample from the source distribution of shape `(batch_size, ...)`.
       tgt: Sample from the target distribution of shape `(batch_size, ...)`.
 

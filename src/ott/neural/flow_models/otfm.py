@@ -32,14 +32,14 @@ __all__ = ["OTFlowMatching"]
 class OTFlowMatching:
   """(Optimal transport) flow matching :cite:`lipman:22`.
 
-  Includes an extension to OT-FM :cite`tong:23`, :cite:`pooladian:23`.
+  With an extension to OT-FM :cite:`tong:23`, :cite:`pooladian:23`.
 
   Args:
     input_dim: Dimension of the input data.
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
-    optimizer: Optimizer for the ``velocity_field``.
+    optimizer: Optimizer for the velocity field's parameters.
     ot_matcher: TODO.
     unbalancedness_handler: TODO.
     rng: Random number generator.

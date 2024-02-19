@@ -29,20 +29,18 @@ __all__ = ["VelocityField"]
 class VelocityField(nn.Module):
   r"""Parameterized neural vector field.
 
-  The `VelocityField` learns a map
-  :math:`v: \\mathbb{R}\times \\mathbb{R}^d\rightarrow \\mathbb{R}^d` solving
-  the ODE :math:`\frac{dx}{dt} = v(t, x)`. Given a source distribution at time
-  :math:`t=0`, the `VelocityField` can be used to transport the source
-  distribution given at :math:`t_0` to a target distribution given at
-  :math:`t_1` by integrating :math:`v(t, x)` from :math:`t=t_0` to
-  :math:`t=t_1`.
+  The `VelocityField` learns a map :math:`v: \mathbb{R}\times \mathbb{R}^d
+  \rightarrow \mathbb{R}^d` solving the ODE :math:`\frac{dx}{dt} = v(t, x)`.
+  Given a source distribution at time :math:`t_0`, the velocity field can be
+  used to transport the source distribution given at :math:`t_0` to
+  a target distribution given at :math:`t_1` by integrating :math:`v(t, x)`
+  from :math:`t=t_0` to :math:`t=t_1`.
 
   Each of the input, condition, and time embeddings are passed through a block
   consisting of ``num_layers_per_block`` layers of dimension
   ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``,
-  respectively.
-  The output of each block is concatenated and passed through a final block of
-  dimension ``joint_hidden_dim``.
+  respectively. The output of each block is concatenated and passed through
+  a final block of dimension ``joint_hidden_dim``.
 
   Args:
     output_dim: Dimensionality of the neural vector field.
@@ -57,8 +55,7 @@ class VelocityField(nn.Module):
       t_embed_dim``.
     num_layers_per_block: Number of layers per block.
     act_fn: Activation function.
-    n_frequencies: Number of frequencies to use for the time embedding.
-
+    n_freqs: Number of frequencies to use for the time embedding.
   """
   output_dim: int
   latent_embed_dim: int
@@ -68,7 +65,7 @@ class VelocityField(nn.Module):
   joint_hidden_dim: Optional[int] = None
   num_layers_per_block: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
-  n_frequencies: int = 128
+  n_freqs: int = 128
 
   def __post_init__(self) -> None:
     if self.condition_embed_dim is None:
@@ -81,8 +78,8 @@ class VelocityField(nn.Module):
     )
     if self.joint_hidden_dim is not None:
       assert (self.joint_hidden_dim >= concat_embed_dim), (
-          "joint_hidden_dim must be greater than or equal to the sum of "
-          "all embedded dimensions. "
+          "joint_hidden_dim must be greater than or equal to the sum of"
+          " all embedded dimensions."
       )
       self.joint_hidden_dim = self.latent_embed_dim
     else:
@@ -99,14 +96,14 @@ class VelocityField(nn.Module):
     """Forward pass through the neural vector field.
 
     Args:
-      t: Time of shape (batch_size, 1).
-      x: Data of shape (batch_size, output_dim).
+      t: Time of shape `(batch_size, 1)`.
+      x: Data of shape `(batch_size, output_dim)`.
       condition: Conditioning vector.
 
     Returns:
       Output of the neural vector field.
     """
-    t = flow_layers.CyclicalTimeEncoder(n_frequencies=self.n_frequencies)(t)
+    t = flow_layers.CyclicalTimeEncoder(self.n_freqs)(t)
     t_layer = layers.MLPBlock(
         dim=self.t_embed_dim,
         out_dim=self.t_embed_dim,
@@ -131,9 +128,9 @@ class VelocityField(nn.Module):
           act_fn=self.act_fn
       )
       condition = condition_layer(condition)
-      concatenated = jnp.concatenate((t, x, condition), axis=-1)
+      concatenated = jnp.concatenate([t, x, condition], axis=-1)
     else:
-      concatenated = jnp.concatenate((t, x), axis=-1)
+      concatenated = jnp.concatenate([t, x], axis=-1)
 
     out_layer = layers.MLPBlock(
         dim=self.joint_hidden_dim,
@@ -158,7 +155,7 @@ class VelocityField(nn.Module):
       input_dim: Dimensionality of the input.
 
     Returns:
-      Training state.
+      The training state.
     """
     params = self.init(
         rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
