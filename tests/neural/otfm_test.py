@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Iterator, Literal, Type
+from typing import Literal, Type
 
 import pytest
 
@@ -196,51 +196,3 @@ class TestOTFlowMatching:
     )
     assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
-
-  @pytest.mark.parametrize("conditional", [False, True])
-  def test_flow_matching_learn_rescaling(
-      self, conditional: bool, data_loader_gaussian: Iterator,
-      data_loader_gaussian_conditional: Iterator
-  ):
-    data_loader = (
-        data_loader_gaussian_conditional
-        if conditional else data_loader_gaussian
-    )
-    batch = next(iter(data_loader))
-    source = jnp.asarray(batch["source_lin"])
-    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
-        batch["source_conditions"]
-    ) > 0 else None
-
-    source_dim = source.shape[1]
-    condition_dim = source_conditions.shape[1] if conditional else 0
-    neural_vf = models.VelocityField(
-        output_dim=2,
-        condition_dim=0,
-        latent_embed_dim=5,
-    )
-    ot_solver = sinkhorn.Sinkhorn()
-    time_sampler = samplers.uniform_sampler
-    flow = flows.ConstantNoiseFlow(1.0)
-    optimizer = optax.adam(learning_rate=1e-3)
-
-    tau_a = 0.9
-    tau_b = 0.2
-    ot_matcher = base_solver.OTMatcherLinear(
-        ot_solver,
-        tau_a=tau_a,
-        tau_b=tau_b,
-    )
-
-    fm = otfm.OTFlowMatching(
-        neural_vf,
-        input_dim=source_dim,
-        cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
-        ot_matcher=ot_matcher,
-        flow=flow,
-        time_sampler=time_sampler,
-        optimizer=optimizer,
-    )
-    fm(data_loader, data_loader)

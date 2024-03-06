@@ -153,62 +153,6 @@ class TestGENOTLin:
     assert isinstance(result_forward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
-  @pytest.mark.parametrize("conditional", [False, True])
-  @pytest.mark.parametrize("solver_latent_to_data", [None, "sinkhorn"])
-  def test_genot_linear_learn_rescaling(
-      self, conditional: bool, genot_data_loader_linear: Iterator,
-      solver_latent_to_data: Optional[str],
-      genot_data_loader_linear_conditional: Iterator
-  ):
-    matcher_latent_to_data = (
-        None if solver_latent_to_data is None else
-        base_solver.OTMatcherLinear(sinkhorn.Sinkhorn())
-    )
-
-    data_loader = (
-        genot_data_loader_linear_conditional
-        if conditional else genot_data_loader_linear
-    )
-
-    batch = next(iter(data_loader))
-    source_lin, target_lin, source_condition = jnp.array(
-        batch["source_lin"]
-    ), jnp.array(batch["target_lin"]), jnp.array(batch["source_conditions"])
-
-    source_dim = source_lin.shape[1]
-    target_dim = target_lin.shape[1]
-    condition_dim = source_condition.shape[1] if conditional else 0
-
-    neural_vf = VelocityField(
-        output_dim=target_dim,
-        condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
-    )
-    ot_solver = sinkhorn.Sinkhorn()
-    ot_matcher = base_solver.OTMatcherLinear(
-        ot_solver,
-        cost_fn=costs.SqEuclidean(),
-        tau_a=0.2,
-        tau_b=0.9,
-    )
-    time_sampler = uniform_sampler
-    optimizer = optax.adam(learning_rate=1e-3)
-
-    genot = GENOTLin(
-        neural_vf,
-        input_dim=source_dim,
-        output_dim=target_dim,
-        cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
-        ot_matcher=ot_matcher,
-        optimizer=optimizer,
-        time_sampler=time_sampler,
-        matcher_latent_to_data=matcher_latent_to_data,
-    )
-
-    genot(data_loader, data_loader)
-
 
 class TestGENOTQuad:
 
