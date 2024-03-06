@@ -14,7 +14,6 @@ Utils
     base_solver.BaseOTMatcher
     base_solver.OTMatcherLinear
     base_solver.OTMatcherQuad
-    base_solver.UnbalancednessHandler
 
 
 Neural networks

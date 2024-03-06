@@ -41,7 +41,6 @@ class OTFlowMatching:
     time_sampler: Sampler for the time.
     optimizer: Optimizer for the velocity field's parameters.
     ot_matcher: TODO.
-    unbalancedness_handler: TODO.
     rng: Random number generator.
   """
 
@@ -55,8 +54,6 @@ class OTFlowMatching:
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
       ot_matcher: Optional[base_solver.OTMatcherLinear] = None,
-      unbalancedness_handler: Optional[base_solver.UnbalancednessHandler
-                                      ] = None,
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
@@ -65,7 +62,6 @@ class OTFlowMatching:
     self.vf = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
-    self.unbalancedness_handler = unbalancedness_handler
     self.ot_matcher = ot_matcher
     self.optimizer = optimizer
 
@@ -148,21 +144,6 @@ class OTFlowMatching:
             rng_step_fn, self.vf_state, source, target, source_conditions
         )
         training_logs["loss"].append(float(loss))
-
-        if self.unbalancedness_handler is not None and tmat is not None:
-          (
-              self.unbalancedness_handler.state_eta,
-              self.unbalancedness_handler.state_xi, eta_predictions,
-              xi_predictions, loss_a, loss_b
-          ) = self.unbalancedness_handler.step_fn(
-              source=source,
-              target=target,
-              condition=source_conditions,
-              a=tmat.sum(axis=1),
-              b=tmat.sum(axis=0),
-              state_eta=self.unbalancedness_handler.state_eta,
-              state_xi=self.unbalancedness_handler.state_xi,
-          )
 
         if it % valid_freq == 0:
           self._valid_step(valid_source, valid_target, it)

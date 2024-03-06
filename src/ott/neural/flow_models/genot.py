@@ -66,7 +66,6 @@ class GENOTBase:
     optimizer: Optimizer for `velocity_field`.
     flow: Flow between latent distribution and target distribution.
     time_sampler: Sampler for the time.
-    unbalancedness_handler: Handler for unbalancedness.
     k_samples_per_x: Number of samples drawn from the conditional distribution
       of an input sample, see algorithm TODO.
     solver_latent_to_data: Linear OT solver to match the latent distribution
@@ -91,7 +90,6 @@ class GENOTBase:
       iterations: int,
       valid_freq: int,
       ot_matcher: base_solver.BaseOTMatcher,
-      unbalancedness_handler: base_solver.UnbalancednessHandler,
       optimizer: optax.GradientTransformation,
       flow: Type[flows.BaseFlow] = flows.ConstantNoiseFlow(0.0),  # noqa: B008
       time_sampler: Callable[[jax.Array, int],
@@ -124,9 +122,6 @@ class GENOTBase:
     self.output_dim = output_dim
     self.cond_dim = cond_dim
     self.k_samples_per_x = k_samples_per_x
-
-    # unbalancedness
-    self.unbalancedness_handler = unbalancedness_handler
 
     # OT data-data matching parameters
 
@@ -262,10 +257,7 @@ class GENOTBase:
   @property
   def learn_rescaling(self) -> bool:
     """Whether to learn at least one rescaling factor."""
-    return (
-        self.unbalancedness_handler.rescaling_a is not None or
-        self.unbalancedness_handler.rescaling_b is not None
-    )
+    return False
 
   def _reshape_samples(self, arrays: Tuple[jnp.ndarray, ...],
                        batch_size: int) -> Tuple[jnp.ndarray, ...]:
@@ -278,20 +270,7 @@ class GENOTBase:
       self, source: jnp.ndarray, target: jnp.ndarray,
       source_conditions: Optional[jnp.ndarray], tmat: jnp.ndarray
   ) -> Tuple[jnp.ndarray, jnp.ndarray, float, float]:
-
-    (
-        self.state_eta, self.state_xi, eta_predictions, xi_predictions, loss_a,
-        loss_b
-    ) = self.unbalancedness_handler.step_fn(
-        source=source,
-        target=target,
-        condition=source_conditions,
-        a=tmat.sum(axis=1),
-        b=tmat.sum(axis=0),
-        state_eta=self.unbalancedness_handler.state_eta,
-        state_xi=self.unbalancedness_handler.state_xi,
-    )
-    return eta_predictions, xi_predictions, float(loss_a), float(loss_b)
+    raise NotImplementedError
 
 
 class GENOTLin(GENOTBase):
@@ -339,11 +318,6 @@ class GENOTLin(GENOTBase):
             target,
         )
 
-        jax.debug.print("source.shape {x}", x=source.shape)
-        jax.debug.print(
-            "source_conditions.shape {x}", x=source_conditions.shape
-        )
-        jax.debug.print("target.shape {x}", x=target.shape)
         (source, source_conditions
         ), (target,) = self.ot_matcher.sample_conditional_indices_from_tmap(
             rng=rng_resample,
@@ -351,7 +325,7 @@ class GENOTLin(GENOTBase):
             k_samples_per_x=self.k_samples_per_x,
             source_arrays=(source, source_conditions),
             target_arrays=(target,),
-            source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
+            source_is_balanced=(self.ot_matcher.tau_a == 1.0)
         )
 
         if self.matcher_latent_to_data is not None:
@@ -454,7 +428,7 @@ class GENOTQuad(GENOTBase):
                 k_samples_per_x=self.k_samples_per_x,
                 source_arrays=(source, source_conditions),
                 target_arrays=(target,),
-                source_is_balanced=(self.unbalancedness_handler.tau_a == 1.0)
+                source_is_balanced=(self.ot_matcher.tau_a == 1.0)
             )
         )
 

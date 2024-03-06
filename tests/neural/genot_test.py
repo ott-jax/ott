@@ -17,7 +17,6 @@ from typing import Iterator, Literal, Optional, Union
 import pytest
 
 import jax.numpy as jnp
-from jax import random
 
 import optax
 
@@ -26,7 +25,6 @@ from ott.neural.flow_models.genot import GENOTLin, GENOTQuad
 from ott.neural.flow_models.models import VelocityField
 from ott.neural.flow_models.samplers import uniform_sampler
 from ott.neural.models import base_solver
-from ott.neural.models.nets import RescalingMLP
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
@@ -71,9 +69,6 @@ class TestGENOTLin:
     ot_matcher = base_solver.OTMatcherLinear(
         ot_solver, cost_fn=costs.SqEuclidean(), scale_cost=scale_cost
     )
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOTLin(
@@ -86,7 +81,6 @@ class TestGENOTLin:
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        unbalancedness_handler=unbalancedness_handler,
         k_samples_per_x=k_samples_per_x,
         matcher_latent_to_data=matcher_latent_to_data,
     )
@@ -134,9 +128,6 @@ class TestGENOTLin:
         ot_solver, cost_fn=costs.SqEuclidean()
     )
     time_sampler = uniform_sampler
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
 
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOTLin(
@@ -147,7 +138,6 @@ class TestGENOTLin:
         iterations=3,
         valid_freq=2,
         ot_matcher=ot_matcher,
-        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -198,25 +188,11 @@ class TestGENOTLin:
     ot_matcher = base_solver.OTMatcherLinear(
         ot_solver,
         cost_fn=costs.SqEuclidean(),
+        tau_a=0.2,
+        tau_b=0.9,
     )
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-
-    tau_a = 0.9
-    tau_b = 0.2
-    rescaling_a = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    rescaling_b = RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0),
-        source_dim,
-        target_dim,
-        condition_dim,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b
-    )
 
     genot = GENOTLin(
         neural_vf,
@@ -228,23 +204,10 @@ class TestGENOTLin:
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
-        unbalancedness_handler=unbalancedness_handler,
         matcher_latent_to_data=matcher_latent_to_data,
     )
 
     genot(data_loader, data_loader)
-
-    result_eta = genot.unbalancedness_handler.evaluate_eta(
-        source_lin, condition=source_condition
-    )
-    assert isinstance(result_eta, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_eta)) == 0
-
-    result_xi = genot.unbalancedness_handler.evaluate_xi(
-        target_lin, condition=source_condition
-    )
-    assert isinstance(result_xi, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_xi)) == 0
 
 
 class TestGENOTQuad:
@@ -285,10 +248,6 @@ class TestGENOTQuad:
         ot_solver, cost_fn=costs.SqEuclidean()
     )
 
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
-
     time_sampler = functools.partial(uniform_sampler, offset=1e-2)
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOTQuad(
@@ -299,7 +258,6 @@ class TestGENOTQuad:
         iterations=3,
         valid_freq=2,
         ot_matcher=ot_matcher,
-        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -351,10 +309,6 @@ class TestGENOTQuad:
         ot_solver, cost_fn=costs.SqEuclidean(), fused_penalty=0.5
     )
 
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
-
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOTQuad(
         neural_vf,
@@ -364,7 +318,6 @@ class TestGENOTQuad:
         iterations=3,
         valid_freq=2,
         ot_matcher=ot_matcher,
-        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         k_samples_per_x=k_samples_per_x,
         matcher_latent_to_data=matcher_latent_to_data,
@@ -416,9 +369,6 @@ class TestGENOTQuad:
         ot_solver, cost_fn=costs.SqEuclidean()
     )
     time_sampler = uniform_sampler
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
 
     optimizer = optax.adam(learning_rate=1e-3)
     genot = GENOTQuad(
@@ -429,7 +379,6 @@ class TestGENOTQuad:
         iterations=3,
         valid_freq=2,
         ot_matcher=ot_matcher,
-        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
@@ -486,9 +435,6 @@ class TestGENOTQuad:
     )
     time_sampler = uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), source_dim, target_dim, condition_dim
-    )
 
     genot = GENOTQuad(
         neural_vf,
@@ -498,7 +444,6 @@ class TestGENOTQuad:
         iterations=3,
         valid_freq=2,
         ot_matcher=ot_matcher,
-        unbalancedness_handler=unbalancedness_handler,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,

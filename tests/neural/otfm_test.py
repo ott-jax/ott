@@ -17,12 +17,11 @@ from typing import Iterator, Literal, Type
 import pytest
 
 import jax.numpy as jnp
-from jax import random
 
 import optax
 
 from ott.neural.flow_models import flows, models, otfm, samplers
-from ott.neural.models import base_solver, nets
+from ott.neural.models import base_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 
@@ -49,9 +48,7 @@ class TestOTFlowMatching:
     ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), input_dim, input_dim, condition_dim
-    )
+
     fm = otfm.OTFlowMatching(
         neural_vf,
         input_dim=input_dim,
@@ -62,7 +59,6 @@ class TestOTFlowMatching:
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        unbalancedness_handler=unbalancedness_handler
     )
     fm(
         data_loaders_gaussian[0], data_loaders_gaussian[1],
@@ -101,17 +97,14 @@ class TestOTFlowMatching:
     input_dim = 2
     condition_dim = 1
     neural_vf = models.VelocityField(
-        output_dim=2,
-        condition_dim=1,
+        output_dim=input_dim,
+        condition_dim=condition_dim,
         latent_embed_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn()
     ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), input_dim, input_dim, condition_dim
-    )
 
     fm = otfm.OTFlowMatching(
         neural_vf,
@@ -123,7 +116,6 @@ class TestOTFlowMatching:
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        unbalancedness_handler=unbalancedness_handler
     )
     fm(
         data_loader_gaussian_with_conditions,
@@ -173,9 +165,6 @@ class TestOTFlowMatching:
     ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0), dim, dim, condition_dim
-    )
 
     fm = otfm.OTFlowMatching(
         neural_vf,
@@ -187,7 +176,6 @@ class TestOTFlowMatching:
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        unbalancedness_handler=unbalancedness_handler
     )
     fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
 
@@ -220,7 +208,6 @@ class TestOTFlowMatching:
     )
     batch = next(iter(data_loader))
     source = jnp.asarray(batch["source_lin"])
-    target = jnp.asarray(batch["target_lin"])
     source_conditions = jnp.asarray(batch["source_conditions"]) if len(
         batch["source_conditions"]
     ) > 0 else None
@@ -239,22 +226,10 @@ class TestOTFlowMatching:
 
     tau_a = 0.9
     tau_b = 0.2
-    rescaling_a = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
-    rescaling_b = nets.RescalingMLP(hidden_dim=4, condition_dim=condition_dim)
     ot_matcher = base_solver.OTMatcherLinear(
         ot_solver,
         tau_a=tau_a,
         tau_b=tau_b,
-    )
-    unbalancedness_handler = base_solver.UnbalancednessHandler(
-        random.PRNGKey(0),
-        source_dim,
-        source_dim,
-        condition_dim,
-        tau_a=tau_a,
-        tau_b=tau_b,
-        rescaling_a=rescaling_a,
-        rescaling_b=rescaling_b
     )
 
     fm = otfm.OTFlowMatching(
@@ -267,18 +242,5 @@ class TestOTFlowMatching:
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
-        unbalancedness_handler=unbalancedness_handler,
     )
     fm(data_loader, data_loader)
-
-    result_eta = fm.unbalancedness_handler.evaluate_eta(
-        source, condition=source_conditions
-    )
-    assert isinstance(result_eta, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_eta)) == 0
-
-    result_xi = fm.unbalancedness_handler.evaluate_xi(
-        target, condition=source_conditions
-    )
-    assert isinstance(result_xi, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_xi)) == 0
