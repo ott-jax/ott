@@ -76,15 +76,18 @@ class TestGENOTLin:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
         matcher_latent_to_data=matcher_latent_to_data,
     )
-    genot(genot_data_loader_linear, genot_data_loader_linear)
+    genot(
+        genot_data_loader_linear,
+        genot_data_loader_linear,
+        n_iters=2,
+        valid_freq=3
+    )
 
     batch = next(iter(genot_data_loader_linear))
     result_forward = genot.transport(
@@ -135,8 +138,6 @@ class TestGENOTLin:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
@@ -145,7 +146,9 @@ class TestGENOTLin:
     )
     genot(
         genot_data_loader_linear_conditional,
-        genot_data_loader_linear_conditional
+        genot_data_loader_linear_conditional,
+        n_iters=2,
+        valid_freq=3
     )
     result_forward = genot.transport(
         source_lin, condition=source_conditions, forward=True
@@ -199,15 +202,15 @@ class TestGENOTQuad:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
         k_samples_per_x=k_samples_per_x,
         matcher_latent_to_data=matcher_latent_to_data,
     )
-    genot(genot_data_loader_quad, genot_data_loader_quad)
+    genot(
+        genot_data_loader_quad, genot_data_loader_quad, n_iters=2, valid_freq=3
+    )
 
     result_forward = genot.transport(
         source_quad, condition=source_conditions, forward=True
@@ -259,14 +262,17 @@ class TestGENOTQuad:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         k_samples_per_x=k_samples_per_x,
         matcher_latent_to_data=matcher_latent_to_data,
     )
-    genot(genot_data_loader_fused, genot_data_loader_fused)
+    genot(
+        genot_data_loader_fused,
+        genot_data_loader_fused,
+        n_iters=2,
+        valid_freq=3
+    )
 
     result_forward = genot.transport(
         jnp.concatenate((source_lin, source_quad), axis=1),
@@ -320,8 +326,6 @@ class TestGENOTQuad:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
@@ -329,7 +333,10 @@ class TestGENOTQuad:
         matcher_latent_to_data=matcher_latent_to_data,
     )
     genot(
-        genot_data_loader_quad_conditional, genot_data_loader_quad_conditional
+        genot_data_loader_quad_conditional,
+        genot_data_loader_quad_conditional,
+        n_iters=2,
+        valid_freq=3
     )
 
     result_forward = genot.transport(
@@ -385,8 +392,6 @@ class TestGENOTQuad:
         input_dim=source_dim,
         output_dim=target_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         optimizer=optimizer,
         time_sampler=time_sampler,
@@ -394,7 +399,10 @@ class TestGENOTQuad:
         matcher_latent_to_data=matcher_latent_to_data,
     )
     genot(
-        genot_data_loader_fused_conditional, genot_data_loader_fused_conditional
+        genot_data_loader_fused_conditional,
+        genot_data_loader_fused_conditional,
+        n_iters=2,
+        valid_freq=3
     )
 
     result_forward = genot.transport(

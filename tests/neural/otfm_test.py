@@ -53,16 +53,18 @@ class TestOTFlowMatching:
         neural_vf,
         input_dim=input_dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
     )
     fm(
-        data_loaders_gaussian[0], data_loaders_gaussian[1],
-        data_loaders_gaussian[0], data_loaders_gaussian[1]
+        data_loaders_gaussian[0],
+        data_loaders_gaussian[1],
+        data_loaders_gaussian[0],
+        data_loaders_gaussian[1],
+        n_iters=2,
+        valid_freq=3
     )
 
     batch_src = next(iter(data_loaders_gaussian[0]))
@@ -110,8 +112,6 @@ class TestOTFlowMatching:
         neural_vf,
         input_dim=2,
         cond_dim=1,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
@@ -119,7 +119,9 @@ class TestOTFlowMatching:
     )
     fm(
         data_loader_gaussian_with_conditions,
-        data_loader_gaussian_with_conditions
+        data_loader_gaussian_with_conditions,
+        n_iters=2,
+        valid_freq=3
     )
 
     batch = next(iter(data_loader_gaussian_with_conditions))
@@ -170,14 +172,17 @@ class TestOTFlowMatching:
         neural_vf,
         input_dim=dim,
         cond_dim=condition_dim,
-        iterations=3,
-        valid_freq=2,
         ot_matcher=ot_matcher,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
     )
-    fm(data_loader_gaussian_conditional, data_loader_gaussian_conditional)
+    fm(
+        data_loader_gaussian_conditional,
+        data_loader_gaussian_conditional,
+        n_iters=2,
+        valid_freq=3
+    )
 
     batch = next(iter(data_loader_gaussian_conditional))
     source = jnp.asarray(batch["source_lin"])
