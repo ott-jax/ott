@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 import diffrax
 import optax
@@ -43,7 +44,6 @@ class GENOTBase:
     input_dim: Dimension of the data in the source distribution.
     output_dim: Dimension of the data in the target distribution.
     cond_dim: Dimension of the conditioning variable.
-    iterations: Number of iterations.
     valid_freq: Frequency of validation.
     ot_solver: OT solver to match samples from the source and the target
       distribution.
@@ -87,7 +87,6 @@ class GENOTBase:
       input_dim: int,
       output_dim: int,
       cond_dim: int,
-      iterations: int,
       valid_freq: int,
       ot_matcher: base_solver.BaseOTMatcher,
       optimizer: optax.GradientTransformation,
@@ -105,7 +104,6 @@ class GENOTBase:
     rng = utils.default_prng_key(rng)
 
     self.rng = utils.default_prng_key(rng)
-    self.iterations = iterations
     self.valid_freq = valid_freq
     self.velocity_field = velocity_field
     self.state_velocity_field: Optional[train_state.TrainState] = None
@@ -280,31 +278,33 @@ class GENOTLin(GENOTBase):
   neural solver for entropic (linear) OT problems.
   """
 
-  def __call__(self, train_loader, valid_loader):
-    """Train GENOT.
+  def __call__(
+      self,
+      n_iters: int,
+      train_source,
+      train_target,
+      valid_source,
+      valid_target,
+      valid_freq: int = 5000,
+      rng: Optional[jax.Array] = None,
+  ):
+    """Train GENOTLin."""
+    rng = utils.default_prng_key(rng)
+    training_logs = {"loss": []}
 
-    Args:
-      train_loader: Data loader for the training data.
-      valid_loader: Data loader for the validation data.
-    """
-    iter = -1
-    stop = False
-    while True:
-      for batch in train_loader:
-        iter += 1
-        if iter >= self.iterations:
-          stop = True
-          break
+    for it in range(n_iters):
+      for batch_source, batch_target in zip(train_source, train_target):
         (
-            self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match,
+            rng, rng_resample, rng_noise, rng_time, rng_latent_data_match,
             rng_step_fn
-        ) = jax.random.split(self.rng, 6)
-        source, source_conditions, target = jnp.array(
-            batch["source_lin"]
-        ), jnp.array(batch["source_conditions"]
-                    ) if "source_conditions" in batch else None, jnp.array(
-                        batch["target_lin"]
-                    )
+        ) = jax.random.split(rng, 6)
+
+        batch_source = jtu.tree_map(jnp.asarray, batch_source)
+        batch_target = jtu.tree_map(jnp.asarray, batch_target)
+
+        source = batch_source["lin"]
+        source_conditions = batch_source.get("conditions", None)
+        target = batch_target["lin"]
 
         batch_size = len(source)
         n_samples = batch_size * self.k_samples_per_x
@@ -358,10 +358,10 @@ class GENOTLin(GENOTBase):
               tmat=tmat
           )
 
-        if iter % self.valid_freq == 0:
-          self._valid_step(valid_loader, iter)
-      if stop:
-        break
+        training_logs["loss"].append(float(loss))
+
+        if it % valid_freq == 0:
+          self._valid_step(valid_source, valid_target, it)
 
 
 class GENOTQuad(GENOTBase):
@@ -373,36 +373,36 @@ class GENOTQuad(GENOTBase):
   problems, respectively.
   """
 
-  def __call__(self, train_loader, valid_loader):
-    """Train GENOT.
+  def __call__(
+      self,
+      n_iters: int,
+      train_source,
+      train_target,
+      valid_source,
+      valid_target,
+      valid_freq: int = 5000,
+      rng: Optional[jax.Array] = None,
+  ):
+    """Train GENOTQuad."""
+    rng = utils.default_prng_key(rng)
+    training_logs = {"loss": []}
 
-    Args:
-      train_loader: Data loader for the training data.
-      valid_loader: Data loader for the validation data.
-    """
-    batch: Dict[str, jnp.array] = {}
-    iter = -1
-    stop = False
-    while True:
-      for batch in train_loader:
-        iter += 1
-        if iter >= self.iterations:
-          stop = True
-          break
-
+    for it in range(n_iters):
+      for batch_source, batch_target in zip(train_source, train_target):
         (
-            self.rng, rng_time, rng_resample, rng_noise, rng_latent_data_match,
+            rng, rng_resample, rng_noise, rng_time, rng_latent_data_match,
             rng_step_fn
-        ) = jax.random.split(self.rng, 6)
-        (source_lin, source_quad, source_conditions, target_lin,
-         target_quad) = (
-             jnp.array(batch["source_lin"]) if "source_lin" in batch else None,
-             jnp.array(batch["source_quad"]),
-             jnp.array(batch["source_conditions"])
-             if "source_conditions" in batch else None,
-             jnp.array(batch["target_lin"]) if "target_lin" in batch else None,
-             jnp.array(batch["target_quad"])
-         )
+        ) = jax.random.split(rng, 6)
+
+        batch_source = jtu.tree_map(jnp.asarray, batch_source)
+        batch_target = jtu.tree_map(jnp.asarray, batch_target)
+
+        source_lin = batch_source.get("lin", None)
+        source_quad = batch_source["quad"]
+        source_conditions = batch_source.get("conditions", None)
+        target_lin = batch_target.get("lin", None)
+        target_quad = batch_target["quad"]
+
         batch_size = len(source_quad)
         n_samples = batch_size * self.k_samples_per_x
         time = self.time_sampler(rng_time, n_samples)
@@ -463,7 +463,7 @@ class GENOTQuad(GENOTBase):
               condition=source_conditions,
               tmat=tmat
           )
-        if iter % self.valid_freq == 0:
-          self._valid_step(valid_loader, iter)
-      if stop:
-        break
+        training_logs["loss"].append(float(loss))
+
+        if it % valid_freq == 0:
+          self._valid_step(valid_source, valid_target, it)
