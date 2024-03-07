@@ -242,6 +242,11 @@ class PNormP(TICost):
     # not defined for `p=1`
     return mu.norm(z, self.q) ** self.q / self.q
 
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+    """Output barycenter of vectors."""
+    return jnp.average(xs, weights=weights, axis=0), None
+
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
 
@@ -551,6 +556,11 @@ class RegTICost(TICost, abc.ABC):
       return self.h(pg_sol) + minus_f(pg_sol, x)
 
     return f_h
+
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+    """Output barycenter of vectors."""
+    return jnp.average(xs, weights=weights, axis=0), None
 
   def tree_flatten(self):  # noqa: D102
     return (self.scaling_reg, self.matrix), {"orthogonal": self.orthogonal}
