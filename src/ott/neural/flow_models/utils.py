@@ -5,10 +5,14 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 
 from ott.geometry import costs, pointcloud
-from ott.solvers import linear
+from ott.solvers import linear, quadratic
 
 __all__ = [
-    "match_linear", "sample_joint", "sample_conditional", "resample_data"
+    "match_linear",
+    "match_quadratic",
+    "sample_joint",
+    "sample_conditional",
+    "resample_data",
 ]
 
 
@@ -17,12 +21,36 @@ def match_linear(
     y: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
-    # TODO(michalk8): expose rest of the geom arguments
+    # TODO(michalk8): type this correctly
+    scale_cost: float = 1.0,
     **kwargs: Any
 ) -> jnp.ndarray:
   """TODO."""
-  geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=epsilon)
+  geom = pointcloud.PointCloud(
+      x, y, cost_fn=cost_fn, epsilon=epsilon, scale_cost=scale_cost
+  )
   out = linear.solve(geom, **kwargs)
+  return out.matrix
+
+
+def match_quadratic(
+    xx: jnp.ndarray,
+    yy: jnp.ndarray,
+    xy: Optional[jnp.ndarray] = None,
+    # TODO(michalk8): expose for all the costs
+    scale_cost: float = 1.0,
+    cost_fn: Optional[costs.CostFn] = None,
+    **kwargs: Any
+) -> jnp.ndarray:
+  """TODO."""
+  geom_xx = pointcloud.PointCloud(xx, cost_fn=cost_fn, scale_cost=scale_cost)
+  geom_yy = pointcloud.PointCloud(yy, cost_fn=cost_fn, scale_cost=scale_cost)
+  if xy is None:
+    geom_xy = None
+  else:
+    geom_xy = pointcloud.PointCloud(xy, cost_fn=cost_fn, scale_cost=scale_cost)
+
+  out = quadratic.solve(geom_xx, geom_yy, geom_xy, **kwargs)
   return out.matrix
 
 
