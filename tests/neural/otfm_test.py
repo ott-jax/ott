@@ -21,8 +21,6 @@ import jax.numpy as jnp
 import optax
 
 from ott.neural.flow_models import flows, models, otfm, samplers, utils
-from ott.neural.models import base_solver
-from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 
 class TestOTFlowMatching:
@@ -145,9 +143,8 @@ class TestOTFlowMatching:
         condition_dim=condition_dim,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn(
-    ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn()
-    ot_matcher = base_solver.OTMatcherLinear(ot_solver)
+    # TODO(michalk8): check for LR
+    ot_matcher = utils.match_linear
     time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
 

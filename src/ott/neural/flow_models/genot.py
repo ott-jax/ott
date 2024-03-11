@@ -25,7 +25,6 @@ from flax.training import train_state
 
 from ott import utils
 from ott.neural.flow_models import flows, samplers
-from ott.neural.models import base_solver
 
 __all__ = ["GENOTBase", "GENOTLin", "GENOTQuad"]
 
@@ -88,13 +87,15 @@ class GENOTBase:
       output_dim: int,
       cond_dim: int,
       valid_freq: int,
-      ot_matcher: base_solver.BaseOTMatcher,
+      # TODO(michalk8)
+      ot_matcher: Any,
       optimizer: optax.GradientTransformation,
       flow: Type[flows.BaseFlow] = flows.ConstantNoiseFlow(0.0),  # noqa: B008
       time_sampler: Callable[[jax.Array, int],
                              jnp.ndarray] = samplers.uniform_sampler,
       k_samples_per_x: int = 1,
-      matcher_latent_to_data: Optional[base_solver.OTMatcherLinear] = None,
+      # TODO(michalk8)
+      matcher_latent_to_data: Optional[Callable] = None,
       kwargs_solver_latent_to_data: Dict[str, Any] = types.MappingProxyType({}),
       fused_penalty: float = 0.0,
       callback_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
