@@ -24,7 +24,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.neural.flow_models import flows, models
-from ott.neural.models import base_solver
+from ott.neural.flow_models.utils import sample_joint
 
 __all__ = ["OTFlowMatching"]
 
@@ -40,7 +40,7 @@ class OTFlowMatching:
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
     optimizer: Optimizer for the velocity field's parameters.
-    ot_matcher: TODO.
+    match_fn: TODO.
     rng: Random number generator.
   """
 
@@ -53,7 +53,8 @@ class OTFlowMatching:
       flow: flows.BaseFlow,
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
       optimizer: optax.GradientTransformation,
-      ot_matcher: Optional[base_solver.OTMatcherLinear] = None,
+      match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
+                                  jnp.ndarray]] = None,
       rng: Optional[jax.Array] = None,
   ):
     rng = utils.default_prng_key(rng)
@@ -62,7 +63,7 @@ class OTFlowMatching:
     self.vf = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
-    self.ot_matcher = ot_matcher
+    self.match_fn = match_fn
     self.optimizer = optimizer
 
     self.vf_state = self.vf.create_train_state(
@@ -113,15 +114,12 @@ class OTFlowMatching:
       n_iters: int,
       train_source,
       train_target,
-      valid_source,
-      valid_target,
-      valid_freq: int = 5000,
       rng: Optional[jax.Array] = None,
   ) -> Dict[str, Any]:
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
 
-    for it in range(n_iters):
+    for _ in range(n_iters):
       for batch_source, batch_target in zip(train_source, train_target):
         rng, rng_resample, rng_step_fn = jax.random.split(rng, 3)
 
@@ -132,21 +130,17 @@ class OTFlowMatching:
         source_conditions = batch_source.get("conditions", None)
         target = batch_target["lin"]
 
-        if self.ot_matcher is not None:
-          tmat = self.ot_matcher.match_fn(source, target)
-          (source, source_conditions), (target,) = self.ot_matcher.sample_joint(
-              rng_resample, tmat, (source, source_conditions), (target,)
-          )
-        else:
-          tmat = None
+        if self.match_fn is not None:
+          tmat = self.match_fn(source, target)
+          src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
+          source, target = source[src_ixs], target[tgt_ixs]
+          if source_conditions is not None:
+            source_conditions = source_conditions[src_ixs]
 
         self.vf_state, loss = self.step_fn(
             rng_step_fn, self.vf_state, source, target, source_conditions
         )
         training_logs["loss"].append(float(loss))
-
-        if it % valid_freq == 0:
-          self._valid_step(valid_source, valid_target, it)
 
     return training_logs
 
@@ -203,6 +197,3 @@ class OTFlowMatching:
 
     in_axes = [0, None if condition is None else 0]
     return jax.jit(jax.vmap(solve_ode, in_axes))(x, condition)
-
-  def _valid_step(self, it: int, valid_source, valid_target) -> None:
-    pass

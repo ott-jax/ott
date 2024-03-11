@@ -20,7 +20,7 @@ import jax.numpy as jnp
 
 import optax
 
-from ott.neural.flow_models import flows, models, otfm, samplers
+from ott.neural.flow_models import flows, models, otfm, samplers, utils
 from ott.neural.models import base_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
@@ -31,42 +31,35 @@ class TestOTFlowMatching:
       "flow", [
           flows.ConstantNoiseFlow(0.0),
           flows.ConstantNoiseFlow(1.0),
-          flows.BrownianNoiseFlow(0.2)
+          flows.BrownianNoiseFlow(0.2),
       ]
   )
   def test_flow_matching_unconditional(
-      self, data_loaders_gaussian, flow: Type[flows.BaseFlow]
+      self, data_loaders_gaussian, flow: flows.BaseFlow
   ):
     input_dim = 2
-    condition_dim = 0
     neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn()
-    ot_matcher = base_solver.OTMatcherLinear(ot_solver)
-    time_sampler = samplers.uniform_sampler
     optimizer = optax.adam(learning_rate=1e-3)
 
     fm = otfm.OTFlowMatching(
+        input_dim,
         neural_vf,
-        input_dim=input_dim,
-        cond_dim=condition_dim,
-        ot_matcher=ot_matcher,
         flow=flow,
-        time_sampler=time_sampler,
+        time_sampler=samplers.uniform_sampler,
+        match_fn=utils.match_linear,
         optimizer=optimizer,
     )
-    fm(
-        data_loaders_gaussian[0],
-        data_loaders_gaussian[1],
-        data_loaders_gaussian[0],
-        data_loaders_gaussian[1],
+    _ = fm(
         n_iters=2,
-        valid_freq=3
+        train_source=data_loaders_gaussian[0],
+        train_target=data_loaders_gaussian[1],
     )
 
+    # TODO(michalk8): nicer
     batch_src = next(iter(data_loaders_gaussian[0]))
     source = jnp.asarray(batch_src["lin"])
     batch_tgt = next(iter(data_loaders_gaussian[1]))
@@ -74,16 +67,14 @@ class TestOTFlowMatching:
     source_conditions = jnp.asarray(
         batch_src["conditions"]
     ) if "conditions" in batch_src else None
-    result_forward = fm.transport(
-        source, condition=source_conditions, forward=True
-    )
-    assert isinstance(result_forward, jnp.ndarray)
+
+    result_forward = fm.transport(source, condition=source_conditions)
+    # TODO(michalk8): better condition
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(
-        target, condition=source_conditions, forward=False
+        target, condition=source_conditions, t0=1.0, t1=0.0
     )
-    assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
@@ -94,34 +85,29 @@ class TestOTFlowMatching:
       ]
   )
   def test_flow_matching_with_conditions(
-      self, data_loader_gaussian_with_conditions, flow: Type[flows.BaseFlow]
+      self, data_loader_gaussian_with_conditions, flow: flows.BaseFlow
   ):
-    input_dim = 2
-    condition_dim = 1
+    input_dim, cond_dim = 2, 1
     neural_vf = models.VelocityField(
         output_dim=input_dim,
-        condition_dim=condition_dim,
+        condition_dim=cond_dim,
         latent_embed_dim=5,
     )
-    ot_solver = sinkhorn.Sinkhorn()
-    ot_matcher = base_solver.OTMatcherLinear(ot_solver)
     time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
     optimizer = optax.adam(learning_rate=1e-3)
 
     fm = otfm.OTFlowMatching(
+        2,
         neural_vf,
-        input_dim=2,
-        cond_dim=1,
-        ot_matcher=ot_matcher,
+        match_fn=utils.match_linear,
         flow=flow,
         time_sampler=time_sampler,
         optimizer=optimizer,
     )
-    fm(
-        data_loader_gaussian_with_conditions,
-        data_loader_gaussian_with_conditions,
+    _ = fm(
         n_iters=2,
-        valid_freq=3
+        train_source=data_loader_gaussian_with_conditions,
+        train_target=data_loader_gaussian_with_conditions,
     )
 
     batch = next(iter(data_loader_gaussian_with_conditions))
@@ -130,16 +116,13 @@ class TestOTFlowMatching:
     source_conditions = jnp.asarray(batch["source_conditions"]) if len(
         batch["source_conditions"]
     ) > 0 else None
-    result_forward = fm.transport(
-        source, condition=source_conditions, forward=True
-    )
-    assert isinstance(result_forward, jnp.ndarray)
+
+    result_forward = fm.transport(source, condition=source_conditions)
     assert jnp.sum(jnp.isnan(result_forward)) == 0
 
     result_backward = fm.transport(
-        target, condition=source_conditions, forward=False
+        target, condition=source_conditions, t0=1.0, t1=0.0
     )
-    assert isinstance(result_backward, jnp.ndarray)
     assert jnp.sum(jnp.isnan(result_backward)) == 0
 
   @pytest.mark.parametrize(
