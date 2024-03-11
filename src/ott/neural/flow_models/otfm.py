@@ -24,7 +24,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.neural.flow_models import flows, models
-from ott.neural.flow_models.utils import sample_joint
+from ott.neural.flow_models.utils import resample_data, sample_joint
 
 __all__ = ["OTFlowMatching"]
 
@@ -133,9 +133,10 @@ class OTFlowMatching:
         if self.match_fn is not None:
           tmat = self.match_fn(source, target)
           src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
-          source, target = source[src_ixs], target[tgt_ixs]
-          if source_conditions is not None:
-            source_conditions = source_conditions[src_ixs]
+          source, source_conditions = resample_data(
+              source, source_conditions, ixs=src_ixs
+          )
+          target = resample_data(target, ixs=tgt_ixs)
 
         self.vf_state, loss = self.step_fn(
             rng_step_fn, self.vf_state, source, target, source_conditions
