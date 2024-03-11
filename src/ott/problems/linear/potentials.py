@@ -88,7 +88,7 @@ class DualPotentials:
     Note:
       When the dual potentials are solved in correlation form (this formulation
       is only relevant in the (important) particular case when the cost is
-      the squared-Euclidean distnace), the maps are :math:`\nabla g` for
+      the squared-Euclidean distance), the maps are :math:`\nabla g` for
       forward, :math:`\nabla f` for backward map.
 
     Args:

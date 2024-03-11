@@ -144,20 +144,20 @@ class CostFn(abc.ABC):
     r"""Twist inverse operator of the cost function.
 
     Given a cost function :math:`c`, the twist operator returns
-    :math:`\nabla_{1}c(x, \\cdot)^{-1}(z)` if ``variable`` is `False`,
-    and :math:`\nabla_{2}c(\\cdot, y)^{-1}(z)` if ``variable`` is `True`, for
-    :math:`x=y=` ``vec`` and :math:`z=` ``dual_vec``.
+    :math:`\nabla_{1}c(x, \cdot)^{-1}(z)` if ``variable`` is ``False``,
+    and :math:`\nabla_{2}c(\cdot, y)^{-1}(z)` if ``variable`` is ``True``, for
+    :math:`x=y` equal to ``vec`` and :math:`z` equal to ``dual_vec``.
 
     Args:
       vec: ``[p,]`` point at which the twist inverse operator is evaluated.
-      dual_vec: ``[q,]`` point inverted by the twist inverse operator.
+      dual_vec: ``[q,]`` point to invert by the operator.
       variable: apply twist inverse operator on first (``False``) or
         second (``True``) variable.
 
     Returns:
       A vector.
     """
-    raise NotImplementedError("twist operator is not implemented.")
+    raise NotImplementedError("Twist operator is not implemented.")
 
   def tree_flatten(self):  # noqa: D102
     return (), None
