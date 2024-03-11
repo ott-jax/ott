@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, Optional
 
 import jax.tree_util as jtu
 import numpy as np
@@ -65,21 +65,29 @@ class ConditionalOTDataset:
 
   Args:
     datasets: Datasets to sample from.
+    weights: TODO.
     seed: Random seed.
   """
 
   def __init__(
       self,
-      # TODO(michalk8): allow for dict with weights
-      datasets: List[OTDataset],
+      datasets: Iterable[OTDataset],
+      weights: Iterable[float] = None,
       seed: Optional[int] = None,
   ):
     self.datasets = tuple(datasets)
-    self._rng = np.random.default_rng(seed=seed)
+
+    if weights is None:
+      weights = np.ones(len(self.datasets))
+    weights = np.asarray(weights)
+    self.weights = weights / np.sum(weights)
+    assert len(self.weights) == len(self.datasets), "TODO"
+
+    self._rng = np.random.default_rng(seed)
     self._iterators = ()
 
   def __next__(self) -> Dict[str, np.ndarray]:
-    idx = self._rng.choice(len(self._iterators))
+    idx = self._rng.choice(len(self._iterators), p=self.weights)
     return next(self._iterators[idx])
 
   def __iter__(self) -> "ConditionalOTDataset":
