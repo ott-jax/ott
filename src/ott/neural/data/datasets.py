@@ -71,6 +71,7 @@ class ConditionalOTDataset:
 
   def __init__(
       self,
+      # TODO(michalk8): generalize the type
       datasets: Iterable[OTDataset],
       weights: Iterable[float] = None,
       seed: Optional[int] = None,
