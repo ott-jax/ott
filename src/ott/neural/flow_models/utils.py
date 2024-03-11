@@ -1,4 +1,4 @@
-from typing import Any, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -15,14 +15,15 @@ __all__ = [
     "resample_data",
 ]
 
+ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
+
 
 def match_linear(
     x: jnp.ndarray,
     y: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
-    # TODO(michalk8): type this correctly
-    scale_cost: float = 1.0,
+    scale_cost: ScaleCost_t = 1.0,
     **kwargs: Any
 ) -> jnp.ndarray:
   """TODO."""
@@ -38,7 +39,7 @@ def match_quadratic(
     yy: jnp.ndarray,
     xy: Optional[jnp.ndarray] = None,
     # TODO(michalk8): expose for all the costs
-    scale_cost: float = 1.0,
+    scale_cost: ScaleCost_t = 1.0,
     cost_fn: Optional[costs.CostFn] = None,
     **kwargs: Any
 ) -> jnp.ndarray:
