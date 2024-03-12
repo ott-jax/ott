@@ -138,6 +138,27 @@ class CostFn(abc.ABC):
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
+  def twist_operator(
+      self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
+  ) -> jnp.ndarray:
+    r"""Twist inverse operator of the cost function.
+
+    Given a cost function :math:`c`, the twist operator returns
+    :math:`\nabla_{1}c(x, \cdot)^{-1}(z)` if ``variable`` is ``0``,
+    and :math:`\nabla_{2}c(\cdot, y)^{-1}(z)` if ``variable`` is ``1``, for
+    :math:`x=y` equal to ``vec`` and :math:`z` equal to ``dual_vec``.
+
+    Args:
+      vec: ``[p,]`` point at which the twist inverse operator is evaluated.
+      dual_vec: ``[q,]`` point to invert by the operator.
+      variable: apply twist inverse operator on first (i.e. value set to ``0``
+        or equivalently ``False``) or second (``1`` or ``True``) variable.
+
+    Returns:
+      A vector.
+    """
+    raise NotImplementedError("Twist operator is not implemented.")
+
   def tree_flatten(self):  # noqa: D102
     return (), None
 
@@ -181,6 +202,14 @@ class TICost(CostFn):
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
+
+  def twist_operator(
+      self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
+  ) -> jnp.ndarray:
+    # Note: when `h` is pair, i.e. h(z) = h(-z), the expressions below coincide
+    if variable:
+      return vec + jax.grad(self.h_legendre)(-dual_vec)
+    return vec - jax.grad(self.h_legendre)(dual_vec)
 
 
 @jax.tree_util.register_pytree_node_class
