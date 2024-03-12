@@ -144,15 +144,15 @@ class CostFn(abc.ABC):
     r"""Twist inverse operator of the cost function.
 
     Given a cost function :math:`c`, the twist operator returns
-    :math:`\nabla_{1}c(x, \cdot)^{-1}(z)` if ``variable`` is ``False``,
-    and :math:`\nabla_{2}c(\cdot, y)^{-1}(z)` if ``variable`` is ``True``, for
+    :math:`\nabla_{1}c(x, \cdot)^{-1}(z)` if ``variable`` is ``0``,
+    and :math:`\nabla_{2}c(\cdot, y)^{-1}(z)` if ``variable`` is ``1``, for
     :math:`x=y` equal to ``vec`` and :math:`z` equal to ``dual_vec``.
 
     Args:
       vec: ``[p,]`` point at which the twist inverse operator is evaluated.
       dual_vec: ``[q,]`` point to invert by the operator.
-      variable: apply twist inverse operator on first (``False``) or
-        second (``True``) variable.
+      variable: apply twist inverse operator on first (i.e. value set to ``0``
+        or equivalently ``False``) or second (``1`` or ``True``) variable.
 
     Returns:
       A vector.

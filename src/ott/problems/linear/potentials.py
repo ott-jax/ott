@@ -76,20 +76,28 @@ class DualPotentials:
     r"""Transport ``vec`` according to Gangbo-McCann Brenier :cite:`brenier:91`.
 
     Uses Proposition 1.15 from :cite:`santambrogio:15` to compute an OT map when
-    applying the inverse gradient of cost. When the cost is translation
-    invariant, :math:`c(x,y)=h(x-y)`, this translates to the application of the
-    convex conjugate of :math:`h` to the gradient of the dual potentials,
-    namely :math:`x- (\nabla h^*)\circ \nabla f(x)` for the forward map,
+    applying the inverse gradient of cost.
+
+    When the cost is a general cost, the operator uses the
+    :meth:`~ott.geometry.costs.CostFn.twist_operator` associated of the
+    corresponding :class:`~ott.geometry.costs.CostFn`.
+
+    When the cost is a translation invariant :class:`~ott.geometry.costs.TICost`
+    cost, :math:`c(x,y)=h(x-y)`, and the twist operator translates to the
+    application of the convex conjugate of :math:`h` to the
+    gradient of the dual potentials, namely
+    :math:`x- (\nabla h^*)\circ \nabla f(x)` for the forward map,
     where :math:`h^*` is the Legendre transform of :math:`h`. For instance,
     in the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
     one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
     :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
     Note:
-      When the dual potentials are solved in correlation form (this formulation
-      is only relevant in the (important) particular case when the cost is
-      the squared-Euclidean distance), the maps are :math:`\nabla g` for
-      forward, :math:`\nabla f` for backward map.
+      When the dual potentials are solved in correlation form, and marked
+      accordingly by setting ``corr`` to ``True``, the maps are
+      :math:`\nabla g` for forward, :math:`\nabla f` for backward map. This can
+      only make sense when using the squared-Euclidean
+      :class:`~ott.geometry.costs.SqEuclidean` cost.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
