@@ -24,7 +24,6 @@ from ott.geometry import costs
 from ott.neural.flow_models.genot import GENOTLin, GENOTQuad
 from ott.neural.flow_models.models import VelocityField
 from ott.neural.flow_models.samplers import uniform_sampler
-from ott.neural.models import base_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 

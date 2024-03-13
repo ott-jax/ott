@@ -111,37 +111,39 @@ class OTFlowMatching:
   # TODO(michalk8): refactor in the future PR to just do one step
   def __call__(  # noqa: D102
       self,
+      loader: Any,  # TODO(michalk8): type it correctly
+      *,
       n_iters: int,
-      train_source,
-      train_target,
       rng: Optional[jax.Array] = None,
   ) -> Dict[str, Any]:
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
 
-    for _ in range(n_iters):
-      for batch_source, batch_target in zip(train_source, train_target):
-        rng, rng_resample, rng_step_fn = jax.random.split(rng, 3)
+    for batch in loader:
+      rng, rng_resample, rng_step_fn = jax.random.split(rng, 3)
 
-        batch_source = jtu.tree_map(jnp.asarray, batch_source)
-        batch_target = jtu.tree_map(jnp.asarray, batch_target)
+      batch = jtu.tree_map(jnp.asarray, batch)
 
-        source = batch_source["lin"]
-        source_conditions = batch_source.get("conditions", None)
-        target = batch_target["lin"]
+      src, tgt = batch["src_lin"], batch["tgt_lin"]
+      src_conds = batch.get("src_condition", None)
 
-        if self.match_fn is not None:
-          tmat = self.match_fn(source, target)
-          src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
-          source, source_conditions = resample_data(
-              source, source_conditions, ixs=src_ixs
-          )
-          target = resample_data(target, ixs=tgt_ixs)
+      if self.match_fn is not None:
+        tmat = self.match_fn(src, tgt)
+        src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
+        src, src_conds = resample_data(src, src_conds, ixs=src_ixs)
+        tgt = resample_data(tgt, ixs=tgt_ixs)
 
-        self.vf_state, loss = self.step_fn(
-            rng_step_fn, self.vf_state, source, target, source_conditions
-        )
-        training_logs["loss"].append(float(loss))
+      self.vf_state, loss = self.step_fn(
+          rng_step_fn,
+          self.vf_state,
+          src,
+          tgt,
+          src_conds,
+      )
+
+      training_logs["loss"].append(float(loss))
+      if len(training_logs["loss"]) >= n_iters:
+        break
 
     return training_logs
 
@@ -159,8 +161,8 @@ class OTFlowMatching:
     parameterized by the velocity field.
 
     Args:
-      x: Initial condition of the ODE of shape `(batch_size, ...)`.
-      condition: Condition of the input data of shape `(batch_size, ...)`.
+      x: Initial condition of the ODE of shape ``[batch_size, ...]``.
+      condition: Condition of the input data of shape ``[batch_size, ...]``.
       t0: Starting point of integration.
       t1: End point of integration.
       kwargs: Keyword arguments for the ODE solver.

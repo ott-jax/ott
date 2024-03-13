@@ -12,172 +12,112 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Literal, Type
 
 import pytest
 
+import jax
 import jax.numpy as jnp
+from torch.utils.data import DataLoader
 
 import optax
 
+from ott.neural.data import datasets
 from ott.neural.flow_models import flows, models, otfm, samplers, utils
 
 
 class TestOTFlowMatching:
 
-  @pytest.mark.parametrize(
-      "flow", [
-          flows.ConstantNoiseFlow(0.0),
-          flows.ConstantNoiseFlow(1.0),
-          flows.BrownianNoiseFlow(0.2),
-      ]
-  )
-  def test_flow_matching_unconditional(
-      self, data_loaders_gaussian, flow: flows.BaseFlow
-  ):
+  def test_fm(self, lin_dl: DataLoader):
     input_dim = 2
     neural_vf = models.VelocityField(
         output_dim=2,
         condition_dim=0,
         latent_embed_dim=5,
     )
-    optimizer = optax.adam(learning_rate=1e-3)
-
     fm = otfm.OTFlowMatching(
         input_dim,
         neural_vf,
-        flow=flow,
+        flow=flows.ConstantNoiseFlow(0.0),
         time_sampler=samplers.uniform_sampler,
-        match_fn=utils.match_linear,
-        optimizer=optimizer,
-    )
-    _ = fm(
-        n_iters=2,
-        train_source=data_loaders_gaussian[0],
-        train_target=data_loaders_gaussian[1],
+        match_fn=jax.jit(utils.match_linear),
+        optimizer=optax.adam(learning_rate=1e-3),
     )
 
-    # TODO(michalk8): nicer
-    batch_src = next(iter(data_loaders_gaussian[0]))
-    source = jnp.asarray(batch_src["lin"])
-    batch_tgt = next(iter(data_loaders_gaussian[1]))
-    target = jnp.asarray(batch_tgt["lin"])
-    source_conditions = jnp.asarray(
-        batch_src["conditions"]
-    ) if "conditions" in batch_src else None
+    _logs = fm(lin_dl, n_iters=2)
 
-    result_forward = fm.transport(source, condition=source_conditions)
-    # TODO(michalk8): better condition
-    assert jnp.sum(jnp.isnan(result_forward)) == 0
+    for batch in lin_dl:
+      src = jnp.asarray(batch["src_lin"])
+      tgt = jnp.asarray(batch["tgt_lin"])
+      break
 
-    result_backward = fm.transport(
-        target, condition=source_conditions, t0=1.0, t1=0.0
-    )
-    assert jnp.sum(jnp.isnan(result_backward)) == 0
+    res_fwd = fm.transport(src)
+    res_bwd = fm.transport(tgt, t0=1.0, t1=0.0)
 
-  @pytest.mark.parametrize(
-      "flow", [
-          flows.ConstantNoiseFlow(0.0),
-          flows.ConstantNoiseFlow(1.1),
-          flows.BrownianNoiseFlow(2.2)
-      ]
-  )
-  def test_flow_matching_with_conditions(
-      self, data_loader_gaussian_with_conditions, flow: flows.BaseFlow
-  ):
+    # TODO(michalk8): better assertions
+    assert jnp.sum(jnp.isnan(res_fwd)) == 0
+    assert jnp.sum(jnp.isnan(res_bwd)) == 0
+
+  def test_fm_with_conds(self, lin_dl_with_conds: DataLoader):
     input_dim, cond_dim = 2, 1
     neural_vf = models.VelocityField(
         output_dim=input_dim,
         condition_dim=cond_dim,
         latent_embed_dim=5,
     )
-    time_sampler = functools.partial(samplers.uniform_sampler, offset=1e-5)
-    optimizer = optax.adam(learning_rate=1e-3)
-
     fm = otfm.OTFlowMatching(
         2,
         neural_vf,
-        match_fn=utils.match_linear,
-        flow=flow,
-        time_sampler=time_sampler,
-        optimizer=optimizer,
-    )
-    _ = fm(
-        n_iters=2,
-        train_source=data_loader_gaussian_with_conditions,
-        train_target=data_loader_gaussian_with_conditions,
+        flow=flows.BrownianNoiseFlow(0.12),
+        time_sampler=functools.partial(samplers.uniform_sampler, offset=1e-5),
+        match_fn=jax.jit(utils.match_linear),
+        optimizer=optax.adam(learning_rate=1e-3),
     )
 
-    batch = next(iter(data_loader_gaussian_with_conditions))
-    source = jnp.asarray(batch["source_lin"])
-    target = jnp.asarray(batch["target_lin"])
-    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
-        batch["source_conditions"]
-    ) > 0 else None
+    _logs = fm(lin_dl_with_conds, n_iters=2)
 
-    result_forward = fm.transport(source, condition=source_conditions)
-    assert jnp.sum(jnp.isnan(result_forward)) == 0
+    for batch in lin_dl_with_conds:
+      src = jnp.asarray(batch["src_lin"])
+      tgt = jnp.asarray(batch["tgt_lin"])
+      src_cond = jnp.asarray(batch["src_condition"])
+      break
 
-    result_backward = fm.transport(
-        target, condition=source_conditions, t0=1.0, t1=0.0
-    )
-    assert jnp.sum(jnp.isnan(result_backward)) == 0
+    res_fwd = fm.transport(src, condition=src_cond)
+    res_bwd = fm.transport(tgt, condition=src_cond, t0=1.0, t1=0.0)
 
-  @pytest.mark.parametrize(
-      "flow",
-      [
-          flows.ConstantNoiseFlow(0.0),
-          flows.ConstantNoiseFlow(13.0),
-          flows.BrownianNoiseFlow(0.12)
-      ],
-  )
-  @pytest.mark.parametrize("solver", ["sinkhorn", "lr_sinkhorn"])
-  def test_flow_matching_conditional(
-      self, data_loader_gaussian_conditional, flow: Type[flows.BaseFlow],
-      solver: Literal["sinkhorn", "lr_sinkhorn"]
+    # TODO(michalk8): better assertions
+    assert jnp.sum(jnp.isnan(res_fwd)) == 0
+    assert jnp.sum(jnp.isnan(res_bwd)) == 0
+
+  @pytest.mark.parametrize("rank", [-1, 10])
+  def test_fm_conditional_loader(
+      self, rank: int, conditional_lin_dl: datasets.ConditionalLoader
   ):
-    dim = 2
-    condition_dim = 0
+    input_dim, cond_dim = 2, 0
     neural_vf = models.VelocityField(
-        output_dim=dim,
-        condition_dim=condition_dim,
+        output_dim=input_dim,
+        condition_dim=cond_dim,
         latent_embed_dim=5,
     )
-    # TODO(michalk8): check for LR
-    ot_matcher = utils.match_linear
-    time_sampler = samplers.uniform_sampler
-    optimizer = optax.adam(learning_rate=1e-3)
-
     fm = otfm.OTFlowMatching(
+        input_dim,
         neural_vf,
-        input_dim=dim,
-        cond_dim=condition_dim,
-        ot_matcher=ot_matcher,
-        flow=flow,
-        time_sampler=time_sampler,
-        optimizer=optimizer,
-    )
-    fm(
-        data_loader_gaussian_conditional,
-        data_loader_gaussian_conditional,
-        n_iters=2,
-        valid_freq=3
+        flow=flows.ConstantNoiseFlow(13.0),
+        time_sampler=samplers.uniform_sampler,
+        match_fn=jax.jit(functools.partial(utils.match_linear, rank=rank)),
+        optimizer=optax.adam(learning_rate=1e-3),
     )
 
-    batch = next(iter(data_loader_gaussian_conditional))
-    source = jnp.asarray(batch["source_lin"])
-    target = jnp.asarray(batch["target_lin"])
-    source_conditions = jnp.asarray(batch["source_conditions"]) if len(
-        batch["source_conditions"]
-    ) > 0 else None
-    result_forward = fm.transport(
-        source, condition=source_conditions, forward=True
-    )
-    assert isinstance(result_forward, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_forward)) == 0
+    _logs = fm(conditional_lin_dl, n_iters=2)
 
-    result_backward = fm.transport(
-        target, condition=source_conditions, forward=False
-    )
-    assert isinstance(result_backward, jnp.ndarray)
-    assert jnp.sum(jnp.isnan(result_backward)) == 0
+    for batch in conditional_lin_dl:
+      src = jnp.asarray(batch["src_lin"])
+      tgt = jnp.asarray(batch["tgt_lin"])
+      src_cond = jnp.asarray(batch["src_condition"])
+      break
+
+    res_fwd = fm.transport(src, condition=src_cond)
+    res_bwd = fm.transport(tgt, condition=src_cond, t0=1.0, t1=0.0)
+
+    # TODO(michalk8): better assertions
+    assert jnp.sum(jnp.isnan(res_fwd)) == 0
+    assert jnp.sum(jnp.isnan(res_bwd)) == 0

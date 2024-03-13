@@ -12,4 +12,4 @@ Datasets
     :toctree: _autosummary
 
     datasets.OTDataset
-    datasets.ConditionalOTDataset
+    datasets.ConditionalLoader
