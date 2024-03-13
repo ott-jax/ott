@@ -115,8 +115,8 @@ class DualPotentials:
       return self._grad_f(vec) if forward else self._grad_g(vec)
     twist_op = jax.vmap(self.cost_fn.twist_operator, in_axes=[0, 0, None])
     if forward:
-      return twist_op(vec, self._grad_f(vec), 0)
-    return twist_op(vec, self._grad_g(vec), 1)
+      return twist_op(vec, self._grad_f(vec), False)
+    return twist_op(vec, self._grad_g(vec), True)
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     r"""Evaluate Wasserstein distance between samples using dual potentials.
