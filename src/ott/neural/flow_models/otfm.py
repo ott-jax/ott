@@ -19,11 +19,10 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 
 import diffrax
-import optax
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.flow_models import flows, models
+from ott.neural.flow_models import flows, models, samplers
 from ott.neural.flow_models.utils import resample_data, sample_joint
 
 __all__ = ["OTFlowMatching"]
@@ -35,40 +34,31 @@ class OTFlowMatching:
   With an extension to OT-FM :cite:`tong:23`, :cite:`pooladian:23`.
 
   Args:
-    input_dim: Dimension of the input data.
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
     time_sampler: Sampler for the time.
-    optimizer: Optimizer for the velocity field's parameters.
     match_fn: TODO.
-    rng: Random number generator.
+    kwargs: TODO.
   """
 
   # TODO(michalk8): in the future, `input_dim`, `optimizer` and `rng` will be
   # in a separate function
   def __init__(
       self,
-      input_dim: int,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
-      time_sampler: Callable[[jax.Array, int], jnp.ndarray],
-      optimizer: optax.GradientTransformation,
+      time_sampler: Callable[[jax.Array, int],
+                             jnp.ndarray] = samplers.uniform_sampler,
       match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                   jnp.ndarray]] = None,
-      rng: Optional[jax.Array] = None,
+      **kwargs: Any,
   ):
-    rng = utils.default_prng_key(rng)
-
-    self.input_dim = input_dim
     self.vf = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
     self.match_fn = match_fn
-    self.optimizer = optimizer
 
-    self.vf_state = self.vf.create_train_state(
-        rng, self.optimizer, self.input_dim
-    )
+    self.vf_state = self.vf.create_train_state(**kwargs)
     self.step_fn = self._get_step_fn()
 
   def _get_step_fn(self) -> Callable:
@@ -76,7 +66,7 @@ class OTFlowMatching:
     @jax.jit
     def step_fn(
         rng: jax.Array,
-        state_velocity_field: train_state.TrainState,
+        vf_state: train_state.TrainState,
         source: jnp.ndarray,
         target: jnp.ndarray,
         source_conditions: Optional[jnp.ndarray],
@@ -89,9 +79,7 @@ class OTFlowMatching:
       ) -> jnp.ndarray:
 
         x_t = self.flow.compute_xt(rng, t, source, target)
-        apply_fn = functools.partial(
-            state_velocity_field.apply_fn, {"params": params}
-        )
+        apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
         v_t = jax.vmap(apply_fn)(t=t, x=x_t, condition=source_conditions)
         u_t = self.flow.compute_ut(t, source, target)
         return jnp.mean((v_t - u_t) ** 2)
@@ -101,10 +89,9 @@ class OTFlowMatching:
       t = self.time_sampler(key_t, batch_size)
       grad_fn = jax.value_and_grad(loss_fn)
       loss, grads = grad_fn(
-          state_velocity_field.params, t, source, target, source_conditions,
-          key_model
+          vf_state.params, t, source, target, source_conditions, key_model
       )
-      return state_velocity_field.apply_gradients(grads=grads), loss
+      return vf_state.apply_gradients(grads=grads), loss
 
     return step_fn
 
