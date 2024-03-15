@@ -52,10 +52,11 @@ def lin_dl() -> DataLoader:
 
 @pytest.fixture()
 def lin_dl_with_conds() -> DataLoader:
-  n, d = 100, 2
+  n, d, cond_dim = 100, 2, 3
   rng = np.random.default_rng(13)
 
-  src_cond, tgt_cond = rng.normal(size=(n, 1)), rng.normal(size=(n, 1))
+  src_cond = rng.normal(size=(n, cond_dim))
+  tgt_cond = rng.normal(size=(n, cond_dim))
   src = _ot_data(rng, n=n, dim=d, condition=src_cond)
   tgt = _ot_data(rng, n=n, dim=d, condition=tgt_cond)
 
@@ -65,10 +66,13 @@ def lin_dl_with_conds() -> DataLoader:
 
 @pytest.fixture()
 def conditional_lin_dl() -> datasets.ConditionalLoader:
+  cond_dim = 4
   rng = np.random.default_rng(42)
 
-  src0, tgt0 = _ot_data(rng, condition=0.0), _ot_data(rng, offset=2.0)
-  src1, tgt1 = _ot_data(rng, condition=1.0), _ot_data(rng, offset=-2.0)
+  src0 = _ot_data(rng, condition=0.0, cond_dim=cond_dim)
+  tgt0 = _ot_data(rng, offset=2.0)
+  src1 = _ot_data(rng, condition=1.0, cond_dim=cond_dim)
+  tgt1 = _ot_data(rng, offset=-2.0)
 
   src_ds = datasets.OTDataset(src0, tgt0)
   tgt_ds = datasets.OTDataset(src1, tgt1)

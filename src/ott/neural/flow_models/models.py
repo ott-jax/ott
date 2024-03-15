@@ -50,9 +50,6 @@ class VelocityField(nn.Module):
       If :obj:`None`, set to ``latent_embed_dim``.
     t_embed_dim: Dimensionality of the time embedding.
       If :obj:`None`, set to ``latent_embed_dim``.
-    joint_hidden_dim: Dimensionality of the hidden layers of the joint network.
-      If :obj:`None`, set to ``latent_embed_dim + condition_embed_dim +
-      t_embed_dim``.
     num_layers_per_block: Number of layers per block.
     act_fn: Activation function.
     n_freqs: Number of frequencies to use for the time embedding.
@@ -62,7 +59,6 @@ class VelocityField(nn.Module):
   condition_dim: int = 0
   condition_embed_dim: Optional[int] = None
   t_embed_dim: Optional[int] = None
-  joint_hidden_dim: Optional[int] = None
   num_layers_per_block: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_freqs: int = 128
@@ -72,18 +68,9 @@ class VelocityField(nn.Module):
       self.condition_embed_dim = self.latent_embed_dim
     if self.t_embed_dim is None:
       self.t_embed_dim = self.latent_embed_dim
-
-    concat_embed_dim = (
+    self.joint_hidden_dim = (
         self.latent_embed_dim + self.condition_embed_dim + self.t_embed_dim
     )
-    if self.joint_hidden_dim is not None:
-      assert (self.joint_hidden_dim >= concat_embed_dim), (
-          "joint_hidden_dim must be greater than or equal to the sum of"
-          " all embedded dimensions."
-      )
-      self.joint_hidden_dim = self.latent_embed_dim
-    else:
-      self.joint_hidden_dim = concat_embed_dim
     super().__post_init__()
 
   @nn.compact
@@ -121,8 +108,11 @@ class VelocityField(nn.Module):
     x = x_layer(x)
 
     if self.condition_dim > 0:
+      assert condition is not None, \
+        "Condition must be specified when `condition_dim > 0`."
       condition_layer = layers.MLPBlock(
-          dim=self.condition_embed_dim,
+          # TODO(michalk8): doesn't fail with `condition_embed_dim`
+          dim=self.condition_dim,
           out_dim=self.condition_embed_dim,
           num_layers=self.num_layers_per_block,
           act_fn=self.act_fn

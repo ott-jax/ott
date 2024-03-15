@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import functools
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import jax
@@ -79,8 +78,10 @@ class OTFlowMatching:
       ) -> jnp.ndarray:
 
         x_t = self.flow.compute_xt(rng, t, source, target)
-        apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
-        v_t = jax.vmap(apply_fn)(t, x_t, source_conditions)
+        v_t = vf_state.apply_fn({"params": params}, t, x_t, source_conditions)
+        # TODO(michalk8): should be removed
+        # apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
+        # v_t = jax.vmap(apply_fn)(t, x_t, source_conditions)
         u_t = self.flow.compute_ut(t, source, target)
         return jnp.mean((v_t - u_t) ** 2)
 
