@@ -169,6 +169,7 @@ def multivariate_normal(
     mean: float = 0.0,
     cov: float = 1.0
 ) -> jnp.ndarray:
+  """TODO."""
   mean = jnp.full(dim, fill_value=mean)
   cov = jnp.diag(jnp.full(dim, fill_value=cov))
   return jax.random.multivariate_normal(rng, mean=mean, cov=cov, shape=shape)
