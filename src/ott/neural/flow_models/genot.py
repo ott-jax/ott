@@ -145,12 +145,13 @@ class GENOT:
       rng, rng_resample, rng_noise, rng_time, rng_latent, rng_step_fn = rng
 
       batch = jtu.tree_map(jnp.asarray, batch)
-      (src, src_cond, tgt), data = prepare_data(batch)
+      (src, src_cond, tgt), matching_data = prepare_data(batch)
 
-      time = self.time_sampler(rng_time, len(src) * self.k_samples_per_x)
-      latent = self.latent_noise_fn(rng_noise, (self.k_samples_per_x, len(src)))
+      n = src.shape[0]
+      time = self.time_sampler(rng_time, n * self.k_samples_per_x)
+      latent = self.latent_noise_fn(rng_noise, (n, self.k_samples_per_x))
 
-      tmat = self.data_match_fn(*data)  # (n, m)
+      tmat = self.data_match_fn(*matching_data)  # (n, m)
       src_ixs, tgt_ixs = flow_utils.sample_conditional(  # (n, k), (m, k)
           rng_resample,
           tmat,
@@ -158,16 +159,15 @@ class GENOT:
           uniform_marginals=True,  # TODO(michalk8): expose
       )
 
-      src = src[src_ixs].swapaxes(0, 1)  # (k, n, ...)
-      tgt = tgt[tgt_ixs].swapaxes(0, 1)  # (k, m, ...)
+      src, tgt = src[src_ixs], tgt[tgt_ixs]  # (n, k, ...),  # (m, k, ...)
       if src_cond is not None:
-        src_cond = src_cond[src_ixs].swapaxes(0, 1)  # (k, n, ...)
+        src_cond = src_cond[src_ixs]
 
       if self.latent_match_fn is not None:
         src, src_cond, tgt = self._match_latent(rng, src, src_cond, latent, tgt)
 
-      src = src.reshape(-1, *src.shape[2:])  # (k * bs, ...)
-      tgt = tgt.reshape(-1, *tgt.shape[2:])
+      src = src.reshape(-1, *src.shape[2:])  # (n * k, ...)
+      tgt = tgt.reshape(-1, *tgt.shape[2:])  # (m * k, ...)
       latent = latent.reshape(-1, *latent.shape[2:])
       if src_cond is not None:
         src_cond = src_cond.reshape(-1, *src_cond.shape[2:])
@@ -197,8 +197,8 @@ class GENOT:
 
       return src, src_cond, tgt
 
-    cond_axis = None if src_cond is None else 0
-    in_axes, out_axes = (0, 0, cond_axis, 0, 0), (0, None, 0)
+    cond_axis = None if src_cond is None else 1
+    in_axes, out_axes = (0, 1, cond_axis, 1, 1), (1, cond_axis, 1)
     resample_fn = jax.jit(jax.vmap(resample, in_axes, out_axes))
 
     rngs = jax.random.split(rng, self.k_samples_per_x)
