@@ -34,10 +34,10 @@ class GENOT:
   Args:
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between latent distribution and target distribution.
-    time_sampler: Sampler for the time.
-      of an input sample, see algorithm TODO.
     data_match_fn: Linear OT solver to match the latent distribution
       with the conditional distribution.
+    time_sampler: Sampler for the time.
+      of an input sample, see algorithm TODO.
     latent_match_fn: TODO.
     latent_noise_fn: TODO.
     k_samples_per_x: Number of samples drawn from the conditional distribution
@@ -48,23 +48,28 @@ class GENOT:
       self,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
-      time_sampler: Callable[[jax.Array, int], jnp.ndarray],
-      # TODO(michalk8): all args are optional
       data_match_fn: Callable[
           [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
+      time_sampler: Callable[[jax.Array, int],
+                             jnp.ndarray] = flow_utils.uniform_sampler,
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                          jnp.ndarray]] = None,
-      # TODO(michalk8): add a default for this?
       latent_noise_fn: Optional[Callable[[jax.Array, Tuple[int, ...]],
                                          jnp.ndarray]] = None,
+      # TODO(michalk8): rename, too descriptive
       k_samples_per_x: int = 1,
       **kwargs: Any,
   ):
     self.vf = velocity_field
     self.flow = flow
-    self.time_sampler = time_sampler
     self.data_match_fn = data_match_fn
+    self.time_sampler = time_sampler
     self.latent_match_fn = latent_match_fn
+    if latent_noise_fn is None:
+      dim = kwargs["input_dim"]
+      latent_noise_fn = functools.partial(
+          flow_utils.multivariate_normal, dim=dim
+      )
     self.latent_noise_fn = latent_noise_fn
     self.k_samples_per_x = k_samples_per_x
 
@@ -90,13 +95,14 @@ class GENOT:
           source_conditions: Optional[jnp.ndarray], rng: jax.Array
       ):
         x_t = self.flow.compute_xt(rng, time, latent, target)
-        apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
+        cond = (
+            source if source_conditions is None else
+            jnp.concatenate([source, source_conditions], axis=-1)
+        )
 
-        cond_input = jnp.concatenate([
-            source, source_conditions
-        ], axis=1) if source_conditions is not None else source
-        v_t = jax.vmap(apply_fn)(t=time, x=x_t, condition=cond_input)
+        v_t = vf_state.apply_fn({"params": params}, time, x_t, cond)
         u_t = self.flow.compute_ut(time, latent, target)
+
         return jnp.mean((v_t - u_t) ** 2)
 
       grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
@@ -104,6 +110,7 @@ class GENOT:
           vf_state.params, time, source, target, latent, source_conditions, rng
       )
 
+      # TODO(michalk8): follow the convention with loss being first
       return vf_state.apply_gradients(grads=grads), loss
 
     return step_fn
@@ -174,7 +181,10 @@ class GENOT:
       self.vf_state, loss = self.step_fn(
           rng_step_fn, self.vf_state, time, src, tgt, latent, src_cond
       )
+
       training_logs["loss"].append(float(loss))
+      if len(training_logs["loss"]) >= n_iters:
+        break
 
     return training_logs
 

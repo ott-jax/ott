@@ -26,6 +26,7 @@ __all__ = [
     "sample_conditional",
     "cyclical_time_encoder",
     "uniform_sampler",
+    "multivariate_normal",
 ]
 
 ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
@@ -159,3 +160,15 @@ def uniform_sampler(
   t = jax.random.uniform(rng, (1, 1), minval=low, maxval=high)
   mod_term = ((high - low) - offset)
   return (t + jnp.arange(num_samples)[:, None] / num_samples) % mod_term
+
+
+def multivariate_normal(
+    rng: jax.Array,
+    shape: Tuple[int, ...],
+    dim: int,
+    mean: float = 0.0,
+    cov: float = 1.0
+) -> jnp.ndarray:
+  mean = jnp.full(dim, fill_value=mean)
+  cov = jnp.diag(jnp.full(dim, fill_value=cov))
+  return jax.random.multivariate_normal(rng, mean=mean, cov=cov, shape=shape)

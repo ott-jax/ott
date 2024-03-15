@@ -35,8 +35,8 @@ class OTFlowMatching:
   Args:
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
-    time_sampler: Sampler for the time.
     match_fn: TODO.
+    time_sampler: Sampler for the time.
     kwargs: TODO.
   """
 
@@ -46,10 +46,10 @@ class OTFlowMatching:
       self,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
-      time_sampler: Callable[[jax.Array, int],
-                             jnp.ndarray] = flow_utils.uniform_sampler,
       match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                   jnp.ndarray]] = None,
+      time_sampler: Callable[[jax.Array, int],
+                             jnp.ndarray] = flow_utils.uniform_sampler,
       **kwargs: Any,
   ):
     self.vf = velocity_field
@@ -79,10 +79,8 @@ class OTFlowMatching:
 
         x_t = self.flow.compute_xt(rng, t, source, target)
         v_t = vf_state.apply_fn({"params": params}, t, x_t, source_conditions)
-        # TODO(michalk8): should be removed
-        # apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
-        # v_t = jax.vmap(apply_fn)(t, x_t, source_conditions)
         u_t = self.flow.compute_ut(t, source, target)
+
         return jnp.mean((v_t - u_t) ** 2)
 
       batch_size = len(source)
