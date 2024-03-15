@@ -21,8 +21,8 @@ import diffrax
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.flow_models import flows, models, samplers
-from ott.neural.flow_models.utils import sample_joint
+from ott.neural.flow_models import flows, models
+from ott.neural.flow_models import utils as flow_utils
 
 __all__ = ["OTFlowMatching"]
 
@@ -47,7 +47,7 @@ class OTFlowMatching:
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
       time_sampler: Callable[[jax.Array, int],
-                             jnp.ndarray] = samplers.uniform_sampler,
+                             jnp.ndarray] = flow_utils.uniform_sampler,
       match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                   jnp.ndarray]] = None,
       **kwargs: Any,
@@ -116,7 +116,7 @@ class OTFlowMatching:
 
       if self.match_fn is not None:
         tmat = self.match_fn(src, tgt)
-        src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
+        src_ixs, tgt_ixs = flow_utils.sample_joint(rng_resample, tmat)
         src, tgt = src[src_ixs], tgt[tgt_ixs]
         src_cond = None if src_cond is None else src_cond[src_ixs]
 

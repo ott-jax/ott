@@ -25,6 +25,7 @@ __all__ = [
     "sample_joint",
     "sample_conditional",
     "cyclical_time_encoder",
+    "uniform_sampler",
 ]
 
 ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
@@ -125,3 +126,36 @@ def cyclical_time_encoder(t: jnp.ndarray, n_freqs: int = 128) -> jnp.ndarray:
   freq = 2 * jnp.arange(n_freqs) * jnp.pi
   t = freq * t
   return jnp.concatenate([jnp.cos(t), jnp.sin(t)], axis=-1)
+
+
+def uniform_sampler(
+    rng: jax.Array,
+    num_samples: int,
+    low: float = 0.0,
+    high: float = 1.0,
+    offset: Optional[float] = None
+) -> jnp.ndarray:
+  r"""Sample from a uniform distribution.
+
+  Sample :math:`t` from a uniform distribution :math:`[low, high]`.
+  If `offset` is not :obj:`None`, one element :math:`t` is sampled from
+  :math:`[low, high]` and the K samples are constructed via
+  :math:`(t + k)/K \mod (high - low - offset) + low`.
+
+  Args:
+    rng: Random number generator.
+    num_samples: Number of samples to generate.
+    low: Lower bound of the uniform distribution.
+    high: Upper bound of the uniform distribution.
+    offset: Offset of the uniform distribution. If :obj:`None`, no offset is
+      used.
+
+  Returns:
+    An array with `num_samples` samples of the time :math:`t`.
+  """
+  if offset is None:
+    return jax.random.uniform(rng, (num_samples, 1), minval=low, maxval=high)
+
+  t = jax.random.uniform(rng, (1, 1), minval=low, maxval=high)
+  mod_term = ((high - low) - offset)
+  return (t + jnp.arange(num_samples)[:, None] / num_samples) % mod_term
