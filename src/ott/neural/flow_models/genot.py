@@ -28,7 +28,6 @@ from ott.neural.flow_models import utils as flow_utils
 __all__ = ["GENOT"]
 
 
-# TODO(michalk8): remove the base class?
 class GENOT:
   """TODO :cite:`klein_uscidda:23`.
 
