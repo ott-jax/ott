@@ -31,8 +31,8 @@ class TestOTFlowMatching:
     dl = request.getfixturevalue(dl)
 
     neural_vf = models.VelocityField(
-        output_dim,
         hidden_dim,
+        output_dim,
         condition_dim=hidden_dim if cond_dim > 0 else None,
     )
     fm = otfm.OTFlowMatching(

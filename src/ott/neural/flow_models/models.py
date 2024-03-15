@@ -20,7 +20,7 @@ import flax.linen as nn
 import optax
 from flax.training import train_state
 
-import ott.neural.flow_models.layers as flow_layers
+from ott.neural.flow_models import utils
 
 __all__ = ["VelocityField"]
 
@@ -42,23 +42,24 @@ class VelocityField(nn.Module):
   a final block of dimension ``joint_hidden_dim``.
 
   Args:
-    output_dim: Dimensionality of the neural vector field.
     hidden_dim: Dimensionality of the embedding of the data.
+    output_dim: Dimensionality of the neural vector field.
     num_layers: Number of layers.
     condition_dim: Dimensionality of the embedding of the condition.
       If :obj:`None`, TODO.
     time_dim: Dimensionality of the time embedding.
       If :obj:`None`, set to ``hidden_dim``.
+    time_encoder: TODO.
     act_fn: Activation function.
-    n_freqs: Number of frequencies to use for the time embedding.
   """
-  output_dim: int
   hidden_dim: int
+  output_dim: int
   num_layers: int = 3
   condition_dim: Optional[int] = None
   time_dim: Optional[int] = None
+  time_encoder: Callable[[jnp.ndarray],
+                         jnp.ndarray] = utils.cyclical_time_encoder
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
-  n_freqs: int = 128
 
   @nn.compact
   def __call__(
@@ -78,8 +79,8 @@ class VelocityField(nn.Module):
       Output of the neural vector field of shape ``[batch, output_dim]``.
     """
     time_dim = self.hidden_dim if self.time_dim is None else self.time_dim
-    t = flow_layers.CyclicalTimeEncoder(self.n_freqs)(t)
 
+    t = self.time_encoder(t)
     for _ in range(self.num_layers):
       t = self.act_fn(nn.Dense(time_dim)(t))
       x = self.act_fn(nn.Dense(self.hidden_dim)(x))
