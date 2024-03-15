@@ -95,7 +95,7 @@ class OTDataset:
     src = self.src_data[ix]
     src = {f"{self.SRC_PREFIX}_{k}": v for k, v in src.items()}
 
-    tgt = self.src_data[ix] if self.is_aligned else self._sample_from_target(ix)
+    tgt = self.tgt_data[ix] if self.is_aligned else self._sample_from_target(ix)
     tgt = {f"{self.TGT_PREFIX}_{k}": v for k, v in tgt.items()}
 
     return {**src, **tgt}
