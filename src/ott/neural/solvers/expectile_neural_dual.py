@@ -43,7 +43,6 @@ from ott.problems.linear.potentials import DualPotentials
 __all__ = ["BidirectionalPotentials", 
            "ForwardPotentials", 
            "EuclideanPotentials", 
-           "ExpectileNeuralDual", 
            "DotCost", 
            "PotentialModelWrapper", 
            "PotentialTrainState",
