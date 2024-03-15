@@ -21,7 +21,6 @@ import optax
 from flax.training import train_state
 
 import ott.neural.flow_models.layers as flow_layers
-from ott.neural.models import layers
 
 __all__ = ["VelocityField"]
 
@@ -37,7 +36,7 @@ class VelocityField(nn.Module):
   from :math:`t=t_0` to :math:`t=t_1`.
 
   Each of the input, condition, and time embeddings are passed through a block
-  consisting of ``num_layers_per_block`` layers of dimension
+  consisting of ``num_layers`` layers of dimension
   ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``,
   respectively. The output of each block is concatenated and passed through
   a final block of dimension ``joint_hidden_dim``.
@@ -50,7 +49,7 @@ class VelocityField(nn.Module):
       If :obj:`None`, set to ``latent_embed_dim``.
     t_embed_dim: Dimensionality of the time embedding.
       If :obj:`None`, set to ``latent_embed_dim``.
-    num_layers_per_block: Number of layers per block.
+    num_layers: Number of layers.
     act_fn: Activation function.
     n_freqs: Number of frequencies to use for the time embedding.
   """
@@ -59,7 +58,7 @@ class VelocityField(nn.Module):
   condition_dim: int = 0
   condition_embed_dim: Optional[int] = None
   t_embed_dim: Optional[int] = None
-  num_layers_per_block: int = 3
+  num_layers: int = 3
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_freqs: int = 128
 
@@ -83,52 +82,27 @@ class VelocityField(nn.Module):
     """Forward pass through the neural vector field.
 
     Args:
-      t: Time of shape `(batch_size, 1)`.
-      x: Data of shape `(batch_size, output_dim)`.
-      condition: Conditioning vector.
+      t: Time of shape ``[batch, 1]``.
+      x: Data of shape ``[batch, ...]``.
+      condition: Conditioning vector of shape ``[batch, cond_dim]``.
 
     Returns:
-      Output of the neural vector field.
+      Output of the neural vector field of shape ``[batch, output_dim]``.
     """
     t = flow_layers.CyclicalTimeEncoder(self.n_freqs)(t)
-    t_layer = layers.MLPBlock(
-        dim=self.t_embed_dim,
-        out_dim=self.t_embed_dim,
-        num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn
-    )
-    t = t_layer(t)
 
-    x_layer = layers.MLPBlock(
-        dim=self.latent_embed_dim,
-        out_dim=self.latent_embed_dim,
-        num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn
-    )
-    x = x_layer(x)
+    for _ in range(self.num_layers):
+      t = self.act_fn(nn.Dense(self.t_embed_dim)(t))
+      x = self.act_fn(nn.Dense(self.latent_embed_dim)(x))
+      if self.condition_dim > 0:
+        assert condition is not None, "TODO."
+        condition = self.act_fn(nn.Dense(self.condition_embed_dim)(condition))
 
-    if self.condition_dim > 0:
-      assert condition is not None, \
-        "Condition must be specified when `condition_dim > 0`."
-      condition_layer = layers.MLPBlock(
-          # TODO(michalk8): doesn't fail with `condition_embed_dim`
-          dim=self.condition_dim,
-          out_dim=self.condition_embed_dim,
-          num_layers=self.num_layers_per_block,
-          act_fn=self.act_fn
-      )
-      condition = condition_layer(condition)
-      concatenated = jnp.concatenate([t, x, condition], axis=-1)
-    else:
-      concatenated = jnp.concatenate([t, x], axis=-1)
+    arrs = [t, x] + ([] if condition is None else [condition])
+    out = jnp.concatenate(arrs, axis=-1)
 
-    out_layer = layers.MLPBlock(
-        dim=self.joint_hidden_dim,
-        out_dim=self.joint_hidden_dim,
-        num_layers=self.num_layers_per_block,
-        act_fn=self.act_fn
-    )
-    out = out_layer(concatenated)
+    for _ in range(self.num_layers):
+      out = self.act_fn(nn.Dense(self.joint_hidden_dim)(out))
     return nn.Dense(self.output_dim, use_bias=True)(out)
 
   def create_train_state(

@@ -11,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pytest
 
 import jax
 import numpy as np
 
 from ott.geometry import costs
+from ott.neural.duality import models
 from ott.neural.gaps import monge_gap
-from ott.neural.models import nets
 
 
 @pytest.mark.fast()
@@ -35,7 +34,7 @@ class TestMongeGap:
     rng1, rng2 = jax.random.split(rng, 2)
     reference_points = jax.random.normal(rng1, (n_samples, n_features))
 
-    model = nets.MLP(dim_hidden=[8, 8], is_potential=False)
+    model = models.PotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=reference_points[0])
     target = model.apply(params, reference_points)
 
