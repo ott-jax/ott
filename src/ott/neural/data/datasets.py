@@ -89,7 +89,7 @@ class OTDataset:
     src_cond = self.src_conditions[src_ix]
     tgt_ixs = self._tgt_cond_to_ix[src_cond]
     ix = self._rng.choice(tgt_ixs)
-    return self.src_data[ix]
+    return self.tgt_data[ix]
 
   def __getitem__(self, ix: int) -> Item_t:
     src = self.src_data[ix]
