@@ -60,7 +60,7 @@ class TestGENOTLin:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn(
     ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn(rank=3)
@@ -121,7 +121,7 @@ class TestGENOTLin:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = sinkhorn.Sinkhorn(
     ) if solver == "sinkhorn" else sinkhorn_lr.LRSinkhorn(rank=3)
@@ -182,7 +182,7 @@ class TestGENOTQuad:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-2
@@ -243,7 +243,7 @@ class TestGENOTQuad:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-2
@@ -306,7 +306,7 @@ class TestGENOTQuad:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-2
@@ -372,7 +372,7 @@ class TestGENOTQuad:
     neural_vf = VelocityField(
         output_dim=target_dim,
         condition_dim=source_dim + condition_dim,
-        latent_embed_dim=5,
+        hidden_dim=5,
     )
     ot_solver = gromov_wasserstein.GromovWasserstein(
         epsilon=1e-2

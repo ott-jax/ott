@@ -27,13 +27,13 @@ class TestOTFlowMatching:
                                                 (3, "lin_dl_with_conds"),
                                                 (4, "conditional_lin_dl")])
   def test_fm(self, rng: jax.Array, cond_dim: int, dl: str, request):
-    input_dim, output_dim, latent_dim = 2, 2, 5
+    output_dim, hidden_dim = 2, 5
     dl = request.getfixturevalue(dl)
 
     neural_vf = models.VelocityField(
-        output_dim=output_dim,
-        condition_dim=cond_dim,
-        latent_embed_dim=latent_dim,
+        output_dim,
+        hidden_dim,
+        condition_dim=hidden_dim if cond_dim > 0 else None,
     )
     fm = otfm.OTFlowMatching(
         neural_vf,
@@ -41,7 +41,8 @@ class TestOTFlowMatching:
         match_fn=jax.jit(utils.match_linear),
         rng=rng,
         optimizer=optax.adam(learning_rate=1e-3),
-        input_dim=input_dim,
+        input_dim=2,  # all dataloaders have dim `2`
+        cond_dim=cond_dim,
     )
 
     _logs = fm(dl, n_iters=3)

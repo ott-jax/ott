@@ -37,40 +37,28 @@ class VelocityField(nn.Module):
 
   Each of the input, condition, and time embeddings are passed through a block
   consisting of ``num_layers`` layers of dimension
-  ``latent_embed_dim``, ``condition_embed_dim``, and ``time_embed_dim``,
+  ``hidden_dim``, ``condition_dim``, and ``time_embed_dim``,
   respectively. The output of each block is concatenated and passed through
   a final block of dimension ``joint_hidden_dim``.
 
   Args:
     output_dim: Dimensionality of the neural vector field.
-    latent_embed_dim: Dimensionality of the embedding of the data.
-    condition_dim: Dimensionality of the conditioning vector.
-    condition_embed_dim: Dimensionality of the embedding of the condition.
-      If :obj:`None`, set to ``latent_embed_dim``.
-    t_embed_dim: Dimensionality of the time embedding.
-      If :obj:`None`, set to ``latent_embed_dim``.
+    hidden_dim: Dimensionality of the embedding of the data.
     num_layers: Number of layers.
+    condition_dim: Dimensionality of the embedding of the condition.
+      If :obj:`None`, TODO.
+    time_dim: Dimensionality of the time embedding.
+      If :obj:`None`, set to ``hidden_dim``.
     act_fn: Activation function.
     n_freqs: Number of frequencies to use for the time embedding.
   """
   output_dim: int
-  latent_embed_dim: int
-  condition_dim: int = 0
-  condition_embed_dim: Optional[int] = None
-  t_embed_dim: Optional[int] = None
+  hidden_dim: int
   num_layers: int = 3
+  condition_dim: Optional[int] = None
+  time_dim: Optional[int] = None
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
   n_freqs: int = 128
-
-  def __post_init__(self) -> None:
-    if self.condition_embed_dim is None:
-      self.condition_embed_dim = self.latent_embed_dim
-    if self.t_embed_dim is None:
-      self.t_embed_dim = self.latent_embed_dim
-    self.joint_hidden_dim = (
-        self.latent_embed_dim + self.condition_embed_dim + self.t_embed_dim
-    )
-    super().__post_init__()
 
   @nn.compact
   def __call__(
@@ -84,32 +72,36 @@ class VelocityField(nn.Module):
     Args:
       t: Time of shape ``[batch, 1]``.
       x: Data of shape ``[batch, ...]``.
-      condition: Conditioning vector of shape ``[batch, cond_dim]``.
+      condition: Conditioning vector of shape ``[batch, ...]``.
 
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
     """
+    time_dim = self.hidden_dim if self.time_dim is None else self.time_dim
     t = flow_layers.CyclicalTimeEncoder(self.n_freqs)(t)
 
     for _ in range(self.num_layers):
-      t = self.act_fn(nn.Dense(self.t_embed_dim)(t))
-      x = self.act_fn(nn.Dense(self.latent_embed_dim)(x))
-      if self.condition_dim > 0:
+      t = self.act_fn(nn.Dense(time_dim)(t))
+      x = self.act_fn(nn.Dense(self.hidden_dim)(x))
+      if self.condition_dim is not None:
         assert condition is not None, "TODO."
-        condition = self.act_fn(nn.Dense(self.condition_embed_dim)(condition))
+        condition = self.act_fn(nn.Dense(self.condition_dim)(condition))
 
-    arrs = [t, x] + ([] if condition is None else [condition])
-    out = jnp.concatenate(arrs, axis=-1)
+    feats = [t, x] + ([] if condition is None else [condition])
+    feats = jnp.concatenate(feats, axis=-1)
+    joint_dim = feats.shape[-1]
 
     for _ in range(self.num_layers):
-      out = self.act_fn(nn.Dense(self.joint_hidden_dim)(out))
-    return nn.Dense(self.output_dim, use_bias=True)(out)
+      feats = self.act_fn(nn.Dense(joint_dim)(feats))
+
+    return nn.Dense(self.output_dim, use_bias=True)(feats)
 
   def create_train_state(
       self,
       rng: jax.Array,
       optimizer: optax.OptState,
       input_dim: int,
+      cond_dim: Optional[int] = None,
   ) -> train_state.TrainState:
     """Create the training state.
 
@@ -117,14 +109,15 @@ class VelocityField(nn.Module):
       rng: Random number generator.
       optimizer: Optimizer.
       input_dim: Dimensionality of the input.
+      cond_dim: TODO.
 
     Returns:
       The training state.
     """
-    params = self.init(
-        rng, jnp.ones((1, 1)), jnp.ones((1, input_dim)),
-        jnp.ones((1, self.condition_dim))
-    )["params"]
+    t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
+    cond = jnp.ones((1, cond_dim)) if self.condition_dim is not None else None
+
+    params = self.init(rng, t, x, cond)["params"]
     return train_state.TrainState.create(
         apply_fn=self.apply, params=params, tx=optimizer
     )
