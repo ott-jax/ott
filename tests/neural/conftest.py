@@ -16,7 +16,6 @@ from typing import Optional, Union
 import pytest
 
 import numpy as np
-import torch
 from torch.utils.data import DataLoader
 
 from ott.neural.data import datasets
@@ -110,84 +109,3 @@ def quad_dl():
 @pytest.fixture()
 def quad_dl_with_conds():
   pass
-
-
-@pytest.fixture(scope="module")
-def genot_data_loader_quad():
-  """Returns a data loader for a simple Gaussian mixture."""
-  rng = np.random.default_rng(seed=0)
-  src = rng.normal(size=(100, 2))
-  tgt = rng.normal(size=(100, 1)) + 1.0
-  dataset = datasets.OTDataset(quad=src, tgt_quad=tgt)
-  return DataLoader(dataset, batch_size=16, shuffle=True)
-
-
-@pytest.fixture(scope="module")
-def genot_data_loader_quad_conditional():
-  """Returns a data loader for a simple Gaussian mixture."""
-  rng = np.random.default_rng(seed=0)
-  src_0 = rng.normal(size=(100, 2))
-  tgt_0 = rng.normal(size=(100, 1)) + 1.0
-  src_1 = rng.normal(size=(100, 2))
-  tgt_1 = rng.normal(size=(100, 1)) + 1.0
-  ds0 = datasets.OTDataset(
-      quad=src_0, tgt_quad=tgt_0, conditions=np.zeros_like(src_0) * 0.0
-  )
-  ds1 = datasets.OTDataset(
-      quad=src_1, tgt_quad=tgt_1, conditions=np.ones_like(src_1) * 1.0
-  )
-  sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
-  sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
-  dl0 = DataLoader(ds0, batch_size=16, sampler=sampler0)
-  dl1 = DataLoader(ds1, batch_size=16, sampler=sampler1)
-
-  return datasets.ConditionalLoader((dl0, dl1))
-
-
-@pytest.fixture(scope="module")
-def genot_data_loader_fused():
-  """Returns a data loader for a simple Gaussian mixture."""
-  rng = np.random.default_rng(seed=0)
-  src_q = rng.normal(size=(100, 2))
-  tgt_q = rng.normal(size=(100, 1)) + 1.0
-  src_lin = rng.normal(size=(100, 2))
-  tgt_lin = rng.normal(size=(100, 2)) + 1.0
-  dataset = datasets.OTDataset(
-      lin=src_lin, quad=src_q, tgt_lin=tgt_lin, tgt_quad=tgt_q
-  )
-  return DataLoader(dataset, batch_size=16, shuffle=True)
-
-
-@pytest.fixture(scope="module")
-def genot_data_loader_fused_conditional():
-  """Returns a data loader for a simple Gaussian mixture."""
-  rng = np.random.default_rng(seed=0)
-  src_q_0 = rng.normal(size=(100, 2))
-  tgt_q_0 = rng.normal(size=(100, 1)) + 1.0
-  src_lin_0 = rng.normal(size=(100, 2))
-  tgt_lin_0 = rng.normal(size=(100, 2)) + 1.0
-
-  src_q_1 = 2 * rng.normal(size=(100, 2))
-  tgt_q_1 = 2 * rng.normal(size=(100, 1)) + 1.0
-  src_lin_1 = 2 * rng.normal(size=(100, 2))
-  tgt_lin_1 = 2 * rng.normal(size=(100, 2)) + 1.0
-
-  ds0 = datasets.OTDataset(
-      lin=src_lin_0,
-      tgt_lin=tgt_lin_0,
-      quad=src_q_0,
-      tgt_quad=tgt_q_0,
-      conditions=np.zeros_like(src_lin_0) * 0.0
-  )
-  ds1 = datasets.OTDataset(
-      lin=src_lin_1,
-      tgt_lin=tgt_lin_1,
-      quad=src_q_1,
-      tgt_quad=tgt_q_1,
-      conditions=np.ones_like(src_lin_1) * 1.0
-  )
-  sampler0 = torch.utils.data.RandomSampler(ds0, replacement=True)
-  sampler1 = torch.utils.data.RandomSampler(ds1, replacement=True)
-  dl0 = DataLoader(ds0, batch_size=16, sampler=sampler0)
-  dl1 = DataLoader(ds1, batch_size=16, sampler=sampler1)
-  return datasets.ConditionalLoader((dl0, dl1))
