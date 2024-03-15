@@ -28,7 +28,7 @@ __all__ = ["VelocityField"]
 class VelocityField(nn.Module):
   r"""Parameterized neural vector field.
 
-  The `VelocityField` learns a map :math:`v: \mathbb{R}\times \mathbb{R}^d
+  This class learns a map :math:`v: \mathbb{R}\times \mathbb{R}^d
   \rightarrow \mathbb{R}^d` solving the ODE :math:`\frac{dx}{dt} = v(t, x)`.
   Given a source distribution at time :math:`t_0`, the velocity field can be
   used to transport the source distribution given at :math:`t_0` to
@@ -102,7 +102,7 @@ class VelocityField(nn.Module):
       rng: jax.Array,
       optimizer: optax.OptState,
       input_dim: int,
-      cond_dim: Optional[int] = None,
+      condition_dim: Optional[int] = None,
   ) -> train_state.TrainState:
     """Create the training state.
 
@@ -110,13 +110,13 @@ class VelocityField(nn.Module):
       rng: Random number generator.
       optimizer: Optimizer.
       input_dim: Dimensionality of the input.
-      cond_dim: TODO.
+      condition_dim: TODO.
 
     Returns:
       The training state.
     """
     t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
-    cond = jnp.ones((1, cond_dim)) if self.condition_dim is not None else None
+    cond = None if self.condition_dim is None else jnp.ones((1, condition_dim))
 
     params = self.init(rng, t, x, cond)["params"]
     return train_state.TrainState.create(

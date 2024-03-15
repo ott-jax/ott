@@ -42,7 +42,7 @@ class TestOTFlowMatching:
         rng=rng,
         optimizer=optax.adam(learning_rate=1e-3),
         input_dim=2,  # all dataloaders have dim `2`
-        cond_dim=cond_dim,
+        condition_dim=cond_dim,
     )
 
     _logs = fm(dl, n_iters=3)

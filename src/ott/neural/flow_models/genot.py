@@ -49,7 +49,7 @@ class GENOT:
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
-      # TODO(mcihalk8): all args are optional
+      # TODO(michalk8): all args are optional
       data_match_fn: Callable[
           [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
