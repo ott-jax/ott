@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,7 +23,7 @@ from flax.training import train_state
 
 from ott import utils
 from ott.neural.flow_models import flows, models, samplers
-from ott.neural.flow_models.utils import resample_data, sample_joint
+from ott.neural.flow_models.utils import sample_joint
 
 __all__ = ["OTFlowMatching"]
 
@@ -80,7 +80,7 @@ class OTFlowMatching:
 
         x_t = self.flow.compute_xt(rng, t, source, target)
         apply_fn = functools.partial(vf_state.apply_fn, {"params": params})
-        v_t = jax.vmap(apply_fn)(t=t, x=x_t, condition=source_conditions)
+        v_t = jax.vmap(apply_fn)(t, x_t, source_conditions)
         u_t = self.flow.compute_ut(t, source, target)
         return jnp.mean((v_t - u_t) ** 2)
 
@@ -102,30 +102,29 @@ class OTFlowMatching:
       *,
       n_iters: int,
       rng: Optional[jax.Array] = None,
-  ) -> Dict[str, Any]:
+  ) -> Dict[str, List[float]]:
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
-
     for batch in loader:
       rng, rng_resample, rng_step_fn = jax.random.split(rng, 3)
 
       batch = jtu.tree_map(jnp.asarray, batch)
 
       src, tgt = batch["src_lin"], batch["tgt_lin"]
-      src_conds = batch.get("src_condition", None)
+      src_cond = batch.get("src_condition")
 
       if self.match_fn is not None:
         tmat = self.match_fn(src, tgt)
         src_ixs, tgt_ixs = sample_joint(rng_resample, tmat)
-        src, src_conds = resample_data(src, src_conds, ixs=src_ixs)
-        tgt = resample_data(tgt, ixs=tgt_ixs)
+        src, tgt = src[src_ixs], tgt[tgt_ixs]
+        src_cond = None if src_cond is None else src_cond[src_ixs]
 
       self.vf_state, loss = self.step_fn(
           rng_step_fn,
           self.vf_state,
           src,
           tgt,
-          src_conds,
+          src_cond,
       )
 
       training_logs["loss"].append(float(loss))
@@ -162,10 +161,8 @@ class OTFlowMatching:
     def vf(
         t: jnp.ndarray, x: jnp.ndarray, cond: Optional[jnp.ndarray]
     ) -> jnp.ndarray:
-      return self.vf_state.apply_fn({"params": self.vf_state.params},
-                                    t=t,
-                                    x=x,
-                                    condition=cond)
+      params = self.vf_state.params
+      return self.vf_state.apply_fn({"params": params}, t, x, cond)
 
     def solve_ode(x: jnp.ndarray, cond: Optional[jnp.ndarray]) -> jnp.ndarray:
       ode_term = diffrax.ODETerm(vf)

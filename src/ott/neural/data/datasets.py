@@ -75,7 +75,7 @@ class OTDataset:
 
   def _verify_integriy(self) -> None:
     assert len(self.src_data) == len(self.src_conditions)
-    assert len(self.src_data) == len(self.tgt_conditions)
+    assert len(self.tgt_data) == len(self.tgt_conditions)
 
     if self.is_aligned:
       assert len(self.src_data) == len(self.tgt_data)

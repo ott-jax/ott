@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,12 +23,13 @@ from flax.training import train_state
 
 from ott import utils
 from ott.neural.flow_models import flows, models
+from ott.neural.flow_models import utils as flow_utils
 
-__all__ = ["GENOTBase", "GENOTLin", "GENOTQuad"]
+__all__ = ["GENOT", "GENOTLin", "GENOTQuad"]
 
 
 # TODO(michalk8): remove the base class?
-class GENOTBase:
+class GENOT:
   """TODO :cite:`klein_uscidda:23`.
 
   Args:
@@ -49,7 +50,9 @@ class GENOTBase:
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
       time_sampler: Callable[[jax.Array, int], jnp.ndarray],
-      data_match_fn: Any,
+      # TODO(mcihalk8): all args are optional
+      data_match_fn: Callable[
+          [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                          jnp.ndarray]] = None,
       # TODO(michalk8): add a default for this?
@@ -61,9 +64,7 @@ class GENOTBase:
     self.vf = velocity_field
     self.flow = flow
     self.time_sampler = time_sampler
-    self.ot_matcher = data_match_fn
-    if latent_match_fn is not None:
-      latent_match_fn = jax.jit(jax.vmap(latent_match_fn, 0, 0))
+    self.data_match_fn = data_match_fn
     self.latent_match_fn = latent_match_fn
     self.latent_noise_fn = latent_noise_fn
     self.k_samples_per_x = k_samples_per_x
@@ -108,16 +109,110 @@ class GENOTBase:
 
     return step_fn
 
+  def __call__(
+      self,
+      loader: Any,
+      n_iters: int,
+      rng: Optional[jax.Array] = None
+  ) -> Dict[str, List[float]]:
+    """TODO."""
+
+    def prepare_data(
+        batch: Dict[str, jnp.ndarray]
+    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray], Tuple[
+        jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+      src_lin, src_quad = batch.get("src_lin"), batch.get("src_quad")
+      tgt_lin, tgt_quad = batch.get("tgt_lin"), batch.get("tgt_quad")
+      arrs = src_lin, tgt_lin, src_quad, tgt_quad
+
+      if src_quad is None and tgt_quad is None:  # lin
+        src, tgt = src_lin, tgt_lin
+      elif src_lin is None and tgt_lin is None:  # quad
+        src, tgt = src_quad, tgt_quad
+      elif all(arr is not None for arr in arrs):  # fused quad
+        src = jnp.concatenate([src_lin, src_quad], axis=1)
+        tgt = jnp.concatenate([tgt_lin, tgt_quad], axis=1)
+      else:
+        raise RuntimeError("TODO")
+
+      # TODO(michalk8): filter `None` from the `arrs`?
+      return (src, batch.get("src_condition"), tgt), arrs
+
+    rng = utils.default_prng_key(rng)
+    training_logs = {"loss": []}
+    for batch in loader:
+      rng = jax.random.split(rng, 6)
+      rng, rng_resample, rng_noise, rng_time, rng_latent, rng_step_fn = rng
+
+      batch = jtu.tree_map(jnp.asarray, batch)
+      (src, src_cond, tgt), data = prepare_data(batch)
+
+      time = self.time_sampler(rng_time, len(src) * self.k_samples_per_x)
+      latent = self.latent_noise_fn(rng_noise, (self.k_samples_per_x, len(src)))
+
+      tmat = self.data_match_fn(*data)  # (n, m)
+      src_ixs, tgt_ixs = flow_utils.sample_conditional(  # (n, k), (m, k)
+          rng_resample,
+          tmat,
+          k=self.k_samples_per_x,
+          uniform_marginals=True,  # TODO(michalk8): expose
+      )
+
+      src = src[src_ixs].swapaxes(0, 1)  # (k, n, ...)
+      tgt = tgt[tgt_ixs].swapaxes(0, 1)  # (k, m, ...)
+      if src_cond is not None:
+        src_cond = src_cond[src_ixs].swapaxes(0, 1)  # (k, n, ...)
+
+      if self.latent_match_fn is not None:
+        src, src_cond, tgt = self._match_latent(rng, src, src_cond, latent, tgt)
+
+      src = src.reshape(-1, *src.shape[2:])  # (k * bs, ...)
+      tgt = tgt.reshape(-1, *tgt.shape[2:])
+      latent = latent.reshape(-1, *latent.shape[2:])
+      if src_cond is not None:
+        src_cond = src_cond.reshape(-1, *src_cond.shape[2:])
+
+      self.vf_state, loss = self.step_fn(
+          rng_step_fn, self.vf_state, time, src, tgt, latent, src_cond
+      )
+      training_logs["loss"].append(float(loss))
+
+    return training_logs
+
+  def _match_latent(
+      self, rng: jax.Array, src: jnp.ndarray, src_cond: Optional[jnp.ndarray],
+      latent: jnp.ndarray, tgt: jnp.ndarray
+  ) -> Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray]:
+
+    def resample(
+        rng: jax.Array, src: jnp.ndarray, src_cond: Optional[jnp.ndarray],
+        tgt: jnp.ndarray, latent: jnp.ndarray
+    ) -> Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray]:
+      tmat = self.latent_match_fn(latent, tgt)  # (n, k)
+
+      src_ixs, tgt_ixs = flow_utils.sample_joint(rng, tmat)  # (n,), (m,)
+      src, tgt = src[src_ixs], tgt[tgt_ixs]
+      if src_cond is not None:
+        src_cond = src_cond[src_ixs]
+
+      return src, src_cond, tgt
+
+    cond_axis = None if src_cond is None else 0
+    in_axes, out_axes = (0, 0, cond_axis, 0, 0), (0, None, 0)
+    resample_fn = jax.jit(jax.vmap(resample, in_axes, out_axes))
+
+    rngs = jax.random.split(rng, self.k_samples_per_x)
+    return resample_fn(rngs, src, src_cond, tgt, latent)
+
   def transport(
       self,
       source: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
+      t0: float = 0.0,
+      t1: float = 1.0,
       rng: Optional[jax.Array] = None,
-      forward: bool = True,
-      t_0: float = 0.0,
-      t_1: float = 1.0,
       **kwargs: Any,
-  ) -> Union[jnp.array, diffrax.Solution, Optional[jnp.ndarray]]:
+  ) -> jnp.ndarray:
     """Transport data with the learnt plan.
 
     This method pushes-forward the `source` to its conditional distribution by
@@ -127,60 +222,48 @@ class GENOTBase:
     Args:
       source: Data to transport.
       condition: Condition of the input data.
+      t0: Starting time of integration of neural ODE.
+      t1: End time of integration of neural ODE.
       rng: random seed for sampling from the latent distribution.
-      forward: If `True` integrates forward, otherwise backwards.
-      t_0: Starting time of integration of neural ODE.
-      t_1: End time of integration of neural ODE.
       kwargs: Keyword arguments for the ODE solver.
 
     Returns:
       The push-forward or pull-back distribution defined by the learnt
       transport plan.
-
     """
-    rng = utils.default_prng_key(rng)
-    if not forward:
-      raise NotImplementedError
-    if condition is not None:
-      assert len(source) == len(condition), (len(source), len(condition))
-    latent_batch = self.latent_noise_fn(rng, (len(source),))
-    cond_input = source if condition is None else (
-        jnp.concatenate([source, condition], axis=-1)
-    )
 
-    @jax.jit
-    def solve_ode(input: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
-      ode_term = diffrax.ODETerm(
-          lambda t, x, args: self.vf_state.
-          apply_fn({"params": self.vf_state.params}, t=t, x=x, condition=cond)
-      ),
-      solver = kwargs.pop("solver", diffrax.Tsit5())
-      stepsize_controller = kwargs.pop(
-          "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
-      )
+    def vf(t: jnp.ndarray, x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
+      params = self.vf_state.params
+      return self.vf_state.apply_fn({"params": params}, t, x, cond)
+
+    def solve_ode(x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
+      ode_term = diffrax.ODETerm(vf)
       sol = diffrax.diffeqsolve(
           ode_term,
-          solver,
-          t0=t_0,
-          t1=t_1,
-          dt0=kwargs.pop("dt0", None),
-          y0=input,
-          stepsize_controller=stepsize_controller,
+          t0=t0,
+          t1=t1,
+          y0=x,
+          args=cond,
           **kwargs,
       )
       return sol.ys[0]
 
-    return jax.vmap(solve_ode)(latent_batch, cond_input)
-
-  def _reshape_samples(self, arrays: Tuple[jnp.ndarray, ...],
-                       batch_size: int) -> Tuple[jnp.ndarray, ...]:
-    return jax.tree_util.tree_map(
-        lambda x: jnp.reshape(x, (batch_size * self.k_samples_per_x, -1)),
-        arrays
+    kwargs.setdefault("dt0", None)
+    kwargs.setdefault("solver", diffrax.Tsit5())
+    kwargs.setdefault(
+        "stepsize_controller", diffrax.PIDController(rtol=1e-5, atol=1e-5)
     )
 
+    rng = utils.default_prng_key(rng)
+    latent = self.latent_noise_fn(rng, (len(source),))
 
-class GENOTLin(GENOTBase):
+    if condition is not None:
+      source = jnp.concatenate([source, condition], axis=-1)
+
+    return jax.jit(jax.vmap(solve_ode))(latent, source)
+
+
+class GENOTLin(GENOT):
   """Implementation of GENOT-L (:cite:`klein:23`).
 
   GENOT-L (Generative Entropic Neural Optimal Transport, linear) is a
@@ -261,7 +344,7 @@ class GENOTLin(GENOTBase):
         training_logs["loss"].append(float(loss))
 
 
-class GENOTQuad(GENOTBase):
+class GENOTQuad(GENOT):
   """Implementation of GENOT-Q and GENOT-F (:cite:`klein:23`).
 
   GENOT-Q (Generative Entropic Neural Optimal Transport, quadratic) and

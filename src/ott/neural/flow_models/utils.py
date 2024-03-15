@@ -2,7 +2,6 @@ from typing import Any, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
 from ott.geometry import costs, pointcloud
 from ott.solvers import linear, quadratic
@@ -12,7 +11,6 @@ __all__ = [
     "match_quadratic",
     "sample_joint",
     "sample_conditional",
-    "resample_data",
 ]
 
 ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
@@ -95,13 +93,3 @@ def sample_conditional(
 
   src_ixs = jnp.repeat(indices[:, None], k, axis=1)  # (n, k)
   return src_ixs, tgt_ixs
-
-
-def resample_data(*data: Optional[jnp.ndarray],
-                  ixs: jnp.ndarray) -> Tuple[Optional[jnp.ndarray], ...]:
-  """TODO."""
-  if ixs.ndim == 2:
-    ixs = ixs.reshape(-1)
-  assert ixs.ndim == 1, ixs.shape
-  data = jtu.tree_map(lambda arr: None if arr is None else arr[ixs], data)
-  return data[0] if len(data) == 1 else data
