@@ -25,6 +25,7 @@ from ott.geometry import geodesic, geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
+
 def random_graph(
     n: int,
     p: float = 0.3,
@@ -271,7 +272,9 @@ class TestGeodesic:
     n = 20
     G = random_graph(n, p=0.5)
     G_sparse = sparse.BCOO.fromdense(G)
-    geom = geodesic.Geodesic.from_graph(G_sparse, t=5.0, order=10, normalize=normalize)
+    geom = geodesic.Geodesic.from_graph(
+        G_sparse, t=5.0, order=10, normalize=normalize
+    )
     kernel_matrix = geom.kernel_matrix
 
     gh_heat_kernel = exact_heat_kernel(G, normalize=normalize, t=5.0)
@@ -279,4 +282,6 @@ class TestGeodesic:
     assert isinstance(kernel_matrix, sparse.BCOO)
 
     kernel_matrix = kernel_matrix.todense()
-    np.testing.assert_allclose(kernel_matrix, gh_heat_kernel, rtol=1e-1, atol=1e-1)
+    np.testing.assert_allclose(
+        kernel_matrix, gh_heat_kernel, rtol=1e-1, atol=1e-1
+    )
