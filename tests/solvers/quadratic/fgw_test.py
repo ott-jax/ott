@@ -227,7 +227,9 @@ class TestFusedGromovWasserstein:
     geom_xy = pointcloud.PointCloud(xx, yy)
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, geom_xy)
 
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=2)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, min_iterations=0, inner_iterations=10, max_iterations=2000
+    )
     if jit:
       solver = jax.jit(solver)
 
@@ -262,7 +264,13 @@ class TestFusedGromovWasserstein:
     lr_prob = prob.to_low_rank()
     assert lr_prob.is_low_rank
 
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=5, epsilon=10.0)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=5,
+        epsilon=10.0,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
+    )
     out = solver(prob)
 
     assert solver.rank == 5
@@ -296,7 +304,7 @@ class TestFusedGromovWasserstein:
         geom_y_scaled,
         geom_xy_scaled,
         fused_penalty=fused_penalty,
-        scale_cost=False
+        scale_cost=None,
     )
     prob_scale = quadratic_problem.QuadraticProblem(
         geom_x,

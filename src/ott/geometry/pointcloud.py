@@ -50,7 +50,7 @@ class PointCloud(geometry.Geometry):
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
-      that ``cost_matrix /= scale_cost``. If `True`, use 'mean'.
+      that ``cost_matrix /= scale_cost``.
     kwargs: keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -60,9 +60,8 @@ class PointCloud(geometry.Geometry):
       y: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
-      scale_cost: Union[bool, int, float,
-                        Literal["mean", "max_norm", "max_bound", "max_cost",
-                                "median"]] = 1.0,
+      scale_cost: Union[int, float, Literal["mean", "max_norm", "max_bound",
+                                            "max_cost", "median"]] = 1.0,
       **kwargs: Any
   ):
     super().__init__(**kwargs)
@@ -74,7 +73,7 @@ class PointCloud(geometry.Geometry):
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
     self._batch_size = batch_size
-    self._scale_cost = "mean" if scale_cost is True else scale_cost
+    self._scale_cost = scale_cost
 
   @property
   def _norm_x(self) -> Union[float, jnp.ndarray]:

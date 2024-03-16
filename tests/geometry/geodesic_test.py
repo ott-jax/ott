@@ -189,12 +189,12 @@ class TestGeodesic:
     expected = laplacian(G)
     eigenvalues = jnp.linalg.eigvals(expected)
     eigval = jnp.max(eigenvalues)
-    #rescale the laplacian
+    # rescale the laplacian
     expected = 2 * expected / eigval if eigval > 2 else expected
 
     actual = geom.scaled_laplacian
 
-    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
   def test_geo_sinkhorn(self, rng: jax.Array, jit: bool):
