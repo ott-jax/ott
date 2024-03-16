@@ -26,6 +26,38 @@ from ott.types import Array_g
 
 __all__ = ["Geodesic"]
 
+def compute_dense_laplacian(G: Array_g, normalize:bool = False) -> jnp.ndarray:
+  degree = jnp.sum(G, axis=1)
+  laplacian = jnp.diag(degree) - G
+  if normalize:
+    inv_sqrt_deg = jnp.diag(
+        jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+    )
+    laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
+  return laplacian
+
+
+def compute_sparse_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
+  n, _ = G.shape
+  data, ixs = G.sum(1).todense(), jnp.arange(n)
+  if normalize:
+    data = jnp.where(data > 0., 1. / jnp.sqrt(data), 0.)
+  degree = jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
+  if normalize:
+    inv_sqrt_deg = degree.data # TODO: is MM still faster here ?
+    laplacian = inv_sqrt_deg[:, None] * G * inv_sqrt_deg[None, :]
+  else:
+    laplacian = degree - G
+  return laplacian
+
+
+def compute_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
+  if isinstance(G, jesp.BCOO):
+    return compute_sparse_laplacian(G, normalize)
+  else:
+    return compute_dense_laplacian(G, normalize)
+
+
 
 @jax.tree_util.register_pytree_node_class
 class Geodesic(geometry.Geometry):
@@ -106,13 +138,7 @@ class Geodesic(geometry.Geometry):
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
 
-    degree = jnp.sum(G, axis=1)
-    laplacian = jnp.diag(degree) - G
-    if normalize:
-      inv_sqrt_deg = jnp.diag(
-          jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
-      )
-      laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
+    laplacian = compute_laplacian(G, normalize)
 
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
