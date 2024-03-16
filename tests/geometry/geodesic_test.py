@@ -25,7 +25,6 @@ from ott.geometry import geodesic, geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
-
 def random_graph(
     n: int,
     p: float = 0.3,
@@ -267,24 +266,21 @@ class TestGeodesic:
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
 
-  def test_sparse_geodesic(self, rng: jax.Array):
-    G = random_graph(20, p=0.5)
-    # G = sparse.BCOO.fromdense(G)
-    geom = geodesic.Geodesic.from_graph(G, t=1.0)
+  @pytest.mark.parametrize("normalize", [True, False])
+  def test_sparse_geodesic(self, normalize):
+    n = 20
+    G = random_graph(n, p=0.5)
+    G_sparse = sparse.BCOO.fromdense(G)
+    geom = geodesic.Geodesic.from_graph(G_sparse, t=5.0, order=10, normalize=normalize)
     kernel_matrix = geom.kernel_matrix
 
-    v = jax.random.normal(rng, (n,))
-    v = v / jnp.linalg.norm(v)
+    gh_heat_kernel = exact_heat_kernel(G, normalize=normalize, t=5.0)
 
-    v = jax.device_put(v)
-    v = sparse.COO.from_numpy(v)
+    assert isinstance(kernel_matrix, sparse.BCOO)
 
-    w = geom.apply_kernel(v, axis=0)
-    w = w.todense()
-    w = jnp.asarray(w)
-
-    np.testing.assert_allclose(w, geom.kernel_matrix @ v.todense())
+    kernel_matrix = kernel_matrix.todense()
+    np.testing.assert_allclose(kernel_matrix, gh_heat_kernel, rtol=1e-1, atol=1e-1)
 
 
 if __name__ == "__main__":
-  pytest.main([__file__])
+  TestGeodesic().test_sparse_geodesic(jax.random.PRNGKey(0))

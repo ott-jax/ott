@@ -44,8 +44,8 @@ def compute_sparse_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
     data = jnp.where(data > 0., 1. / jnp.sqrt(data), 0.)
   degree = jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
   if normalize:
-    inv_sqrt_deg = degree.data # TODO: is MM still faster here ?
-    laplacian = inv_sqrt_deg[:, None] * G * inv_sqrt_deg[None, :]
+    id = jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
+    laplacian = id - degree @ G @ degree
   else:
     laplacian = degree - G
   return laplacian
@@ -184,10 +184,14 @@ class Geodesic(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    return jax.lax.cond(
-        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-        lambda x: (x + x.T) / 2.0, kernel
-    )
+    if isinstance(kernel, jesp.BCOO):
+      # we symmetrize sparse kernel by default
+      return (kernel + kernel.T) * 0.5
+    else:
+      return jax.lax.cond(
+          jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
+          lambda x: (x + x.T) / 2.0, kernel
+      )
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
@@ -266,31 +270,33 @@ def compute_largest_eigenvalue(
   )
   return eigvals[0]
 
-
 def expm_multiply(
     L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
 ) -> jnp.ndarray:
-
   # move to sparse matrix
-  L = jax.experimental.sparse.BCOO.fromdense(L, nse=10)
-  X = jax.experimental.sparse.BCOO.fromdense(X, nse=1)
+  is_sparse = isinstance(L, jesp.BCOO)
+  if is_sparse and not isinstance(X, jesp.BCOO):
+    X = jax.experimental.sparse.BCOO.fromdense(X, nse=X.shape[0])
+  
   def body(carry, c):
     T0, T1, Y = carry
-    T1, Y = T1.sort_indices(), Y.sort_indices()
     T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
     return (T1, T2, Y), None
 
   T0 = X
-  T0.unique_indices = False # FIXME: rm change attribute
   Y = 0.5 * coeff[0] * T0
   T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
+
   initial_state = (T0, T1, Y)
-  (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:]) # FIXME scan does not work
-                                                              # because metadata unique_indices is changing
-                                                              # for 1st position of carry.
+  if not is_sparse:
+    (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:]) 
+  else:
+    # NOTE: the scan not working for this type of scan
+    for c in coeff[2:]:
+      (T0, T1, Y), _ = body((T0, T1, Y), c)
   return Y
 
 
