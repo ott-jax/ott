@@ -27,7 +27,9 @@ from ott.types import Array_g
 __all__ = ["Geodesic"]
 
 
-def compute_dense_laplacian(G: Array_g, normalize: bool = False) -> jnp.ndarray:
+def compute_dense_laplacian(
+    G: jnp.ndarray, normalize: bool = False
+) -> jnp.ndarray:
   degree = jnp.sum(G, axis=1)
   laplacian = jnp.diag(degree) - G
   if normalize:
@@ -38,7 +40,9 @@ def compute_dense_laplacian(G: Array_g, normalize: bool = False) -> jnp.ndarray:
   return laplacian
 
 
-def compute_sparse_laplacian(G: Array_g, normalize: bool = False) -> Array_g:
+def compute_sparse_laplacian(
+    G: jesp.BCOO, normalize: bool = False
+) -> jesp.BCOO:
   n, _ = G.shape
   data, ixs = G.sum(1).todense(), jnp.arange(n)
   if normalize:
