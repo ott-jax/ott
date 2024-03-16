@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -45,7 +45,7 @@ def compute_sparse_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
   degree = jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
   if normalize:
     id = jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
-    laplacian = id - degree @ G @ degree
+    laplacian = id - degree @ G @ degree # FIXME: MM might be faster here ?
   else:
     laplacian = degree - G
   return laplacian
@@ -271,8 +271,8 @@ def compute_largest_eigenvalue(
   return eigvals[0]
 
 def expm_multiply(
-    L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
-) -> jnp.ndarray:
+    L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO], coeff: jnp.ndarray, eigval: float
+) -> Union[jnp.ndarray, jesp.BCOO]:
   # move to sparse matrix
   is_sparse = isinstance(L, jesp.BCOO)
   if is_sparse and not isinstance(X, jesp.BCOO):
@@ -294,7 +294,7 @@ def expm_multiply(
   if not is_sparse:
     (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:]) 
   else:
-    # NOTE: the scan not working for this type of scan
+    # NOTE: scan is not working for this type of scan
     for c in coeff[2:]:
       (T0, T1, Y), _ = body((T0, T1, Y), c)
   return Y

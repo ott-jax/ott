@@ -280,7 +280,3 @@ class TestGeodesic:
 
     kernel_matrix = kernel_matrix.todense()
     np.testing.assert_allclose(kernel_matrix, gh_heat_kernel, rtol=1e-1, atol=1e-1)
-
-
-if __name__ == "__main__":
-  TestGeodesic().test_sparse_geodesic(jax.random.PRNGKey(0))
