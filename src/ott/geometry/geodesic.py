@@ -26,7 +26,8 @@ from ott.types import Array_g
 
 __all__ = ["Geodesic"]
 
-def compute_dense_laplacian(G: Array_g, normalize:bool = False) -> jnp.ndarray:
+
+def compute_dense_laplacian(G: Array_g, normalize: bool = False) -> jnp.ndarray:
   degree = jnp.sum(G, axis=1)
   laplacian = jnp.diag(degree) - G
   if normalize:
@@ -37,7 +38,7 @@ def compute_dense_laplacian(G: Array_g, normalize:bool = False) -> jnp.ndarray:
   return laplacian
 
 
-def compute_sparse_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
+def compute_sparse_laplacian(G: Array_g, normalize: bool = False) -> Array_g:
   n, _ = G.shape
   data, ixs = G.sum(1).todense(), jnp.arange(n)
   if normalize:
@@ -45,18 +46,16 @@ def compute_sparse_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
   degree = jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
   if normalize:
     id = jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
-    laplacian = id - degree @ G @ degree # FIXME: MM might be faster here ?
+    laplacian = id - degree @ G @ degree  # FIXME: MM might be faster here ?
   else:
     laplacian = degree - G
   return laplacian
 
 
-def compute_laplacian(G: Array_g, normalize:bool = False) -> Array_g:
+def compute_laplacian(G: Array_g, normalize: bool = False) -> Array_g:
   if isinstance(G, jesp.BCOO):
     return compute_sparse_laplacian(G, normalize)
-  else:
-    return compute_dense_laplacian(G, normalize)
-
+  return compute_dense_laplacian(G, normalize)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -187,11 +186,10 @@ class Geodesic(geometry.Geometry):
     if isinstance(kernel, jesp.BCOO):
       # we symmetrize sparse kernel by default
       return (kernel + kernel.T) * 0.5
-    else:
-      return jax.lax.cond(
-          jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-          lambda x: (x + x.T) / 2.0, kernel
-      )
+    return jax.lax.cond(
+        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
+        lambda x: (x + x.T) / 2.0, kernel
+    )
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
@@ -270,14 +268,16 @@ def compute_largest_eigenvalue(
   )
   return eigvals[0]
 
+
 def expm_multiply(
-    L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO], coeff: jnp.ndarray, eigval: float
+    L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO],
+    coeff: jnp.ndarray, eigval: float
 ) -> Union[jnp.ndarray, jesp.BCOO]:
   # move to sparse matrix
   is_sparse = isinstance(L, jesp.BCOO)
   if is_sparse and not isinstance(X, jesp.BCOO):
     X = jax.experimental.sparse.BCOO.fromdense(X, nse=X.shape[0])
-  
+
   def body(carry, c):
     T0, T1, Y = carry
     T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
@@ -289,10 +289,9 @@ def expm_multiply(
   T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
-
   initial_state = (T0, T1, Y)
   if not is_sparse:
-    (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:]) 
+    (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
   else:
     # NOTE: scan is not working for this type of scan
     for c in coeff[2:]:
