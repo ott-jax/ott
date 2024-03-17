@@ -267,28 +267,24 @@ def compute_largest_eigenvalue(
   return eigvals[0]
 
 
-@jesp.sparsify
 def expm_multiply(
-    L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO],
-    coeff: jnp.ndarray, eigval: float
+    L: Union[jnp.ndarray, jesp.BCOO], X: jnp.ndarray, coeff: jnp.ndarray,
+    eigval: float
 ) -> Union[jnp.ndarray, jesp.BCOO]:
 
   def body(carry, c):
-    T0, T1, i, Y = carry
-    c = coeff[i]
+    T0, T1, Y = carry
     T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
-    return (T1, T2, i + 1, Y), None
+    return (T1, T2, Y), None
 
   T0 = X
   Y = 0.5 * coeff[0] * T0
   T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
-  initial_state = (T0, T1, 2, Y)
-  (_, _, _, Y), _ = jax.lax.scan(
-      body, initial_state, xs=None, length=len(coeff[2:])
-  )
+  initial_state = (T0, T1, Y)
+  (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
   return Y
 
 
