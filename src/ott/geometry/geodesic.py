@@ -44,15 +44,12 @@ def compute_sparse_laplacian(
     G: jesp.BCOO, normalize: bool = False
 ) -> jesp.BCOO:
   n, _ = G.shape
-  data, ixs = G.sum(1).todense(), jnp.arange(n)
+  data_degree, ixs = G.sum(1).todense(), jnp.arange(n)
+  degree = jesp.BCOO((data_degree, jnp.c_[ixs, ixs]), shape=(n, n))
+  laplacian = degree - G
   if normalize:
-    data = jnp.where(data > 0., 1. / jnp.sqrt(data), 0.)
-  degree = jesp.BCOO((data, jnp.c_[ixs, ixs]), shape=(n, n))
-  if normalize:
-    id = jesp.BCOO((jnp.ones(n), jnp.c_[ixs, ixs]), shape=(n, n))
-    laplacian = id - degree @ G @ degree  # FIXME: MM might be faster here ?
-  else:
-    laplacian = degree - G
+    data_inv = jnp.where(data_degree > 0., 1. / jnp.sqrt(data_degree), 0.)
+    laplacian = data_inv[:, None] * laplacian * data_inv[None, :]
   return laplacian
 
 
@@ -297,7 +294,7 @@ def expm_multiply(
   if not is_sparse:
     (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
   else:
-    # NOTE: scan is not working for this type of scan
+    # NOTE: scan is not working for this type of sparse scan
     for c in coeff[2:]:
       (T0, T1, Y), _ = body((T0, T1, Y), c)
   return Y
