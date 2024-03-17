@@ -97,12 +97,11 @@ def conditional_lin_dl() -> datasets.ConditionalLoader:
 def quad_dl():
   n, d = 128, 2
   rng = np.random.default_rng(11)
-  src, tgt = _ot_data(
-      rng, n=n, quad_dim=d
-  ), _ot_data(
-      rng, n=n, quad_dim=d, offset=1.0
-  )
+
+  src = _ot_data(rng, n=n, quad_dim=d)
+  tgt = _ot_data(rng, n=n, quad_dim=d, offset=1.0)
   ds = datasets.OTDataset(src, tgt)
+
   return DataLoader(ds, batch_size=16, shuffle=True)
 
 

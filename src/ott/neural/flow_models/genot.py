@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+import numpy as np
 
 import diffrax
 from flax.training import train_state
@@ -40,7 +41,9 @@ class GENOT:
       of an input sample, see algorithm TODO.
     latent_match_fn: TODO.
     latent_noise_fn: TODO.
+    # TODO(michalk8): rename
     k_samples_per_x: Number of samples drawn from the conditional distribution
+    # TODO(michalk8): expose all args for the train state?
     kwargs: TODO.
   """
 
@@ -48,6 +51,7 @@ class GENOT:
       self,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
+      # TODO(michalk8): all of these can be optional, explain in the docs
       data_match_fn: Callable[
           [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
       time_sampler: Callable[[jax.Array, int],
@@ -66,9 +70,8 @@ class GENOT:
     self.time_sampler = time_sampler
     self.latent_match_fn = latent_match_fn
     if latent_noise_fn is None:
-      dim = kwargs["input_dim"]
       latent_noise_fn = functools.partial(
-          flow_utils.multivariate_normal, dim=dim
+          flow_utils.multivariate_normal, dim=kwargs["input_dim"]
       )
     self.latent_noise_fn = latent_noise_fn
     self.k_samples_per_x = k_samples_per_x
@@ -117,7 +120,7 @@ class GENOT:
 
   def __call__(
       self,
-      loader: Any,
+      loader: Iterable[Dict[str, np.ndarray]],
       n_iters: int,
       rng: Optional[jax.Array] = None
   ) -> Dict[str, List[float]]:

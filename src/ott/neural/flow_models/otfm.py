@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+import numpy as np
 
 import diffrax
 from flax.training import train_state
@@ -37,6 +38,7 @@ class OTFlowMatching:
     flow: Flow between source and target distribution.
     match_fn: TODO.
     time_sampler: Sampler for the time.
+    # TODO(michalk8): expose all args for the train state?
     kwargs: TODO.
   """
 
@@ -97,7 +99,7 @@ class OTFlowMatching:
   # TODO(michalk8): refactor in the future PR to just do one step
   def __call__(  # noqa: D102
       self,
-      loader: Any,  # TODO(michalk8): type it correctly
+      loader: Iterable[Dict[str, np.ndarray]],
       *,
       n_iters: int,
       rng: Optional[jax.Array] = None,
