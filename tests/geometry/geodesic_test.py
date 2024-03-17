@@ -197,7 +197,8 @@ class TestGeodesic:
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool):
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool, is_sparse: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -209,6 +210,8 @@ class TestGeodesic:
     x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
+    if is_sparse:
+      G = sparse.BCOO.fromdense(G)
     graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
 
     fn = jax.jit(callback) if jit else callback
@@ -258,30 +261,16 @@ class TestGeodesic:
   @pytest.mark.parametrize("normalize", [False, True])
   @pytest.mark.parametrize("t", [5, 10, 50])
   @pytest.mark.parametrize("order", [20, 30, 40])
-  def test_heat_approx(self, normalize: bool, t: float, order: int):
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_heat_approx(self, normalize: bool, t: float, order: int, is_sparse: bool):
     G = random_graph(20, p=0.5)
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
+    if is_sparse:
+      G = sparse.BCOO.fromdense(G)
     geom = geodesic.Geodesic.from_graph(
         G, t=t, order=order, normalize=normalize
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+    if is_sparse:
+      approx = approx.todense()
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
-
-  @pytest.mark.parametrize("normalize", [True, False])
-  def test_sparse_geodesic(self, normalize):
-    n = 20
-    G = random_graph(n, p=0.5)
-    G_sparse = sparse.BCOO.fromdense(G)
-    geom = geodesic.Geodesic.from_graph(
-        G_sparse, t=5.0, order=10, normalize=normalize
-    )
-    kernel_matrix = geom.kernel_matrix
-
-    gh_heat_kernel = exact_heat_kernel(G, normalize=normalize, t=5.0)
-
-    assert isinstance(kernel_matrix, sparse.BCOO)
-
-    kernel_matrix = kernel_matrix.todense()
-    np.testing.assert_allclose(
-        kernel_matrix, gh_heat_kernel, rtol=1e-1, atol=1e-1
-    )
