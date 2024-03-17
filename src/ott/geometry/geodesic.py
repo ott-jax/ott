@@ -22,41 +22,10 @@ from scipy.special import ive
 from ott import utils
 from ott.geometry import geometry
 from ott.math import utils as mu
-from ott.types import Array_g
 
 __all__ = ["Geodesic"]
 
-
-def compute_dense_laplacian(
-    G: jnp.ndarray, normalize: bool = False
-) -> jnp.ndarray:
-  degree = jnp.sum(G, axis=1)
-  laplacian = jnp.diag(degree) - G
-  if normalize:
-    inv_sqrt_deg = jnp.diag(
-        jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
-    )
-    laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
-  return laplacian
-
-
-def compute_sparse_laplacian(
-    G: jesp.BCOO, normalize: bool = False
-) -> jesp.BCOO:
-  n, _ = G.shape
-  data_degree, ixs = G.sum(1).todense(), jnp.arange(n)
-  degree = jesp.BCOO((data_degree, jnp.c_[ixs, ixs]), shape=(n, n))
-  laplacian = degree - G
-  if normalize:
-    data_inv = jnp.where(data_degree > 0., 1. / jnp.sqrt(data_degree), 0.)
-    laplacian = data_inv[:, None] * laplacian * data_inv[None, :]
-  return laplacian
-
-
-def compute_laplacian(G: Array_g, normalize: bool = False) -> Array_g:
-  if isinstance(G, jesp.BCOO):
-    return compute_sparse_laplacian(G, normalize)
-  return compute_dense_laplacian(G, normalize)
+Array_g = Union[jnp.ndarray, jesp.BCOO]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -138,7 +107,10 @@ class Geodesic(geometry.Geometry):
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
 
-    laplacian = compute_laplacian(G, normalize)
+    if isinstance(G, jesp.BCOO):
+      laplacian = compute_sparse_laplacian(G, normalize)
+    else:
+      laplacian = compute_dense_laplacian(G, normalize)
 
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
@@ -246,6 +218,33 @@ class Geodesic(geometry.Geometry):
     return cls(*children, **aux_data)
 
 
+def normalize_laplacian(laplacian: Array_g, degree: jnp.ndarray) -> Array_g:
+  inv_sqrt_deg = jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+  return inv_sqrt_deg[:, None] * laplacian * inv_sqrt_deg[None, :]
+
+
+def compute_dense_laplacian(
+    G: jnp.ndarray, normalize: bool = False
+) -> jnp.ndarray:
+  degree = jnp.sum(G, axis=1)
+  laplacian = jnp.diag(degree) - G
+  if normalize:
+    laplacian = normalize_laplacian(laplacian, degree)
+  return laplacian
+
+
+def compute_sparse_laplacian(
+    G: jesp.BCOO, normalize: bool = False
+) -> jesp.BCOO:
+  n, _ = G.shape
+  data_degree, ixs = G.sum(1).todense(), jnp.arange(n)
+  degree = jesp.BCOO((data_degree, jnp.c_[ixs, ixs]), shape=(n, n))
+  laplacian = degree - G
+  if normalize:
+    laplacian = normalize_laplacian(laplacian, data_degree)
+  return laplacian
+
+
 def compute_largest_eigenvalue(
     laplacian_matrix: jnp.ndarray,
     rng: jax.Array,
@@ -268,9 +267,8 @@ def compute_largest_eigenvalue(
 
 
 def expm_multiply(
-    L: Union[jnp.ndarray, jesp.BCOO], X: jnp.ndarray, coeff: jnp.ndarray,
-    eigval: float
-) -> Union[jnp.ndarray, jesp.BCOO]:
+    L: Array_g, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
+) -> jnp.ndarray:
 
   def body(carry, c):
     T0, T1, Y = carry

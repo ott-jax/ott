@@ -14,11 +14,11 @@
 from typing import Optional, Union
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
 import pytest
-from jax.experimental import sparse
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 from ott.geometry import geodesic, geometry, graph
@@ -30,6 +30,7 @@ def random_graph(
     n: int,
     p: float = 0.3,
     seed: Optional[int] = 0,
+    is_sparse: bool = False,
     *,
     return_laplacian: bool = False,
     directed: bool = False,
@@ -46,6 +47,8 @@ def random_graph(
       G
   ) if return_laplacian else nx.linalg.adjacency_matrix(G)
 
+  if is_sparse:
+    return jesp.BCOO.from_scipy_sparse(G)
   return jnp.asarray(G.toarray())
 
 
@@ -211,7 +214,7 @@ class TestGeodesic:
 
     gt_geom = gt_geometry(G, epsilon=eps)
     if is_sparse:
-      G = sparse.BCOO.fromdense(G)
+      G = jesp.BCOO.fromdense(G)
     graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
 
     fn = jax.jit(callback) if jit else callback
@@ -268,10 +271,22 @@ class TestGeodesic:
     G = random_graph(20, p=0.5)
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
     if is_sparse:
-      G = sparse.BCOO.fromdense(G)
+      G = jesp.BCOO.fromdense(G)
     geom = geodesic.Geodesic.from_graph(
         G, t=t, order=order, normalize=normalize
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
 
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
+
+  @pytest.mark.limit_memory("150 MB")
+  def test_sparse_geo_memory(self, rng: jax.Array):
+    n = 10_000
+    G = random_graph(n, p=0.001, is_sparse=True)
+    x = jax.random.normal(rng, (n,))
+
+    graph_geom = geodesic.Geodesic.from_graph(G, t=1.0, order=10)
+
+    out = jax.jit(graph_geom.apply_kernel)(x)
+
+    np.testing.assert_array_equal(jnp.isfinite(out), True)
