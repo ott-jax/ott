@@ -272,10 +272,6 @@ def expm_multiply(
     L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO],
     coeff: jnp.ndarray, eigval: float
 ) -> Union[jnp.ndarray, jesp.BCOO]:
-  # move to sparse matrix
-  is_sparse = isinstance(L, jesp.BCOO)
-  if is_sparse and not isinstance(X, jesp.BCOO):
-    X = jesp.BCOO.fromdense(X, nse=X.shape[0])
 
   def body(carry, c):
     T0, T1, i, Y = carry
