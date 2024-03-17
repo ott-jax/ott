@@ -272,6 +272,6 @@ class TestGeodesic:
     geom = geodesic.Geodesic.from_graph(
         G, t=t, order=order, normalize=normalize
     )
-    approx = geom.apply_kernel(jnp.eye(G.shape[0])) 
+    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
 
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
