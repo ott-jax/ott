@@ -262,7 +262,9 @@ class TestGeodesic:
   @pytest.mark.parametrize("t", [5, 10, 50])
   @pytest.mark.parametrize("order", [20, 30, 40])
   @pytest.mark.parametrize("is_sparse", [True, False])
-  def test_heat_approx(self, normalize: bool, t: float, order: int, is_sparse: bool):
+  def test_heat_approx(
+      self, normalize: bool, t: float, order: int, is_sparse: bool
+  ):
     G = random_graph(20, p=0.5)
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
     if is_sparse:
@@ -270,7 +272,6 @@ class TestGeodesic:
     geom = geodesic.Geodesic.from_graph(
         G, t=t, order=order, normalize=normalize
     )
-    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
-    if is_sparse:
-      approx = approx.todense()
+    approx = geom.apply_kernel(jnp.eye(G.shape[0])) 
+
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)

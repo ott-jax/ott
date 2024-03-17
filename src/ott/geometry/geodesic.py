@@ -184,9 +184,6 @@ class Geodesic(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    if isinstance(kernel, jesp.BCOO):
-      # we symmetrize sparse kernel by default
-      return (kernel + kernel.T) * 0.5
     return jax.lax.cond(
         jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
         lambda x: (x + x.T) / 2.0, kernel
@@ -270,6 +267,7 @@ def compute_largest_eigenvalue(
   return eigvals[0]
 
 
+@jesp.sparsify
 def expm_multiply(
     L: Union[jnp.ndarray, jesp.BCOO], X: Union[jnp.ndarray, jesp.BCOO],
     coeff: jnp.ndarray, eigval: float
@@ -277,26 +275,24 @@ def expm_multiply(
   # move to sparse matrix
   is_sparse = isinstance(L, jesp.BCOO)
   if is_sparse and not isinstance(X, jesp.BCOO):
-    X = jax.experimental.sparse.BCOO.fromdense(X, nse=X.shape[0])
+    X = jesp.BCOO.fromdense(X, nse=X.shape[0])
 
   def body(carry, c):
-    T0, T1, Y = carry
+    T0, T1, i, Y = carry
+    c = coeff[i]
     T2 = (2.0 / eigval) * L @ T1 - 2.0 * T1 - T0
     Y = Y + c * T2
-    return (T1, T2, Y), None
+    return (T1, T2, i + 1, Y), None
 
   T0 = X
   Y = 0.5 * coeff[0] * T0
   T1 = (1.0 / eigval) * L @ X - T0
   Y = Y + coeff[1] * T1
 
-  initial_state = (T0, T1, Y)
-  if not is_sparse:
-    (_, _, Y), _ = jax.lax.scan(body, initial_state, coeff[2:])
-  else:
-    # NOTE: scan is not working for this type of sparse scan
-    for c in coeff[2:]:
-      (T0, T1, Y), _ = body((T0, T1, Y), c)
+  initial_state = (T0, T1, 2, Y)
+  (_, _, _, Y), _ = jax.lax.scan(
+      body, initial_state, xs=None, length=len(coeff[2:])
+  )
   return Y
 
 
