@@ -2,6 +2,7 @@ Eulerian
 alg
 arg
 args
+coef
 cond
 dtype
 eps
@@ -15,6 +16,7 @@ gmm
 gv
 init
 iter
+iters
 jnp
 jvp
 kwargs
@@ -22,6 +24,8 @@ laplacian
 loc
 logsumexp
 lse
+mathbb
+mathcal
 maxiter
 ndarray
 nicolson

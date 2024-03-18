@@ -57,3 +57,4 @@ Neural Optimal Transport
     icnn_inits
     MetaOT
     Monge_Gap
+    ENOT

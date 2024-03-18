@@ -17,6 +17,7 @@ Solvers
     map_estimator.MapEstimator
     neuraldual.W2NeuralDual
     neuraldual.BaseW2NeuralDual
+    expectile_neural_dual.ExpectileNeuralDual
 
 Conjugate Solvers
 -----------------
