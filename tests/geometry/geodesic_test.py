@@ -14,6 +14,7 @@
 from typing import Optional, Union
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import networkx as nx
 import numpy as np
@@ -29,6 +30,7 @@ def random_graph(
     n: int,
     p: float = 0.3,
     seed: Optional[int] = 0,
+    is_sparse: bool = False,
     *,
     return_laplacian: bool = False,
     directed: bool = False,
@@ -45,6 +47,8 @@ def random_graph(
       G
   ) if return_laplacian else nx.linalg.adjacency_matrix(G)
 
+  if is_sparse:
+    return jesp.BCOO.from_scipy_sparse(G)
   return jnp.asarray(G.toarray())
 
 
@@ -196,7 +200,8 @@ class TestGeodesic:
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(jit=[False, True], only_fast=0)
-  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool):
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_geo_sinkhorn(self, rng: jax.Array, jit: bool, is_sparse: bool):
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
@@ -208,6 +213,8 @@ class TestGeodesic:
     x = jax.random.normal(rng, (n,))
 
     gt_geom = gt_geometry(G, epsilon=eps)
+    if is_sparse:
+      G = jesp.BCOO.fromdense(G)
     graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
 
     fn = jax.jit(callback) if jit else callback
@@ -257,11 +264,29 @@ class TestGeodesic:
   @pytest.mark.parametrize("normalize", [False, True])
   @pytest.mark.parametrize("t", [5, 10, 50])
   @pytest.mark.parametrize("order", [20, 30, 40])
-  def test_heat_approx(self, normalize: bool, t: float, order: int):
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_heat_approx(
+      self, normalize: bool, t: float, order: int, is_sparse: bool
+  ):
     G = random_graph(20, p=0.5)
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
+    if is_sparse:
+      G = jesp.BCOO.fromdense(G)
     geom = geodesic.Geodesic.from_graph(
         G, t=t, order=order, normalize=normalize
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
+
+  @pytest.mark.limit_memory("150 MB")
+  def test_sparse_geo_memory(self, rng: jax.Array):
+    n = 10_000
+    G = random_graph(n, p=0.001, is_sparse=True)
+    x = jax.random.normal(rng, (n,))
+
+    graph_geom = geodesic.Geodesic.from_graph(G, t=1.0, order=10)
+
+    out = jax.jit(graph_geom.apply_kernel)(x)
+
+    np.testing.assert_array_equal(jnp.isfinite(out), True)
