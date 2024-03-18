@@ -317,24 +317,23 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
   2. ``neural_f`` can provide the gradient :math:`\nabla f` for mapping T.
 
   Args:
-  dim_data: input dimensionality of data required for network init.
-  neural_f: network architecture for potential :math:`f`.
-  neural_g: network architecture for potential :math:`g`.
-  optimizer_f: optimizer function for potential :math:`f`.
-  optimizer_g: optimizer function for potential :math:`g`.
-  cost_fn: cost function of the OT problem.
-  is_bidirectional: alternate between updating the forward and backward
-  directions.
-  Inspired from :cite:`jacobs:20`.
-  num_train_iters: number of total training iterations.
-  valid_freq: frequency with which model is validated.
-  log_freq: frequency with training and validation are logged.
-  logging: option to return logs.
-  rng: random key used for seeding for network initializations.
-  expectile: parameter of the expectile loss (:math:`\tau`).
-  Suggested values range is [0.9, 1.0).
-  expectile_loss_coef: expectile loss weight.
-  Suggested values range is [0.3, 1.0].
+    dim_data: input dimensionality of data required for network init.
+    neural_f: network architecture for potential :math:`f`.
+    neural_g: network architecture for potential :math:`g`.
+    optimizer_f: optimizer function for potential :math:`f`.
+    optimizer_g: optimizer function for potential :math:`g`.
+    cost_fn: cost function of the OT problem.
+    is_bidirectional: alternate between updating the forward and backward
+      directions. Inspired from :cite:`jacobs:20`.
+    num_train_iters: number of total training iterations.
+    valid_freq: frequency with which model is validated.
+    log_freq: frequency with training and validation are logged.
+    logging: option to return logs.
+    rng: random key used for seeding for network initializations.
+    expectile: parameter of the expectile loss (:math:`\tau`).
+      Suggested values range is [0.9, 1.0).
+    expectile_loss_coef: expectile loss weight.
+      Suggested values range is [0.3, 1.0].
   """
 
   def __init__(
