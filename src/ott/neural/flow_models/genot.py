@@ -151,7 +151,7 @@ class GENOT:
       loader: Data loader returning a dictionary with possible keys
         `src_lin`, `tgt_lin`, `src_quad`, `tgt_quad`, `src_conditions`.
       n_iters: Number of iterations to train the model.
-      rng: Random seed.
+      rng: Random number generator.
 
     Returns:
       Training logs.

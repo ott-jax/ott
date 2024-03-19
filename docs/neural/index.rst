@@ -17,4 +17,3 @@ and solvers to estimate such neural networks.
     duality
     flow_models
     gaps
-    models

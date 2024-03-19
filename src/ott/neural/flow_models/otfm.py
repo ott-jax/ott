@@ -105,6 +105,17 @@ class OTFlowMatching:
       n_iters: int,
       rng: Optional[jax.Array] = None,
   ) -> Dict[str, List[float]]:
+    """Train the OTFlowMatching model.
+
+    Args:
+      loader: Data loader returning a dictionary with possible keys
+      `src_lin`, `tgt_lin`, `src_condition`.
+      n_iters: Number of iterations to train the model.
+      rng: Random number generator.
+
+    Returns:
+      Training logs.
+    """
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
     for batch in loader:
