@@ -173,7 +173,7 @@ class GENOT:
         src = jnp.concatenate([src_lin, src_quad], axis=1)
         tgt = jnp.concatenate([tgt_lin, tgt_quad], axis=1)
       else:
-        raise RuntimeError("TODO")
+        raise RuntimeError("Cannot infer OT problem type from data.")
 
       # TODO(michalk8): filter `None` from the `arrs`?
       return (src, batch.get("src_condition"), tgt), arrs
