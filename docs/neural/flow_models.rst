@@ -28,9 +28,7 @@ GENOT
 .. autosummary::
     :toctree: _autosummary
 
-    genot.GENOTBase
-    genot.GENOTLin
-    genot.GENOTQuad
+    genot.GENOT
 
 Models
 ------
@@ -44,5 +42,10 @@ Utils
 .. autosummary::
     :toctree: _autosummary
 
-    layers.CyclicalTimeEncoder
-    samplers.uniform_sampler
+    utils.match_linear
+    utils.match_quadratic
+    utils.sample_joint
+    utils.sample_conditional
+    utils.cyclical_time_encoder
+    utils.uniform_sampler
+    utils.multivariate_normal

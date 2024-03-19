@@ -36,7 +36,8 @@ class OTFlowMatching:
   Args:
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
-    match_fn: TODO.
+    match_fn: Function to match data points from the source distribution and
+      the target distribution.
     time_sampler: Sampler for the time.
     # TODO(michalk8): expose all args for the train state?
     kwargs: TODO.

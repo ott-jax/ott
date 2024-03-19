@@ -67,7 +67,6 @@ class GENOT:
       self,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
-      # TODO(michalk8): all of these can be optional, explain in the docs
       data_match_fn: Callable[
           [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
       source_dim: int,

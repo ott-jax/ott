@@ -117,7 +117,19 @@ def sample_conditional(
     k: int = 1,
     uniform_marginals: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """TODO."""
+  """Sample indices from a transport matrix.
+
+  Args:
+    rng: Random number generator.
+    tmat: Transport matrix.
+    k: Expected number of samples to sample per row.
+    uniform_marginals: If :obj:`True`, sample exactly `k` samples
+      per row, otherwise sample proportionally to the sums of the
+      rows of the transport matrix.
+
+  Returns:
+    Source and target indices sampled from the transport matrix.
+  """
   assert k > 0, "Number of samples per row must be positive."
   n, m = tmat.shape
 

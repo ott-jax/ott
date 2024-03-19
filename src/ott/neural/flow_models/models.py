@@ -46,10 +46,11 @@ class VelocityField(nn.Module):
     output_dim: Dimensionality of the neural vector field.
     num_layers: Number of layers.
     condition_dim: Dimensionality of the embedding of the condition.
-      If :obj:`None`, TODO.
+      If :obj:`None`, the velocity field has no conditions.
     time_dim: Dimensionality of the time embedding.
       If :obj:`None`, set to ``hidden_dim``.
-    time_encoder: TODO.
+    time_encoder: Function to encode the time input to the time-dependent
+      velocity field.
     act_fn: Activation function.
   """
   hidden_dim: int
