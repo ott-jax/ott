@@ -40,7 +40,19 @@ def match_linear(
     scale_cost: ScaleCost_t = 1.0,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """TODO."""
+  """Compute solution to a linear OT problem.
+
+  Args:
+    x: Linear term of the source point cloud.
+    y: Linear term of the target point cloud.
+    cost_fn: Cost function.
+    epsilon: Regularization parameter.
+    scale_cost: Scaling of the cost matrix.
+    kwargs: Additional arguments for :func:`ott.solvers.linear.solve`.
+
+  Returns:
+    Optimal transport matrix.
+  """
   geom = pointcloud.PointCloud(
       x, y, cost_fn=cost_fn, epsilon=epsilon, scale_cost=scale_cost
   )
@@ -51,19 +63,35 @@ def match_linear(
 def match_quadratic(
     xx: jnp.ndarray,
     yy: jnp.ndarray,
-    xy: Optional[jnp.ndarray] = None,
+    x: Optional[jnp.ndarray] = None,
+    y: Optional[jnp.ndarray] = None,
     # TODO(michalk8): expose for all the costs
     scale_cost: ScaleCost_t = 1.0,
     cost_fn: Optional[costs.CostFn] = None,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """TODO."""
+  """Compute solution to a quadratic OT problem.
+
+  Args:
+    xx: Quadratic (incomparable) term of the source point cloud.
+    yy: Quadratic (incomparable) term of the target point cloud.
+    x: Linear (fused) term of the source point cloud.
+    y: Linear (fused) term of the target point cloud.
+    scale_cost: Scaling of the cost matrix.
+    cost_fn: Cost function.
+    kwargs: Additional arguments for :func:`ott.solvers.quadratic.solve`.
+
+  Returns:
+    Optimal transport matrix.
+  """
   geom_xx = pointcloud.PointCloud(xx, cost_fn=cost_fn, scale_cost=scale_cost)
   geom_yy = pointcloud.PointCloud(yy, cost_fn=cost_fn, scale_cost=scale_cost)
-  if xy is None:
+  if x is None:
     geom_xy = None
   else:
-    geom_xy = pointcloud.PointCloud(xy, cost_fn=cost_fn, scale_cost=scale_cost)
+    geom_xy = pointcloud.PointCloud(
+        x, y, cost_fn=cost_fn, scale_cost=scale_cost
+    )
 
   out = quadratic.solve(geom_xx, geom_yy, geom_xy, **kwargs)
   return out.matrix

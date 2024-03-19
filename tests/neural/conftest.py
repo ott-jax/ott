@@ -99,7 +99,7 @@ def quad_dl():
   rng = np.random.default_rng(11)
 
   src = _ot_data(rng, n=n, quad_dim=d)
-  tgt = _ot_data(rng, n=n, quad_dim=d, offset=1.0)
+  tgt = _ot_data(rng, n=n, quad_dim=d + 2, offset=1.0)
   ds = datasets.OTDataset(src, tgt)
 
   return DataLoader(ds, batch_size=16, shuffle=True)
