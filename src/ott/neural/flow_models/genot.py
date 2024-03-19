@@ -30,21 +30,37 @@ __all__ = ["GENOT"]
 
 
 class GENOT:
-  """TODO :cite:`klein_uscidda:23`.
+  """GENOT for entropic neural optimal transport :cite:`klein_uscidda:23`.
+
+  GENOT (Generative Entropic Neural Optimal Transport) is a framework for
+  learning neural optimal transport plans between two distributions. It
+  allows for learning linear and quadratic (Fused) Gromov-Wasserstein couplings,
+  in both the balanced and the unbalanced setting.
+
 
   Args:
     velocity_field: Neural vector field parameterized by a neural network.
     flow: Flow between latent distribution and target distribution.
-    data_match_fn: Linear OT solver to match the latent distribution
-      with the conditional distribution.
-    time_sampler: Sampler for the time.
-      of an input sample, see algorithm TODO.
-    latent_match_fn: TODO.
-    latent_noise_fn: TODO.
+    data_match_fn: OT solver to matching the source and the target distribution.
+    source_dim: Dimension of the source space.
+    target_dim: Dimension of the target space.
+    condition_dim: Dimension of the conditions.
+    time_sampler: Sampler for the time to learn the neural ODE. If :obj:`None`,
+      the time is uniformly sampled.
     # TODO(michalk8): rename
     k_samples_per_x: Number of samples drawn from the conditional distribution
+      per single source sample.
+    latent_match_fn: Linear OT matcher to optimally pair the latent
+      distribution with the `k_samples_per_x` samples of the conditional
+      distribution (corresponding to one sample). If :obj:`None`, samples
+      from the latent distribution are randomly paired with the samples from
+      the conditional distribution.
+    latent_noise_fn: Function to sample from the latent distribution in the
+      target space. If :obj:`None`, the latent distribution is sampled from a
+      multivariate normal distribution.
     # TODO(michalk8): expose all args for the train state?
-    kwargs: TODO.
+    kwargs: Keyword arguments for
+      :meth:`ott.neural.flow_models.models.VelocityField.create_train_state`.
   """
 
   def __init__(
@@ -54,14 +70,17 @@ class GENOT:
       # TODO(michalk8): all of these can be optional, explain in the docs
       data_match_fn: Callable[
           [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
+      source_dim: int,
+      target_dim: int,
+      condition_dim: int,
       time_sampler: Callable[[jax.Array, int],
                              jnp.ndarray] = flow_utils.uniform_sampler,
+      # TODO(michalk8): rename, too descriptive
+      k_samples_per_x: int = 1,
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                          jnp.ndarray]] = None,
       latent_noise_fn: Optional[Callable[[jax.Array, Tuple[int, ...]],
                                          jnp.ndarray]] = None,
-      # TODO(michalk8): rename, too descriptive
-      k_samples_per_x: int = 1,
       **kwargs: Any,
   ):
     self.vf = velocity_field
@@ -71,12 +90,16 @@ class GENOT:
     self.latent_match_fn = latent_match_fn
     if latent_noise_fn is None:
       latent_noise_fn = functools.partial(
-          flow_utils.multivariate_normal, dim=kwargs["input_dim"]
+          flow_utils.multivariate_normal, dim=target_dim
       )
     self.latent_noise_fn = latent_noise_fn
     self.k_samples_per_x = k_samples_per_x
 
-    self.vf_state = self.vf.create_train_state(**kwargs)
+    self.vf_state = self.vf.create_train_state(
+        input_dim=target_dim,
+        condition_dim=source_dim + condition_dim,
+        **kwargs
+    )
     self.step_fn = self._get_step_fn()
 
   def _get_step_fn(self) -> Callable:
@@ -113,8 +136,7 @@ class GENOT:
           vf_state.params, time, source, target, latent, source_conditions, rng
       )
 
-      # TODO(michalk8): follow the convention with loss being first
-      return vf_state.apply_gradients(grads=grads), loss
+      return loss, vf_state.apply_gradients(grads=grads)
 
     return step_fn
 
@@ -124,7 +146,17 @@ class GENOT:
       n_iters: int,
       rng: Optional[jax.Array] = None
   ) -> Dict[str, List[float]]:
-    """TODO."""
+    """Train the GENOT model.
+
+    Args:
+      loader: Data loader returning a dictionary with possible keys
+        `src_lin`, `tgt_lin`, `src_quad`, `tgt_quad`, `src_conditions`.
+      n_iters: Number of iterations to train the model.
+      rng: Random seed.
+
+    Returns:
+      Training logs.
+    """
 
     def prepare_data(
         batch: Dict[str, jnp.ndarray]
@@ -150,8 +182,8 @@ class GENOT:
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
     for batch in loader:
-      rng = jax.random.split(rng, 6)
-      rng, rng_resample, rng_noise, rng_time, rng_latent, rng_step_fn = rng
+      rng = jax.random.split(rng, 5)
+      rng, rng_resample, rng_noise, rng_time, rng_step_fn = rng
 
       batch = jtu.tree_map(jnp.asarray, batch)
       (src, src_cond, tgt), matching_data = prepare_data(batch)
@@ -181,7 +213,7 @@ class GENOT:
       if src_cond is not None:
         src_cond = src_cond.reshape(-1, *src_cond.shape[2:])
 
-      self.vf_state, loss = self.step_fn(
+      loss, self.vf_state = self.step_fn(
           rng_step_fn, self.vf_state, time, src, tgt, latent, src_cond
       )
 
