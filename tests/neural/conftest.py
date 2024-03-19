@@ -96,11 +96,12 @@ def conditional_lin_dl() -> datasets.ConditionalLoader:
 
 @pytest.fixture()
 def quad_dl():
-  n, d = 128, 2
+  n = 128
+  quad_dim_src, quad_dim_tgt = 2, 4
   rng = np.random.default_rng(11)
 
-  src = _ot_data(rng, n=n, quad_dim=d)
-  tgt = _ot_data(rng, n=n, quad_dim=d + 2, offset=1.0)
+  src = _ot_data(rng, n=n, quad_dim=quad_dim_src)
+  tgt = _ot_data(rng, n=n, quad_dim=quad_dim_tgt, offset=1.0)
   ds = datasets.OTDataset(src, tgt)
 
   return DataLoader(ds, batch_size=16, shuffle=True)
@@ -108,13 +109,20 @@ def quad_dl():
 
 @pytest.fixture()
 def conditional_quad_dl() -> datasets.ConditionalLoader:
-  n, d, cond_dim = 128, 2, 5
+  n, cond_dim = 128, 5
+  quad_dim_src, quad_dim_tgt = 2, 4
   rng = np.random.default_rng(11)
 
-  src0 = _ot_data(rng, n=n, condition=0.0, cond_dim=cond_dim, quad_dim=d)
-  tgt0 = _ot_data(rng, n=n, quad_dim=d, cond_dim=cond_dim, offset=2.0)
-  src1 = _ot_data(rng, n=n, condition=1.0, quad_dim=d + 2)
-  tgt1 = _ot_data(rng, n=n, quad_dim=d + 2, offset=-2.0)
+  src0 = _ot_data(
+      rng, n=n, condition=0.0, cond_dim=cond_dim, quad_dim=quad_dim_src
+  )
+  tgt0 = _ot_data(
+      rng, n=n, quad_dim=quad_dim_tgt, cond_dim=cond_dim, offset=2.0
+  )
+  src1 = _ot_data(
+      rng, n=n, condition=1.0, cond_dim=cond_dim, quad_dim=quad_dim_src
+  )
+  tgt1 = _ot_data(rng, n=n, quad_dim=quad_dim_tgt, offset=-2.0)
 
   src_ds = datasets.OTDataset(src0, tgt0)
   tgt_ds = datasets.OTDataset(src1, tgt1)
@@ -127,11 +135,12 @@ def conditional_quad_dl() -> datasets.ConditionalLoader:
 
 @pytest.fixture()
 def fused_dl():
-  n, lin_dim, d = 128, 2
+  n, lin_dim = 128, 6
+  quad_dim_src, quad_dim_tgt = 2, 4
   rng = np.random.default_rng(11)
 
-  src = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d)
-  tgt = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=1.0)
+  src = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_src)
+  tgt = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_tgt, offset=1.0)
   ds = datasets.OTDataset(src, tgt)
 
   return DataLoader(ds, batch_size=16, shuffle=True)
@@ -139,13 +148,28 @@ def fused_dl():
 
 @pytest.fixture()
 def conditional_fused_dl() -> datasets.ConditionalLoader:
-  n, lin_dim, d = 128, 3, 2
+  n, lin_dim, cond_dim = 128, 3, 7
+  quad_dim_src, quad_dim_tgt = 2, 4
   rng = np.random.default_rng(11)
 
-  src0 = _ot_data(rng, n=n, condition=0.0, lin_dim=lin_dim, quad_dim=d)
-  tgt0 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=2.0)
-  src1 = _ot_data(rng, n=n, condition=1.0, lin_dim=lin_dim, quad_dim=d)
-  tgt1 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=-2.0)
+  src0 = _ot_data(
+      rng,
+      n=n,
+      condition=0.0,
+      cond_dim=cond_dim,
+      lin_dim=lin_dim,
+      quad_dim=quad_dim_src
+  )
+  tgt0 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_tgt, offset=2.0)
+  src1 = _ot_data(
+      rng,
+      n=n,
+      condition=1.0,
+      cond_dim=cond_dim,
+      lin_dim=lin_dim,
+      quad_dim=quad_dim_src
+  )
+  tgt1 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_tgt, offset=-2.0)
 
   src_ds = datasets.OTDataset(src0, tgt0)
   tgt_ds = datasets.OTDataset(src1, tgt1)
