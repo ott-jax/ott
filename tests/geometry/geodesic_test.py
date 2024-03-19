@@ -13,16 +13,15 @@
 # limitations under the License.
 from typing import Optional, Union
 
-
-import jax
-import jax.experimental.sparse as jesp
-import jax.numpy as jnp
-
 import networkx as nx
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
 
 import pytest
+
+import jax
+import jax.experimental.sparse as jesp
+import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import geodesic, geometry, graph
