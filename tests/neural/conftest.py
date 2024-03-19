@@ -41,7 +41,8 @@ def _ot_data(
   )
 
   if isinstance(condition, float):
-    cond_dim = lin_dim if cond_dim is None else cond_dim
+    _dim = lin_dim if lin_dim is not None else quad_dim
+    cond_dim = _dim if cond_dim is None else cond_dim
     condition = np.full((n, cond_dim), fill_value=condition)
 
   return datasets.OTData(lin=lin_data, quad=quad_data, condition=condition)
@@ -80,9 +81,9 @@ def conditional_lin_dl() -> datasets.ConditionalLoader:
   rng = np.random.default_rng(42)
 
   src0 = _ot_data(rng, condition=0.0, lin_dim=d, cond_dim=cond_dim)
-  tgt0 = _ot_data(rng, offset=2.0)
+  tgt0 = _ot_data(rng, lin_dim=d, offset=2.0)
   src1 = _ot_data(rng, condition=1.0, lin_dim=d, cond_dim=cond_dim)
-  tgt1 = _ot_data(rng, offset=-2.0)
+  tgt1 = _ot_data(rng, lin_dim=d, offset=-2.0)
 
   src_ds = datasets.OTDataset(src0, tgt0)
   tgt_ds = datasets.OTDataset(src1, tgt1)
@@ -106,5 +107,50 @@ def quad_dl():
 
 
 @pytest.fixture()
-def quad_dl_with_conds():
-  pass
+def conditional_quad_dl() -> datasets.ConditionalLoader:
+  n, d, cond_dim = 128, 2, 5
+  rng = np.random.default_rng(11)
+
+  src0 = _ot_data(rng, n=n, condition=0.0, cond_dim=cond_dim, quad_dim=d)
+  tgt0 = _ot_data(rng, n=n, quad_dim=d, cond_dim=cond_dim, offset=2.0)
+  src1 = _ot_data(rng, n=n, condition=1.0, quad_dim=d + 2)
+  tgt1 = _ot_data(rng, n=n, quad_dim=d + 2, offset=-2.0)
+
+  src_ds = datasets.OTDataset(src0, tgt0)
+  tgt_ds = datasets.OTDataset(src1, tgt1)
+
+  src_dl = DataLoader(src_ds, batch_size=16, shuffle=True)
+  tgt_dl = DataLoader(tgt_ds, batch_size=16, shuffle=True)
+
+  return datasets.ConditionalLoader([src_dl, tgt_dl])
+
+
+@pytest.fixture()
+def fused_dl():
+  n, lin_dim, d = 128, 2
+  rng = np.random.default_rng(11)
+
+  src = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d)
+  tgt = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=1.0)
+  ds = datasets.OTDataset(src, tgt)
+
+  return DataLoader(ds, batch_size=16, shuffle=True)
+
+
+@pytest.fixture()
+def conditional_fused_dl() -> datasets.ConditionalLoader:
+  n, lin_dim, d = 128, 3, 2
+  rng = np.random.default_rng(11)
+
+  src0 = _ot_data(rng, n=n, condition=0.0, lin_dim=lin_dim, quad_dim=d)
+  tgt0 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=2.0)
+  src1 = _ot_data(rng, n=n, condition=1.0, lin_dim=lin_dim, quad_dim=d)
+  tgt1 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=d + 2, offset=-2.0)
+
+  src_ds = datasets.OTDataset(src0, tgt0)
+  tgt_ds = datasets.OTDataset(src1, tgt1)
+
+  src_dl = DataLoader(src_ds, batch_size=16, shuffle=True)
+  tgt_dl = DataLoader(tgt_ds, batch_size=16, shuffle=True)
+
+  return datasets.ConditionalLoader([src_dl, tgt_dl])

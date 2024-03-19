@@ -121,3 +121,47 @@ class TestGENOT:
 
     assert jnp.sum(jnp.isnan(res)) == 0
     assert res.shape[-1] == tgt_dim
+
+  @pytest.mark.parametrize("dl", ["fused_dl", "conditional_fused_dl"])
+  def test_genot_fused(self, rng: jax.Array, dl: str, request):
+    rng_init, rng_call = jax.random.split(rng)
+    hidden_dim = 7
+    dl = request.getfixturevalue(dl)
+
+    batch = next(iter(dl))
+    src_lin = jnp.asarray(batch["src_lin"])
+    tgt_lin = jnp.asarray(batch["tgt_lin"])
+    src_quad = jnp.asarray(batch["src_quad"])
+    tgt_quad = jnp.asarray(batch["tgt_quad"])
+    src_cond = batch.get("src_condition")
+    if src_cond is not None:
+      src_cond = jnp.asarray(src_cond)
+    src_dim = src_lin.shape[-1] + src_quad.shape[-1]
+    tgt_dim = tgt_lin.shape[-1] + tgt_quad.shape[-1]
+    cond_dim = src_cond.shape[-1] if src_cond is not None else 0
+
+    vf = models.VelocityField(
+        hidden_dim=hidden_dim,
+        output_dim=tgt_dim,
+        condition_dim=src_dim + cond_dim,
+    )
+
+    data_mfn = functools.partial(data_match_fn, type="fused")
+
+    model = genot.GENOT(
+        vf,
+        flow=flows.ConstantNoiseFlow(0.0),
+        data_match_fn=data_mfn,
+        source_dim=src_dim,
+        target_dim=tgt_dim,
+        condition_dim=cond_dim,
+        rng=rng_init,
+        optimizer=optax.adam(learning_rate=1e-4),
+    )
+
+    _logs = model(dl, n_iters=3, rng=rng_call)
+    src = jnp.concatenate([src_lin, src_quad], axis=-1)
+    res = model.transport(src, condition=src_cond)
+
+    assert jnp.sum(jnp.isnan(res)) == 0
+    assert res.shape[-1] == tgt_dim
