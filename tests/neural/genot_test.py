@@ -39,21 +39,40 @@ def data_match_fn(
 
 class TestGENOT:
 
-  # TODO(michalk8): test gw/fgw, k, etc.
-  @pytest.mark.parametrize("dl", ["lin_dl", "conditional_lin_dl"])
-  def test_genot_linear(self, rng: jax.Array, dl: str, request):
+  @pytest.mark.parametrize(
+      "dl", [
+          "lin_dl", "conditional_lin_dl", "quad_dl", "conditional_quad_dl",
+          "fused_dl", "conditional_fused_dl"
+      ]
+  )
+  def test_genot(self, rng: jax.Array, dl: str, request):
     rng_init, rng_call = jax.random.split(rng)
     hidden_dim = 7
     dl = request.getfixturevalue(dl)
 
     batch = next(iter(dl))
-    src = jnp.asarray(batch["src_lin"])
-    tgt = jnp.asarray(batch["tgt_lin"])
+    src_lin = batch.get("src_lin")
+    if src_lin is not None:
+      src_lin = jnp.asarray(src_lin)
+    src_quad = batch.get("src_quad")
+    if src_quad is not None:
+      src_quad = jnp.asarray(src_quad)
+    tgt_lin = batch.get("tgt_lin")
+    if tgt_lin is not None:
+      tgt_lin = jnp.asarray(batch["tgt_lin"])
+    tgt_quad = batch.get("tgt_quad")
+    if tgt_quad is not None:
+      tgt_quad = jnp.asarray(batch["tgt_quad"])
     src_cond = batch.get("src_condition")
     if src_cond is not None:
       src_cond = jnp.asarray(src_cond)
-    src_dim = src.shape[-1]
-    tgt_dim = tgt.shape[-1]
+
+    src_lin_dim = src_lin.shape[-1] if src_lin is not None else 0
+    src_quad_dim = src_quad.shape[-1] if src_quad is not None else 0
+    tgt_lin_shape = tgt_lin.shape[-1] if tgt_lin is not None else 0
+    tgt_quad_shape = tgt_quad.shape[-1] if tgt_quad is not None else 0
+    src_dim = src_lin_dim + src_quad_dim
+    tgt_dim = tgt_lin_shape + tgt_quad_shape
     cond_dim = src_cond.shape[-1] if src_cond is not None else 0
 
     vf = models.VelocityField(
@@ -62,7 +81,16 @@ class TestGENOT:
         condition_dim=src_dim + cond_dim,
     )
 
-    data_mfn = functools.partial(data_match_fn, type="linear")
+    if src_lin_dim > 0 and src_quad_dim == 0:
+      problem_type = "linear"
+    elif src_lin_dim == 0 and src_quad_dim > 0:
+      problem_type = "quadratic"
+    elif src_lin_dim > 0 and src_quad_dim > 0:
+      problem_type = "fused"
+    else:
+      raise ValueError("Unknown problem type")
+
+    data_mfn = functools.partial(data_match_fn, type=problem_type)
 
     model = genot.GENOT(
         vf,
@@ -76,91 +104,8 @@ class TestGENOT:
     )
 
     _logs = model(dl, n_iters=3, rng=rng_call)
-    res = model.transport(src, condition=src_cond)
-
-    assert jnp.sum(jnp.isnan(res)) == 0
-    assert res.shape[-1] == tgt_dim
-
-  @pytest.mark.parametrize("dl", ["quad_dl", "conditional_quad_dl"])
-  def test_genot_quad(self, rng: jax.Array, dl: str, request):
-    rng_init, rng_call = jax.random.split(rng)
-    hidden_dim = 7
-    dl = request.getfixturevalue(dl)
-
-    batch = next(iter(dl))
-    src = jnp.asarray(batch["src_quad"])
-    tgt = jnp.asarray(batch["tgt_quad"])
-    src_cond = batch.get("src_condition")
-    if src_cond is not None:
-      src_cond = jnp.asarray(src_cond)
-    src_dim = src.shape[-1]
-    tgt_dim = tgt.shape[-1]
-    cond_dim = src_cond.shape[-1] if src_cond is not None else 0
-
-    vf = models.VelocityField(
-        hidden_dim=hidden_dim,
-        output_dim=tgt_dim,
-        condition_dim=src_dim + cond_dim,
-    )
-
-    data_mfn = functools.partial(data_match_fn, type="quadratic")
-
-    model = genot.GENOT(
-        vf,
-        flow=flows.ConstantNoiseFlow(0.0),
-        data_match_fn=data_mfn,
-        source_dim=src_dim,
-        target_dim=tgt_dim,
-        condition_dim=cond_dim,
-        rng=rng_init,
-        optimizer=optax.adam(learning_rate=1e-4),
-    )
-
-    _logs = model(dl, n_iters=3, rng=rng_call)
-    res = model.transport(src, condition=src_cond)
-
-    assert jnp.sum(jnp.isnan(res)) == 0
-    assert res.shape[-1] == tgt_dim
-
-  @pytest.mark.parametrize("dl", ["fused_dl", "conditional_fused_dl"])
-  def test_genot_fused(self, rng: jax.Array, dl: str, request):
-    rng_init, rng_call = jax.random.split(rng)
-    hidden_dim = 7
-    dl = request.getfixturevalue(dl)
-
-    batch = next(iter(dl))
-    src_lin = jnp.asarray(batch["src_lin"])
-    tgt_lin = jnp.asarray(batch["tgt_lin"])
-    src_quad = jnp.asarray(batch["src_quad"])
-    tgt_quad = jnp.asarray(batch["tgt_quad"])
-    src_cond = batch.get("src_condition")
-    if src_cond is not None:
-      src_cond = jnp.asarray(src_cond)
-    src_dim = src_lin.shape[-1] + src_quad.shape[-1]
-    tgt_dim = tgt_lin.shape[-1] + tgt_quad.shape[-1]
-    cond_dim = src_cond.shape[-1] if src_cond is not None else 0
-
-    vf = models.VelocityField(
-        hidden_dim=hidden_dim,
-        output_dim=tgt_dim,
-        condition_dim=src_dim + cond_dim,
-    )
-
-    data_mfn = functools.partial(data_match_fn, type="fused")
-
-    model = genot.GENOT(
-        vf,
-        flow=flows.ConstantNoiseFlow(0.0),
-        data_match_fn=data_mfn,
-        source_dim=src_dim,
-        target_dim=tgt_dim,
-        condition_dim=cond_dim,
-        rng=rng_init,
-        optimizer=optax.adam(learning_rate=1e-4),
-    )
-
-    _logs = model(dl, n_iters=3, rng=rng_call)
-    src = jnp.concatenate([src_lin, src_quad], axis=-1)
+    src_terms = [term for term in [src_lin, src_quad] if term is not None]
+    src = jnp.concatenate(src_terms, axis=-1)
     res = model.transport(src, condition=src_cond)
 
     assert jnp.sum(jnp.isnan(res)) == 0
