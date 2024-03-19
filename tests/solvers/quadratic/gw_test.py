@@ -212,7 +212,9 @@ class TestGromovWasserstein:
     )
     if rank > 0:
       solver = gromov_wasserstein_lr.LRGromovWasserstein(
-          rank=rank, epsilon=0.0, max_iterations=10
+          rank=rank,
+          epsilon=0.0,
+          max_iterations=10,
       )
     else:
       solver = gromov_wasserstein.GromovWasserstein(
@@ -326,7 +328,13 @@ class TestGromovWasserstein:
     geom_yy = pointcloud.PointCloud(y)
     prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy, a=a, b=b)
 
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=5, epsilon=0.2)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=5,
+        epsilon=0.2,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
+    )
     ot_gwlr = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
     ot_gw = solver(prob)
@@ -354,9 +362,17 @@ class TestGromovWasserstein:
         geom_xx, geom_yy, geom_xy=geom_xy, fused_penalty=1.3, a=a, b=b
     )
 
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=6)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=6, min_iterations=0, inner_iterations=10, max_iterations=2000
+    )
     ot_gwlr = solver(prob)
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=6, epsilon=1e-1)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=6,
+        epsilon=1e-1,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
+    )
     ot_gwlreps = solver(prob)
     solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
     ot_gw = solver(prob)
@@ -374,7 +390,13 @@ class TestGromovWasserstein:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b
     )
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=2, epsilon=1e-1)
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2,
+        epsilon=1e-1,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
+    )
     out = solver(prob)
 
     arr, matrix = (self.x, out.matrix) if axis == 0 else (self.y, out.matrix.T)
@@ -432,7 +454,12 @@ class TestGromovWasserstein:
     )
     solver = jax.jit(
         gromov_wasserstein_lr.LRGromovWasserstein(
-            rank=4, epsilon=eps, kwargs_dys={"translation_invariant": ti}
+            rank=4,
+            epsilon=eps,
+            kwargs_dys={"translation_invariant": ti},
+            min_iterations=0,
+            inner_iterations=10,
+            max_iterations=2000
         )
     )
 
@@ -470,8 +497,9 @@ class TestGromovWasserstein:
             rank=rank,
             epsilon=eps,
             initializer="random",
+            inner_iterations=50,
             min_iterations=50,
-            max_iterations=50
+            max_iterations=50,
         )
     )
 

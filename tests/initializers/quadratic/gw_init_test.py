@@ -42,7 +42,11 @@ class TestQuadraticInitializers:
     rank = 10
     q_init = initializers_lr.Rank2Initializer(rank)
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
-        rank=rank, initializer=q_init
+        rank=rank,
+        initializer=q_init,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
     )
 
     assert solver.create_initializer("not used") is q_init
@@ -69,11 +73,17 @@ class TestQuadraticInitializers:
         rank=rank,
         initializer="random",
         epsilon=eps,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
     )
     solver_kmeans = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank,
         initializer="k-means",
         epsilon=eps,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=2000
     )
 
     out_random = solver_random(problem)

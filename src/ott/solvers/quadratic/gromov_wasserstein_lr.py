@@ -278,6 +278,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
+    min_iterations: The minimum number of low-rank Sinkhorn iterations carried
+      out before the error is computed and monitored.
+    max_iterations: The maximum number of low-rank Sinkhorn iterations.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
       input parameters. Only `True` handled at this moment.
     implicit_diff: Whether to use implicit differentiation. Currently, only
@@ -305,9 +308,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
                                  "generalized-k-means"],
                          initializers_lr.LRInitializer] = "random",
       lse_mode: bool = True,
-      inner_iterations: int = 10,
       use_danskin: bool = True,
       implicit_diff: bool = False,
+      inner_iterations: int = 2_000,
+      min_iterations: int = 10_000,
+      max_iterations: int = 100_000,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
       kwargs_init: Optional[Mapping[str, Any]] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
@@ -317,6 +322,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     super().__init__(
         lse_mode=lse_mode,
         inner_iterations=inner_iterations,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations,
         use_danskin=use_danskin,
         implicit_diff=implicit_diff,
         **kwargs

@@ -9,6 +9,8 @@ Datasets
 Dykstra
 Fenchel
 Frobenius
+Gangbo
+Gangbo-McCann
 Gaussians
 Gromov
 Hessians
@@ -19,6 +21,7 @@ Kantorovich
 Kullback
 Leibler
 Mahalanobis
+McCann
 Monge
 Moreau
 SGD
