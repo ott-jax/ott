@@ -111,7 +111,7 @@ class VelocityField(nn.Module):
       rng: Random number generator.
       optimizer: Optimizer.
       input_dim: Dimensionality of the velocity field.
-      condition_dim: Dimensionsanilty of the condition
+      condition_dim: Dimensionality of the condition
         to the velocity field.
 
     Returns:

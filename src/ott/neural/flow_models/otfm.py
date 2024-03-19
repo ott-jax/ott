@@ -154,7 +154,7 @@ class OTFlowMatching:
       t1: float = 1.0,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    """Transport data with the learnt map.
+    """Transport data with the learned map.
 
     This method pushes-forward the data by solving the neural ODE
     parameterized by the velocity field.
@@ -167,7 +167,7 @@ class OTFlowMatching:
       kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learnt
+      The push-forward or pull-back distribution defined by the learned
       transport plan.
     """
 

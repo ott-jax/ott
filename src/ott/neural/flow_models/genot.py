@@ -256,7 +256,7 @@ class GENOT:
       rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> jnp.ndarray:
-    """Transport data with the learnt plan.
+    """Transport data with the learned plan.
 
     This method pushes-forward the `source` to its conditional distribution by
       solving the neural ODE parameterized by the
@@ -271,7 +271,7 @@ class GENOT:
       kwargs: Keyword arguments for the ODE solver.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learnt
+      The push-forward or pull-back distribution defined by the learned
       transport plan.
     """
 

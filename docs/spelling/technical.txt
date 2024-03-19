@@ -25,6 +25,7 @@ McCann
 Monge
 Moreau
 SGD
+Schrödinger
 Schur
 Seidel
 Sinkhorn
