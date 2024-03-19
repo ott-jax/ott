@@ -24,7 +24,13 @@ Item_t = Dict[str, np.ndarray]
 
 @dataclasses.dataclass(repr=False, frozen=True)
 class OTData:
-  """TODO."""
+  """Distribution data for (conditional) optimal transport problems.
+
+  Args:
+    lin: Linear (living in the shared space) part of the samples.
+    quad: Quadratic (living in the incomparable subspace) part of the samples.
+    condition: Condition corresponding to the data distribution.
+  """
   lin: Optional[np.ndarray] = None
   quad: Optional[np.ndarray] = None
   condition: Optional[np.ndarray] = None
@@ -41,7 +47,16 @@ class OTData:
 
 
 class OTDataset:
-  """TODO."""
+  """Dataset for (conditional) optimal transport problems.
+
+  Args:
+    src_data: Samples from the source distribution.
+    tgt_data: Samples from the target distribution.
+    src_conditions: Conditions for the source data.
+    tgt_conditions: Conditions for the target data.
+    is_aligned: Whether the samples from `src_data` and `tgt_data` are paired.
+    seed: Random seed.
+  """
   SRC_PREFIX = "src"
   TGT_PREFIX = "tgt"
 
@@ -71,9 +86,9 @@ class OTDataset:
     self.is_aligned = is_aligned
     self._rng = np.random.default_rng(seed)
 
-    self._verify_integriy()
+    self._verify_integrity()
 
-  def _verify_integriy(self) -> None:
+  def _verify_integrity(self) -> None:
     assert len(self.src_data) == len(self.src_conditions)
     assert len(self.tgt_data) == len(self.tgt_conditions)
 
