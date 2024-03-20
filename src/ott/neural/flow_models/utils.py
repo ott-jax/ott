@@ -99,7 +99,15 @@ def match_quadratic(
 
 def sample_joint(rng: jax.Array,
                  tmat: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """TODO."""
+  """Sample from a transport matrix.
+  
+  Args:
+    rng: Random number generator.
+    tmat: Transport matrix.
+
+  Returns:
+    Source and target indices sampled from the transport matrix.
+  """
   n, m = tmat.shape
   tmat_flattened = tmat.flatten()
   indices = jax.random.choice(
