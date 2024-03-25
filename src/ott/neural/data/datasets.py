@@ -142,22 +142,20 @@ class ConditionalLoader:
   def __next__(self) -> Item_t:
     if self._it == len(self):
       raise StopIteration
+    self._it += 1
 
     ix = self._rng.choice(len(self._iterators))
     iterator = self._iterators[ix]
     try:
-      data = next(iterator)
-      # TODO(michalk8): improve the logic a bit
-      self._it += 1
-      return data
+      return next(iterator)
     except StopIteration:
-      self._iterators[ix] = iter(self.datasets[ix])
-      if not self._iterators:
-        raise
+      # reset the consumed iterator and return it's first element
+      self._iterators[ix] = iterator = iter(self.datasets[ix])
+      return next(iterator)
 
   def __iter__(self) -> "ConditionalLoader":
-    self._iterators = [iter(ds) for ds in self.datasets]
     self._it = 0
+    self._iterators = [iter(ds) for ds in self.datasets]
     return self
 
   def __len__(self) -> int:
