@@ -34,7 +34,7 @@ class OTFlowMatching:
   With an extension to OT-FM :cite:`tong:23`, :cite:`pooladian:23`.
 
   Args:
-    velocity_field: Neural vector field parameterized by a neural network.
+    velocity_field: Vector field parameterized by a neural network.
     flow: Flow between source and target distribution.
     match_fn: Function to match data points from the source distribution and
       the target distribution.

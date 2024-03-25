@@ -56,7 +56,7 @@ class OTDataset:
     tgt_conditions: Conditions for the target data.
     is_aligned: Whether the samples from the source and the target data
       are paired. If yes, the source and the target conditions must match.
-    seed: Random seed.
+    seed: Random seed used to match source and target when not aligned.
   """
   SRC_PREFIX = "src"
   TGT_PREFIX = "tgt"

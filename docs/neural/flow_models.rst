@@ -48,4 +48,3 @@ Utils
     utils.sample_conditional
     utils.cyclical_time_encoder
     utils.uniform_sampler
-    utils.multivariate_normal

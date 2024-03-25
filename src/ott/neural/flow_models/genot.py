@@ -28,37 +28,45 @@ from ott.neural.flow_models import utils as flow_utils
 
 __all__ = ["GENOT"]
 
+# input: (src_lin, tgt_lin, src_quad, tgt_quad), output: (len(src), len(tgt))
+# all are optional because the problem can be linear/quadratic/fused
+DataMatchFn_t = Callable[[
+    Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray],
+    Optional[jnp.ndarray]
+], jnp.ndarray]
+
 
 class GENOT:
-  """GENOT for entropic neural optimal transport :cite:`klein_uscidda:23`.
+  """Generative Entropic Neural Optimal Transport :cite:`klein_uscidda:23`.
 
-  GENOT (Generative Entropic Neural Optimal Transport) is a framework for
-  learning neural optimal transport plans between two distributions. It
-  allows for learning linear and quadratic (Fused) Gromov-Wasserstein couplings,
-  in both the balanced and the unbalanced setting.
-
+  GENOT is a framework for learning neural optimal transport plans between
+  two distributions. It allows for learning linear and quadratic
+  (Fused) Gromov-Wasserstein couplings, in both the balanced and
+  the unbalanced setting.
 
   Args:
-    velocity_field: Neural vector field parameterized by a neural network.
+    velocity_field: Vector field parameterized by a neural network.
     flow: Flow between latent distribution and target distribution.
-    data_match_fn: OT solver to matching the source and the target distribution.
+    data_match_fn: Function to match source and target distributions.
+      The function accepts a 4-tuple ``(src_lin, tgt_lin, src_quad, tgt_quad)``
+      and return the transport matrix of shape ``(len(src), len(tgt))``.
+      Either linear, quadratic or both linear and quadratic source and target
+      arrays are passed, corresponding to the linear, quadratic and
+      fused GW couplings, respectively.
     source_dim: Dimension of the source space.
     target_dim: Dimension of the target space.
-    condition_dim: Dimension of the conditions.
+    condition_dim: Dimension of the conditions. If :obj:`None`, the underlying
+      velocity field has no conditions.
+    n_samples_per_src: Number of samples drawn from the conditional distribution
+      per one source sample.
     time_sampler: Sampler for the time to learn the neural ODE. If :obj:`None`,
       the time is uniformly sampled.
-    # TODO(michalk8): rename
-    k_samples_per_x: Number of samples drawn from the conditional distribution
-      per single source sample.
-    latent_match_fn: Linear OT matcher to optimally pair the latent
-      distribution with the `k_samples_per_x` samples of the conditional
-      distribution (corresponding to one sample). If :obj:`None`, samples
-      from the latent distribution are randomly paired with the samples from
-      the conditional distribution.
     latent_noise_fn: Function to sample from the latent distribution in the
       target space. If :obj:`None`, the latent distribution is sampled from a
       multivariate normal distribution.
-    # TODO(michalk8): expose all args for the train state?
+    latent_match_fn: Function to pair the latent distribution with
+      the ``n_samples_per_src`` samples of the conditional distribution.
+      If :obj:`None`, no matching is performed.
     kwargs: Keyword arguments for
       :meth:`ott.neural.flow_models.models.VelocityField.create_train_state`.
   """
@@ -67,18 +75,17 @@ class GENOT:
       self,
       velocity_field: models.VelocityField,
       flow: flows.BaseFlow,
-      data_match_fn: Callable[
-          [jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray],
+      data_match_fn: DataMatchFn_t,
+      *,
       source_dim: int,
       target_dim: int,
-      condition_dim: int,
+      condition_dim: Optional[int] = None,
+      n_samples_per_src: int = 1,
       time_sampler: Callable[[jax.Array, int],
                              jnp.ndarray] = flow_utils.uniform_sampler,
-      # TODO(michalk8): rename, too descriptive
-      k_samples_per_x: int = 1,
-      latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
-                                         jnp.ndarray]] = None,
       latent_noise_fn: Optional[Callable[[jax.Array, Tuple[int, ...]],
+                                         jnp.ndarray]] = None,
+      latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                          jnp.ndarray]] = None,
       **kwargs: Any,
   ):
@@ -86,17 +93,15 @@ class GENOT:
     self.flow = flow
     self.data_match_fn = data_match_fn
     self.time_sampler = time_sampler
-    self.latent_match_fn = latent_match_fn
     if latent_noise_fn is None:
-      latent_noise_fn = functools.partial(
-          flow_utils.multivariate_normal, dim=target_dim
-      )
+      latent_noise_fn = functools.partial(multivariate_normal, dim=target_dim)
     self.latent_noise_fn = latent_noise_fn
-    self.k_samples_per_x = k_samples_per_x
+    self.latent_match_fn = latent_match_fn
+    self.n_samples_per_src = n_samples_per_src
 
     self.vf_state = self.vf.create_train_state(
         input_dim=target_dim,
-        condition_dim=source_dim + condition_dim,
+        condition_dim=source_dim + (condition_dim or 0),
         **kwargs
     )
     self.step_fn = self._get_step_fn()
@@ -120,10 +125,10 @@ class GENOT:
           source_conditions: Optional[jnp.ndarray], rng: jax.Array
       ):
         x_t = self.flow.compute_xt(rng, time, latent, target)
-        cond = (
-            source if source_conditions is None else
-            jnp.concatenate([source, source_conditions], axis=-1)
-        )
+        if source_conditions is None:
+          cond = source
+        else:
+          cond = jnp.concatenate([source, source_conditions], axis=-1)
 
         v_t = vf_state.apply_fn({"params": params}, time, x_t, cond)
         u_t = self.flow.compute_ut(time, latent, target)
@@ -151,7 +156,7 @@ class GENOT:
       loader: Data loader returning a dictionary with possible keys
         `src_lin`, `tgt_lin`, `src_quad`, `tgt_quad`, `src_conditions`.
       n_iters: Number of iterations to train the model.
-      rng: Random number generator.
+      rng: Random key for seeding.
 
     Returns:
       Training logs.
@@ -175,7 +180,6 @@ class GENOT:
       else:
         raise RuntimeError("Cannot infer OT problem type from data.")
 
-      # TODO(michalk8): filter `None` from the `arrs`?
       return (src, batch.get("src_condition"), tgt), arrs
 
     rng = utils.default_prng_key(rng)
@@ -188,14 +192,14 @@ class GENOT:
       (src, src_cond, tgt), matching_data = prepare_data(batch)
 
       n = src.shape[0]
-      time = self.time_sampler(rng_time, n * self.k_samples_per_x)
-      latent = self.latent_noise_fn(rng_noise, (n, self.k_samples_per_x))
+      time = self.time_sampler(rng_time, n * self.n_samples_per_src)
+      latent = self.latent_noise_fn(rng_noise, (n, self.n_samples_per_src))
 
       tmat = self.data_match_fn(*matching_data)  # (n, m)
       src_ixs, tgt_ixs = flow_utils.sample_conditional(  # (n, k), (m, k)
           rng_resample,
           tmat,
-          k=self.k_samples_per_x,
+          k=self.n_samples_per_src,
           uniform_marginals=True,  # TODO(michalk8): expose
       )
 
@@ -304,3 +308,15 @@ class GENOT:
       source = jnp.concatenate([source, condition], axis=-1)
 
     return jax.jit(jax.vmap(solve_ode))(latent, source)
+
+
+def multivariate_normal(
+    rng: jax.Array,
+    shape: Tuple[int, ...],
+    dim: int,
+    mean: float = 0.0,
+    cov: float = 1.0
+) -> jnp.ndarray:
+  mean = jnp.full(dim, fill_value=mean)
+  cov = jnp.diag(jnp.full(dim, fill_value=cov))
+  return jax.random.multivariate_normal(rng, mean=mean, cov=cov, shape=shape)

@@ -26,7 +26,6 @@ __all__ = [
     "sample_conditional",
     "cyclical_time_encoder",
     "uniform_sampler",
-    "multivariate_normal",
 ]
 
 ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
@@ -100,7 +99,7 @@ def match_quadratic(
 def sample_joint(rng: jax.Array,
                  tmat: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Sample from a transport matrix.
-  
+
   Args:
     rng: Random number generator.
     tmat: Transport matrix.
@@ -130,7 +129,7 @@ def sample_conditional(
   Args:
     rng: Random number generator.
     tmat: Transport matrix.
-    k: Expected number of samples to sample per row.
+    k: Expected number of samples to sample per source.
     uniform_marginals: If :obj:`True`, sample exactly `k` samples
       per row, otherwise sample proportionally to the sums of the
       rows of the transport matrix.
@@ -138,7 +137,7 @@ def sample_conditional(
   Returns:
     Source and target indices sampled from the transport matrix.
   """
-  assert k > 0, "Number of samples per row must be positive."
+  assert k > 0, "Number of samples per source must be positive."
   n, m = tmat.shape
 
   if uniform_marginals:
@@ -208,16 +207,3 @@ def uniform_sampler(
   t = jax.random.uniform(rng, (1, 1), minval=low, maxval=high)
   mod_term = ((high - low) - offset)
   return (t + jnp.arange(num_samples)[:, None] / num_samples) % mod_term
-
-
-def multivariate_normal(
-    rng: jax.Array,
-    shape: Tuple[int, ...],
-    dim: int,
-    mean: float = 0.0,
-    cov: float = 1.0
-) -> jnp.ndarray:
-  """TODO."""
-  mean = jnp.full(dim, fill_value=mean)
-  cov = jnp.diag(jnp.full(dim, fill_value=cov))
-  return jax.random.multivariate_normal(rng, mean=mean, cov=cov, shape=shape)

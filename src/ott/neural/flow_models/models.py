@@ -86,7 +86,7 @@ class VelocityField(nn.Module):
       t = self.act_fn(nn.Dense(time_dim)(t))
       x = self.act_fn(nn.Dense(self.hidden_dim)(x))
       if self.condition_dim is not None:
-        assert condition is not None, "TODO."
+        assert condition is not None, "No condition was specified."
         condition = self.act_fn(nn.Dense(self.condition_dim)(condition))
 
     feats = [t, x] + ([] if condition is None else [condition])
