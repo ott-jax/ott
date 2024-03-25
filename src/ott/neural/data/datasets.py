@@ -54,7 +54,8 @@ class OTDataset:
     tgt_data: Samples from the target distribution.
     src_conditions: Conditions for the source data.
     tgt_conditions: Conditions for the target data.
-    is_aligned: Whether the samples from `src_data` and `tgt_data` are paired.
+    is_aligned: Whether the samples from the source and the target data
+      are paired. If yes, the source and the target conditions must match.
     seed: Random seed.
   """
   SRC_PREFIX = "src"
@@ -67,7 +68,7 @@ class OTDataset:
       src_conditions: Optional[Sequence[Any]] = None,
       tgt_conditions: Optional[Sequence[Any]] = None,
       is_aligned: bool = False,
-      seed: Optional[int] = None
+      seed: Optional[int] = None,
   ):
     self.src_data = src_data
     self.tgt_data = tgt_data
