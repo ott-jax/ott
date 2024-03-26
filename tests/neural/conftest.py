@@ -143,60 +143,28 @@ def fused_dl():
 
 
 @pytest.fixture()
-def conditional_quad_dl() -> datasets.ConditionalLoader:
-  n, cond_dim = 128, 5
-  quad_dim_src, quad_dim_tgt = 2, 4
+def fused_cond_dl():
+  n, lin_dim, quad_src_dim, quad_tgt_dim, cond_dim = 128, 6, 2, 4, 7
   rng = np.random.default_rng(11)
 
-  src0 = _ot_data(
-      rng, n=n, condition=0.0, cond_dim=cond_dim, quad_dim=quad_dim_src
+  src_cond = rng.normal(size=(n, cond_dim))
+  tgt_cond = rng.normal(size=(n, cond_dim))
+  src = _ot_data(
+      rng, n=n, lin_dim=lin_dim, quad_dim=quad_src_dim, condition=src_cond
   )
-  tgt0 = _ot_data(
-      rng, n=n, quad_dim=quad_dim_tgt, cond_dim=cond_dim, offset=2.0
-  )
-  src1 = _ot_data(
-      rng, n=n, condition=1.0, cond_dim=cond_dim, quad_dim=quad_dim_src
-  )
-  tgt1 = _ot_data(rng, n=n, quad_dim=quad_dim_tgt, offset=-2.0)
-
-  src_ds = datasets.OTDataset(src0, tgt0)
-  tgt_ds = datasets.OTDataset(src1, tgt1)
-
-  src_dl = DataLoader(src_ds, batch_size=16, shuffle=True)
-  tgt_dl = DataLoader(tgt_ds, batch_size=16, shuffle=True)
-
-  return datasets.ConditionalLoader([src_dl, tgt_dl])
-
-
-@pytest.fixture()
-def conditional_fused_dl() -> datasets.ConditionalLoader:
-  n, lin_dim, cond_dim = 128, 3, 7
-  quad_dim_src, quad_dim_tgt = 2, 4
-  rng = np.random.default_rng(11)
-
-  src0 = _ot_data(
+  tgt = _ot_data(
       rng,
       n=n,
-      condition=0.0,
-      cond_dim=cond_dim,
       lin_dim=lin_dim,
-      quad_dim=quad_dim_src
+      quad_dim=quad_tgt_dim,
+      offset=1.0,
+      condition=tgt_cond
   )
-  tgt0 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_tgt, offset=2.0)
-  src1 = _ot_data(
-      rng,
-      n=n,
-      condition=1.0,
-      cond_dim=cond_dim,
+  ds = datasets.OTDataset(src, tgt)
+
+  return OTLoader(
+      DataLoader(ds, batch_size=16, shuffle=True),
       lin_dim=lin_dim,
-      quad_dim=quad_dim_src
+      quad_src_dim=quad_src_dim,
+      quad_tgt_dim=quad_tgt_dim,
   )
-  tgt1 = _ot_data(rng, n=n, lin_dim=lin_dim, quad_dim=quad_dim_tgt, offset=-2.0)
-
-  src_ds = datasets.OTDataset(src0, tgt0)
-  tgt_ds = datasets.OTDataset(src1, tgt1)
-
-  src_dl = DataLoader(src_ds, batch_size=16, shuffle=True)
-  tgt_dl = DataLoader(tgt_ds, batch_size=16, shuffle=True)
-
-  return datasets.ConditionalLoader([src_dl, tgt_dl])
