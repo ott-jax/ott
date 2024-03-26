@@ -13,11 +13,11 @@
 # limitations under the License.
 import collections
 import dataclasses
-from typing import Any, Dict, Iterable, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 
-__all__ = ["OTData", "OTDataset", "ConditionalLoader"]
+__all__ = ["OTData", "OTDataset"]
 
 Item_t = Dict[str, np.ndarray]
 
@@ -47,7 +47,7 @@ class OTData:
 
 
 class OTDataset:
-  """Dataset for (conditional) optimal transport problems.
+  """Dataset for optimal transport problems.
 
   Args:
     src_data: Samples from the source distribution.
@@ -118,46 +118,3 @@ class OTDataset:
 
   def __len__(self) -> int:
     return len(self.src_data)
-
-
-class ConditionalLoader:
-  """Dataset for OT problems with conditions.
-
-  This data loader wraps several data loaders and samples from them.
-
-  Args:
-    datasets: Datasets to sample from.
-    seed: Random seed.
-  """
-
-  def __init__(
-      self,
-      datasets: Iterable[OTDataset],
-      seed: Optional[int] = None,
-  ):
-    self.datasets = tuple(datasets)
-    self._rng = np.random.default_rng(seed)
-    self._iterators = []
-    self._it = 0
-
-  def __next__(self) -> Item_t:
-    if self._it == len(self):
-      raise StopIteration
-    self._it += 1
-
-    ix = self._rng.choice(len(self._iterators))
-    iterator = self._iterators[ix]
-    try:
-      return next(iterator)
-    except StopIteration:
-      # reset the consumed iterator and return it's first element
-      self._iterators[ix] = iterator = iter(self.datasets[ix])
-      return next(iterator)
-
-  def __iter__(self) -> "ConditionalLoader":
-    self._it = 0
-    self._iterators = [iter(ds) for ds in self.datasets]
-    return self
-
-  def __len__(self) -> int:
-    return max((len(ds) for ds in self.datasets), default=0)

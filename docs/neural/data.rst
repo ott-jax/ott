@@ -11,5 +11,5 @@ Datasets
 .. autosummary::
     :toctree: _autosummary
 
+    datasets.OTData
     datasets.OTDataset
-    datasets.ConditionalLoader
