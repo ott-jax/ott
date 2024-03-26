@@ -59,7 +59,7 @@ class OTFlowMatching:
     self.match_fn = match_fn
 
     self.vf_state = self.vf.create_train_state(
-        input_dim=self.vf.output_dim, **kwargs
+        input_dim=self.vf.output_dims[-1], **kwargs
     )
     self.step_fn = self._get_step_fn()
 

@@ -26,7 +26,7 @@ __all__ = ["VelocityField"]
 
 
 class VelocityField(nn.Module):
-  r"""Parameterized neural vector field.
+  r"""Neural vector field.
 
   This class learns a map :math:`v: \mathbb{R}\times \mathbb{R}^d
   \rightarrow \mathbb{R}^d` solving the ODE :math:`\frac{dx}{dt} = v(t, x)`.
@@ -36,16 +36,16 @@ class VelocityField(nn.Module):
   from :math:`t=t_0` to :math:`t=t_1`.
 
   Args:
+    output_dims: TODO.
     hidden_dims: Dimensionality of the embedding of the data.
     condition_dims: Dimensionality of the embedding of the condition.
       If :obj:`None`, the velocity field has no conditions.
     time_dims: Dimensionality of the time embedding.
-      If :obj:`None`, ``hidden_dims`` will be used.
-    time_encoder: Function to encode the time input to the time-dependent
-      velocity field.
+      If :obj:`None`, ``hidden_dims`` is used.
+    time_encoder: Time encoder for the velocity field.
     act_fn: Activation function.
   """
-  output_dim: int
+  output_dims: Sequence[int]
   hidden_dims: Sequence[int] = (128, 128, 128)
   condition_dims: Optional[Sequence[int]] = None
   time_dims: Optional[Sequence[int]] = None
@@ -70,33 +70,27 @@ class VelocityField(nn.Module):
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
     """
-    if self.condition_dims is None:
-      cond_dims = [None] * len(self.hidden_dims)
-    else:
-      cond_dims = self.condition_dims
     time_dims = self.hidden_dims if self.time_dims is None else self.time_dims
 
-    assert len(self.hidden_dims) == len(cond_dims), "TODO"
-    assert len(self.hidden_dims) == len(time_dims), "TODO"
-
     t = self.time_encoder(t)
-    for time_dim, cond_dim, hidden_dim in zip(
-        time_dims, cond_dims, self.hidden_dims
-    ):
+    for time_dim in time_dims:
       t = self.act_fn(nn.Dense(time_dim)(t))
+
+    for hidden_dim in self.hidden_dims:
       x = self.act_fn(nn.Dense(hidden_dim)(x))
-      if self.condition_dims is not None:
-        assert condition is not None, "No condition was specified."
+
+    if self.condition_dims is not None:
+      assert condition is not None, "No condition was passed."
+      for cond_dim in self.condition_dims:
         condition = self.act_fn(nn.Dense(cond_dim)(condition))
+      feats = jnp.concatenate([t, x, condition], axis=-1)
+    else:
+      feats = jnp.concatenate([t, x], axis=-1)
 
-    feats = [t, x] + ([] if self.condition_dims is None else [condition])
-    feats = jnp.concatenate(feats, axis=-1)
-    joint_dim = feats.shape[-1]
+    for output_dim in self.output_dims:
+      feats = self.act_fn(nn.Dense(output_dim)(feats))
 
-    for _ in range(len(self.hidden_dims)):
-      feats = self.act_fn(nn.Dense(joint_dim)(feats))
-
-    return nn.Dense(self.output_dim)(feats)
+    return feats
 
   def create_train_state(
       self,
@@ -117,11 +111,7 @@ class VelocityField(nn.Module):
       The training state.
     """
     t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
-    if self.condition_dims is not None:
-      assert condition_dim is not None, "TODO"
-      cond = jnp.ones((1, condition_dim))
-    else:
-      cond = None
+    cond = None if self.condition_dims is None else jnp.ones((1, condition_dim))
 
     params = self.init(rng, t, x, cond)["params"]
     return train_state.TrainState.create(
