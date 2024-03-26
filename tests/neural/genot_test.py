@@ -46,8 +46,7 @@ class TestGENOT:
       ]
   )
   def test_genot(self, rng: jax.Array, dl: str, request):
-    rng_init, rng_call = jax.random.split(rng)
-    hidden_dim = 7
+    rng_init, rng_call = jax.random.split(rng, 2)
     dl = request.getfixturevalue(dl)
 
     batch = next(iter(dl))
@@ -76,9 +75,9 @@ class TestGENOT:
     cond_dim = src_cond.shape[-1] if src_cond is not None else 0
 
     vf = models.VelocityField(
-        hidden_dim=hidden_dim,
-        output_dim=tgt_dim,
-        condition_dim=src_dim + cond_dim,
+        tgt_dim,
+        hidden_dims=[7, 7, 7],
+        condition_dims=[7, 7, 7],
     )
 
     if src_lin_dim > 0 and src_quad_dim == 0:

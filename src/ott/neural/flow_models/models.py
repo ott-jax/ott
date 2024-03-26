@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -35,29 +35,20 @@ class VelocityField(nn.Module):
   a target distribution given at :math:`t_1` by integrating :math:`v(t, x)`
   from :math:`t=t_0` to :math:`t=t_1`.
 
-  Each of the input, condition, and time embeddings are passed through a block
-  consisting of ``num_layers`` layers of dimension
-  ``hidden_dim``, ``condition_dim``, and ``time_embed_dim``,
-  respectively. The output of each block is concatenated and passed through
-  a final block of dimension ``joint_hidden_dim``.
-
   Args:
-    hidden_dim: Dimensionality of the embedding of the data.
-    output_dim: Dimensionality of the neural vector field.
-    num_layers: Number of layers.
-    condition_dim: Dimensionality of the embedding of the condition.
+    hidden_dims: Dimensionality of the embedding of the data.
+    condition_dims: Dimensionality of the embedding of the condition.
       If :obj:`None`, the velocity field has no conditions.
-    time_dim: Dimensionality of the time embedding.
-      If :obj:`None`, set to ``hidden_dim``.
+    time_dims: Dimensionality of the time embedding.
+      If :obj:`None`, ``hidden_dims`` will be used.
     time_encoder: Function to encode the time input to the time-dependent
       velocity field.
     act_fn: Activation function.
   """
-  hidden_dim: int
   output_dim: int
-  num_layers: int = 3
-  condition_dim: Optional[int] = None
-  time_dim: Optional[int] = None
+  hidden_dims: Sequence[int] = (128, 128, 128)
+  condition_dims: Optional[Sequence[int]] = None
+  time_dims: Optional[Sequence[int]] = None
   time_encoder: Callable[[jnp.ndarray],
                          jnp.ndarray] = utils.cyclical_time_encoder
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
@@ -79,24 +70,33 @@ class VelocityField(nn.Module):
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
     """
-    time_dim = self.hidden_dim if self.time_dim is None else self.time_dim
+    if self.condition_dims is None:
+      cond_dims = [None] * len(self.hidden_dims)
+    else:
+      cond_dims = self.condition_dims
+    time_dims = self.hidden_dims if self.time_dims is None else self.time_dims
+
+    assert len(self.hidden_dims) == len(cond_dims), "TODO"
+    assert len(self.hidden_dims) == len(time_dims), "TODO"
 
     t = self.time_encoder(t)
-    for _ in range(self.num_layers):
+    for time_dim, cond_dim, hidden_dim in zip(
+        time_dims, cond_dims, self.hidden_dims
+    ):
       t = self.act_fn(nn.Dense(time_dim)(t))
-      x = self.act_fn(nn.Dense(self.hidden_dim)(x))
-      if self.condition_dim is not None:
+      x = self.act_fn(nn.Dense(hidden_dim)(x))
+      if self.condition_dims is not None:
         assert condition is not None, "No condition was specified."
-        condition = self.act_fn(nn.Dense(self.condition_dim)(condition))
+        condition = self.act_fn(nn.Dense(cond_dim)(condition))
 
-    feats = [t, x] + ([] if condition is None else [condition])
+    feats = [t, x] + ([] if self.condition_dims is None else [condition])
     feats = jnp.concatenate(feats, axis=-1)
     joint_dim = feats.shape[-1]
 
-    for _ in range(self.num_layers):
+    for _ in range(len(self.hidden_dims)):
       feats = self.act_fn(nn.Dense(joint_dim)(feats))
 
-    return nn.Dense(self.output_dim, use_bias=True)(feats)
+    return nn.Dense(self.output_dim)(feats)
 
   def create_train_state(
       self,
@@ -111,14 +111,17 @@ class VelocityField(nn.Module):
       rng: Random number generator.
       optimizer: Optimizer.
       input_dim: Dimensionality of the velocity field.
-      condition_dim: Dimensionality of the condition
-        to the velocity field.
+      condition_dim: Dimensionality of the condition of the velocity field.
 
     Returns:
       The training state.
     """
     t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
-    cond = None if self.condition_dim is None else jnp.ones((1, condition_dim))
+    if self.condition_dims is not None:
+      assert condition_dim is not None, "TODO"
+      cond = jnp.ones((1, condition_dim))
+    else:
+      cond = None
 
     params = self.init(rng, t, x, cond)["params"]
     return train_state.TrainState.create(
