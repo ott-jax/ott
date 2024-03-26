@@ -25,7 +25,7 @@ from ott.neural.flow_models import flows, models, otfm, utils
 class TestOTFlowMatching:
 
   @pytest.mark.parametrize("dl", ["lin_dl", "lin_cond_dl"])
-  def test_fm(self, rng: jax.Array, dl: str, request):
+  def test_otfm(self, rng: jax.Array, dl: str, request):
     dl = request.getfixturevalue(dl)
     dim, cond_dim = dl.lin_dim, dl.cond_dim
 
@@ -40,7 +40,6 @@ class TestOTFlowMatching:
         match_fn=jax.jit(utils.match_linear),
         rng=rng,
         optimizer=optax.adam(learning_rate=1e-3),
-        input_dim=dim,
         condition_dim=cond_dim,
     )
 

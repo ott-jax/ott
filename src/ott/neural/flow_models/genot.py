@@ -46,30 +46,27 @@ class GENOT:
 
   Args:
     velocity_field: Vector field parameterized by a neural network.
-    flow: Flow between latent distribution and target distribution.
-    data_match_fn: Function to match source and target distributions.
-      The function accepts a 4-tuple ``(src_lin, tgt_lin, src_quad, tgt_quad)``
-      and return the transport matrix of shape ``(len(src), len(tgt))``.
-      Either linear, quadratic or both linear and quadratic source and target
-      arrays are passed, corresponding to the linear, quadratic and
-      fused GW couplings, respectively.
-    source_dim: Dimension of the source space.
-    target_dim: Dimension of the target space.
+    flow: Flow between the latent and the target distributions.
+    data_match_fn: Function to match samples from the source and the target
+      distributions with a ``(src_lin, tgt_lin, src_quad, tgt_quad) -> matching``
+      signature.
+    source_dim: Dimensionality of the source distribution.
+    target_dim: Dimensionality of the target distribution.
     condition_dim: Dimension of the conditions. If :obj:`None`, the underlying
       velocity field has no conditions.
+    time_sampler: Time sampler with a ``(rng, n_samples) -> time`` signature.
+    latent_noise_fn: Function to sample from the latent distribution in the
+      target space with a ``(rng, shape) -> noise`` signature.
+      If :obj:`None`, multivariate normal distribution is used.
+    latent_match_fn: Function to match samples from the latent distribution
+      and the samples from the conditional distribution with a
+      ``(latent, samples) -> matching`` signature. If :obj:`None`, no matching
+      is performed.
     n_samples_per_src: Number of samples drawn from the conditional distribution
       per one source sample.
-    time_sampler: Sampler for the time to learn the neural ODE. If :obj:`None`,
-      the time is uniformly sampled.
-    latent_noise_fn: Function to sample from the latent distribution in the
-      target space. If :obj:`None`, the latent distribution is sampled from a
-      multivariate normal distribution.
-    latent_match_fn: Function to pair the latent distribution with
-      the ``n_samples_per_src`` samples of the conditional distribution.
-      If :obj:`None`, no matching is performed.
     kwargs: Keyword arguments for
       :meth:`ott.neural.flow_models.models.VelocityField.create_train_state`.
-  """
+  """  # noqa: E501
 
   def __init__(
       self,
@@ -80,13 +77,13 @@ class GENOT:
       source_dim: int,
       target_dim: int,
       condition_dim: Optional[int] = None,
-      n_samples_per_src: int = 1,
       time_sampler: Callable[[jax.Array, int],
                              jnp.ndarray] = flow_utils.uniform_sampler,
       latent_noise_fn: Optional[Callable[[jax.Array, Tuple[int, ...]],
                                          jnp.ndarray]] = None,
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                          jnp.ndarray]] = None,
+      n_samples_per_src: int = 1,
       **kwargs: Any,
   ):
     self.vf = velocity_field

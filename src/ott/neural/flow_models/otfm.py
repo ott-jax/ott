@@ -31,20 +31,18 @@ __all__ = ["OTFlowMatching"]
 class OTFlowMatching:
   """(Optimal transport) flow matching :cite:`lipman:22`.
 
-  With an extension to OT-FM :cite:`tong:23`, :cite:`pooladian:23`.
+  With an extension to OT-FM :cite:`tong:23,pooladian:23`.
 
   Args:
     velocity_field: Vector field parameterized by a neural network.
-    flow: Flow between source and target distribution.
-    match_fn: Function to match data points from the source distribution and
-      the target distribution.
-    time_sampler: Sampler for the time.
-    # TODO(michalk8): expose all args for the train state?
-    kwargs: TODO.
+    flow: Flow between the source and the target distributions.
+    match_fn: Function to match samples from the source and the target
+      distributions. It has a ``(src, tgt) -> matching`` signature.
+    time_sampler: Time sampler with a ``(rng, n_samples) -> time`` signature.
+    kwargs: Keyword arguments for
+      :meth:`~ott.neural.flow_models.models.VelocityField.create_train_state`.
   """
 
-  # TODO(michalk8): in the future, `input_dim`, `optimizer` and `rng` will be
-  # in a separate function
   def __init__(
       self,
       velocity_field: models.VelocityField,
@@ -60,7 +58,9 @@ class OTFlowMatching:
     self.time_sampler = time_sampler
     self.match_fn = match_fn
 
-    self.vf_state = self.vf.create_train_state(**kwargs)
+    self.vf_state = self.vf.create_train_state(
+        input_dim=self.vf.output_dim, **kwargs
+    )
     self.step_fn = self._get_step_fn()
 
   def _get_step_fn(self) -> Callable:
@@ -97,7 +97,6 @@ class OTFlowMatching:
 
     return step_fn
 
-  # TODO(michalk8): refactor in the future PR to just do one step
   def __call__(  # noqa: D102
       self,
       loader: Iterable[Dict[str, np.ndarray]],
