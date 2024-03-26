@@ -57,8 +57,8 @@ class TestGENOT:
     cond_dim = dl.cond_dim
 
     vf = models.VelocityField(
-        output_dims=[15, tgt_dim],
         hidden_dims=[7, 7, 7],
+        output_dims=[15, tgt_dim],
         condition_dims=None if cond_dim is None else [1, 3, 2],
     )
     model = genot.GENOT(

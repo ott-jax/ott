@@ -64,7 +64,6 @@ def match_quadratic(
     yy: jnp.ndarray,
     x: Optional[jnp.ndarray] = None,
     y: Optional[jnp.ndarray] = None,
-    # TODO(michalk8): expose for all the costs
     scale_cost: ScaleCost_t = 1.0,
     cost_fn: Optional[costs.CostFn] = None,
     **kwargs: Any
@@ -98,14 +97,14 @@ def match_quadratic(
 
 def sample_joint(rng: jax.Array,
                  tmat: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """Sample from a transport matrix.
+  """Sample jointly from a transport matrix.
 
   Args:
     rng: Random number generator.
-    tmat: Transport matrix.
+    tmat: Transport matrix of shape ``[n, m]``.
 
   Returns:
-    Source and target indices sampled from the transport matrix.
+    Source and target indices of shape ``[n,]`` and ``[m,]``, respectively.
   """
   n, m = tmat.shape
   tmat_flattened = tmat.flatten()
@@ -124,18 +123,18 @@ def sample_conditional(
     k: int = 1,
     uniform_marginals: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """Sample indices from a transport matrix.
+  """Sample conditionally from a transport matrix.
 
   Args:
     rng: Random number generator.
-    tmat: Transport matrix.
+    tmat: Transport matrix of shape ``[n, m]``.
     k: Expected number of samples to sample per source.
     uniform_marginals: If :obj:`True`, sample exactly `k` samples
       per row, otherwise sample proportionally to the sums of the
       rows of the transport matrix.
 
   Returns:
-    Source and target indices sampled from the transport matrix.
+    Source and target indices of shape ``[n, k]`` and ``[m, k]``, respectively.
   """
   assert k > 0, "Number of samples per source must be positive."
   n, m = tmat.shape
@@ -195,11 +194,11 @@ def uniform_sampler(
     num_samples: Number of samples to generate.
     low: Lower bound of the uniform distribution.
     high: Upper bound of the uniform distribution.
-    offset: Offset of the uniform distribution. If :obj:`None`, no offset is
-      used.
+    offset: Offset of the uniform distribution.
+      If :obj:`None`, no offset is used.
 
   Returns:
-    An array with `num_samples` samples of the time :math:`t`.
+    An array of shape ``[num_samples, 1]``.
   """
   if offset is None:
     return jax.random.uniform(rng, (num_samples, 1), minval=low, maxval=high)

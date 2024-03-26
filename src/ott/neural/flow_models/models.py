@@ -36,8 +36,8 @@ class VelocityField(nn.Module):
   from :math:`t=t_0` to :math:`t=t_1`.
 
   Args:
-    output_dims: TODO.
     hidden_dims: Dimensionality of the embedding of the data.
+    output_dims: Dimensionality of the embedding of the output.
     condition_dims: Dimensionality of the embedding of the condition.
       If :obj:`None`, the velocity field has no conditions.
     time_dims: Dimensionality of the time embedding.
@@ -45,8 +45,8 @@ class VelocityField(nn.Module):
     time_encoder: Time encoder for the velocity field.
     act_fn: Activation function.
   """
+  hidden_dims: Sequence[int]
   output_dims: Sequence[int]
-  hidden_dims: Sequence[int] = (128, 128, 128)
   condition_dims: Optional[Sequence[int]] = None
   time_dims: Optional[Sequence[int]] = None
   time_encoder: Callable[[jnp.ndarray],

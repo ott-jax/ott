@@ -30,8 +30,8 @@ class TestOTFlowMatching:
     dim, cond_dim = dl.lin_dim, dl.cond_dim
 
     neural_vf = models.VelocityField(
-        output_dims=[7, dim],
         hidden_dims=[5, 5, 5],
+        output_dims=[7, dim],
         condition_dims=None if cond_dim is None else [4, 3, 2],
     )
     fm = otfm.OTFlowMatching(
