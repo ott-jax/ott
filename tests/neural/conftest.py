@@ -107,6 +107,25 @@ def quad_dl():
 
 
 @pytest.fixture()
+def quad_cond_dl():
+  n, quad_src_dim, quad_tgt_dim, cond_dim = 128, 2, 4, 5
+  rng = np.random.default_rng(414)
+
+  src_cond = rng.normal(size=(n, cond_dim))
+  tgt_cond = rng.normal(size=(n, cond_dim))
+  src = _ot_data(rng, n=n, quad_dim=quad_src_dim, condition=src_cond)
+  tgt = _ot_data(rng, n=n, quad_dim=quad_tgt_dim, offset=1.0, cond_dim=tgt_cond)
+  ds = datasets.OTDataset(src, tgt)
+
+  return OTLoader(
+      DataLoader(ds, batch_size=16, shuffle=True),
+      quad_src_dim=quad_src_dim,
+      quad_tgt_dim=quad_tgt_dim,
+      cond_dim=cond_dim,
+  )
+
+
+@pytest.fixture()
 def fused_dl():
   n, lin_dim, quad_src_dim, quad_tgt_dim = 128, 6, 2, 4
   rng = np.random.default_rng(11)

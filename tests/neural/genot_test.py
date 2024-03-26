@@ -42,7 +42,7 @@ def data_match_fn(
 class TestGENOT:
 
   @pytest.mark.parametrize(
-      "dl", ["lin_dl", "quad_dl", "fused_dl", "lin_cond_dl"]
+      "dl", ["lin_dl", "quad_dl", "fused_dl", "lin_cond_dl", "quad_cond_dl"]
   )
   def test_genot(self, rng: jax.Array, dl: str, request):
     rng_init, rng_call, rng_data = jax.random.split(rng, 3)
@@ -51,7 +51,7 @@ class TestGENOT:
 
     src_dim = dl.lin_dim + dl.quad_src_dim
     tgt_dim = dl.lin_dim + dl.quad_tgt_dim
-    cond_dim = dl.cnd_dim
+    cond_dim = dl.cond_dim
 
     vf = models.VelocityField(
         tgt_dim,
