@@ -23,7 +23,6 @@ from typing import (
 )
 
 import jax
-import jax.experimental
 import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
@@ -703,8 +702,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
     if self.progress_fn is not None:
-      jax.experimental.io_callback(
-          self.progress_fn, None,
+      jax.debug.callback(
+          self.progress_fn,
           (iteration, self.inner_iterations, self.max_iterations, state)
       )
 
