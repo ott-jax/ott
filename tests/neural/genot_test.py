@@ -41,8 +41,9 @@ def data_match_fn(
 
 class TestGENOT:
 
-  # TODO(michalk8): add conds
-  @pytest.mark.parametrize("dl", ["lin_dl", "quad_dl", "fused_dl"])
+  @pytest.mark.parametrize(
+      "dl", ["lin_dl", "quad_dl", "fused_dl", "lin_cond_dl"]
+  )
   def test_genot(self, rng: jax.Array, dl: str, request):
     rng_init, rng_call, rng_data = jax.random.split(rng, 3)
     problem_type = dl.split("_")[0]
@@ -50,12 +51,12 @@ class TestGENOT:
 
     src_dim = dl.lin_dim + dl.quad_src_dim
     tgt_dim = dl.lin_dim + dl.quad_tgt_dim
-    cond_dim = dl.cond_dim
+    cond_dim = dl.cnd_dim
 
     vf = models.VelocityField(
         tgt_dim,
         hidden_dims=[7, 7, 7],
-        condition_dims=None if dl.cond_dim is None else [1, 3, 2],
+        condition_dims=None if cond_dim is None else [1, 3, 2],
     )
     model = genot.GENOT(
         vf,
@@ -72,8 +73,9 @@ class TestGENOT:
 
     batch = next(iter(dl.loader))
     batch = jtu.tree_map(jnp.asarray, batch)
-    src = jax.random.normal(rng_data, (3, src_dim))
     src_cond = batch.get("src_condition")
+    batch_size = 4 if src_cond is None else src_cond.shape[0]
+    src = jax.random.normal(rng_data, (batch_size, src_dim))
 
     res = model.transport(src, condition=src_cond)
 
