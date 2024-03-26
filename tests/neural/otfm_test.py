@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 import optax
 
@@ -23,17 +24,15 @@ from ott.neural.flow_models import flows, models, otfm, utils
 
 class TestOTFlowMatching:
 
-  @pytest.mark.parametrize(("cond_dim", "dl"), [(0, "lin_dl"),
-                                                (3, "lin_dl_with_conds"),
-                                                (4, "conditional_lin_dl")])
-  def test_fm(self, rng: jax.Array, cond_dim: int, dl: str, request):
-    dim = 2  # all dataloaders have this dim
+  @pytest.mark.parametrize("dl", ["lin_dl", "lin_cond_dl"])
+  def test_fm(self, rng: jax.Array, dl: str, request):
     dl = request.getfixturevalue(dl)
+    dim, cond_dim = dl.lin_dim, dl.cond_dim
 
     neural_vf = models.VelocityField(
         dim,
         hidden_dims=[5, 5, 5],
-        condition_dims=[5, 5, 5] if cond_dim > 0 else None,
+        condition_dims=None if cond_dim is None else [4, 3, 2],
     )
     fm = otfm.OTFlowMatching(
         neural_vf,
@@ -45,17 +44,14 @@ class TestOTFlowMatching:
         condition_dim=cond_dim,
     )
 
-    _logs = fm(dl, n_iters=3)
+    _logs = fm(dl.loader, n_iters=3)
 
-    batch = next(iter(dl))
-    src = jnp.asarray(batch["src_lin"])
-    tgt = jnp.asarray(batch["tgt_lin"])
+    batch = next(iter(dl.loader))
+    batch = jtu.tree_map(jnp.asarray, batch)
     src_cond = batch.get("src_condition")
-    if src_cond is not None:
-      src_cond = jnp.asarray(src_cond)
 
-    res_fwd = fm.transport(src, condition=src_cond)
-    res_bwd = fm.transport(tgt, t0=1.0, t1=0.0, condition=src_cond)
+    res_fwd = fm.transport(batch["src_lin"], condition=src_cond)
+    res_bwd = fm.transport(batch["tgt_lin"], t0=1.0, t1=0.0, condition=src_cond)
 
     # TODO(michalk8): better assertions
     assert jnp.sum(jnp.isnan(res_fwd)) == 0

@@ -48,34 +48,33 @@ class TestGENOT:
     problem_type = dl.split("_")[0]
     dl = request.getfixturevalue(dl)
 
-    batch = next(iter(dl))
-    batch = jtu.tree_map(jnp.asarray, batch)
-    src_cond = batch.get("src_condition")
-
-    dims = jtu.tree_map(lambda x: x.shape[-1], batch)
-    src_dim = dims.get("src_lin", 0) + dims.get("src_quad", 0)
-    tgt_dim = dims.get("tgt_lin", 0) + dims.get("tgt_quad", 0)
+    src_dim = dl.lin_dim + dl.quad_src_dim
+    tgt_dim = dl.lin_dim + dl.quad_tgt_dim
+    cond_dim = dl.cond_dim
 
     vf = models.VelocityField(
         tgt_dim,
         hidden_dims=[7, 7, 7],
-        condition_dims=[7, 7, 7],
+        condition_dims=None if dl.cond_dim is None else [1, 3, 2],
     )
-
     model = genot.GENOT(
         vf,
         flow=flows.ConstantNoiseFlow(0.0),
         data_match_fn=functools.partial(data_match_fn, typ=problem_type),
         source_dim=src_dim,
         target_dim=tgt_dim,
-        condition_dim=None if src_cond is None else src_cond.shape[-1],
+        condition_dim=cond_dim,
         rng=rng_init,
         optimizer=optax.adam(learning_rate=1e-4),
     )
 
-    _logs = model(dl, n_iters=3, rng=rng_call)
+    _logs = model(dl.loader, n_iters=3, rng=rng_call)
 
+    batch = next(iter(dl.loader))
+    batch = jtu.tree_map(jnp.asarray, batch)
     src = jax.random.normal(rng_data, (3, src_dim))
+    src_cond = batch.get("src_condition")
+
     res = model.transport(src, condition=src_cond)
 
     assert jnp.sum(jnp.isnan(res)) == 0
