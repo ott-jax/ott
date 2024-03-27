@@ -258,21 +258,19 @@ class GENOT:
   ) -> jnp.ndarray:
     """Transport data with the learned plan.
 
-    This method pushes-forward the `source` to its conditional distribution by
-      solving the neural ODE parameterized by the
-      :attr:`~ott.neural.flows.genot.velocity_field`
+    This function pushes forward the source distribution to its conditional
+    distribution by solving the neural ODE.
 
     Args:
       source: Data to transport.
       condition: Condition of the input data.
       t0: Starting time of integration of neural ODE.
       t1: End time of integration of neural ODE.
-      rng: random seed for sampling from the latent distribution.
-      kwargs: Keyword arguments for the ODE solver.
+      rng: Random generate used to sample from the latent distribution.
+      kwargs: Keyword arguments for :func:`~diffrax.odesolve`.
 
     Returns:
-      The push-forward or pull-back distribution defined by the learned
-      transport plan.
+      The push-forward defined by the learned transport plan.
     """
 
     def vf(t: jnp.ndarray, x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
