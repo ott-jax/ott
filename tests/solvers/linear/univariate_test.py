@@ -28,21 +28,26 @@ class TestUnivariate:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
-    self.rng = rng
+    self.rng = jax.random.PRNGKey(4)
     self.n = 7
     self.m = 5
     self.d = 2
-    self.rng, *rngs = jax.random.split(self.rng, 5)
+    self.rng, *rngs = jax.random.split(self.rng, 7)
     self.x = jax.random.uniform(rngs[0], (self.n, self.d))
     self.y = jax.random.uniform(rngs[1], (self.m, self.d))
     a = jax.random.uniform(rngs[2], (self.n,))
     b = jax.random.uniform(rngs[3], (self.m,))
+    # introduce family of points of the same size as x.
+    self.z = jax.random.uniform(rngs[4], (self.n, self.d))
+    c = jax.random.uniform(rngs[5], (self.n,))
 
     #  adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
+    c = c.at[1].set(0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
+    self.c = c / jnp.sum(c)
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
@@ -163,3 +168,31 @@ class TestUnivariate:
     expected = univ_dist(x, y, a, b + v_b) - univ_dist(x, y, a, b - v_b)
     actual = 2.0 * jnp.vdot(v_b, grad_b)
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+
+  @pytest.mark.fast()
+  def test_dual_vectors(self):
+    """The OTT solver outputs meaningful dual variables."""
+    _ = pytest.importorskip("lineax")  # only tested using lineax
+    n = self.n
+    x, a, y, b, z, c = self.x, self.a, self.y, self.b, self.z, self.c
+    unif_n = jnp.ones((n,)) / n
+    for (target, weights_target) in ((y, b), (z, c)):
+      for weights_source in (a, unif_n):
+        geom = pointcloud.PointCloud(x, target, cost_fn=costs.SqEuclidean())
+        prob = linear_problem.LinearProblem(
+            geom=geom, a=weights_source, b=weights_target
+        )
+        out = univariate.UnivariateSolver()(prob, return_dual_vectors=True)
+
+        f, g = out.dual_a, out.dual_b
+        dual_obj = jnp.sum(f * weights_source[None, :], axis=1)
+        dual_obj += jnp.sum(g * weights_target[None, :], axis=1)
+        # check objective returned with primal computation matches dual
+        np.testing.assert_allclose(out.ot_costs, dual_obj, atol=1e-2, rtol=1e-2)
+        # check dual variables are feasible on locations that matter (with
+        # positive weights).
+        mask = (weights_source > 0)[:, None] * (weights_target > 0)[None, :]
+        min_val = jnp.min(
+            mask[None] * (geom.cost_matrix - f[:, :, None] - g[:, None, :])
+        )
+        np.testing.assert_allclose(min_val, 0, atol=1e-5)

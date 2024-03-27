@@ -15,6 +15,7 @@ from typing import NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import lineax as lx
 
 from ott import utils
 from ott.geometry import costs, pointcloud
@@ -47,15 +48,19 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
       if one has ``i:=paired_indices[s,0,k]`` and ``j:=paired_indices[s,1,k]``,
       then point ``i`` in the first point cloud sends mass to point ``j`` in the
       second, in slice ``s``.
-    mass_paired_indices: ``[d, m+n]`` array of weights. Using notation above, if
-      ``0<=k<m+n``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
+    mass_paired_indices: ``[d, n+m]`` array of weights. Using notation above, if
+      ``0<=k<n+m``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
       and ``j=paired_indices[s,1,k]``, point ``i`` sends
       ``mass_paired_indices[s,k]`` to point ``j``.
+    dual_a: ``[n,]`` array of dual values
+    dual_b: ``[m,]`` array of dual values
   """
   prob: linear_problem.LinearProblem
   ot_costs: float
   paired_indices: Optional[jnp.ndarray] = None
   mass_paired_indices: Optional[jnp.ndarray] = None
+  dual_a: Optional[jnp.ndarray] = None
+  dual_b: Optional[jnp.ndarray] = None
 
   @property
   def transport_matrices(self) -> jnp.ndarray:
@@ -161,6 +166,7 @@ class UnivariateSolver:
       self,
       prob: linear_problem.LinearProblem,
       return_transport: bool = True,
+      return_dual_vectors: bool = True,
       rng: Optional[jax.Array] = None,
   ) -> UnivariateOutput:
     """Computes Univariate Distance between the ``d`` dimensional slices.
@@ -173,8 +179,9 @@ class UnivariateSolver:
         The ``[n,]`` and ``[m,]`` size probability weights vectors are stored
         in attributes `:attr:`~ott.problems.linear.LinearProblem.a` and
         :attr:`~ott.problems.linear.LinearProblem.b`.
-      return_transport: Whether to also return pairs of matched indices used to
+      return_transport: Whether to return pairs of matched indices used to
         compute optimal transport matrices.
+      return_dual_vectors: Whether to return pairs of dual vectors
       rng: Used for random downsampling, if specified in the solver.
 
     Returns:
@@ -206,8 +213,13 @@ class UnivariateSolver:
       return_transport = return_transport and not self.num_subsamples
       out = uniform_distance(x, y, geom.cost_fn, return_transport)
     else:
-      fn = jax.vmap(quantile_distance, in_axes=[1, 1, None, None, None, None])
-      out = fn(x, y, geom.cost_fn, prob.a, prob.b, return_transport)
+      fn = jax.vmap(
+          quantile_distance, in_axes=[1, 1, None, None, None, None, None]
+      )
+      out = fn(
+          x, y, geom.cost_fn, prob.a, prob.b, return_transport,
+          return_dual_vectors
+      )
 
     return UnivariateOutput(prob, *out)
 
@@ -265,7 +277,7 @@ def uniform_distance(
     mass_paired_indices = jnp.ones((n,)) / n
     return ot_costs, paired_indices, mass_paired_indices
 
-  return ot_costs, None, None
+  return ot_costs, None, None, None, None
 
 
 def quantile_distance(
@@ -275,6 +287,7 @@ def quantile_distance(
     a: jnp.ndarray,
     b: jnp.ndarray,
     return_transport: bool = True,
+    return_dual_vectors: bool = True,
 ) -> Distance_t:
   """Computes distance between quantile functions of distributions (a,x)/(b,y).
 
@@ -285,11 +298,14 @@ def quantile_distance(
     a: Vector ``[n,]`` of non-negative weights summing to 1.
     b: Vector ``[m,]`` of non-negative weights summing to 1.
     return_transport: whether to return mapped pairs.
+    return_dual_vectors: whether to return dual vectors. when set to ``True``,
+      will turn ``return_transport`` to ``True`` regardless of the user choice.
 
   Returns:
-    optimal transport cost, a list of ``n + m`` paired indices, and their
-    corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to 1.0
+    optimal transport cost. Optionally, a list of ``n + m`` paired indices, and
+    their corresponding transport mass. Note that said mass can be null in some
+    entries, but sums to 1.0. Optionally, two dual vectors corresponding to that
+    transport.
 
   Notes:
     Inspired by :func:`~scipy.stats.wasserstein_distance`,
@@ -318,21 +334,52 @@ def quantile_distance(
   y_cdf_inv = all_values_sorted[i_y_cdf_inv]
 
   diff_q = jnp.diff(quantile_levels)
-  cost = jnp.sum(
-      jax.vmap(cost_fn.h)(y_cdf_inv[1:, None] - x_cdf_inv[1:, None]) * diff_q
+  successive_costs = jax.vmap(cost_fn.h)(
+      x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
   )
-  if not return_transport:
-    return cost, None, None
+  cost = jnp.sum(successive_costs * diff_q)
+  paired_indices, mass_paired_indices, dual_a, dual_b = [
+      None,
+  ] * 4
 
-  n = x.shape[0]
+  if return_transport or return_dual_vectors:
+    n = x.shape[0]
 
-  i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
-  i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
+    i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
+    i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
 
-  orig_i = i_x[i_in_sorted_x_of_quantile][1:]
-  orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+    orig_i = i_x[i_in_sorted_x_of_quantile][1:]
+    orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+    paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
 
-  return cost, jnp.stack([orig_i, orig_j]), diff_q
+  if return_dual_vectors:
+    m = y.shape[0]
+    # vector of costs masked by mass transfer. only select active constraints
+    support_cost = (diff_q > 0) * successive_costs
+    # sort and select top n+m-1 to grab non-zero in jit-friendly manner
+    idx_cost = jnp.argsort(support_cost)
+    inv_idx = idx_cost[-n - m + 1:]
+    new_cost = successive_costs[inv_idx]
+    # select indices corresponding to active constraints
+    i_orig_x, i_orig_y = orig_i[inv_idx], orig_j[inv_idx]
+
+    def kkt(dual_ab, ridge_kernel=1e-6):
+      """Eq. 3.6 in :cite:`peyre:19`, with centering constraint on dual_a."""
+      dual_a, dual_b = dual_ab[:n], dual_ab[n:]
+      return jnp.concatenate((
+          jnp.array(jnp.sum(dual_a)).reshape((1,)),
+          dual_a[i_orig_x] + dual_b[i_orig_y]
+      ))
+
+    z = jnp.concatenate((jnp.zeros((1,)), new_cost))
+    operator = lx.FunctionLinearOperator(kkt, z)
+    solver = lx.NormalCG(rtol=1e-6, atol=1e-6)
+    sol = lx.linear_solve(operator, z, solver).value
+    # split again solution into 2 dual variables
+    dual_a = sol[:n]
+    dual_b = sol[n:]
+
+  return cost, paired_indices, mass_paired_indices, dual_a, dual_b
 
 
 def _quant_dist(
@@ -343,4 +390,4 @@ def _quant_dist(
   y_q = jnp.quantile(y, q, axis=0)
   ot_costs = jax.vmap(cost_fn.pairwise, in_axes=[1, 1])(x_q, y_q)
 
-  return ot_costs / n_q, None, None
+  return ot_costs / n_q, None, None, None, None
