@@ -63,13 +63,13 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "jaxopt": ("https://jaxopt.github.io/stable", None),
     "lineax": ("https://docs.kidger.site/lineax/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
-    "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
+    "optax": ("https://optax.readthedocs.io/en/latest/", None),
+    "diffrax": ("https://docs.kidger.site/diffrax/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pot": ("https://pythonot.github.io/", None),
-    "jaxopt": ("https://jaxopt.github.io/stable", None),
-    "optax": ("https://optax.readthedocs.io/en/latest/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
