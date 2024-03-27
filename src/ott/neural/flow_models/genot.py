@@ -120,7 +120,7 @@ class GENOT:
           params: jnp.ndarray, time: jnp.ndarray, source: jnp.ndarray,
           target: jnp.ndarray, latent: jnp.ndarray,
           source_conditions: Optional[jnp.ndarray], rng: jax.Array
-      ):
+      ) -> jnp.ndarray:
         x_t = self.flow.compute_xt(rng, time, latent, target)
         if source_conditions is None:
           cond = source
@@ -132,7 +132,7 @@ class GENOT:
 
         return jnp.mean((v_t - u_t) ** 2)
 
-      grad_fn = jax.value_and_grad(loss_fn, has_aux=False)
+      grad_fn = jax.value_and_grad(loss_fn)
       loss, grads = grad_fn(
           vf_state.params, time, source, target, latent, source_conditions, rng
       )
@@ -244,7 +244,7 @@ class GENOT:
     in_axes, out_axes = (0, 1, cond_axis, 1, 1), (1, cond_axis, 1)
     resample_fn = jax.jit(jax.vmap(resample, in_axes, out_axes))
 
-    rngs = jax.random.split(rng, self.k_samples_per_x)
+    rngs = jax.random.split(rng, self.n_samples_per_src)
     return resample_fn(rngs, src, src_cond, tgt, latent)
 
   def transport(
