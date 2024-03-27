@@ -197,7 +197,6 @@ class GENOT:
           rng_resample,
           tmat,
           k=self.n_samples_per_src,
-          uniform_marginals=True,  # TODO(michalk8): expose
       )
 
       src, tgt = src[src_ixs], tgt[tgt_ixs]  # (n, k, ...),  # (m, k, ...)

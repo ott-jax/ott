@@ -121,17 +121,13 @@ def sample_conditional(
     tmat: jnp.ndarray,
     *,
     k: int = 1,
-    uniform_marginals: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Sample conditionally from a transport matrix.
 
   Args:
     rng: Random number generator.
     tmat: Transport matrix of shape ``[n, m]``.
-    k: Expected number of samples to sample per source.
-    uniform_marginals: If :obj:`True`, sample exactly `k` samples
-      per row, otherwise sample proportionally to the sums of the
-      rows of the transport matrix.
+    k: Expected number of samples to sample per source sample.
 
   Returns:
     Source and target indices of shape ``[n, k]`` and ``[m, k]``, respectively.
@@ -139,19 +135,16 @@ def sample_conditional(
   assert k > 0, "Number of samples per source must be positive."
   n, m = tmat.shape
 
-  if uniform_marginals:
-    indices = jnp.arange(n)
-  else:
-    src_marginals = tmat.sum(axis=1)
-    rng, rng_ixs = jax.random.split(rng, 2)
-    indices = jax.random.choice(
-        rng_ixs, a=n, p=src_marginals, shape=(len(src_marginals),)
-    )
-    tmat = tmat[indices]
+  src_marginals = tmat.sum(axis=1)
+  rng, rng_ixs = jax.random.split(rng, 2)
+  indices = jax.random.choice(rng_ixs, a=n, p=src_marginals, shape=(n,))
+  tmat = tmat[indices]
 
+  rngs = jax.random.split(rng, n)
   tgt_ixs = jax.vmap(
-      lambda row: jax.random.choice(rng, a=m, p=row, shape=(k,))
-  )(tmat)  # (m, k)
+      lambda rng, row: jax.random.choice(rng, a=m, p=row, shape=(k,)),
+      in_axes=[0, 0],
+  )(rngs, tmat)  # (m, k)
 
   src_ixs = jnp.repeat(indices[:, None], k, axis=1)  # (n, k)
   return src_ixs, tgt_ixs
