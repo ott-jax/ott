@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 from ott import utils
-from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
+from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
 from ott.types import Transport
@@ -171,7 +171,7 @@ class QuadraticProblem:
       transport_matrix: jnp.ndarray,
       marginal_1: jnp.ndarray,
       marginal_2: jnp.ndarray,
-      epsilon: epsilon_scheduler.Epsilon,
+      epsilon: float,
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
 
@@ -204,13 +204,12 @@ class QuadraticProblem:
     """
 
     def regularizer(tau: float) -> float:
-      return eps * tau / (1.0 - tau)
+      return epsilon * tau / (1.0 - tau)
 
-    eps = epsilon._target_init
     marginal_1loga = jsp.special.xlogy(marginal_1, self.a).sum()
     marginal_2logb = jsp.special.xlogy(marginal_2, self.b).sum()
 
-    cost = eps * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
+    cost = epsilon * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
     if self.tau_a != 1.0:
       cost += regularizer(
           self.tau_a
@@ -269,7 +268,7 @@ class QuadraticProblem:
   def update_linearization(
       self,
       transport: Transport,
-      epsilon: Optional[Union[epsilon_scheduler.Epsilon, float]] = None,
+      epsilon: Optional[float] = None,
       old_transport_mass: float = 1.0,
       relative_epsilon: Optional[bool] = None,
   ) -> linear_problem.LinearProblem:
@@ -310,11 +309,9 @@ class QuadraticProblem:
     transport_matrix = transport.matrix * rescale_factor
 
     if not self.is_balanced:
-      # Rescales transport for Unbalanced GW according to Sejourne et al. (2021)
-      transport_mass = jax.lax.stop_gradient(marginal_1.sum())
-      epsilon = update_epsilon_unbalanced(epsilon, transport_mass)
+      epsilon *= jax.lax.stop_gradient(marginal_1.sum())
       unbalanced_correction = self.cost_unbalanced_correction(
-          transport_matrix, marginal_1, marginal_2, epsilon
+          transport_matrix, marginal_1, marginal_2, epsilon=epsilon
       )
 
     h1, h2 = self.quad_loss
@@ -329,7 +326,7 @@ class QuadraticProblem:
     geom = geometry.Geometry(
         cost_matrix=cost_matrix,
         epsilon=epsilon,
-        relative_epsilon=relative_epsilon
+        relative_epsilon=relative_epsilon,
     )
 
     return linear_problem.LinearProblem(
@@ -498,14 +495,6 @@ class QuadraticProblem:
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     geoms, (a, b) = children[:3], children[3:]
     return cls(*geoms, a=a, b=b, **aux_data)
-
-
-def update_epsilon_unbalanced(  # noqa: D103
-    epsilon: Union[float, epsilon_scheduler.Epsilon], transport_mass: float
-) -> epsilon_scheduler.Epsilon:
-  if not isinstance(epsilon, epsilon_scheduler.Epsilon):
-    epsilon = epsilon_scheduler.Epsilon(epsilon, scale_epsilon=1.0)
-  return epsilon.set(scale_epsilon=epsilon._scale_epsilon * transport_mass)
 
 
 def apply_cost(  # noqa: D103

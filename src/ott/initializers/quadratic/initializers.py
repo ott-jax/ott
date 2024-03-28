@@ -174,9 +174,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       init_transport = jnp.outer(quad_prob.a, quad_prob.b)
       marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
 
-      epsilon = quadratic_problem.update_epsilon_unbalanced(
-          epsilon=epsilon, transport_mass=marginal_1.sum()
-      )
+      epsilon *= marginal_1.sum()
       unbalanced_correction = quad_prob.cost_unbalanced_correction(
           init_transport, marginal_1, marginal_2, epsilon=epsilon
       )
