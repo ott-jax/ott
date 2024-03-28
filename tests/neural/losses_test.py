@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 
 import jax
 import numpy as np
-import pytest
+
 from ott.geometry import costs
-from ott.neural import losses, models
+from ott.neural.duality import models
+from ott.neural.gaps import monge_gap
 
 
 @pytest.mark.fast()
@@ -32,18 +34,18 @@ class TestMongeGap:
     rng1, rng2 = jax.random.split(rng, 2)
     reference_points = jax.random.normal(rng1, (n_samples, n_features))
 
-    model = models.MLP(dim_hidden=[8, 8], is_potential=False)
+    model = models.PotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=reference_points[0])
     target = model.apply(params, reference_points)
 
     # compute the Monge gap based on samples
-    monge_gap_from_samples_value = losses.monge_gap_from_samples(
+    monge_gap_from_samples_value = monge_gap.monge_gap_from_samples(
         source=reference_points, target=target
     )
     np.testing.assert_array_equal(monge_gap_from_samples_value >= 0, True)
 
     # Compute the Monge gap using model directly
-    monge_gap_value = losses.monge_gap(
+    monge_gap_value = monge_gap.monge_gap(
         map_fn=lambda x: model.apply(params, x),
         reference_points=reference_points
     )
@@ -58,10 +60,10 @@ class TestMongeGap:
     source = jax.random.normal(rng1, (n_samples, n_features))
     target = jax.random.normal(rng2, (n_samples, n_features))
     # define jitted monge gap
-    jit_monge_gap = jax.jit(losses.monge_gap_from_samples)
+    jit_monge_gap = jax.jit(monge_gap.monge_gap_from_samples)
 
     # compute the Monge gaps for different costs
-    monge_gap_value = losses.monge_gap_from_samples(
+    monge_gap_value = monge_gap.monge_gap_from_samples(
         source=source, target=target
     )
     jit_monge_gap_value = jit_monge_gap(source, target)
@@ -99,10 +101,10 @@ class TestMongeGap:
     target = jax.random.normal(rng2, (n_samples, n_features)) * 0.1 + 3.0
 
     # compute the Monge gaps for the euclidean cost
-    monge_gap_from_samples_value_eucl = losses.monge_gap_from_samples(
+    monge_gap_from_samples_value_eucl = monge_gap.monge_gap_from_samples(
         source=source, target=target, cost_fn=costs.Euclidean()
     )
-    monge_gap_from_samples_value_cost_fn = losses.monge_gap_from_samples(
+    monge_gap_from_samples_value_cost_fn = monge_gap.monge_gap_from_samples(
         source=source, target=target, cost_fn=cost_fn
     )
 

@@ -1,20 +1,17 @@
-ott.neural.solvers
+ott.neural.duality
 ==================
-.. module:: ott.neural.solvers
-.. currentmodule:: ott.neural.solvers
+.. module:: ott.neural.duality
+.. currentmodule:: ott.neural.duality
 
 This module implements various solvers to estimate optimal transport between
 two probability measures, through samples, parameterized as neural networks.
-These neural networks are described in :mod:`ott.neural.models`, borrowing
-lower-level components from :mod:`ott.neural.layers` using
-`flax <https://flax.readthedocs.io/en/latest/>`__.
+These solvers build upon dual formulation of the optimal transport problem.
 
 Solvers
 -------
 .. autosummary::
     :toctree: _autosummary
 
-    map_estimator.MapEstimator
     neuraldual.W2NeuralDual
     neuraldual.BaseW2NeuralDual
 
@@ -26,3 +23,15 @@ Conjugate Solvers
     conjugate.FenchelConjugateLBFGS
     conjugate.FenchelConjugateSolver
     conjugate.ConjugateResults
+
+Models
+------
+.. autosummary::
+    :toctree: _autosummary
+
+    neuraldual.W2NeuralTrainState
+    neuraldual.BaseW2NeuralDual
+    neuraldual.W2NeuralDual
+    models.ICNN
+    models.PotentialMLP
+    models.MetaInitializer

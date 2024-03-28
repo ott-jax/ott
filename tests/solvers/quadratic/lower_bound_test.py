@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import jax
 import jax.numpy as jnp
-import pytest
+
 from ott.geometry import costs, distrib_costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.quadratic import lower_bound

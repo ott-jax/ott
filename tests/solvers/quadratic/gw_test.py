@@ -13,10 +13,12 @@
 # limitations under the License.
 from typing import Tuple, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
@@ -521,7 +523,7 @@ class TestGromovWasserstein:
       geom_yy = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy)
 
-      lin_solver = sinkhorn.Sinkhorn(progress_fn=utils.default_progress_fn(),)
+      lin_solver = sinkhorn.Sinkhorn(progress_fn=utils.default_progress_fn())
       quad_solver = gromov_wasserstein.GromovWasserstein(
           linear_ot_solver=lin_solver,
           progress_fn=utils.default_progress_fn(),

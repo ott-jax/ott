@@ -13,14 +13,17 @@
 # limitations under the License.
 from typing import Optional, Union
 
+import networkx as nx
+from networkx.algorithms import shortest_paths
+from networkx.generators import balanced_tree, random_graphs
+
+import pytest
+
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
-import networkx as nx
 import numpy as np
-import pytest
-from networkx.algorithms import shortest_paths
-from networkx.generators import balanced_tree, random_graphs
+
 from ott.geometry import geodesic, geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn

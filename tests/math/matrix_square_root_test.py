@@ -13,10 +13,12 @@
 # limitations under the License.
 from typing import Any, Callable
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
 from ott.math import matrix_square_root
 
 

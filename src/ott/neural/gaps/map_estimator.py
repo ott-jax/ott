@@ -26,12 +26,13 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+
 import optax
 from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.solvers import neuraldual
+from ott.neural.duality import neuraldual
 
 __all__ = ["MapEstimator"]
 

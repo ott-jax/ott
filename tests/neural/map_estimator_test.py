@@ -13,12 +13,14 @@
 # limitations under the License.
 from typing import Optional
 
-import jax.numpy as jnp
 import pytest
+
+import jax.numpy as jnp
+
 from ott import datasets
 from ott.geometry import pointcloud
-from ott.neural import losses, models
-from ott.neural.solvers import map_estimator
+from ott.neural.duality import models
+from ott.neural.gaps import map_estimator, monge_gap
 from ott.tools import sinkhorn_divergence
 
 
@@ -42,14 +44,14 @@ class TestMapEstimator:
           x=samples,
           y=mapped_samples,
       ).divergence
-      return (div, None)
+      return div, None
 
     def regularizer(x, y):
-      gap, out = losses.monge_gap_from_samples(x, y, return_output=True)
+      gap, out = monge_gap.monge_gap_from_samples(x, y, return_output=True)
       return gap, out.n_iters
 
     # define the model
-    model = models.MLP(dim_hidden=[16, 8], is_potential=False)
+    model = models.PotentialMLP(dim_hidden=[16, 8], is_potential=False)
 
     # generate data
     train_dataset, valid_dataset, dim_data = (

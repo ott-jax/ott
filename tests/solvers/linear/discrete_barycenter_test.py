@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import jax.numpy as jnp
 import pytest
+
+import jax.numpy as jnp
+
 from ott.geometry import grid, pointcloud
 from ott.problems.linear import barycenter_problem as bp
 from ott.solvers.linear import discrete_barycenter as db

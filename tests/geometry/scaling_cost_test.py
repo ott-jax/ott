@@ -13,10 +13,12 @@
 # limitations under the License.
 from typing import Optional, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr

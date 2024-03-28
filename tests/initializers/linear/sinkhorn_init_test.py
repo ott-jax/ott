@@ -13,10 +13,12 @@
 # limitations under the License.
 from typing import Literal, Optional
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.problems.linear import linear_problem

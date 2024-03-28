@@ -16,19 +16,19 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+
+import flax.linen as nn
 import optax
-from flax import linen as nn
 from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as lin_init
-from ott.neural import layers
-from ott.neural.solvers import neuraldual
+from ott.neural.duality import layers, neuraldual
 from ott.problems.linear import linear_problem
 
-__all__ = ["ICNN", "MLP", "MetaInitializer"]
+__all__ = ["ICNN", "PotentialMLP", "MetaInitializer"]
 
 # wrap to silence docs linter
 DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.normal()(*a, **k)
@@ -168,7 +168,7 @@ class ICNN(neuraldual.BaseW2NeuralDual):
     return True
 
 
-class MLP(neuraldual.BaseW2NeuralDual):
+class PotentialMLP(neuraldual.BaseW2NeuralDual):
   """A generic, not-convex MLP.
 
   Args:

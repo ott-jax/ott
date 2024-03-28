@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
 import jax
 import numpy as np
-import pytest
+
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers as lin_init
 from ott.initializers.linear import initializers_lr

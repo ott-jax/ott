@@ -11,9 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import (
-    fixed_point_loop,
-    matrix_square_root,
-    unbalanced_functions,
-    utils,
-)
+from . import fixed_point_loop, matrix_square_root, unbalanced_functions, utils

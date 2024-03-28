@@ -27,16 +27,16 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+
+import flax.linen as nn
 import optax
-from flax import linen as nn
 from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
-from ott.neural import models
-from ott.neural.solvers import conjugate
+from ott.neural.duality import conjugate, models
 from ott.problems.linear import potentials
 
 __all__ = ["W2NeuralTrainState", "BaseW2NeuralDual", "W2NeuralDual"]
@@ -53,7 +53,7 @@ class W2NeuralTrainState(train_state.TrainState):
 
   This extends :class:`~flax.training.train_state.TrainState` to include
   the potential methods from the
-  :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` used during training.
+  :class:`~ott.neural.duality.neuraldual.BaseW2NeuralDual` used during training.
 
   Args:
     potential_value_fn: the potential's value function
@@ -186,10 +186,10 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with :class:`~ott.neural.solvers.conjugate.FenchelConjugateSolver`,
+  with :class:`~ott.neural.duality.conjugate.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
-  The :class:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual` potentials for
+  The :class:`~ott.neural.duality.neuraldual.BaseW2NeuralDual` potentials for
   ``neural_f`` and ``neural_g`` can
 
   1. both provide the values of the potentials :math:`f` and :math:`g`, or
@@ -198,7 +198,7 @@ class W2NeuralDual:
      via the Fenchel conjugate as discussed in :cite:`amos:23`.
 
   The potential's value or gradient mapping is specified via
-  :attr:`~ott.neural.solvers.neuraldual.BaseW2NeuralDual.is_potential`.
+  :attr:`~ott.neural.duality.neuraldual.BaseW2NeuralDual.is_potential`.
 
   Args:
     dim_data: input dimensionality of data required for network init
@@ -325,7 +325,7 @@ class W2NeuralDual:
 
     # default to using back_and_forth with the non-convex models
     if self.back_and_forth is None:
-      self.back_and_forth = isinstance(neural_f, models.MLP)
+      self.back_and_forth = isinstance(neural_f, models.PotentialMLP)
 
     if self.num_inner_iters == 1 and self.parallel_updates:
       self.train_step_parallel = self.get_step_fn(
