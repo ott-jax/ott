@@ -559,10 +559,6 @@ class TestSinkhorn:
   @pytest.mark.parametrize(("use_tqdm", "custom_buffer"), [(False, False),
                                                            (False, True),
                                                            (True, False)])
-  @pytest.mark.skipif(
-      jax.__version_info__ < (0, 4, 0),
-      reason="`jax.experimental.io_callback` doesn't exist"
-  )
   def test_progress_fn(self, capsys, use_tqdm: bool, custom_buffer: bool):
     geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-1)
 
@@ -597,10 +593,6 @@ class TestSinkhorn:
       assert captured.out.startswith("foo 7/14"), captured
 
   @pytest.mark.fast()
-  @pytest.mark.skipif(
-      jax.__version_info__ < (0, 4, 0),
-      reason="`jax.experimental.io_callback` doesn't exist"
-  )
   def test_custom_progress_fn(self):
     """Check that the callback function is actually called."""
     num_iterations = 30

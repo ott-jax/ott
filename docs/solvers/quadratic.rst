@@ -17,7 +17,7 @@ Gromov-Wasserstein Solvers
     gromov_wasserstein.GWOutput
     gromov_wasserstein_lr.LRGromovWasserstein
     gromov_wasserstein_lr.LRGWOutput
-    lower_bound.LowerBoundSolver
+    lower_bound.third_lower_bound
 
 
 Barycenter Solvers

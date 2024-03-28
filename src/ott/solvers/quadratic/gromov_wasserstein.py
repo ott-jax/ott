@@ -25,7 +25,6 @@ from typing import (
 )
 
 import jax
-import jax.experimental
 import jax.numpy as jnp
 import numpy as np
 
@@ -405,8 +404,8 @@ def iterations(
     # Inner iterations is currently fixed to 1.
     inner_iterations = 1
     if solver.progress_fn is not None:
-      jax.experimental.io_callback(
-          solver.progress_fn, None,
+      jax.debug.callback(
+          solver.progress_fn,
           (iteration, inner_iterations, solver.max_iterations, state)
       )
 
