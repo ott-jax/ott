@@ -1,7 +1,6 @@
 ott.neural
 ==========
 .. module:: ott.neural
-.. currentmodule:: ott.neural
 
 In contrast to most methods presented in :mod:`ott.solvers`, which output
 vectors or matrices, the goal of the :mod:`ott.neural` module is to parameterize
@@ -13,7 +12,6 @@ and solvers to estimate such neural networks.
 .. toctree::
     :maxdepth: 2
 
-    data
-    duality
-    flow_models
-    gaps
+    datasets
+    methods
+    networks
