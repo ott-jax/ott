@@ -19,9 +19,11 @@ import jax
 import numpy as np
 
 from ott import datasets
-from ott.neural.duality import conjugate, models, neuraldual
+from ott.neural.methods import neuraldual
+from ott.neural.networks import icnn, potentials
+from ott.neural.networks.layers import conjugate
 
-ModelPair_t = Tuple[neuraldual.BaseW2NeuralDual, neuraldual.BaseW2NeuralDual]
+ModelPair_t = Tuple[potentials.BasePotential, potentials.BasePotential]
 DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
 
 
@@ -37,16 +39,16 @@ def ds(request: Tuple[str, str]) -> DatasetPair_t:
 def neural_models(request: str) -> ModelPair_t:
   if request.param == "icnns":
     return (
-        models.ICNN(dim_data=2,
-                    dim_hidden=[32]), models.ICNN(dim_data=2, dim_hidden=[32])
+        icnn.ICNN(dim_data=2,
+                  dim_hidden=[32]), icnn.ICNN(dim_data=2, dim_hidden=[32])
     )
   if request.param == "mlps":
-    return models.PotentialMLP(dim_hidden=[32]
-                              ), models.PotentialMLP(dim_hidden=[32]),
+    return potentials.PotentialMLP(dim_hidden=[32]
+                                  ), potentials.PotentialMLP(dim_hidden=[32]),
   if request.param == "mlps-grad":
     return (
-        models.PotentialMLP(dim_hidden=[32]),
-        models.PotentialMLP(is_potential=False, dim_hidden=[128])
+        potentials.PotentialMLP(dim_hidden=[32]),
+        potentials.PotentialMLP(is_potential=False, dim_hidden=[128])
     )
   raise ValueError(f"Invalid request: {request.param}")
 
@@ -82,7 +84,7 @@ class TestNeuralDual:
     train_dataset, valid_dataset = ds
 
     if test_gaussian_init:
-      neural_f = models.ICNN(
+      neural_f = icnn.ICNN(
           dim_data=2,
           dim_hidden=[32],
           gaussian_map_samples=[
@@ -90,7 +92,7 @@ class TestNeuralDual:
               next(train_dataset.target_iter)
           ]
       )
-      neural_g = models.ICNN(
+      neural_g = icnn.ICNN(
           dim_data=2,
           dim_hidden=[32],
           gaussian_map_samples=[

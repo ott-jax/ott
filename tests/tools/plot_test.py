@@ -16,14 +16,13 @@ import jax
 
 import matplotlib.pyplot as plt
 
-import ott
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import plot
 
 
-class TestSoftSort:
+class TestPlotting:
 
   def test_plot(self, monkeypatch):
     monkeypatch.setattr(plt, "show", lambda: None)
@@ -44,5 +43,5 @@ class TestSoftSort:
     plott = plot.Plot()
     _ = plott(ots[0])
     fig = plt.figure(figsize=(8, 5))
-    plott = ott.tools.plot.Plot(fig=fig, title="test")
+    plott = plot.Plot(fig=fig, title="test")
     plott.animate(ots, frame_rate=2, titles=["test1", "test2"])

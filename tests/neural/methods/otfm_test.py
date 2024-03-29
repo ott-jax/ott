@@ -19,7 +19,9 @@ import jax.tree_util as jtu
 
 import optax
 
-from ott.neural.flow_models import flows, models, otfm, utils
+from ott.neural.methods.flows import dynamics, otfm
+from ott.neural.networks import velocity_field
+from ott.solvers import utils as solver_utils
 
 
 class TestOTFlowMatching:
@@ -29,15 +31,15 @@ class TestOTFlowMatching:
     dl = request.getfixturevalue(dl)
     dim, cond_dim = dl.lin_dim, dl.cond_dim
 
-    neural_vf = models.VelocityField(
+    vf = velocity_field.VelocityField(
         hidden_dims=[5, 5, 5],
         output_dims=[7, dim],
         condition_dims=None if cond_dim is None else [4, 3, 2],
     )
     fm = otfm.OTFlowMatching(
-        neural_vf,
-        flows.ConstantNoiseFlow(0.0),
-        match_fn=jax.jit(utils.match_linear),
+        vf,
+        dynamics.ConstantNoiseFlow(0.0),
+        match_fn=jax.jit(solver_utils.match_linear),
         rng=rng,
         optimizer=optax.adam(learning_rate=1e-3),
         condition_dim=cond_dim,

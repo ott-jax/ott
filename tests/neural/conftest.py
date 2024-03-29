@@ -18,7 +18,7 @@ import pytest
 import numpy as np
 from torch.utils.data import DataLoader
 
-from ott.neural.data import datasets
+from ott.neural import datasets
 
 
 class OTLoader(NamedTuple):

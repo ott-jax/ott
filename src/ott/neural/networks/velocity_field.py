@@ -16,11 +16,11 @@ from typing import Callable, Optional, Sequence
 import jax
 import jax.numpy as jnp
 
-import flax.linen as nn
 import optax
+from flax import linen as nn
 from flax.training import train_state
 
-from ott.neural.flow_models import utils
+from ott.neural.networks.layers import time_encoder
 
 __all__ = ["VelocityField"]
 
@@ -50,7 +50,7 @@ class VelocityField(nn.Module):
   condition_dims: Optional[Sequence[int]] = None
   time_dims: Optional[Sequence[int]] = None
   time_encoder: Callable[[jnp.ndarray],
-                         jnp.ndarray] = utils.cyclical_time_encoder
+                         jnp.ndarray] = time_encoder.cyclical_time_encoder
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
 
   @nn.compact

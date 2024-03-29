@@ -22,8 +22,9 @@ import diffrax
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.flow_models import flows, models
-from ott.neural.flow_models import utils as flow_utils
+from ott.neural.methods.flows import dynamics
+from ott.neural.networks import velocity_field
+from ott.solvers import utils as solver_utils
 
 __all__ = ["OTFlowMatching"]
 
@@ -34,7 +35,7 @@ class OTFlowMatching:
   With an extension to OT-FM :cite:`tong:23,pooladian:23`.
 
   Args:
-    velocity_field: Vector field parameterized by a neural network.
+    vf: Vector field parameterized by a neural network.
     flow: Flow between the source and the target distributions.
     match_fn: Function to match samples from the source and the target
       distributions. It has a ``(src, tgt) -> matching`` signature.
@@ -45,15 +46,15 @@ class OTFlowMatching:
 
   def __init__(
       self,
-      velocity_field: models.VelocityField,
-      flow: flows.BaseFlow,
+      vf: velocity_field.VelocityField,
+      flow: dynamics.BaseFlow,
       match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                   jnp.ndarray]] = None,
       time_sampler: Callable[[jax.Array, int],
-                             jnp.ndarray] = flow_utils.uniform_sampler,
+                             jnp.ndarray] = solver_utils.uniform_sampler,
       **kwargs: Any,
   ):
-    self.vf = velocity_field
+    self.vf = vf
     self.flow = flow
     self.time_sampler = time_sampler
     self.match_fn = match_fn
@@ -127,7 +128,7 @@ class OTFlowMatching:
 
       if self.match_fn is not None:
         tmat = self.match_fn(src, tgt)
-        src_ixs, tgt_ixs = flow_utils.sample_joint(rng_resample, tmat)
+        src_ixs, tgt_ixs = solver_utils.sample_joint(rng_resample, tmat)
         src, tgt = src[src_ixs], tgt[tgt_ixs]
         src_cond = None if src_cond is None else src_cond[src_ixs]
 

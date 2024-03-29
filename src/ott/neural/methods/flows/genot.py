@@ -23,8 +23,9 @@ import diffrax
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.flow_models import flows, models
-from ott.neural.flow_models import utils as flow_utils
+from ott.neural.methods.flows import dynamics
+from ott.neural.networks import velocity_field
+from ott.solvers import utils as solver_utils
 
 __all__ = ["GENOT"]
 
@@ -45,7 +46,7 @@ class GENOT:
   the unbalanced setting.
 
   Args:
-    velocity_field: Vector field parameterized by a neural network.
+    vf: Vector field parameterized by a neural network.
     flow: Flow between the latent and the target distributions.
     data_match_fn: Function to match samples from the source and the target
       distributions with a ``(src_lin, tgt_lin, src_quad, tgt_quad) -> matching``
@@ -70,15 +71,15 @@ class GENOT:
 
   def __init__(
       self,
-      velocity_field: models.VelocityField,
-      flow: flows.BaseFlow,
+      vf: velocity_field.VelocityField,
+      flow: dynamics.BaseFlow,
       data_match_fn: DataMatchFn_t,
       *,
       source_dim: int,
       target_dim: int,
       condition_dim: Optional[int] = None,
       time_sampler: Callable[[jax.Array, int],
-                             jnp.ndarray] = flow_utils.uniform_sampler,
+                             jnp.ndarray] = solver_utils.uniform_sampler,
       latent_noise_fn: Optional[Callable[[jax.Array, Tuple[int, ...]],
                                          jnp.ndarray]] = None,
       latent_match_fn: Optional[Callable[[jnp.ndarray, jnp.ndarray],
@@ -86,12 +87,12 @@ class GENOT:
       n_samples_per_src: int = 1,
       **kwargs: Any,
   ):
-    self.vf = velocity_field
+    self.vf = vf
     self.flow = flow
     self.data_match_fn = data_match_fn
     self.time_sampler = time_sampler
     if latent_noise_fn is None:
-      latent_noise_fn = functools.partial(multivariate_normal, dim=target_dim)
+      latent_noise_fn = functools.partial(_multivariate_normal, dim=target_dim)
     self.latent_noise_fn = latent_noise_fn
     self.latent_match_fn = latent_match_fn
     self.n_samples_per_src = n_samples_per_src
@@ -193,7 +194,7 @@ class GENOT:
       latent = self.latent_noise_fn(rng_noise, (n, self.n_samples_per_src))
 
       tmat = self.data_match_fn(*matching_data)  # (n, m)
-      src_ixs, tgt_ixs = flow_utils.sample_conditional(  # (n, k), (m, k)
+      src_ixs, tgt_ixs = solver_utils.sample_conditional(  # (n, k), (m, k)
           rng_resample,
           tmat,
           k=self.n_samples_per_src,
@@ -233,7 +234,7 @@ class GENOT:
     ) -> Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray]:
       tmat = self.latent_match_fn(latent, tgt)  # (n, k)
 
-      src_ixs, tgt_ixs = flow_utils.sample_joint(rng, tmat)  # (n,), (m,)
+      src_ixs, tgt_ixs = solver_utils.sample_joint(rng, tmat)  # (n,), (m,)
       src, tgt = src[src_ixs], tgt[tgt_ixs]
       if src_cond is not None:
         src_cond = src_cond[src_ixs]
@@ -304,7 +305,7 @@ class GENOT:
     return jax.jit(jax.vmap(solve_ode))(latent, source)
 
 
-def multivariate_normal(
+def _multivariate_normal(
     rng: jax.Array,
     shape: Tuple[int, ...],
     dim: int,

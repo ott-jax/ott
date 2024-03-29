@@ -16,7 +16,7 @@ from typing import Any, Callable, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-import flax.linen as nn
+from flax import linen as nn
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
 
@@ -25,7 +25,6 @@ Shape = Tuple[int, ...]
 Dtype = Any
 Array = jnp.ndarray
 
-# wrap to silence docs linter
 DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.lecun_normal()(*a, **k)
 DEFAULT_BIAS_INIT = nn.initializers.zeros
 DEFAULT_RECTIFIER = nn.activation.relu

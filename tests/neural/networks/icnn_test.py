@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.neural.duality import models
+from ott.neural.networks import icnn
 
 
 @pytest.mark.fast()
@@ -29,7 +29,7 @@ class TestICNN:
     dim_hidden = (64, 64)
 
     # define icnn model
-    model = models.ICNN(n_features, dim_hidden=dim_hidden)
+    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     rng1, rng2 = jax.random.split(rng, 2)
@@ -55,7 +55,7 @@ class TestICNN:
     # define icnn model
     n_features = 2
     dim_hidden = (64, 64)
-    model = models.ICNN(n_features, dim_hidden=dim_hidden)
+    model = icnn.ICNN(n_features, dim_hidden=dim_hidden)
 
     # initialize model
     rng1, rng2 = jax.random.split(rng)

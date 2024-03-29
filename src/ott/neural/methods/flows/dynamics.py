@@ -20,7 +20,7 @@ __all__ = [
     "BaseFlow",
     "StraightFlow",
     "ConstantNoiseFlow",
-    "BrownianNoiseFlow",
+    "BrownianBridge",
 ]
 
 
@@ -140,8 +140,8 @@ class ConstantNoiseFlow(StraightFlow):
     return jnp.full_like(t, fill_value=self.sigma)
 
 
-class BrownianNoiseFlow(StraightFlow):
-  r"""Brownian Bridge Flow.
+class BrownianBridge(StraightFlow):
+  r"""Brownian Bridge.
 
   Sampler for sampling noise implicitly defined by a Schrödinger Bridge
   problem with parameter :math:`\sigma` such that

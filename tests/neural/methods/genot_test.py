@@ -22,7 +22,9 @@ import jax.tree_util as jtu
 
 import optax
 
-from ott.neural.flow_models import flows, genot, models, utils
+from ott.neural.methods.flows import dynamics, genot
+from ott.neural.networks import velocity_field
+from ott.solvers import utils as solver_utils
 
 
 def data_match_fn(
@@ -31,11 +33,13 @@ def data_match_fn(
     typ: Literal["lin", "quad", "fused"]
 ) -> jnp.ndarray:
   if typ == "lin":
-    return utils.match_linear(x=src_lin, y=tgt_lin)
+    return solver_utils.match_linear(x=src_lin, y=tgt_lin)
   if typ == "quad":
-    return utils.match_quadratic(xx=src_quad, yy=tgt_quad)
+    return solver_utils.match_quadratic(xx=src_quad, yy=tgt_quad)
   if typ == "fused":
-    return utils.match_quadratic(xx=src_quad, yy=tgt_quad, x=src_lin, y=tgt_lin)
+    return solver_utils.match_quadratic(
+        xx=src_quad, yy=tgt_quad, x=src_lin, y=tgt_lin
+    )
   raise NotImplementedError(f"Unknown type: {typ}.")
 
 
@@ -56,14 +60,14 @@ class TestGENOT:
     tgt_dim = dl.lin_dim + dl.quad_tgt_dim
     cond_dim = dl.cond_dim
 
-    vf = models.VelocityField(
+    vf = velocity_field.VelocityField(
         hidden_dims=[7, 7, 7],
         output_dims=[15, tgt_dim],
         condition_dims=None if cond_dim is None else [1, 3, 2],
     )
     model = genot.GENOT(
         vf,
-        flow=flows.ConstantNoiseFlow(0.0),
+        flow=dynamics.ConstantNoiseFlow(0.0),
         data_match_fn=functools.partial(data_match_fn, typ=problem_type),
         source_dim=src_dim,
         target_dim=tgt_dim,
