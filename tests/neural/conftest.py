@@ -11,18 +11,45 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Optional, Union
+from collections import defaultdict
+from typing import Dict, NamedTuple, Optional, Union
 
 import pytest
 
+import jax.numpy as jnp
 import numpy as np
-from torch.utils.data import DataLoader
 
 from ott.neural import datasets
 
 
+class SimpleDataLoader:
+
+  def __init__(
+      self,
+      dataset: datasets.OTDataset,
+      batch_size: int,
+      seed: Optional[int] = None
+  ):
+    self.dataset = dataset
+    self.batch_size = batch_size
+    self.seed = seed
+
+  def __iter__(self):
+    self._rng = np.random.default_rng(self.seed)
+    return self
+
+  def __next__(self) -> Dict[str, jnp.ndarray]:
+    data = defaultdict(list)
+    for _ in range(self.batch_size):
+      ix = self._rng.integers(0, len(self.dataset))
+      for k, v in self.dataset[ix].items():
+        data[k].append(v)
+
+    return {k: jnp.vstack(v) for k, v in data.items()}
+
+
 class OTLoader(NamedTuple):
-  loader: DataLoader
+  loader: SimpleDataLoader
   lin_dim: int = 0
   quad_src_dim: int = 0
   quad_tgt_dim: int = 0
@@ -58,7 +85,7 @@ def _ot_data(
 
 
 @pytest.fixture()
-def lin_dl() -> DataLoader:
+def lin_dl() -> OTLoader:
   n, d = 128, 2
   rng = np.random.default_rng(0)
 
@@ -67,13 +94,13 @@ def lin_dl() -> DataLoader:
   ds = datasets.OTDataset(src, tgt)
 
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=13),
       lin_dim=d,
   )
 
 
 @pytest.fixture()
-def lin_cond_dl() -> DataLoader:
+def lin_cond_dl() -> OTLoader:
   n, d, cond_dim = 128, 2, 3
   rng = np.random.default_rng(13)
 
@@ -84,14 +111,14 @@ def lin_cond_dl() -> DataLoader:
 
   ds = datasets.OTDataset(src, tgt)
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=14),
       lin_dim=d,
       cond_dim=cond_dim,
   )
 
 
 @pytest.fixture()
-def quad_dl():
+def quad_dl() -> OTLoader:
   n, quad_src_dim, quad_tgt_dim = 128, 2, 4
   rng = np.random.default_rng(11)
 
@@ -100,14 +127,14 @@ def quad_dl():
   ds = datasets.OTDataset(src, tgt)
 
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=15),
       quad_src_dim=quad_src_dim,
       quad_tgt_dim=quad_tgt_dim,
   )
 
 
 @pytest.fixture()
-def quad_cond_dl():
+def quad_cond_dl() -> OTLoader:
   n, quad_src_dim, quad_tgt_dim, cond_dim = 128, 2, 4, 5
   rng = np.random.default_rng(414)
 
@@ -118,7 +145,7 @@ def quad_cond_dl():
   ds = datasets.OTDataset(src, tgt)
 
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=16),
       quad_src_dim=quad_src_dim,
       quad_tgt_dim=quad_tgt_dim,
       cond_dim=cond_dim,
@@ -126,7 +153,7 @@ def quad_cond_dl():
 
 
 @pytest.fixture()
-def fused_dl():
+def fused_dl() -> OTLoader:
   n, lin_dim, quad_src_dim, quad_tgt_dim = 128, 6, 2, 4
   rng = np.random.default_rng(11)
 
@@ -135,7 +162,7 @@ def fused_dl():
   ds = datasets.OTDataset(src, tgt)
 
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=17),
       lin_dim=lin_dim,
       quad_src_dim=quad_src_dim,
       quad_tgt_dim=quad_tgt_dim,
@@ -143,7 +170,7 @@ def fused_dl():
 
 
 @pytest.fixture()
-def fused_cond_dl():
+def fused_cond_dl() -> OTLoader:
   n, lin_dim, quad_src_dim, quad_tgt_dim, cond_dim = 128, 6, 2, 4, 7
   rng = np.random.default_rng(11)
 
@@ -163,7 +190,7 @@ def fused_cond_dl():
   ds = datasets.OTDataset(src, tgt)
 
   return OTLoader(
-      DataLoader(ds, batch_size=16, shuffle=True),
+      SimpleDataLoader(ds, batch_size=18),
       lin_dim=lin_dim,
       quad_src_dim=quad_src_dim,
       quad_tgt_dim=quad_tgt_dim,

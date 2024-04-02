@@ -97,7 +97,7 @@ jobs:
 
     - name: Setup environment
       run: |
-        tox -e py${{ matrix.python-version }} --notest -vv
+        tox -e py${{ matrix.python-version }} --notest -v
 
     - name: Run tests
       run: |

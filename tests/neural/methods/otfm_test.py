@@ -25,7 +25,7 @@ from ott.neural.networks import velocity_field
 from ott.solvers import utils as solver_utils
 
 
-class TestOTFlowMatching:
+class TestOTFM:
 
   @pytest.mark.parametrize("dl", ["lin_dl", "lin_cond_dl"])
   def test_otfm(self, rng: jax.Array, dl: str, request):
