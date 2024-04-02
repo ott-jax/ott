@@ -16,6 +16,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+import numpy as np
 
 import optax
 
@@ -54,6 +55,9 @@ class TestOTFlowMatching:
     res_fwd = fm.transport(batch["src_lin"], condition=src_cond)
     res_bwd = fm.transport(batch["tgt_lin"], t0=1.0, t1=0.0, condition=src_cond)
 
-    # TODO(michalk8): better assertions
-    assert jnp.sum(jnp.isnan(res_fwd)) == 0
-    assert jnp.sum(jnp.isnan(res_bwd)) == 0
+    assert len(_logs["loss"]) == 3
+
+    assert res_fwd.shape == batch["src_lin"].shape
+    assert res_bwd.shape == batch["tgt_lin"].shape
+    np.testing.assert_array_equal(jnp.isfinite(res_fwd), True)
+    np.testing.assert_array_equal(jnp.isfinite(res_bwd), True)

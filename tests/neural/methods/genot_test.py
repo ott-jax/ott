@@ -19,6 +19,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+import numpy as np
 
 import optax
 
@@ -76,7 +77,7 @@ class TestGENOT:
         optimizer=optax.adam(learning_rate=1e-4),
     )
 
-    _logs = model(dl.loader, n_iters=3, rng=rng_call)
+    _logs = model(dl.loader, n_iters=2, rng=rng_call)
 
     batch = next(iter(dl.loader))
     batch = jtu.tree_map(jnp.asarray, batch)
@@ -86,5 +87,6 @@ class TestGENOT:
 
     res = model.transport(src, condition=src_cond)
 
-    assert jnp.sum(jnp.isnan(res)) == 0
-    assert res.shape[-1] == tgt_dim
+    assert len(_logs["loss"]) == 2
+    np.testing.assert_array_equal(jnp.isfinite(res), True)
+    assert res.shape == (batch_size, tgt_dim)
