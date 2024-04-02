@@ -111,7 +111,11 @@ class VelocityField(nn.Module):
       The training state.
     """
     t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
-    cond = None if self.condition_dims is None else jnp.ones((1, condition_dim))
+    if self.condition_dims is None:
+      cond = None
+    else:
+      assert condition_dim > 0, "Condition dimension must be positive."
+      cond = jnp.ones((1, condition_dim))
 
     params = self.init(rng, t, x, cond)["params"]
     return train_state.TrainState.create(
