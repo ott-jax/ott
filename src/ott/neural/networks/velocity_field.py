@@ -87,10 +87,11 @@ class VelocityField(nn.Module):
     else:
       feats = jnp.concatenate([t, x], axis=-1)
 
-    for output_dim in self.output_dims:
+    for output_dim in self.output_dims[:-1]:
       feats = self.act_fn(nn.Dense(output_dim)(feats))
 
-    return feats
+    # no activation function for the final layer
+    return nn.Dense(self.output_dims[-1])(feats)
 
   def create_train_state(
       self,
