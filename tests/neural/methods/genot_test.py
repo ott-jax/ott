@@ -52,7 +52,7 @@ class TestGENOT:
           "fused_cond_dl"
       ]
   )
-  def skip_test_genot(self, rng: jax.Array, dl: str, request):
+  def test_genot(self, rng: jax.Array, dl: str, request):
     rng_init, rng_call, rng_data = jax.random.split(rng, 3)
     problem_type = dl.split("_")[0]
     dl = request.getfixturevalue(dl)
