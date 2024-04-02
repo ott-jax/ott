@@ -66,7 +66,7 @@ class GENOT:
     n_samples_per_src: Number of samples drawn from the conditional distribution
       per one source sample.
     kwargs: Keyword arguments for
-      :meth:`ott.neural.flow_models.models.VelocityField.create_train_state`.
+      :meth:`~ott.neural.networks.velocity_field.VelocityField.create_train_state`.
   """  # noqa: E501
 
   def __init__(

@@ -27,8 +27,8 @@ class OTData:
   """Distribution data for (conditional) optimal transport problems.
 
   Args:
-    lin: Linear (living in the shared space) part of the samples.
-    quad: Quadratic (living in the incomparable subspace) part of the samples.
+    lin: Linear term of the samples.
+    quad: Quadratic term of the samples.
     condition: Condition corresponding to the data distribution.
   """
   lin: Optional[np.ndarray] = None

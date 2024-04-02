@@ -34,7 +34,7 @@ class PotentialTrainState(train_state.TrainState):
 
   This extends :class:`~flax.training.train_state.TrainState` to include
   the potential methods from the
-  :class:`~ott.neural.duality.neuraldual.BaseW2NeuralDual` used during training.
+  :class:`~ott.neural.networks.potentials.BasePotential` used during training.
 
   Args:
     potential_value_fn: the potential's value function

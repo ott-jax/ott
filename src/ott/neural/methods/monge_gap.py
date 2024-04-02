@@ -64,14 +64,14 @@ def monge_gap(
     W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
 
   See :cite:`uscidda:23` Eq. (8). This function is a thin wrapper that calls
-  :func:`~ott.neural.losses.monge_gap_from_samples`.
+  :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`.
 
   Args:
     map_fn: Callable corresponding to map :math:`T` in definition above. The
-      callable should be vectorized (e.g. using :func:`jax.vmap`), i.e,
+      callable should be vectorized (e.g. using :func:`~jax.vmap`), i.e,
       able to process a *batch* of vectors of size `d`, namely
       ``map_fn`` applied to an array returns an array of the same shape.
-    reference_points: Array of `[n,d]` points, :math:`\hat\rho_n` in paper
+    reference_points: Array of `[n,d]` points, :math:`\hat\rho_n`.
     cost_fn: An object of class :class:`~ott.geometry.costs.CostFn`.
     epsilon: Regularization parameter. See
       :class:`~ott.geometry.pointcloud.PointCloud`
@@ -184,7 +184,7 @@ class MongeGapEstimator:
 
   For instance, :math:`\Delta` can be the
   :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the :func:`~ott.neural.losses.monge_gap_from_samples`
+  and :math:`R` the :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`
   :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
@@ -259,11 +259,11 @@ class MongeGapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be, e.g. the :func:`~ott.neural.losses.monge_gap_from_samples`.
+    Can be, e.g. the :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default along with an empty set of log values.
-    """
+    """  # noqa: E501
     if self._regularizer is not None:
       return self._regularizer
     return lambda *_, **__: (0.0, None)

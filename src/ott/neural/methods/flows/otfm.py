@@ -41,7 +41,7 @@ class OTFlowMatching:
       distributions. It has a ``(src, tgt) -> matching`` signature.
     time_sampler: Time sampler with a ``(rng, n_samples) -> time`` signature.
     kwargs: Keyword arguments for
-      :meth:`~ott.neural.flow_models.models.VelocityField.create_train_state`.
+      :meth:`~ott.neural.networks.velocity_field.VelocityField.create_train_state`.
   """
 
   def __init__(

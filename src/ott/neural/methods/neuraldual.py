@@ -48,7 +48,8 @@ class W2NeuralDual:
   denoted source and target, respectively. This is achieved by parameterizing
   a Kantorovich potential :math:`f_\theta: \mathbb{R}^n\rightarrow\mathbb{R}`
   associated with the :math:`\alpha` measure with an
-  :class:`~ott.neural.models.ICNN` or :class:`~ott.neural.models.MLP`, where
+  :class:`~ott.neural.networks.icnn.ICNN` or a
+  :class:`~ott.neural.networks.potentials.PotentialMLP`, where
   :math:`\nabla f` transports source to target cells. This potential is learned
   by optimizing the dual form associated with the negative inner product cost
 
@@ -64,10 +65,10 @@ class W2NeuralDual:
   transport map from :math:`\beta` to :math:`\alpha`.
   This solver estimates the conjugate :math:`f^\star`
   with a neural approximation :math:`g` that is fine-tuned
-  with :class:`~ott.neural.duality.conjugate.FenchelConjugateSolver`,
+  with :class:`~ott.neural.networks.layers.conjugate.FenchelConjugateSolver`,
   which is a combination further described in :cite:`amos:23`.
 
-  The :class:`~ott.neural.duality.neuraldual.BaseW2NeuralDual` potentials for
+  The :class:`~ott.neural.networks.potentials.BasePotential` potentials for
   ``neural_f`` and ``neural_g`` can
 
   1. both provide the values of the potentials :math:`f` and :math:`g`, or
@@ -76,7 +77,7 @@ class W2NeuralDual:
      via the Fenchel conjugate as discussed in :cite:`amos:23`.
 
   The potential's value or gradient mapping is specified via
-  :attr:`~ott.neural.duality.neuraldual.BaseW2NeuralDual.is_potential`.
+  :attr:`~ott.neural.networks.potentials.BasePotential.is_potential`.
 
   Args:
     dim_data: input dimensionality of data required for network init
