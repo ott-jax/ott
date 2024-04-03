@@ -32,7 +32,7 @@ ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
 
 def match_linear(
     x: jnp.ndarray,
-    y: jnp.ndarray,
+    y: Optional[jnp.ndarray],
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
     scale_cost: ScaleCost_t = 1.0,
@@ -41,8 +41,8 @@ def match_linear(
   """Compute solution to a linear OT problem.
 
   Args:
-    x: Linear term of the source point cloud.
-    y: Linear term of the target point cloud.
+    x: Source point cloud of shape ``[n, d]``.
+    y: Target point cloud of shape ``[m, d]``.
     cost_fn: Cost function.
     epsilon: Regularization parameter.
     scale_cost: Scaling of the cost matrix.
@@ -70,8 +70,8 @@ def match_quadratic(
   """Compute solution to a quadratic OT problem.
 
   Args:
-    xx: Quadratic (incomparable) term of the source point cloud.
-    yy: Quadratic (incomparable) term of the target point cloud.
+    xx: Source point cloud of shape ``[n, d1]``.
+    yy: Target point cloud of shape ``[m, d2]``.
     x: Linear (fused) term of the source point cloud.
     y: Linear (fused) term of the target point cloud.
     scale_cost: Scaling of the cost matrix.
