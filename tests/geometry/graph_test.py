@@ -13,14 +13,17 @@
 # limitations under the License.
 from typing import Literal, Optional, Tuple, Union
 
-import jax
-import jax.numpy as jnp
 import networkx as nx
-import numpy as np
-import pytest
-from jax.experimental import sparse
 from networkx.algorithms import shortest_paths
 from networkx.generators import balanced_tree, random_graphs
+
+import pytest
+
+import jax
+import jax.experimental.sparse as jesp
+import jax.numpy as jnp
+import numpy as np
+
 from ott.geometry import geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -256,7 +259,7 @@ class TestGraph:
         data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
         shape: Tuple[int, int]
     ) -> float:
-      G = sparse.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
+      G = jesp.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 
       geom = graph.Graph.from_graph(G, t=1.0)
       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
@@ -271,7 +274,7 @@ class TestGraph:
 
     eps = 1e-3
     G = random_graph(20, p=0.5)
-    G = sparse.BCOO.fromdense(G)
+    G = jesp.BCOO.fromdense(G)
 
     w, rows, cols = G.data, G.indices[:, 0], G.indices[:, 1]
     v_w = jax.random.normal(rng, shape=w.shape)

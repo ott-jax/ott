@@ -25,6 +25,7 @@ McCann
 Monge
 Moreau
 SGD
+Schrödinger
 Schur
 Seidel
 Sinkhorn
@@ -46,6 +47,7 @@ chromatin
 collinear
 covariance
 covariances
+dataclass
 dataloaders
 dataset
 datasets
@@ -110,6 +112,7 @@ preprocess
 preprocessing
 proteome
 prox
+pytree
 quantile
 quantiles
 quantizes

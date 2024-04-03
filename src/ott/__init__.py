@@ -25,7 +25,6 @@ from . import (
 )
 
 with contextlib.suppress(ImportError):
-  # TODO(michalk8): add warning that neural module is not imported
   from . import neural
 
 from ._version import __version__
