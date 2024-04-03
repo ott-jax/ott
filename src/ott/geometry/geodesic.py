@@ -241,7 +241,10 @@ def compute_sparse_laplacian(
   # on different devices int32 vs int64 can cause issues
   indices_dtype = G.indices.dtype
   data_degree, ixs = G.sum(1).todense(), jnp.arange(n, dtype=indices_dtype)
-  degree = jesp.BCOO((data_degree, jnp.c_[ixs, ixs]), shape=(n, n),)
+  degree = jesp.BCOO(
+      (data_degree, jnp.c_[ixs, ixs]),
+      shape=(n, n),
+  )
   laplacian = degree - G
   if normalize:
     laplacian = normalize_laplacian(laplacian, data_degree)
