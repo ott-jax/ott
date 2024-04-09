@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott.tools.gaussian_mixture import probabilities
@@ -63,15 +64,15 @@ class TestProbabilities:
   def test_flatten_unflatten(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
     pp = probabilities.Probabilities.from_probs(probs)
-    children, aux_data = jax.tree_util.tree_flatten(pp)
-    pp_new = jax.tree_util.tree_unflatten(aux_data, children)
+    children, aux_data = jtu.tree_flatten(pp)
+    pp_new = jtu.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(pp.params, pp_new.params)
     assert pp == pp_new
 
   def test_pytree_mapping(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])
     pp = probabilities.Probabilities.from_probs(probs)
-    pp_x_2 = jax.tree_map(lambda x: 2 * x, pp)
+    pp_x_2 = jtu.tree_map(lambda x: 2 * x, pp)
     np.testing.assert_allclose(
         2.0 * pp.params, pp_x_2.params, rtol=1e-6, atol=1e-6
     )

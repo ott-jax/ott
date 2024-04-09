@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott.tools.gaussian_mixture import gaussian, scale_tril
@@ -137,14 +138,14 @@ class TestGaussian:
 
   def test_flatten_unflatten(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)
-    children, aux_data = jax.tree_util.tree_flatten(g)
-    g_new = jax.tree_util.tree_unflatten(aux_data, children)
+    children, aux_data = jtu.tree_flatten(g)
+    g_new = jtu.tree_unflatten(aux_data, children)
 
     assert g == g_new
 
   def test_pytree_mapping(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)
-    g_x_2 = jax.tree_map(lambda x: 2 * x, g)
+    g_x_2 = jtu.tree_map(lambda x: 2 * x, g)
 
     np.testing.assert_allclose(2.0 * g.loc, g_x_2.loc)
     np.testing.assert_allclose(2.0 * g.scale.params, g_x_2.scale.params)

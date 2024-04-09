@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
@@ -170,7 +171,7 @@ class TestGaussianMixturePair:
     )
     expected_gmm1_loc = 2.0 * self.gmm1.loc if not lock_gmm1 else self.gmm1.loc
 
-    pair_x_2 = jax.tree_map(lambda x: 2.0 * x, pair)
+    pair_x_2 = jtu.tree_map(lambda x: 2.0 * x, pair)
     # gmm parameters should be doubled
     np.testing.assert_allclose(2.0 * pair.gmm0.loc, pair_x_2.gmm0.loc)
     np.testing.assert_allclose(expected_gmm1_loc, pair_x_2.gmm1.loc)
