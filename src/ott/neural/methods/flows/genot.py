@@ -162,23 +162,26 @@ class GENOT:
 
     def prepare_data(
         batch: Dict[str, jnp.ndarray]
-    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray], Tuple[
-        jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray], jnp.ndarray], Dict[
+        str, jnp.ndarray]]:
       src_lin, src_quad = batch.get("src_lin"), batch.get("src_quad")
       tgt_lin, tgt_quad = batch.get("tgt_lin"), batch.get("tgt_quad")
       arrs = src_lin, tgt_lin, src_quad, tgt_quad
 
       if src_quad is None and tgt_quad is None:  # lin
         src, tgt = src_lin, tgt_lin
+        arrs_dict = {"x": src_lin, "y": tgt_lin}
       elif src_lin is None and tgt_lin is None:  # quad
         src, tgt = src_quad, tgt_quad
+        arrs_dict = {"xx": src_quad, "yy": tgt_quad}
       elif all(arr is not None for arr in arrs):  # fused quad
         src = jnp.concatenate([src_lin, src_quad], axis=1)
         tgt = jnp.concatenate([tgt_lin, tgt_quad], axis=1)
+        arrs_dict = {"x": src_lin, "y": tgt_lin, "xx": src_quad, "yy": tgt_quad}
       else:
         raise RuntimeError("Cannot infer OT problem type from data.")
 
-      return (src, batch.get("src_condition"), tgt), arrs
+      return (src, batch.get("src_condition"), tgt), arrs_dict
 
     rng = utils.default_prng_key(rng)
     training_logs = {"loss": []}
@@ -193,7 +196,7 @@ class GENOT:
       time = self.time_sampler(rng_time, n * self.n_samples_per_src)
       latent = self.latent_noise_fn(rng_noise, (n, self.n_samples_per_src))
 
-      tmat = self.data_match_fn(*matching_data)  # (n, m)
+      tmat = self.data_match_fn(**matching_data)  # (n, m)
       src_ixs, tgt_ixs = solver_utils.sample_conditional(  # (n, k), (m, k)
           rng_resample,
           tmat,
