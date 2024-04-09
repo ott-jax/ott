@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott.math import matrix_square_root
@@ -102,12 +103,12 @@ class TestScaleTriL:
 
   def test_flatten_unflatten(self, rng: jax.Array):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)
-    children, aux_data = jax.tree_util.tree_flatten(scale)
-    scale_new = jax.tree_util.tree_unflatten(aux_data, children)
+    children, aux_data = jtu.tree_flatten(scale)
+    scale_new = jtu.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(scale.params, scale_new.params)
     assert scale == scale_new
 
   def test_pytree_mapping(self, rng: jax.Array):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)
-    scale_x_2 = jax.tree_map(lambda x: 2 * x, scale)
+    scale_x_2 = jtu.tree_map(lambda x: 2 * x, scale)
     np.testing.assert_allclose(2.0 * scale.params, scale_x_2.params)
