@@ -210,7 +210,7 @@ class PointCloud(geometry.Geometry):
             self._norm_y, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
-          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, self.cost_fn,
+          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, cost_fn,
           self.inv_scale_cost
       )
       return carry, (h_res, h_sgn)
@@ -228,7 +228,7 @@ class PointCloud(geometry.Geometry):
             self._norm_x, (i * self.batch_size,), (self.batch_size,)
         )
       h_res, h_sgn = app(
-          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, self.cost_fn,
+          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, cost_fn,
           self.inv_scale_cost
       )
       return carry, (h_res, h_sgn)
@@ -238,12 +238,12 @@ class PointCloud(geometry.Geometry):
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
         return app(
             self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec,
-            self.cost_fn, self.inv_scale_cost
+            cost_fn, self.inv_scale_cost
         )
       norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
       return app(
-          self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec,
-          self.cost_fn, self.inv_scale_cost
+          self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec, cost_fn,
+          self.inv_scale_cost
       )
 
     if not self.is_online:
@@ -257,10 +257,10 @@ class PointCloud(geometry.Geometry):
     )
 
     if axis == 0:
-      fun = body0
+      fun, cost_fn = body0, self.cost_fn
       v, n = g, self._y_nsplit
     elif axis == 1:
-      fun = body1
+      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
       v, n = f, self._x_nsplit
     else:
       raise ValueError(axis)
@@ -287,6 +287,7 @@ class PointCloud(geometry.Geometry):
     if not self.is_online:
       return super().apply_kernel(scaling, eps, axis)
 
+    # TODO(michalk8): batch this properly
     app = jax.vmap(
         _apply_kernel_xy,
         in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
@@ -294,10 +295,12 @@ class PointCloud(geometry.Geometry):
     if axis == 0:
       return app(
           self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
-          self.cost_fn, self.inv_scale_cost
+          self.cost_fn.pairwise, self.inv_scale_cost
       )
+    # for non-symmetric costs
+    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
     return app(
-        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, self.cost_fn,
+        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, cost_fn,
         self.inv_scale_cost
     )
 
@@ -738,7 +741,7 @@ def _transport_from_scalings_xy(
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, scale_cost):
-  one_line_pairwise = jax.vmap(cost_fn.pairwise, in_axes=[0, None])
+  one_line_pairwise = jax.vmap(cost_fn, in_axes=[0, None])
   cost = norm_x + norm_y + one_line_pairwise(x, y)
   return cost * scale_cost
 
