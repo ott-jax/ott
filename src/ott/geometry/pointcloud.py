@@ -301,7 +301,7 @@ class PointCloud(geometry.Geometry):
     return transport(
         self.x, self.y, self._norm_x, self._norm_y, f, g, self.epsilon,
         self.cost_fn, self.inv_scale_cost
-    )
+    ).T
 
   def transport_from_scalings(  # noqa: D102
       self, u: jnp.ndarray, v: jnp.ndarray
@@ -313,7 +313,7 @@ class PointCloud(geometry.Geometry):
     return transport(
         self.x, self.y, self._norm_x, self._norm_y, u, v, self.epsilon,
         self.cost_fn, self.inv_scale_cost
-    )
+    ).T
 
   def apply_cost(
       self,
