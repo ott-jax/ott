@@ -133,7 +133,6 @@ class PointCloud(geometry.Geometry):
     """Whether the cost/kernel is computed on-the-fly."""
     return self.batch_size is not None
 
-  # TODO(michalk8): when refactoring, consider PC as a subclass of LR?
   @property
   def cost_rank(self) -> int:  # noqa: D102
     return self.x.shape[1]
@@ -199,10 +198,7 @@ class PointCloud(geometry.Geometry):
 
     def body0(carry, i: int):
       f, g, eps, vec = carry
-      y = jax.lax.dynamic_slice(
-          self.y, (i * self.batch_size, 0), (self.batch_size, self.y.shape[1])
-      )
-      g_ = jax.lax.dynamic_slice(g, (i * self.batch_size,), (self.batch_size,))
+      y, g_ = self._leading_slice(self.y, i), self._leading_slice(g, i)
       if self._axis_norm is None:
         norm_y = self._norm_y
       else:
@@ -217,10 +213,7 @@ class PointCloud(geometry.Geometry):
 
     def body1(carry, i: int):
       f, g, eps, vec = carry
-      x = jax.lax.dynamic_slice(
-          self.x, (i * self.batch_size, 0), (self.batch_size, self.x.shape[1])
-      )
-      f_ = jax.lax.dynamic_slice(f, (i * self.batch_size,), (self.batch_size,))
+      x, f_ = self._leading_slice(self.x, i), self._leading_slice(f, i)
       if self._axis_norm is None:
         norm_x = self._norm_x
       else:
@@ -507,7 +500,6 @@ class PointCloud(geometry.Geometry):
     if summary == "mean":
       return jnp.sum(val_res * other)
     if summary == "max_cost":
-      # TODO(michalk8): explain why scaling is not needed
       return jnp.max(val_res)
     raise ValueError(
         f"Scaling method {summary} does not exist for online mode."
@@ -600,9 +592,6 @@ class PointCloud(geometry.Geometry):
         return self._sqeucl_to_lr(scale)
       # we don't update the `scale_factor` because in GW, the linear cost
       # is first materialized and then scaled by `fused_penalty` afterwards
-
-      # TODO(michalk8): in the future, consider defining point cloud as a
-      # subclass of LRCGeometry
       return self
     return super().to_LRCGeometry(scale=scale, **kwargs)
 
