@@ -306,12 +306,10 @@ class PointCloud(geometry.Geometry):
   ) -> jnp.ndarray:
     if not self.is_online:
       return super().transport_from_potentials(f, g)
-    transport = jax.vmap(
-        _transport_from_potentials_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, 0, None, None, None]
-    )
+    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
+    transport = jax.vmap(_transport_from_potentials_xy, in_axes=in_axes)
     return transport(
-        self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon,
+        self.x, self.y, self._norm_x, self._norm_y, f, g, self.epsilon,
         self.cost_fn, self.inv_scale_cost
     )
 
@@ -320,22 +318,10 @@ class PointCloud(geometry.Geometry):
   ) -> jnp.ndarray:
     if not self.is_online:
       return super().transport_from_scalings(u, v)
-    transport = jax.vmap(
-        _transport_from_scalings_xy,
-        in_axes=[
-            None,
-            0,
-            None,
-            self._axis_norm,
-            None,
-            0,
-            None,
-            None,
-            None,
-        ]
-    )
+    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
+    transport = jax.vmap(_transport_from_scalings_xy, in_axes=in_axes)
     return transport(
-        self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon,
+        self.x, self.y, self._norm_x, self._norm_y, u, v, self.epsilon,
         self.cost_fn, self.inv_scale_cost
     )
 
@@ -735,9 +721,8 @@ def _apply_lse_kernel_xy(
 def _transport_from_potentials_xy(
     x, y, norm_x, norm_y, f, g, eps, cost_fn, scale_cost
 ):
-  return jnp.exp(
-      (f + g - _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)) / eps
-  )
+  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
+  return jnp.exp((f + g - c) / eps)
 
 
 def _apply_kernel_xy(x, y, norm_x, norm_y, vec, eps, cost_fn, scale_cost):
@@ -748,9 +733,8 @@ def _apply_kernel_xy(x, y, norm_x, norm_y, vec, eps, cost_fn, scale_cost):
 def _transport_from_scalings_xy(
     x, y, norm_x, norm_y, u, v, eps, cost_fn, scale_cost
 ):
-  return jnp.exp(
-      -_cost(x, y, norm_x, norm_y, cost_fn, scale_cost) * scale_cost / eps
-  ) * u * v
+  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
+  return jnp.exp(-c * scale_cost / eps) * u * v
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, scale_cost):
