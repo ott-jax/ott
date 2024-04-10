@@ -204,3 +204,16 @@ class TestPointCloudCosineConversion:
         rtol=1e-6,
         atol=1e-6,
     )
+
+    np.testing.assert_allclose(
+        pc.mean_cost_matrix,
+        pc_batched._compute_summary_online("mean"),
+        rtol=1e-6,
+        atol=1e-6
+    )
+    np.testing.assert_allclose(
+        pc.cost_matrix.max(),
+        pc_batched._compute_summary_online("max_cost"),
+        rtol=1e-6,
+        atol=1e-6
+    )
