@@ -181,8 +181,9 @@ class TestPointCloudCosineConversion:
 
   @pytest.mark.parametrize(("n", "m"), [(20, 10), (9, 22)])
   def test_nonsym_cost_batched(self, rng: jax.Array, n: int, m: int):
-    d = 5
-    rng1, rng2 = jax.random.split(rng, 2)
+    d, eps = 5, 1e-1
+    rtol, atol = 1e-6, 1e-6
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
     x = jax.random.normal(rng1, shape=(n, d))
     y = jax.random.normal(rng2, shape=(m, d))
 
@@ -191,29 +192,48 @@ class TestPointCloudCosineConversion:
 
     f, g = jnp.zeros(n), jnp.zeros(m)
     u, v = jnp.ones(n), jnp.ones(m)
+    arr0, arr1 = jax.random.normal(rng3, (n,)), jax.random.normal(rng4, (m,))
 
+    # transport
     np.testing.assert_allclose(
         pc.transport_from_potentials(f, g),
         pc_batched.transport_from_potentials(f, g),
-        rtol=1e-6,
-        atol=1e-6,
+        rtol=rtol,
+        atol=atol,
     )
     np.testing.assert_allclose(
         pc.transport_from_scalings(u, v),
         pc_batched.transport_from_scalings(u, v),
-        rtol=1e-6,
-        atol=1e-6,
+        rtol=rtol,
+        atol=atol,
     )
 
+    # statistics
     np.testing.assert_allclose(
         pc.mean_cost_matrix,
         pc_batched._compute_summary_online("mean"),
-        rtol=1e-6,
-        atol=1e-6
+        rtol=rtol,
+        atol=atol,
     )
     np.testing.assert_allclose(
         pc.cost_matrix.max(),
         pc_batched._compute_summary_online("max_cost"),
-        rtol=1e-6,
-        atol=1e-6
+        rtol=rtol,
+        atol=atol,
     )
+
+    for axis, arr in zip([0, 1], [arr0, arr1]):
+      # apply LSE
+      gt, _ = pc.apply_lse_kernel(f, g, eps, axis=axis)
+      pred, _ = pc_batched.apply_lse_kernel(f, g, eps, axis=axis)
+      np.testing.assert_allclose(gt, pred, rtol=rtol, atol=atol)
+
+      # apply cost
+      gt = pc.apply_cost(arr, axis=axis)
+      pred = pc_batched.apply_cost(arr, axis=axis)
+      np.testing.assert_allclose(gt, pred, rtol=rtol, atol=atol)
+
+      # apply kernel
+      gt = pc.apply_kernel(arr, axis=axis)
+      pred = pc_batched.apply_kernel(arr, axis=axis)
+      np.testing.assert_allclose(gt, pred, rtol=rtol, atol=atol)
