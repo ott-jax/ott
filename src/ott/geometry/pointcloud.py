@@ -357,6 +357,7 @@ class PointCloud(geometry.Geometry):
     if not self.is_online:
       return super().apply_cost(arr, axis, fn)
 
+    # TODO(michalk8): batch this properly
     app = jax.vmap(
         _apply_cost_xy,
         in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
@@ -366,11 +367,12 @@ class PointCloud(geometry.Geometry):
 
     if axis == 0:
       return app(
-          self.x, self.y, self._norm_x, self._norm_y, arr, self.cost_fn,
-          self.inv_scale_cost, fn
+          self.x, self.y, self._norm_x, self._norm_y, arr,
+          self.cost_fn.pairwise, self.inv_scale_cost, fn
       )
+    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
     return app(
-        self.y, self.x, self._norm_y, self._norm_x, arr, self.cost_fn,
+        self.y, self.x, self._norm_y, self._norm_x, arr, cost_fn,
         self.inv_scale_cost, fn
     )
 
