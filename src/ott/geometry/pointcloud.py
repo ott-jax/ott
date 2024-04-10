@@ -298,10 +298,11 @@ class PointCloud(geometry.Geometry):
       return super().transport_from_potentials(f, g)
     in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
     transport = jax.vmap(_transport_from_potentials_xy, in_axes=in_axes)
+    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
     return transport(
-        self.x, self.y, self._norm_x, self._norm_y, f, g, self.epsilon,
-        self.cost_fn, self.inv_scale_cost
-    ).T
+        self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon, cost_fn,
+        self.inv_scale_cost
+    )
 
   def transport_from_scalings(  # noqa: D102
       self, u: jnp.ndarray, v: jnp.ndarray
@@ -310,10 +311,11 @@ class PointCloud(geometry.Geometry):
       return super().transport_from_scalings(u, v)
     in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
     transport = jax.vmap(_transport_from_scalings_xy, in_axes=in_axes)
+    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
     return transport(
-        self.x, self.y, self._norm_x, self._norm_y, u, v, self.epsilon,
-        self.cost_fn, self.inv_scale_cost
-    ).T
+        self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon, cost_fn,
+        self.inv_scale_cost
+    )
 
   def apply_cost(
       self,
