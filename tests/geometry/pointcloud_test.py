@@ -22,6 +22,13 @@ import numpy as np
 from ott.geometry import costs, geometry, pointcloud
 
 
+class NonSymCost(costs.CostFn):
+
+  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    z = x - y
+    return jnp.sum(z ** 2 * (jnp.sign(z) + 0.5) ** 2)
+
+
 @pytest.mark.fast()
 class TestPointCloudApply:
 
@@ -171,3 +178,29 @@ class TestPointCloudCosineConversion:
     actual = eucl.apply_cost(arr, axis=axis)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize(("n", "m"), [(20, 10), (9, 22)])
+  def test_nonsym_cost_batched(self, rng: jax.Array, n: int, m: int):
+    d = 5
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, shape=(n, d))
+    y = jax.random.normal(rng2, shape=(m, d))
+
+    pc = pointcloud.PointCloud(x, y, cost_fn=NonSymCost())
+    pc_batched = pointcloud.PointCloud(x, y, cost_fn=NonSymCost(), batch_size=4)
+
+    f, g = jnp.zeros(n), jnp.zeros(m)
+    u, v = jnp.ones(n), jnp.ones(m)
+
+    np.testing.assert_allclose(
+        pc.transport_from_potentials(f, g),
+        pc_batched.transport_from_potentials(f, g),
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        pc.transport_from_scalings(u, v),
+        pc_batched.transport_from_scalings(u, v),
+        rtol=1e-6,
+        atol=1e-6,
+    )
