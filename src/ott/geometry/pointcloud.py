@@ -226,7 +226,7 @@ class PointCloud(geometry.Geometry):
       )
       return carry, (h_res, h_sgn)
 
-    def finalize(i: int):
+    def rest(i: int):
       if axis == 0:
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
         return app(
@@ -262,7 +262,7 @@ class PointCloud(geometry.Geometry):
         fun, init=(f, g, eps, vec), xs=jnp.arange(n)
     )
     h_res, h_sign = jnp.concatenate(h_res), jnp.concatenate(h_sign)
-    h_res_rest, h_sign_rest = finalize(n * self.batch_size)
+    h_res_rest, h_sign_rest = rest(n * self.batch_size)
     h_res = jnp.concatenate([h_res, h_res_rest])
     h_sign = jnp.concatenate([h_sign, h_sign_rest])
 
@@ -433,41 +433,31 @@ class PointCloud(geometry.Geometry):
     """
     scale_cost = 1.0
 
-    def body0(carry, i: int):
-      vec, = carry
+    def body0(vec: jnp.ndarray, i: int):
       y = self._leading_slice(self.y, i)
-      if self._axis_norm is None:
-        norm_y = self._norm_y
-      else:
-        norm_y = self._leading_slice(self._norm_y, i)
-      h_res = app(
-          self.x, y, self._norm_x, norm_y, vec, self.cost_fn, scale_cost
+      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
+          self._norm_y, i
       )
-      return carry, h_res
+      h_res = app(self.x, y, self._norm_x, norm_y, vec, cost_fn, scale_cost)
+      return vec, h_res
 
-    def body1(carry, i: int):
-      vec, = carry
+    def body1(vec: jnp.ndarray, i: int):
       x = self._leading_slice(self.x, i)
-      if self._axis_norm is None:
-        norm_x = self._norm_x
-      else:
-        norm_x = self._leading_slice(self._norm_x, i)
-      h_res = app(
-          self.y, x, self._norm_y, norm_x, vec, self.cost_fn, scale_cost
+      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
+          self._norm_x, i
       )
-      return carry, h_res
+      h_res = app(self.y, x, self._norm_y, norm_x, vec, cost_fn, scale_cost)
+      return vec, h_res
 
-    def finalize(i: int):
+    def rest(i: int) -> jnp.ndarray:
       if batch_for_y:
         norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
         return app(
-            self.x, self.y[i:], self._norm_x, norm_y, vec, self.cost_fn,
-            scale_cost
+            self.x, self.y[i:], self._norm_x, norm_y, vec, cost_fn, scale_cost
         )
       norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
       return app(
-          self.y, self.x[i:], self._norm_y, norm_x, vec, self.cost_fn,
-          scale_cost
+          self.y, self.x[i:], self._norm_y, norm_x, vec, cost_fn, scale_cost
       )
 
     if summary == "mean":
@@ -484,17 +474,17 @@ class PointCloud(geometry.Geometry):
 
     batch_for_y = self.shape[0] < self.shape[1]
     if batch_for_y:
-      fun = body0
+      fun, cost_fn = body0, self.cost_fn.pairwise
       n = self._y_nsplit
       vec, other = self._n_normed_ones, self._m_normed_ones
     else:
-      fun = body1
+      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
       n = self._x_nsplit
       vec, other = self._m_normed_ones, self._n_normed_ones
 
-    _, val = jax.lax.scan(fun, init=(vec,), xs=jnp.arange(n))
+    _, val = jax.lax.scan(fun, init=vec, xs=jnp.arange(n))
     val = jnp.concatenate(val).squeeze()
-    val_rest = finalize(n * self.batch_size)
+    val_rest = rest(n * self.batch_size)
     val_res = jnp.concatenate([val, val_rest])
 
     if summary == "mean":
