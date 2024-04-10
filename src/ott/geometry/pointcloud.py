@@ -199,12 +199,9 @@ class PointCloud(geometry.Geometry):
     def body0(carry, i: int):
       f, g, eps, vec = carry
       y, g_ = self._leading_slice(self.y, i), self._leading_slice(g, i)
-      if self._axis_norm is None:
-        norm_y = self._norm_y
-      else:
-        norm_y = jax.lax.dynamic_slice(
-            self._norm_y, (i * self.batch_size,), (self.batch_size,)
-        )
+      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
+          self._norm_y, i
+      )
       h_res, h_sgn = app(
           self.x, y, self._norm_x, norm_y, f, g_, eps, vec, cost_fn,
           self.inv_scale_cost
@@ -214,12 +211,9 @@ class PointCloud(geometry.Geometry):
     def body1(carry, i: int):
       f, g, eps, vec = carry
       x, f_ = self._leading_slice(self.x, i), self._leading_slice(f, i)
-      if self._axis_norm is None:
-        norm_x = self._norm_x
-      else:
-        norm_x = jax.lax.dynamic_slice(
-            self._norm_x, (i * self.batch_size,), (self.batch_size,)
-        )
+      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
+          self._norm_x, i
+      )
       h_res, h_sgn = app(
           self.y, x, self._norm_y, norm_x, g, f_, eps, vec, cost_fn,
           self.inv_scale_cost
