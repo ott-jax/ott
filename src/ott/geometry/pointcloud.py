@@ -244,7 +244,7 @@ class PointCloud(geometry.Geometry):
     )
 
     if axis == 0:
-      fun, cost_fn = body0, self.cost_fn
+      fun, cost_fn = body0, self.cost_fn.pairwise
       v, n = g, self._y_nsplit
     elif axis == 1:
       fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
