@@ -53,7 +53,7 @@ class GENOT:
 
       - ``(src_lin, tgt_lin) -> matching`` - linear matching.
       - ``(src_quad, tgt_quad, src_lin, tgt_lin) -> matching`` -
-        quadratic (fused) GW matching. In the pure GW setting, btoh ``src_lin``
+        quadratic (fused) GW matching. In the pure GW setting, both ``src_lin``
         and ``tgt_lin`` will be set to :obj:`None`.
 
     source_dim: Dimensionality of the source distribution.
