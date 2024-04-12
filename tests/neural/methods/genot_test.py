@@ -32,7 +32,7 @@ def get_match_fn(typ: Literal["lin", "quad", "fused"]):
     return solver_utils.match_linear
   if typ == "quad":
     return solver_utils.match_quadratic
-  # typ == "fused":
+  # typ == "fused"
   return solver_utils.match_quadratic
 
 
