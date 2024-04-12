@@ -59,10 +59,10 @@ def match_linear(
 
 
 def match_quadratic(
-    x: Optional[jnp.ndarray],
-    y: Optional[jnp.ndarray],
     xx: jnp.ndarray,
     yy: jnp.ndarray,
+    x: Optional[jnp.ndarray] = None,
+    y: Optional[jnp.ndarray] = None,
     scale_cost: ScaleCost_t = 1.0,
     cost_fn: Optional[costs.CostFn] = None,
     **kwargs: Any

@@ -32,8 +32,9 @@ def get_match_fn(typ: Literal["lin", "quad", "fused"]):
     return solver_utils.match_linear
   if typ == "quad":
     return solver_utils.match_quadratic
-  # typ == "fused"
-  return solver_utils.match_quadratic
+  if typ == "fused":
+    return solver_utils.match_quadratic
+  raise NotImplementedError(typ)
 
 
 class TestGENOT:
@@ -61,7 +62,7 @@ class TestGENOT:
     model = genot.GENOT(
         vf,
         flow=dynamics.ConstantNoiseFlow(0.0),
-        data_match_fn=get_match_fn(typ=problem_type),
+        data_match_fn=get_match_fn(problem_type),
         source_dim=src_dim,
         target_dim=tgt_dim,
         condition_dim=cond_dim,
