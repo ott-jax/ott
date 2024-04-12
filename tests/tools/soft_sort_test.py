@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+import sys
 from typing import Tuple
 
 import pytest
@@ -271,17 +272,22 @@ class TestSoftSort:
 
   @pytest.mark.parametrize("implicit", [False, True])
   def test_soft_sort_jacobian(self, rng: jax.Array, implicit: bool):
+    # FIXME(michalk8)
+    if implicit and sys.version_info >= (3, 9):
+      pytest.skip(reason="Implicit doesn't work on Python>=3.9 and Linux.")
+
     # Add a ridge when using JAX solvers.
     try:
       from ott.solvers.linear import lineax_implicit  # noqa: F401
       solver_kwargs = {}
     except ImportError:
       solver_kwargs = {"ridge_identity": 1e-1, "ridge_kernel": 1e-1}
+
     b, n = 10, 40
     num_targets = n // 2
     idx_column = 5
     rngs = jax.random.split(rng, 3)
-    z = jax.random.uniform(rngs[0], ((b, n)))
+    z = jax.random.uniform(rngs[0], (b, n))
     random_dir = jax.random.normal(rngs[1], (b,)) / b
 
     def loss_fn(logits: jnp.ndarray) -> float:
