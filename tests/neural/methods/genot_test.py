@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import functools
-from typing import Literal, Optional
+from typing import Literal
 
 import pytest
 
@@ -28,20 +27,14 @@ from ott.neural.networks import velocity_field
 from ott.solvers import utils as solver_utils
 
 
-def data_match_fn(
-    src_lin: Optional[jnp.ndarray], tgt_lin: Optional[jnp.ndarray],
-    src_quad: Optional[jnp.ndarray], tgt_quad: Optional[jnp.ndarray], *,
-    typ: Literal["lin", "quad", "fused"]
-) -> jnp.ndarray:
+def get_match_fn(typ: Literal["lin", "quad", "fused"]):
   if typ == "lin":
-    return solver_utils.match_linear(x=src_lin, y=tgt_lin)
+    return solver_utils.match_linear
   if typ == "quad":
-    return solver_utils.match_quadratic(xx=src_quad, yy=tgt_quad)
+    return solver_utils.match_quadratic
   if typ == "fused":
-    return solver_utils.match_quadratic(
-        xx=src_quad, yy=tgt_quad, x=src_lin, y=tgt_lin
-    )
-  raise NotImplementedError(f"Unknown type: {typ}.")
+    return solver_utils.match_quadratic
+  raise NotImplementedError(typ)
 
 
 class TestGENOT:
@@ -69,7 +62,7 @@ class TestGENOT:
     model = genot.GENOT(
         vf,
         flow=dynamics.ConstantNoiseFlow(0.0),
-        data_match_fn=functools.partial(data_match_fn, typ=problem_type),
+        data_match_fn=get_match_fn(problem_type),
         source_dim=src_dim,
         target_dim=tgt_dim,
         condition_dim=cond_dim,
