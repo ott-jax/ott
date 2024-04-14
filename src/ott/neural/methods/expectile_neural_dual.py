@@ -28,12 +28,13 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+from jax._src.basearray import Array as Array
+
 import optax
 from flax import linen as nn
 from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
-from jax._src.basearray import Array as Array
 
 from ott import utils
 from ott.geometry import costs

@@ -10,6 +10,8 @@ Dykstra
 Expectile
 Fenchel
 Frobenius
+Gangbo
+Gangbo-McCann
 Gaussians
 Gromov
 Hessians
@@ -20,9 +22,11 @@ Kantorovich
 Kullback
 Leibler
 Mahalanobis
+McCann
 Monge
 Moreau
 SGD
+Schrödinger
 Schur
 Seidel
 Sinkhorn
@@ -44,6 +48,7 @@ chromatin
 collinear
 covariance
 covariances
+dataclass
 dataloaders
 dataset
 datasets
@@ -109,6 +114,7 @@ preprocess
 preprocessing
 proteome
 prox
+pytree
 quantile
 quantiles
 quantizes

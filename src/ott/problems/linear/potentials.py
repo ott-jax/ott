@@ -11,15 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-)
+from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -73,24 +65,35 @@ class DualPotentials:
     self._corr = corr
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    r"""Transport ``vec`` according to Brenier formula :cite:`brenier:91`.
+    r"""Transport ``vec`` according to Gangbo-McCann Brenier :cite:`brenier:91`.
 
-    Uses Theorem 1.17 from :cite:`santambrogio:15` to compute an OT map when
-    given the Legendre transform of the dual potentials.
+    Uses Proposition 1.15 from :cite:`santambrogio:15` to compute an OT map when
+    applying the inverse gradient of cost.
 
-    That OT map can be recovered as :math:`x- (\nabla h^*)\circ \nabla f(x)`,
+    When the cost is a general cost, the operator uses the
+    :meth:`~ott.geometry.costs.CostFn.twist_operator` associated of the
+    corresponding :class:`~ott.geometry.costs.CostFn`.
+
+    When the cost is a translation invariant :class:`~ott.geometry.costs.TICost`
+    cost, :math:`c(x,y)=h(x-y)`, and the twist operator translates to the
+    application of the convex conjugate of :math:`h` to the
+    gradient of the dual potentials, namely
+    :math:`x- (\nabla h^*)\circ \nabla f(x)` for the forward map,
     where :math:`h^*` is the Legendre transform of :math:`h`. For instance,
     in the case :math:`h(\cdot) = \|\cdot\|^2, \nabla h(\cdot) = 2 \cdot\,`,
     one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
     :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
-    When the dual potentials are solved in correlation form (only in the Sq.
-    Euclidean distance case), the maps are :math:`\nabla g` for forward,
-    :math:`\nabla f` for backward.
+    Note:
+      When the dual potentials are solved in correlation form, and marked
+      accordingly by setting ``corr`` to ``True``, the maps are
+      :math:`\nabla g` for forward, :math:`\nabla f` for backward map. This can
+      only make sense when using the squared-Euclidean
+      :class:`~ott.geometry.costs.SqEuclidean` cost.
 
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
-      forward: Whether to transport the points from source  to the target
+      forward: Whether to transport the points from source to the target
         distribution or vice-versa.
 
     Returns:
@@ -99,11 +102,13 @@ class DualPotentials:
     from ott.geometry import costs
 
     vec = jnp.atleast_2d(vec)
+
     if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
       return self._grad_f(vec) if forward else self._grad_g(vec)
+    twist_op = jax.vmap(self.cost_fn.twist_operator, in_axes=[0, 0, None])
     if forward:
-      return vec - self._grad_h_inv(self._grad_f(vec))
-    return vec - self._grad_h_inv(self._grad_g(vec))
+      return twist_op(vec, self._grad_f(vec), False)
+    return twist_op(vec, self._grad_g(vec), True)
 
   def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
     r"""Evaluate Wasserstein distance between samples using dual potentials.
@@ -154,16 +159,6 @@ class DualPotentials:
   def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
-
-  @property
-  def _grad_h_inv(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    from ott.geometry import costs
-
-    assert isinstance(self.cost_fn, costs.TICost), (
-        "Cost must be a `TICost` and "
-        "provide access to Legendre transform of `h`."
-    )
-    return jax.vmap(jax.grad(self.cost_fn.h_legendre))
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {

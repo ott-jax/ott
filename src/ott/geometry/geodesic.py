@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -22,9 +22,10 @@ from scipy.special import ive
 from ott import utils
 from ott.geometry import geometry
 from ott.math import utils as mu
-from ott.types import Array_g
 
 __all__ = ["Geodesic"]
+
+Array_g = Union[jnp.ndarray, jesp.BCOO]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -106,13 +107,10 @@ class Geodesic(geometry.Geometry):
     if t is None:
       t = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
 
-    degree = jnp.sum(G, axis=1)
-    laplacian = jnp.diag(degree) - G
-    if normalize:
-      inv_sqrt_deg = jnp.diag(
-          jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
-      )
-      laplacian = inv_sqrt_deg @ laplacian @ inv_sqrt_deg
+    if isinstance(G, jesp.BCOO):
+      laplacian = compute_sparse_laplacian(G, normalize)
+    else:
+      laplacian = compute_dense_laplacian(G, normalize)
 
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
@@ -220,6 +218,39 @@ class Geodesic(geometry.Geometry):
     return cls(*children, **aux_data)
 
 
+def normalize_laplacian(laplacian: Array_g, degree: jnp.ndarray) -> Array_g:
+  inv_sqrt_deg = jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
+  return inv_sqrt_deg[:, None] * laplacian * inv_sqrt_deg[None, :]
+
+
+def compute_dense_laplacian(
+    G: jnp.ndarray, normalize: bool = False
+) -> jnp.ndarray:
+  degree = jnp.sum(G, axis=1)
+  laplacian = jnp.diag(degree) - G
+  if normalize:
+    laplacian = normalize_laplacian(laplacian, degree)
+  return laplacian
+
+
+def compute_sparse_laplacian(
+    G: jesp.BCOO, normalize: bool = False
+) -> jesp.BCOO:
+  n, _ = G.shape
+  # making sure allocated indices has same dtype
+  # on different devices int32 vs int64 can cause issues
+  indices_dtype = G.indices.dtype
+  data_degree, ixs = G.sum(1).todense(), jnp.arange(n, dtype=indices_dtype)
+  degree = jesp.BCOO(
+      (data_degree, jnp.c_[ixs, ixs]),
+      shape=(n, n),
+  )
+  laplacian = degree - G
+  if normalize:
+    laplacian = normalize_laplacian(laplacian, data_degree)
+  return laplacian
+
+
 def compute_largest_eigenvalue(
     laplacian_matrix: jnp.ndarray,
     rng: jax.Array,
@@ -242,7 +273,7 @@ def compute_largest_eigenvalue(
 
 
 def expm_multiply(
-    L: jnp.ndarray, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
+    L: Array_g, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
 ) -> jnp.ndarray:
 
   def body(carry, c):

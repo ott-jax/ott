@@ -26,8 +26,9 @@
 import logging
 from datetime import datetime
 
-import ott
 from sphinx.util import logging as sphinx_logging
+
+import ott
 
 # -- Project information -----------------------------------------------------
 needs_sphinx = "4.0"
@@ -62,13 +63,13 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "jaxopt": ("https://jaxopt.github.io/stable", None),
     "lineax": ("https://docs.kidger.site/lineax/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
-    "scikit-sparse": ("https://scikit-sparse.readthedocs.io/en/latest/", None),
+    "optax": ("https://optax.readthedocs.io/en/latest/", None),
+    "diffrax": ("https://docs.kidger.site/diffrax/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pot": ("https://pythonot.github.io/", None),
-    "jaxopt": ("https://jaxopt.github.io/stable", None),
-    "optax": ("https://optax.readthedocs.io/en/latest/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
@@ -120,6 +121,7 @@ spelling_filters = [
 # linkcheck
 linkcheck_ignore = [
     # 403 Client Error
+    "https://doi.org/10.1089/cmb.2021.0446"
     "https://www.jstor.org/stable/3647580",
     "https://doi.org/10.1137/19M1301047",
     "https://doi.org/10.1137/17M1140431",

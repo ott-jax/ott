@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import jax
 import jax.numpy as jnp
-import pytest
+
 from ott.geometry import costs, distrib_costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.quadratic import lower_bound
 
 
-class TestLowerBoundSolver:
+class TestLowerBound:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
@@ -30,7 +32,6 @@ class TestLowerBoundSolver:
     rngs = jax.random.split(rng, 4)
     self.x = jax.random.uniform(rngs[0], (self.n, d_x))
     self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    # Currently the Lower Bound only supports uniform distributions:
     a = jnp.ones(self.n)
     b = jnp.ones(self.m)
     self.a = a / jnp.sum(a)
@@ -52,10 +53,8 @@ class TestLowerBoundSolver:
         geom_x, geom_y, a=self.a, b=self.b
     )
     distrib_cost = distrib_costs.UnivariateWasserstein(ground_cost=ground_cost)
-    solver = lower_bound.LowerBoundSolver(
-        epsilon=1e-1, distrib_cost=distrib_cost
-    )
 
-    out = jax.jit(solver)(prob)
+    out = jax.jit(lower_bound.third_lower_bound
+                 )(prob, distrib_cost, epsilon=1e-1)
 
-    assert not jnp.isnan(out.reg_ot_cost)
+    assert jnp.isfinite(out.reg_ot_cost)

@@ -23,3 +23,14 @@ Wasserstein Solver
     :toctree: _autosummary
 
     was_solver.WassersteinSolver
+
+Utilities
+---------
+.. autosummary::
+    :toctree: _autosummary
+
+    utils.match_linear
+    utils.match_quadratic
+    utils.sample_joint
+    utils.sample_conditional
+    utils.uniform_sampler
