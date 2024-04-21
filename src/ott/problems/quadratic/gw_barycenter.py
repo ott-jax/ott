@@ -280,6 +280,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def is_fused(self) -> bool:
     """Whether the problem is fused."""
     return self._y_fused is not None
+  
+  @property
+  def is_unbalanced(self) -> bool:
+    """Whether the problem is umbalanced."""
+    return self.tau_a !=1.0 or self.tau_b !=1.0
 
   @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
