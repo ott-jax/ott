@@ -37,7 +37,7 @@ from ott.problems.quadratic import quadratic_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
-__all__ = ["GromovWasserstein", "GWOutput"]
+__all__ = ["UnbalancedGromovWasserstein", "UGWOutput"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
@@ -45,7 +45,7 @@ ProgressCallbackFn_t = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
 
 
-class GWOutput(NamedTuple):
+class UGWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
   Args:
@@ -71,7 +71,7 @@ class GWOutput(NamedTuple):
   # Intermediate values.
   old_transport_mass: float = 1.0
 
-  def set(self, **kwargs: Any) -> "GWOutput":
+  def set(self, **kwargs: Any) -> "UGWOutput":
     """Return a copy of self, possibly with overwrites."""
     return self._replace(**kwargs)
 
@@ -159,12 +159,12 @@ class GWState(NamedTuple):
 
 
 @jax.tree_util.register_pytree_node_class
-class GromovWasserstein(was_solver.WassersteinSolver):
+class UnbalancedGromovWasserstein(was_solver.WassersteinSolver):
   """Gromov-Wasserstein solver :cite:`peyre:16`.
 
   .. seealso::
     Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in
-    :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`.
+    :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRUnbalancedGromovWasserstein`.
 
   Args:
     args: Positional arguments for
@@ -201,7 +201,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     super().__init__(*args, **kwargs)
     assert not self.is_low_rank, \
       "For low-rank GW, use " \
-      "`ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`."
+      "`ott.solvers.quadratic.gromov_wasserstein_lr.LRUnbalancedGromovWasserstein`."
     self._warm_start = warm_start
     self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
@@ -214,7 +214,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       init: Optional[linear_problem.LinearProblem] = None,
       rng: Optional[jax.Array] = None,
       **kwargs: Any,
-  ) -> GWOutput:
+  ) -> UGWOutput:
     """Run the Gromov-Wasserstein solver.
 
     Args:
@@ -305,16 +305,16 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def output_from_state(
       self,
       state: GWState,
-  ) -> GWOutput:
+  ) -> UGWOutput:
     """Create an output from a loop state.
 
     Arguments:
       state: A GWState.
 
     Returns:
-      A GWOutput.
+      A UGWOutput.
     """
-    return GWOutput(
+    return UGWOutput(
         costs=state.costs,
         linear_convergence=state.linear_convergence,
         errors=state.errors,
@@ -357,20 +357,20 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
 
 def iterations(
-    solver: GromovWasserstein,
+    solver: UnbalancedGromovWasserstein,
     prob: quadratic_problem.QuadraticProblem,
     init: linear_problem.LinearProblem,
     rng: jax.Array,
-) -> GWOutput:
+) -> UGWOutput:
   """Jittable Gromov-Wasserstein outer loop."""
 
   def cond_fn(
-      iteration: int, solver: GromovWasserstein, state: GWState
+      iteration: int, solver: UnbalancedGromovWasserstein, state: GWState
   ) -> bool:
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, solver: GromovWasserstein, state: GWState,
+      iteration: int, solver: UnbalancedGromovWasserstein, state: GWState,
       compute_error: bool
   ) -> GWState:
     del compute_error  # always assumed true for the outer loop of GW
