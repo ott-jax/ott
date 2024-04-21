@@ -203,12 +203,13 @@ class TestGWBarycenter:
     )
 
   @pytest.mark.fast(
-      "fused_penalty,scale_cost, solver",
-      [(1.5, "mean", "GW"), (3.1, "max_cost", "GWLR")],
+      "jit,fused_penalty,scale_cost, solver",
+      [(False, 1.5, "mean", "GW"), (True, 3.1, "max_cost", "GWLR")],
       only_fast=0,
   )
   def test_fugw_barycenter(
       self,
+      jit: bool,
       rng: jax.Array,
       fused_penalty: float,
       scale_cost: str,
@@ -273,18 +274,20 @@ class TestGWBarycenter:
         for n, rng in zip(num_per_segment, rngs)
     ])
 
-    tau_a = 0.5
-    tau_b = 0.5
+    tau_a = 0.75
+    tau_b = 0.25
     gw_unbalanced_correction = True
-    out = barycenter(
-        y,
-        y_fused,
-        num_per_segment,
-        tau_a=tau_a,
-        tau_b=tau_b,
+    partial_fn = lambda y, y_fused : barycenter(
+        y, 
+        y_fused=y_fused, 
+        num_per_segment=num_per_segment,
+        tau_a=tau_a, 
+        tau_b=tau_b, 
         gw_unbalanced_correction=gw_unbalanced_correction,
         solver=solver,
     )
+    fn = jax.jit(partial_fn) if jit else partial_fn
+    out = fn(y, y_fused)
 
     assert out.cost.shape == (bar_size, bar_size)
     assert out.x.shape == (bar_size, self.ndim_f)
