@@ -19,14 +19,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import geometry, low_rank, pointcloud
+from ott.geometry import geometry, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from ott.solvers.quadratic import unbalanced_gromov_wasserstein
 
 
-class TestFusedGromovWasserstein:
+class TestFusedUnbalancedGromovWasserstein:
 
   # TODO(michalk8): refactor me in the future
   @pytest.fixture(autouse=True)
@@ -66,8 +66,8 @@ class TestFusedGromovWasserstein:
       linear_solver = sinkhorn.Sinkhorn(
           implicit_diff=implicit_diff, max_iterations=1000
       )
-      solver = gromov_wasserstein.GromovWasserstein(
-          linear_ot_solver=linear_solver, epsilon=1.0
+      solver = unbalanced_gromov_wasserstein.UnbalancedGromovWasserstein(
+          linear_ot_solver=linear_solver, epsilon=1.0, rho=1.0
       )
 
       out = solver(prob)
@@ -122,8 +122,11 @@ class TestFusedGromovWasserstein:
       linear_solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=1000
       )
-      solver = gromov_wasserstein.GromovWasserstein(
-          linear_ot_solver=linear_solver, epsilon=1.0, max_iterations=10
+      solver = unbalanced_gromov_wasserstein.UnbalancedGromovWasserstein(
+          linear_ot_solver=linear_solver,
+          epsilon=1.0,
+          rho=1.0,
+          max_iterations=10
       )
 
       return solver(prob).reg_gw_cost
@@ -169,7 +172,7 @@ class TestFusedGromovWasserstein:
           b=self.b,
           fused_penalty=self.fused_penalty_2
       )
-      solver = gromov_wasserstein.GromovWasserstein(
+      solver = unbalanced_gromov_wasserstein.UnbalancedGromovWasserstein(
           threshold=threshold, epsilon=1e-1
       )
 
@@ -197,8 +200,11 @@ class TestFusedGromovWasserstein:
       linear_solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=200
       )
-      solver = gromov_wasserstein.GromovWasserstein(
-          epsilon=1.0, max_iterations=10, linear_ot_solver=linear_solver
+      solver = unbalanced_gromov_wasserstein.UnbalancedGromovWasserstein(
+          epsilon=1.0,
+          rho=1.0,
+          max_iterations=10,
+          linear_ot_solver=linear_solver
       )
       return solver(prob).reg_gw_cost
 
@@ -214,79 +220,6 @@ class TestFusedGromovWasserstein:
     np.testing.assert_allclose(
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-2, atol=1e-2
     )
-
-  @pytest.mark.limit_memory("200 MB")
-  @pytest.mark.parametrize("jit", [False, True])
-  def test_fgw_lr_memory(self, rng: jax.Array, jit: bool):
-    rngs = jax.random.split(rng, 4)
-    n, m, d1, d2 = 5_000, 2_500, 1, 2
-    x = jax.random.uniform(rngs[0], (n, d1))
-    y = jax.random.uniform(rngs[1], (m, d2))
-    xx = jax.random.uniform(rngs[2], (n, d2))
-    yy = jax.random.uniform(rngs[3], (m, d2))
-    geom_x = pointcloud.PointCloud(x)
-    geom_y = pointcloud.PointCloud(y)
-    geom_xy = pointcloud.PointCloud(xx, yy)
-    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, geom_xy)
-
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(
-        rank=2, min_iterations=0, inner_iterations=10, max_iterations=2000
-    )
-    if jit:
-      solver = jax.jit(solver)
-
-    ot_gwlr = solver(prob)
-
-    res0 = ot_gwlr.apply(x.T, axis=0)
-    res1 = ot_gwlr.apply(y.T, axis=1)
-
-    assert ot_gwlr.converged
-    assert res0.shape == (d1, m)
-    assert res1.shape == (d2, n)
-
-  @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
-  def test_fgw_lr_generic_cost_matrix(
-      self, rng: jax.Array, cost_rank: Union[int, Tuple[int, int, int]]
-  ):
-    n, m = 20, 30
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    x = jax.random.normal(rng1, shape=(n, 7))
-    y = jax.random.normal(rng2, shape=(m, 6))
-    xx = jax.random.normal(rng3, shape=(n, 5))
-    yy = jax.random.normal(rng4, shape=(m, 5))
-
-    geom_x = geometry.Geometry(cost_matrix=x @ x.T)
-    geom_y = geometry.Geometry(cost_matrix=y @ y.T)
-    geom_xy = geometry.Geometry(cost_matrix=xx @ yy.T)
-
-    prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, geom_xy, ranks=cost_rank, tolerances=5e-1
-    )
-    assert prob._is_low_rank_convertible
-    lr_prob = prob.to_low_rank()
-    assert lr_prob.is_low_rank
-
-    solver = gromov_wasserstein_lr.LRGromovWasserstein(
-        rank=5,
-        epsilon=10.0,
-        min_iterations=0,
-        inner_iterations=10,
-        max_iterations=2000
-    )
-    out = solver(prob)
-
-    assert solver.rank == 5
-    # make sure we don't modify the problem in-place
-    for geom in [prob.geom_xx, prob.geom_yy, prob.geom_xy]:
-      assert not isinstance(geom, low_rank.LRCGeometry)
-    ranks = (cost_rank,) * 3 if isinstance(cost_rank, int) else cost_rank
-    for rank, geom in zip(
-        ranks, [lr_prob.geom_xx, lr_prob.geom_yy, lr_prob.geom_xy]
-    ):
-      assert geom.cost_rank == rank
-
-    assert out.converged
-    np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
 
   @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])
   def test_fgw_scale_cost(self, scale_cost: Literal["mean", "max_cost"]):
@@ -315,7 +248,9 @@ class TestFusedGromovWasserstein:
         fused_penalty=fused_penalty,
         scale_cost=scale_cost
     )
-    solver = gromov_wasserstein.GromovWasserstein(epsilon=epsilon)
+    solver = unbalanced_gromov_wasserstein.UnbalancedGromovWasserstein(
+        epsilon=epsilon
+    )
 
     gt = solver(prob_scale)
     pred = solver(prob_no_scale)
