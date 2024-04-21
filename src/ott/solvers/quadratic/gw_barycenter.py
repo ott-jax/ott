@@ -85,6 +85,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   def __init__(
       self,
       epsilon: Optional[float] = None,
+      rank: int = -1,
       min_iterations: int = 5,
       max_iterations: int = 50,
       threshold: float = 1e-3,
@@ -98,11 +99,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   ):
     super().__init__(
         epsilon=epsilon,
+        rank=rank,
         min_iterations=min_iterations,
         max_iterations=max_iterations,
         threshold=threshold,
         store_inner_errors=store_inner_errors,
     )
+
     if quad_solver is None:
       kwargs["epsilon"] = epsilon
       # TODO(michalk8): store only GW errors?
