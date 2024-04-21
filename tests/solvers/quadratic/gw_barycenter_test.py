@@ -211,7 +211,13 @@ class TestGWBarycenter:
   ):
 
     def barycenter(
-        y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
+        y: jnp.ndim, 
+        y_fused: jnp.ndarray, 
+        num_per_segment: Tuple[int, ...],
+        tau_a: float,
+        tau_b: float,
+        gw_unbalanced_correction:bool,
+
     ) -> gwb_solver.GWBarycenterState:
       prob = gwb.GWBarycenterProblem(
           y=y,
@@ -219,9 +225,13 @@ class TestGWBarycenter:
           num_per_segment=num_per_segment,
           fused_penalty=fused_penalty,
           scale_cost=scale_cost,
+          tau_a=tau_a,
+          tau_b=tau_b,
+          gw_unbalanced_correction=gw_unbalanced_correction
       )
       assert prob.is_fused
       assert prob.fused_penalty == fused_penalty
+      assert prob.is_umbalanced
       assert not prob._y_as_costs
       assert prob.max_measure_size == max(num_per_segment)
       assert prob.num_measures == len(num_per_segment)
@@ -256,9 +266,12 @@ class TestGWBarycenter:
         self.random_pc(n, d=self.ndim_f, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)
     ])
-
+    key1, key2 = jax.random.split(rng1, num=2)
+    tau_a = jax.random.uniform(key1)
+    tau_b = jax.random.uniform(key2)
+    gw_unbalanced_correction = True
     fn = jax.jit(barycenter, static_argnums=2) if jit else barycenter
-    out = fn(y, y_fused, num_per_segment)
+    out = fn(y, y_fused, num_per_segment, tau_a=tau_a, tau_b=tau_b, gw_unbalanced_correction=gw_unbalanced_correction)
 
     assert out.cost.shape == (bar_size, bar_size)
     assert out.x.shape == (bar_size, self.ndim_f)
