@@ -276,7 +276,11 @@ class GENOT:
 
     def vf(t: jnp.ndarray, x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
       params = self.vf_state.params
-      return self.vf_state.apply_fn({"params": params}, t, x, cond)
+      return self.vf_state.apply_fn({"params": params},
+                                    t,
+                                    x,
+                                    cond,
+                                    deterministic=True)
 
     def solve_ode(x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
       ode_term = diffrax.ODETerm(vf)

@@ -13,12 +13,9 @@
 # limitations under the License.
 from typing import Callable, Optional, Sequence
 
-import jax
 import jax.numpy as jnp
 
-import optax
 from flax import linen as nn
-from flax.training import train_state
 
 from ott.neural.networks.layers import time_encoder
 
@@ -52,6 +49,7 @@ class VelocityField(nn.Module):
   time_encoder: Callable[[jnp.ndarray],
                          jnp.ndarray] = time_encoder.cyclical_time_encoder
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
+  dropout_rate: float = 0.0
 
   @nn.compact
   def __call__(
@@ -59,6 +57,7 @@ class VelocityField(nn.Module):
       t: jnp.ndarray,
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
+      deterministic: bool = False
   ) -> jnp.ndarray:
     """Forward pass through the neural vector field.
 
@@ -66,6 +65,7 @@ class VelocityField(nn.Module):
       t: Time of shape ``[batch, 1]``.
       x: Data of shape ``[batch, ...]``.
       condition: Conditioning vector of shape ``[batch, ...]``.
+      deterministic: If `True`, disables dropout for inference.
 
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
@@ -75,50 +75,32 @@ class VelocityField(nn.Module):
     t = self.time_encoder(t)
     for time_dim in time_dims:
       t = self.act_fn(nn.Dense(time_dim)(t))
+      t = nn.Dropout(rate=self.dropout_rate, deterministic=deterministic)(t)
 
     for hidden_dim in self.hidden_dims:
       x = self.act_fn(nn.Dense(hidden_dim)(x))
+      x = nn.Dropout(rate=self.dropout_rate, deterministic=deterministic)(x)
 
     if self.condition_dims is not None:
       assert condition is not None, "No condition was passed."
       for cond_dim in self.condition_dims:
         condition = self.act_fn(nn.Dense(cond_dim)(condition))
+        condition = nn.Dropout(
+            rate=self.dropout_rate, deterministic=deterministic
+        )(
+            condition
+        )
       feats = jnp.concatenate([t, x, condition], axis=-1)
     else:
       feats = jnp.concatenate([t, x], axis=-1)
 
     for output_dim in self.output_dims[:-1]:
       feats = self.act_fn(nn.Dense(output_dim)(feats))
+      feats = nn.Dropout(
+          rate=self.dropout_rate, deterministic=deterministic
+      )(
+          feats
+      )
 
-    # no activation function for the final layer
+    # No activation function for the final layer
     return nn.Dense(self.output_dims[-1])(feats)
-
-  def create_train_state(
-      self,
-      rng: jax.Array,
-      optimizer: optax.OptState,
-      input_dim: int,
-      condition_dim: Optional[int] = None,
-  ) -> train_state.TrainState:
-    """Create the training state.
-
-    Args:
-      rng: Random number generator.
-      optimizer: Optimizer.
-      input_dim: Dimensionality of the velocity field.
-      condition_dim: Dimensionality of the condition of the velocity field.
-
-    Returns:
-      The training state.
-    """
-    t, x = jnp.ones((1, 1)), jnp.ones((1, input_dim))
-    if self.condition_dims is None:
-      cond = None
-    else:
-      assert condition_dim > 0, "Condition dimension must be positive."
-      cond = jnp.ones((1, condition_dim))
-
-    params = self.init(rng, t, x, cond)["params"]
-    return train_state.TrainState.create(
-        apply_fn=self.apply, params=params, tx=optimizer
-    )
