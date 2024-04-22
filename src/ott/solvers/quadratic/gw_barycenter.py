@@ -71,6 +71,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
   Args:
     epsilon: Entropy regularizer.
+    rank: Rank constraint on the coupling to minimize the linear OT problem.
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     threshold: Convergence threshold.
