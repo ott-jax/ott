@@ -60,7 +60,7 @@ class VelocityField(nn.Module):
       t: jnp.ndarray,
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
-      deterministic: bool = False
+      train: bool = True,
   ) -> jnp.ndarray:
     """Forward pass through the neural vector field.
 
@@ -68,7 +68,7 @@ class VelocityField(nn.Module):
       t: Time of shape ``[batch, 1]``.
       x: Data of shape ``[batch, ...]``.
       condition: Conditioning vector of shape ``[batch, ...]``.
-      deterministic: If `True`, disables dropout for inference.
+      train: If `True`, enables dropout for training.
 
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
@@ -78,18 +78,18 @@ class VelocityField(nn.Module):
     t = self.time_encoder(t)
     for time_dim in time_dims:
       t = self.act_fn(nn.Dense(time_dim)(t))
-      t = nn.Dropout(rate=self.dropout_rate, deterministic=deterministic)(t)
+      t = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(t)
 
     for hidden_dim in self.hidden_dims:
       x = self.act_fn(nn.Dense(hidden_dim)(x))
-      x = nn.Dropout(rate=self.dropout_rate, deterministic=deterministic)(x)
+      x = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(x)
 
     if self.condition_dims is not None:
       assert condition is not None, "No condition was passed."
       for cond_dim in self.condition_dims:
         condition = self.act_fn(nn.Dense(cond_dim)(condition))
         condition = nn.Dropout(
-            rate=self.dropout_rate, deterministic=deterministic
+            rate=self.dropout_rate, deterministic=not train
         )(
             condition
         )
@@ -100,7 +100,7 @@ class VelocityField(nn.Module):
     for output_dim in self.output_dims[:-1]:
       feats = self.act_fn(nn.Dense(output_dim)(feats))
       feats = nn.Dropout(
-          rate=self.dropout_rate, deterministic=deterministic
+          rate=self.dropout_rate, deterministic=not train
       )(
           feats
       )

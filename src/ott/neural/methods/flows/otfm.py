@@ -179,7 +179,7 @@ class OTFlowMatching:
                                     t,
                                     x,
                                     cond,
-                                    deterministic=False)
+                                    train=False)
 
     def solve_ode(x: jnp.ndarray, cond: Optional[jnp.ndarray]) -> jnp.ndarray:
       ode_term = diffrax.ODETerm(vf)

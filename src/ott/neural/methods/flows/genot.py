@@ -290,7 +290,7 @@ class GENOT:
                                     t,
                                     x,
                                     cond,
-                                    deterministic=False)
+                                    train=False)
 
     def solve_ode(x: jnp.ndarray, cond: jnp.ndarray) -> jnp.ndarray:
       ode_term = diffrax.ODETerm(vf)
