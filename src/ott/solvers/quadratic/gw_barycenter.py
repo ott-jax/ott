@@ -98,7 +98,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # note that `was_solver` also suffers from this
       kwargs_lr: Optional[Dict] = {
         "min_iterations" : 10, #10 000
-        "max_iterations" : 100, #100 000
+        "max_iterations" : 1000, #100 000
         "kwargs_dys": {"max_iter":1000}  #10000
       },
       **kwargs: Any,
