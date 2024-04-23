@@ -99,11 +99,7 @@ class VelocityField(nn.Module):
 
     for output_dim in self.output_dims[:-1]:
       feats = self.act_fn(nn.Dense(output_dim)(feats))
-      feats = nn.Dropout(
-          rate=self.dropout_rate, deterministic=not train
-      )(
-          feats
-      )
+      feats = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(feats)
 
     # No activation function for the final layer
     return nn.Dense(self.output_dims[-1])(feats)
