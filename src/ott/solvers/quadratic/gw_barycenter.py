@@ -23,7 +23,7 @@ from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import gw_barycenter
 from ott.solvers import was_solver
-from ott.solvers.quadratic import gromov_wasserstein
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 __all__ = ["GWBarycenterState", "GromovWassersteinBarycenter"]
 
@@ -72,8 +72,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   Args:
     epsilon: Entropy regularizer.
     rank: Rank constraint on the coupling to minimize the linear OT problem.
-    min_iterations: Minimum number of iterations.
-    max_iterations: Maximum number of outermost iterations.
+    min_iterations_solver: Minimum number of iterations.
+    max_iterations_solver: Maximum number of outermost iterations.
     threshold: Convergence threshold.
     store_inner_errors: Whether to store the errors of the GW solver, as well
       as its linear solver, at each iteration for each measure.
@@ -87,8 +87,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       epsilon: Optional[float] = None,
       rank: int = -1,
-      min_iterations: int = 5,
-      max_iterations: int = 50,
+      min_iterations_solver: int = 5,
+      max_iterations_solver: int = 50,
       threshold: float = 1e-3,
       store_inner_errors: bool = False,
       quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
@@ -96,24 +96,36 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # but makes passing kwargs with the same name to `quad_solver` impossible
       # will be fixed when refactoring the solvers
       # note that `was_solver` also suffers from this
+      kwargs_lr: Optional[Dict] = {
+        "min_iterations" : 100, #10 000
+        "max_iterations" : 2000, #100 000
+        "kwargs_dys": {"max_iter":10000}  #10000
+      },
       **kwargs: Any,
   ):
     super().__init__(
         epsilon=epsilon,
         rank=rank,
-        min_iterations=min_iterations,
-        max_iterations=max_iterations,
+        min_iterations=min_iterations_solver,
+        max_iterations=max_iterations_solver,
         threshold=threshold,
         store_inner_errors=store_inner_errors,
     )
-
     if quad_solver is None:
       kwargs["epsilon"] = epsilon
       # TODO(michalk8): store only GW errors?
-      kwargs["store_inner_errors"] = store_inner_errors
-      self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
+      if self.is_low_rank:
+        kwargs_lr.update(kwargs)
+        kwargs_lr["rank"] = rank
+        self._quad_solver = gromov_wasserstein_lr.LRGromovWasserstein(**kwargs_lr)
+      else:
+        kwargs["store_inner_errors"] = store_inner_errors
+        self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
     else:
       self._quad_solver = quad_solver
+
+    # print("Is low rank ", self.is_low_rank)
+
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
@@ -173,11 +185,28 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       rng = utils.default_prng_key(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
-      linear_solver = self._quad_solver.linear_ot_solver
 
-      transports = init_transports(linear_solver, rngs, a, b, problem.epsilon)
-      x = problem.update_features(transports, a) if problem.is_fused else None
-      cost = problem.update_barycenter(transports, a)
+      if self.is_low_rank:
+        # y as costs
+        if problem._y_as_costs:
+          cost = problem._y[0,:,:]
+        # if not : initialized with euclidian metrics
+        else:
+          coords = problem._y[0,:,:]
+          pairwise_sq_dists = jnp.sum((coords[:, None] - coords[None]) ** 2, axis=-1)
+          cost = jnp.sqrt(pairwise_sq_dists)
+        
+        x = None
+        if problem.is_fused:
+          assert len(problem._y_fused.shape) == 3, "Use y_fuzed as pre-segmented array for low rank case."
+          x = problem._y_fused[0,:,:]
+
+      else:
+        linear_solver = self._quad_solver.linear_ot_solver
+        transports = init_transports(linear_solver, rngs, a, b, problem.epsilon)
+        x = problem.update_features(transports, a) if problem.is_fused else None
+        cost = problem.update_barycenter(transports, a)
+      
     else:
       cost, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
       assert cost.shape == (bar_size, bar_size)
@@ -186,8 +215,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         assert x.shape == (bar_size, problem.ndim_fused)
 
     num_iter = self.max_iterations
-    if self.store_inner_errors:
+    if self.store_inner_errors and not self.is_low_rank:
       # TODO(michalk8): in the future, think about how to do this in general
+      # TODO(sbazaz): add the low rank case
       errors = -jnp.ones((
           num_iter, problem.num_measures, self._quad_solver.max_iterations,
           self._quad_solver.linear_ot_solver.outer_iterations
@@ -198,6 +228,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     costs = -jnp.ones((num_iter,))
     costs_bary = -jnp.ones((num_iter, problem.num_measures))
     gw_convergence = -jnp.ones((num_iter,))
+
     return GWBarycenterState(
         cost=cost,
         x=x,
@@ -243,7 +274,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     converged = jnp.all(convergeds)
     gw_convergence = state.gw_convergence.at[iteration].set(converged)
 
-    if self.store_inner_errors:
+    if self.store_inner_errors and not self.is_low_rank:
+      # TODO(sbazaz): add the low rank case
       errors = state.errors.at[iteration, ...].set(errors)
     else:
       errors = None
