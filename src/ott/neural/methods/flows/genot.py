@@ -127,13 +127,18 @@ class GENOT:
           target: jnp.ndarray, latent: jnp.ndarray,
           source_conditions: Optional[jnp.ndarray], rng: jax.Array
       ) -> jnp.ndarray:
-        x_t = self.flow.compute_xt(rng, time, latent, target)
+        rng_flow, rng_dropout = jax.random.split(rng, 2)
+        x_t = self.flow.compute_xt(rng_flow, time, latent, target)
         if source_conditions is None:
           cond = source
         else:
           cond = jnp.concatenate([source, source_conditions], axis=-1)
 
-        v_t = vf_state.apply_fn({"params": params}, time, x_t, cond)
+        v_t = vf_state.apply_fn({"params": params},
+                                time,
+                                x_t,
+                                cond,
+                                rngs={"dropout": rng_dropout})
         u_t = self.flow.compute_ut(time, latent, target)
 
         return jnp.mean((v_t - u_t) ** 2)

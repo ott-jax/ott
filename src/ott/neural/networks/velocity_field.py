@@ -129,8 +129,7 @@ class VelocityField(nn.Module):
       assert condition_dim > 0, "Condition dimension must be positive."
       cond = jnp.ones((1, condition_dim))
 
-    init_key, dropout_key = jax.random.split(rng, 2)
-    params = self.init(init_key, t, x, cond)["params"]
+    params = self.init(rng, t, x, cond, train=False)["params"]
     return train_state.TrainState.create(
-        apply_fn=self.apply, params=params, tx=optimizer, key=dropout_key
+        apply_fn=self.apply, params=params, tx=optimizer
     )
