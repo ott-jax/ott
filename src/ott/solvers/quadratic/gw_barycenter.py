@@ -98,11 +98,13 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # note that `was_solver` also suffers from this
       kwargs_lr: Optional[Dict] = {
         "min_iterations" : 100, #10 000
-        "max_iterations" : 2000, #100 000
-        "kwargs_dys": {"max_iter":10000}  #10000
+        "max_iterations" : 1000, #100 000
+        "kwargs_dys": {"max_iter":1000}  #10000
       },
       **kwargs: Any,
   ):
+    
+
     super().__init__(
         epsilon=epsilon,
         rank=rank,
@@ -123,7 +125,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
     else:
       self._quad_solver = quad_solver
-
+    
+    if self.is_low_rank and store_inner_errors:
+      print(f"Not implemented errors for low rank case, {store_inner_errors}=False")
+      self.store_inner_errors = False
     # print("Is low rank ", self.is_low_rank)
 
 

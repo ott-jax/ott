@@ -295,7 +295,9 @@ class TestGWBarycenter:
     np.testing.assert_array_equal(jnp.isfinite(out.cost), True)
     np.testing.assert_array_equal(jnp.isfinite(out.x), True)
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
-    np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
+    # TODO(sbazaz): add the low rank case for errors
+    if rank == -1:
+        np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
 
     weights = jnp.ones(len(num_per_segment)) / len(num_per_segment)
     np.testing.assert_allclose(
