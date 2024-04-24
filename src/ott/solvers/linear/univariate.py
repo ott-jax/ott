@@ -409,11 +409,6 @@ def north_west_distance(
   n, m = a.shape[0], b.shape[0]
   q = m + n - 1
 
-  # sort the entries
-  x, i_x = mu.sort_and_argsort(x, argsort=True)
-  y, i_y = mu.sort_and_argsort(y, argsort=True)
-  a, b = a[i_x], b[i_y]
-
   paired_indices = jnp.zeros((2, q), dtype=int)
   mass_paired_indices = jnp.zeros(q)
 
