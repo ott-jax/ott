@@ -383,25 +383,27 @@ def north_west_distance(
     def replace(self, **kwargs: Any) -> "State":
       return self._replace(**kwargs)
 
-  def dual_a_update(state: State, i: int, j: int) -> Tuple[State, int, int]:
+  def dual_a_update(state: State, i: int,
+                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+    next_ixs = jnp.array([i + 1, j])
     val = cost_fn(x[i + 1, None], y[j, None]) - state.dual_b[j]
     da = state.dual_a.at[i + 1].set(val)
-    return state.replace(dual_a=da), i + 1, j
+    return state.replace(dual_a=da), state.a[i], next_ixs
 
-  def dual_b_update(state: State, i: int, j: int) -> Tuple[State, int, int]:
+  def dual_b_update(state: State, i: int,
+                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+    next_ixs = jnp.array([i, j + 1])
     val = cost_fn(x[i, None], y[j + 1, None]) - state.dual_a[i]
     db = state.dual_b.at[j + 1].set(val)
-    return state.replace(dual_b=db), i, j + 1
+    return state.replace(dual_b=db), state.b[j], next_ixs
 
   def body_fun(ix: int, state: State) -> State:
     i, j = state.paired_indices[0, ix], state.paired_indices[1, ix]
-    state, next_i, next_j = jax.lax.cond(
+    state, min_ab, next_ixs = jax.lax.cond(
         state.a[i] < state.b[j], dual_a_update, dual_b_update, state, i, j
     )
-    min_ab = jnp.minimum(state.a[i], state.b[j])
 
-    pi = state.paired_indices.at[0, ix + 1].set(next_i)
-    pi = pi.at[1, ix + 1].set(next_j)
+    pi = state.paired_indices.at[:, ix + 1].set(next_ixs)
     mpi = state.mass_paired_indices.at[ix].set(min_ab)
     a = state.a.at[i].set(state.a[i] - min_ab)
     b = state.b.at[j].set(state.b[j] - min_ab)
