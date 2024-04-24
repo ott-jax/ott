@@ -205,14 +205,17 @@ class UnivariateSolver:
     if self.quantiles is not None:
       assert prob.is_uniform, \
         "The 'quantiles' method can only be used with uniform marginals."
+      # TODO(michalk8): modify the out
       out = _quant_dist(x, y, geom.cost_fn, self.quantiles, self.num_quantiles)
     elif is_uniform_same_size:
       return_transport = return_transport and not self.num_subsamples
+      # TODO(michalk8): modify the out
       out = uniform_distance(x, y, geom.cost_fn, return_transport)
     else:
       fn = jax.vmap(
           quantile_distance, in_axes=[1, 1, None, None, None, None, None]
       )
+      # TODO(michalk8): modify the out
       out = fn(
           x, y, geom.cost_fn, prob.a, prob.b, return_transport,
           return_dual_vectors
@@ -366,7 +369,7 @@ def north_west_distance(
   Returns:
     TODO.
   """
-  n, m = len(a), len(b)
+  n, m = a.shape[0], b.shape[0]
   q = m + n - 1
 
   # sort entries
@@ -381,7 +384,6 @@ def north_west_distance(
   cost_matrix = cost_fn.all_pairs(x[:, None], y[:, None])
 
   # cumulative idx
-
   paired_indices = jnp.zeros((2, q), dtype=int)
   mass_paired_indices = jnp.zeros(q)
 
@@ -430,9 +432,8 @@ def north_west_distance(
 def _quant_dist(
     x: jnp.ndarray, y: jnp.ndarray, cost_fn: costs.TICost, q: jnp.ndarray,
     n_q: int
-) -> Tuple[jnp.ndarray, None, None]:
+) -> float:
   x_q = jnp.quantile(x, q, axis=0)
   y_q = jnp.quantile(y, q, axis=0)
   ot_costs = jax.vmap(cost_fn.pairwise, in_axes=[1, 1])(x_q, y_q)
-
-  return ot_costs / n_q, None, None, None, None
+  return ot_costs / n_q
