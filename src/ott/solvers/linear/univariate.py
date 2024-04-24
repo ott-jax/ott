@@ -15,7 +15,6 @@ from typing import NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import lineax as lx
 
 from ott import utils
 from ott.geometry import costs, pointcloud
@@ -287,7 +286,6 @@ def quantile_distance(
     a: jnp.ndarray,
     b: jnp.ndarray,
     return_transport: bool = True,
-    return_dual_vectors: bool = True,
 ) -> Distance_t:
   """Computes distance between quantile functions of distributions (a,x)/(b,y).
 
@@ -298,8 +296,6 @@ def quantile_distance(
     a: Vector ``[n,]`` of non-negative weights summing to 1.
     b: Vector ``[m,]`` of non-negative weights summing to 1.
     return_transport: whether to return mapped pairs.
-    return_dual_vectors: whether to return dual vectors. when set to ``True``,
-      will turn ``return_transport`` to ``True`` regardless of the user choice.
 
   Returns:
     optimal transport cost. Optionally, a list of ``n + m`` paired indices, and
@@ -338,11 +334,9 @@ def quantile_distance(
       x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
   )
   cost = jnp.sum(successive_costs * diff_q)
-  paired_indices, mass_paired_indices, dual_a, dual_b = [
-      None,
-  ] * 4
+  paired_indices, mass_paired_indices, dual_a, dual_b = [None] * 4
 
-  if return_transport or return_dual_vectors:
+  if return_transport:
     n = x.shape[0]
 
     i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
@@ -351,33 +345,6 @@ def quantile_distance(
     orig_i = i_x[i_in_sorted_x_of_quantile][1:]
     orig_j = i_y[i_in_sorted_y_of_quantile][1:]
     paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
-
-  if return_dual_vectors:
-    m = y.shape[0]
-    # vector of costs masked by mass transfer. only select active constraints
-    support_cost = (diff_q > 0) * successive_costs
-    # sort and select top n+m-1 to grab non-zero in jit-friendly manner
-    idx_cost = jnp.argsort(support_cost)
-    inv_idx = idx_cost[-n - m + 1:]
-    new_cost = successive_costs[inv_idx]
-    # select indices corresponding to active constraints
-    i_orig_x, i_orig_y = orig_i[inv_idx], orig_j[inv_idx]
-
-    def kkt(dual_ab, ridge_kernel=1e-6):
-      """Eq. 3.6 in :cite:`peyre:19`, with centering constraint on dual_a."""
-      dual_a, dual_b = dual_ab[:n], dual_ab[n:]
-      return jnp.concatenate((
-          jnp.array(jnp.sum(dual_a)).reshape((1,)),
-          dual_a[i_orig_x] + dual_b[i_orig_y]
-      ))
-
-    z = jnp.concatenate((jnp.zeros((1,)), new_cost))
-    operator = lx.FunctionLinearOperator(kkt, z)
-    solver = lx.NormalCG(rtol=1e-6, atol=1e-6)
-    sol = lx.linear_solve(operator, z, solver).value
-    # split again solution into 2 dual variables
-    dual_a = sol[:n]
-    dual_b = sol[n:]
 
   return cost, paired_indices, mass_paired_indices, dual_a, dual_b
 
