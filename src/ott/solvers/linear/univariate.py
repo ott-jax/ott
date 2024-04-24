@@ -347,6 +347,86 @@ def quantile_distance(
   return cost, paired_indices, mass_paired_indices
 
 
+def north_west_distance(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    cost_fn: costs.TICost,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+) -> Tuple[float, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  r"""Computes Univariate Distance between 1D point clouds.
+
+  Args:
+    x: TODO.
+    y: TODO.
+    cost_fn: Cost function.
+    a: TODO.
+    b: TODO.
+
+  Returns:
+    TODO.
+  """
+  n, m = len(a), len(b)
+  q = m + n - 1
+
+  # sort entries
+  x, i_x = mu.sort_and_argsort(x, argsort=True)
+  y, i_y = mu.sort_and_argsort(y, argsort=True)
+  a = a[i_x]
+  b = b[i_y]
+  a_original = a.copy()
+  b_original = b.copy()
+
+  # compute cost matrix
+  cost_matrix = cost_fn.all_pairs(x[:, None], y[:, None])
+
+  # cumulative idx
+
+  paired_indices = jnp.zeros((2, q), dtype=int)
+  mass_paired_indices = jnp.zeros(q)
+
+  # init duals
+  dual_a, dual_b = jnp.zeros(n), jnp.zeros(m)
+  dual_b = dual_b.at[0].set(cost_matrix[0, 0])
+
+  # helper functions
+  def dual_a_update(paired_indices, dual_a, dual_b, i, j, k):
+    paired_indices = paired_indices.at[:, k + 1].set(jnp.array([i + 1, j]))
+    dual_a = dual_a.at[i + 1].set(cost_matrix[i + 1, j] - dual_b[j])
+    return paired_indices, dual_a, dual_b
+
+  def dual_b_update(paired_indices, dual_a, dual_b, i, j, k):
+    paired_indices = paired_indices.at[:, k + 1].set(jnp.array([i, j + 1]))
+    dual_b = dual_b.at[j + 1].set(cost_matrix[i, j + 1] - dual_a[i])
+    return paired_indices, dual_a, dual_b
+
+  def body_fun(k, val):
+    (mass_paired_indices, paired_indices, a, b, dual_a, dual_b) = val
+    i, j = paired_indices[:, k]
+    paired_indices, dual_a, dual_b = jax.lax.cond(
+        a[i] < b[j], dual_a_update, dual_b_update,
+        *(paired_indices, dual_a, dual_b, i, j, k)
+    )
+    min_ab = jnp.minimum(a[i], b[j])
+    mass_paired_indices = mass_paired_indices.at[k].set(min_ab)
+    a = a.at[i].set(a[i] - min_ab)
+    b = b.at[j].set(b[j] - min_ab)
+
+    return mass_paired_indices, paired_indices, a, b, dual_a, dual_b
+
+  # main loop
+  init_val = (mass_paired_indices, paired_indices, a, b, dual_a, dual_b)
+  mass_paired_indices, paired_indices, a, b, dual_a, dual_b = jax.lax.fori_loop(
+      0, q - 1, body_fun, init_val
+  )
+
+  p_final = jnp.maximum(a[-1], b[-1])
+  mass_paired_indices = mass_paired_indices.at[-1].set(p_final)
+
+  ot_cost = jnp.sum(dual_a * a_original) + jnp.sum(dual_b * b_original)
+  return ot_cost, paired_indices, mass_paired_indices, dual_a, dual_b
+
+
 def _quant_dist(
     x: jnp.ndarray, y: jnp.ndarray, cost_fn: costs.TICost, q: jnp.ndarray,
     n_q: int
