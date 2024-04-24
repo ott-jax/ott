@@ -79,6 +79,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     store_inner_errors: Whether to store the errors of the GW solver, as well
       as its linear solver, at each iteration for each measure.
     quad_solver: The GW solver.
+    kwargs_lr: Keyword arguments for
+      :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`.
+      Only used when ``quad_solver = None``.
     kwargs: Keyword argument for
       :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
       Only used when ``quad_solver = None``.
