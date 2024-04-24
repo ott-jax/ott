@@ -335,7 +335,6 @@ def quantile_distance(
       x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
   )
   cost = jnp.sum(successive_costs * diff_q)
-  paired_indices, mass_paired_indices = None, None
 
   if return_transport:
     n = x.shape[0]
@@ -346,10 +345,13 @@ def quantile_distance(
     orig_i = i_x[i_in_sorted_x_of_quantile][1:]
     orig_j = i_y[i_in_sorted_y_of_quantile][1:]
     paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
+  else:
+    paired_indices, mass_paired_indices = None, None
 
   return cost, paired_indices, mass_paired_indices
 
 
+# TODO(michalk8): better naming
 def north_west_distance(
     x: jnp.ndarray,
     y: jnp.ndarray,
