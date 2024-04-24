@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Optional, Tuple, Union
+from typing import Any, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -369,64 +369,76 @@ def north_west_distance(
   Returns:
     TODO.
   """
+
+  class State(NamedTuple):
+    paired_indices: jnp.ndarray
+    mass_paired_indices: jnp.ndarray
+    dual_a: jnp.ndarray
+    dual_b: jnp.ndarray
+    a: jnp.ndarray
+    b: jnp.ndarray
+
+    def replace(self, **kwargs: Any) -> "State":
+      return self._replace(**kwargs)
+
+  def dual_a_update(state: State, i: int, j: int) -> Tuple[State, int, int]:
+    val = cost_fn(x[i + 1, None], y[j, None]) - state.dual_b[j]
+    da = state.dual_a.at[i + 1].set(val)
+    return state.replace(dual_a=da), i + 1, j
+
+  def dual_b_update(state: State, i: int, j: int) -> Tuple[State, int, int]:
+    val = cost_fn(x[i, None], y[j + 1, None]) - state.dual_a[i]
+    db = state.dual_b.at[j + 1].set(val)
+    return state.replace(dual_b=db), i, j + 1
+
+  def body_fun(ix: int, state: State) -> State:
+    i, j = state.paired_indices[0, ix], state.paired_indices[1, ix]
+    state, next_i, next_j = jax.lax.cond(
+        state.a[i] < state.b[j], dual_a_update, dual_b_update, state, i, j
+    )
+    min_ab = jnp.minimum(state.a[i], state.b[j])
+
+    pi = state.paired_indices.at[0, ix + 1].set(next_i)
+    pi = pi.at[1, ix + 1].set(next_j)
+    mpi = state.mass_paired_indices.at[ix].set(min_ab)
+    a = state.a.at[i].set(state.a[i] - min_ab)
+    b = state.b.at[j].set(state.b[j] - min_ab)
+
+    return state.replace(paired_indices=pi, mass_paired_indices=mpi, a=a, b=b)
+
   n, m = a.shape[0], b.shape[0]
   q = m + n - 1
 
-  # sort entries
+  # sort the entries
   x, i_x = mu.sort_and_argsort(x, argsort=True)
   y, i_y = mu.sort_and_argsort(y, argsort=True)
-  a = a[i_x]
-  b = b[i_y]
-  a_original = a.copy()
-  b_original = b.copy()
+  a, b = a[i_x], b[i_y]
 
-  # compute cost matrix
-  cost_matrix = cost_fn.all_pairs(x[:, None], y[:, None])
-
-  # cumulative idx
   paired_indices = jnp.zeros((2, q), dtype=int)
   mass_paired_indices = jnp.zeros(q)
 
-  # init duals
-  dual_a, dual_b = jnp.zeros(n), jnp.zeros(m)
-  dual_b = dual_b.at[0].set(cost_matrix[0, 0])
-
-  # helper functions
-  def dual_a_update(paired_indices, dual_a, dual_b, i, j, k):
-    paired_indices = paired_indices.at[:, k + 1].set(jnp.array([i + 1, j]))
-    dual_a = dual_a.at[i + 1].set(cost_matrix[i + 1, j] - dual_b[j])
-    return paired_indices, dual_a, dual_b
-
-  def dual_b_update(paired_indices, dual_a, dual_b, i, j, k):
-    paired_indices = paired_indices.at[:, k + 1].set(jnp.array([i, j + 1]))
-    dual_b = dual_b.at[j + 1].set(cost_matrix[i, j + 1] - dual_a[i])
-    return paired_indices, dual_a, dual_b
-
-  def body_fun(k, val):
-    (mass_paired_indices, paired_indices, a, b, dual_a, dual_b) = val
-    i, j = paired_indices[:, k]
-    paired_indices, dual_a, dual_b = jax.lax.cond(
-        a[i] < b[j], dual_a_update, dual_b_update,
-        *(paired_indices, dual_a, dual_b, i, j, k)
-    )
-    min_ab = jnp.minimum(a[i], b[j])
-    mass_paired_indices = mass_paired_indices.at[k].set(min_ab)
-    a = a.at[i].set(a[i] - min_ab)
-    b = b.at[j].set(b[j] - min_ab)
-
-    return mass_paired_indices, paired_indices, a, b, dual_a, dual_b
-
-  # main loop
-  init_val = (mass_paired_indices, paired_indices, a, b, dual_a, dual_b)
-  mass_paired_indices, paired_indices, a, b, dual_a, dual_b = jax.lax.fori_loop(
-      0, q - 1, body_fun, init_val
+  state = State(
+      paired_indices=paired_indices,
+      mass_paired_indices=mass_paired_indices,
+      a=a,
+      b=b,
+      dual_a=jnp.zeros(n),
+      dual_b=jnp.zeros(m).at[0].set(cost_fn(x[0, None], y[0, None])),
   )
+  state = jax.lax.fori_loop(0, q - 1, body_fun, state)
 
-  p_final = jnp.maximum(a[-1], b[-1])
-  mass_paired_indices = mass_paired_indices.at[-1].set(p_final)
+  ot_cost = jnp.sum(state.dual_a * a) + jnp.sum(state.dual_b * b)
 
-  ot_cost = jnp.sum(dual_a * a_original) + jnp.sum(dual_b * b_original)
-  return ot_cost, paired_indices, mass_paired_indices, dual_a, dual_b
+  p_final = jnp.maximum(state.a[-1], state.b[-1])
+  mass_paired_indices = state.mass_paired_indices.at[-1].set(p_final)
+
+  return (
+      ot_cost,
+      state.paired_indices,
+      mass_paired_indices,
+      state.dual_a,
+      state.dual_b,
+  )
 
 
 def _quant_dist(
