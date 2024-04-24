@@ -45,6 +45,7 @@ class GWBarycenterState(NamedTuple):
     gw_convergence: Array of shape ``[max_iter,]`` containing the convergence
       of all GW problems at each iteration.
   """
+
   cost: Optional[jnp.ndarray] = None
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
@@ -96,14 +97,9 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # but makes passing kwargs with the same name to `quad_solver` impossible
       # will be fixed when refactoring the solvers
       # note that `was_solver` also suffers from this
-      kwargs_lr: Optional[Dict] = {
-        "min_iterations" : 10, #10 000
-        "max_iterations" : 1000, #100 000
-        "kwargs_dys": {"max_iter":1000}  #10000
-      },
+      kwargs_lr: Optional[Dict] = None,
       **kwargs: Any,
   ):
-    
 
     super().__init__(
         epsilon=epsilon,
@@ -117,24 +113,26 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       kwargs["epsilon"] = epsilon
       # TODO(michalk8): store only GW errors?
       if self.is_low_rank:
+        kwargs_lr = {} if kwargs_lr is None else kwargs_lr
         kwargs_lr.update(kwargs)
         kwargs_lr["rank"] = rank
-        self._quad_solver = gromov_wasserstein_lr.LRGromovWasserstein(**kwargs_lr)
+        self._quad_solver = gromov_wasserstein_lr.LRGromovWasserstein(
+            **kwargs_lr
+        )
       else:
         kwargs["store_inner_errors"] = store_inner_errors
         self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
     else:
       self._quad_solver = quad_solver
-    
-    if self.is_low_rank and store_inner_errors:
-      print(f"Not implemented errors for low rank case, {store_inner_errors}=False")
-      self.store_inner_errors = False
-    # print("Is low rank ", self.is_low_rank)
 
+    if self.is_low_rank and store_inner_errors:
+      raise ValueError("Low rank solver does not support storing errors.")
 
   def __call__(
-      self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
-      **kwargs: Any
+      self,
+      problem: gw_barycenter.GWBarycenterProblem,
+      bar_size: int,
+      **kwargs: Any,
   ) -> GWBarycenterState:
     """Solver the (fused) GW barycenter problem.
 
@@ -194,29 +192,34 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       if self.is_low_rank:
         # y as costs
         if problem._y_as_costs:
-          cost = problem._y[0,:,:]
+          cost = problem._y[0, :, :]
         # if not : initialized with euclidian metrics
         else:
-          coords = problem._y[0,:,:]
-          pairwise_sq_dists = jnp.sum((coords[:, None] - coords[None]) ** 2, axis=-1)
+          coords = problem._y[0, :, :]
+          pairwise_sq_dists = jnp.sum((coords[:, None] - coords[None]) ** 2,
+                                      axis=-1)
           cost = jnp.sqrt(pairwise_sq_dists)
-        
+
         x = None
         if problem.is_fused:
-          assert len(problem._y_fused.shape) == 3, "Use y_fuzed as pre-segmented array for low rank case."
-          x = problem._y_fused[0,:,:]
+          assert (
+              len(problem._y_fused.shape) == 3
+          ), "Use y_fuzed as pre-segmented array for low rank case."
+          x = problem._y_fused[0, :, :]
 
       else:
         linear_solver = self._quad_solver.linear_ot_solver
         transports = init_transports(linear_solver, rngs, a, b, problem.epsilon)
-        x = problem.update_features(transports, a) if problem.is_fused else None
+        x = (
+            problem.update_features(transports, a) if problem.is_fused else None
+        )
         cost = problem.update_barycenter(transports, a)
-      
+
     else:
-      cost, x = bar_init if isinstance(bar_init, tuple) else (bar_init, None)
+      cost, x = (bar_init if isinstance(bar_init, tuple) else (bar_init, None))
       assert cost.shape == (bar_size, bar_size)
       if problem.is_fused:
-        assert x is not None, "Barycenter features are not initialized."
+        assert (x is not None), "Barycenter features are not initialized."
         assert x.shape == (bar_size, problem.ndim_fused)
 
     num_iter = self.max_iterations
@@ -224,8 +227,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # TODO(michalk8): in the future, think about how to do this in general
       # TODO(sbazaz): add the low rank case
       errors = -jnp.ones((
-          num_iter, problem.num_measures, self._quad_solver.max_iterations,
-          self._quad_solver.linear_ot_solver.outer_iterations
+          num_iter,
+          problem.num_measures,
+          self._quad_solver.max_iterations,
+          self._quad_solver.linear_ot_solver.outer_iterations,
       ))
     else:
       errors = None
@@ -241,7 +246,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         errors=errors,
         costs=costs,
         costs_bary=costs_bary,
-        gw_convergence=gw_convergence
+        gw_convergence=gw_convergence,
     )
 
   def update_state(
@@ -254,14 +259,18 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     """Solve the (fused) Gromov-Wasserstein barycenter problem."""
 
     def solve_gw(
-        state: GWBarycenterState, b: jnp.ndarray, y: jnp.ndarray,
-        f: Optional[jnp.ndarray]
+        state: GWBarycenterState,
+        b: jnp.ndarray,
+        y: jnp.ndarray,
+        f: Optional[jnp.ndarray],
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
       quad_problem = problem._create_problem(state, y=y, b=b, f=f)
       out = self._quad_solver(quad_problem)
       return (
-          out.reg_gw_cost, out.converged, out.matrix,
-          out.errors if store_errors else None
+          out.reg_gw_cost,
+          out.converged,
+          out.matrix,
+          out.errors if store_errors else None,
       )
 
     in_axes = [None, 0, 0]
@@ -285,9 +294,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     else:
       errors = None
 
-    x = problem.update_features(
-        transports, state.a
-    ) if problem.is_fused else state.x
+    x = (
+        problem.update_features(transports, state.a)
+        if problem.is_fused else state.x
+    )
     cost = problem.update_barycenter(transports, state.a)
     return state.set(
         cost=cost,
@@ -295,7 +305,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         costs=costs,
         costs_bary=costs_bary,
         errors=errors,
-        gw_convergence=gw_convergence
+        gw_convergence=gw_convergence,
     )
 
   def output_from_state(self, state: GWBarycenterState) -> GWBarycenterState:
@@ -304,7 +314,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     # will be refactored in the future to create an output
     return state
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self,) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux = super().tree_flatten()
     return children + [self._quad_solver], aux
 
@@ -323,8 +333,11 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
 @partial(jax.vmap, in_axes=[None, 0, None, 0, None])
 def init_transports(
-    solver, rng: jax.Array, a: jnp.ndarray, b: jnp.ndarray,
-    epsilon: Optional[float]
+    solver,
+    rng: jax.Array,
+    a: jnp.ndarray,
+    b: jnp.ndarray,
+    epsilon: Optional[float],
 ) -> jnp.ndarray:
   """Initialize random 2D point cloud and solve the linear OT problem.
 
@@ -350,20 +363,24 @@ def init_transports(
 
 def iterations(  # noqa: D103
     solver: GromovWassersteinBarycenter,
-    problem: gw_barycenter.GWBarycenterProblem, init_state: GWBarycenterState
+    problem: gw_barycenter.GWBarycenterProblem,
+    init_state: GWBarycenterState,
 ) -> GWBarycenterState:
 
   def cond_fn(
-      iteration: int, constants: GromovWassersteinBarycenter,
-      state: GWBarycenterState
+      iteration: int,
+      constants: GromovWassersteinBarycenter,
+      state: GWBarycenterState,
   ) -> bool:
     solver, _ = constants
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration, constants: Tuple[GromovWassersteinBarycenter,
-                                  gw_barycenter.GWBarycenterProblem],
-      state: GWBarycenterState, compute_error: bool
+      iteration,
+      constants: Tuple[GromovWassersteinBarycenter,
+                       gw_barycenter.GWBarycenterProblem],
+      state: GWBarycenterState,
+      compute_error: bool,
   ) -> GWBarycenterState:
     del compute_error  # always assumed true
     solver, problem = constants
