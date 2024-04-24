@@ -26,8 +26,6 @@ __all__ = [
     "quantile_distance"
 ]
 
-Distance_t = Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]
-
 
 class UnivariateOutput(NamedTuple):  # noqa: D101
   """Output of the :class:`~ott.solvers.linear.UnivariateSolver`.
@@ -251,32 +249,32 @@ def uniform_distance(
     y: jnp.ndarray,
     cost_fn: costs.TICost,
     return_transport: bool = True
-) -> Distance_t:
+) -> Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]:
   """Distance between two equal-size families of uniformly weighted values x/y.
 
   Args:
     x: Vector ``[n,]`` of real values.
     y: Vector ``[n,]`` of real values.
     cost_fn: Translation invariant cost function, i.e. ``c(x, y) = h(x - y)``.
-    return_transport: whether to return mapped pairs.
+    return_transport: Whether to return mapped pairs.
 
   Returns:
-    optimal transport cost, a list of ``n+m`` paired indices, and their
+    Optimal transport cost, a list of ``n + m`` paired indices, and their
     corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to 1.0
+    entries, but sums to :math:`1`.
   """
   n = x.shape[0]
   i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
   x = jnp.take_along_axis(x, i_x, axis=0)
   y = jnp.take_along_axis(y, i_y, axis=0)
-  ot_costs = jax.vmap(cost_fn.h, in_axes=[0])(x.T - y.T) / n
+  ot_costs = jax.vmap(cost_fn.h, in_axes=0)(x.T - y.T) / n
 
   if return_transport:
     paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
     mass_paired_indices = jnp.ones((n,)) / n
     return ot_costs, paired_indices, mass_paired_indices
 
-  return ot_costs, None, None, None, None
+  return ot_costs, None, None
 
 
 def quantile_distance(
@@ -286,7 +284,7 @@ def quantile_distance(
     a: jnp.ndarray,
     b: jnp.ndarray,
     return_transport: bool = True,
-) -> Distance_t:
+) -> Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]:
   """Computes distance between quantile functions of distributions (a,x)/(b,y).
 
   Args:
@@ -334,7 +332,7 @@ def quantile_distance(
       x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
   )
   cost = jnp.sum(successive_costs * diff_q)
-  paired_indices, mass_paired_indices, dual_a, dual_b = [None] * 4
+  paired_indices, mass_paired_indices = None, None
 
   if return_transport:
     n = x.shape[0]
@@ -346,7 +344,7 @@ def quantile_distance(
     orig_j = i_y[i_in_sorted_y_of_quantile][1:]
     paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
 
-  return cost, paired_indices, mass_paired_indices, dual_a, dual_b
+  return cost, paired_indices, mass_paired_indices
 
 
 def _quant_dist(
