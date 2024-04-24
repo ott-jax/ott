@@ -15,6 +15,7 @@ from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+
 from flax import linen as nn
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
@@ -24,7 +25,6 @@ Shape = Tuple[int, ...]
 Dtype = Any
 Array = jnp.ndarray
 
-# wrap to silence docs linter
 DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.lecun_normal()(*a, **k)
 DEFAULT_BIAS_INIT = nn.initializers.zeros
 DEFAULT_RECTIFIER = nn.activation.relu
@@ -78,7 +78,8 @@ class PositiveDense(nn.Module):
 
 
 class PosDefPotentials(nn.Module):
-  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x^2 + c_i` potentials.
+  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x^2 + c_i`
+    potentials.
 
   This class implements a layer that takes (batched) ``d``-dimensional vectors
   ``x`` in, to output a ``num_potentials``-dimensional vector. Each of the
@@ -110,7 +111,7 @@ class PosDefPotentials(nn.Module):
     bias_init: Initializer for the bias. The default is
       :func:`~flax.linen.initializers.zeros`.
     precision: Numerical precision of the computation.
-  """  # noqa: E501
+  """  # noqa: D205,E501
 
   num_potentials: int
   rank: int = 0

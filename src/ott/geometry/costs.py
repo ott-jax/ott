@@ -533,7 +533,7 @@ class RegTICost(TICost, abc.ABC):
     return out + self.scaling_reg * self.reg(z)
 
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
-    q = jax.lax.stop_gradient(self.prox_reg(z))
+    q = self.prox_reg(jax.lax.stop_gradient(z))
     return jnp.sum(q * z) - self.h(q)
 
   def h_transform(self, f: Callable[[jnp.ndarray], float],

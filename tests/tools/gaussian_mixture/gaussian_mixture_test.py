@@ -11,10 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
-import pytest
+
 from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 
 
@@ -161,7 +164,7 @@ class TestGaussianMixture:
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=rng, n_components=3, n_dimensions=2
     )
-    gmm_x_2 = jax.tree_map(lambda x: 2.0 * x, gmm)
+    gmm_x_2 = jtu.tree_map(lambda x: 2.0 * x, gmm)
     np.testing.assert_allclose(2.0 * gmm.loc, gmm_x_2.loc, atol=1e-4, rtol=1e-4)
     np.testing.assert_allclose(
         2.0 * gmm.scale_params, gmm_x_2.scale_params, atol=1e-4, rtol=1e-4

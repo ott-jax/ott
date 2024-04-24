@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -26,17 +27,146 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+
 import optax
 from flax.core import frozen_dict
 from flax.training import train_state
 
 from ott import utils
-from ott.neural.solvers import neuraldual
+from ott.geometry import costs, pointcloud
+from ott.neural.networks import potentials
+from ott.solvers import linear
+from ott.solvers.linear import sinkhorn
 
-__all__ = ["MapEstimator"]
+__all__ = ["monge_gap", "monge_gap_from_samples", "MongeGapEstimator"]
 
 
-class MapEstimator:
+def monge_gap(
+    map_fn: Callable[[jnp.ndarray], jnp.ndarray],
+    reference_points: jnp.ndarray,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[float] = None,
+    relative_epsilon: Optional[bool] = None,
+    scale_cost: Union[int, float, Literal["mean", "max_cost", "median"]] = 1.0,
+    return_output: bool = False,
+    **kwargs: Any
+) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
+  r"""Monge gap regularizer :cite:`uscidda:23`.
+
+  For a cost function :math:`c` and empirical reference measure
+  :math:`\hat{\rho}_n=\frac{1}{n}\sum_{i=1}^n \delta_{x_i}`, the
+  (entropic) Monge gap of a map function
+  :math:`T:\mathbb{R}^d\rightarrow\mathbb{R}^d` is defined as:
+
+  .. math::
+    \mathcal{M}^c_{\hat{\rho}_n, \varepsilon} (T)
+    = \frac{1}{n} \sum_{i=1}^n c(x_i, T(x_i)) -
+    W_{c, \varepsilon}(\hat{\rho}_n, T \sharp \hat{\rho}_n)
+
+  See :cite:`uscidda:23` Eq. (8). This function is a thin wrapper that calls
+  :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`.
+
+  Args:
+    map_fn: Callable corresponding to map :math:`T` in definition above. The
+      callable should be vectorized (e.g. using :func:`~jax.vmap`), i.e,
+      able to process a *batch* of vectors of size `d`, namely
+      ``map_fn`` applied to an array returns an array of the same shape.
+    reference_points: Array of `[n,d]` points, :math:`\hat\rho_n`.
+    cost_fn: An object of class :class:`~ott.geometry.costs.CostFn`.
+    epsilon: Regularization parameter. See
+      :class:`~ott.geometry.pointcloud.PointCloud`
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`, which is
+      computed adaptively using ``source`` and ``target`` points.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+    return_output: boolean to also return the
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
+    kwargs: holds the kwargs to instantiate the or
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
+      compute the regularized OT cost.
+
+  Returns:
+    The Monge gap value and optionally the
+    :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
+  """
+  target = map_fn(reference_points)
+  return monge_gap_from_samples(
+      source=reference_points,
+      target=target,
+      cost_fn=cost_fn,
+      epsilon=epsilon,
+      relative_epsilon=relative_epsilon,
+      scale_cost=scale_cost,
+      return_output=return_output,
+      **kwargs
+  )
+
+
+def monge_gap_from_samples(
+    source: jnp.ndarray,
+    target: jnp.ndarray,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[float] = None,
+    relative_epsilon: Optional[bool] = None,
+    scale_cost: Union[int, float, Literal["mean", "max_cost", "median"]] = 1.0,
+    return_output: bool = False,
+    **kwargs: Any
+) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
+  r"""Monge gap, instantiated in terms of samples before / after applying map.
+
+  .. math::
+    \frac{1}{n} \sum_{i=1}^n c(x_i, y_i)) -
+    W_{c, \varepsilon}(\frac{1}{n}\sum_i \delta_{x_i},
+    \frac{1}{n}\sum_i \delta_{y_i})
+
+  where :math:`W_{c, \varepsilon}` is an entropy-regularized optimal transport
+  cost, the :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`.
+
+  Args:
+    source: samples from first measure, array of shape ``[n, d]``.
+    target: samples from second measure, array of shape ``[n, d]``.
+    cost_fn: a cost function between two points in dimension :math:`d`.
+      If :obj:`None`, :class:`~ott.geometry.costs.SqEuclidean` is used.
+    epsilon: Regularization parameter. See
+      :class:`~ott.geometry.pointcloud.PointCloud`
+    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When `True`, ``epsilon``
+      refers to a fraction of the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`, which is
+      computed adaptively using ``source`` and ``target`` points.
+    scale_cost: option to rescale the cost matrix. Implemented scalings are
+      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
+      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+    return_output: boolean to also return the
+      :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`.
+    kwargs: holds the kwargs to instantiate the or
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver to
+      compute the regularized OT cost.
+
+  Returns:
+    The Monge gap value and optionally the
+    :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`
+  """
+  cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
+  geom = pointcloud.PointCloud(
+      x=source,
+      y=target,
+      cost_fn=cost_fn,
+      epsilon=epsilon,
+      relative_epsilon=relative_epsilon,
+      scale_cost=scale_cost,
+  )
+  gt_displacement_cost = jnp.mean(jax.vmap(cost_fn)(source, target))
+  out = linear.solve(geom=geom, **kwargs)
+  loss = gt_displacement_cost - out.ent_reg_cost
+  return (loss, out) if return_output else loss
+
+
+class MongeGapEstimator:
   r"""Mapping estimator between probability measures.
 
   It estimates a map :math:`T` by minimizing the loss:
@@ -54,7 +184,7 @@ class MapEstimator:
 
   For instance, :math:`\Delta` can be the
   :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`
-  and :math:`R` the :func:`~ott.neural.losses.monge_gap_from_samples`
+  and :math:`R` the :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`
   :cite:`uscidda:23` for a given cost function :math:`c`.
   In that case, it estimates a :math:`c`-OT map, i.e. a map :math:`T`
   optimal for the Monge problem induced by :math:`c`.
@@ -77,7 +207,7 @@ class MapEstimator:
   def __init__(
       self,
       dim_data: int,
-      model: neuraldual.BaseW2NeuralDual,
+      model: potentials.BasePotential,
       optimizer: Optional[optax.OptState] = None,
       fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                       Tuple[float, Optional[Any]]]] = None,
@@ -113,7 +243,7 @@ class MapEstimator:
   def setup(
       self,
       dim_data: int,
-      neural_net: neuraldual.BaseW2NeuralDual,
+      neural_net: potentials.BasePotential,
       optimizer: optax.OptState,
   ):
     """Setup all components required to train the network."""
@@ -129,11 +259,11 @@ class MapEstimator:
   def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
     """Regularizer added to the fitting loss.
 
-    Can be, e.g. the :func:`~ott.neural.losses.monge_gap_from_samples`.
+    Can be, e.g. the :func:`~ott.neural.methods.monge_gap.monge_gap_from_samples`.
     If no regularizer is passed for solver instantiation,
     or regularization weight :attr:`regularizer_strength` is 0,
     return 0 by default along with an empty set of log values.
-    """
+    """  # noqa: E501
     if self._regularizer is not None:
       return self._regularizer
     return lambda *_, **__: (0.0, None)

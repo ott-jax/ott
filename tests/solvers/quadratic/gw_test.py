@@ -13,10 +13,13 @@
 # limitations under the License.
 from typing import Tuple, Union
 
+import pytest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
+
+from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -511,3 +514,26 @@ class TestGromovWasserstein:
     np.testing.assert_allclose(
         res.primal_cost, res_unbal.primal_cost, rtol=1e-3, atol=1e-3
     )
+
+  @pytest.mark.parametrize("grad", [False, True])
+  def test_gw_progress_fn(self, grad: bool):
+
+    def callback(x: jnp.ndarray, y: jnp.ndarray):
+      geom_xx = pointcloud.PointCloud(x)
+      geom_yy = pointcloud.PointCloud(y)
+      prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy)
+
+      lin_solver = sinkhorn.Sinkhorn(progress_fn=utils.default_progress_fn())
+      quad_solver = gromov_wasserstein.GromovWasserstein(
+          linear_ot_solver=lin_solver,
+          progress_fn=utils.default_progress_fn(),
+          # needs to be explicitly set
+          store_inner_errors=True,
+      )
+
+      return quad_solver(prob).reg_gw_cost
+
+    fn = jax.grad(callback) if grad else callback
+    res = fn(self.x, self.y)
+
+    np.testing.assert_array_equal(jnp.isfinite(res), True)
