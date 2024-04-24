@@ -284,7 +284,7 @@ def quantile_distance(
     a: jnp.ndarray,
     b: jnp.ndarray,
     return_transport: bool = True,
-) -> Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]:
+) -> Tuple[float, jnp.ndarray, jnp.ndarray]:
   """Computes distance between quantile functions of distributions (a,x)/(b,y).
 
   Args:
