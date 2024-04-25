@@ -202,7 +202,6 @@ class TestGWBarycenter:
         atol=1e-6,
     )
 
-
   @pytest.mark.fast(
       "jit,fused_penalty,scale_cost,rank",
       [(False, 1.5, "mean", -1), (True, 3.1, "max_cost", 5)],
@@ -245,9 +244,8 @@ class TestGWBarycenter:
       assert prob.ndim == self.ndim
       assert prob.ndim_fused == self.ndim_f
 
-
       solver = gwb_solver.GromovWassersteinBarycenter(
-            store_inner_errors=True, epsilon=epsilon, rank=rank
+          store_inner_errors=True, epsilon=epsilon, rank=rank
       )
 
       x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
@@ -278,13 +276,13 @@ class TestGWBarycenter:
     tau_a = 0.75
     tau_b = 0.25
     gw_unbalanced_correction = True
-    partial_fn = lambda y, y_fused : barycenter(
-        y, 
-        y_fused=y_fused, 
+    partial_fn = lambda y, y_fused: barycenter(
+        y,
+        y_fused=y_fused,
         num_per_segment=num_per_segment,
         rank=rank,
-        tau_a=tau_a, 
-        tau_b=tau_b, 
+        tau_a=tau_a,
+        tau_b=tau_b,
         gw_unbalanced_correction=gw_unbalanced_correction
     )
     fn = jax.jit(partial_fn) if jit else partial_fn
@@ -297,7 +295,7 @@ class TestGWBarycenter:
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
     # TODO(sbazaz): add the low rank case for errors
     if rank == -1:
-        np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
+      np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
 
     weights = jnp.ones(len(num_per_segment)) / len(num_per_segment)
     np.testing.assert_allclose(
