@@ -245,7 +245,11 @@ class TestGWBarycenter:
       assert prob.ndim_fused == self.ndim_f
 
       solver = gwb_solver.GromovWassersteinBarycenter(
-          store_inner_errors=True, epsilon=epsilon, rank=rank
+          store_inner_errors=(
+              rank == -1
+          ),  # store_inner_errors not implemented for low-rank
+          epsilon=epsilon,
+          rank=rank,
       )
 
       x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
@@ -283,7 +287,7 @@ class TestGWBarycenter:
         rank=rank,
         tau_a=tau_a,
         tau_b=tau_b,
-        gw_unbalanced_correction=gw_unbalanced_correction
+        gw_unbalanced_correction=gw_unbalanced_correction,
     )
     fn = jax.jit(partial_fn) if jit else partial_fn
     out = fn(y, y_fused)
