@@ -121,7 +121,7 @@ spelling_filters = [
 # linkcheck
 linkcheck_ignore = [
     # 403 Client Error
-    "https://doi.org/10.1089/cmb.2021.0446"
+    "https://doi.org/10.1089/cmb.2021.0446",
     "https://www.jstor.org/stable/3647580",
     "https://doi.org/10.1137/19M1301047",
     "https://doi.org/10.1137/17M1140431",
@@ -130,7 +130,6 @@ linkcheck_ignore = [
     "https://doi.org/10.1145/2516971.2516977",
     "https://doi.org/10.1145/2766963",
     "https://keras.io/examples/nlp/pretrained_word_embeddings/",
-    "https://www.jstor.org/stable/3647580",
 ]
 
 # List of patterns, relative to source directory, that match files and

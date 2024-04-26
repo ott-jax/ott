@@ -106,11 +106,12 @@ jobs:
         PYTEST_ADDOPTS: --memray -vv
 
     - name: Upload coverage
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         files: ./coverage.xml
         flags: tests-${{ matrix.os }}-${{ matrix.python-version }}
         name: unittests
+        token: ${{ secrets.CODECOV_TOKEN }}
         env_vars: OS,PYTHON
         fail_ci_if_error: false
         verbose: true
