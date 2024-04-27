@@ -203,6 +203,48 @@ class TICost(CostFn):
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
+  def h_transform(
+      self,
+      f: Callable[[jnp.ndarray], float],
+      ridge: float = 1e-8,
+      **kwargs: Any
+  ) -> Callable[[jnp.ndarray], float]:
+    r"""Compute the h-transform of a concave function.
+
+    Return a callable :math:`f_h` defined as:
+
+    .. math::
+      f_h(x) = \min_y h(x - y) - f(y)
+
+    This is equivalent, up to a change of variables, :math:`z = x - y`, to
+    define
+
+    .. math::
+      \min_z h(z) - f(x - z). \\
+      \min_z h(z) + \tilde{f}(z, x).
+
+    where :math:`\tilde{f}(z, x) := -f(x - z)`.
+
+    Args:
+      f: Concave function.
+      ridge: Regularizer to ensure strong convexity of the objective.
+      kwargs: Keyword arguments for :class:`~jaxopt.LBFGS`.
+
+    Returns:
+      The h-transform of ``f``.
+    """
+
+    def fun(z: jnp.ndarray, x: jnp.ndarray) -> float:
+      return self.h(z) + ridge * jnp.sum(z ** 2) - f(x - z)
+
+    def f_h(x: jnp.ndarray) -> float:
+      solver = jaxopt.LBFGS(fun=fun, **kwargs)
+      solver = solver.run(x, x=x)
+      sol = jax.lax.stop_gradient(solver.params)
+      return fun(sol, x)
+
+    return f_h
+
   def twist_operator(
       self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
   ) -> jnp.ndarray:
