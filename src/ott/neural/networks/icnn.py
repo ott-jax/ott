@@ -32,7 +32,9 @@ class ICNN(potentials.BasePotential):
   """Input convex neural network (ICNN).
 
   Implementation of input convex neural networks as introduced in
-  :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`.
+  :cite:`amos:17` with initialization schemes proposed by :cite:`bunne:22`,
+  and (low-rank + diagonal) quadratic on inputs at each layer, by
+  :cite:`vesseron:24`.
 
   Args:
     dim_data: data dimensionality.

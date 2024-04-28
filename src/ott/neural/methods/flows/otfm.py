@@ -80,9 +80,13 @@ class OTFlowMatching:
           target: jnp.ndarray, source_conditions: Optional[jnp.ndarray],
           rng: jax.Array
       ) -> jnp.ndarray:
-
-        x_t = self.flow.compute_xt(rng, t, source, target)
-        v_t = vf_state.apply_fn({"params": params}, t, x_t, source_conditions)
+        rng_flow, rng_dropout = jax.random.split(rng, 2)
+        x_t = self.flow.compute_xt(rng_flow, t, source, target)
+        v_t = vf_state.apply_fn({"params": params},
+                                t,
+                                x_t,
+                                source_conditions,
+                                rngs={"dropout": rng_dropout})
         u_t = self.flow.compute_ut(t, source, target)
 
         return jnp.mean((v_t - u_t) ** 2)
@@ -175,7 +179,7 @@ class OTFlowMatching:
         t: jnp.ndarray, x: jnp.ndarray, cond: Optional[jnp.ndarray]
     ) -> jnp.ndarray:
       params = self.vf_state.params
-      return self.vf_state.apply_fn({"params": params}, t, x, cond)
+      return self.vf_state.apply_fn({"params": params}, t, x, cond, train=False)
 
     def solve_ode(x: jnp.ndarray, cond: Optional[jnp.ndarray]) -> jnp.ndarray:
       ode_term = diffrax.ODETerm(vf)

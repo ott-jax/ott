@@ -52,6 +52,7 @@ class VelocityField(nn.Module):
   time_encoder: Callable[[jnp.ndarray],
                          jnp.ndarray] = time_encoder.cyclical_time_encoder
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.silu
+  dropout_rate: float = 0.0
 
   @nn.compact
   def __call__(
@@ -59,6 +60,7 @@ class VelocityField(nn.Module):
       t: jnp.ndarray,
       x: jnp.ndarray,
       condition: Optional[jnp.ndarray] = None,
+      train: bool = True,
   ) -> jnp.ndarray:
     """Forward pass through the neural vector field.
 
@@ -66,6 +68,7 @@ class VelocityField(nn.Module):
       t: Time of shape ``[batch, 1]``.
       x: Data of shape ``[batch, ...]``.
       condition: Conditioning vector of shape ``[batch, ...]``.
+      train: If `True`, enables dropout for training.
 
     Returns:
       Output of the neural vector field of shape ``[batch, output_dim]``.
@@ -75,22 +78,30 @@ class VelocityField(nn.Module):
     t = self.time_encoder(t)
     for time_dim in time_dims:
       t = self.act_fn(nn.Dense(time_dim)(t))
+      t = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(t)
 
     for hidden_dim in self.hidden_dims:
       x = self.act_fn(nn.Dense(hidden_dim)(x))
+      x = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(x)
 
     if self.condition_dims is not None:
       assert condition is not None, "No condition was passed."
       for cond_dim in self.condition_dims:
         condition = self.act_fn(nn.Dense(cond_dim)(condition))
+        condition = nn.Dropout(
+            rate=self.dropout_rate, deterministic=not train
+        )(
+            condition
+        )
       feats = jnp.concatenate([t, x, condition], axis=-1)
     else:
       feats = jnp.concatenate([t, x], axis=-1)
 
     for output_dim in self.output_dims[:-1]:
       feats = self.act_fn(nn.Dense(output_dim)(feats))
+      feats = nn.Dropout(rate=self.dropout_rate, deterministic=not train)(feats)
 
-    # no activation function for the final layer
+    # No activation function for the final layer
     return nn.Dense(self.output_dims[-1])(feats)
 
   def create_train_state(
@@ -118,7 +129,7 @@ class VelocityField(nn.Module):
       assert condition_dim > 0, "Condition dimension must be positive."
       cond = jnp.ones((1, condition_dim))
 
-    params = self.init(rng, t, x, cond)["params"]
+    params = self.init(rng, t, x, cond, train=False)["params"]
     return train_state.TrainState.create(
         apply_fn=self.apply, params=params, tx=optimizer
     )
