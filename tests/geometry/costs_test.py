@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import costs, pointcloud
+from ott.math import utils as mu
 from ott.solvers import linear
 
 try:
@@ -130,7 +131,23 @@ class TestBuresBarycenter:
 
 class TestTIRegCost:
 
-  def test_h_legendre(self):
+  @pytest.mark.parametrize(
+      "cost_fn", [
+          costs.SqPNorm(p=1.0),
+          costs.SqPNorm(2.3),
+          costs.PNormP(p=1.0),
+          costs.PNormP(1.3),
+          costs.SqEuclidean()
+      ]
+  )
+  def test_h_legendre(self, rng: jax.Array, cost_fn: costs.TICost):
+    x = jax.random.normal(rng, (15, 3))
+    h_transform = cost_fn.h_transform(mu.logsumexp)
+    h_transform = jax.jit(jax.vmap(jax.grad(h_transform)))
+
+    np.testing.assert_array_equal(jnp.isfinite(h_transform(x)), True)
+
+  def test_h_legendre_sqeucl(self):
     pass
 
 
