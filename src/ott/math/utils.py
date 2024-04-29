@@ -164,7 +164,11 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
   if return_sign:
     lse, sign = lse
   lse = jnp.where(jnp.isfinite(lse), lse, 0.0)
-  centered_exp = jnp.exp(mat - jnp.expand_dims(lse, axis=axis))
+
+  if axis is not None:
+    centered_exp = jnp.exp(mat - jnp.expand_dims(lse, axis=axis))
+  else:
+    centered_exp = jnp.exp(mat - lse)
 
   if b is None:
     res = jnp.sum(centered_exp * tan_mat, axis=axis, keepdims=keepdims)
