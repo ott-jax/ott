@@ -268,8 +268,12 @@ class TestRegTICost:
 
     concave_fn = lambda z: -elastic_l2.h(z) + jnp.dot(z, u)
 
-    p_grad_h = jax.jit(jax.vmap(jax.grad(p_norm_p.h_transform(concave_fn))))
-    elastic_grad_h = jax.vmap(jax.grad(elastic_l2.h_transform(concave_fn)))
+    p_grad_h = jax.jit(
+        jax.vmap(jax.grad(p_norm_p.h_transform(concave_fn, tol=1e-5)))
+    )
+    elastic_grad_h = jax.vmap(
+        jax.grad(elastic_l2.h_transform(concave_fn, tol=1e-5))
+    )
 
     np.testing.assert_allclose(
         elastic_grad_h(x), p_grad_h(x), rtol=1e-5, atol=1e-5
