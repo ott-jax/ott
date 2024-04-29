@@ -28,32 +28,32 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
-from jax._src.basearray import Array as Array
+import jax.tree_util as jtu
 
 import optax
 from flax import linen as nn
-from flax import struct
 from flax.core import frozen_dict
-from flax.training import train_state
 
 from ott import utils
 from ott.geometry import costs
+from ott.neural.networks.potentials import (
+    PotentialGradientFn_t,
+    PotentialTrainState,
+    PotentialValueFn_t,
+)
 from ott.problems.linear.potentials import DualPotentials
 
 __all__ = [
-    "BidirectionalPotentials", "ForwardPotentials", "EuclideanPotentials",
-    "DotCost", "PotentialModelWrapper", "PotentialTrainState", "MLP",
-    "ExpectileNeuralDual"
+    "ENOTPotentials", "PotentialModelWrapper", "MLP", "ExpectileNeuralDual"
 ]
 
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, DualPotentials], None]
-PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
-PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 CostFn_t = TypeVar("CostFn_t", bound=costs.CostFn)
 
 
-class BidirectionalPotentials(DualPotentials):
+@jtu.register_pytree_node_class
+class ENOTPotentials(DualPotentials):
   r"""The dual potentials for bidirectional mapping with TICost.
 
   Args:
@@ -65,15 +65,24 @@ class BidirectionalPotentials(DualPotentials):
 
   def __init__(
       self, g: PotentialValueFn_t, grad_f: PotentialGradientFn_t,
-      cost_fn: costs.TICost
+      cost_fn: costs.CostFn, is_bidirectional: bool, corr: bool
   ):
 
-    def g_cost_conjugate(x: jnp.ndarray) -> jnp.ndarray:
-      grad_h_inv = jax.grad(cost_fn.h_legendre)
-      y_hat = jax.lax.stop_gradient(x - grad_h_inv(grad_f(x)))
-      return -g(y_hat) + cost_fn(x, y_hat)
+    self.is_bidirectional = is_bidirectional
 
-    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn, corr=False)
+    if is_bidirectional and not corr:
+      grad_h_inv = jax.grad(cost_fn.h_legendre)
+      transport = lambda x: x - grad_h_inv(grad_f(x))
+    else:
+      transport = lambda x: grad_f(x)
+
+    conjugate_cost = jnp.dot if corr else cost_fn
+
+    def g_cost_conjugate(x: jnp.ndarray) -> jnp.ndarray:
+      y_hat = jax.lax.stop_gradient(transport(x))
+      return -g(y_hat) + conjugate_cost(x, y_hat)
+
+    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn, corr=corr)
     self.__grad_f = grad_f
 
     assert isinstance(cost_fn, costs.TICost), (
@@ -87,120 +96,22 @@ class BidirectionalPotentials(DualPotentials):
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
     """Transport from source to the target distribution or vice-versa."""
+    if self.is_bidirectional:
+      return super().transport(vec, forward)
+
     vec = jnp.atleast_2d(vec)
-    if forward:
-      return vec - self._grad_h_inv(self._grad_f(vec))
-    return vec - self._grad_h_inv(self._grad_g(vec))
-
-
-class ForwardPotentials(DualPotentials):
-  r"""The dual potentials for only forward mapping.
-
-  Args:
-  g: The second dual potential function.
-  grad_f: Gradient of the first dual potential function.
-  cost_fn: The cost function used to solve the OT problem.
-  """
-
-  def __init__(
-      self, g: PotentialValueFn_t, grad_f: PotentialGradientFn_t,
-      cost_fn: costs.CostFn
-  ):
-
-    def g_cost_conjugate(x: jnp.ndarray) -> jnp.ndarray:
-      y_hat = jax.lax.stop_gradient(grad_f(x))
-      return -g(y_hat) + cost_fn(x, y_hat)
-
-    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn, corr=False)
-    self.__grad_f = grad_f
-
-  @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    return jax.vmap(self.__grad_f)
-
-  def transport(self, source: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport the points from source to the target distribution."""
-    source = jnp.atleast_2d(source)
     assert (forward
             is True), ("Only forward mapping (source -> target) is supported.")
-    return self._grad_f(source)
+    return self._grad_f(vec)
 
-
-class EuclideanPotentials(DualPotentials):
-  r"""The dual potentials, trained with scalar product operation.
-
-  Args:
-  g: The second dual potential function.
-  grad_f: Gradient of the first dual potential function.
-  """
-
-  def __init__(self, g: PotentialValueFn_t, grad_f: PotentialGradientFn_t):
-
-    def g_conjugate(x: jnp.ndarray) -> jnp.ndarray:
-      y_hat = jax.lax.stop_gradient(grad_f(x))
-      return -g(y_hat) + jnp.dot(x, y_hat)
-
-    super().__init__(g_conjugate, g, cost_fn=costs.SqEuclidean(), corr=True)
-    self.__grad_f = grad_f
-
-  @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    return jax.vmap(self.__grad_f)
-
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
-    """Transport from source to the target distribution or vice-versa."""
-    vec = jnp.atleast_2d(vec)
-    return self._grad_f(vec) if forward else self._grad_g(vec)
-
-  def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
-    """W2 distance."""
-    src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
-    f = jax.vmap(self.f)
-    g = jax.vmap(self.g)
-    corr = jnp.mean(f(src)) + jnp.mean(g(tgt))
-    return -2.0 * corr + jnp.mean(jnp.sum(src ** 2, axis=-1)) + \
-      jnp.mean(jnp.sum(tgt ** 2, axis=-1))
-
-
-def expectile_loss(
-    adv: jnp.ndarray, diff: jnp.ndarray, expectile: float = 0.9
-) -> jnp.ndarray:
-  weight = jnp.where(adv >= 0, expectile, (1 - expectile))
-  return weight * diff ** 2
-
-
-@jax.tree_util.register_pytree_node_class
-class DotCost(costs.CostFn):
-  """The cost function that is used in OT training with scalar product."""
-
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Dot product of vectors."""
-    return jnp.dot(x, y)
-
-  @classmethod
-  def _padder(cls, dim: int) -> jnp.ndarray:
-    return jnp.ones((1, dim))
-
-
-class PotentialTrainState(train_state.TrainState):
-  r"""Adds information about the model's value and gradient to the state.
-
-  The gradient may differ from composition of jax.grad and value functions.
-
-  Args:
-  potential_value_fn: the potential's value function.
-  potential_gradient_fn: the potential's gradient function.
-  """
-
-  potential_value_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
-                               PotentialValueFn_t] = struct.field(
-                                   pytree_node=False
-                               )
-
-  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
-                                  PotentialGradientFn_t] = struct.field(
-                                      pytree_node=False
-                                  )
+  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+    return [], {
+        "g": self._g,
+        "grad_f": self._grad_f,
+        "cost_fn": self.cost_fn,
+        "is_bidirectional": self.is_bidirectional,
+        "corr": self._corr
+    }
 
 
 class PotentialModelWrapper(nn.Module):
@@ -351,6 +262,7 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
       log_freq: int = 1000,
       logging: bool = False,
       rng: Optional[jax.Array] = None,
+      use_dot_product: bool = False,
       expectile: float = 0.99,
       expectile_loss_coef: float = 1.0
   ):
@@ -362,14 +274,20 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
     self.expectile = expectile
     self.expectile_loss_coef = expectile_loss_coef
     self.is_bidirectional = is_bidirectional
-    self.use_dot_product = (type(cost_fn) == DotCost)
+    self.use_dot_product = use_dot_product
 
-    assert (
-        isinstance(cost_fn, (costs.TICost, DotCost)) or not is_bidirectional
-    ), (
+    if use_dot_product:
+      self.train_batch_cost = lambda x, y: -jax.vmap(jnp.dot)(x, y)
+    else:
+      self.train_batch_cost = jax.vmap(self.cost_fn)
+
+    assert (isinstance(cost_fn, costs.TICost) or not is_bidirectional), (
         "is_bidirectional=True can only be used with a translation invariant"
-        "cost (TICost) or DotCost."
+        "cost (TICost)"
     )
+
+    assert (isinstance(cost_fn, costs.SqEuclidean) or not use_dot_product
+           ), ("use_dot_product=True can only be used with SqEuclidean cost")
 
     # set default optimizers
     if optimizer_f is None:
@@ -489,7 +407,7 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
       [PotentialTrainState, PotentialTrainState, Dict[str, jnp.ndarray]], Tuple[
           PotentialTrainState, PotentialTrainState, jnp.ndarray, jnp.ndarray,
           jnp.ndarray, jnp.ndarray]]:
-    loss_fn = self._euclidean_loss_fn if self.use_dot_product else self._loss_fn
+    loss_fn = self._loss_fn
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -514,7 +432,7 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
   ) -> Callable[
       [PotentialTrainState, PotentialTrainState, Dict[str, jnp.ndarray]], Tuple[
           jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
-    loss_fn = self._euclidean_loss_fn if self.use_dot_product else self._loss_fn
+    loss_fn = self._loss_fn
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -531,6 +449,10 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
 
     return step_fn
 
+  def _expectile_loss(self, diff: jnp.ndarray) -> jnp.ndarray:
+    weight = jnp.where(diff >= 0, self.expectile, (1 - self.expectile))
+    return weight * diff ** 2
+
   def _loss_fn(
       self, params_f: frozen_dict.FrozenDict[str, jnp.ndarray],
       params_g: frozen_dict.FrozenDict[str, jnp.ndarray],
@@ -540,21 +462,28 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
                         PotentialValueFn_t], batch: Dict[str, jnp.ndarray]
   ) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
 
-    if self.is_bidirectional:
+    if self.is_bidirectional and not self.use_dot_product:
       grad_h_inv = jax.vmap(jax.grad(self.cost_fn.h_legendre))
       transport = lambda grad_f, source: source - grad_h_inv(grad_f(source))
     else:
       transport = lambda grad_f, source: grad_f(source)
 
-    def g_c_transform(x, y):
-      return batch_cost(x,y) - \
-        jax.vmap(g_value(jax.lax.stop_gradient(params_g)))(y)
-
     source, target = batch["source"], batch["target"]
 
     f_grad_partial = jax.vmap(gradient_f(params_f))
     g_value_partial = jax.vmap(g_value(params_g))
-    batch_cost = jax.vmap(self.cost_fn)
+    g_value_partial_stop_grad = jax.vmap(
+        g_value(jax.lax.stop_gradient(params_g))
+    )
+    batch_cost = self.train_batch_cost
+
+    if self.use_dot_product:
+      g_value_partial = lambda y: -jax.vmap(g_value(params_g))(y)
+      g_value_partial_stop_grad = lambda y: -jax.vmap(
+          g_value(jax.lax.stop_gradient(params_g))
+      )(
+          y
+      )
 
     target_hat = transport(f_grad_partial, source)
     target_hat_detach = jax.lax.stop_gradient(target_hat)
@@ -563,86 +492,39 @@ class ExpectileNeuralDual(Generic[CostFn_t]):
     g_star_source = batch_cost(source, target_hat_detach
                               ) - g_value_partial(target_hat_detach)
 
-    diff_1 = jax.lax.stop_gradient(
-        -batch_cost(source, target) + g_c_transform(source, target_hat_detach)
-    ) + g_target
-    reg_loss_1 = expectile_loss(diff_1, diff_1, self.expectile).mean()
+    diff_1 = jax.lax.stop_gradient(g_star_source - batch_cost(source, target))\
+      + g_target
+    reg_loss_1 = self._expectile_loss(diff_1).mean()
 
-    diff_2 = jax.lax.stop_gradient(
-        -g_c_transform(source, target)
-    ) + g_star_source
-    reg_loss_2 = expectile_loss(diff_2, diff_2, self.expectile).mean()
+    diff_2 = jax.lax.stop_gradient(g_target - batch_cost(source, target))\
+      + g_star_source
+    reg_loss_2 = self._expectile_loss(diff_2).mean()
 
     reg_loss = (reg_loss_1 + reg_loss_2) * self.expectile_loss_coef
     dual_loss = -(g_target.mean() + g_star_source.mean())
-    amor_loss = g_c_transform(source, target_hat).mean()
+    amor_loss = (
+        batch_cost(source, target_hat) - g_value_partial_stop_grad(target_hat)
+    ).mean()
 
     loss = reg_loss + dual_loss + amor_loss
-
     w_dist = (g_target.mean() + g_star_source.mean())
 
+    if self.use_dot_product:
+      w_dist = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
+               jnp.mean(jnp.sum(target ** 2, axis=-1)) + \
+               2 * w_dist
+
     return loss, (dual_loss, amor_loss, w_dist)
-
-  def _euclidean_loss_fn(
-      self, params_f: frozen_dict.FrozenDict[str, jnp.ndarray],
-      params_g: frozen_dict.FrozenDict[str, jnp.ndarray],
-      gradient_f: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
-                           PotentialGradientFn_t],
-      g_value: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
-                        PotentialValueFn_t], batch: Dict[str, jnp.ndarray]
-  ) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
-
-    source, target = batch["source"], batch["target"]
-
-    g_value_partial = jax.vmap(g_value(params_g))
-    batch_dot = jax.vmap(jnp.dot)
-
-    target_hat = jax.vmap(gradient_f(params_f))(source)
-    target_hat_detach = jax.lax.stop_gradient(target_hat)
-
-    g_target = g_value_partial(target)
-    g_star_source = batch_dot(source, target_hat_detach) \
-      - g_value_partial(target_hat_detach)
-
-    def g_c_transform(x, y):
-      return -batch_dot(x, y) \
-        + jax.vmap(g_value(jax.lax.stop_gradient(params_g)))(y)
-
-    diff_1 = jax.lax.stop_gradient(
-        batch_dot(source, target) + g_c_transform(source, target_hat_detach)
-    ) - g_target
-    reg_loss_1 = expectile_loss(diff_1, diff_1, self.expectile).mean()
-
-    diff_2 = jax.lax.stop_gradient(
-        -g_c_transform(source, target)
-    ) - g_star_source
-    reg_loss_2 = expectile_loss(diff_2, diff_2, self.expectile).mean()
-
-    reg_loss = (reg_loss_1 + reg_loss_2) * self.expectile_loss_coef
-    dual_loss = g_target.mean() + g_star_source.mean()
-    amor_loss = g_c_transform(source, target_hat).mean()
-
-    loss = reg_loss + dual_loss + amor_loss
-
-    C = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
-        jnp.mean(jnp.sum(target ** 2, axis=-1))
-
-    w2_dist = C - 2. * (g_target.mean() + g_star_source.mean())
-
-    return loss, (dual_loss, amor_loss, w2_dist)
 
   def to_dual_potentials(self) -> DualPotentials:
     """Return the Kantorovich dual potentials from the trained potentials."""
     f_grad_partial = self.state_f.potential_gradient_fn(self.state_f.params)
     g_value_partial = self.state_g.potential_value_fn(self.state_g.params)
 
-    if self.use_dot_product:
-      return EuclideanPotentials(g_value_partial, f_grad_partial)
-    if self.is_bidirectional:
-      return BidirectionalPotentials(
-          g_value_partial, f_grad_partial, self.cost_fn
-      )
-    return ForwardPotentials(g_value_partial, f_grad_partial, self.cost_fn)
+    return ENOTPotentials(
+        g_value_partial, f_grad_partial, self.cost_fn, self.is_bidirectional,
+        self.use_dot_product
+    )
 
   @staticmethod
   def _update_logs(
