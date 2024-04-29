@@ -128,6 +128,12 @@ class TestBuresBarycenter:
     np.testing.assert_equal(diffs.shape[0], max_iterations // inner_iterations)
 
 
+class TestTIRegCost:
+
+  def test_h_legendre(self):
+    pass
+
+
 @pytest.mark.fast()
 class TestRegTICost:
 
@@ -215,6 +221,25 @@ class TestRegTICost:
 
     for fwd in [False, True]:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
+
+  @pytest.mark.parametrize("d", [5, 10])
+  def test_h_legendre_elastic_l2(self, rng: jax.Array, d: int):
+    n, d = 13, d
+    rngs = jax.random.split(rng, 2)
+    x = jax.random.normal(rngs[0], (n, d))
+    u = jax.random.normal(rngs[1], (d,))
+
+    elastic_l2 = costs.ElasticL2(scaling_reg=0.0)
+    p_norm_p = costs.PNormP(p=2)
+
+    concave_fn = lambda z: -elastic_l2.h(z) + jnp.dot(z, u)
+
+    p_grad_h = jax.jit(jax.vmap(jax.grad(p_norm_p.h_transform(concave_fn))))
+    elastic_grad_h = jax.vmap(jax.grad(elastic_l2.h_transform(concave_fn)))
+
+    np.testing.assert_allclose(
+        elastic_grad_h(x), p_grad_h(x), rtol=1e-5, atol=1e-5
+    )
 
 
 @pytest.mark.skipif(ts_metrics is None, reason="Not supported for Python 3.11")
