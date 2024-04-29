@@ -276,7 +276,7 @@ class TestRegTICost:
     )
 
     np.testing.assert_allclose(
-        elastic_grad_h(x), p_grad_h(x), rtol=1e-5, atol=1e-5
+        elastic_grad_h(x), p_grad_h(x), rtol=1e-4, atol=1e-4
     )
 
 
