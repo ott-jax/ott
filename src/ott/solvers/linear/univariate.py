@@ -97,10 +97,10 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
 class UnivariateSolver:
   r"""Univariate solver to compute 1D OT distance over slices of data.
 
-  Computes 1-Dimensional optimal transport distance between two $d$-dimensional
-  point clouds. The total distance is the sum of univariate Wasserstein
-  distances on the $d$ slices of data: given two weighted point-clouds, stored
-  as ``[n, d]`` and ``[m, d]`` in a
+  Computes 1-Dimensional optimal transport distance between two :math:`d`-
+  dimensional point clouds. The total distance is the sum of univariate
+  Wasserstein distances on the :math:`d` slices of data: given two weighted
+  point-clouds, stored as ``[n, d]`` and ``[m, d]`` in a
   :class:`~ott.problems.linear.linear_problem.LinearProblem` object, with
   respective weights ``a`` and ``b``, the solver
   computes ``d`` OT distances between each of these ``[n, 1]`` and ``[m, 1]``
@@ -128,8 +128,8 @@ class UnivariateSolver:
 
   Args:
     num_subsamples: Option to reduce the size of inputs by doing random
-      subsampling, taken into account marginal probabilities.
-    quantiles: When a vector or a number of quantiles is passed, the distance
+      subsampling, taking into account marginal probabilities.
+    quantiles: When a vector or several quantiles is passed, the distance
       is computed by evaluating the cost function on the sectional (one for each
       dimension) quantiles of the two point cloud distributions described in the
       problem.
