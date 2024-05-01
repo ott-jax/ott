@@ -258,6 +258,7 @@ class TICost(CostFn):
     """Output barycenter of vectors."""
     return jnp.average(xs, weights=weights, axis=0), None
 
+
 @jax.tree_util.register_pytree_node_class
 class SqPNorm(TICost):
   r"""Squared p-norm of the difference of two vectors.
