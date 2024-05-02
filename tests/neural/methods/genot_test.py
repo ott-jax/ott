@@ -58,6 +58,7 @@ class TestGENOT:
         hidden_dims=[7, 7, 7],
         output_dims=[15, tgt_dim],
         condition_dims=None if cond_dim is None else [1, 3, 2],
+        dropout_rate=0.5,
     )
     model = genot.GENOT(
         vf,
