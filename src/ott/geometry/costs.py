@@ -253,6 +253,11 @@ class TICost(CostFn):
       return vec + jax.grad(self.h_legendre)(-dual_vec)
     return vec - jax.grad(self.h_legendre)(dual_vec)
 
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+    """Output barycenter of vectors."""
+    return jnp.average(xs, weights=weights, axis=0), None
+
 
 @jax.tree_util.register_pytree_node_class
 class SqPNorm(TICost):
@@ -312,11 +317,6 @@ class PNormP(TICost):
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     # not defined for `p=1`
     return mu.norm(z, self.q) ** self.q / self.q
-
-  def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
-    """Output barycenter of vectors."""
-    return jnp.average(xs, weights=weights, axis=0), None
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
