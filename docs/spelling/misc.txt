@@ -25,8 +25,6 @@ laplacian
 loc
 logsumexp
 lse
-mathbb
-mathcal
 maxiter
 ndarray
 nicolson
