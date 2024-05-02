@@ -33,31 +33,31 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   Args:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
       measures. Alternatively, already segmented array of shape
-      ``[num_measures, max_measure_size, ndim]`` can be passed.
-      See also :func:`~ott.geometry.segment.segment_point_cloud`.
+      ``[num_measures, max_measure_size, ndim]`` can be passed. See
+      also :func:`~ott.geometry.segment.segment_point_cloud`.
     b: Array of shape ``[num_total_points,]`` containing the weights of all
       the points within the measures that define the barycenter problem.
       Same as ``y``, pre-segmented array of weights of shape
-      ``[num_measures, max_measure_size]`` can be passed.
-      If ``y`` is already pre-segmented, this array must be passed.
+      ``[num_measures, max_measure_size]`` can be passed. If ``y`` is already
+      pre-segmented, this array must be passed.
     weights: Array of shape ``[num_measures,]`` containing the weights of the
       barycenter problem.
     costs: Alternative to ``y``, an array of shape
-      ``[num_measures, max_measure_size, max_measure_size]`` that defines padded
-      cost matrices for each measure. Used in the quadratic term.
-      Only one of ``y`` and ``cost`` can be specified.
+      ``[num_measures, max_measure_size, max_measure_size]`` that defines
+      padded cost matrices for each measure. Used in the quadratic term. Only
+      one of ``y`` and ``cost`` can be specified.
     y_fused: Array of shape ``[num_total_points, ndim_fused]`` containing
       the data of the points of all measures used to define the linear term
       in the fused case. Same as ``y``, it can be specified as a pre-segmented
       array of shape ``[num_measures, max_measure_size, ndim_fused]``.
     gw_loss: Gromov-Wasserstein loss.
     tau_a: If :math:`< 1.0`, defines how much unbalanced the problem is on
-    the first marginal.
+      the first marginal.
     tau_b: If :math:`< 1.0`, defines how much unbalanced the problem is on
-    the second marginal.
+      the second marginal.
     gw_unbalanced_correction: Whether the unbalanced version of
-    :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
-    only affect the inner Sinkhorn loop.
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
+      only affect the inner Sinkhorn loop.
     fused_penalty: Multiplier of the linear term. Only used when
       ``y_fused != None``.
     scale_cost: Scaling of cost matrices passed to geometries.
@@ -322,7 +322,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         f"Loss `{self._loss_name}` is not yet implemented."
     )
 
-  def tree_flatten(self,) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(  # noqa: D102
+      self,
+  ) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     (y, b, weights), aux = super().tree_flatten()
     if self._y_as_costs:
       children = [None, b, weights, y]
