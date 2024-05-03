@@ -419,7 +419,11 @@ class EntropicPotentials(DualPotentials):
 
   @property
   def is_debiased(self) -> bool:
-    """Whether the entropic map is debiased."""
+    """Whether the :attr:`f` or :attr:`g` is debiased.
+
+    The :attr:`g` potential is **not** debiased when ``static_b = True`` is
+    passed in :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    """
     return self._f_xx is not None or self._g_yy is not None
 
   @property
