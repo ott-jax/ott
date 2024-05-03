@@ -421,7 +421,7 @@ class EntropicPotentials(DualPotentials):
   @property
   def is_debiased(self) -> bool:
     """Whether the entropic map is debiased."""
-    return self._f_xx is not None and self._g_yy is not None
+    return self._f_xx is not None or self._g_yy is not None
 
   @property
   def epsilon(self) -> float:
