@@ -394,9 +394,7 @@ class EntropicPotentials(DualPotentials):
     a, b = self._prob.a, self._prob.b
 
     # `f_xx` or `g_yy` can both be `None`, we check for this later
-    debiased_potentials = EntropicPotentials(
-        self._f_xx, self._g_yy, prob=self._prob
-    )
+    debiased_potentials = EntropicPotentials(self._f_xx, self._g_yy, self._prob)
     if kind == "f":
       # When seeking to evaluate 1st potential function,
       # the 2nd set of potential values and support should be used,
