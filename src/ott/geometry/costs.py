@@ -578,7 +578,8 @@ class RegTICost(TICost, abc.ABC):
 
     @jax.custom_vjp
     def fn(z: jnp.ndarray) -> float:
-      return fwd(z)[0]
+      out, _ = fwd(z)
+      return out
 
     def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
       q = self.prox_reg(z)

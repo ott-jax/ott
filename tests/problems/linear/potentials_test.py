@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Type
 
 import pytest
 
@@ -278,3 +279,52 @@ class TestEntropicPotentials:
       np.testing.assert_allclose(sink_ref, sink_points, rtol=1e-1, atol=1e-1)
       with pytest.raises(AssertionError):
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
+
+  @pytest.mark.parametrize("cost_type", [costs.ElasticL1, costs.ElasticL2])
+  def test_potentials_diff_param_costs(
+      self, rng: jax.Array, cost_type: Type[costs.RegTICost]
+  ):
+
+    def proj(matrix: jnp.ndarray) -> jnp.ndarray:
+      u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
+      return u.dot(v_h)
+
+    def perturb_cost(
+        cost: costs.RegTICost, pert: jnp.ndarray
+    ) -> costs.RegTICost:
+      (reg, matrix), aux_data = cost.tree_flatten()
+      return type(cost).tree_unflatten(aux_data, (reg, matrix + pert))
+
+    def loss(cost_fn: costs.RegTICost, eps: float) -> float:
+      pc = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=eps)
+      prob = linear_problem.LinearProblem(pc)
+      out = sinkhorn.Sinkhorn()(prob)
+      f_est = out.to_dual_potentials()
+      y_hat = f_est.transport(x_te)
+      return jnp.mean(jnp.linalg.norm(y_hat - y_te, axis=-1))
+
+    n, m, d, d_proj = 13, 14, 6, 3
+    eps, eps_sink = 1e-3, 1e-1
+
+    rngs = jax.random.split(rng, 6)
+
+    x = jax.random.normal(rngs[0], (n, d))
+    y = jax.random.normal(rngs[1], (m, d))
+    x_te = jax.random.normal(rngs[2], (n, d))
+    y_te = jax.random.normal(rngs[3], (n, d))
+
+    mat = proj(jax.random.normal(rngs[4], (d_proj, d)))
+    cost_fn = cost_type(scaling_reg=1.0, matrix=mat)
+
+    delta = jax.random.uniform(rngs[5], shape=mat.shape)
+
+    cost_plus_delta = perturb_cost(cost_fn, eps * delta)
+    cost_minus_delta = perturb_cost(cost_fn, -eps * delta)
+
+    loss_plus_delta = loss(cost_plus_delta, eps_sink)
+    loss_minus_delta = loss(cost_minus_delta, eps_sink)
+    expected = (loss_plus_delta - loss_minus_delta) / (2.0 * eps)
+
+    grad_cost = jax.jit(jax.grad(loss))(cost_fn, eps_sink)
+    actual = jnp.vdot(delta, grad_cost.matrix)
+    np.testing.assert_allclose(expected, actual, rtol=1e-2, atol=1e-2)
