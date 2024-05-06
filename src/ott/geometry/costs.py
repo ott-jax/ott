@@ -575,8 +575,20 @@ class RegTICost(TICost, abc.ABC):
     return out + self.scaling_reg * self.reg(z)
 
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
-    q = self.prox_reg(jax.lax.stop_gradient(z))
-    return jnp.sum(q * z) - self.h(q)
+
+    @jax.custom_vjp
+    def fn(z: jnp.ndarray) -> float:
+      return fwd(z)[0]
+
+    def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
+      q = self.prox_reg(z)
+      return jnp.dot(q, z) - self.h(q), q
+
+    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:
+      return jnp.dot(g, q),
+
+    fn.defvjp(fwd, bwd)
+    return fn(z)
 
   def h_transform(self, f: Callable[[jnp.ndarray], float],
                   **kwargs: Any) -> Callable[[jnp.ndarray], float]:
@@ -627,14 +639,6 @@ class RegTICost(TICost, abc.ABC):
       return self.h(pg_sol) + minus_f(pg_sol, x)
 
     return f_h
-
-  def twist_operator(
-      self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
-  ) -> jnp.ndarray:
-    # Note: when `h` is pair, i.e. h(z) = h(-z), the expressions below coincide
-    if variable:
-      return vec + self.prox_reg(-dual_vec)
-    return vec - self.prox_reg(dual_vec)
 
   def barycenter(self, weights: jnp.ndarray,
                  xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
