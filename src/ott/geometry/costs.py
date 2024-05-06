@@ -628,6 +628,14 @@ class RegTICost(TICost, abc.ABC):
 
     return f_h
 
+  def twist_operator(
+      self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
+  ) -> jnp.ndarray:
+    # Note: when `h` is pair, i.e. h(z) = h(-z), the expressions below coincide
+    if variable:
+      return vec + self.prox_reg(-dual_vec)
+    return vec - self.prox_reg(dual_vec)
+
   def barycenter(self, weights: jnp.ndarray,
                  xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors."""
