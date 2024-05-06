@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 from typing import Type
 
 import pytest
@@ -280,6 +281,7 @@ class TestEntropicPotentials:
       with pytest.raises(AssertionError):
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
 
+  @pytest.mark.skipif(sys.version_info < (3, 9), reason="Old JAX version.")
   @pytest.mark.parametrize("cost_type", [costs.ElasticL1, costs.ElasticL2])
   def test_potentials_diff_param_costs(
       self, rng: jax.Array, cost_type: Type[costs.RegTICost]
