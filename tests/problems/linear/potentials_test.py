@@ -295,8 +295,9 @@ class TestEntropicPotentials:
       (reg, matrix), aux_data = cost.tree_flatten()
       return type(cost).tree_unflatten(aux_data, (reg, matrix + pert))
 
-    def loss(cost_fn: costs.RegTICost, eps: float) -> float:
-      pc = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=eps)
+    @jax.jit
+    def loss(c: costs.RegTICost) -> float:
+      pc = pointcloud.PointCloud(x, y, cost_fn=c, epsilon=eps_sink)
       prob = linear_problem.LinearProblem(pc)
       out = sinkhorn.Sinkhorn()(prob)
       f_est = out.to_dual_potentials()
@@ -321,10 +322,10 @@ class TestEntropicPotentials:
     cost_plus_delta = perturb_cost(cost_fn, eps * delta)
     cost_minus_delta = perturb_cost(cost_fn, -eps * delta)
 
-    loss_plus_delta = loss(cost_plus_delta, eps_sink)
-    loss_minus_delta = loss(cost_minus_delta, eps_sink)
+    loss_plus_delta = loss(cost_plus_delta)
+    loss_minus_delta = loss(cost_minus_delta)
     expected = (loss_plus_delta - loss_minus_delta) / (2.0 * eps)
 
-    grad_cost = jax.jit(jax.grad(loss))(cost_fn, eps_sink)
+    grad_cost = jax.jit(jax.grad(loss))(cost_fn)
     actual = jnp.vdot(delta, grad_cost.matrix)
     np.testing.assert_allclose(expected, actual, rtol=1e-2, atol=1e-2)
