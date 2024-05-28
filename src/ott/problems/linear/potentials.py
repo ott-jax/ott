@@ -393,13 +393,17 @@ class EntropicPotentials(DualPotentials):
     x, y = self._prob.geom.x, self._prob.geom.y
     a, b = self._prob.a, self._prob.b
 
+    # `f_xx` or `g_yy` can both be `None`, we check for this later
+    debiased_potentials = EntropicPotentials(self._f_xx, self._g_yy, self._prob)
     if kind == "f":
       # When seeking to evaluate 1st potential function,
       # the 2nd set of potential values and support should be used,
       # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
       potential, arr, weights = self._g, y, b
+      potential_other = None if self._f_xx is None else debiased_potentials.g
     else:
       potential, arr, weights = self._f, x, a
+      potential_other = None if self._g_yy is None else debiased_potentials.f
 
     potential_xy = jax.tree_util.Partial(
         callback,
@@ -408,20 +412,19 @@ class EntropicPotentials(DualPotentials):
         weights=weights,
         epsilon=self.epsilon,
     )
-    if not self.is_debiased:
+
+    if potential_other is None:
       return potential_xy
-
-    ep = EntropicPotentials(self._f_xx, self._g_yy, prob=self._prob)
-    # switch the order because for `kind='f'` we require `f/x/a` in `other`
-    # which is accessed when `kind='g'`
-    potential_other = ep._potential_fn(kind="g" if kind == "f" else "f")
-
     return lambda x: (potential_xy(x) - potential_other(x))
 
   @property
   def is_debiased(self) -> bool:
-    """Whether the entropic map is debiased."""
-    return self._f_xx is not None and self._g_yy is not None
+    """Whether the :attr:`f` or :attr:`g` is debiased.
+
+    The :attr:`g` potential is **not** debiased when ``static_b = True`` is
+    passed in :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+    """
+    return self._f_xx is not None or self._g_yy is not None
 
   @property
   def epsilon(self) -> float:

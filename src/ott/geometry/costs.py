@@ -203,6 +203,48 @@ class TICost(CostFn):
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
+  def h_transform(
+      self,
+      f: Callable[[jnp.ndarray], float],
+      ridge: float = 1e-8,
+      **kwargs: Any
+  ) -> Callable[[jnp.ndarray], float]:
+    r"""Compute the h-transform of a concave function.
+
+    Return a callable :math:`f_h` defined as:
+
+    .. math::
+      f_h(x) = \min_y h(x - y) - f(y)
+
+    This is equivalent, up to a change of variables, :math:`z = x - y`, to
+    define
+
+    .. math::
+      \min_z h(z) - f(x - z). \\
+      \min_z h(z) + \tilde{f}(z, x).
+
+    where :math:`\tilde{f}(z, x) := -f(x - z)`.
+
+    Args:
+      f: Concave function.
+      ridge: Regularizer to ensure strong convexity of the objective.
+      kwargs: Keyword arguments for :class:`~jaxopt.LBFGS`.
+
+    Returns:
+      The h-transform of ``f``.
+    """
+
+    def fun(z: jnp.ndarray, x: jnp.ndarray) -> float:
+      return self.h(z) + ridge * jnp.sum(z ** 2) - f(x - z)
+
+    def f_h(x: jnp.ndarray) -> float:
+      solver = jaxopt.LBFGS(fun=fun, **kwargs)
+      solver = solver.run(x, x=x)
+      sol = jax.lax.stop_gradient(solver.params)
+      return fun(sol, x)
+
+    return f_h
+
   def twist_operator(
       self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
   ) -> jnp.ndarray:
@@ -210,6 +252,11 @@ class TICost(CostFn):
     if variable:
       return vec + jax.grad(self.h_legendre)(-dual_vec)
     return vec - jax.grad(self.h_legendre)(dual_vec)
+
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+    """Output barycenter of vectors."""
+    return jnp.average(xs, weights=weights, axis=0), None
 
 
 @jax.tree_util.register_pytree_node_class
@@ -270,11 +317,6 @@ class PNormP(TICost):
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
     # not defined for `p=1`
     return mu.norm(z, self.q) ** self.q / self.q
-
-  def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
-    """Output barycenter of vectors."""
-    return jnp.average(xs, weights=weights, axis=0), None
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
@@ -533,8 +575,21 @@ class RegTICost(TICost, abc.ABC):
     return out + self.scaling_reg * self.reg(z)
 
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
-    q = self.prox_reg(jax.lax.stop_gradient(z))
-    return jnp.sum(q * z) - self.h(q)
+
+    @jax.custom_vjp
+    def fn(z: jnp.ndarray) -> float:
+      out, _ = fwd(z)
+      return out
+
+    def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
+      q = self.prox_reg(z)
+      return jnp.dot(q, z) - self.h(q), q
+
+    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:
+      return jnp.dot(g, q),
+
+    fn.defvjp(fwd, bwd)
+    return fn(z)
 
   def h_transform(self, f: Callable[[jnp.ndarray], float],
                   **kwargs: Any) -> Callable[[jnp.ndarray], float]:
