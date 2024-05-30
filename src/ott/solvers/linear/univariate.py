@@ -137,6 +137,7 @@ def uniform_distance(
   )
 
 
+# TODO(michalk8): debug
 def quantile_distance(
     prob: linear_problem.LinearProblem,
     return_transport: bool = False,

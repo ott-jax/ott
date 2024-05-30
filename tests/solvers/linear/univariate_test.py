@@ -54,10 +54,10 @@ class TestUnivariate:
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
     """The Univariate distance coincides with the sinkhorn solver"""
-    univariate_solver = univariate.UnivariateSolver()
+    # FIXME(michalk8)
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
-    prob = linear_problem.LinearProblem(geom=geom, a=self.a, b=self.b)
-    out = jax.jit(univariate_solver)(prob)
+    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    out = univariate.quantile_distance(prob, return_transport=True)
     costs_1d, matrices_1d = out.ot_costs, out.transport_matrices
     mean_matrices_1d = out.mean_transport_matrix
 
@@ -98,6 +98,7 @@ class TestUnivariate:
   @pytest.mark.fast()
   def test_cdf_distance_and_scipy(self):
     """The OTT solver coincides with scipy solver"""
+    # FIXME
     x, y, a, b = self.x, self.y, self.a, self.b
     # The `scipy` solver only computes the solution for p=1.0 visible
 
@@ -133,12 +134,11 @@ class TestUnivariate:
     eps, tol = 1e-4, 1e-3
     x, y = self.x[:, 1][:, None], self.y[:, 1][:, None]
     a, b = self.a, self.b
-    solver = univariate.UnivariateSolver()
 
     def univ_dist(x, y, a, b):
       geom = pointcloud.PointCloud(x, y)
       prob = linear_problem.LinearProblem(geom=geom, a=a, b=b)
-      return jnp.squeeze(solver(prob).ot_costs)
+      return univariate.quantile_distance(prob).ot_costs.squeeze()
 
     grad_x, grad_y, grad_a, grad_b = jax.jit(jax.grad(univ_dist, (0, 1, 2, 3))
                                             )(x, y, a, b)
@@ -173,18 +173,20 @@ class TestUnivariate:
 
   @pytest.mark.fast()
   def test_dual_vectors(self):
-    """The OTT solver outputs meaningful dual variables."""
-    _ = pytest.importorskip("lineax")  # only tested using lineax
+    # FIXME(michalk8)
     n = self.n
     x, a, y, b, z, c = self.x, self.a, self.y, self.b, self.z, self.c
     unif_n = jnp.ones((n,)) / n
+
+    solve_fn = jax.jit(univariate.north_west_distance)
+
     for (target, weights_target) in ((y, b), (z, c)):
       for weights_source in (a, unif_n):
         geom = pointcloud.PointCloud(x, target, cost_fn=costs.SqEuclidean())
         prob = linear_problem.LinearProblem(
             geom=geom, a=weights_source, b=weights_target
         )
-        out = univariate.UnivariateSolver()(prob, return_dual_vectors=True)
+        out = solve_fn(prob)
 
         f, g = out.dual_a, out.dual_b
         dual_obj = jnp.sum(f * weights_source[None, :], axis=1)
