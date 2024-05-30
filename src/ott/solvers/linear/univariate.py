@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, NamedTuple, Optional, Tuple, Union
+import functools
+from typing import NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -22,8 +23,11 @@ from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
 __all__ = [
-    "UnivariateOutput", "UnivariateSolver", "uniform_distance",
-    "quantile_distance"
+    "UnivariateOutput",
+    "UnivariateSolver",
+    "uniform_distance",
+    "quantile_distance",
+    "north_west_distance",
 ]
 
 
@@ -53,7 +57,7 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
     dual_b: ``[m,]`` array of dual values
   """
   prob: linear_problem.LinearProblem
-  ot_costs: float
+  ot_costs: jnp.ndarray
   paired_indices: Optional[jnp.ndarray] = None
   mass_paired_indices: Optional[jnp.ndarray] = None
   dual_a: Optional[jnp.ndarray] = None
@@ -163,7 +167,7 @@ class UnivariateSolver:
       self,
       prob: linear_problem.LinearProblem,
       return_transport: bool = True,
-      return_dual_vectors: bool = True,
+      return_dual_vectors: bool = False,
       rng: Optional[jax.Array] = None,
   ) -> UnivariateOutput:
     """Computes Univariate Distance between the ``d`` dimensional slices.
@@ -178,7 +182,7 @@ class UnivariateSolver:
         :attr:`~ott.problems.linear.LinearProblem.b`.
       return_transport: Whether to return pairs of matched indices used to
         compute optimal transport matrices.
-      return_dual_vectors: Whether to return pairs of dual vectors
+      return_dual_vectors: Whether to return pair of dual vectors.
       rng: Used for random downsampling, if specified in the solver.
 
     Returns:
@@ -206,7 +210,7 @@ class UnivariateSolver:
       assert prob.is_uniform, \
         "The 'quantiles' method can only be used with uniform marginals."
       # TODO(michalk8): modify the out
-      out = _quant_dist(x, y, geom.cost_fn, self.quantiles, self.num_quantiles)
+      out = None
     elif is_uniform_same_size:
       return_transport = return_transport and not self.num_subsamples
       # TODO(michalk8): modify the out
@@ -248,17 +252,13 @@ class UnivariateSolver:
 
 
 def uniform_distance(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    cost_fn: costs.TICost,
-    return_transport: bool = True
-) -> Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]:
+    prob: linear_problem.LinearProblem,
+    return_transport: bool = False,
+) -> UnivariateOutput:
   """Distance between two equal-size families of uniformly weighted values x/y.
 
   Args:
-    x: Vector ``[n,]`` of real values.
-    y: Vector ``[n,]`` of real values.
-    cost_fn: Translation invariant cost function, i.e. ``c(x, y) = h(x - y)``.
+    prob: TODO.
     return_transport: Whether to return mapped pairs.
 
   Returns:
@@ -266,36 +266,40 @@ def uniform_distance(
     corresponding transport mass. Note that said mass can be null in some
     entries, but sums to :math:`1`.
   """
-  n = x.shape[0]
+  assert prob.is_uniform
+  assert prob.is_equal_size
+
+  geom = prob.geom
+  n, _ = geom.shape
+  x, y, cost_fn = geom.x, geom.y, geom.cost_fn
+
   i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
   x = jnp.take_along_axis(x, i_x, axis=0)
   y = jnp.take_along_axis(y, i_y, axis=0)
-  ot_costs = jax.vmap(cost_fn.h, in_axes=0)(x.T - y.T) / n
+  ot_costs = ((1.0 / n) * jax.vmap(cost_fn.h, in_axes=1)(x - y)).T
 
   if return_transport:
     paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
     mass_paired_indices = jnp.ones((n,)) / n
-    return ot_costs, paired_indices, mass_paired_indices
+  else:
+    paired_indices = mass_paired_indices = None
 
-  return ot_costs, None, None
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=paired_indices,
+      mass_paired_indices=mass_paired_indices,
+  )
 
 
 def quantile_distance(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    cost_fn: costs.TICost,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
-    return_transport: bool = True,
-) -> Tuple[float, jnp.ndarray, jnp.ndarray]:
+    prob: linear_problem.LinearProblem,
+    return_transport: bool = False,
+) -> UnivariateOutput:
   """Computes distance between quantile functions of distributions (a,x)/(b,y).
 
   Args:
-    x: Vector ``[n,]`` of real values.
-    y: Vector ``[m,]`` of real values.
-    cost_fn: Translation invariant cost function, i.e. ``c(x, y) = h(x - y)``.
-    a: Vector ``[n,]`` of non-negative weights summing to 1.
-    b: Vector ``[m,]`` of non-negative weights summing to 1.
+    prob: TODO.
     return_transport: whether to return mapped pairs.
 
   Returns:
@@ -308,94 +312,95 @@ def quantile_distance(
     Inspired by :func:`~scipy.stats.wasserstein_distance`,
     but can be used with other costs, not just :math:`c(x, y) = |x - y|`.
   """
-  x, i_x = mu.sort_and_argsort(x, argsort=True)
-  y, i_y = mu.sort_and_argsort(y, argsort=True)
 
-  all_values = jnp.concatenate([x, y])
-  all_values_sorted, all_values_sorter = mu.sort_and_argsort(
-      all_values, argsort=True
+  @functools.partial(jax.vmap, in_axes=[1, 1])
+  def dist(x: jnp.ndarray, y: jnp.ndarray):
+    x, i_x = mu.sort_and_argsort(x, argsort=True)
+    y, i_y = mu.sort_and_argsort(y, argsort=True)
+
+    all_values = jnp.concatenate([x, y])
+    all_values_sorted, all_values_sorter = mu.sort_and_argsort(
+        all_values, argsort=True
+    )
+
+    x_pdf = jnp.concatenate([prob.a[i_x], jnp.zeros_like(prob.b)])
+    x_pdf = x_pdf[all_values_sorter]
+    y_pdf = jnp.concatenate([jnp.zeros_like(prob.a), prob.b[i_y]])
+    y_pdf = y_pdf[all_values_sorter]
+
+    x_cdf = jnp.cumsum(x_pdf)
+    y_cdf = jnp.cumsum(y_pdf)
+
+    x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
+    quantile_levels, _ = mu.sort_and_argsort(x_y_cdfs, argsort=False)
+
+    i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
+    x_cdf_inv = all_values_sorted[i_x_cdf_inv]
+    i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
+    y_cdf_inv = all_values_sorted[i_y_cdf_inv]
+
+    diff_q = jnp.diff(quantile_levels)
+    successive_costs = jax.vmap(prob.geom.cost_fn.h)(
+        x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
+    )
+    cost = jnp.sum(successive_costs * diff_q)
+
+    if return_transport:
+      n = x.shape[0]
+
+      i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
+      i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
+
+      orig_i = i_x[i_in_sorted_x_of_quantile][1:]
+      orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+      paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
+    else:
+      paired_indices = mass_paired_indices = None
+
+    return cost, paired_indices, mass_paired_indices
+
+  ot_costs, pi, mpi = dist(prob.geom.x, prob.geom.y)
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=pi,
+      mass_paired_indices=mpi,
   )
 
-  x_pdf = jnp.concatenate([a[i_x], jnp.zeros_like(b)])[all_values_sorter]
-  y_pdf = jnp.concatenate([jnp.zeros_like(a), b[i_y]])[all_values_sorter]
 
-  x_cdf = jnp.cumsum(x_pdf)
-  y_cdf = jnp.cumsum(y_pdf)
-
-  x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
-  quantile_levels, _ = mu.sort_and_argsort(x_y_cdfs, argsort=False)
-
-  i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
-  x_cdf_inv = all_values_sorted[i_x_cdf_inv]
-  i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
-  y_cdf_inv = all_values_sorted[i_y_cdf_inv]
-
-  diff_q = jnp.diff(quantile_levels)
-  successive_costs = jax.vmap(cost_fn.h)(
-      x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
-  )
-  cost = jnp.sum(successive_costs * diff_q)
-
-  if return_transport:
-    n = x.shape[0]
-
-    i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
-    i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
-
-    orig_i = i_x[i_in_sorted_x_of_quantile][1:]
-    orig_j = i_y[i_in_sorted_y_of_quantile][1:]
-    paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
-  else:
-    paired_indices, mass_paired_indices = None, None
-
-  return cost, paired_indices, mass_paired_indices
-
-
-# TODO(michalk8): better naming
-def north_west_distance(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    cost_fn: costs.TICost,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
-) -> Tuple[float, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def north_west_distance(prob: linear_problem.LinearProblem) -> UnivariateOutput:
   r"""Computes Univariate Distance between 1D point clouds.
 
   Args:
-    x: TODO.
-    y: TODO.
-    cost_fn: Cost function.
-    a: TODO.
-    b: TODO.
+    prob: TODO.
 
   Returns:
     TODO.
   """
 
   class State(NamedTuple):
+    x: jnp.ndarray
+    y: jnp.ndarray
+    a: jnp.ndarray
+    b: jnp.ndarray
     paired_indices: jnp.ndarray
     mass_paired_indices: jnp.ndarray
     dual_a: jnp.ndarray
     dual_b: jnp.ndarray
-    a: jnp.ndarray
-    b: jnp.ndarray
-
-    def replace(self, **kwargs: Any) -> "State":
-      return self._replace(**kwargs)
 
   def dual_a_update(state: State, i: int,
                     j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
     next_ixs = jnp.array([i + 1, j])
-    val = cost_fn(x[i + 1, None], y[j, None]) - state.dual_b[j]
+    val = cost_fn.h(state.x[i + 1, None] - state.y[j, None]) - state.dual_b[j]
     da = state.dual_a.at[i + 1].set(val)
-    return state.replace(dual_a=da), state.a[i], next_ixs
+    return state._replace(dual_a=da), state.a[i], next_ixs
 
   def dual_b_update(state: State, i: int,
                     j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
     next_ixs = jnp.array([i, j + 1])
-    val = cost_fn(x[i, None], y[j + 1, None]) - state.dual_a[i]
+    val = cost_fn.h(state.x[i, None] - state.y[j + 1, None]) - state.dual_a[i]
     db = state.dual_b.at[j + 1].set(val)
-    return state.replace(dual_b=db), state.b[j], next_ixs
+    return state._replace(dual_b=db), state.b[j], next_ixs
 
   def body_fun(ix: int, state: State) -> State:
     i, j = state.paired_indices[0, ix], state.paired_indices[1, ix]
@@ -405,46 +410,59 @@ def north_west_distance(
 
     pi = state.paired_indices.at[:, ix + 1].set(next_ixs)
     mpi = state.mass_paired_indices.at[ix].set(min_ab)
-    a = state.a.at[i].set(state.a[i] - min_ab)
-    b = state.b.at[j].set(state.b[j] - min_ab)
+    a_ = state.a.at[i].set(state.a[i] - min_ab)
+    b_ = state.b.at[j].set(state.b[j] - min_ab)
 
-    return state.replace(paired_indices=pi, mass_paired_indices=mpi, a=a, b=b)
+    return state._replace(
+        paired_indices=pi, mass_paired_indices=mpi, a=a_, b=b_
+    )
 
-  n, m = a.shape[0], b.shape[0]
+  @functools.partial(jax.vmap, in_axes=[1, 1])
+  def dist(x: jnp.ndarray, y: jnp.ndarray):
+    x, i_x = mu.sort_and_argsort(x, argsort=True)
+    y, i_y = mu.sort_and_argsort(y, argsort=True)
+    sorted_a, sorted_b = a[i_x], b[i_y]
+
+    paired_indices = jnp.zeros((2, q), dtype=int)
+    mass_paired_indices = jnp.zeros(q)
+
+    state = State(
+        x,
+        y,
+        a=sorted_a,
+        b=sorted_b,
+        paired_indices=paired_indices,
+        mass_paired_indices=mass_paired_indices,
+        dual_a=jnp.zeros(n),
+        dual_b=jnp.zeros(m).at[0].set(cost_fn.h(x[0, None] - y[0, None])),
+    )
+    state = jax.lax.fori_loop(0, q - 1, body_fun, state)
+
+    ot_cost = jnp.sum(state.dual_a * sorted_a
+                     ) + jnp.sum(state.dual_b * sorted_b)
+
+    p_final = jnp.maximum(state.a[-1], state.b[-1])
+    mass_paired_indices = state.mass_paired_indices.at[-1].set(p_final)
+
+    return (
+        ot_cost,
+        state.paired_indices,
+        mass_paired_indices,
+        state.dual_a,
+        state.dual_b,
+    )
+
+  a, b = prob.a, prob.b
+  n, m = prob.geom.shape
   q = m + n - 1
+  cost_fn = prob.geom.cost_fn
 
-  paired_indices = jnp.zeros((2, q), dtype=int)
-  mass_paired_indices = jnp.zeros(q)
-
-  state = State(
-      paired_indices=paired_indices,
-      mass_paired_indices=mass_paired_indices,
-      a=a,
-      b=b,
-      dual_a=jnp.zeros(n),
-      dual_b=jnp.zeros(m).at[0].set(cost_fn(x[0, None], y[0, None])),
+  ot_costs, pi, mpi, dual_a, dual_b = dist(prob.geom.x, prob.geom.y)
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=pi,
+      mass_paired_indices=mpi,
+      dual_a=dual_a,
+      dual_b=dual_b,
   )
-  state = jax.lax.fori_loop(0, q - 1, body_fun, state)
-
-  ot_cost = jnp.sum(state.dual_a * a) + jnp.sum(state.dual_b * b)
-
-  p_final = jnp.maximum(state.a[-1], state.b[-1])
-  mass_paired_indices = state.mass_paired_indices.at[-1].set(p_final)
-
-  return (
-      ot_cost,
-      state.paired_indices,
-      mass_paired_indices,
-      state.dual_a,
-      state.dual_b,
-  )
-
-
-def _quant_dist(
-    x: jnp.ndarray, y: jnp.ndarray, cost_fn: costs.TICost, q: jnp.ndarray,
-    n_q: int
-) -> float:
-  x_q = jnp.quantile(x, q, axis=0)
-  y_q = jnp.quantile(y, q, axis=0)
-  ot_costs = jax.vmap(cost_fn.pairwise, in_axes=[1, 1])(x_q, y_q)
-  return ot_costs / n_q
