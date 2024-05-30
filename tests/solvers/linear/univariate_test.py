@@ -124,10 +124,7 @@ class TestUnivariate:
     np.testing.assert_allclose(scipy_d2, ott_dq, atol=1e-1, rtol=1e-1)
 
   @pytest.mark.fast()
-  def test_univariate_grad(
-      self,
-      rng: jax.Array,
-  ):
+  def test_univariate_grad(self, rng: jax.Array):
     # TODO: Once a `check_grad` function is implemented, replace the code
     # blocks before with `check_grad`'s.
     rngs = jax.random.split(rng, 4)
@@ -173,7 +170,6 @@ class TestUnivariate:
 
   @pytest.mark.fast()
   def test_dual_vectors(self):
-    # FIXME(michalk8)
     n = self.n
     x, a, y, b, z, c = self.x, self.a, self.y, self.b, self.z, self.c
     unif_n = jnp.ones((n,)) / n
@@ -187,14 +183,14 @@ class TestUnivariate:
             geom=geom, a=weights_source, b=weights_target
         )
         out = solve_fn(prob)
-
         f, g = out.dual_a, out.dual_b
-        dual_obj = jnp.sum(f * weights_source[None, :], axis=1)
-        dual_obj += jnp.sum(g * weights_target[None, :], axis=1)
-        # check objective returned with primal computation matches dual
-        np.testing.assert_allclose(out.ot_costs, dual_obj, atol=1e-2, rtol=1e-2)
-        # check dual variables are feasible on locations that matter (with
-        # positive weights).
+
+        np.testing.assert_allclose(
+            out.ot_costs, out.dual_costs, atol=1e-2, rtol=1e-2
+        )
+
+        # check dual variables are feasible on locations that matter
+        # (with positive weights).
         mask = (weights_source > 0)[:, None] * (weights_target > 0)[None, :]
         min_val = jnp.min(
             mask[None] * (geom.cost_matrix - f[:, :, None] - g[:, None, :])
