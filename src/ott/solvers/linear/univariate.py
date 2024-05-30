@@ -12,19 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import NamedTuple, Optional, Tuple, Union
+from typing import NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 
-from ott import utils
-from ott.geometry import costs, pointcloud
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
 __all__ = [
     "UnivariateOutput",
-    "UnivariateSolver",
     "uniform_distance",
     "quantile_distance",
     "north_west_distance",
@@ -97,158 +94,6 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
   def mean_transport_matrix(self) -> jnp.ndarray:
     """Return the mean transport matrix, averaged over slices."""
     return jnp.mean(self.transport_matrices, axis=0)
-
-
-@jax.tree_util.register_pytree_node_class
-class UnivariateSolver:
-  r"""Univariate solver to compute 1D OT distance over slices of data.
-
-  Computes 1-Dimensional optimal transport distance between two :math:`d`-
-  dimensional point clouds. The total distance is the sum of univariate
-  Wasserstein distances on the :math:`d` slices of data: given two weighted
-  point-clouds, stored as ``[n, d]`` and ``[m, d]`` in a
-  :class:`~ott.problems.linear.linear_problem.LinearProblem` object, with
-  respective weights ``a`` and ``b``, the solver
-  computes ``d`` OT distances between each of these ``[n, 1]`` and ``[m, 1]``
-  slices. The distance is computed using the analytical formula by default,
-  which involves sorting each of the slices independently. The optimal transport
-  matrices are also outputted when possible (described in sparse form, i.e.
-  pairs of indices and mass transferred between those indices).
-
-  When weights ``a`` and ``b`` are uniform, and ``n=m``, the computation only
-  involves comparing sorted entries per slice, and ``d`` assignments are given.
-
-  The user may also supply a ``num_subsamples`` parameter to extract as many
-  points from the original point cloud, sampled with probability masses ``a``
-  and ``b``. This then simply applied the method above to the subsamples, to
-  output ``d`` costs, but assignments are not provided.
-
-  When the problem is not uniform or not of equal size, the method defaults to
-  an inversion of the CDF, and outputs both costs and transport matrix in sparse
-  form.
-
-  When a ``quantiles`` argument is passed, either specifying explicit quantiles
-  or a grid of quantiles, the distance is evaluated by comparing the quantiles
-  of the two point clouds on each slice. The OT costs are returned but
-  assignments are not provided.
-
-  Args:
-    num_subsamples: Option to reduce the size of inputs by doing random
-      subsampling, taking into account marginal probabilities.
-    quantiles: When a vector or several quantiles is passed, the distance
-      is computed by evaluating the cost function on the sectional (one for each
-      dimension) quantiles of the two point cloud distributions described in the
-      problem.
-  """
-
-  def __init__(
-      self,
-      num_subsamples: Optional[int] = None,
-      quantiles: Optional[Union[int, jnp.ndarray]] = None,
-  ):
-    self._quantiles = quantiles
-    self.num_subsamples = num_subsamples
-
-  @property
-  def quantiles(self) -> Optional[jnp.ndarray]:
-    """Quantiles' values used to evaluate OT cost."""
-    if self._quantiles is None:
-      return None
-    if isinstance(self._quantiles, int):
-      return jnp.linspace(0.0, 1.0, self._quantiles)
-    return self._quantiles
-
-  @property
-  def num_quantiles(self) -> int:
-    """Number of quantiles used to evaluate OT cost."""
-    return 0 if self.quantiles is None else self.quantiles.shape[0]
-
-  def __call__(
-      self,
-      prob: linear_problem.LinearProblem,
-      return_transport: bool = True,
-      return_dual_vectors: bool = False,
-      rng: Optional[jax.Array] = None,
-  ) -> UnivariateOutput:
-    """Computes Univariate Distance between the ``d`` dimensional slices.
-
-    Args:
-      prob: Problem with a :attr:`~ott.problems.linear.LinearProblem.geom`
-        attribute, the two point clouds ``x`` and ``y``
-        (of respective sizes ``[n, d]`` and ``[m, d]``) and a ground
-        `TI cost <ott.geometry.costs.TICost>` between two scalars.
-        The ``[n,]`` and ``[m,]`` size probability weights vectors are stored
-        in attributes `:attr:`~ott.problems.linear.LinearProblem.a` and
-        :attr:`~ott.problems.linear.LinearProblem.b`.
-      return_transport: Whether to return pairs of matched indices used to
-        compute optimal transport matrices.
-      return_dual_vectors: Whether to return pair of dual vectors.
-      rng: Used for random downsampling, if specified in the solver.
-
-    Returns:
-      An output object, that computes ``d`` OT costs, in addition to, possibly,
-      paired lists of indices and their corresponding masses, on each of the
-      ``d`` dimensional slices of the input.
-    """
-    geom = prob.geom
-    assert isinstance(geom, pointcloud.PointCloud), \
-      "Geometry object in problem must be a PointCloud."
-    assert isinstance(geom.cost_fn, costs.TICost), \
-      "Geometry's cost must be translation invariant."
-
-    rng = utils.default_prng_key(rng)
-
-    if self.num_subsamples:
-      x, y = self._subsample(prob, rng)
-      is_uniform_same_size = True
-    else:
-      # check if problem has the property uniform / same number of points
-      x, y = geom.x, geom.y
-      is_uniform_same_size = prob.is_uniform and prob.is_equal_size
-
-    if self.quantiles is not None:
-      assert prob.is_uniform, \
-        "The 'quantiles' method can only be used with uniform marginals."
-      # TODO(michalk8): modify the out
-      out = None
-    elif is_uniform_same_size:
-      return_transport = return_transport and not self.num_subsamples
-      # TODO(michalk8): modify the out
-      out = uniform_distance(x, y, geom.cost_fn, return_transport)
-    else:
-      fn = jax.vmap(
-          quantile_distance, in_axes=[1, 1, None, None, None, None, None]
-      )
-      # TODO(michalk8): modify the out
-      out = fn(
-          x, y, geom.cost_fn, prob.a, prob.b, return_transport,
-          return_dual_vectors
-      )
-
-    return UnivariateOutput(prob, *out)
-
-  def _subsample(self, prob: linear_problem.LinearProblem,
-                 rng: jax.Array) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    n, m = prob.geom.shape
-    x, y = prob.geom.x, prob.geom.y
-
-    if prob.is_uniform:
-      x = x[jnp.linspace(0, n, num=self.num_subsamples).astype(int), :]
-      y = y[jnp.linspace(0, m, num=self.num_subsamples).astype(int), :]
-      return x, y
-
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.choice(rng1, x, (self.num_subsamples,), p=prob.a, axis=0)
-    y = jax.random.choice(rng2, y, (self.num_subsamples,), p=prob.b, axis=0)
-    return x, y
-
-  def tree_flatten(self):  # noqa: D102
-    return None, (self.num_subsamples, self._quantiles)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del children
-    return cls(*aux_data)
 
 
 def uniform_distance(
