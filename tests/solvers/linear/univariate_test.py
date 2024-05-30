@@ -18,7 +18,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-import scipy as sp
+import scipy.stats as st
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
@@ -53,7 +53,6 @@ class TestUnivariate:
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
-    """The Univariate distance coincides with the sinkhorn solver"""
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
     out = univariate.quantile_distance(prob, return_transport=True)
@@ -62,7 +61,9 @@ class TestUnivariate:
 
     @jax.jit
     @functools.partial(jax.vmap, in_axes=[1, 1, None, None])
-    def sliced_sinkhorn(x, y, a, b):
+    def sliced_sinkhorn(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+    ):
       geom = pointcloud.PointCloud(
           x[:, None], y[:, None], cost_fn=cost_fn, epsilon=0.0015
       )
@@ -96,32 +97,32 @@ class TestUnivariate:
     )
 
   @pytest.mark.fast()
-  def test_cdf_distance_and_scipy(self):
-    """The OTT solver coincides with scipy solver"""
-    # FIXME
+  def test_cdf_distance_and_scipy(self, rng: jax.Array):
     x, y, a, b = self.x, self.y, self.a, self.b
+    xx = jax.random.normal(rng, x.shape)
     # The `scipy` solver only computes the solution for p=1.0 visible
-
-    # non-uniform: vanilla or subsampling
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNormP(1.0))
-    prob = linear_problem.LinearProblem(geom=geom, a=a, b=b)
-    ott_d = univariate.UnivariateSolver()(prob).ot_costs[0]
-    scipy_d = sp.stats.wasserstein_distance(x[:, 0], y[:, 0], a, b)
+
+    # non-uniform variant
+    prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    ott_d = univariate.quantile_distance(prob).ot_costs[0]
+    scipy_d = st.wasserstein_distance(x[:, 0], y[:, 0], a, b)
+
     np.testing.assert_allclose(scipy_d, ott_d, atol=1e-2, rtol=1e-2)
 
-    num_subsamples = 100
-    ott_dss = univariate.UnivariateSolver(num_subsamples=num_subsamples
-                                         )(prob).ot_costs[0]
-    np.testing.assert_allclose(scipy_d, ott_dss, atol=1e2, rtol=1e-2)
-
     # uniform variants
-    prob = linear_problem.LinearProblem(geom=geom)
-    scipy_d2 = sp.stats.wasserstein_distance(x[:, 0], y[:, 0])
+    prob = linear_problem.LinearProblem(geom)
+    ott_d = univariate.quantile_distance(prob).ot_costs[0]
+    scipy_d2 = st.wasserstein_distance(x[:, 0], y[:, 0])
 
-    ott_d = univariate.UnivariateSolver()(prob).ot_costs[0]
-    ott_dq = univariate.UnivariateSolver(quantiles=8)(prob).ot_costs[0]
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
-    np.testing.assert_allclose(scipy_d2, ott_dq, atol=1e-1, rtol=1e-1)
+
+    geom = pointcloud.PointCloud(x, xx, cost_fn=costs.PNormP(1.0))
+    prob = linear_problem.LinearProblem(geom)
+    ott_d = univariate.uniform_distance(prob).ot_costs[0]
+    scipy_d2 = st.wasserstein_distance(x[:, 0], xx[:, 0])
+
+    np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast()
   def test_univariate_grad(self, rng: jax.Array):
