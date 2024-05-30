@@ -288,8 +288,9 @@ def north_west_distance(prob: linear_problem.LinearProblem) -> UnivariateOutput:
         ot_cost,
         state.paired_indices,
         mass_paired_indices,
-        state.dual_a,
-        state.dual_b,
+        # restore the original order
+        state.dual_a[jnp.argsort(i_x)],
+        state.dual_b[jnp.argsort(i_y)],
     )
 
   a, b = prob.a, prob.b
