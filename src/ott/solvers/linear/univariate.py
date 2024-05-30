@@ -81,6 +81,14 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
     sparse_mean = jesp.sparsify(jnp.mean)
     return sparse_mean(self.transport_matrices, axis=0)
 
+  @property
+  def dual_costs(self) -> jnp.ndarray:
+    """TODO."""
+    assert self.dual_a is not None, "TODO"
+    dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
+    dual_obj += jnp.sum(self.dual_b * self.prob.b[None, :], axis=1)
+    return dual_obj
+
 
 def uniform_distance(
     prob: linear_problem.LinearProblem,
