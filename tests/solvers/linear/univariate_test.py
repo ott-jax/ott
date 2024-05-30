@@ -30,7 +30,7 @@ class TestUnivariate:
 
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
-    self.rng = jax.random.PRNGKey(4)
+    self.rng = rng
     self.n = 7
     self.m = 5
     self.d = 2
@@ -54,12 +54,11 @@ class TestUnivariate:
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.CostFn):
     """The Univariate distance coincides with the sinkhorn solver"""
-    # FIXME(michalk8)
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
     out = univariate.quantile_distance(prob, return_transport=True)
-    costs_1d, matrices_1d = out.ot_costs, out.transport_matrices
-    mean_matrices_1d = out.mean_transport_matrix
+    costs_1d, matrices_1d = out.ot_costs, out.transport_matrices.todense()
+    mean_matrices_1d = out.mean_transport_matrix.todense()
 
     @jax.jit
     @functools.partial(jax.vmap, in_axes=[1, 1, None, None])
@@ -67,7 +66,7 @@ class TestUnivariate:
       geom = pointcloud.PointCloud(
           x[:, None], y[:, None], cost_fn=cost_fn, epsilon=0.0015
       )
-      out = linear.solve(geom, a=self.a, b=self.b)
+      out = linear.solve(geom, a=a, b=b)
       return out.primal_cost, out.matrix, out.converged
 
     costs_sink, matrices_sink, converged = sliced_sinkhorn(
@@ -85,6 +84,7 @@ class TestUnivariate:
         jnp.mean(matrices_1d, axis=0).sum(0), self.b, atol=1e-3
     )
 
+    # FIXME(michalk8): very brittle when changing the seed
     np.testing.assert_allclose(
         matrices_sink, matrices_1d, atol=0.5 * scale, rtol=1e-1
     )

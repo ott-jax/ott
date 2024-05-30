@@ -15,6 +15,7 @@ import functools
 from typing import NamedTuple, Optional, Tuple
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
 from ott.math import utils as mu
@@ -61,39 +62,24 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
   dual_b: Optional[jnp.ndarray] = None
 
   @property
-  def transport_matrices(self) -> jnp.ndarray:
+  def transport_matrices(self) -> jesp.BCOO:
+    #  TODO(michalk8): nicer docs
     """Outputs a ``[d, n, m]`` tensor of all ``[n, m]`` transport matrices.
 
     This tensor will be extremely sparse, since it will have at most ``d(n+m)``
     non-zero values, out of ``dnm`` total entries.
     """
-    assert self.paired_indices is not None, \
-      "[d, n, m] tensor of transports cannot be computed, likely because an" \
-      " approximate method was used (using either subsampling or quantiles)."
-
+    b = len(self.ot_costs)
     n, m = self.prob.geom.shape
-    if self.prob.is_equal_size and self.prob.is_uniform:
-      transport_matrices_from_indices = jax.vmap(
-          lambda idx, idy: jnp.eye(n)[idx, :][:, idy].T, in_axes=[0, 0]
-      )
-      return transport_matrices_from_indices(
-          self.paired_indices[:, 0, :], self.paired_indices[:, 1, :]
-      )
-
-    # raveled indexing of entries.
-    indices = self.paired_indices[:, 0] * m + self.paired_indices[:, 1]
-    # segment sum is needed to collect several contributions
-    return jax.vmap(
-        lambda idx, mass: jax.ops.segment_sum(
-            mass, idx, indices_are_sorted=True, num_segments=n * m
-        ).reshape(n, m),
-        in_axes=[0, 0]
-    )(indices, self.mass_paired_indices)
+    data = self.mass_paired_indices
+    indices = self.paired_indices.swapaxes(1, 2)
+    return jesp.BCOO((data, indices), shape=(b, n, m))
 
   @property
-  def mean_transport_matrix(self) -> jnp.ndarray:
+  def mean_transport_matrix(self) -> jesp.BCOO:
     """Return the mean transport matrix, averaged over slices."""
-    return jnp.mean(self.transport_matrices, axis=0)
+    sparse_mean = jesp.sparsify(jnp.mean)
+    return sparse_mean(self.transport_matrices, axis=0)
 
 
 def uniform_distance(
@@ -125,7 +111,7 @@ def uniform_distance(
 
   if return_transport:
     paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
-    mass_paired_indices = jnp.ones((n,)) / n
+    mass_paired_indices = jnp.ones((len(ot_costs), n)) / n
   else:
     paired_indices = mass_paired_indices = None
 
