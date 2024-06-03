@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+from typing import Callable
 
 import pytest
 
@@ -125,21 +126,35 @@ class TestUnivariate:
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast()
-  def test_univariate_grad(self, rng: jax.Array):
-    # TODO: Once a `check_grad` function is implemented, replace the code
-    # blocks before with `check_grad`'s.
+  @pytest.mark.parametrize(
+      "univariate_fn", [
+          univariate.uniform_distance, univariate.quantile_distance,
+          univariate.north_west_distance
+      ],
+      ids=["uniform", "quant", "north-west"]
+  )
+  def test_univariate_grad(
+      self, rng: jax.Array,
+      univariate_fn: Callable[[linear_problem.LinearProblem],
+                              univariate.UnivariateOutput]
+  ):
+
+    def univ_dist(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      return univariate_fn(prob).ot_costs.squeeze()
+
     rngs = jax.random.split(rng, 4)
     eps, tol = 1e-4, 1e-3
     x, y = self.x[:, 1][:, None], self.y[:, 1][:, None]
     a, b = self.a, self.b
 
-    def univ_dist(x, y, a, b):
-      geom = pointcloud.PointCloud(x, y)
-      prob = linear_problem.LinearProblem(geom=geom, a=a, b=b)
-      return univariate.quantile_distance(prob).ot_costs.squeeze()
-
-    grad_x, grad_y, grad_a, grad_b = jax.jit(jax.grad(univ_dist, (0, 1, 2, 3))
-                                            )(x, y, a, b)
+    grad_univ_dist = jax.jit(jax.grad(univ_dist, argnums=(0, 1, 2, 3)))
+    if univariate_fn is univariate.uniform_distance:
+      a, b, y = None, None, x
+    grad_x, grad_y, grad_a, grad_b = grad_univ_dist(x, y, a, b)
 
     # Checking geometric grads:
     v_x = jax.random.normal(rngs[0], shape=x.shape)
@@ -155,19 +170,20 @@ class TestUnivariate:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
     # Checking probability grads:
-    v_a = jax.random.normal(rngs[2], shape=a.shape)
-    v_a -= jnp.mean(v_a, axis=-1, keepdims=True)
-    v_a = (v_a / jnp.linalg.norm(v_a, axis=-1, keepdims=True)) * eps
-    expected = univ_dist(x, y, a + v_a, b) - univ_dist(x, y, a - v_a, b)
-    actual = 2.0 * jnp.vdot(v_a, grad_a)
-    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+    if univariate_fn is not univariate.uniform_distance:
+      v_a = jax.random.normal(rngs[2], shape=a.shape)
+      v_a -= jnp.mean(v_a, axis=-1, keepdims=True)
+      v_a = (v_a / jnp.linalg.norm(v_a, axis=-1, keepdims=True)) * eps
+      expected = univ_dist(x, y, a + v_a, b) - univ_dist(x, y, a - v_a, b)
+      actual = 2.0 * jnp.vdot(v_a, grad_a)
+      np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-    v_b = jax.random.normal(rngs[3], shape=b.shape)
-    v_b -= jnp.mean(v_b, axis=-1, keepdims=True)
-    v_b = (v_b / jnp.linalg.norm(v_b, axis=-1, keepdims=True)) * eps
-    expected = univ_dist(x, y, a, b + v_b) - univ_dist(x, y, a, b - v_b)
-    actual = 2.0 * jnp.vdot(v_b, grad_b)
-    np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
+      v_b = jax.random.normal(rngs[3], shape=b.shape)
+      v_b -= jnp.mean(v_b, axis=-1, keepdims=True)
+      v_b = (v_b / jnp.linalg.norm(v_b, axis=-1, keepdims=True)) * eps
+      expected = univ_dist(x, y, a, b + v_b) - univ_dist(x, y, a, b - v_b)
+      actual = 2.0 * jnp.vdot(v_b, grad_b)
+      np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.fast()
   def test_dual_vectors(self):
