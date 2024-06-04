@@ -62,7 +62,7 @@ class UnivariateOutput(NamedTuple):
 
   @property
   def transport_matrices(self) -> jesp.BCOO:
-    """Outputs a ``[d, n, m]`` array of all ``[n, m]`` transport matrices.
+    """Array of shape ``[d, n, m]`` containing all transport matrices.
 
     The matrices will be extremely sparse, since it will have at most
     :math:`d (n + m)` non-zero values, out of :math:`dnm` total entries.
@@ -75,7 +75,7 @@ class UnivariateOutput(NamedTuple):
 
   @property
   def mean_transport_matrix(self) -> jesp.BCOO:
-    """Return the mean transport matrix, averaged over :math:`d` slices."""
+    """Mean transport matrix, averaged over :math:`d` slices."""
     sparse_mean = jesp.sparsify(jnp.mean)
     return sparse_mean(self.transport_matrices, axis=0)
 
