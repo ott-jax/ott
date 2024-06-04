@@ -185,11 +185,13 @@ class TestUnivariate:
       np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.fast()
+  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.SqPNorm(1.1)])
   @pytest.mark.parametrize("weight_source", ["uniform", "a"])
   @pytest.mark.parametrize(("target", "weight_target"), [("y", "b"),
                                                          ("z", "c")])
   def test_dual_vectors(
-      self, weight_source: str, target: str, weight_target: str
+      self, cost_fn: costs.TICost, weight_source: str, target: str,
+      weight_target: str
   ):
     x = self.x
     a = (jnp.ones(self.n) / self.n
@@ -199,7 +201,7 @@ class TestUnivariate:
 
     solve_fn = jax.jit(univariate.north_west_distance)
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=costs.SqEuclidean())
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom, a=a, b=b)
     out = solve_fn(prob)
     f, g = out.dual_a, out.dual_b
