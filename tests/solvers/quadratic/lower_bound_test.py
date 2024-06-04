@@ -53,7 +53,7 @@ class TestLowerBound:
     prob = quadratic_problem.QuadraticProblem(
         geom_x, geom_y, a=self.a, b=self.b
     )
-    solve_fn = univariate.quantile_distance
+    solve_fn = univariate.quantile_solver
     distrib_cost = distrib_costs.UnivariateWasserstein(
         solve_fn, ground_cost=ground_cost
     )
@@ -79,13 +79,13 @@ class TestLowerBound:
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, a=a, b=b)
 
     distrib_cost_unif = distrib_costs.UnivariateWasserstein(
-        solve_fn=univariate.uniform_distance, ground_cost=ground_cost
+        solve_fn=univariate.uniform_solver, ground_cost=ground_cost
     )
     distrib_cost_quant = distrib_costs.UnivariateWasserstein(
-        solve_fn=univariate.quantile_distance, ground_cost=ground_cost
+        solve_fn=univariate.quantile_solver, ground_cost=ground_cost
     )
     distrib_cost_nw = distrib_costs.UnivariateWasserstein(
-        solve_fn=univariate.north_west_distance, ground_cost=ground_cost
+        solve_fn=univariate.north_west_solver, ground_cost=ground_cost
     )
 
     solver = jax.jit(lower_bound.third_lower_bound)

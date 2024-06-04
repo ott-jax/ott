@@ -67,7 +67,7 @@ class TestUnivariate:
 
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
-    out = univariate.quantile_distance(prob, return_transport=True)
+    out = univariate.quantile_solver(prob, return_transport=True)
     costs_1d, matrices_1d = out.ot_costs, out.transport_matrices.todense()
     mean_matrices_1d = out.mean_transport_matrix.todense()
 
@@ -105,21 +105,21 @@ class TestUnivariate:
 
     # non-uniform variant
     prob = linear_problem.LinearProblem(geom, a=a, b=b)
-    ott_d = univariate.quantile_distance(prob).ot_costs[0]
+    ott_d = univariate.quantile_solver(prob).ot_costs[0]
     scipy_d = st.wasserstein_distance(x[:, 0], y[:, 0], a, b)
 
     np.testing.assert_allclose(scipy_d, ott_d, atol=1e-2, rtol=1e-2)
 
     # uniform variants
     prob = linear_problem.LinearProblem(geom)
-    ott_d = univariate.quantile_distance(prob).ot_costs[0]
+    ott_d = univariate.quantile_solver(prob).ot_costs[0]
     scipy_d2 = st.wasserstein_distance(x[:, 0], y[:, 0])
 
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
     geom = pointcloud.PointCloud(x, xx, cost_fn=costs.PNormP(1.0))
     prob = linear_problem.LinearProblem(geom)
-    ott_d = univariate.uniform_distance(prob).ot_costs[0]
+    ott_d = univariate.uniform_solver(prob).ot_costs[0]
     scipy_d2 = st.wasserstein_distance(x[:, 0], xx[:, 0])
 
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
@@ -127,8 +127,8 @@ class TestUnivariate:
   @pytest.mark.fast()
   @pytest.mark.parametrize(
       "univariate_fn", [
-          univariate.uniform_distance, univariate.quantile_distance,
-          univariate.north_west_distance
+          univariate.uniform_solver, univariate.quantile_solver,
+          univariate.north_west_solver
       ],
       ids=["uniform", "quant", "north-west"]
   )
@@ -151,7 +151,7 @@ class TestUnivariate:
     a, b = self.a, self.b
 
     grad_univ_dist = jax.jit(jax.grad(univ_dist, argnums=(0, 1, 2, 3)))
-    if univariate_fn is univariate.uniform_distance:
+    if univariate_fn is univariate.uniform_solver:
       a, b, y = None, None, x
     grad_x, grad_y, grad_a, grad_b = grad_univ_dist(x, y, a, b)
 
@@ -169,7 +169,7 @@ class TestUnivariate:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
     # Checking probability grads:
-    if univariate_fn is not univariate.uniform_distance:
+    if univariate_fn is not univariate.uniform_solver:
       v_a = jax.random.normal(rngs[2], shape=a.shape)
       v_a -= jnp.mean(v_a, axis=-1, keepdims=True)
       v_a = (v_a / jnp.linalg.norm(v_a, axis=-1, keepdims=True)) * eps
@@ -199,7 +199,7 @@ class TestUnivariate:
     y = getattr(self, target)
     b = getattr(self, weight_target)
 
-    solve_fn = jax.jit(univariate.north_west_distance)
+    solve_fn = jax.jit(univariate.north_west_solver)
 
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom, a=a, b=b)

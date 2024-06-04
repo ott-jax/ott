@@ -23,14 +23,14 @@ from ott.problems.linear import linear_problem
 
 __all__ = [
     "UnivariateOutput",
-    "uniform_distance",
-    "quantile_distance",
-    "north_west_distance",
+    "uniform_solver",
+    "quantile_solver",
+    "north_west_solver",
 ]
 
 
 class UnivariateOutput(NamedTuple):
-  r"""Output of the univariate solvers.
+  r"""Output of the univariate solver.
 
   Args:
     prob: Linear problem between two weighted ``[n, d]`` and ``[m, d]``
@@ -88,11 +88,11 @@ class UnivariateOutput(NamedTuple):
     return dual_obj
 
 
-def uniform_distance(
+def uniform_solver(
     prob: linear_problem.LinearProblem,
     return_transport: bool = False,
 ) -> UnivariateOutput:
-  """Distance between two equally sized and uniformly weighted distributions.
+  """Univariate solver between two equally sized and uniformly weighted distributions.
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
@@ -134,11 +134,11 @@ def uniform_distance(
   )
 
 
-def quantile_distance(
+def quantile_solver(
     prob: linear_problem.LinearProblem,
     return_transport: bool = False,
 ) -> UnivariateOutput:
-  """Distance between quantile functions of distributions.
+  """Univariate solver between quantile functions of distributions.
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
@@ -212,10 +212,11 @@ def quantile_distance(
   )
 
 
-def north_west_distance(prob: linear_problem.LinearProblem) -> UnivariateOutput:
-  r"""Distance between two distributions using the north-west corner rule.
+def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
+  r"""North-west corner univariate solver.
 
-  This function uses the dual form as described in :cite:`sejourne:22`, alg. 3.
+  This function uses the north-west corner rule :cite:`peyre:19`, sec. 3.4.2.
+  and stores the dual variables as described in :cite:`sejourne:22`, alg. 3.
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`

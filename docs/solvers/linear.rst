@@ -38,9 +38,9 @@ Univariate Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    univariate.uniform_distance
-    univariate.quantile_distance
-    univariate.north_west_distance
+    univariate.uniform_solver
+    univariate.quantile_solver
+    univariate.north_west_solver
     univariate.UnivariateOutput
 
 Sinkhorn Acceleration
