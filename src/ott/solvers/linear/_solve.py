@@ -64,18 +64,28 @@ def solve_univariate(
     geom: pointcloud.PointCloud,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
+    *,
     return_transport: bool = False,
     return_dual_variables: bool = False,
 ) -> univariate.UnivariateOutput:
-  """Solve TODO.
+  """Solve 1D OT problems between two :math:`d`-dimensional point clouds.
+
+  This function select the underlying solver based on the following criteria:
+
+  - :func:`~ott.solvers.linear.univariate.north_west_solver` - if
+    ``return_dual_variables = True``.
+  - :func:`~ott.solvers.linear.univariate.uniform_solver` - if ``a`` and
+    ``b`` are both uniform and have the same size.
+  - :func:`~ott.solvers.linear.univariate.quantile_solver` - otherwise.
 
   Args:
-    geom: Point cloud geometry with a ground
-      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+    geom: Geometry containing two :math:`d`-dimensional point clouds and
+      a ground :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
     a: The first marginal. If :obj:`None`, it will be uniform.
     b: The second marginal. If :obj:`None`, it will be uniform.
-    return_transport: TODO.
-    return_dual_variables: TODO.
+    return_transport: Whether to also return the mapped pairs used to compute
+      the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
+    return_dual_variables: Whether to also return the dual variables.
   """  # noqa: E501
   prob = linear_problem.LinearProblem(geom, a=a, b=b)
   if return_dual_variables:
