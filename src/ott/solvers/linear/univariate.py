@@ -81,7 +81,7 @@ class UnivariateOutput(NamedTuple):
 
   @property
   def dual_costs(self) -> jnp.ndarray:
-    """Array of shape ``[d,]`` containing the cost of the dual problem."""
+    """Array of shape ``[d,]`` containing the dual costs."""
     assert self.dual_a is not None, "Dual variables have not been computed."
     dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
     dual_obj += jnp.sum(self.dual_b * self.prob.b[None, :], axis=1)
@@ -191,17 +191,15 @@ def quantile_distance(
     )
     cost = jnp.sum(successive_costs * diff_q)
 
-    if return_transport:
-      n = x.shape[0]
+    if not return_transport:
+      return cost, None, None
 
-      i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
-      i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
-
-      orig_i = i_x[i_in_sorted_x_of_quantile][1:]
-      orig_j = i_y[i_in_sorted_y_of_quantile][1:]
-      paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
-    else:
-      paired_indices = mass_paired_indices = None
+    n = x.shape[0]
+    i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
+    i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
+    orig_i = i_x[i_in_sorted_x_of_quantile][1:]
+    orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+    paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
 
     return cost, paired_indices, mass_paired_indices
 
