@@ -64,8 +64,8 @@ class UnivariateOutput(NamedTuple):
   def transport_matrices(self) -> jesp.BCOO:
     """Array of shape ``[d, n, m]`` containing all transport matrices.
 
-    The matrices will be extremely sparse, since it will have at most
-    :math:`d (n + m)` non-zero values, out of :math:`dnm` total entries.
+    The matrices will be sparse, with at most :math:`n + m` entries
+    for each of the :math:`d` slices.
     """
     b = len(self.ot_costs)
     n, m = self.prob.geom.shape
@@ -96,17 +96,19 @@ def uniform_solver(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]`` and a ground
+      of shapes ``[n, d]`` and ``[n, d]`` and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
-      The ``[n,]`` and ``[m,]`` sized probability weights are stored
+      The ``[n,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
     return_transport: Whether to also return the mapped pairs used to compute
       the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    The univariate output. Note that the mass can be null in some entries,
-    but sums to :math:`1`.
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
   """  # noqa: E501
   assert prob.is_equal_size, "Source and target have different sizes."
   assert prob.is_uniform, "Source or target marginals are not uniform."
@@ -151,8 +153,10 @@ def quantile_solver(
       the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    The univariate output. Note that the mass can be null in some entries,
-    but sums to :math:`1`.
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
 
   Notes:
     This function was inspired by :func:`~scipy.stats.wasserstein_distance`,
@@ -227,8 +231,10 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
 
   Returns:
-    The univariate output. Note that the mass can be null in some entries,
-    but sums to :math:`1`.
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
   """  # noqa: E501
 
   class State(NamedTuple):

@@ -86,6 +86,9 @@ def solve_univariate(
     return_transport: Whether to also return the mapped pairs used to compute
       the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
     return_dual_variables: Whether to also return the dual variables.
+
+  Returns:
+    The univariate output.
   """  # noqa: E501
   prob = linear_problem.LinearProblem(geom, a=a, b=b)
   if return_dual_variables:
