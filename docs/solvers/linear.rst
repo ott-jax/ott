@@ -38,6 +38,7 @@ Univariate Solvers
 .. autosummary::
     :toctree: _autosummary
 
+    solve_univariate
     univariate.uniform_solver
     univariate.quantile_solver
     univariate.north_west_solver

@@ -142,7 +142,7 @@ def quantile_solver(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      with shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      with shapes ``[n, d]`` and ``[m, d]`` and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
       The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
@@ -220,7 +220,7 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      with shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      with shapes ``[n, d]`` and ``[m, d]`` and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
       The ``[n,]`` and ``[m,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`

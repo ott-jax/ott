@@ -15,11 +15,11 @@ from typing import Any, Optional, Union
 
 import jax.numpy as jnp
 
-from ott.geometry import geometry
+from ott.geometry import geometry, pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from ott.solvers.linear import sinkhorn, sinkhorn_lr, univariate
 
-__all__ = ["solve"]
+__all__ = ["solve", "solve_univariate"]
 
 
 def solve(
@@ -58,3 +58,28 @@ def solve(
   else:
     solver = sinkhorn.Sinkhorn(**kwargs)
   return solver(prob)
+
+
+def solve_univariate(
+    geom: pointcloud.PointCloud,
+    a: Optional[jnp.ndarray] = None,
+    b: Optional[jnp.ndarray] = None,
+    return_transport: bool = False,
+    return_dual_variables: bool = False,
+) -> univariate.UnivariateOutput:
+  """Solve TODO.
+
+  Args:
+    geom: Point cloud geometry with a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+    a: The first marginal. If :obj:`None`, it will be uniform.
+    b: The second marginal. If :obj:`None`, it will be uniform.
+    return_transport: TODO.
+    return_dual_variables: TODO.
+  """  # noqa: E501
+  prob = linear_problem.LinearProblem(geom, a=a, b=b)
+  if return_dual_variables:
+    return univariate.north_west_solver(prob)
+  if prob.is_uniform and prob.is_equal_size:
+    return univariate.uniform_solver(prob, return_transport=return_transport)
+  return univariate.quantile_solver(prob, return_transport=return_transport)
