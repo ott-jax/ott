@@ -219,7 +219,7 @@ def quantile_solver(
 def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
   """Univariate solver that implements the north-west corner rule.
 
-  This rule is described in :cite:`peyre:19`, sec. 3.4.2. and the dual variables
+  This rule is described in :cite:`peyre:19`, sec. 3.4.2 and the dual variables
   are stored as described in :cite:`sejourne:22`, alg. 3.
 
   Args:
