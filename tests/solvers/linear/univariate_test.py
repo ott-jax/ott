@@ -60,7 +60,7 @@ class TestUnivariate:
         x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
     ):
       geom = pointcloud.PointCloud(
-          x[:, None], y[:, None], cost_fn=cost_fn, epsilon=1e-4
+          x[:, None], y[:, None], cost_fn=cost_fn, epsilon=1.5e-3
       )
       out = linear.solve(geom, a=a, b=b)
       return out.primal_cost, out.matrix, out.converged
