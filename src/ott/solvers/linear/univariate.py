@@ -49,7 +49,7 @@ class UnivariateOutput(NamedTuple):
       above, if :math:`0 <= k < n + m`, and :math:`0 <= s < d`  then writing
       :math:`i := \text{paired_indices}[s, 0, k]` and
       :math:`j := \text{paired_indices}[s, 1, k]`, point :math:`i` sends
-      :math:`\text{mass_paired_indices}[s, k]` to point math:`j`.
+      :math:`\text{mass_paired_indices}[s, k]` to point :math:`j`.
     dual_a: Array of shape ``[n,]`` containing the first dual variable.
     dual_b: Array of shape ``[m,]`` containing the second dual variable.
   """
