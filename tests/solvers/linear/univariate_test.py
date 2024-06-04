@@ -185,30 +185,33 @@ class TestUnivariate:
       np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.fast()
-  def test_dual_vectors(self):
-    n = self.n
-    x, a, y, b, z, c = self.x, self.a, self.y, self.b, self.z, self.c
-    unif_n = jnp.ones((n,)) / n
+  @pytest.mark.parametrize("weight_source", ["uniform", "a"])
+  @pytest.mark.parametrize(("target", "weight_target"), [("y", "b"),
+                                                         ("z", "c")])
+  def test_dual_vectors(
+      self, weight_source: str, target: str, weight_target: str
+  ):
+    x = self.x
+    a = (jnp.ones(self.n) / self.n
+        ) if weight_source == "uniform" else getattr(self, weight_source)
+    y = getattr(self, target)
+    b = getattr(self, weight_target)
 
     solve_fn = jax.jit(univariate.north_west_distance)
 
-    for (target, weights_target) in ((y, b), (z, c)):
-      for weights_source in (a, unif_n):
-        geom = pointcloud.PointCloud(x, target, cost_fn=costs.SqEuclidean())
-        prob = linear_problem.LinearProblem(
-            geom=geom, a=weights_source, b=weights_target
-        )
-        out = solve_fn(prob)
-        f, g = out.dual_a, out.dual_b
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.SqEuclidean())
+    prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    out = solve_fn(prob)
+    f, g = out.dual_a, out.dual_b
 
-        np.testing.assert_allclose(
-            out.ot_costs, out.dual_costs, atol=1e-2, rtol=1e-2
-        )
+    np.testing.assert_allclose(
+        out.ot_costs, out.dual_costs, atol=1e-2, rtol=1e-2
+    )
 
-        # check dual variables are feasible on locations that matter
-        # (with positive weights).
-        mask = (weights_source > 0)[:, None] * (weights_target > 0)[None, :]
-        min_val = jnp.min(
-            mask[None] * (geom.cost_matrix - f[:, :, None] - g[:, None, :])
-        )
-        np.testing.assert_allclose(min_val, 0, atol=1e-5)
+    # check dual variables are feasible on locations that matter
+    # (with positive weights).
+    mask = (a > 0)[:, None] * (b > 0)[None, :]
+    min_val = jnp.min(
+        mask[None] * (geom.cost_matrix - f[:, :, None] - g[:, None, :])
+    )
+    np.testing.assert_allclose(min_val, 0, atol=1e-5)
