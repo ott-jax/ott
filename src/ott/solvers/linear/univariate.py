@@ -144,7 +144,7 @@ def quantile_solver(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      with shapes ``[n, d]`` and ``[m, d]`` and a ground
+      of shapes ``[n, d]`` and ``[m, d]`` and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
       The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
