@@ -34,7 +34,7 @@ class TestUnivariate:
     rngs = jax.random.split(rng, 6)
     self.n = 7
     self.m = 5
-    self.d = 2
+    self.d = 3
     self.x = jax.random.uniform(rngs[0], (self.n, self.d))
     self.y = jax.random.uniform(rngs[1], (self.m, self.d))
     a = jax.random.uniform(rngs[2], (self.n,))
@@ -60,9 +60,9 @@ class TestUnivariate:
         x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
     ):
       geom = pointcloud.PointCloud(
-          x[:, None], y[:, None], cost_fn=cost_fn, epsilon=1.5e-3
+          x[:, None], y[:, None], cost_fn=cost_fn, epsilon=1e-4
       )
-      out = linear.solve(geom, a=a, b=b)
+      out = linear.solve(geom, a=a, b=b, max_iterations=50_000)
       return out.primal_cost, out.matrix, out.converged
 
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn)
@@ -74,7 +74,7 @@ class TestUnivariate:
     costs_sink, matrices_sink, converged = sliced_sinkhorn(
         self.x, self.y, self.a, self.b
     )
-    assert jnp.all(converged)
+    np.testing.assert_array_equal(converged, True)
     scale = 1.0 / (self.n * self.m)
 
     np.testing.assert_allclose(costs_1d, costs_sink, atol=scale, rtol=1e-1)
@@ -141,13 +141,13 @@ class TestUnivariate:
     def univ_dist(
         x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
     ) -> float:
-      geom = pointcloud.PointCloud(x, y)
+      geom = pointcloud.PointCloud(x[:, None], y[:, None])
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       return univariate_fn(prob).ot_costs.squeeze()
 
     rngs = jax.random.split(rng, 4)
     eps, tol = 1e-4, 1e-3
-    x, y = self.x[:, 1][:, None], self.y[:, 1][:, None]
+    x, y = self.x[:, 1], self.y[:, 1]
     a, b = self.a, self.b
 
     grad_univ_dist = jax.jit(jax.grad(univ_dist, argnums=(0, 1, 2, 3)))
