@@ -70,7 +70,7 @@ def solve_univariate(
 ) -> univariate.UnivariateOutput:
   """Solve 1D OT problems between two :math:`d`-dimensional point clouds.
 
-  This function select the underlying solver based on the following criteria:
+  This function selects the underlying solver based on the following criteria:
 
   - :func:`~ott.solvers.linear.univariate.north_west_solver` - if
     ``return_dual_variables = True``.
