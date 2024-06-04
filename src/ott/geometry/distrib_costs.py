@@ -34,8 +34,8 @@ class UnivariateWasserstein(costs.CostFn):
   Args:
     solve_fn: 1D optimal transport solver, e.g.,
       :func:`~ott.solvers.linear.univariate.uniform_distance`.
-    ground_cost: Cost used to compute the 1D optimal transport between vector,
-      should be a translation-invariant (TI) cost for correctness.
+    ground_cost: Cost used to compute the 1D optimal transport between vectors.
+      Should be a translation-invariant (TI) cost for correctness.
       If :obj:`None`, defaults to :class:`~ott.geometry.costs.SqEuclidean`.
   """
 
