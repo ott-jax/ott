@@ -29,30 +29,28 @@ __all__ = [
 ]
 
 
-class UnivariateOutput(NamedTuple):  # noqa: D101
-  """Output of the :class:`~ott.solvers.linear.UnivariateSolver`.
-
-  Objects of this class contain both solutions and problem definition of a
-  univariate OT problem.
+class UnivariateOutput(NamedTuple):
+  r"""Output of the univariate solvers.
 
   Args:
     prob: OT problem between 2 weighted ``[n, d]`` and ``[m, d]`` point clouds.
-    ot_costs: ``[d,]`` optimal transport cost values, computed independently
-      along each of the ``d`` slices.
-    paired_indices: ``None`` if no transport was computed / recorded (e.g. when
-      using quantiles or subsampling approximations). Otherwise, output a tensor
-      of shape ``[d, 2, m+n]``, of ``m+n`` pairs of indices, for which the
-      optimal transport assigns mass, on each slice of the ``d`` slices
-      described in the dataset. Namely, for each index ``0<=k<m+n``, ``0<=s<d``,
-      if one has ``i:=paired_indices[s,0,k]`` and ``j:=paired_indices[s,1,k]``,
-      then point ``i`` in the first point cloud sends mass to point ``j`` in the
-      second, in slice ``s``.
-    mass_paired_indices: ``[d, n+m]`` array of weights. Using notation above, if
-      ``0<=k<n+m``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
-      and ``j=paired_indices[s,1,k]``, point ``i`` sends
-      ``mass_paired_indices[s,k]`` to point ``j``.
-    dual_a: ``[n,]`` array of dual values
-    dual_b: ``[m,]`` array of dual values
+    ot_costs: Array of shape ``[d,]`` of OT costs, computed independently along
+      each of the :math:`d` slices.
+    paired_indices: Array of shape ``[d, 2, n + m]``, of :math:`n + m` pairs
+      of indices, for which the optimal transport assigns mass, on each slice
+      of the :math:`d` slices described in the dataset. Namely, for each index
+      :math:`0 <= k < n + m`, :math:`0 <= s < d`, if one has
+      :math:`i := \text{paired_indices}[s, 0, k]` and
+      :math:`j := \text{paired_indices}[s, 1, k]`, then point :math:`i` in
+      the first point cloud sends mass to point :math:`j` in the second,
+      in slice :math:`s`.
+    mass_paired_indices: ``[d, n + m]`` array of weights. Using the notation
+      above, if :math:`0 <= k < n + m`, and :math:`0 <= s < d`  then writing
+      :math:`i := \text{paired_indices}[s, 0, k]` and
+      :math:`j := \text{paired_indices}[s, 1, k]`, point :math:`i` sends
+      :math:`\text{mass_paired_indices}[s, k]` to point math:`j`.
+    dual_a: Array of shape ``[n,]`` containing the first dual variable.
+    dual_b: Array of shape ``[m,]`` containing the second dual variable.
   """
   prob: linear_problem.LinearProblem
   ot_costs: jnp.ndarray
@@ -63,10 +61,10 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
 
   @property
   def transport_matrices(self) -> jesp.BCOO:
-    """Outputs a ``[d, n, m]`` tensor of all ``[n, m]`` transport matrices.
+    """Outputs a ``[d, n, m]`` array of all ``[n, m]`` transport matrices.
 
     This tensor will be extremely sparse, since it will have at most
-    :math:`d(n+m)` non-zero values, out of :math:`dnm` total entries.
+    :math:`d (n + m)` non-zero values, out of :math:`dnm` total entries.
     """
     b = len(self.ot_costs)
     n, m = self.prob.geom.shape
@@ -83,7 +81,7 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
   @property
   def dual_costs(self) -> jnp.ndarray:
     """TODO."""
-    assert self.dual_a is not None, "TODO"
+    assert self.dual_a is not None, "Dual variables have not been computed."
     dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
     dual_obj += jnp.sum(self.dual_b * self.prob.b[None, :], axis=1)
     return dual_obj
@@ -93,19 +91,24 @@ def uniform_distance(
     prob: linear_problem.LinearProblem,
     return_transport: bool = False,
 ) -> UnivariateOutput:
-  """Distance between two equal-size families of uniformly weighted values x/y.
+  """Distance between two equally sized and uniformly weighted distributions.
 
   Args:
-    prob: TODO.
-    return_transport: Whether to return mapped pairs.
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
+    return_transport: Whether to also return the mapped pairs used to compute
+      the transport plan.
 
   Returns:
-    Optimal transport cost, a list of ``n + m`` paired indices, and their
-    corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to :math:`1`.
-  """
-  assert prob.is_uniform
-  assert prob.is_equal_size
+    The univariate output. Note that said mass can be null in some entries,
+    but sums to :math:`1`.
+  """  # noqa: E501
+  assert prob.is_uniform, "TODO"
+  assert prob.is_equal_size, "TODO"
 
   geom = prob.geom
   n, _ = geom.shape
@@ -130,27 +133,30 @@ def uniform_distance(
   )
 
 
-# TODO(michalk8): debug
 def quantile_distance(
     prob: linear_problem.LinearProblem,
     return_transport: bool = False,
 ) -> UnivariateOutput:
-  """Computes distance between quantile functions of distributions (a,x)/(b,y).
+  """Distance between quantile functions of distributions.
 
   Args:
-    prob: TODO.
-    return_transport: whether to return mapped pairs.
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
+    return_transport: Whether to also return the mapped pairs used to compute
+      the transport plan.
 
   Returns:
-    optimal transport cost. Optionally, a list of ``n + m`` paired indices, and
-    their corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to 1.0. Optionally, two dual vectors corresponding to that
-    transport.
+    The univariate output. Note that said mass can be null in some entries,
+    but sums to :math:`1`.
 
   Notes:
-    Inspired by :func:`~scipy.stats.wasserstein_distance`,
+    This function was inspired by :func:`~scipy.stats.wasserstein_distance`,
     but can be used with other costs, not just :math:`c(x, y) = |x - y|`.
-  """
+  """  # noqa: E501
 
   @functools.partial(jax.vmap, in_axes=[1, 1])
   def dist(x: jnp.ndarray, y: jnp.ndarray):
@@ -210,12 +216,21 @@ def quantile_distance(
 def north_west_distance(prob: linear_problem.LinearProblem) -> UnivariateOutput:
   r"""Computes Univariate Distance between 1D point clouds.
 
+  This function uses the north-west corner rule in its dual form
+  :cite:`sejourne:22`, alg. 3.
+
   Args:
-    prob: TODO.
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
 
   Returns:
-    TODO.
-  """
+    The univariate output. Note that said mass can be null in some entries,
+    but sums to :math:`1`.
+  """  # noqa: E501
 
   class State(NamedTuple):
     x: jnp.ndarray
