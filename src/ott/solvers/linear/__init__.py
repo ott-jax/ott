@@ -21,10 +21,17 @@ from . import (
     sinkhorn_lr,
     univariate,
 )
-from ._solve import solve
+from ._solve import solve, solve_univariate
 
 __all__ = [
-    "acceleration", "continuous_barycenter", "discrete_barycenter",
-    "implicit_differentiation", "lr_utils", "sinkhorn", "sinkhorn_lr", "solve",
-    "univariate"
+    "acceleration",
+    "continuous_barycenter",
+    "discrete_barycenter",
+    "implicit_differentiation",
+    "lr_utils",
+    "sinkhorn",
+    "sinkhorn_lr",
+    "univariate",
+    "solve",
+    "solve_univariate",
 ]
