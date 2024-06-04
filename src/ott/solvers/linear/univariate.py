@@ -33,7 +33,8 @@ class UnivariateOutput(NamedTuple):
   r"""Output of the univariate solvers.
 
   Args:
-    prob: OT problem between 2 weighted ``[n, d]`` and ``[m, d]`` point clouds.
+    prob: Linear problem between two weighted ``[n, d]`` and ``[m, d]``
+      point clouds.
     ot_costs: Array of shape ``[d,]`` of OT costs, computed independently along
       each of the :math:`d` slices.
     paired_indices: Array of shape ``[d, 2, n + m]``, of :math:`n + m` pairs
@@ -63,7 +64,7 @@ class UnivariateOutput(NamedTuple):
   def transport_matrices(self) -> jesp.BCOO:
     """Outputs a ``[d, n, m]`` array of all ``[n, m]`` transport matrices.
 
-    This tensor will be extremely sparse, since it will have at most
+    The matrices will be extremely sparse, since it will have at most
     :math:`d (n + m)` non-zero values, out of :math:`dnm` total entries.
     """
     b = len(self.ot_costs)
@@ -80,7 +81,7 @@ class UnivariateOutput(NamedTuple):
 
   @property
   def dual_costs(self) -> jnp.ndarray:
-    """TODO."""
+    """Array of shape ``[d,]`` containing the cost of the dual problem."""
     assert self.dual_a is not None, "Dual variables have not been computed."
     dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
     dual_obj += jnp.sum(self.dual_b * self.prob.b[None, :], axis=1)
@@ -107,8 +108,8 @@ def uniform_distance(
     The univariate output. Note that said mass can be null in some entries,
     but sums to :math:`1`.
   """  # noqa: E501
-  assert prob.is_uniform, "TODO"
-  assert prob.is_equal_size, "TODO"
+  assert prob.is_equal_size, "Source and target have different sizes."
+  assert prob.is_uniform, "Source or target marginals are not uniform."
 
   geom = prob.geom
   n, _ = geom.shape
