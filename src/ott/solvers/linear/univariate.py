@@ -96,16 +96,16 @@ def uniform_distance(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      with shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
-      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      The ``[n,]`` and ``[m,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
     return_transport: Whether to also return the mapped pairs used to compute
-      the transport plan.
+      the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    The univariate output. Note that said mass can be null in some entries,
+    The univariate output. Note that the mass can be null in some entries,
     but sums to :math:`1`.
   """  # noqa: E501
   assert prob.is_equal_size, "Source and target have different sizes."
@@ -142,16 +142,16 @@ def quantile_distance(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      with shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
       The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
     return_transport: Whether to also return the mapped pairs used to compute
-      the transport plan.
+      the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    The univariate output. Note that said mass can be null in some entries,
+    The univariate output. Note that the mass can be null in some entries,
     but sums to :math:`1`.
 
   Notes:
@@ -213,21 +213,20 @@ def quantile_distance(
 
 
 def north_west_distance(prob: linear_problem.LinearProblem) -> UnivariateOutput:
-  r"""Computes Univariate Distance between 1D point clouds.
+  r"""Distance between two distributions using the north-west corner rule.
 
-  This function uses the north-west corner rule in its dual form
-  :cite:`sejourne:22`, alg. 3.
+  This function uses the dual form as described in :cite:`sejourne:22`, alg. 3.
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
+      with shapes ``[n, d]`` and ``[m, d]``, respectively, and a ground
       :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
-      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      The ``[n,]`` and ``[m,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
 
   Returns:
-    The univariate output. Note that said mass can be null in some entries,
+    The univariate output. Note that the mass can be null in some entries,
     but sums to :math:`1`.
   """  # noqa: E501
 
