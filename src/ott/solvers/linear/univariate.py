@@ -217,10 +217,10 @@ def quantile_solver(
 
 
 def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
-  r"""North-west corner univariate solver.
+  """Univariate solver that implements the north-west corner rule.
 
-  This function uses the north-west corner rule :cite:`peyre:19`, sec. 3.4.2.
-  and stores the dual variables as described in :cite:`sejourne:22`, alg. 3.
+  This rule is described in :cite:`peyre:19`, sec. 3.4.2. and the dual variables
+  are stored as described in :cite:`sejourne:22`, alg. 3.
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
