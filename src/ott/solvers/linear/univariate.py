@@ -63,11 +63,10 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
 
   @property
   def transport_matrices(self) -> jesp.BCOO:
-    #  TODO(michalk8): nicer docs
     """Outputs a ``[d, n, m]`` tensor of all ``[n, m]`` transport matrices.
 
-    This tensor will be extremely sparse, since it will have at most ``d(n+m)``
-    non-zero values, out of ``dnm`` total entries.
+    This tensor will be extremely sparse, since it will have at most
+    :math:`d(n+m)` non-zero values, out of :math:`dnm` total entries.
     """
     b = len(self.ot_costs)
     n, m = self.prob.geom.shape
@@ -77,7 +76,7 @@ class UnivariateOutput(NamedTuple):  # noqa: D101
 
   @property
   def mean_transport_matrix(self) -> jesp.BCOO:
-    """Return the mean transport matrix, averaged over slices."""
+    """Return the mean transport matrix, averaged over :math:`d` slices."""
     sparse_mean = jesp.sparsify(jnp.mean)
     return sparse_mean(self.transport_matrices, axis=0)
 
