@@ -175,6 +175,7 @@ class LRSinkhornOutput(NamedTuple):
   ot_prob: linear_problem.LinearProblem
   epsilon: float
   inner_iterations: int
+  converged: bool
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
   reg_ot_cost: Optional[float] = None
 
@@ -220,12 +221,6 @@ class LRSinkhornOutput(NamedTuple):
   @property
   def n_iters(self) -> int:  # noqa: D102
     return jnp.sum(self.errors != -1) * self.inner_iterations
-
-  @property
-  def converged(self) -> bool:  # noqa: D102
-    return jnp.logical_and(
-        jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
-    )
 
   @property
   def matrix(self) -> jnp.ndarray:
@@ -687,7 +682,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
         lambda: jnp.inf
     )
-    error = state.compute_error(previous_state)
+    error = jax.lax.cond(
+        iteration >= self.min_iterations,
+        lambda: state.compute_error(previous_state), lambda: jnp.inf
+    )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
         jnp.logical_and(
@@ -761,6 +759,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     Returns:
       A LRSinkhornOutput.
     """
+    it = jnp.sum(state.errors != -1.0) * self.inner_iterations
+    converged = self._converged(state, it)
     return LRSinkhornOutput(
         q=state.q,
         r=state.r,
@@ -770,6 +770,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         errors=state.errors,
         epsilon=self.epsilon,
         inner_iterations=self.inner_iterations,
+        converged=converged,
     )
 
   def _converged(self, state: LRSinkhornState, iteration: int) -> bool:
@@ -800,11 +801,13 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     )
 
   def _diverged(self, state: LRSinkhornState, iteration: int) -> bool:
-    it = iteration // self.inner_iterations
-    return jnp.logical_and(
-        jnp.logical_not(jnp.isfinite(state.errors[it - 1])),
-        jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
+    it = iteration // self.inner_iterations - 1
+    is_not_finite = jnp.logical_and(
+        jnp.logical_not(jnp.isfinite(state.errors[it])),
+        jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
+    # `jnp.inf` is used if `it < self.min_iterations`
+    return jnp.logical_and(it >= self.min_iterations, is_not_finite)
 
 
 def run(
