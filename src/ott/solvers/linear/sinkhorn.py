@@ -275,7 +275,7 @@ def compute_kl_reg_cost(
         jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
 
-  # Using https://arxiv.org/pdf/1910.12958.pdf (24)
+  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)   
   if lse_mode:
     total_sum = jnp.sum(ot_prob.geom.marginal_from_potentials(f, g))
   else:
