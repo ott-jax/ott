@@ -88,7 +88,7 @@ def exact_heat_kernel(G: jnp.ndarray, normalize: bool = False, t: float = 10):
     L = inv_sqrt_deg @ L @ inv_sqrt_deg
 
   e, v = jnp.linalg.eigh(L)
-  e = jnp.clip(e, 0)
+  e = jnp.clip(e, 0.0)
 
   return v @ jnp.diag(jnp.exp(-t * e)) @ v.T
 
