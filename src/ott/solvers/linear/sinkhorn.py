@@ -275,7 +275,7 @@ def compute_kl_reg_cost(
         jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
 
-  # Using https://arxiv.org/pdf/1910.12958.pdf (24)
+  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)
   if lse_mode:
     total_sum = jnp.sum(ot_prob.geom.marginal_from_potentials(f, g))
   else:
@@ -538,10 +538,11 @@ class Sinkhorn:
 
       \arg\max_{f, g}{- \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
       \phi_b^{*}(-g) \rangle - \varepsilon \langle e^{f/\varepsilon},
-      e^{-C/\varepsilon} e^{-g/\varepsilon}} \rangle
+      e^{-C/\varepsilon} e^{g/\varepsilon}} \rangle
 
     where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform.
+    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform
+    :cite:`sejourne:19`.
 
     That problem can also be written, instead, using positive scaling vectors
     `u`, `v` of size ``n``, ``m``, handled with the kernel
@@ -558,7 +559,7 @@ class Sinkhorn:
 
     .. math::
 
-      \arg\min_{P>0} \langle P,C \rangle -\varepsilon \text{KL}(P | ab^T)
+      \arg\min_{P>0} \langle P,C \rangle +\varepsilon \text{KL}(P | ab^T)
       + \rho_a \text{KL}(P\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \mathbf{1}_n
       | b)
 
