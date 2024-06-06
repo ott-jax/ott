@@ -275,7 +275,7 @@ def compute_kl_reg_cost(
         jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
     )
 
-  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)   
+  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)
   if lse_mode:
     total_sum = jnp.sum(ot_prob.geom.marginal_from_potentials(f, g))
   else:
@@ -541,7 +541,8 @@ class Sinkhorn:
       e^{-C/\varepsilon} e^{g/\varepsilon}} \rangle
 
     where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform :cite:`sejourne:19`.
+    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform
+    :cite:`sejourne:19`.
 
     That problem can also be written, instead, using positive scaling vectors
     `u`, `v` of size ``n``, ``m``, handled with the kernel
