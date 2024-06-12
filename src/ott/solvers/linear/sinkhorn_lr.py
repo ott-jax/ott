@@ -57,7 +57,8 @@ class LRSinkhornState(NamedTuple):
     err_r = mu.gen_js(self.r, previous_state.r, c=1.0)
     err_g = mu.gen_js(self.g, previous_state.g, c=1.0)
 
-    return ((1.0 / self.gamma) ** 2) * (err_q + err_r + err_g)
+    # don't scale by (1 / gamma ** 2); https://github.com/ott-jax/ott/pull/547
+    return err_q + err_r + err_g
 
   def reg_ot_cost(  # noqa: D102
       self,
