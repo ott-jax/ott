@@ -20,6 +20,7 @@ Linear Optimal Transport
     LRSinkhorn
     sinkhorn_divergence_gradient_flow
     sparse_monge_displacements
+    Unbalanced_OT
 
 Barycenters
 ^^^^^^^^^^^
