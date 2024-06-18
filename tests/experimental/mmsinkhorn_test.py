@@ -64,3 +64,25 @@ class TestMMSinkhorn:
     )
     np.testing.assert_allclose(out.matrix, out_ms.tensor, rtol=1e-2, atol=1e-3)
     np.testing.assert_allclose(out.ent_reg_cost, out_ms.ent_reg_cost)
+
+  @pytest.mark.fast.with_args(a_s_none=[True, False], only_fast=0)
+  def test_mm_sinkhorn(self, a_s_none: bool, rng: jax.Array):
+    """Test consistency of cost/kernel apply to vec."""
+    n_s, d = [13, 5, 10, 3], 7
+
+    rngs = jax.random.split(rng, len(n_s))
+    x_s = [jax.random.normal(rng, (n, d)) for rng, n in zip(rngs, n_s)]
+
+    if a_s_none:
+      a_s = None
+    else:
+      a_s = [jax.random.uniform(rng, (n,)) for rng, n in zip(rngs, n_s)]
+      a_s = [a / jnp.sum(a) for a in a_s]
+
+    out_ms = jax.jit(mmsinkhorn.MMSinkhorn())(x_s, a_s)
+    assert out_ms.converged
+    np.testing.assert_array_equal(out_ms.tensor.shape, n_s)
+    for i in range(len(n_s)):
+      np.testing.assert_allclose(
+          out_ms.marginals[i], out_ms.a_s[i], rtol=1e-4, atol=1e-4
+      )

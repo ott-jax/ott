@@ -87,6 +87,15 @@ class MMSinkhornOutput(NamedTuple):
     )
 
   @property
+  def marginals(self):
+    r"""Return a Tuple of :math:`k` marginal probability weight vectors."""
+    return tensor_marginals(self.tensor)
+
+  def marginal(self, slice_index: int):
+    r"""Return a Tuple of :math:`k` marginal probability weight vectors."""
+    return tensor_marginal(self.tensor, slice_index)
+
+  @property
   def transport_mass(self) -> float:
     """Sum of transport tensor."""
     return jnp.sum(self.tensor)
@@ -142,13 +151,14 @@ def remove_tensor_sum(c: jnp.ndarray, u: Tuple[jnp.ndarray, ...]):
 
 
 def tensor_marginals(coupling):
+  return [tensor_marginal(coupling, l) for l in range(len(coupling.shape))]
+
+
+def tensor_marginal(coupling, slice_index: int):
   n_s = coupling.shape
   k = len(n_s)
-  out = [jnp.zeros((n,)) for n in n_s]
-  for l in range(k):
-    axis = list(range(l)) + list(range(l + 1, k))
-    out[l] = coupling.sum(axis=axis)
-  return out
+  axis = list(range(slice_index)) + list(range(slice_index + 1, k))
+  return coupling.sum(axis=axis)
 
 
 class MMSinkhorn(sinkhorn.Sinkhorn):
