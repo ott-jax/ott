@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott.experimental import mmsinkhorn
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 from ott.solvers import linear
 
 
@@ -45,11 +45,14 @@ class TestMMSinkhorn:
     else:
       b = jax.random.uniform(rngs[3], (m,))
       b /= jnp.sum(b)
-    geom = pointcloud.PointCloud(x, y)
+    cost_fn = costs.PNormP(1.8)
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
     out = linear.solve(geom, a=a, b=b, threshold=1e-5)
 
     ab = None if a is None and b is None else [a, b]
-    out_ms = jax.jit(mmsinkhorn.MMSinkhorn(threshold=1e-5))([x, y], ab)
+    out_ms = jax.jit(mmsinkhorn.MMSinkhorn(threshold=1e-5))([x, y],
+                                                            ab,
+                                                            cost_fns=cost_fn)
     assert out.converged
     assert out_ms.converged
 
@@ -65,8 +68,10 @@ class TestMMSinkhorn:
     np.testing.assert_allclose(out.matrix, out_ms.tensor, rtol=1e-2, atol=1e-3)
     np.testing.assert_allclose(out.ent_reg_cost, out_ms.ent_reg_cost)
 
-  @pytest.mark.fast.with_args(a_s_none=[True, False], only_fast=0)
-  def test_mm_sinkhorn(self, a_s_none: bool, rng: jax.Array):
+  @pytest.mark.fast.with_args(
+      a_s_none=[True, False], costs_none=[True, False], only_fast=0
+  )
+  def test_mm_sinkhorn(self, a_s_none: bool, costs_none: bool, rng: jax.Array):
     """Test consistency of cost/kernel apply to vec."""
     n_s, d = [13, 5, 10, 3], 7
 
@@ -79,7 +84,13 @@ class TestMMSinkhorn:
       a_s = [jax.random.uniform(rng, (n,)) for rng, n in zip(rngs, n_s)]
       a_s = [a / jnp.sum(a) for a in a_s]
 
-    out_ms = jax.jit(mmsinkhorn.MMSinkhorn())(x_s, a_s)
+    if costs_none:
+      cost_fns = None
+    else:
+      cost_fns = [costs.PNormP(1.5) for _ in range(3)]
+      cost_fns += [costs.PNormP(1.1) for _ in range(3)]
+
+    out_ms = jax.jit(mmsinkhorn.MMSinkhorn())(x_s, a_s, cost_fns=cost_fns)
     assert out_ms.converged
     np.testing.assert_array_equal(out_ms.tensor.shape, n_s)
     for i in range(len(n_s)):

@@ -93,7 +93,7 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials iff
+    Otherwise, use Prop. 2 of :cite:`sejourne:22` re-center the potentials iff
     ``tau_a < 1`` and ``tau_b < 1``.
 
     Args:
