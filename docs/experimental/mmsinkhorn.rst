@@ -11,5 +11,5 @@ Sinkhorn Initializers
 .. autosummary::
     :toctree: _autosummary
 
-    mmsinkhorn.MMSinkhorn
-    mmsinkhorn.MMSinkhornOutput
+    MMSinkhorn
+    MMSinkhornOutput
