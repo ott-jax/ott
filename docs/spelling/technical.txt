@@ -101,8 +101,6 @@ parameterization
 parameterizing
 piecewise
 pluripotent
-pointcloud
-pointclouds
 polynomials
 positivity
 postfix

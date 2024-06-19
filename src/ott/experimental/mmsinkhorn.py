@@ -162,7 +162,7 @@ def tensor_marginal(coupling, slice_index: int):
 
 
 class MMSinkhorn(sinkhorn.Sinkhorn):
-  r"""Multimarginal Sinkhorn solver, aligns :math:`k` :math:`d`-dim pointclouds.
+  r"""Multimarginal Sinkhorn solver, aligns :math:`k \,d`-dim point clouds.
 
   This solver implements the entropic multimarginal solver presented in
   :cite:`benamou15` and described in :cite`piran:24`, Alg. 1. The current
@@ -173,7 +173,7 @@ class MMSinkhorn(sinkhorn.Sinkhorn):
   of the :cite:`danskin:67` theorem to instantiate the OT cost.
 
   To use the solver, one needs to call it on a tuple of :math:`k`
-  :math:`d` dimensional point-clouds stored in ``x_s``, along with :math:`k`
+  :math:`d` dimensional point clouds stored in ``x_s``, along with :math:`k`
   probability vectors, stored in ``a_s``, as well as a
   :class:`~ott.geometry.costs.CostFn` instance (or :math:`k(k-1)/2` of them, one
   for each pair of point clouds ``x_s[i]`` and ``x_s[j]``, ``i<j``.)
@@ -189,21 +189,21 @@ class MMSinkhorn(sinkhorn.Sinkhorn):
       cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None,
       epsilon: Optional[float] = None
   ):
-    r"""Solves multimarginal OT problem for :math:`k` :math:`d`-dim pointclouds.
+    r"""Solves multimarginal OT for :math:`k` :math:`d`-dim point clouds.
 
-    Takes :math:`k` weights :math:`d`-dim pointclouds and computes their
+    Takes :math:`k` weights :math:`d`-dim point clouds and computes their
     multimarginal optimal transport tensor
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
       :math:`n_i\times d` where :math:`d` is a dimension common to all
-      pointclouds.
+      point clouds.
       a_s: Tuple of :math:`k` probability vectors, each of size :math:`n_i`.
       cost_fns: Instance of :class:`~ott.solvers.geometry.costs.CostFn`, or
         Tuple of :math:`k(k-1)/2` such instances. Note that the solver currently
         assumes that these cost functions are symmetric. The cost function at
         index :math:`i(k-\tfrac{i+1}{2})+j-i-1` will be used to compare
-        pointcloud ``x_s[i]`` with point cloud ``x_s[j]``.
+        point cloud ``x_s[i]`` with point cloud ``x_s[j]``.
       epsilon: entropic regularization used to solve the multimarginal Sinkhorn
         problem.
 
