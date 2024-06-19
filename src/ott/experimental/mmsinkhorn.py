@@ -165,7 +165,7 @@ class MMSinkhorn(sinkhorn.Sinkhorn):
   r"""Multimarginal Sinkhorn solver, aligns :math:`k` :math:`d`-dim pointclouds.
 
   This solver implements the entropic multimarginal solver presented in
-  :cite:`benamou17` and described in :cite`piran:24`, Alg. 1. The current
+  :cite:`benamou15` and described in :cite`piran:24`, Alg. 1. The current
   implementation follows largely the template of the
   :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, from which it inherits
   the list of parameters. Here only hyperparameters controlling the number of
