@@ -57,7 +57,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install -e".[test]"
-        python3 -m pip install "jax[cuda12_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        python3 -m pip install "jax[cuda12]"
 
     - name: Run nvidia-smi
       run: |
