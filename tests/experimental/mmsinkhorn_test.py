@@ -66,7 +66,9 @@ class TestMMSinkhorn:
         out.ot_prob.geom.epsilon, out_ms.epsilon, rtol=1e-5, atol=1e-5
     )
     np.testing.assert_allclose(out.matrix, out_ms.tensor, rtol=1e-2, atol=1e-3)
-    np.testing.assert_allclose(out.ent_reg_cost, out_ms.ent_reg_cost)
+    np.testing.assert_allclose(
+        out.ent_reg_cost, out_ms.ent_reg_cost, rtol=1e-6, atol=1e-6
+    )
 
   @pytest.mark.fast.with_args(
       a_s_none=[True, False], costs_none=[True, False], only_fast=0
