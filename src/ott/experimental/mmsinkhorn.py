@@ -92,7 +92,7 @@ class MMSinkhornOutput(NamedTuple):
     return tensor_marginals(self.tensor)
 
   def marginal(self, slice_index: int):
-    r"""Return a Tuple of :math:`k` marginal probability weight vectors."""
+    r"""Return the :math:`k`-th marginal probability weight vector."""
     return tensor_marginal(self.tensor, slice_index)
 
   @property
