@@ -92,7 +92,8 @@ class TestMMSinkhorn:
       cost_fns = [costs.PNormP(1.5) for _ in range(3)]
       cost_fns += [costs.PNormP(1.1) for _ in range(3)]
 
-    out_ms = jax.jit(mmsinkhorn.MMSinkhorn())(x_s, a_s, cost_fns=cost_fns)
+    out_ms = jax.jit(mmsinkhorn.MMSinkhorn(norm_error=1.1)
+                    )(x_s, a_s, cost_fns=cost_fns)
     assert out_ms.converged
     np.testing.assert_array_equal(out_ms.tensor.shape, n_s)
     for i in range(len(n_s)):

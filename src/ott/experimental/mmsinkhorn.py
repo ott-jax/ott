@@ -1,7 +1,21 @@
+# Copyright OTT-JAX
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Any, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ott.geometry import costs, pointcloud
 from ott.math import fixed_point_loop
@@ -13,11 +27,12 @@ __all__ = ["MMSinkhornOutput", "MMSinkhorn"]
 
 class MMSinkhornState(sinkhorn.SinkhornState):
 
-  def solution_error(self, cost_t, a_s, epsilon):
+  def solution_error(self, cost_t, a_s, epsilon, norm_error):
     coupl_tensor = coupling_tensor(self.potentials, cost_t, epsilon)
     marginals = tensor_marginals(coupl_tensor)
     errors = jnp.array([
-        jnp.sum(jnp.abs(a - marginal)) for a, marginal in zip(a_s, marginals)
+        jnp.sum(jnp.abs(a - marginal) ** norm_error) ** (1.0 / norm_error)
+        for a, marginal in zip(a_s, marginals)
     ])
     return jnp.sum(errors)
 
@@ -161,16 +176,17 @@ def tensor_marginal(coupling, slice_index: int):
   return coupling.sum(axis=axis)
 
 
-class MMSinkhorn(sinkhorn.Sinkhorn):
+class MMSinkhorn:
   r"""Multimarginal Sinkhorn solver, aligns :math:`k \,d`-dim point clouds.
 
   This solver implements the entropic multimarginal solver presented in
   :cite:`benamou:15` and described in :cite:`piran:24`, Algorithm 1. The current
   implementation follows largely the template of the
-  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, from which it inherits
-  the list of parameters. Here only hyperparameters controlling the number of
-  iterations and convergence threshold are used, along with the application
-  of the :cite:`danskin:67` theorem to instantiate the OT cost.
+  :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, with a much reduced
+  set of hyperparameters, controlling the number of iterations and convergence
+  threshold are used, along with the application of the :cite:`danskin:67`
+  theorem to instantiate the OT cost. The iterations are done by default in
+  log-space.
 
   To use the solver, one needs to call it on a tuple of :math:`k`
   :math:`d` dimensional point clouds stored in ``x_s``, along with :math:`k`
@@ -180,7 +196,52 @@ class MMSinkhorn(sinkhorn.Sinkhorn):
 
   The solver uses ``epsilon`` as an input, with the default rule set to one
   twentieth of the mean of the cost tensor resulting from these inputs.
+
+  Args:
+    threshold: tolerance used to stop the Sinkhorn iterations. This is
+      typically the deviation between a target marginal and the marginal of the
+      current primal solution.
+    norm_error: power used to define p-norm of error for marginal/target.
+    inner_iterations: the Sinkhorn error is not recomputed at each
+      iteration but every ``inner_iterations`` instead.
+    min_iterations: the minimum number of Sinkhorn iterations carried
+      out before the error is computed and monitored.
+    max_iterations: the maximum number of Sinkhorn iterations. If
+      ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
+      run by default using a :func:`jax.lax.scan` loop rather than a custom,
+      unroll-able :func:`jax.lax.while_loop` that monitors convergence.
+      In that case the error is not monitored and the ``converged``
+      flag will return ``False`` as a consequence.
+    use_danskin: when ``True``, it is assumed the entropy regularized cost
+      is evaluated using optimal potentials that are frozen, i.e. whose
+      gradients have been stopped. This is useful when carrying out first order
+      differentiation, and is only valid mathematically when the algorithm has
+      converged with a low tolerance.
+    initializer: how to compute the initial potentials/scalings. This refers to
+      a few possible classes implemented following the template in
+      :class:`~ott.initializers.linear.SinkhornInitializer`.
+    progress_fn: callback function which gets called during the Sinkhorn
+      iterations, so the user can display the error at each iteration,
+      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
+      for a basic implementation.
+    kwargs_init: keyword arguments when creating the initializer.
   """
+
+  def __init__(
+      self,
+      threshold: float = 1e-3,
+      norm_error: float = 1.0,
+      inner_iterations: int = 10,
+      min_iterations: int = 0,
+      max_iterations: int = 2000,
+      use_danskin: bool = True,
+  ):
+    self.threshold = threshold
+    self.inner_iterations = inner_iterations
+    self.min_iterations = min_iterations
+    self.max_iterations = max_iterations
+    self.norm_error = norm_error
+    self.use_danskin = use_danskin
 
   def __call__(
       self,
@@ -232,6 +293,30 @@ class MMSinkhorn(sinkhorn.Sinkhorn):
     potentials = [jnp.zeros((n,)) for n in n_s]
     return MMSinkhornState(potentials=potentials, errors=errors)
 
+  def _converged(self, state: MMSinkhornState, iteration: int) -> bool:
+    err = state.errors[iteration // self.inner_iterations - 1, 0]
+    return jnp.logical_and(iteration > 0, err < self.threshold)
+
+  def _diverged(self, state: MMSinkhornState, iteration: int) -> bool:
+    err = state.errors[iteration // self.inner_iterations - 1, 0]
+    return jnp.logical_not(jnp.isfinite(err))
+
+  def _continue(self, state: MMSinkhornState, iteration: int) -> bool:
+    """Continue while not(converged) and not(diverged)."""
+    return jnp.logical_and(
+        jnp.logical_not(self._diverged(state, iteration)),
+        jnp.logical_not(self._converged(state, iteration))
+    )
+
+  @property
+  def outer_iterations(self) -> int:
+    """Upper bound on number of times inner_iterations are carried out.
+
+    This integer can be used to set constant array sizes to track the algorithm
+    progress, notably errors.
+    """
+    return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
+
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()
     aux.pop("threshold")
@@ -275,7 +360,8 @@ def run(const, solver, state):
         jnp.logical_or(
             iteration == solver.max_iterations - 1,
             jnp.logical_and(compute_error, iteration >= solver.min_iterations)
-        ), lambda state, c, a, e: state.solution_error(c, a, e),
+        ),
+        lambda state, c, a, e: state.solution_error(c, a, e, solver.norm_error),
         lambda *_: jnp.inf, state, cost_t, a_s, epsilon
     )
     errors = state.errors.at[iteration // solver.inner_iterations, :].set(err)
