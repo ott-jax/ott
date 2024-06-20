@@ -29,7 +29,7 @@ class TestMMSinkhorn:
       a_none=[True, False], b_none=[True, False], only_fast=0
   )
   def test_match_2sinkhorn(self, a_none: bool, b_none: bool, rng: jax.Array):
-    """Test consistency of cost/kernel apply to vec."""
+    """Test consistency of MMSinkhorn for 2 margins vs regular Sinkhorn."""
     n, m, d = 5, 10, 7
     rngs = jax.random.split(rng, 5)
     x = jax.random.normal(rngs[0], (n, d))
@@ -38,21 +38,22 @@ class TestMMSinkhorn:
       a = None
     else:
       a = jax.random.uniform(rngs[2], (n,))
+      a = a.at[0].set(0.0)
       a /= jnp.sum(a)
 
     if b_none:
       b = None
     else:
       b = jax.random.uniform(rngs[3], (m,))
+      b.at[2].set(0.0)
       b /= jnp.sum(b)
     cost_fn = costs.PNormP(1.8)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
     out = linear.solve(geom, a=a, b=b, threshold=1e-5)
 
     ab = None if a is None and b is None else [a, b]
-    out_ms = jax.jit(mmsinkhorn.MMSinkhorn(threshold=1e-5))([x, y],
-                                                            ab,
-                                                            cost_fns=cost_fn)
+    solver = jax.jit(mmsinkhorn.MMSinkhorn(threshold=1e-5))
+    out_ms = solver([x, y], ab, cost_fns=cost_fn)
     assert out.converged
     assert out_ms.converged
 
@@ -74,7 +75,7 @@ class TestMMSinkhorn:
       a_s_none=[True, False], costs_none=[True, False], only_fast=0
   )
   def test_mm_sinkhorn(self, a_s_none: bool, costs_none: bool, rng: jax.Array):
-    """Test consistency of cost/kernel apply to vec."""
+    """Test correctness of MMSinkhorn for 4 marginals."""
     n_s, d = [13, 5, 10, 3], 7
 
     rngs = jax.random.split(rng, len(n_s))
@@ -100,3 +101,34 @@ class TestMMSinkhorn:
       np.testing.assert_allclose(
           out_ms.marginals[i], out_ms.a_s[i], rtol=1e-4, atol=1e-4
       )
+
+  def test_mm_sinkhorn_diff(self, rng: jax.Array):
+    """Test differentiability (Danskin) of MMSinkhorn's ent_reg_cost."""
+    n_s, d = [13, 5, 7, 3], 2
+
+    rngs = jax.random.split(rng, 2 * len(n_s) + 1)
+    x_s = [
+        jax.random.normal(rng, (n, d)) for rng, n in zip(rngs[:len(n_s)], n_s)
+    ]
+
+    deltas = [
+        jax.random.normal(rng, (n, d)) for rng, n in zip(rngs[len(n_s):], n_s)
+    ]
+    eps = 1e-3
+    x_s_p = [x + eps * delta for x, delta in zip(x_s, deltas)]
+    x_s_m = [x - eps * delta for x, delta in zip(x_s, deltas)]
+
+    solver = mmsinkhorn.MMSinkhorn(threshold=1e-5)
+    ent_reg = jax.jit(lambda x_s: solver(x_s).ent_reg_cost)
+    out_p = ent_reg(x_s_p)
+    out_m = ent_reg(x_s_m)
+    ent_g = jax.grad(ent_reg)
+    g_s = ent_g(x_s)
+    first_order = 0
+    for g, delta in zip(g_s, deltas):
+      first_order += jnp.sum(g * delta)
+
+    np.testing.assert_allclose((out_p - out_m) / (2 * eps),
+                               first_order,
+                               rtol=1e-3,
+                               atol=1e-3)

@@ -27,7 +27,13 @@ __all__ = ["MMSinkhornOutput", "MMSinkhorn"]
 
 class MMSinkhornState(sinkhorn.SinkhornState):
 
-  def solution_error(self, cost_t, a_s, epsilon, norm_error):
+  def solution_error(
+      self,
+      cost_t: jnp.ndarray,
+      a_s: Tuple[jnp.ndarray, ...],
+      epsilon: float,
+      norm_error: float = 1.0
+  ):
     coupl_tensor = coupling_tensor(self.potentials, cost_t, epsilon)
     marginals = tensor_marginals(coupl_tensor)
     errors = jnp.array([
@@ -55,8 +61,7 @@ class MMSinkhornOutput(NamedTuple):
     x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
       :math:`n_i\times d` where `d` is common to all point clouds.
     a_s: Tuple of :math:`k` probability vectors, each of size :math:`n_i`.
-    cost_fns: Instance of :class:`~ott.solvers.geometry.costs.CostFn`, or Tuple
-      of :math:`k(k-1)/2` such instances.
+    cost_fns: Cost function, or a tuple of :math:`k(k-1)/2` such instances.
     epsilon: entropic regularization used to solve the multimarginal Sinkhorn
       problem.
     ent_reg_cost: the regularized optimal transport cost, the linear
@@ -69,13 +74,13 @@ class MMSinkhornOutput(NamedTuple):
     inner_iterations: number of iterations that were run between two
       computations of errors.
   """
-  potentials: Tuple[jnp.ndarray, ...] = None
-  errors: jnp.ndarray = None
-  x_s: jnp.ndarray = None
+  potentials: Tuple[jnp.ndarray, ...]
+  errors: jnp.ndarray
+  x_s: Optional[jnp.ndarray] = None
   a_s: Optional[Tuple[jnp.ndarray, ...]] = None
-  cost_fns: Union[costs.CostFn, Tuple[costs.CostFn, ...]] = costs.SqEuclidean
-  epsilon: float = None
-  ent_reg_cost: jnp.ndarray = None
+  cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None
+  epsilon: Optional[float] = None
+  ent_reg_cost: Optional[jnp.ndarray] = None
   threshold: Optional[jnp.ndarray] = None
   converged: Optional[bool] = None
   inner_iterations: Optional[int] = None
@@ -102,11 +107,11 @@ class MMSinkhornOutput(NamedTuple):
     )
 
   @property
-  def marginals(self):
+  def marginals(self) -> jnp.ndarray:
     r"""Return a Tuple of :math:`k` marginal probability weight vectors."""
     return tensor_marginals(self.tensor)
 
-  def marginal(self, slice_index: int):
+  def marginal(self, slice_index: int) -> jnp.ndarray:
     r"""Return the marginal probability weight vector at slice :math:`k`."""
     return tensor_marginal(self.tensor, slice_index)
 
@@ -117,18 +122,18 @@ class MMSinkhornOutput(NamedTuple):
 
 
 def cost_tensor(
-    x_s: Tuple[jnp.ndarray, ...],
-    cost_fns: Union[costs.CostFn, Tuple[costs.CostFn, ...]] = costs.SqEuclidean
-):
-  r"""Creates cost tensor from Tuple of :math:`k` :math:`d`-dim point clouds.
+    x_s: Tuple[jnp.ndarray, ...], cost_fns: Union[costs.CostFn,
+                                                  Tuple[costs.CostFn, ...]]
+) -> jnp.ndarray:
+  r"""Creates cost tensor from a tuple of :math:`k` :math:`d`-dim point clouds.
 
   Args:
-    x_s: Tuple of :math:`k` point clouds, each described as a :math:`n_i x d`
-      matrix of batched vectors.
-    cost_fns: either a single :ott:`ott.geometry.costs.CostFn` object, or a
-      tuple of :math:`k (k-1)/2` of them. Current implementation works for
+    x_s: Tuple of :math:`k` point clouds, each described as a
+      :math:`n_i \times d` matrix of batched vectors.
+    cost_fns: Either a single :ott:`ott.geometry.costs.CostFn` object, or a
+      tuple of :math:`k (k-1)/2` of them. Current implementation only works for
       symmetric and definite cost functions (i.e. such that
-  :math:`c(x,y)=c(y,x)` and :math:`c(x,x)=0`).
+      :math:`c(x,y)=c(y,x)` and :math:`c(x,x)=0`).
   """
   k = len(x_s)  #TODO(cuturi) padded version
   ns = [x.shape[0] for x in x_s]
@@ -149,15 +154,17 @@ def cost_tensor(
   return cost_t
 
 
-def remove_tensor_sum(c: jnp.ndarray, u: Tuple[jnp.ndarray, ...]):
-  r"""Removes tensor sum of k vectors to tensor of dimension k.
+def remove_tensor_sum(
+    c: jnp.ndarray, u: Tuple[jnp.ndarray, ...]
+) -> jnp.ndarray:
+  r"""Removes the tensor sum of :math:`k` vectors to tensor of :math:`k` dims.
 
   Args:
     c: :math:`n_1 \times \\cdots \\ n_k` tensor.
     u: Tuple of :math:`k` vectors, each of size :math:`n_i`.
 
   Return:
-    `c` minus :math:`u[0] \\oplus u[1] \\oplus ... \\oplus u[n]`.
+    Tensor :math:`c - u[0] \\oplus u[1] \\oplus ... \\oplus u[n]`.
   """
   k = len(u)
   for i in range(k):
@@ -176,6 +183,7 @@ def tensor_marginal(coupling, slice_index: int):
   return coupling.sum(axis=axis)
 
 
+@jax.tree_util.register_pytree_node_class
 class MMSinkhorn:
   r"""Multimarginal Sinkhorn solver, aligns :math:`k \,d`-dim point clouds.
 
@@ -187,15 +195,6 @@ class MMSinkhorn:
   threshold are used, along with the application of the :cite:`danskin:67`
   theorem to instantiate the OT cost. The iterations are done by default in
   log-space.
-
-  To use the solver, one needs to call it on a tuple of :math:`k`
-  :math:`d` dimensional point clouds stored in ``x_s``, along with :math:`k`
-  probability vectors, stored in ``a_s``, as well as a
-  :class:`~ott.geometry.costs.CostFn` instance (or :math:`k(k-1)/2` of them, one
-  for each pair of point clouds ``x_s[i]`` and ``x_s[j]``, ``i<j``.)
-
-  The solver uses ``epsilon`` as an input, with the default rule set to one
-  twentieth of the mean of the cost tensor resulting from these inputs.
 
   Args:
     threshold: tolerance used to stop the Sinkhorn iterations. This is
@@ -217,14 +216,6 @@ class MMSinkhorn:
       gradients have been stopped. This is useful when carrying out first order
       differentiation, and is only valid mathematically when the algorithm has
       converged with a low tolerance.
-    initializer: how to compute the initial potentials/scalings. This refers to
-      a few possible classes implemented following the template in
-      :class:`~ott.initializers.linear.SinkhornInitializer`.
-    progress_fn: callback function which gets called during the Sinkhorn
-      iterations, so the user can display the error at each iteration,
-      e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
-      for a basic implementation.
-    kwargs_init: keyword arguments when creating the initializer.
   """
 
   def __init__(
@@ -249,16 +240,24 @@ class MMSinkhorn:
       a_s: Optional[Tuple[jnp.ndarray, ...]] = None,
       cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None,
       epsilon: Optional[float] = None
-  ):
+  ) -> MMSinkhornOutput:
     r"""Solves multimarginal OT for :math:`k` :math:`d`-dim point clouds.
 
-    Takes :math:`k` weights :math:`d`-dim point clouds and computes their
-    multimarginal optimal transport tensor
+    Takes :math:`k` weighted :math:`d`-dim point clouds and computes their
+    multimarginal optimal transport tensor. The :math:`d` dimensional point
+    clouds are stored in ``x_s``, along with :math:`k` probability vectors,
+    stored in ``a_s``, as well as a :class:`~ott.geometry.costs.CostFn`
+    instance (or :math:`k(k-1)/2` of them, one for each pair of point clouds
+    ``x_s[i]`` and ``x_s[j]``, ``i<j``.)
+
+    The solver also uses ``epsilon`` as an input, with the default rule set to
+    one twentieth of the mean of the cost tensor resulting from these inputs.
+
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
-      :math:`n_i\times d` where :math:`d` is a dimension common to all
-      point clouds.
+        :math:`n_i\times d` where :math:`d` is a dimension common to all
+        point clouds.
       a_s: Tuple of :math:`k` probability vectors, each of size :math:`n_i`.
       cost_fns: Instance of :class:`~ott.solvers.geometry.costs.CostFn`, or
         Tuple of :math:`k(k-1)/2` such instances. Note that the solver currently
@@ -269,10 +268,14 @@ class MMSinkhorn:
         problem.
 
     Returns:
-      a :class:`~ott.experimental.mmsinkhorn.MMSinkhornOutput` object.
+      a multimarginal Sinkhorn output object.
     """
-    cost_fns = costs.SqEuclidean() if cost_fns is None else cost_fns
     n_s = [x.shape[0] for x in x_s]
+    if cost_fns is None:
+      cost_fns = costs.SqEuclidean()
+    elif isinstance(cost_fns, Tuple):
+      assert len(cost_fns) == (len(n_s) * (len(n_s) - 1)) // 2
+
     # Default to uniform probability weights for each point cloud.
     if a_s is None:
       a_s = [jnp.ones((n,)) / n for n in n_s]
@@ -280,14 +283,17 @@ class MMSinkhorn:
       # Case in which user passes ``None`` weights within tuple.
       a_s = [(jnp.ones((n,)) / n if a is None else a) for a, n in zip(a_s, n_s)]
 
+    for n, a in zip(n_s, a_s):
+      assert n == a.shape[0]
+
     cost_t = cost_tensor(x_s, cost_fns)
     state = self.init_state(n_s)
-    epsilon = jnp.mean(cost_t) / 20 if epsilon is None else epsilon
+    epsilon = .05 * jnp.mean(cost_t) if epsilon is None else epsilon
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)
 
-  def init_state(self, n_s: Tuple[int]) -> MMSinkhornState:
+  def init_state(self, n_s: Tuple[int, ...]) -> MMSinkhornState:
     """Return the initial state of the loop."""
     errors = -jnp.ones((self.outer_iterations, 1))
     potentials = [jnp.zeros((n,)) for n in n_s]
@@ -327,33 +333,36 @@ class MMSinkhorn:
     return cls(**aux_data, threshold=children[0])
 
 
-def run(const, solver, state):
-  cost_t, a_s, epsilon = const
+def run(
+    const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
+    solver: MMSinkhorn, state: MMSinkhornState
+):
 
-  def cond_fn(iteration: int, const: Any, state: MMSinkhornState) -> bool:
+  def cond_fn(
+      iteration: int, const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
+      state: MMSinkhornState
+  ) -> bool:
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, const: Tuple[jnp.ndarray, ...],
+      iteration: int, const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
       state: Tuple[jnp.ndarray, ...], compute_error: bool
   ) -> Tuple[jnp.ndarray, float]:
     cost_t, a_s, epsilon = const
     k = len(a_s)
 
     def one_slice(potentials: Tuple[jnp.ndarray, ...], l: int, a: jnp.ndarray):
-      k = len(potentials)
       pot = potentials[l]
       axis = list(range(l)) + list(range(l + 1, k))
-      pot += epsilon * jnp.log(a) + mu.softmin(
+      app_lse = mu.softmin(
           remove_tensor_sum(cost_t, potentials), epsilon, axis=axis
       )
+      pot += epsilon * jnp.log(a) + jnp.where(jnp.isfinite(app_lse), app_lse, 0)
       return potentials[:l] + [pot] + potentials[l + 1:]
 
     potentials = state.potentials
     for l in range(k):
-      potentials = jax.jit(
-          one_slice, static_argnames="l"
-      )(potentials, l, a_s[l])
+      potentials = one_slice(potentials, l, a_s[l])
 
     state = state.set(potentials=potentials)
     err = jax.lax.cond(
@@ -368,7 +377,6 @@ def run(const, solver, state):
     return state.set(errors=errors)
 
   fix_point = fixed_point_loop.fixpoint_iter_backprop
-  const = (cost_t, a_s, epsilon)
   state = fix_point(
       cond_fn, body_fn, solver.min_iterations, solver.max_iterations,
       solver.inner_iterations, const, state
@@ -377,7 +385,7 @@ def run(const, solver, state):
       jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1]
       < solver.threshold
   )[0]
-  # Compute cost
+
   out = MMSinkhornOutput(
       potentials=state.potentials,
       errors=state.errors,
@@ -392,16 +400,19 @@ def run(const, solver, state):
   else:
     potentials = out.potentials
 
-  ent_reg_cost = jnp.sum(
-      jnp.array([
-          jnp.sum(potential * a) for potential, a in zip(potentials, a_s)
-      ])
-  )
+  cost_t, a_s, epsilon = const
+  ent_reg_cost = 0.0
+  for potential, a in zip(potentials, a_s):
+    pot = jnp.where(jnp.isfinite(potential), potential, 0)
+    ent_reg_cost += jnp.sum(pot * a)
+
   ent_reg_cost += epsilon * (
       1 - jnp.sum(coupling_tensor(potentials, cost_t, epsilon))
   )
   return out.set(ent_reg_cost=ent_reg_cost)
 
 
-def coupling_tensor(potentials, cost_t, epsilon):
+def coupling_tensor(
+    potentials: Tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
+) -> jnp.ndarray:
   return jnp.exp(-remove_tensor_sum(cost_t, potentials) / epsilon)
