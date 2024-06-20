@@ -6,8 +6,8 @@ ott.experimental.mmsinkhorn
 Solvers for multimarginal entropic OT problems, defined using :math:`k` point
 clouds of variable sizes in dimension :math:`d`.
 
-Sinkhorn Initializers
----------------------
+Multimarginal Sinkhorn
+----------------------
 .. autosummary::
     :toctree: _autosummary
 
