@@ -13,4 +13,4 @@ Multimarginal Sinkhorn
     :toctree: _autosummary
 
     mmsinkhorn.MMSinkhorn
-    MMSinkhornOutput
+    mmsinkhorn.MMSinkhornOutput
