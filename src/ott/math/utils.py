@@ -184,7 +184,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 def softmin(
     x: jnp.ndarray,
     gamma: float,
-    axis: Optional[Union[int, Tuple[int]]] = None
+    axis: Optional[Union[int, Sequence[int]]] = None
 ) -> jnp.ndarray:
   r"""Soft-min operator.
 
