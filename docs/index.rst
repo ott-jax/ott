@@ -90,6 +90,10 @@ Packages
   When the problem is *not* convex, which is the case for most other uses of
   this toolbox, the initialization can play a decisive role to reach a useful
   solution.
+- :mod:`ott.experimental` lists tools whose API is not mature yet to be included
+  in the main toolbox, with changes expected in the near future, but which might
+  still prove useful for users. This includes at the moment the multimarginal
+  Sinkhorn solver class :class:`~ott.experimental.mmsinkhorn.MMSinkhon`.
 - :mod:`ott.neural` provides tools to parameterize optimal transport maps,
   couplings or conditional probabilities as neural networks.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
