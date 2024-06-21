@@ -117,6 +117,7 @@ Packages
     solvers/index
     initializers/index
     neural/index
+    experimental/index
     tools
     math
     utils

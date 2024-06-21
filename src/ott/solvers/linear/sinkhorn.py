@@ -93,7 +93,7 @@ class SinkhornState(NamedTuple):
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
-    Otherwise, use prop. 2 of :cite:`sejourne:22` re-center the potentials iff
+    Otherwise, use Prop. 2 of :cite:`sejourne:22` re-center the potentials iff
     ``tau_a < 1`` and ``tau_b < 1``.
 
     Args:
@@ -296,8 +296,8 @@ class SinkhornOutput(NamedTuple):
   (without having to materialize it when not needed).
 
   Args:
-    f: dual variables vector of size ``ot.prob.shape[0]`` returned by Sinkhorn
-    g: dual variables vector of size ``ot.prob.shape[1]`` returned by Sinkhorn
+    potentials: list of optimal dual variables, two vector of size
+      ``ot.prob.shape[0]`` and ``ot.prob.shape[1]`` returned by Sinkhorn
     errors: vector or errors, along iterations. This vector is of size
       ``max_iterations // inner_iterations`` where those were the parameters
       passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
