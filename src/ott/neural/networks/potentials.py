@@ -183,3 +183,17 @@ class PotentialMLP(BasePotential):
       z = x + Wx(z)
 
     return z.squeeze(0) if squeeze else z
+
+
+class MLP(nn.Module):
+  """A simple MLP model of a potential used in default initialization."""
+
+  dim_hidden: Sequence[int]
+  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.elu
+
+  @nn.compact
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+    """Apply MLP transform."""
+    for feat in self.dim_hidden[:-1]:
+      x = self.act_fn(nn.Dense(feat)(x))
+    return nn.Dense(self.dim_hidden[-1])(x)
