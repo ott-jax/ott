@@ -23,7 +23,7 @@ from ott.neural.networks.layers import posdef
 
 __all__ = ["ICNN"]
 
-DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.normal()(*a, **k)
+DEFAULT_KERNEL_INIT = posdef.DEFAULT_KERNEL_INIT
 DEFAULT_RECTIFIER = nn.activation.relu
 DEFAULT_ACTIVATION = nn.activation.relu
 
