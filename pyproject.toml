@@ -96,7 +96,7 @@ include-package-data = true
 
 [tool.black]
 line-length = 80
-target-version = ["py38"]
+target-version = ["py39"]
 include = '\.ipynb$'
 
 [tool.isort]
@@ -273,7 +273,7 @@ exclude = [
     "dist"
 ]
 line-length = 80
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
 ignore = [
