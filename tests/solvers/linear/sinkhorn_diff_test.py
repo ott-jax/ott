@@ -363,12 +363,10 @@ class TestSinkhornJacobian:
         mode (False) is tested with looser convergence settings.
       tau_a: loosen up 1st marginal constraint when <1.0
       tau_b: loosen up 2nd marginal constraint when <1.0
-      shape: size for point clouds n, m.
       arg: test jacobian w.r.t. either weight vectors a or locations x
       axis: test the jacobian of the application of the (right) application of
         transport to arbitrary vec (axis=0) or the left (axis=1).
     """
-    _ = pytest.importorskip("lineax")  # only tested using lineax
     n, m = (27, 13)
     dim = 4
     rngs = jax.random.split(rng, 9)
@@ -467,7 +465,6 @@ class TestSinkhornJacobian:
       shape: Tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
-    _ = pytest.importorskip("lineax")  # only tested using lineax
     atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
     rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
@@ -647,7 +644,6 @@ class TestSinkhornJacobianPreconditioning:
       shape: Tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential works across 2 precond_fun."""
-    _ = pytest.importorskip("lineax")  # only tested using lineax
     atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
     rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
