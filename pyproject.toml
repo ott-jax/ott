@@ -273,7 +273,7 @@ exclude = [
     "dist"
 ]
 line-length = 80
-target-version = "py39"
+target-version = "py38"  # TODO(michalk8): use py39 and fix the type hints
 
 [tool.ruff.lint]
 ignore = [
