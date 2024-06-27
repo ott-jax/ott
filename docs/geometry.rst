@@ -60,17 +60,28 @@ Cost Functions
     costs.SqPNorm
     costs.PNormP
     costs.SqEuclidean
+    costs.RegTICost
     costs.Euclidean
     costs.Cosine
     costs.Arccos
     costs.Bures
     costs.UnbalancedBures
-    costs.ElasticL1
-    costs.ElasticL2
-    costs.ElasticSTVS
-    costs.ElasticSqKOverlap
     costs.SoftDTW
     distrib_costs.UnivariateWasserstein
+
+Regularizers
+------------
+.. autosummary::
+    :toctree: _autosummary
+
+    regularizers.ProximalOperator
+    regularizers.Regularization
+    regularizers.Orthogonal
+    regularizers.Quadratic
+    regularizers.L1
+    regularizers.L2
+    regularizers.STVS
+    regularizers.SqKOverlap
 
 Utilities
 ---------

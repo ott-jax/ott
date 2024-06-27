@@ -95,6 +95,17 @@ myst_enable_extensions = [
     "dollarmath",
 ]
 
+# mathjax
+mathjax3_config = {
+    "tex": {
+        "macros": {
+            "prox": r"\mathrm{prox}",
+            "min": r"\mathrm{min}",
+            "argmin": r"\mathrm{argmin}",
+        }
+    }
+}
+
 # bibliography
 bibtex_bibfiles = ["references.bib"]
 bibtex_reference_style = "author_year"

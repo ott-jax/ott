@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Type
 
 import pytest
@@ -19,7 +20,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, regularizers
 from ott.math import utils as mu
 from ott.solvers import linear
 
@@ -140,30 +141,33 @@ class TestTIRegCost:
           costs.SqEuclidean()
       ]
   )
-  def test_h_legendre(self, rng: jax.Array, cost_fn: costs.TICost):
+  def test_h_transform(self, rng: jax.Array, cost_fn: costs.TICost):
     x = jax.random.normal(rng, (15, 3))
     h_transform = cost_fn.h_transform(mu.logsumexp)
     h_transform = jax.jit(jax.vmap(jax.grad(h_transform)))
 
     np.testing.assert_array_equal(jnp.isfinite(h_transform(x)), True)
 
-  @pytest.mark.parametrize("ridge", [1e-12, 1e-6])
-  def test_h_legendre_sqeucl(self, rng: jax.Array, ridge: float):
-    n, d = 12, 4
+  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
+  @pytest.mark.parametrize("d", [5, 10])
+  def test_h_transform_matches_unreg(
+      self, rng: jax.Array, cost_fn: costs.TICost, d: int
+  ):
+    n = 13
     rngs = jax.random.split(rng, 2)
     u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
     x = jax.random.normal(rngs[1], (n, d))
 
-    sqeucl = costs.SqEuclidean()
-    el_l2 = costs.ElasticL2(scaling_reg=0.0)
+    gt_cost = costs.RegTICost(regularizers.L2(lam=0.0))
+    concave_gt = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
 
-    h_concave = lambda z: 0.5 * (-sqeucl.h(z) + jnp.dot(z, u))
-    h_concave_half = lambda z: -sqeucl.h(z) + jnp.dot(z, u)
+    if isinstance(cost_fn, costs.PNormP):
+      concave = concave_gt
+    else:
+      concave = lambda z: 0.5 * (-cost_fn.h(z) + jnp.dot(z, u))
 
-    pred = jax.jit(
-        jax.vmap(jax.grad(sqeucl.h_transform(h_concave, ridge=ridge)))
-    )
-    gt = jax.jit(jax.vmap(jax.grad(el_l2.h_transform(h_concave_half))))
+    pred = jax.jit(jax.vmap(jax.grad(cost_fn.h_transform(concave, ridge=1e-6))))
+    gt = jax.jit(jax.vmap(jax.grad(gt_cost.h_transform(concave_gt))))
 
     np.testing.assert_allclose(pred(x), gt(x), rtol=1e-5, atol=1e-5)
 
@@ -171,71 +175,63 @@ class TestTIRegCost:
 @pytest.mark.fast()
 class TestRegTICost:
 
-  @pytest.mark.parametrize("scaling_reg", [8.0, 13.0])
-  @pytest.mark.parametrize("use_mat", [False, True], ids=["nomat", "mat"])
+  @pytest.mark.parametrize("lam", [8.0, 13.0])
+  @pytest.mark.parametrize("d", [5, 31, 77])
   @pytest.mark.parametrize(
-      "cost_fn_t", [
-          costs.ElasticL1,
-          costs.ElasticL2,
-          costs.ElasticSTVS,
+      "reg_t", [
+          regularizers.L1,
+          regularizers.L2,
+          regularizers.STVS,
       ]
   )
-  def test_reg_cost_legendre(
+  def test_reg_legendre(
       self,
       rng: jax.Array,
-      scaling_reg: float,
-      cost_fn_t: Type[costs.RegTICost],
-      use_mat: bool,
+      lam: float,
+      d: int,
+      reg_t: Type[regularizers.ProximalOperator],
   ):
-    for d in [5, 100]:
-      rng, rng1, rng_mat = jax.random.split(rng, 3)
-      if use_mat:
-        matrix = jnp.abs(jax.random.normal(rng_mat, (d // 4, d)))
-        matrix = _proj(matrix)
-      else:
-        matrix = None
-      cost_fn = cost_fn_t(matrix=matrix, scaling_reg=scaling_reg)
+    reg = reg_t(lam=lam)
+    cost_fn = costs.RegTICost(reg)
 
-      expected = jax.random.normal(rng1, (d,))
-      actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
-      np.testing.assert_allclose(
-          actual, expected, rtol=1e-4, atol=1e-4, err_msg=f"d={d}"
-      )
-
-  @pytest.mark.parametrize("k", [1, 3, 10])
-  @pytest.mark.parametrize("d", [10, 50])
-  def test_elastic_sq_k_overlap(self, rng: jax.Array, k: int, d: int):
     expected = jax.random.normal(rng, (d,))
-
-    cost_fn = costs.ElasticSqKOverlap(k=k, scaling_reg=1e-2)
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
-    # should hold for small scaling_reg
-    assert np.corrcoef(expected, actual)[0][1] > 0.97
+    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize(
-      "cost_fn", [
-          costs.ElasticL1(scaling_reg=113),
-          costs.ElasticSTVS(scaling_reg=12),
-          costs.ElasticSqKOverlap(k=3, scaling_reg=17)
+      "reg", [
+          regularizers.L1(113),
+          regularizers.STVS(12),
+          regularizers.SqKOverlap(k=3, lam=17),
       ]
   )
-  def test_sparse_displacement(self, rng: jax.Array, cost_fn: costs.RegTICost):
-    frac_sparse = 0.7
+  def test_sparse_displacement(
+      self, rng: jax.Array, reg: regularizers.ProximalOperator
+  ):
     rng1, rng2 = jax.random.split(rng, 2)
     d = 17
+
     x = jax.random.normal(rng1, (25, d))
     y = jax.random.normal(rng2, (37, d))
+    cost_fn = costs.RegTICost(reg)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
     dp = linear.solve(geom).to_dual_potentials()
 
     for arr, fwd in zip([x, y], [True, False]):
       arr_t = dp.transport(arr, forward=fwd)
-      assert np.sum(np.isclose(arr, arr_t)) / arr.size > frac_sparse
+      assert np.mean(np.isclose(arr, arr_t)) > 0.6
 
-  @pytest.mark.parametrize("cost_type_t", [costs.ElasticL1, costs.ElasticSTVS])
+  @pytest.mark.parametrize(
+      "reg_t", [
+          regularizers.L1, regularizers.STVS,
+          functools.partial(regularizers.SqKOverlap, k=10)
+      ]
+  )
   def test_stronger_regularization_increases_sparsity(
-      self, rng: jax.Array, cost_type_t: Type[costs.RegTICost]
+      self,
+      rng: jax.Array,
+      reg_t: Type[regularizers.ProximalOperator],
   ):
     d, rngs = 17, jax.random.split(rng, 4)
     x = jax.random.normal(rngs[0], (50, d))
@@ -244,8 +240,9 @@ class TestRegTICost:
     yy = jax.random.normal(rngs[3], (35, d))
 
     sparsity = {False: [], True: []}
-    for scaling_reg in [9, 89]:
-      cost_fn = cost_type_t(scaling_reg=scaling_reg)
+    for lam in [9, 89]:
+      reg = reg_t(lam=lam)
+      cost_fn = costs.RegTICost(reg)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
       dp = linear.solve(geom).to_dual_potentials()
@@ -255,29 +252,6 @@ class TestRegTICost:
 
     for fwd in [False, True]:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
-
-  @pytest.mark.parametrize("d", [5, 10])
-  def test_h_legendre_elastic_l2(self, rng: jax.Array, d: int):
-    n, d = 13, d
-    rngs = jax.random.split(rng, 2)
-    x = jax.random.normal(rngs[0], (n, d))
-    u = jax.random.normal(rngs[1], (d,))
-
-    elastic_l2 = costs.ElasticL2(scaling_reg=0.0)
-    p_norm_p = costs.PNormP(p=2)
-
-    concave_fn = lambda z: -elastic_l2.h(z) + jnp.dot(z, u)
-
-    p_grad_h = jax.jit(
-        jax.vmap(jax.grad(p_norm_p.h_transform(concave_fn, tol=1e-5)))
-    )
-    elastic_grad_h = jax.vmap(
-        jax.grad(elastic_l2.h_transform(concave_fn, tol=1e-5))
-    )
-
-    np.testing.assert_allclose(
-        elastic_grad_h(x), p_grad_h(x), rtol=1e-4, atol=1e-4
-    )
 
 
 @pytest.mark.skipif(ts_metrics is None, reason="Not supported for Python 3.11")

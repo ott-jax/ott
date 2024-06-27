@@ -14,6 +14,8 @@
 import sys
 from typing import Type
 
+import lineax as lx
+
 import pytest
 
 import jax
@@ -22,7 +24,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, regularizers
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
@@ -282,14 +284,19 @@ class TestEntropicPotentials:
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
 
   @pytest.mark.skipif(sys.version_info < (3, 9), reason="Old JAX version.")
-  @pytest.mark.parametrize("cost_type", [costs.ElasticL1, costs.ElasticL2])
+  @pytest.mark.parametrize("reg_t", [regularizers.L1, regularizers.L2])
   def test_potentials_diff_param_costs(
-      self, rng: jax.Array, cost_type: Type[costs.RegTICost]
+      self, rng: jax.Array, reg_t: Type[regularizers.ProximalOperator]
   ):
 
     def proj(matrix: jnp.ndarray) -> jnp.ndarray:
       u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
       return u.dot(v_h)
+
+    def create_cost(mat: jnp.ndarray) -> costs.RegTICost:
+      reg = reg_t(lam=1.0)
+      reg = regularizers.Orthogonal(reg, A=lx.MatrixLinearOperator(mat))
+      return costs.RegTICost(reg)
 
     def perturb_cost(
         cost: costs.RegTICost, pert: jnp.ndarray
@@ -317,17 +324,20 @@ class TestEntropicPotentials:
     y_te = jax.random.normal(rngs[3], (n, d))
 
     mat = proj(jax.random.normal(rngs[4], (d_proj, d)))
-    cost_fn = cost_type(scaling_reg=1.0, matrix=mat)
+
+    cost_fn = create_cost(mat)
 
     delta = jax.random.uniform(rngs[5], shape=mat.shape)
 
-    cost_plus_delta = perturb_cost(cost_fn, eps * delta)
-    cost_minus_delta = perturb_cost(cost_fn, -eps * delta)
+    cost_fn_p_delta = create_cost(mat + eps * delta)
+    cost_fn_m_delta = create_cost(mat - eps * delta)
 
-    loss_plus_delta = loss(cost_plus_delta)
-    loss_minus_delta = loss(cost_minus_delta)
-    expected = (loss_plus_delta - loss_minus_delta) / (2.0 * eps)
+    loss_p_delta = loss(cost_fn_p_delta)
+    loss_m_delta = loss(cost_fn_m_delta)
+    expected = (loss_p_delta - loss_m_delta) / (2.0 * eps)
 
-    grad_cost = jax.jit(jax.grad(loss))(cost_fn)
-    actual = jnp.vdot(delta, grad_cost.matrix)
-    np.testing.assert_allclose(expected, actual, rtol=1e-2, atol=1e-2)
+    grad_matrix = jax.jit(jax.grad(loss))(cost_fn)
+    grad_matrix = grad_matrix.regularizer.A.as_matrix()
+    np.testing.assert_allclose(
+        expected, jnp.vdot(delta, grad_matrix), rtol=1e-2, atol=1e-2
+    )

@@ -18,9 +18,11 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import jaxopt
 import numpy as np
 
+from ott.geometry import regularizers
 from ott.math import fixed_point_loop, matrix_square_root
 from ott.math import utils as mu
 
@@ -29,19 +31,16 @@ __all__ = [
     "SqPNorm",
     "Euclidean",
     "SqEuclidean",
+    "RegTICost",
     "Cosine",
     "Arccos",
-    "ElasticL1",
-    "ElasticL2",
-    "ElasticSTVS",
-    "ElasticSqKOverlap",
     "Bures",
     "UnbalancedBures",
     "SoftDTW",
 ]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class CostFn(abc.ABC):
   """Base class for all costs.
 
@@ -168,7 +167,7 @@ class CostFn(abc.ABC):
     return cls(*children)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class TICost(CostFn):
   """Base class for translation invariant (TI) costs.
 
@@ -259,7 +258,7 @@ class TICost(CostFn):
     return jnp.average(xs, weights=weights, axis=0), None
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class SqPNorm(TICost):
   r"""Squared p-norm of the difference of two vectors.
 
@@ -294,9 +293,9 @@ class SqPNorm(TICost):
     return cls(*aux_data)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class PNormP(TICost):
-  r"""p-norm to the power p (and divided by p) of the difference of two vectors.
+  r"""P-norm to the power p (and divided by p) of the difference of two vectors.
 
   Uses custom implementation of `norm` to avoid `NaN` values when
   differentiating the norm of `x-x`.
@@ -327,7 +326,100 @@ class PNormP(TICost):
     return cls(*aux_data)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
+class RegTICost(TICost):
+  r"""Regularized translation-invariant cost.
+
+  .. math:
+    \frac{\rho}{2}\|\cdot\|_2^2 + \text{regularizer}(\cdot)
+
+  Args:
+    regularizer: Regularizer function.
+    rho: Scaling factor.
+  """
+
+  def __init__(
+      self, regularizer: regularizers.ProximalOperator, rho: float = 1.0
+  ):
+    self.regularizer = regularizer
+    self.rho = rho
+    self._h = regularizers.Regularization(
+        regularizer,
+        a=None,
+        rho=rho,
+    )
+
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+    return self._h(z)
+
+  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
+
+    @jax.custom_vjp
+    def fn(z: jnp.ndarray) -> float:
+      out, _ = fwd(z)
+      return out
+
+    def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
+      q = self.regularizer.prox(z)
+      return jnp.dot(q, z) - self.h(q), q
+
+    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:
+      return jnp.dot(g, q),
+
+    fn.defvjp(fwd, bwd)
+    return fn(z)
+
+  def h_transform(self, f: Callable[[jnp.ndarray], float],
+                  **kwargs: Any) -> Callable[[jnp.ndarray], float]:
+    r"""Compute the h-transform of a concave function.
+
+    Return a callable :math:`f_h` defined as:
+
+    .. math::
+      f_h(x) = \min_y h(x - y) - f(y)
+
+    This is equivalent, up to a change of variables, :math:`z = x - y`, to
+    define
+
+    .. math::
+      \min_z h(z) - f(x - z). \\
+      \min_z h(z) + \tilde{f}(z, x).
+
+    where :math:`\tilde{f}(z, x) := -f(x - z)`.
+
+    This is solved using proximal gradient descent, which requires having
+    access to the prox of :math:`\text{scaling_h} \cdot h` and not only to that
+    of :meth:`h`. Given the properties of :meth:`h`, the prox is obtained by
+    rescaling the output of the prox of a suitable scaling.
+
+    Args:
+      f: Concave function.
+      kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
+
+    Returns:
+      The h-transform of ``f``.
+    """
+
+    def f_h(x: jnp.ndarray) -> float:
+      solver = jaxopt.ProximalGradient(
+          fun=lambda z, x: -f(x - z),
+          prox=lambda x, reg, tau: reg.prox(x, tau),
+      )
+      out = solver.run(x, self._h, x=x)
+      out = jax.lax.stop_gradient(out.params)
+      return self.h(out) - f(x - out)
+
+    return f_h
+
+  def tree_flatten(self):  # noqa: D102
+    return (self.regularizer, self.rho), {}
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    return cls(*children, **aux_data)
+
+
+@jtu.register_pytree_node_class
 class Euclidean(CostFn):
   """Euclidean distance.
 
@@ -347,7 +439,7 @@ class Euclidean(CostFn):
     return mu.norm(x - y)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class SqEuclidean(TICost):
   r"""Squared Euclidean distance.
 
@@ -374,7 +466,7 @@ class SqEuclidean(TICost):
     return jnp.average(xs, weights=weights, axis=0), None
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Cosine(CostFn):
   """Cosine distance cost function.
 
@@ -398,7 +490,7 @@ class Cosine(CostFn):
     return jnp.ones((1, dim))
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Arccos(CostFn):
   r"""Arc-cosine cost function :cite:`cho:09`.
 
@@ -464,380 +556,7 @@ class Arccos(CostFn):
     return cls(**aux_data)
 
 
-class RegTICost(TICost, abc.ABC):
-  r"""Base class for regularized translation-invariant costs.
-
-  .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} reg\left(matrix \cdot\right)
-
-  where :func:`reg` is the regularization function.
-
-  Args:
-    scaling_reg: Strength of the :meth:`regularization <reg>`.
-    matrix: :math:`p \times d` projection matrix in the Stiefel manifold,
-      namely with **orthonormalized rows**.
-    orthogonal: Whether to regularize in the orthogonal complement
-      to promote displacements in the span of ``matrix``.
-  """
-
-  def __init__(
-      self,
-      scaling_reg: float = 1.0,
-      matrix: Optional[jnp.ndarray] = None,
-      orthogonal: bool = False,
-  ):
-    super().__init__()
-    self.scaling_reg = scaling_reg
-    self.matrix = matrix
-    self.orthogonal = orthogonal
-
-  @abc.abstractmethod
-  def _reg(self, z: jnp.ndarray) -> float:
-    """Regularization function."""
-
-  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
-    raise NotImplementedError(
-        "Regularization in the orthogonal "
-        "subspace is not implemented."
-    )
-
-  def reg(self, z: jnp.ndarray) -> float:
-    """Regularization function.
-
-    Args:
-      z: Array of shape ``[d,]``.
-
-    Returns:
-      The regularization value.
-    """
-    if self.matrix is None:
-      return self._reg(z)
-    if self.orthogonal:
-      return self._reg_stiefel_orth(z)
-    return self._reg(self.matrix @ z)
-
-  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    """Proximal operator of :meth:`reg`.
-
-    Args:
-      z: Array of shape ``[d,]``.
-      tau: Positive weight.
-
-    Returns:
-      The prox of ``z``.
-    """
-    if self.matrix is None:
-      return self._prox_reg(z, tau)
-    if self.orthogonal:
-      # regularization in the orthogonal subspace
-      return self._prox_reg_stiefel_orth(z, tau)
-    return self._prox_reg_stiefel(z, tau)
-
-  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    raise NotImplementedError("Proximal operator is not implemented.")
-
-  def _prox_reg_stiefel_orth(
-      self, z: jnp.ndarray, tau: float = 1.0
-  ) -> jnp.ndarray:
-
-    def orth(x: jnp.ndarray) -> jnp.ndarray:
-      return x - self.matrix.T @ (self.matrix @ x)
-
-    # assumes `matrix` has orthogonal rows
-    tmp = orth(z)
-    return z - orth(tmp - self._prox_reg(tmp, tau))
-
-  def _prox_reg_stiefel(self, z: jnp.ndarray, tau: float) -> jnp.ndarray:
-    # assumes `matrix` has orthogonal rows
-    tmp = self.matrix @ z
-    return z - self.matrix.T @ (tmp - self._prox_reg(tmp, tau))
-
-  def prox_legendre_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    r"""Proximal operator of the Legendre transform of :meth:`reg`.
-
-    Uses Moreau's decomposition:
-
-    .. math::
-        x = \text{prox}_{\tau f} \left(x\right) +
-        \tau \text{prox}_{\frac{1}{\tau} f^*} \left(\frac{x}{\tau}\right)
-
-    Args:
-      z: Array of shape ``[d,]``.
-      tau: Positive weight.
-
-    Returns:
-      The prox of ``z``.
-    """
-    return z - tau * self.prox_reg(z / tau, 1.0 / tau)
-
-  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
-    out = 0.5 * jnp.sum(z ** 2)
-    return out + self.scaling_reg * self.reg(z)
-
-  def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
-
-    @jax.custom_vjp
-    def fn(z: jnp.ndarray) -> float:
-      out, _ = fwd(z)
-      return out
-
-    def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
-      q = self.prox_reg(z)
-      return jnp.dot(q, z) - self.h(q), q
-
-    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:
-      return jnp.dot(g, q),
-
-    fn.defvjp(fwd, bwd)
-    return fn(z)
-
-  def h_transform(self, f: Callable[[jnp.ndarray], float],
-                  **kwargs: Any) -> Callable[[jnp.ndarray], float]:
-    r"""Compute the h-transform of a concave function.
-
-    Return a callable :math:`f_h` defined as:
-
-    .. math::
-      f_h(x) = \min_y h(x - y) - f(y)
-
-    This is equivalent, up to a change of variables, :math:`z = x - y`, to
-    define
-
-    .. math::
-      \min_z h(z) - f(x - z). \\
-      \min_z h(z) + \tilde{f}(z, x).
-
-    where :math:`\tilde{f}(z, x) := -f(x - z)`.
-
-    This is solved using proximal gradient descent, which requires having
-    access to the prox of :math:`\text{scaling_h} \cdot h` and not only to that
-    of :meth:`h`. Given the properties of :meth:`h`, the prox is obtained by
-    rescaling the output of the prox of a suitable scaling of :meth:`prox_reg`.
-
-    Args:
-      f: Concave function.
-      kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
-
-    Returns:
-      The h-transform of ``f``.
-    """
-
-    def minus_f(z: jnp.ndarray, x: jnp.ndarray) -> float:
-      return -f(x - z)
-
-    def prox(
-        x: jnp.ndarray, scaling_reg: float, scaling_h: float
-    ) -> jnp.ndarray:
-      # https://web.stanford.edu/~boyd/papers/pdf/prox_algs.pdf 2.2.
-      tmp = 1.0 / (1.0 + scaling_h)
-      tau = scaling_reg * scaling_h * tmp
-      return self.prox_reg(x * tmp, tau)
-
-    def f_h(x: jnp.ndarray) -> float:
-      pg = jaxopt.ProximalGradient(fun=minus_f, prox=prox, **kwargs)
-      pg_run = pg.run(x, self.scaling_reg, x=x)
-      pg_sol = jax.lax.stop_gradient(pg_run.params)
-      return self.h(pg_sol) + minus_f(pg_sol, x)
-
-    return f_h
-
-  def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
-    """Output barycenter of vectors."""
-    return jnp.average(xs, weights=weights, axis=0), None
-
-  def tree_flatten(self):  # noqa: D102
-    return (self.scaling_reg, self.matrix), {"orthogonal": self.orthogonal}
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(*children, **aux_data)
-
-
-@jax.tree_util.register_pytree_node_class
-class ElasticL1(RegTICost):
-  r"""Cost inspired by elastic net :cite:`zou:05` regularization.
-
-  .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\text{matrix} \cdot\|_1
-
-  Args:
-    scaling_reg: Strength of the :meth:`regularization <reg>`.
-    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
-    orthogonal: Whether to regularize in the orthogonal complement
-      to promote displacements in the span of ``matrix``.
-  """
-
-  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return jnp.linalg.norm(z, ord=1)
-
-  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    return jnp.sign(z) * jax.nn.relu(jnp.abs(z) - tau * self.scaling_reg)
-
-
-@jax.tree_util.register_pytree_node_class
-class ElasticL2(RegTICost):
-  r"""Cost with L2 regularization.
-
-  .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg} \|\text{matrix} \cdot\|_2^2
-
-  Args:
-    scaling_reg: Strength of the :meth:`regularization <reg>`.
-    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
-    orthogonal: Whether to regularize in the orthogonal complement
-      to promote displacements in the span of ``matrix``.
-  """
-
-  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return 0.5 * jnp.sum(z ** 2)
-
-  def _reg_stiefel_orth(self, z: jnp.ndarray) -> float:
-    # Pythagorean identity
-    return self._reg(z) - self._reg(self.matrix @ z)
-
-  def _prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
-    return z / (1.0 + tau * self.scaling_reg)
-
-  def _prox_reg_stiefel_orth(
-      self, z: jnp.ndarray, tau: float = 1.0
-  ) -> jnp.ndarray:
-    out = z + tau * self.scaling_reg * self.matrix.T @ (self.matrix @ z)
-    return self._prox_reg(out, tau)
-
-
-@jax.tree_util.register_pytree_node_class
-class ElasticSTVS(RegTICost):
-  r"""Cost with soft thresholding operator with vanishing shrinkage (STVS)
-  :cite:`schreck:15` regularization.
-
-  .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \text{scaling_reg}^2\mathbf{1}_d^T\left(\sigma(\cdot) -
-    \frac{1}{2} \exp\left(-2\sigma(\cdot)\right) + \frac{1}{2}\right)
-
-  where :math:`\sigma(\cdot) := \text{asinh}\left(\frac{\cdot}
-  {2\text{scaling_reg}}\right)`
-
-  Args:
-    scaling_reg: Strength of the :meth:`regularization <reg>`.
-    matrix: :math:`p \times d` projection matrix with **orthogonal rows**.
-    orthogonal: Whether to regularize in the orthogonal complement
-      to promote displacements in the span of ``matrix``.
-  """  # noqa: D205,E501
-
-  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    u = jnp.arcsinh(jnp.abs(z) / (2 * self.scaling_reg))
-    out = u - 0.5 * jnp.exp(-2.0 * u)
-    # Lemma 2.1 of `schreck:15`;
-    # don't use `self.scaling_reg ** 2` because it's included in `h`
-    return self.scaling_reg * jnp.sum(out + 0.5)  # make positive
-
-  def _prox_reg(  # noqa: D102
-      self, z: jnp.ndarray, tau: float = 1.0
-  ) -> jnp.ndarray:
-    tmp = 1.0 - (self.scaling_reg * tau / (jnp.abs(z) + 1e-12)) ** 2
-    return jax.nn.relu(tmp) * z
-
-
-@jax.tree_util.register_pytree_node_class
-class ElasticSqKOverlap(RegTICost):
-  r"""Cost with squared k-overlap norm regularization :cite:`argyriou:12`.
-
-  .. math::
-    \frac{1}{2} \|\cdot\|_2^2 + \frac{1}{2} \text{scaling_reg} \|\cdot\|_{ovk}^2
-
-  where :math:`\|\cdot\|_{ovk}^2` is the squared k-overlap norm,
-  see def. 2.1 of :cite:`argyriou:12`.
-
-  Args:
-    k: Number of groups. Must be in ``[0, d)`` where :math:`d` is the
-      dimensionality of the data.
-    args: Positional arguments for :class:`~ott.geometry.costs.RegTICost`.
-    kwargs: Keyword arguments for :class:`~ott.geometry.costs.RegTICost`.
-  """
-
-  def __init__(self, k: int, *args, **kwargs: Any):
-    super().__init__(*args, **kwargs)
-    self.k = k
-
-  def _reg(self, z: jnp.ndarray) -> float:  # noqa: D102
-    # Prop 2.1 in :cite:`argyriou:12`
-    k = self.k
-    top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
-    top_w = jnp.flip(top_w)  # Sort k-largest from smallest to largest
-    # sum (dim - k) smallest values
-    sum_bottom = jnp.sum(jnp.abs(z)) - jnp.sum(top_w)
-    cumsum_top = jnp.cumsum(top_w)
-    # Cesaro mean of top_w (each term offset with sum_bottom).
-    cesaro = sum_bottom + cumsum_top
-    cesaro /= jnp.arange(k) + 1
-    # Choose first index satisfying constraint in Prop 2.1
-    lower_bound = cesaro - top_w >= 0
-    # Last upper bound is always True.
-    upper_bound = jnp.concatenate(((top_w[1:] - cesaro[:-1]
-                                    > 0), jnp.array((True,))))
-    r = jnp.argmax(lower_bound * upper_bound)
-    s = jnp.sum(jnp.where(jnp.arange(k) < k - r - 1, jnp.flip(top_w) ** 2, 0))
-
-    return 0.5 * (s + (r + 1) * cesaro[r] ** 2)
-
-  def prox_reg(self, z: jnp.ndarray, tau: float = 1.0) -> float:  # noqa: D102
-
-    @functools.partial(jax.vmap, in_axes=[0, None, None])
-    def find_indices(r: int, l: jnp.ndarray,
-                     z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-
-      @functools.partial(jax.vmap, in_axes=[None, 0, None])
-      def inner(r: int, l: int,
-                z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        i = k - r - 1
-        res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
-        res /= l - k + (beta + 1) * r + beta + 1
-
-        cond1_left = jnp.logical_or(i == 0, (z[i - 1] / beta + 1) > res)
-        cond1_right = res >= (z[i] / (beta + 1))
-        cond1 = jnp.logical_and(cond1_left, cond1_right)
-
-        cond2_left = z[l - 1] > res
-        cond2_right = jnp.logical_or(l == d, res >= z[l])
-        cond2 = jnp.logical_and(cond2_left, cond2_right)
-
-        return res, cond1 & cond2
-
-      return inner(r, l, z)
-
-    del tau  # this case is not handled and currently not needed
-    # Alg. 1 of :cite:`argyriou:12`
-    k, d, beta = self.k, z.shape[-1], 1.0 / self.scaling_reg
-
-    ixs = jnp.arange(d)
-    z, sgn = jnp.abs(z), jnp.sign(z)
-    z_ixs = jnp.argsort(z)[::-1]
-    z_sorted = z[z_ixs]
-
-    # (k, d - k + 1)
-    T, mask = find_indices(jnp.arange(k), jnp.arange(k, d + 1), z_sorted)
-    (r,), (l,) = jnp.where(mask, size=1)  # size=1 for jitting
-    T = T[r, l]
-
-    q1 = (beta / (beta + 1)) * z_sorted * (ixs < (k - r - 1))
-    q2 = (z_sorted - T) * jnp.logical_and((k - r - 1) <= ixs, ixs < (l + k))
-    q = q1 + q2
-
-    # change sign and reorder
-    return sgn * q[jnp.argsort(z_ixs.astype(float))]
-
-  def tree_flatten(self):  # noqa: D102
-    children, aux_data = super().tree_flatten()
-    return children, (self.k, aux_data)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    k, aux_data = aux_data
-    return cls(k, *children, **aux_data)
-
-
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Bures(CostFn):
   """Bures distance between a pair of (mean, covariance matrix).
 
@@ -1014,7 +733,7 @@ class Bures(CostFn):
     return cls(*aux_data)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class UnbalancedBures(CostFn):
   """Unbalanced Bures distance between two triplets of `(mass, mean, cov)`.
 
@@ -1127,7 +846,7 @@ class UnbalancedBures(CostFn):
     return cls(dim, sigma=sigma, gamma=gamma, **kwargs)
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class SoftDTW(CostFn):
   """Soft dynamic time warping (DTW) cost :cite:`cuturi:17`.
 
