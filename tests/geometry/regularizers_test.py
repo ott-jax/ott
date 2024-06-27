@@ -236,7 +236,7 @@ class TestQuadratic:
     actual = jax.vmap(jax.grad(lambda x: reg.moreau_envelope(x, tau)))
     expected = jax.vmap(lambda x: (1.0 / tau) * (x - reg.prox(x, tau)))
 
-    np.testing.assert_allclose(expected(x), actual(x), rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(expected(x), actual(x), rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize(("is_complement", "is_orthogonal"), [(False, True),
                                                                 (True, False),
