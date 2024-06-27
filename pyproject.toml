@@ -74,8 +74,7 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0",
     "tqdm",
-    # tslearn needs numba, which isn't supported for 3.12
-    "tslearn>=0.5; python_version < '3.12'",
+    "tslearn>=0.5",
     "matplotlib",
 ]
 docs = [
