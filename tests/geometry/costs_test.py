@@ -19,15 +19,11 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
 from ott.math import utils as mu
 from ott.solvers import linear
-
-try:
-  from tslearn import metrics as ts_metrics
-except ImportError:
-  ts_metrics = None
 
 
 def _proj(matrix: jnp.ndarray) -> jnp.ndarray:
@@ -254,7 +250,6 @@ class TestRegTICost:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
 
 
-@pytest.mark.skipif(ts_metrics is None, reason="Not supported for Python 3.11")
 @pytest.mark.fast()
 class TestSoftDTW:
 

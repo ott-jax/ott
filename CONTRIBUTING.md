@@ -24,7 +24,6 @@ In order to run tests, we utilize [tox](https://tox.wiki/):
 ```shell
 tox run  # run linter and all tests on all available Python versions
 tox run -- -n auto -m fast  # run linter and fast tests in parallel
-tox -e py3.8  # run all tests on Python3.8
 tox -e py3.9 -- -k "test_euclidean_point_cloud"  # run tests matching the expression on Python3.9
 tox -e py3.10 -- --memray  # test also memory on Python3.10
 ```
