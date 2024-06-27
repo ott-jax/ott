@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ott-jax"
 description = "Optimal Transport Tools in JAX."
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
@@ -15,7 +15,7 @@ authors = [
 dependencies = [
     "jax>=0.4.0",
     "jaxopt>=0.8",
-    "lineax>=0.0.1; python_version >= '3.9'",
+    "lineax>=0.0.5",
     "numpy>=1.20.0",
 ]
 keywords = [
@@ -42,7 +42,6 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -75,9 +74,7 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0",
     "tqdm",
-    # tslearn needs numba, which isn't supported for 3.12
-    "tslearn>=0.5; python_version < '3.12'",
-    "lineax; python_version >= '3.9'",
+    "tslearn>=0.5",
     "matplotlib",
 ]
 docs = [
@@ -98,7 +95,7 @@ include-package-data = true
 
 [tool.black]
 line-length = 80
-target-version = ["py38"]
+target-version = ["py39"]
 include = '\.ipynb$'
 
 [tool.isort]
@@ -115,7 +112,6 @@ known_plotting = ["IPython", "matplotlib", "mpl_toolkits", "seaborn"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = '-m "not notebook"'
 testpaths = [
     "tests",
 ]
@@ -188,7 +184,7 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 legacy_tox_ini = """
 [tox]
 min_version = 4.0
-env_list = lint-code,py{3.8,3.9,3.10,3.11,3.12},py3.9-jax-default
+env_list = lint-code,py{3.9,3.10,3.11,3.12},py3.9-jax-default
 skip_missing_interpreters = true
 
 [testenv]
@@ -207,7 +203,7 @@ commands =
 
 [testenv:lint-code]
 description = Lint the code.
-deps = pre-commit>=2.16.0
+deps = pre-commit>=3.0.0
 skip_install = true
 commands =
     pre-commit run --all-files --show-diff-on-failure
@@ -276,7 +272,7 @@ exclude = [
     "dist"
 ]
 line-length = 80
-target-version = "py38"
+target-version = "py38"  # TODO(michalk8): use py39 and fix the type hints
 
 [tool.ruff.lint]
 ignore = [

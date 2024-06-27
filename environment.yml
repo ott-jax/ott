@@ -1,7 +1,0 @@
-name: ott
-channels:
-- conda-forge
-dependencies:
-- python>=3.8
-- ott-jax>=0.4
-- matplotlib-base>=3.0.0
