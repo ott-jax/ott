@@ -169,11 +169,10 @@ class ExpectileNeuralDual:
   where :math:`\mathcal{L}_{\tau}` is the least asymmetrically weighted
   squares loss from expectile regression.
 
-  The potentials for ``neural_f`` and ``neural_g`` can
-
-  1. both provide the values of the potentials :math:`f` and :math:`g`, or
-  2. when parameter ``is_bidirectional`` is False ``neural_f`` provide
-  the gradient :math:`\nabla f` for mapping T.
+  The potentials for ``neural_f`` and ``neural_g`` can both provide the 
+  values of the potentials :math:`f` and :math:`g`, or when parameter 
+  ``is_bidirectional`` is False ``neural_f`` provide the gradient 
+  :math:`\nabla f` for mapping :math:`T`.
 
   Args:
     dim_data: Input dimensionality of data required for network init.
