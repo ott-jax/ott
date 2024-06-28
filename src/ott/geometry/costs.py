@@ -205,6 +205,7 @@ class TICost(CostFn):
   def h_transform(
       self,
       f: Callable[[jnp.ndarray], float],
+      x_init: Optional[jnp.ndarray] = None,
       ridge: float = 1e-8,
       **kwargs: Any
   ) -> Callable[[jnp.ndarray], float]:
@@ -226,6 +227,7 @@ class TICost(CostFn):
 
     Args:
       f: Concave function.
+      x_init: Initial estimate. If :obj:`None`, use ``x``.
       ridge: Regularizer to ensure strong convexity of the objective.
       kwargs: Keyword arguments for :class:`~jaxopt.LBFGS`.
 
@@ -238,9 +240,10 @@ class TICost(CostFn):
 
     def f_h(x: jnp.ndarray) -> float:
       solver = jaxopt.LBFGS(fun=fun, **kwargs)
-      solver = solver.run(x, x=x)
-      sol = jax.lax.stop_gradient(solver.params)
-      return fun(sol, x)
+      x0 = x if x_init is None else x_init
+      z = solver.run(x0, x=x).params
+      z = jax.lax.stop_gradient(z)
+      return fun(z, x)
 
     return f_h
 
@@ -369,8 +372,12 @@ class RegTICost(TICost):
     fn.defvjp(fwd, bwd)
     return fn(z)
 
-  def h_transform(self, f: Callable[[jnp.ndarray], float],
-                  **kwargs: Any) -> Callable[[jnp.ndarray], float]:
+  def h_transform(
+      self,
+      f: Callable[[jnp.ndarray], float],
+      x_init: Optional[jnp.ndarray] = None,
+      **kwargs: Any
+  ) -> Callable[[jnp.ndarray], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -394,6 +401,7 @@ class RegTICost(TICost):
 
     Args:
       f: Concave function.
+      x_init: Initial estimate. If :obj:`None`, use ``x``.
       kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
 
     Returns:
@@ -406,9 +414,10 @@ class RegTICost(TICost):
           prox=lambda x, reg, tau: reg.prox(x, tau),
           **kwargs,
       )
-      out = solver.run(x, self._h, x=x)
-      out = jax.lax.stop_gradient(out.params)
-      return self.h(out) - f(x - out)
+      x0 = x if x_init is None else x_init
+      z = solver.run(x0, self._h, x=x).params
+      z = jax.lax.stop_gradient(z)
+      return self.h(z) - f(x - z)
 
     return f_h
 
