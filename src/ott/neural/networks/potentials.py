@@ -23,7 +23,7 @@ from flax import struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
-__all__ = ["PotentialTrainState", "BasePotential", "PotentialMLP"]
+__all__ = ["PotentialTrainState", "BasePotential", "PotentialMLP", "MLP"]
 
 PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
 PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
@@ -147,7 +147,7 @@ class PotentialMLP(BasePotential):
   """Potential MLP.
 
   Args:
-    dim_hidden: sequence specifying size of hidden dimensions. The output
+    dim_hidden: Sequence specifying the size of hidden dimensions. The output
       dimension of the last layer is automatically set to 1 if
       :attr:`is_potential` is ``True``, or the dimension of the input otherwise.
     is_potential: Model the potential if ``True``, otherwise
@@ -186,7 +186,12 @@ class PotentialMLP(BasePotential):
 
 
 class MLP(nn.Module):
-  """A simple MLP model of a potential used in default initialization."""
+  """A simple MLP model of a potential used in default initialization.
+
+  Args:
+    dim_hidden: Sequence specifying the size of hidden dimensions.
+    act_fn: Activation function.
+  """
 
   dim_hidden: Sequence[int]
   act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.elu

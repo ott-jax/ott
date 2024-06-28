@@ -12,6 +12,7 @@ Networks
     velocity_field.VelocityField
     potentials.BasePotential
     potentials.PotentialMLP
+    potentials.MLP
     potentials.PotentialTrainState
 
 

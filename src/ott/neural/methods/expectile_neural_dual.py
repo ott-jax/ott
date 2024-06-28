@@ -44,7 +44,7 @@ Callback_t = Callable[[int, dual_potentials.DualPotentials], None]
 
 @jax.tree_util.register_pytree_node_class
 class ENOTPotentials(dual_potentials.DualPotentials):
-  """The dual potentials of ENOT method.
+  """The dual potentials of the ENOT method :cite:`buzun:24`.
 
   Args:
     grad_f: Gradient of the first dual potential function.
@@ -107,7 +107,7 @@ class PotentialModelWrapper(potentials.BasePotential):
 
   Args:
     model: Network architecture of the potential.
-    add_l2_norm: If `True``, l2 norm is added to the potential.
+    add_l2_norm: If :obj:`True`, l2 norm is added to the potential.
     is_potential: Model the potential if ``True``, otherwise
       model the gradient of the potential.
   """
@@ -169,10 +169,11 @@ class ExpectileNeuralDual:
   where :math:`\mathcal{L}_{\tau}` is the least asymmetrically weighted
   squares loss from expectile regression.
 
-  The potentials for ``neural_f`` and ``neural_g`` can both provide the 
-  values of the potentials :math:`f` and :math:`g`, or when parameter 
-  ``is_bidirectional`` is False ``neural_f`` provide the gradient 
-  :math:`\nabla f` for mapping :math:`T`.
+  The potentials for ``neural_f`` and ``neural_g`` can
+
+  1. both provide the values of the potentials :math:`f` and :math:`g`, or
+  2. when parameter ``is_bidirectional=False``, ``neural_f`` provides
+     the gradient :math:`\nabla f` for mapping :math:`T`.
 
   Args:
     dim_data: Input dimensionality of data required for network init.
