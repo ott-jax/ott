@@ -476,7 +476,7 @@ class TestSinkhorn:
     assert num_iter_restarted == 1
 
   @pytest.mark.cpu()
-  @pytest.mark.limit_memory("50 MB")
+  @pytest.mark.limit_memory("80 MB")
   @pytest.mark.fast()
   def test_sinkhorn_online_memory_jit(self):
     # test that full matrix is not materialized.

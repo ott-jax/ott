@@ -26,7 +26,7 @@ __all__ = ["third_lower_bound"]
 
 def third_lower_bound(
     prob: quadratic_problem.QuadraticProblem,
-    distrib_cost: Optional["distrib_costs.UnivariateWasserstein"] = None,
+    distrib_cost: "distrib_costs.UnivariateWasserstein",
     epsilon: Optional[float] = None,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
@@ -44,11 +44,6 @@ def third_lower_bound(
     An approximation of the GW coupling that can be used to initialize
     the solution of the quadratic OT problem.
   """
-  from ott.geometry import distrib_costs
-
-  if distrib_cost is None:
-    distrib_cost = distrib_costs.UnivariateWasserstein()
-
   dists_xx = prob.geom_xx.cost_matrix
   dists_yy = prob.geom_yy.cost_matrix
   geom_xy = pointcloud.PointCloud(

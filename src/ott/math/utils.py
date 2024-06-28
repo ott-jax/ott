@@ -182,7 +182,9 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
 def softmin(
-    x: jnp.ndarray, gamma: float, axis: Optional[int] = None
+    x: jnp.ndarray,
+    gamma: float,
+    axis: Optional[Union[int, Sequence[int]]] = None
 ) -> jnp.ndarray:
   r"""Soft-min operator.
 

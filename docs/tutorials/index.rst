@@ -18,6 +18,7 @@ Linear Optimal Transport
     OTT_&_POT
     Hessians
     LRSinkhorn
+    mmsink
     sinkhorn_divergence_gradient_flow
     sparse_monge_displacements
 

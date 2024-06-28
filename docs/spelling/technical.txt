@@ -90,6 +90,7 @@ linearized
 logit
 macOS
 methylation
+multimarginal
 neuroimaging
 normed
 numerics
@@ -102,6 +103,7 @@ parameterization
 parameterizing
 piecewise
 pluripotent
+polymatching
 polynomials
 positivity
 postfix

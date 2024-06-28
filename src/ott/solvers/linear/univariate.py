@@ -11,336 +11,318 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Optional, Tuple, Union
+import functools
+from typing import NamedTuple, Optional, Tuple
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
-from ott import utils
-from ott.geometry import costs, pointcloud
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
 __all__ = [
-    "UnivariateOutput", "UnivariateSolver", "uniform_distance",
-    "quantile_distance"
+    "UnivariateOutput",
+    "uniform_solver",
+    "quantile_solver",
+    "north_west_solver",
 ]
 
-Distance_t = Tuple[float, Optional[jnp.ndarray], Optional[jnp.ndarray]]
 
-
-class UnivariateOutput(NamedTuple):  # noqa: D101
-  """Output of the :class:`~ott.solvers.linear.UnivariateSolver`.
-
-  Objects of this class contain both solutions and problem definition of a
-  univariate OT problem.
+class UnivariateOutput(NamedTuple):
+  r"""Output of the univariate solver.
 
   Args:
-    prob: OT problem between 2 weighted ``[n, d]`` and ``[m, d]`` point clouds.
-    ot_costs: ``[d,]`` optimal transport cost values, computed independently
-      along each of the ``d`` slices.
-    paired_indices: ``None`` if no transport was computed / recorded (e.g. when
-      using quantiles or subsampling approximations). Otherwise, output a tensor
-      of shape ``[d, 2, m+n]``, of ``m+n`` pairs of indices, for which the
-      optimal transport assigns mass, on each slice of the ``d`` slices
-      described in the dataset. Namely, for each index ``0<=k<m+n``, ``0<=s<d``,
-      if one has ``i:=paired_indices[s,0,k]`` and ``j:=paired_indices[s,1,k]``,
-      then point ``i`` in the first point cloud sends mass to point ``j`` in the
-      second, in slice ``s``.
-    mass_paired_indices: ``[d, m+n]`` array of weights. Using notation above, if
-      ``0<=k<m+n``, and ``0<=s<d``  then writing ``i:=paired_indices[s,0,k]``
-      and ``j=paired_indices[s,1,k]``, point ``i`` sends
-      ``mass_paired_indices[s,k]`` to point ``j``.
+    prob: Linear problem between two weighted ``[n, d]`` and ``[m, d]``
+      point clouds.
+    ot_costs: Array of shape ``[d,]`` of OT costs, computed independently along
+      each of the :math:`d` slices.
+    paired_indices: Array of shape ``[d, 2, n + m]``, of :math:`n + m` pairs
+      of indices, for which the optimal transport assigns mass, on each slice
+      of the :math:`d` slices described in the dataset. Namely, for each index
+      :math:`0 <= k < n + m`, :math:`0 <= s < d`, if one has
+      :math:`i := \text{paired_indices}[s, 0, k]` and
+      :math:`j := \text{paired_indices}[s, 1, k]`, then point :math:`i` in
+      the first point cloud sends mass to point :math:`j` in the second,
+      in slice :math:`s`.
+    mass_paired_indices: ``[d, n + m]`` array of weights. Using the notation
+      above, if :math:`0 <= k < n + m`, and :math:`0 <= s < d`  then writing
+      :math:`i := \text{paired_indices}[s, 0, k]` and
+      :math:`j := \text{paired_indices}[s, 1, k]`, point :math:`i` sends
+      :math:`\text{mass_paired_indices}[s, k]` to point :math:`j`.
+    dual_a: Array of shape ``[n,]`` containing the first dual variable.
+    dual_b: Array of shape ``[m,]`` containing the second dual variable.
   """
   prob: linear_problem.LinearProblem
-  ot_costs: float
+  ot_costs: jnp.ndarray
   paired_indices: Optional[jnp.ndarray] = None
   mass_paired_indices: Optional[jnp.ndarray] = None
+  dual_a: Optional[jnp.ndarray] = None
+  dual_b: Optional[jnp.ndarray] = None
 
   @property
-  def transport_matrices(self) -> jnp.ndarray:
-    """Outputs a ``[d, n, m]`` tensor of all ``[n, m]`` transport matrices.
+  def transport_matrices(self) -> jesp.BCOO:
+    """Array of shape ``[d, n, m]`` containing all transport matrices.
 
-    This tensor will be extremely sparse, since it will have at most ``d(n+m)``
-    non-zero values, out of ``dnm`` total entries.
+    The matrices will be sparse, with at most :math:`n + m` entries
+    for each of the :math:`d` slices.
     """
-    assert self.paired_indices is not None, \
-      "[d, n, m] tensor of transports cannot be computed, likely because an" \
-      " approximate method was used (using either subsampling or quantiles)."
-
+    b = len(self.ot_costs)
     n, m = self.prob.geom.shape
-    if self.prob.is_equal_size and self.prob.is_uniform:
-      transport_matrices_from_indices = jax.vmap(
-          lambda idx, idy: jnp.eye(n)[idx, :][:, idy].T, in_axes=[0, 0]
-      )
-      return transport_matrices_from_indices(
-          self.paired_indices[:, 0, :], self.paired_indices[:, 1, :]
-      )
-
-    # raveled indexing of entries.
-    indices = self.paired_indices[:, 0] * m + self.paired_indices[:, 1]
-    # segment sum is needed to collect several contributions
-    return jax.vmap(
-        lambda idx, mass: jax.ops.segment_sum(
-            mass, idx, indices_are_sorted=True, num_segments=n * m
-        ).reshape(n, m),
-        in_axes=[0, 0]
-    )(indices, self.mass_paired_indices)
+    data = self.mass_paired_indices
+    indices = self.paired_indices.swapaxes(1, 2)
+    return jesp.BCOO((data, indices), shape=(b, n, m))
 
   @property
-  def mean_transport_matrix(self) -> jnp.ndarray:
-    """Return the mean transport matrix, averaged over slices."""
-    return jnp.mean(self.transport_matrices, axis=0)
+  def mean_transport_matrix(self) -> jesp.BCOO:
+    """Mean transport matrix, averaged over :math:`d` slices."""
+    sparse_mean = jesp.sparsify(jnp.mean)
+    return sparse_mean(self.transport_matrices, axis=0)
+
+  @property
+  def dual_costs(self) -> jnp.ndarray:
+    """Array of shape ``[d,]`` containing the dual costs."""
+    assert self.dual_a is not None, "Dual variables have not been computed."
+    dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
+    dual_obj += jnp.sum(self.dual_b * self.prob.b[None, :], axis=1)
+    return dual_obj
 
 
-@jax.tree_util.register_pytree_node_class
-class UnivariateSolver:
-  r"""Univariate solver to compute 1D OT distance over slices of data.
-
-  Computes 1-Dimensional optimal transport distance between two :math:`d`-
-  dimensional point clouds. The total distance is the sum of univariate
-  Wasserstein distances on the :math:`d` slices of data: given two weighted
-  point-clouds, stored as ``[n, d]`` and ``[m, d]`` in a
-  :class:`~ott.problems.linear.linear_problem.LinearProblem` object, with
-  respective weights ``a`` and ``b``, the solver
-  computes ``d`` OT distances between each of these ``[n, 1]`` and ``[m, 1]``
-  slices. The distance is computed using the analytical formula by default,
-  which involves sorting each of the slices independently. The optimal transport
-  matrices are also outputted when possible (described in sparse form, i.e.
-  pairs of indices and mass transferred between those indices).
-
-  When weights ``a`` and ``b`` are uniform, and ``n=m``, the computation only
-  involves comparing sorted entries per slice, and ``d`` assignments are given.
-
-  The user may also supply a ``num_subsamples`` parameter to extract as many
-  points from the original point cloud, sampled with probability masses ``a``
-  and ``b``. This then simply applied the method above to the subsamples, to
-  output ``d`` costs, but assignments are not provided.
-
-  When the problem is not uniform or not of equal size, the method defaults to
-  an inversion of the CDF, and outputs both costs and transport matrix in sparse
-  form.
-
-  When a ``quantiles`` argument is passed, either specifying explicit quantiles
-  or a grid of quantiles, the distance is evaluated by comparing the quantiles
-  of the two point clouds on each slice. The OT costs are returned but
-  assignments are not provided.
+def uniform_solver(
+    prob: linear_problem.LinearProblem,
+    return_transport: bool = False,
+) -> UnivariateOutput:
+  """Univariate solver between two equally sized and uniformly weighted distributions.
 
   Args:
-    num_subsamples: Option to reduce the size of inputs by doing random
-      subsampling, taking into account marginal probabilities.
-    quantiles: When a vector or several quantiles is passed, the distance
-      is computed by evaluating the cost function on the sectional (one for each
-      dimension) quantiles of the two point cloud distributions described in the
-      problem.
-  """
-
-  def __init__(
-      self,
-      num_subsamples: Optional[int] = None,
-      quantiles: Optional[Union[int, jnp.ndarray]] = None,
-  ):
-    self._quantiles = quantiles
-    self.num_subsamples = num_subsamples
-
-  @property
-  def quantiles(self) -> Optional[jnp.ndarray]:
-    """Quantiles' values used to evaluate OT cost."""
-    if self._quantiles is None:
-      return None
-    if isinstance(self._quantiles, int):
-      return jnp.linspace(0.0, 1.0, self._quantiles)
-    return self._quantiles
-
-  @property
-  def num_quantiles(self) -> int:
-    """Number of quantiles used to evaluate OT cost."""
-    return 0 if self.quantiles is None else self.quantiles.shape[0]
-
-  def __call__(
-      self,
-      prob: linear_problem.LinearProblem,
-      return_transport: bool = True,
-      rng: Optional[jax.Array] = None,
-  ) -> UnivariateOutput:
-    """Computes Univariate Distance between the ``d`` dimensional slices.
-
-    Args:
-      prob: Problem with a :attr:`~ott.problems.linear.LinearProblem.geom`
-        attribute, the two point clouds ``x`` and ``y``
-        (of respective sizes ``[n, d]`` and ``[m, d]``) and a ground
-        `TI cost <ott.geometry.costs.TICost>` between two scalars.
-        The ``[n,]`` and ``[m,]`` size probability weights vectors are stored
-        in attributes `:attr:`~ott.problems.linear.LinearProblem.a` and
-        :attr:`~ott.problems.linear.LinearProblem.b`.
-      return_transport: Whether to also return pairs of matched indices used to
-        compute optimal transport matrices.
-      rng: Used for random downsampling, if specified in the solver.
-
-    Returns:
-      An output object, that computes ``d`` OT costs, in addition to, possibly,
-      paired lists of indices and their corresponding masses, on each of the
-      ``d`` dimensional slices of the input.
-    """
-    geom = prob.geom
-    assert isinstance(geom, pointcloud.PointCloud), \
-      "Geometry object in problem must be a PointCloud."
-    assert isinstance(geom.cost_fn, costs.TICost), \
-      "Geometry's cost must be translation invariant."
-
-    rng = utils.default_prng_key(rng)
-
-    if self.num_subsamples:
-      x, y = self._subsample(prob, rng)
-      is_uniform_same_size = True
-    else:
-      # check if problem has the property uniform / same number of points
-      x, y = geom.x, geom.y
-      is_uniform_same_size = prob.is_uniform and prob.is_equal_size
-
-    if self.quantiles is not None:
-      assert prob.is_uniform, \
-        "The 'quantiles' method can only be used with uniform marginals."
-      out = _quant_dist(x, y, geom.cost_fn, self.quantiles, self.num_quantiles)
-    elif is_uniform_same_size:
-      return_transport = return_transport and not self.num_subsamples
-      out = uniform_distance(x, y, geom.cost_fn, return_transport)
-    else:
-      fn = jax.vmap(quantile_distance, in_axes=[1, 1, None, None, None, None])
-      out = fn(x, y, geom.cost_fn, prob.a, prob.b, return_transport)
-
-    return UnivariateOutput(prob, *out)
-
-  def _subsample(self, prob: linear_problem.LinearProblem,
-                 rng: jax.Array) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    n, m = prob.geom.shape
-    x, y = prob.geom.x, prob.geom.y
-
-    if prob.is_uniform:
-      x = x[jnp.linspace(0, n, num=self.num_subsamples).astype(int), :]
-      y = y[jnp.linspace(0, m, num=self.num_subsamples).astype(int), :]
-      return x, y
-
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.choice(rng1, x, (self.num_subsamples,), p=prob.a, axis=0)
-    y = jax.random.choice(rng2, y, (self.num_subsamples,), p=prob.b, axis=0)
-    return x, y
-
-  def tree_flatten(self):  # noqa: D102
-    return None, (self.num_subsamples, self._quantiles)
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    del children
-    return cls(*aux_data)
-
-
-def uniform_distance(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    cost_fn: costs.TICost,
-    return_transport: bool = True
-) -> Distance_t:
-  """Distance between two equal-size families of uniformly weighted values x/y.
-
-  Args:
-    x: Vector ``[n,]`` of real values.
-    y: Vector ``[n,]`` of real values.
-    cost_fn: Translation invariant cost function, i.e. ``c(x, y) = h(x - y)``.
-    return_transport: whether to return mapped pairs.
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[n, d]`` and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` sized probability weights are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
+    return_transport: Whether to also return the mapped pairs used to compute
+      the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    optimal transport cost, a list of ``n+m`` paired indices, and their
-    corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to 1.0
-  """
-  n = x.shape[0]
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
+  """  # noqa: E501
+  assert prob.is_equal_size, "Source and target have different sizes."
+  assert prob.is_uniform, "Source or target marginals are not uniform."
+
+  geom = prob.geom
+  n, _ = geom.shape
+  x, y, cost_fn = geom.x, geom.y, geom.cost_fn
+
   i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
   x = jnp.take_along_axis(x, i_x, axis=0)
   y = jnp.take_along_axis(y, i_y, axis=0)
-  ot_costs = jax.vmap(cost_fn.h, in_axes=[0])(x.T - y.T) / n
+  ot_costs = ((1.0 / n) * jax.vmap(cost_fn.h, in_axes=1)(x - y)).T
 
   if return_transport:
     paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
-    mass_paired_indices = jnp.ones((n,)) / n
-    return ot_costs, paired_indices, mass_paired_indices
+    mass_paired_indices = jnp.ones((len(ot_costs), n)) / n
+  else:
+    paired_indices = mass_paired_indices = None
 
-  return ot_costs, None, None
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=paired_indices,
+      mass_paired_indices=mass_paired_indices,
+  )
 
 
-def quantile_distance(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    cost_fn: costs.TICost,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
-    return_transport: bool = True,
-) -> Distance_t:
-  """Computes distance between quantile functions of distributions (a,x)/(b,y).
+def quantile_solver(
+    prob: linear_problem.LinearProblem,
+    return_transport: bool = False,
+) -> UnivariateOutput:
+  """Univariate solver between quantile functions of distributions.
 
   Args:
-    x: Vector ``[n,]`` of real values.
-    y: Vector ``[m,]`` of real values.
-    cost_fn: Translation invariant cost function, i.e. ``c(x, y) = h(x - y)``.
-    a: Vector ``[n,]`` of non-negative weights summing to 1.
-    b: Vector ``[m,]`` of non-negative weights summing to 1.
-    return_transport: whether to return mapped pairs.
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[m, d]`` and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
+    return_transport: Whether to also return the mapped pairs used to compute
+      the :attr:`~ott.solvers.linear.univariate.UnivariateOutput.transport_matrices`.
 
   Returns:
-    optimal transport cost, a list of ``n + m`` paired indices, and their
-    corresponding transport mass. Note that said mass can be null in some
-    entries, but sums to 1.0
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
 
   Notes:
-    Inspired by :func:`~scipy.stats.wasserstein_distance`,
+    This function was inspired by :func:`~scipy.stats.wasserstein_distance`,
     but can be used with other costs, not just :math:`c(x, y) = |x - y|`.
-  """
-  x, i_x = mu.sort_and_argsort(x, argsort=True)
-  y, i_y = mu.sort_and_argsort(y, argsort=True)
+  """  # noqa: E501
 
-  all_values = jnp.concatenate([x, y])
-  all_values_sorted, all_values_sorter = mu.sort_and_argsort(
-      all_values, argsort=True
+  @functools.partial(jax.vmap, in_axes=[1, 1])
+  def dist(x: jnp.ndarray, y: jnp.ndarray):
+    x, i_x = mu.sort_and_argsort(x, argsort=True)
+    y, i_y = mu.sort_and_argsort(y, argsort=True)
+
+    all_values = jnp.concatenate([x, y])
+    all_values_sorted, all_values_sorter = mu.sort_and_argsort(
+        all_values, argsort=True
+    )
+
+    x_pdf = jnp.concatenate([prob.a[i_x], jnp.zeros_like(prob.b)])
+    x_pdf = x_pdf[all_values_sorter]
+    y_pdf = jnp.concatenate([jnp.zeros_like(prob.a), prob.b[i_y]])
+    y_pdf = y_pdf[all_values_sorter]
+
+    x_cdf = jnp.cumsum(x_pdf)
+    y_cdf = jnp.cumsum(y_pdf)
+
+    x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
+    quantile_levels, _ = mu.sort_and_argsort(x_y_cdfs, argsort=False)
+
+    i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
+    x_cdf_inv = all_values_sorted[i_x_cdf_inv]
+    i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
+    y_cdf_inv = all_values_sorted[i_y_cdf_inv]
+
+    diff_q = jnp.diff(quantile_levels)
+    successive_costs = jax.vmap(prob.geom.cost_fn.h)(
+        x_cdf_inv[1:, None] - y_cdf_inv[1:, None]
+    )
+    cost = jnp.sum(successive_costs * diff_q)
+
+    if not return_transport:
+      return cost, None, None
+
+    n = x.shape[0]
+    i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
+    i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
+    orig_i = i_x[i_in_sorted_x_of_quantile][1:]
+    orig_j = i_y[i_in_sorted_y_of_quantile][1:]
+    paired_indices, mass_paired_indices = jnp.stack([orig_i, orig_j]), diff_q
+
+    return cost, paired_indices, mass_paired_indices
+
+  ot_costs, pi, mpi = dist(prob.geom.x, prob.geom.y)
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=pi,
+      mass_paired_indices=mpi,
   )
 
-  x_pdf = jnp.concatenate([a[i_x], jnp.zeros_like(b)])[all_values_sorter]
-  y_pdf = jnp.concatenate([jnp.zeros_like(a), b[i_y]])[all_values_sorter]
 
-  x_cdf = jnp.cumsum(x_pdf)
-  y_cdf = jnp.cumsum(y_pdf)
+def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
+  """Univariate solver that implements the north-west corner rule.
 
-  x_y_cdfs = jnp.concatenate([x_cdf, y_cdf])
-  quantile_levels, _ = mu.sort_and_argsort(x_y_cdfs, argsort=False)
+  This rule is described in :cite:`peyre:19`, sec. 3.4.2 and the dual variables
+  are stored as described in :cite:`sejourne:22`, alg. 3.
 
-  i_x_cdf_inv = jnp.searchsorted(x_cdf, quantile_levels)
-  x_cdf_inv = all_values_sorted[i_x_cdf_inv]
-  i_y_cdf_inv = jnp.searchsorted(y_cdf, quantile_levels)
-  y_cdf_inv = all_values_sorted[i_y_cdf_inv]
+  Args:
+    prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
+      of shapes ``[n, d]`` and ``[m, d]`` and a ground
+      :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      The ``[n,]`` and ``[m,]`` sized probability weights are stored
+      in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
+      and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
 
-  diff_q = jnp.diff(quantile_levels)
-  cost = jnp.sum(
-      jax.vmap(cost_fn.h)(y_cdf_inv[1:, None] - x_cdf_inv[1:, None]) * diff_q
+  Returns:
+    The univariate output. Note that the
+    :attr:`~ott.solvers.linear.univariate.UnivariateOutput.mass_paired_indices`
+    can be :math:`0` in some entries, but always sums to :math:`1`
+    for each of the :math:`d` slices.
+  """  # noqa: E501
+
+  class State(NamedTuple):
+    x: jnp.ndarray
+    y: jnp.ndarray
+    a: jnp.ndarray
+    b: jnp.ndarray
+    paired_indices: jnp.ndarray
+    mass_paired_indices: jnp.ndarray
+    dual_a: jnp.ndarray
+    dual_b: jnp.ndarray
+
+  def dual_a_update(state: State, i: int,
+                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+    next_ixs = jnp.array([i + 1, j])
+    val = cost_fn.h(state.x[i + 1, None] - state.y[j, None]) - state.dual_b[j]
+    da = state.dual_a.at[i + 1].set(val)
+    return state._replace(dual_a=da), state.a[i], next_ixs
+
+  def dual_b_update(state: State, i: int,
+                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+    next_ixs = jnp.array([i, j + 1])
+    val = cost_fn.h(state.x[i, None] - state.y[j + 1, None]) - state.dual_a[i]
+    db = state.dual_b.at[j + 1].set(val)
+    return state._replace(dual_b=db), state.b[j], next_ixs
+
+  def body_fun(ix: int, state: State) -> State:
+    i, j = state.paired_indices[0, ix], state.paired_indices[1, ix]
+    state, min_ab, next_ixs = jax.lax.cond(
+        state.a[i] < state.b[j], dual_a_update, dual_b_update, state, i, j
+    )
+
+    pi = state.paired_indices.at[:, ix + 1].set(next_ixs)
+    mpi = state.mass_paired_indices.at[ix].set(min_ab)
+    a_ = state.a.at[i].set(state.a[i] - min_ab)
+    b_ = state.b.at[j].set(state.b[j] - min_ab)
+
+    return state._replace(
+        paired_indices=pi, mass_paired_indices=mpi, a=a_, b=b_
+    )
+
+  @functools.partial(jax.vmap, in_axes=[1, 1])
+  def dist(x: jnp.ndarray, y: jnp.ndarray):
+    x, i_x = mu.sort_and_argsort(x, argsort=True)
+    y, i_y = mu.sort_and_argsort(y, argsort=True)
+    sorted_a, sorted_b = a[i_x], b[i_y]
+
+    paired_indices = jnp.zeros((2, q), dtype=int)
+    mass_paired_indices = jnp.zeros(q)
+
+    state = State(
+        x,
+        y,
+        a=sorted_a,
+        b=sorted_b,
+        paired_indices=paired_indices,
+        mass_paired_indices=mass_paired_indices,
+        dual_a=jnp.zeros(n),
+        dual_b=jnp.zeros(m).at[0].set(cost_fn.h(x[0, None] - y[0, None])),
+    )
+    state = jax.lax.fori_loop(0, q - 1, body_fun, state)
+
+    ot_cost = jnp.sum(state.dual_a * sorted_a
+                     ) + jnp.sum(state.dual_b * sorted_b)
+
+    p_final = jnp.maximum(state.a[-1], state.b[-1])
+    mass_paired_indices = state.mass_paired_indices.at[-1].set(p_final)
+
+    return (
+        ot_cost,
+        state.paired_indices,
+        mass_paired_indices,
+        # restore the original order
+        state.dual_a[jnp.argsort(i_x)],
+        state.dual_b[jnp.argsort(i_y)],
+    )
+
+  a, b = prob.a, prob.b
+  n, m = prob.geom.shape
+  q = m + n - 1
+  cost_fn = prob.geom.cost_fn
+
+  ot_costs, pi, mpi, dual_a, dual_b = dist(prob.geom.x, prob.geom.y)
+  return UnivariateOutput(
+      prob,
+      ot_costs,
+      paired_indices=pi,
+      mass_paired_indices=mpi,
+      dual_a=dual_a,
+      dual_b=dual_b,
   )
-  if not return_transport:
-    return cost, None, None
-
-  n = x.shape[0]
-
-  i_in_sorted_x_of_quantile = all_values_sorter[i_x_cdf_inv] % n
-  i_in_sorted_y_of_quantile = all_values_sorter[i_y_cdf_inv] - n
-
-  orig_i = i_x[i_in_sorted_x_of_quantile][1:]
-  orig_j = i_y[i_in_sorted_y_of_quantile][1:]
-
-  return cost, jnp.stack([orig_i, orig_j]), diff_q
-
-
-def _quant_dist(
-    x: jnp.ndarray, y: jnp.ndarray, cost_fn: costs.TICost, q: jnp.ndarray,
-    n_q: int
-) -> Tuple[jnp.ndarray, None, None]:
-  x_q = jnp.quantile(x, q, axis=0)
-  y_q = jnp.quantile(y, q, axis=0)
-  ot_costs = jax.vmap(cost_fn.pairwise, in_axes=[1, 1])(x_q, y_q)
-
-  return ot_costs / n_q, None, None
