@@ -18,6 +18,8 @@ Neural Dual
     :toctree: _autosummary
 
     neuraldual.W2NeuralDual
+    expectile_neural_dual.ExpectileNeuralDual
+    expectile_neural_dual.ENOTPotentials
 
 ott.neural.methods.flows
 ========================

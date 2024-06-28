@@ -7,6 +7,7 @@ DTW
 Danskin
 Datasets
 Dykstra
+Expectile
 Fenchel
 Frobenius
 Gangbo
@@ -64,6 +65,7 @@ elementwise
 embeddings
 entropic
 epigenetic
+expectile
 featurized
 grayscale
 heterogeneous

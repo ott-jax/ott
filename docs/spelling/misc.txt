@@ -3,6 +3,7 @@ Utils
 alg
 arg
 args
+coef
 cond
 dtype
 eps
@@ -16,6 +17,7 @@ gmm
 gv
 init
 iter
+iters
 jnp
 jvp
 kwargs
