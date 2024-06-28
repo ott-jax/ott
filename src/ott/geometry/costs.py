@@ -404,6 +404,7 @@ class RegTICost(TICost):
       solver = jaxopt.ProximalGradient(
           fun=lambda z, x: -f(x - z),
           prox=lambda x, reg, tau: reg.prox(x, tau),
+          **kwargs,
       )
       out = solver.run(x, self._h, x=x)
       out = jax.lax.stop_gradient(out.params)
