@@ -18,12 +18,6 @@ Neural Dual
     :toctree: _autosummary
 
     neuraldual.W2NeuralDual
-
-Expectile Neural Dual
----------------------
-.. autosummary::
-    :toctree: _autosummary
-
     expectile_neural_dual.ExpectileNeuralDual
 
 ott.neural.methods.flows
