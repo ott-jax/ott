@@ -126,7 +126,7 @@ class TestBuresBarycenter:
     np.testing.assert_equal(diffs.shape[0], max_iterations // inner_iterations)
 
 
-class TestTIRegCost:
+class TestTICost:
 
   @pytest.mark.parametrize(
       "cost_fn", [
@@ -193,6 +193,29 @@ class TestRegTICost:
     expected = jax.random.normal(rng, (d,))
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+
+  @pytest.mark.parametrize("lam", [1e-1, 0.5, 1.25])
+  def test_h_transform_x_init(self, rng: jax.Array, lam: float):
+    n, d = 11, 6
+    rng_x, rng_y, rng_u = jax.random.split(rng, 3)
+    y = jax.random.normal(rng_x, (d,)) + 1.0
+    u = jnp.abs(jax.random.uniform(rng_u, (d,)))
+    x_inits = jax.random.normal(rng_x, (n, d)) * jnp.linspace(
+        -5.0, 5.0, num=n
+    )[:, None]
+
+    cost_fn = costs.RegTICost(regularizers.L1(lam))
+    f = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+
+    h_f = jax.vmap(
+        lambda x, x0: cost_fn.h_transform(f, x_init=x0)(x), in_axes=[None, 0]
+    )
+    res = h_f(y, x_inits)
+
+    assert res.shape == (n,)
+    np.testing.assert_allclose(
+        jnp.abs(jnp.diff(res)), 0.0, rtol=1e-3, atol=1e-3
+    )
 
   @pytest.mark.parametrize(
       "reg", [
