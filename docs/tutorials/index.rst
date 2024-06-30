@@ -30,6 +30,7 @@ Barycenters
     Sinkhorn_Barycenters
     gmm_pair_demo
     wasserstein_barycenters_gmms
+    FUGWBarycenter
 
 Miscellaneous
 ^^^^^^^^^^^^^

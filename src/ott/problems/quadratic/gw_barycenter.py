@@ -33,24 +33,31 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   Args:
     y: Array of shape ``[num_total_points, ndim]`` merging the points of all
       measures. Alternatively, already segmented array of shape
-      ``[num_measures, max_measure_size, ndim]`` can be passed.
-      See also :func:`~ott.geometry.segment.segment_point_cloud`.
+      ``[num_measures, max_measure_size, ndim]`` can be passed. See
+      also :func:`~ott.geometry.segment.segment_point_cloud`.
     b: Array of shape ``[num_total_points,]`` containing the weights of all
       the points within the measures that define the barycenter problem.
       Same as ``y``, pre-segmented array of weights of shape
-      ``[num_measures, max_measure_size]`` can be passed.
-      If ``y`` is already pre-segmented, this array must be passed.
+      ``[num_measures, max_measure_size]`` can be passed. If ``y`` is already
+      pre-segmented, this array must be passed.
     weights: Array of shape ``[num_measures,]`` containing the weights of the
       barycenter problem.
     costs: Alternative to ``y``, an array of shape
-      ``[num_measures, max_measure_size, max_measure_size]`` that defines padded
-      cost matrices for each measure. Used in the quadratic term.
-      Only one of ``y`` and ``cost`` can be specified.
+      ``[num_measures, max_measure_size, max_measure_size]`` that defines
+      padded cost matrices for each measure. Used in the quadratic term. Only
+      one of ``y`` and ``cost`` can be specified.
     y_fused: Array of shape ``[num_total_points, ndim_fused]`` containing
       the data of the points of all measures used to define the linear term
       in the fused case. Same as ``y``, it can be specified as a pre-segmented
       array of shape ``[num_measures, max_measure_size, ndim_fused]``.
     gw_loss: Gromov-Wasserstein loss.
+    tau_a: If :math:`< 1.0`, defines how much unbalanced the problem is on
+      the first marginal.
+    tau_b: If :math:`< 1.0`, defines how much unbalanced the problem is on
+      the second marginal.
+    gw_unbalanced_correction: Whether the unbalanced version of
+      :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
+      only affect the inner Sinkhorn loop.
     fused_penalty: Multiplier of the linear term. Only used when
       ``y_fused != None``.
     scale_cost: Scaling of cost matrices passed to geometries.
@@ -67,10 +74,13 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
+      tau_a: float = 1.0,
+      tau_b: float = 1.0,
+      gw_unbalanced_correction: bool = True,
       scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
-  ):
-    assert y is None or costs is None, "Cannot specify both `y` and `costs`."
+  ) -> None:
+    assert (y is None or costs is None), "Cannot specify both `y` and `costs`."
     y = y if costs is None else costs
 
     super().__init__(y=y, b=b, weights=weights, **kwargs)
@@ -80,6 +90,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     self._loss_name = gw_loss
     self.scale_cost = scale_cost
     self._y_as_costs = costs is not None
+    self.tau_a = tau_a
+    self.tau_b = tau_b
+    self.gw_unbalanced_correction = gw_unbalanced_correction
 
     if self._y_as_costs:
       # (num_measures, max_measure_size, max_measure_size)
@@ -175,7 +188,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       cost_fn = costs.SqEuclidean()
       return jnp.sum(
           weights * mu.barycentric_projection(transports, y_fused, cost_fn),
-          axis=0
+          axis=0,
       )
     raise NotImplementedError(self._loss_name)
 
@@ -189,7 +202,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         src_mask=mask,
         tgt_mask=mask,
         epsilon=self.epsilon,
-        scale_cost=self.scale_cost
+        scale_cost=self.scale_cost,
     )
 
   def _create_y_geometry(
@@ -204,7 +217,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
           epsilon=self.epsilon,
           scale_cost=self.scale_cost,
           src_mask=mask,
-          tgt_mask=mask
+          tgt_mask=mask,
       )
     return pointcloud.PointCloud(
         y,
@@ -212,7 +225,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         scale_cost=self.scale_cost,
         cost_fn=self.cost_fn,
         src_mask=mask,
-        tgt_mask=mask
+        tgt_mask=mask,
     )
 
   def _create_fused_geometry(
@@ -220,7 +233,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       x: jnp.ndarray,
       y: jnp.ndarray,
       src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None
+      tgt_mask: Optional[jnp.ndarray] = None,
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
@@ -229,7 +242,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         epsilon=self.epsilon,
         scale_cost=self.scale_cost,
         src_mask=src_mask,
-        tgt_mask=tgt_mask
+        tgt_mask=tgt_mask,
     )
 
   def _create_problem(
@@ -237,7 +250,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       state: "GWBarycenterState",  # noqa: F821
       y: jnp.ndarray,
       b: jnp.ndarray,
-      f: Optional[jnp.ndarray] = None
+      f: Optional[jnp.ndarray] = None,
   ) -> quadratic_problem.QuadraticProblem:
     # TODO(michalk8): in future, mask in the problem for convenience?
     bary_mask = state.a > 0.0
@@ -269,6 +282,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return self._y_fused is not None
 
   @property
+  def is_unbalanced(self) -> bool:
+    """Whether the problem is umbalanced."""
+    return self.tau_a != 1.0 or self.tau_b != 1.0
+
+  @property
   def segmented_y_fused(self) -> Optional[jnp.ndarray]:
     """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
@@ -276,7 +294,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     y_fused, _ = segment.segment_point_cloud(
         x=self._y_fused,
         padding_vector=self.cost_fn._padder(self.ndim_fused),
-        **self._kwargs
+        **self._kwargs,
     )
     return y_fused
 
@@ -304,7 +322,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         f"Loss `{self._loss_name}` is not yet implemented."
     )
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(  # noqa: D102
+      self,
+  ) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     (y, b, weights), aux = super().tree_flatten()
     if self._y_as_costs:
       children = [None, b, weights, y]
@@ -313,6 +333,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     aux["fused_penalty"] = self.fused_penalty
     aux["gw_loss"] = self._loss_name
     aux["scale_cost"] = self.scale_cost
+    aux["tau_a"] = self.tau_a
+    aux["tau_b"] = self.tau_b
     return children + [self._y_fused], aux
 
   @classmethod
