@@ -411,7 +411,7 @@ class RegTICost(TICost):
     def f_h(x: jnp.ndarray) -> float:
       solver = jaxopt.ProximalGradient(
           fun=lambda z, x: -f(x - z),
-          prox=lambda x, reg, tau: reg.prox(x, tau),
+          prox=lambda x, h, tau: h.prox(x, tau),
           **kwargs,
       )
       x0 = x if x_init is None else x_init
