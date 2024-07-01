@@ -205,10 +205,8 @@ class TICost(CostFn):
   def h_transform(
       self,
       f: Callable[[jnp.ndarray], float],
-      x_init: Optional[jnp.ndarray] = None,
       ridge: float = 1e-8,
-      **kwargs: Any
-  ) -> Callable[[jnp.ndarray], float]:
+  ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -227,9 +225,7 @@ class TICost(CostFn):
 
     Args:
       f: Concave function.
-      x_init: Initial estimate. If :obj:`None`, use ``x``.
       ridge: Regularizer to ensure strong convexity of the objective.
-      kwargs: Keyword arguments for :class:`~jaxopt.LBFGS`.
 
     Returns:
       The h-transform of ``f``.
@@ -238,7 +234,11 @@ class TICost(CostFn):
     def fun(z: jnp.ndarray, x: jnp.ndarray) -> float:
       return self.h(z) + ridge * jnp.sum(z ** 2) - f(x - z)
 
-    def f_h(x: jnp.ndarray) -> float:
+    def f_h(
+        x: jnp.ndarray,
+        x_init: Optional[jnp.ndarray] = None,
+        **kwargs: Any
+    ) -> float:
       solver = jaxopt.LBFGS(fun=fun, **kwargs)
       x0 = x if x_init is None else x_init
       z = solver.run(x0, x=x).params
@@ -375,9 +375,7 @@ class RegTICost(TICost):
   def h_transform(
       self,
       f: Callable[[jnp.ndarray], float],
-      x_init: Optional[jnp.ndarray] = None,
-      **kwargs: Any
-  ) -> Callable[[jnp.ndarray], float]:
+  ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -401,14 +399,16 @@ class RegTICost(TICost):
 
     Args:
       f: Concave function.
-      x_init: Initial estimate. If :obj:`None`, use ``x``.
-      kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
 
     Returns:
       The h-transform of ``f``.
     """
 
-    def f_h(x: jnp.ndarray) -> float:
+    def f_h(
+        x: jnp.ndarray,
+        x_init: Optional[jnp.ndarray] = None,
+        **kwargs: Any
+    ) -> float:
       solver = jaxopt.ProximalGradient(
           fun=lambda z, x: -f(x - z),
           prox=lambda x, h, tau: h.prox(x, tau),

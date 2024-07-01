@@ -207,9 +207,7 @@ class TestRegTICost:
     cost_fn = costs.RegTICost(regularizers.L1(lam))
     f = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
 
-    h_f = jax.vmap(
-        lambda x, x0: cost_fn.h_transform(f, x_init=x0)(x), in_axes=[None, 0]
-    )
+    h_f = jax.vmap(cost_fn.h_transform(f), in_axes=[None, 0])
     res = h_f(y, x_inits)
 
     assert res.shape == (n,)
