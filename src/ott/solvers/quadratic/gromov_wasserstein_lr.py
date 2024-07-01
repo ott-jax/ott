@@ -123,6 +123,7 @@ def compute_reg_gw_cost(
       errors=None,
       epsilon=None,
       inner_iterations=None,
+      converged=False,
   )
 
   cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
@@ -148,6 +149,7 @@ class LRGWOutput(NamedTuple):
   ot_prob: quadratic_problem.QuadraticProblem
   epsilon: float
   inner_iterations: int
+  converged: bool
   reg_gw_cost: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
@@ -193,12 +195,6 @@ class LRGWOutput(NamedTuple):
   @property
   def n_iters(self) -> int:  # noqa: D102
     return jnp.sum(self.errors != -1) * self.inner_iterations
-
-  @property
-  def converged(self) -> bool:  # noqa: D102
-    return jnp.logical_and(
-        jnp.any(self.costs == -1), jnp.all(jnp.isfinite(self.costs))
-    )
 
   @property
   def matrix(self) -> jnp.ndarray:
@@ -718,7 +714,10 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
         lambda: jnp.inf
     )
-    error = state.compute_error(previous_state)
+    error = jax.lax.cond(
+        iteration >= self.min_iterations,
+        lambda: state.compute_error(previous_state), lambda: jnp.inf
+    )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
         jnp.logical_and(
@@ -794,6 +793,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       A LRGWOutput.
     """
+    it = jnp.sum(state.errors != -1.0) * self.inner_iterations
+    converged = self._converged(state, it)
     return LRGWOutput(
         q=state.q,
         r=state.r,
@@ -803,6 +804,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         errors=state.errors,
         epsilon=self.epsilon,
         inner_iterations=self.inner_iterations,
+        converged=converged,
     )
 
   def _converged(self, state: LRGWState, iteration: int) -> bool:
@@ -833,11 +835,13 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     )
 
   def _diverged(self, state: LRGWState, iteration: int) -> bool:
-    it = iteration // self.inner_iterations
-    return jnp.logical_and(
-        jnp.logical_not(jnp.isfinite(state.errors[it - 1])),
-        jnp.logical_not(jnp.isfinite(state.costs[it - 1]))
+    it = iteration // self.inner_iterations - 1
+    is_not_finite = jnp.logical_and(
+        jnp.logical_not(jnp.isfinite(state.errors[it])),
+        jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
+    # `jnp.inf` is used if `it < self.min_iterations`
+    return jnp.logical_and(it >= self.min_iterations, is_not_finite)
 
 
 def run(
