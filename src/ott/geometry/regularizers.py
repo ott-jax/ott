@@ -132,6 +132,7 @@ class Regularization(ProximalOperator):
     vv = 1.0 / (1 + tau * self.rho) * v
     if self.a is not None:
       vv = vv + (self.rho * tau_tilde) * self.a
+    # section 2.2 of :cite:`parikh:14`
     return self.f.prox(vv, tau_tilde)
 
   def tree_flatten(self):  # noqa: D102
@@ -233,7 +234,7 @@ class Quadratic(ProximalOperator):
   ) -> "Quadratic":
     r"""Create the quadratic operator :math:`\frac{1}{2} \left<x, Q x\right> + b`.
 
-    The :math:`Q` is defined as:
+    The matrix :math:`Q` is defined as:
 
     - :math:`Q := A` if not squared and not a complement.
     - :math:`Q := A^{\perp}` if not squared and a complement.
@@ -273,6 +274,7 @@ class Quadratic(ProximalOperator):
     return y if self.b is None else (y + jnp.dot(x, self.b))
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+    # section 6.1.1 in :cite:`parikh:14`
     Q = self.Q
     b = v if self.b is None else (v - tau * self.b)
 
@@ -282,6 +284,7 @@ class Quadratic(ProximalOperator):
     iden = lx.IdentityLinearOperator(Q.out_structure())
     if self.is_squared:  # use matrix inversion lemma
       if self.is_complement:
+        # eq. 14 in :cite:`klein:24`
         # A_comp = I - A^T(AA^T)^{-1}A
         # prox(v) = (I + tau A_comp^T A_comp)^{-1} (v - tau * b)
         op = iden + tau * (iden - self.A_comp)
