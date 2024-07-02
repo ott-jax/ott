@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott import datasets
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, pointcloud, regularizers
 from ott.neural.methods import monge_gap
 from ott.neural.networks import potentials
 from ott.tools import sinkhorn_divergence
@@ -79,14 +79,14 @@ class TestMongeGap:
       [
           (costs.SqEuclidean(), 13, 5),
           (costs.PNormP(p=1), 20, 3),
-          (costs.ElasticL1(scaling_reg=2.0), 100, 30),
-          (costs.ElasticSTVS(scaling_reg=2.0), 7, 10),
+          (costs.RegTICost(regularizers.L1(2.0)), 100, 30),
+          (costs.RegTICost(regularizers.STVS(3.0)), 7, 10),
       ],
       ids=[
-          "squared-euclidean",
-          "p-norm-p1",
-          "elasticnet-gam2",
-          "stvs-gam2",
+          "sqeucl",
+          "pnorm-1",
+          "l1-lam2",
+          "stvs-lam2",
       ],
   )
   def test_monge_gap_from_samples_different_cost(
