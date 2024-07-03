@@ -290,6 +290,7 @@ class Quadratic(ProximalOperator):
         op = iden + tau * (iden - self.A_comp)
         return (1.0 / (1.0 + tau)) * op.mv(b)
       if self.is_orthogonal:
+        # https://en.wikipedia.org/wiki/Woodbury_matrix_identity
         op = iden - (tau / (1.0 + tau)) * (self.A.T @ self.A)
         return op.mv(b)
 
