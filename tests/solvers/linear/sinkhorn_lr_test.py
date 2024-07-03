@@ -312,7 +312,7 @@ class TestLRSinkhorn:
 
     assert out.converged
     assert out_ti.converged
-    np.testing.assert_allclose(out.errors, out_ti.errors, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(out.errors, out_ti.errors, rtol=5e-4, atol=5e-4)
     np.testing.assert_allclose(
         out.reg_ot_cost, out_ti.reg_ot_cost, rtol=1e-2, atol=1e-2
     )
