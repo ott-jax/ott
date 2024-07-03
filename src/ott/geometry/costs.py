@@ -356,6 +356,17 @@ class RegTICost(TICost):
     return self._h(z)
 
   def h_legendre(self, z: jnp.ndarray) -> float:  # noqa: D102
+    """Legendre transform of :func:`h`.
+
+    This function uses :class:`~jax.custom_vjp` to apply Danskin's theorem
+    :cite:`danskin:67` when differentiating.
+
+    Args:
+      z: Array of shape ``[d,]``.
+
+    Returns:
+      The value.
+    """
 
     @jax.custom_vjp
     def fn(z: jnp.ndarray) -> float:
