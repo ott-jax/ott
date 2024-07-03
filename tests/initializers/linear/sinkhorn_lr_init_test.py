@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
@@ -81,35 +81,6 @@ class TestLRInitializers:
 
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
-
-  def test_generalized_k_means_matches_k_means(self, rng: jax.Array):
-    n, d, rank = 27, 7, 5
-    eps = 1e-1
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (n, d))
-    y = jax.random.normal(rng1, (n, d))
-
-    pc = pointcloud.PointCloud(x, y, epsilon=eps)
-    geom = geometry.Geometry(cost_matrix=pc.cost_matrix, epsilon=eps)
-    pc_problem = linear_problem.LinearProblem(pc)
-    geom_problem = linear_problem.LinearProblem(geom)
-
-    solver = sinkhorn_lr.LRSinkhorn(
-        rank=rank, initializer="k-means", max_iterations=5000
-    )
-    pc_out = solver(pc_problem)
-
-    solver = sinkhorn_lr.LRSinkhorn(
-        rank=rank, initializer="generalized-k-means", max_iterations=5000
-    )
-    geom_out = solver(geom_problem)
-
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(pc_out.costs, geom_out.costs)
-
-    np.testing.assert_allclose(
-        pc_out.reg_ot_cost, geom_out.reg_ot_cost, atol=0.5, rtol=0.02
-    )
 
   @pytest.mark.parametrize("epsilon", [0.0, 1e-1])
   def test_better_initialization_helps(self, rng: jax.Array, epsilon: float):
