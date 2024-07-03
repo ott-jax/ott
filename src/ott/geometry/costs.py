@@ -298,10 +298,10 @@ class SqPNorm(TICost):
 
 @jtu.register_pytree_node_class
 class PNormP(TICost):
-  r"""P-norm to the power p (and divided by p) of the difference of two vectors.
+  r""":math:`p`-norm to the power :math:`p` and divided by :math:`p`.
 
   Uses custom implementation of `norm` to avoid `NaN` values when
-  differentiating the norm of `x-x`.
+  differentiating the norm of :math:`x-x`.
 
   Args:
     p: Power of the p-norm in :math:`[1, +\infty)`.
