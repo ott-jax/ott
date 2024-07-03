@@ -20,5 +20,6 @@ from . import (
     graph,
     grid,
     pointcloud,
+    regularizers,
     segment,
 )
