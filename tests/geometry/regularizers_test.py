@@ -90,10 +90,10 @@ class TestQuadratic:
 
   @pytest.mark.parametrize("is_orthogonal", [False, True])
   @pytest.mark.parametrize("is_complement", [False, True])
-  @pytest.mark.parametrize("is_squared", [False, True])
+  @pytest.mark.parametrize("is_factor", [False, True])
   def test_properties(
       self, rng: jax.Array, is_orthogonal: bool, is_complement: bool,
-      is_squared: bool
+      is_factor: bool
   ):
     k, d = 16, 17
     A = jax.random.normal(rng, (k, d))
@@ -104,12 +104,12 @@ class TestQuadratic:
         A,
         is_orthogonal=is_orthogonal,
         is_complement=is_complement,
-        is_squared=is_squared
+        is_factor=is_factor
     )
 
     assert reg.is_orthogonal == is_orthogonal
     assert reg.is_complement == is_complement
-    assert reg.is_squared == is_squared
+    assert reg.is_factor == is_factor
     if reg.is_complement:
       assert isinstance(reg.A_comp, lx.AbstractLinearOperator)
     else:
@@ -122,9 +122,9 @@ class TestQuadratic:
     A = _proj(jax.random.normal(rng_A, (d // 2, d)))
     x = jax.random.normal(rng_x, (d,))
 
-    reg = regularizers.Quadratic.create(A=A, is_squared=True)
+    reg = regularizers.Quadratic.create(A=A, is_factor=True)
     reg_c = regularizers.Quadratic.create(
-        A=A, is_complement=True, is_squared=True
+        A=A, is_complement=True, is_factor=True
     )
 
     expected = 0.5 * (x ** 2).sum()
@@ -146,7 +146,7 @@ class TestQuadratic:
       tau: float,
   ):
     d = 31
-    is_squared = not is_complement
+    is_factor = not is_complement
     rng_A, rng_b, rng_x = jax.random.split(rng, 3)
 
     A = jax.random.normal(rng_A, (d // 3, d))
@@ -158,7 +158,7 @@ class TestQuadratic:
     reg_orth = regularizers.Quadratic.create(
         A,
         b=b if use_b else None,
-        is_squared=is_squared,
+        is_factor=is_factor,
         is_complement=is_complement,
         is_orthogonal=is_orthogonal,
     )
@@ -182,7 +182,7 @@ class TestQuadratic:
     expected_norm = 0.5 * (x ** 2).sum() + jnp.dot(x, b)
     expected_prox = (1.0 / (1.0 + tau)) * x - (tau / (1.0 + tau)) * b
 
-    assert not reg.is_squared
+    assert not reg.is_factor
     assert not reg.is_complement
     np.testing.assert_allclose(expected_norm, reg(x), rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(
@@ -206,7 +206,7 @@ class TestQuadratic:
 
     assert reg.A.as_matrix().shape == (k, d)
     assert reg.Q.as_matrix().shape == (d, d)
-    assert reg.is_squared
+    assert reg.is_factor
     assert reg.is_complement == is_complement
     if is_complement:
       assert reg.A_comp.as_matrix().shape == (d, d)
@@ -257,7 +257,7 @@ class TestQuadratic:
         A,
         b=b,
         is_orthogonal=is_orthogonal,
-        is_squared=True,
+        is_factor=True,
         is_complement=is_complement,
     )
     iden = lx.IdentityLinearOperator(reg.Q.out_structure())

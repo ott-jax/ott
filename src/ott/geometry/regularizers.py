@@ -229,17 +229,17 @@ class Quadratic(ProximalOperator):
       *,
       is_complement: bool = False,
       is_orthogonal: bool = False,
-      is_squared: bool = False,
+      is_factor: bool = False,
       **kwargs: Any,
   ) -> "Quadratic":
     r"""Create the quadratic operator :math:`\frac{1}{2} \left<x, Q x\right> + b`.
 
     The matrix :math:`Q` is defined as:
 
-    - :math:`Q := A` if not squared and not a complement.
-    - :math:`Q := A^{\perp}` if not squared and a complement.
-    - :math:`Q := A^TA` if squared and not a complement.
-    - :math:`Q := \left(A^{\perp}\right)^TA^{\perp}` if squared and
+    - :math:`Q := A` if not factored and not an orthogonal complement.
+    - :math:`Q := A^{\perp}` if not factored and a complement.
+    - :math:`Q := A^TA` if factored and not a complement.
+    - :math:`Q := \left(A^{\perp}\right)^TA^{\perp}` if factored and
       a complement.
 
     Args:
@@ -247,7 +247,7 @@ class Quadratic(ProximalOperator):
       is_complement: Whether to regularize in the orthogonal complement of
         :math:`A`, defined as :math:`A^{\perp} := I - A^T (AA^T)^{-1} A`.
       is_orthogonal: Whether :math:`AA^T = I`.
-      is_squared: Whether to square the linear operator.
+      is_factor: Whether to factor the matrix :math:`Q` as mentioned above.
       kwargs: Keyword arguments for :class:`Quadratic`.
     """  # noqa: E501
     if A is None:
@@ -256,8 +256,8 @@ class Quadratic(ProximalOperator):
     tags = set()
     if is_complement:
       tags.add("complement")
-    if is_squared:
-      tags.add("squared")
+    if is_factor:
+      tags.add("factor")
     if is_orthogonal:
       tags.add("orthogonal")
 
@@ -282,7 +282,7 @@ class Quadratic(ProximalOperator):
       return (1.0 / (1.0 + tau)) * b
 
     iden = lx.IdentityLinearOperator(Q.out_structure())
-    if self.is_squared:  # use matrix inversion lemma
+    if self.is_factor:  # use matrix inversion lemma
       if self.is_complement:
         # eq. 14 in :cite:`klein:24`
         # A_comp = I - A^T(AA^T)^{-1}A
@@ -303,9 +303,9 @@ class Quadratic(ProximalOperator):
     return self.A is not None and "complement" in self.A.tags
 
   @property
-  def is_squared(self) -> bool:
-    r"""Whether :attr:`Q` is squared as :math:`Q^TQ`."""
-    return self.A is not None and "squared" in self.A.tags
+  def is_factor(self) -> bool:
+    r"""Whether :attr:`Q` is factored."""
+    return self.A is not None and "factor" in self.A.tags
 
   @property
   def is_orthogonal(self) -> bool:
@@ -318,7 +318,7 @@ class Quadratic(ProximalOperator):
     Q = self.A_comp if self.is_complement else self.A
     if Q is None:
       return None
-    return (Q.T @ Q) if self.is_squared else Q
+    return (Q.T @ Q) if self.is_factor else Q
 
   def tree_flatten(self):  # noqa: D102
     return (self.A, self.A_comp, self.b), self.solver
@@ -367,7 +367,7 @@ class L2(ProximalOperator):
     self.A = A
     self.lam = lam
 
-    self.f = Quadratic.create(A, is_squared=True, **kwargs)
+    self.f = Quadratic.create(A, is_factor=True, **kwargs)
     self._init_kwargs = kwargs
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
@@ -513,7 +513,6 @@ class SqKOverlap(ProximalOperator):
     return cls(lam=lam, **aux_data)
 
 
-@jax.jit
 def _invert(A: lx.AbstractLinearOperator) -> lx.MatrixLinearOperator:
   d = A.out_size()
   b = jnp.zeros(d)
@@ -523,6 +522,7 @@ def _invert(A: lx.AbstractLinearOperator) -> lx.MatrixLinearOperator:
   return lx.MatrixLinearOperator(inv)
 
 
+@functools.partial(jax.jit, static_argnums=1)
 def _complement(
     A: lx.AbstractLinearOperator, is_orthogonal: bool
 ) -> lx.AbstractLinearOperator:
