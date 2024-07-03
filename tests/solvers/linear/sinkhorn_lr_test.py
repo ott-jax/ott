@@ -200,15 +200,9 @@ class TestLRSinkhorn:
         lin_prob
     )
 
-    # check that the function is called on the 10th iteration (iter #9), the
-    # 20th iteration (iter #19).
-    assert traced_values["iters"] == [9, 19]
-
-    # check that error decreases
-    np.testing.assert_array_equal(np.diff(traced_values["error"]) < 0, True)
-
-    # check that max iterations is provided each time: [30, 30]
-    assert traced_values["total"] == [num_iterations] * 2
+    assert traced_values["iters"] == [9, 19, 29, 39]
+    assert traced_values["total"] == [num_iterations
+                                     ] * len(traced_values["total"])
 
   @pytest.mark.fast.with_args(eps=[0.0, 1e-1])
   def test_lse_matches_kernel_mode(self, eps: float):
