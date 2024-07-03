@@ -392,16 +392,16 @@ class RegTICost(TICost):
 
     where :math:`\tilde{f}(z, x) := -f(x - z)`.
 
-    This is solved using proximal gradient descent, which requires having
-    access to the prox of :math:`\text{scaling_h} \cdot h` and not only to that
-    of :meth:`h`. Given the properties of :meth:`h`, the prox is obtained by
-    rescaling the output of the prox of a suitable scaling.
+    By contrast to the :meth:`TICost.h_transform <TICost.h_transform>`, this is
+    exploiting the structure of :meth:`h` and requires having access to its
+    proximal operator :math:`\prox_{\tau h}(x)`. Under the hood, this is
+    solved using :class:`proximal gradient descent <jaxopt.ProximalGradient>`.
 
     Args:
       f: Concave function.
 
     Returns:
-      The h-transform of ``f``.
+      The h-transform :math:`f_h` of :math:`f`.
     """
 
     def f_h(
@@ -409,6 +409,16 @@ class RegTICost(TICost):
         x_init: Optional[jnp.ndarray] = None,
         **kwargs: Any
     ) -> float:
+      """H-transform of a concave function.
+
+      Args:
+        x: Array of shape ``[d,]`` where to evaluate the function.
+        x_init: Initial estimate.
+        kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
+
+      Returns:
+        The output :math:`f_h(x)`.
+      """
       solver = jaxopt.ProximalGradient(
           fun=lambda z, x: -f(x - z),
           prox=lambda x, h, tau: h.prox(x, tau),
