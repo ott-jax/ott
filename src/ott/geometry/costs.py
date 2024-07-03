@@ -39,6 +39,8 @@ __all__ = [
     "SoftDTW",
 ]
 
+Func = Callable[[jnp.ndarray], float]
+
 
 @jtu.register_pytree_node_class
 class CostFn(abc.ABC):
@@ -204,8 +206,10 @@ class TICost(CostFn):
 
   def h_transform(
       self,
-      f: Callable[[jnp.ndarray], float],
+      f: Func,
       ridge: float = 1e-8,
+      solver: Optional[Callable[[Func, jnp.ndarray, jnp.ndarray, Any],
+                                jnp.ndarray]] = None,
   ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
     r"""Compute the h-transform of a concave function.
 
@@ -226,10 +230,18 @@ class TICost(CostFn):
     Args:
       f: Concave function.
       ridge: Regularizer to ensure strong convexity of the objective.
+      solver: Solver with the signature ``(func, x, x_init, **kwargs) -> sol``.
+        If :obj:`None`, use an :class:`~jaxopt.LBFGS` wrapper.
 
     Returns:
-      The h-transform of ``f``.
+      The h-transform :math:`f_h` of :math:`f`.
     """
+
+    def lbfgs(
+        fun: Func, x: jnp.ndarray, x_init: jnp.ndarray, **kwargs: Any
+    ) -> jnp.ndarray:
+      solver = jaxopt.LBFGS(fun=fun, **kwargs)
+      return solver.run(x_init, x=x).params
 
     def fun(z: jnp.ndarray, x: jnp.ndarray) -> float:
       return self.h(z) + ridge * jnp.sum(z ** 2) - f(x - z)
@@ -239,11 +251,24 @@ class TICost(CostFn):
         x_init: Optional[jnp.ndarray] = None,
         **kwargs: Any
     ) -> float:
-      solver = jaxopt.LBFGS(fun=fun, **kwargs)
-      x0 = x if x_init is None else x_init
-      z = solver.run(x0, x=x).params
+      """h-transform of a concave function.
+
+      Args:
+        x: Array of shape ``[d,]`` where to evaluate the function.
+        x_init: Initial estimate. If :obj:`None`, use ``x``.
+        kwargs: Keyword arguments for the solver.
+
+      Returns:
+        The output :math:`f_h(x)`.
+      """
+      if x_init is None:
+        x_init = x
+      z = solver(fun, x, x_init, **kwargs)
       z = jax.lax.stop_gradient(z)
       return fun(z, x)
+
+    if solver is None:
+      solver = lbfgs
 
     return f_h
 
@@ -333,11 +358,11 @@ class PNormP(TICost):
 class RegTICost(TICost):
   r"""Regularized translation-invariant cost.
 
-  .. math:
+  .. math::
     \frac{\rho}{2}\|\cdot\|_2^2 + \text{regularizer}(\cdot)
 
   Args:
-    regularizer: Regularizer function.
+    regularizer: Regularization function.
     rho: Scaling factor.
   """
 
@@ -385,7 +410,7 @@ class RegTICost(TICost):
 
   def h_transform(
       self,
-      f: Callable[[jnp.ndarray], float],
+      f: Func,
   ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
     r"""Compute the h-transform of a concave function.
 
@@ -420,11 +445,11 @@ class RegTICost(TICost):
         x_init: Optional[jnp.ndarray] = None,
         **kwargs: Any
     ) -> float:
-      """H-transform of a concave function.
+      """h-transform of a concave function.
 
       Args:
         x: Array of shape ``[d,]`` where to evaluate the function.
-        x_init: Initial estimate.
+        x_init: Initial estimate. If :obj:`None`, use ``x``.
         kwargs: Keyword arguments for :class:`~jaxopt.ProximalGradient`.
 
       Returns:
@@ -435,8 +460,9 @@ class RegTICost(TICost):
           prox=lambda x, h, tau: h.prox(x, tau),
           **kwargs,
       )
-      x0 = x if x_init is None else x_init
-      z = solver.run(x0, self._h, x=x).params
+      if x_init is None:
+        x_init = x
+      z = solver.run(x_init, self._h, x=x).params
       z = jax.lax.stop_gradient(z)
       return self.h(z) - f(x - z)
 

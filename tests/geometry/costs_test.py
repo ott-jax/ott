@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Type
+from typing import Any, Type
 
 import pytest
 
 import jax
 import jax.numpy as jnp
+import jaxopt
 import numpy as np
 from tslearn import metrics as ts_metrics
 
@@ -166,6 +167,27 @@ class TestTICost:
     gt = jax.jit(jax.vmap(jax.grad(gt_cost.h_transform(concave_gt))))
 
     np.testing.assert_allclose(pred(x), gt(x), rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.5)])
+  def test_h_transform_solver(self, rng: jax.Array, cost_fn: costs.TICost):
+
+    def gd_solver(
+        fun, x: jnp.ndarray, x_init: jnp.ndarray, **kwargs: Any
+    ) -> jnp.ndarray:
+      solver = jaxopt.GradientDescent(fun=fun, **kwargs)
+      return solver.run(x, x_init).params
+
+    n, d = 21, 6
+    rngs = jax.random.split(rng, 2)
+    u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
+    x = jax.random.normal(rngs[1], (n, d))
+
+    concave_fn = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+
+    expected = jax.vmap(cost_fn.h_transform(concave_fn, solver=None))
+    actual = jax.vmap(cost_fn.h_transform(concave_fn, solver=gd_solver))
+
+    np.testing.assert_allclose(expected(x), actual(x), rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.fast()
