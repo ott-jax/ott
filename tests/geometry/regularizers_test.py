@@ -88,32 +88,54 @@ class TestProximalOperator:
 
 class TestQuadratic:
 
-  @pytest.mark.parametrize("is_orthogonal", [False, True])
-  @pytest.mark.parametrize("is_complement", [False, True])
-  @pytest.mark.parametrize("is_factor", [False, True])
-  def test_properties(
+  @pytest.mark.parametrize(
+      "is_orthogonal", [False, True], ids=["noorth", "orth"]
+  )
+  @pytest.mark.parametrize(
+      "is_complement", [False, True], ids=["nocomp", "comp"]
+  )
+  @pytest.mark.parametrize("is_factor", [False, True], ids=["nofac", "fac"])
+  def test_quad_properties(
       self, rng: jax.Array, is_orthogonal: bool, is_complement: bool,
       is_factor: bool
   ):
-    k, d = 16, 17
-    A = jax.random.normal(rng, (k, d))
+
+    def loss(reg: regularizers.ProximalOperator, x: jnp.ndarray) -> float:
+      return jnp.mean(jax.vmap(reg)(x))
+
+    def test_properties(reg: regularizers.ProximalOperator) -> None:
+      assert reg.is_orthogonal == is_orthogonal
+      assert reg.is_complement == is_complement
+      assert reg.is_factor == is_factor
+      if reg.is_complement:
+        assert isinstance(reg.A_comp, lx.AbstractLinearOperator)
+      else:
+        assert reg.A_comp is None
+
+    is_square = not is_factor and not is_complement
+    k, d = (17, 17) if is_square else (5, 17)
+    rng_A, rng_x = jax.random.split(rng, 2)
+    A = jax.random.normal(rng_A, (k, d))
+    x = jax.random.normal(rng_x, (13, d))
     if is_orthogonal:
       A = _proj(A)
 
-    reg = regularizers.Quadratic.create(
+    reg = regularizers.Quadratic(
         A,
         is_orthogonal=is_orthogonal,
         is_complement=is_complement,
-        is_factor=is_factor
+        is_factor=is_factor,
     )
+    grad_reg = jax.jit(jax.grad(loss))(reg, x)
+    grad_A = grad_reg.A.as_matrix()
 
-    assert reg.is_orthogonal == is_orthogonal
-    assert reg.is_complement == is_complement
-    assert reg.is_factor == is_factor
-    if reg.is_complement:
-      assert isinstance(reg.A_comp, lx.AbstractLinearOperator)
-    else:
-      assert reg.A_comp is None
+    test_properties(reg)
+    test_properties(grad_reg)
+
+    np.testing.assert_array_equal(jnp.isfinite(grad_A), True)
+    with pytest.raises(AssertionError, match="Not equal"):
+      # check that the gradients are not close to 0
+      np.testing.assert_allclose(grad_A, 0.0, rtol=1e-3, atol=1e-3)
 
   @pytest.mark.parametrize("d", [17, 64])
   def test_pythagorean_identity(self, rng: jax.Array, d: int):
@@ -122,10 +144,8 @@ class TestQuadratic:
     A = _proj(jax.random.normal(rng_A, (d // 2, d)))
     x = jax.random.normal(rng_x, (d,))
 
-    reg = regularizers.Quadratic.create(A=A, is_factor=True)
-    reg_c = regularizers.Quadratic.create(
-        A=A, is_complement=True, is_factor=True
-    )
+    reg = regularizers.Quadratic(A=A, is_factor=True)
+    reg_c = regularizers.Quadratic(A=A, is_complement=True, is_factor=True)
 
     expected = 0.5 * (x ** 2).sum()
     actual = reg(x) + reg_c(x)
@@ -155,7 +175,7 @@ class TestQuadratic:
     x = jax.random.normal(rng_x, (d,))
     b = jax.random.normal(rng_b, (d,)) * 10.0 + 100.0 if use_b else jnp.zeros(d)
 
-    reg_orth = regularizers.Quadratic.create(
+    reg_orth = regularizers.Quadratic(
         A,
         b=b if use_b else None,
         is_factor=is_factor,
@@ -177,7 +197,7 @@ class TestQuadratic:
     rng_b, rng_x = jax.random.split(rng)
     x = jax.random.normal(rng_x, (d,))
     b = jax.random.normal(rng_b, (d,)) if use_b else jnp.zeros(d)
-    reg = regularizers.Quadratic.create(b=b if use_b else None)
+    reg = regularizers.Quadratic(b=b if use_b else None)
 
     expected_norm = 0.5 * (x ** 2).sum() + jnp.dot(x, b)
     expected_prox = (1.0 / (1.0 + tau)) * x - (tau / (1.0 + tau)) * b
@@ -253,7 +273,7 @@ class TestQuadratic:
     b = jax.random.normal(rng_b, (d,))
     x = jax.random.normal(rng_x, (d,))
 
-    reg = regularizers.Quadratic.create(
+    reg = regularizers.Quadratic(
         A,
         b=b,
         is_orthogonal=is_orthogonal,

@@ -15,7 +15,6 @@ import abc
 import functools
 from typing import Any, Callable, Optional, Tuple, Union
 
-import lineax
 import lineax as lx
 
 import jax
@@ -73,7 +72,7 @@ class ProximalOperator(abc.ABC):
       tau: Positive weight.
 
     Returns:
-        The prox dual of ``v``.
+      The prox dual of ``v``.
     """
     return v - tau * self.prox(v / tau, 1.0 / tau)
 
@@ -195,78 +194,44 @@ class Orthogonal(ProximalOperator):
 class Quadratic(ProximalOperator):
   r"""Quadratic operator :math:`\frac{1}{2} \left<x, Q x\right> + b`.
 
-  .. note::
-    This constructor is not meant to be called by the user,
-    please use the :meth:`create` method instead.
+  The matrix :math:`Q` is defined as:
+
+  - :math:`Q := A` if not factored and not an orthogonal complement.
+  - :math:`Q := A^{\perp}` if not factored and a complement.
+  - :math:`Q := A^TA` if factored and not a complement.
+  - :math:`Q := \left(A^{\perp}\right)^TA^{\perp}` if factored and
+    a complement.
 
   Args:
     A: Linear operator :math:`A`. If :obj:`None`, use identity.
-    A_comp: Orthogonal complement :math:`A^{\perp}` of :math:`A`, if computed.
     b: Offset :math:`b`. If :obj:`None`, use array of 0s.
-    solver: Linear solver.
+    is_complement: Whether to regularize in the orthogonal complement of
+      :math:`A`, defined as :math:`A^{\perp} := I - A^T (AA^T)^{-1} A`.
+    is_orthogonal: Whether :math:`AA^T = I`.
+    is_factor: Whether to factor the matrix :math:`Q` as mentioned above.
+    solver: Linear solver. If :obj:`None`, use :func:`lineax.linear_solve`.
   """
 
   def __init__(
       self,
-      A: Optional[lx.TaggedLinearOperator],
-      A_comp: Optional[lx.AbstractLinearOperator] = None,
-      b: Optional[jnp.ndarray] = None,
-      solver: Optional[Callable[[lx.AbstractLinearOperator, jnp.ndarray],
-                                jnp.ndarray]] = None,
-  ):
-    super().__init__()
-    self.A = A
-    self.A_comp = A_comp
-    self.b = b
-    self.solver = (
-        lambda op, b: lx.linear_solve(op, b).value
-    ) if solver is None else solver
-
-  @classmethod
-  def create(
-      cls,
       A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
+      b: Optional[jnp.ndarray] = None,
       *,
       is_complement: bool = False,
       is_orthogonal: bool = False,
       is_factor: bool = False,
-      **kwargs: Any,
-  ) -> "Quadratic":
-    r"""Create the quadratic operator :math:`\frac{1}{2} \left<x, Q x\right> + b`.
-
-    The matrix :math:`Q` is defined as:
-
-    - :math:`Q := A` if not factored and not an orthogonal complement.
-    - :math:`Q := A^{\perp}` if not factored and a complement.
-    - :math:`Q := A^TA` if factored and not a complement.
-    - :math:`Q := \left(A^{\perp}\right)^TA^{\perp}` if factored and
-      a complement.
-
-    Args:
-      A: Linear operator :math:`A`. If :obj:`None`, use identity.
-      is_complement: Whether to regularize in the orthogonal complement of
-        :math:`A`, defined as :math:`A^{\perp} := I - A^T (AA^T)^{-1} A`.
-      is_orthogonal: Whether :math:`AA^T = I`.
-      is_factor: Whether to factor the matrix :math:`Q` as mentioned above.
-      kwargs: Keyword arguments for :class:`Quadratic`.
-    """  # noqa: E501
-    if A is None:
-      return cls(A=None, A_comp=None, **kwargs)
-
-    tags = set()
-    if is_complement:
-      tags.add("complement")
-    if is_factor:
-      tags.add("factor")
-    if is_orthogonal:
-      tags.add("orthogonal")
-
-    if isinstance(A, jnp.ndarray):
-      A = lineax.MatrixLinearOperator(A)
-    A = lx.TaggedLinearOperator(A, tags=tags)
-    A_comp = _complement(A, is_orthogonal) if is_complement else None
-
-    return cls(A, A_comp=A_comp, **kwargs)
+      solver: Optional[Callable[[lx.AbstractLinearOperator, jnp.ndarray],
+                                jnp.ndarray]] = None,
+  ):
+    super().__init__()
+    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
+    self.b = b
+    self._is_complement = is_complement
+    self._is_orthogonal = is_orthogonal
+    self._is_factor = is_factor
+    self.solver = (
+        lambda op, b: lx.linear_solve(op, b).value
+    ) if solver is None else solver
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     Q = self.Q
@@ -298,19 +263,26 @@ class Quadratic(ProximalOperator):
     return self.solver(A, b)
 
   @property
+  def A_comp(self) -> Optional[lx.AbstractLinearOperator]:
+    r"""Orthogonal complement :math:`A^{\perp}` of :math:`A`."""
+    return _complement(
+        self.A, self.is_orthogonal
+    ) if self.is_complement else None
+
+  @property
   def is_complement(self) -> bool:
     r"""Whether :attr:`Q` is defined using :math:`A_{\perp}` or :math:`A`."""
-    return self.A is not None and "complement" in self.A.tags
+    return self.A is not None and self._is_complement
 
   @property
   def is_factor(self) -> bool:
     r"""Whether :attr:`Q` is factored."""
-    return self.A is not None and "factor" in self.A.tags
+    return self.A is not None and self._is_factor
 
   @property
   def is_orthogonal(self) -> bool:
     r"""Whether :attr:`AA^T = I`."""
-    return self.A is not None and "orthogonal" in self.A.tags
+    return self.A is not None and self._is_orthogonal
 
   @property
   def Q(self) -> Optional[lx.AbstractLinearOperator]:
@@ -321,7 +293,12 @@ class Quadratic(ProximalOperator):
     return (Q.T @ Q) if self.is_factor else Q
 
   def tree_flatten(self):  # noqa: D102
-    return (self.A, self.A_comp, self.b), self.solver
+    return (self.A, self.b), {
+        "is_complement": self.is_complement,
+        "is_orthogonal": self.is_orthogonal,
+        "is_factor": self.is_factor,
+        "solver": self.solver
+    }
 
 
 @jtu.register_pytree_node_class
@@ -353,8 +330,7 @@ class L2(ProximalOperator):
   Args:
     A: Linear operator :math:`A`. If :obj:`None`, use identity.
     lam: Strength of the regularizer.
-    kwargs: Keyword arguments for :meth:`Quadratic.create
-      <ott.geometry.regularizers.Quadratic.create>`
+    kwargs: Keyword arguments for :class:`Quadratic`.
   """
 
   def __init__(
@@ -364,10 +340,8 @@ class L2(ProximalOperator):
       **kwargs: Any,
   ):
     super().__init__()
-    self.A = A
+    self.f = Quadratic(A, is_factor=True, **kwargs)
     self.lam = lam
-
-    self.f = Quadratic.create(A, is_factor=True, **kwargs)
     self._init_kwargs = kwargs
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
@@ -377,7 +351,7 @@ class L2(ProximalOperator):
     return self.f.prox(v, self.lam * tau)
 
   def tree_flatten(self):  # noqa: D102
-    return (self.A, self.lam), self._init_kwargs
+    return (self.f.A, self.lam), self._init_kwargs
 
 
 @jtu.register_pytree_node_class
