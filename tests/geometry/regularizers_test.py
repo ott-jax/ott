@@ -100,7 +100,7 @@ class TestQuadratic:
     if is_orthogonal:
       A = _proj(A)
 
-    reg = regularizers.Quadratic.create(
+    reg = regularizers.Quadratic(
         A,
         is_orthogonal=is_orthogonal,
         is_complement=is_complement,
@@ -122,10 +122,8 @@ class TestQuadratic:
     A = _proj(jax.random.normal(rng_A, (d // 2, d)))
     x = jax.random.normal(rng_x, (d,))
 
-    reg = regularizers.Quadratic.create(A=A, is_factor=True)
-    reg_c = regularizers.Quadratic.create(
-        A=A, is_complement=True, is_factor=True
-    )
+    reg = regularizers.Quadratic(A=A, is_factor=True)
+    reg_c = regularizers.Quadratic(A=A, is_complement=True, is_factor=True)
 
     expected = 0.5 * (x ** 2).sum()
     actual = reg(x) + reg_c(x)
@@ -155,7 +153,7 @@ class TestQuadratic:
     x = jax.random.normal(rng_x, (d,))
     b = jax.random.normal(rng_b, (d,)) * 10.0 + 100.0 if use_b else jnp.zeros(d)
 
-    reg_orth = regularizers.Quadratic.create(
+    reg_orth = regularizers.Quadratic(
         A,
         b=b if use_b else None,
         is_factor=is_factor,
@@ -177,7 +175,7 @@ class TestQuadratic:
     rng_b, rng_x = jax.random.split(rng)
     x = jax.random.normal(rng_x, (d,))
     b = jax.random.normal(rng_b, (d,)) if use_b else jnp.zeros(d)
-    reg = regularizers.Quadratic.create(b=b if use_b else None)
+    reg = regularizers.Quadratic(b=b if use_b else None)
 
     expected_norm = 0.5 * (x ** 2).sum() + jnp.dot(x, b)
     expected_prox = (1.0 / (1.0 + tau)) * x - (tau / (1.0 + tau)) * b
@@ -253,7 +251,7 @@ class TestQuadratic:
     b = jax.random.normal(rng_b, (d,))
     x = jax.random.normal(rng_x, (d,))
 
-    reg = regularizers.Quadratic.create(
+    reg = regularizers.Quadratic(
         A,
         b=b,
         is_orthogonal=is_orthogonal,
