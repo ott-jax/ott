@@ -113,13 +113,13 @@ def default_progress_fn(
 
       from ott import utils
       from ott.geometry import pointcloud
-      from ott.solvers.linear import sinkhorn
+      from ott.solvers import linear
 
       x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
       geom = pointcloud.PointCloud(x)
 
       progress_fn = utils.default_progress_fn()
-      solve_fn = jax.jit(sinkhorn.solve, static_argnames=["progress_fn"])
+      solve_fn = jax.jit(linear.solve, static_argnames=["progress_fn"])
       out = solve_fn(geom, progress_fn=progress_fn)
   """  # noqa: D205
 
@@ -173,14 +173,14 @@ def tqdm_progress_fn(
 
       from ott import utils
       from ott.geometry import pointcloud
-      from ott.solvers.linear import sinkhorn
+      from ott.solvers import linear
 
       x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
       geom = pointcloud.PointCloud(x)
 
       with tqdm.tqdm() as pbar:
         progress_fn = utils.tqdm_progress_fn(pbar)
-        solve_fn = jax.jit(sinkhorn.solve, static_argnames=["progress_fn"])
+        solve_fn = jax.jit(linear.solve, static_argnames=["progress_fn"])
         out = solve_fn(geom, progress_fn=progress_fn)
   """  # noqa: D205
 
