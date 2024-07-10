@@ -21,6 +21,7 @@ import numpy as np
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.quadratic import quadratic_problem
+from ott.solvers import quadratic
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
@@ -322,3 +323,42 @@ class TestFusedGromovWasserstein:
 
     np.testing.assert_allclose(pred.matrix, gt.matrix)
     np.testing.assert_allclose(pred.costs, gt.costs)
+
+  @pytest.mark.parametrize("fused_penalty", [0.3, 5.1])
+  def test_fgw_fused_penalty(self, rng: jax.Array, fused_penalty: float):
+    rtol = atol = 1e-5
+    n, m, d = 21, 32, 2
+    rngs = jax.random.split(rng, 4)
+    xx = jax.random.normal(rngs[0], (n, d))
+    yy = jax.random.normal(rngs[1], (m, d))
+    x = jax.random.normal(rngs[2], (n, d))
+    y = jax.random.normal(rngs[3], (m, d))
+
+    geom_xy = pointcloud.PointCloud(x, y, scale_cost=1.0)
+    geom_xy_fp = pointcloud.PointCloud(x, y, scale_cost=1.0 / fused_penalty)
+    geom_xx = pointcloud.PointCloud(xx)
+    geom_yy = pointcloud.PointCloud(yy)
+
+    out = quadratic.solve(
+        geom_xx,
+        geom_yy,
+        geom_xy=geom_xy,
+        fused_penalty=fused_penalty,
+        store_inner_errors=True
+    )
+    out_fp = quadratic.solve(
+        geom_xx,
+        geom_yy,
+        geom_xy=geom_xy_fp,
+        fused_penalty=1.0,
+        store_inner_errors=True
+    )
+
+    np.testing.assert_allclose(out.costs, out_fp.costs, rtol=rtol, atol=atol)
+    np.testing.assert_allclose(out.errors, out_fp.errors, rtol=rtol, atol=atol)
+    np.testing.assert_allclose(
+        out.primal_cost, out_fp.primal_cost, rtol=rtol, atol=atol
+    )
+    np.testing.assert_allclose(
+        out.reg_gw_cost, out_fp.reg_gw_cost, rtol=rtol, atol=atol
+    )
