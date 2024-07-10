@@ -185,7 +185,7 @@ class TestQuadratic:
 
     iden = lx.IdentityLinearOperator(reg_orth.Q.out_structure())
     A, y = iden + tau * reg_orth.Q, x - tau * b
-    expected = reg_orth.solver(A, y)
+    expected = lx.linear_solve(A, y).value
     actual = reg_orth.prox(x, tau)
 
     np.testing.assert_allclose(expected, actual, rtol=1e-3, atol=1e-3)
