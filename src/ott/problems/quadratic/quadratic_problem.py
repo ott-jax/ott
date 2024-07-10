@@ -412,11 +412,9 @@ class QuadraticProblem:
       if isinstance(
           geom_xy, pointcloud.PointCloud
       ) and geom_xy.is_squared_euclidean:
-        geom_xy = geom_xy.to_LRCGeometry(scale=self.fused_penalty)
+        geom_xy = geom_xy.to_LRCGeometry()
       else:
-        geom_xy = geom_xy.to_LRCGeometry(
-            rank=r3, tol=t3, rng=rng3, scale=self.fused_penalty
-        )
+        geom_xy = geom_xy.to_LRCGeometry(rank=r3, tol=t3, rng=rng3)
 
     return type(self).tree_unflatten(
         aux_data, [geom_xx, geom_yy, geom_xy] + children
