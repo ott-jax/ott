@@ -229,9 +229,7 @@ class Quadratic(ProximalOperator):
     self._is_complement = is_complement
     self._is_orthogonal = is_orthogonal
     self._is_factor = is_factor
-    self.solver = (
-        lambda op, b: lx.linear_solve(op, b).value
-    ) if solver is None else solver
+    self._solver = solver
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     Q = self.Q
@@ -260,7 +258,11 @@ class Quadratic(ProximalOperator):
         return op.mv(b)
 
     A = iden + tau * Q
-    return self.solver(A, b)
+
+    if self._solver is None:
+      # use default solver
+      return lx.linear_solve(A, b).value
+    return self._solver(A, b)
 
   @property
   def A_comp(self) -> Optional[lx.AbstractLinearOperator]:
@@ -297,7 +299,7 @@ class Quadratic(ProximalOperator):
         "is_complement": self.is_complement,
         "is_orthogonal": self.is_orthogonal,
         "is_factor": self.is_factor,
-        "solver": self.solver
+        "solver": self._solver
     }
 
 
