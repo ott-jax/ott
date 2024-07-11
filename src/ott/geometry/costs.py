@@ -280,19 +280,20 @@ class TICost(CostFn):
       return vec + jax.grad(self.h_legendre)(-dual_vec)
     return vec - jax.grad(self.h_legendre)(dual_vec)
 
-  def transport_map(self, f: Func) -> Callable[[jnp.ndarray], jnp.ndarray]:
-    r"""Get an optimal transport map.
+  def transport_map(self,
+                    f: Func) -> Callable[[jnp.ndarray, bool, Any], jnp.ndarray]:
+    r"""Get an optimal transport map for a concave function :math:`f`.
 
     Uses Theorem 1.17 from :cite:`santambrogio:15` to define an OT map, e.g. in
-    the forward case :math:`x - (\nabla h^*) \circ \nabla f^h(x)`, where
-    :math:`h^*` is the Legendre transform of :math:`h` and :math:`f^h`
-    is the h-transform of a concave function :math:`f`.
+    the forward case :math:`x - (\nabla h^*) \circ \nabla \bar f^h(x)`, where
+    :math:`h^*` is the Legendre transform of :math:`h` and :math:`\bar f^h`
+    is the :meth:`h_transform` of a concave function :math:`f`.
 
     Args:
       f: Concave function.
 
     Returns:
-      The transport map.
+      The transport map with a signature ``(x, forward, **kwargs)``.
     """
 
     def transport(
