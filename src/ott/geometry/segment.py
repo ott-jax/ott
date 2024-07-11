@@ -100,6 +100,7 @@ def segment_point_cloud(
         num_per_segment, total_repeat_length=num
     )
 
+  max_measure_size = min(max_measure_size, num)
   if a is None:
     a = jnp.array(
         (1.0 /
