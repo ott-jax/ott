@@ -311,11 +311,11 @@ class TICost(CostFn):
       Returns:
         The transported points.
       """
-      h_f = functools.partial(self.h_transform(f), **kwargs)
-      grad_h_f = jax.vmap(jax.grad(h_f))
+      f_h = functools.partial(self.h_transform(f), **kwargs)
+      grad_f_h = jax.vmap(jax.grad(f_h))
       return jax.vmap(
           self.twist_operator, in_axes=[0, 0, None]
-      )(x, grad_h_f(x), not forward)
+      )(x, grad_f_h(x), not forward)
 
     return transport
 
