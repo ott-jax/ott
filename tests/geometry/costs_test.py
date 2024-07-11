@@ -23,6 +23,7 @@ import numpy as np
 from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
+from ott.math import utils as mu
 from ott.solvers import linear
 
 
@@ -150,6 +151,31 @@ class TestTICost:
     for fwd in [False, True]:
       t_x = transport_fn(x, forward=fwd)
       np.testing.assert_array_equal(jnp.isfinite(t_x), True)
+
+  @pytest.mark.parametrize(
+      "cost_fn", [
+          costs.SqEuclidean(),
+          costs.PNormP(2),
+          costs.RegTICost(regularizers.L2(lam=0.0), rho=2.0)
+      ]
+  )
+  def test_sqeucl_transport(
+      self, rng: jax.Array, cost_fn: costs.TICost, enable_x64
+  ):
+    x = jax.random.normal(rng, (12, 7))
+    f = mu.logsumexp
+
+    h_f = cost_fn.h_transform(f)
+    expected_fn = cost_fn.transport_map(f)
+    expected_fn = jax.jit(expected_fn, static_argnames=["forward"])
+    if isinstance(cost_fn, costs.SqEuclidean):
+      # multiply by `0.5`, because `SqEuclidean := |x|_2^2`
+      actual_fn = jax.jit(jax.vmap(lambda x: x - 0.5 * jax.grad(h_f)(x)))
+    else:
+      actual_fn = jax.jit(jax.vmap(lambda x: x - jax.grad(h_f)(x)))
+
+    np.testing.assert_array_equal(expected_fn(x, forward=True), actual_fn(x))
+    np.testing.assert_array_equal(expected_fn(x, forward=False), actual_fn(x))
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
