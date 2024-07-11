@@ -324,6 +324,36 @@ class TestRegTICost:
     for fwd in [False, True]:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
 
+  @pytest.mark.parametrize(
+      "reg", [
+          regularizers.L1(lam=0.1),
+          regularizers.L2(lam=3.3),
+          regularizers.STVS(lam=1.0),
+          regularizers.SqKOverlap(k=3, lam=1.05)
+      ]
+  )
+  def test_reg_transport_fn(
+      self, rng: jax.Array, reg: regularizers.ProximalOperator
+  ):
+
+    @functools.partial(jax.jit, static_argnames=["forward"])
+    @functools.partial(jax.vmap, in_axes=[0, None])
+    def expected_fn(x, forward: bool) -> jnp.ndarray:
+      f_h = cost_fn.h_transform(f)
+      if forward:
+        return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
+      return x + cost_fn.regularizer.prox(-jax.grad(f_h)(x))
+
+    x = jax.random.normal(rng, (11, 9))
+    cost_fn = costs.RegTICost(reg)
+    f = mu.logsumexp
+
+    actual_fn = cost_fn.transport_map(f)
+    actual_fn = jax.jit(actual_fn, static_argnames=["forward"])
+
+    np.testing.assert_array_equal(expected_fn(x, True), actual_fn(x, True))
+    np.testing.assert_array_equal(expected_fn(x, False), actual_fn(x, False))
+
 
 @pytest.mark.fast()
 class TestSoftDTW:
