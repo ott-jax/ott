@@ -23,7 +23,6 @@ import numpy as np
 from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
-from ott.math import utils as mu
 from ott.solvers import linear
 
 
@@ -138,12 +137,19 @@ class TestTICost:
           costs.SqEuclidean()
       ]
   )
-  def test_h_transform(self, rng: jax.Array, cost_fn: costs.TICost):
-    x = jax.random.normal(rng, (15, 3))
-    h_transform = cost_fn.h_transform(mu.logsumexp)
-    h_transform = jax.jit(jax.vmap(jax.grad(h_transform)))
+  def test_transport_map(self, rng: jax.Array, cost_fn: costs.TICost):
+    d = 5
+    rng_x, rng_A = jax.random.split(rng)
+    x = jax.random.normal(rng_x, (15, d))
+    A = jax.random.normal(rng_A, (d, d * 2))
+    A = A @ A.T
 
-    np.testing.assert_array_equal(jnp.isfinite(h_transform(x)), True)
+    transport_fn = cost_fn.transport_map(lambda z: -jnp.sum(z * (A.dot(z))))
+    transport_fn = jax.jit(transport_fn, static_argnames=["forward"])
+
+    for fwd in [False, True]:
+      t_x = transport_fn(x, forward=fwd)
+      np.testing.assert_array_equal(jnp.isfinite(t_x), True)
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
