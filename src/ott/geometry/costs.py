@@ -280,6 +280,40 @@ class TICost(CostFn):
       return vec + jax.grad(self.h_legendre)(-dual_vec)
     return vec - jax.grad(self.h_legendre)(dual_vec)
 
+  def transport_map(self, g: Func) -> Callable[[jnp.ndarray, Any], jnp.ndarray]:
+    r"""Get an optimal transport map for a concave function :math:`g`.
+
+    Uses Proposition 1 from :cite:`klein:24` to define an OT map
+    :math:`x - (\nabla h^*) \circ \nabla \bar g^h(x)`, where :math:`h^*`
+    is the Legendre transform of :math:`h` and :math:`\bar g^h`
+    is the :meth:`h_transform` of a concave function :math:`g`.
+
+    Args:
+      g: Concave function.
+
+    Returns:
+      The transport map with a signature ``(x, **kwargs)``.
+    """
+
+    def transport(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
+      """Transport points from source to target.
+
+      Args:
+        x: Array of shape ``[n, d]``.
+        kwargs: Keyword arguments for the output of the
+          :meth:`h_transform` method.
+
+      Returns:
+        The transported points.
+      """
+      g_h = functools.partial(self.h_transform(g), **kwargs)
+      grad_g_h = jax.vmap(jax.grad(g_h))
+      return jax.vmap(
+          self.twist_operator, in_axes=[0, 0, None]
+      )(x, grad_g_h(x), False)
+
+    return transport
+
   def barycenter(self, weights: jnp.ndarray,
                  xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors."""

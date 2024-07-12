@@ -20,6 +20,7 @@ import jax
 import jax.numpy as jnp
 import jaxopt
 import numpy as np
+import scipy as sp
 from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
@@ -131,19 +132,53 @@ class TestTICost:
 
   @pytest.mark.parametrize(
       "cost_fn", [
-          costs.SqPNorm(p=1.0),
+          costs.SqPNorm(1.05),
           costs.SqPNorm(2.4),
-          costs.PNormP(p=1.1),
+          costs.PNormP(1.1),
           costs.PNormP(1.3),
           costs.SqEuclidean()
       ]
   )
-  def test_h_transform(self, rng: jax.Array, cost_fn: costs.TICost):
-    x = jax.random.normal(rng, (15, 3))
-    h_transform = cost_fn.h_transform(mu.logsumexp)
-    h_transform = jax.jit(jax.vmap(jax.grad(h_transform)))
+  def test_transport_map(self, rng: jax.Array, cost_fn: costs.TICost):
+    n, d = 15, 5
+    rng_x, rng_A = jax.random.split(rng)
+    x = jax.random.normal(rng_x, (n, d))
+    A = jax.random.normal(rng_A, (d, d * 2))
+    A = A @ A.T
 
-    np.testing.assert_array_equal(jnp.isfinite(h_transform(x)), True)
+    transport_fn = cost_fn.transport_map(lambda z: -jnp.sum(z * (A.dot(z))))
+    transport_fn = jax.jit(transport_fn)
+
+    y = transport_fn(x)
+    cost_matrix = cost_fn.all_pairs(x, y)
+
+    row_ixs, col_ixs = sp.optimize.linear_sum_assignment(cost_matrix)
+    np.testing.assert_array_equal(row_ixs, jnp.arange(n))
+    np.testing.assert_array_equal(col_ixs, jnp.arange(n))
+
+  @pytest.mark.parametrize(
+      "cost_fn", [
+          costs.SqEuclidean(),
+          costs.PNormP(2),
+          costs.RegTICost(regularizers.L2(lam=0.0), rho=2.0)
+      ]
+  )
+  def test_sqeucl_transport(
+      self, rng: jax.Array, cost_fn: costs.TICost, enable_x64
+  ):
+    x = jax.random.normal(rng, (12, 7))
+    f = mu.logsumexp
+
+    h_f = cost_fn.h_transform(f)
+    expected_fn = cost_fn.transport_map(f)
+    expected_fn = jax.jit(expected_fn)
+    if isinstance(cost_fn, costs.SqEuclidean):
+      # multiply by `0.5`, because `SqEuclidean := |x|_2^2`
+      actual_fn = jax.jit(jax.vmap(lambda x: x - 0.5 * jax.grad(h_f)(x)))
+    else:
+      actual_fn = jax.jit(jax.vmap(lambda x: x - jax.grad(h_f)(x)))
+
+    np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
@@ -291,6 +326,33 @@ class TestRegTICost:
 
     for fwd in [False, True]:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
+
+  @pytest.mark.parametrize(
+      "reg", [
+          regularizers.L1(lam=0.1),
+          regularizers.L2(lam=3.3),
+          regularizers.STVS(lam=1.0),
+          regularizers.SqKOverlap(k=3, lam=1.05)
+      ]
+  )
+  def test_reg_transport_fn(
+      self, rng: jax.Array, reg: regularizers.ProximalOperator
+  ):
+
+    @jax.jit
+    @functools.partial(jax.vmap, in_axes=0)
+    def expected_fn(x: jnp.ndarray) -> jnp.ndarray:
+      f_h = cost_fn.h_transform(f)
+      return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
+
+    x = jax.random.normal(rng, (11, 9))
+    cost_fn = costs.RegTICost(reg)
+    f = mu.logsumexp
+
+    actual_fn = cost_fn.transport_map(f)
+    actual_fn = jax.jit(actual_fn)
+
+    np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
 
 
 @pytest.mark.fast()
