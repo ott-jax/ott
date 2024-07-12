@@ -20,6 +20,7 @@ import jax
 import jax.numpy as jnp
 import jaxopt
 import numpy as np
+import scipy as sp
 from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
@@ -131,25 +132,29 @@ class TestTICost:
 
   @pytest.mark.parametrize(
       "cost_fn", [
-          costs.SqPNorm(p=1.0),
+          costs.SqPNorm(1.05),
           costs.SqPNorm(2.4),
-          costs.PNormP(p=1.1),
+          costs.PNormP(1.1),
           costs.PNormP(1.3),
           costs.SqEuclidean()
       ]
   )
   def test_transport_map(self, rng: jax.Array, cost_fn: costs.TICost):
-    d = 5
+    n, d = 15, 5
     rng_x, rng_A = jax.random.split(rng)
-    x = jax.random.normal(rng_x, (15, d))
+    x = jax.random.normal(rng_x, (n, d))
     A = jax.random.normal(rng_A, (d, d * 2))
     A = A @ A.T
 
     transport_fn = cost_fn.transport_map(lambda z: -jnp.sum(z * (A.dot(z))))
     transport_fn = jax.jit(transport_fn)
 
-    t_x = transport_fn(x)
-    np.testing.assert_array_equal(jnp.isfinite(t_x), True)
+    y = transport_fn(x)
+    cost_matrix = cost_fn.all_pairs(x, y)
+
+    row_ixs, col_ixs = sp.optimize.linear_sum_assignment(cost_matrix)
+    np.testing.assert_array_equal(row_ixs, jnp.arange(n))
+    np.testing.assert_array_equal(col_ixs, jnp.arange(n))
 
   @pytest.mark.parametrize(
       "cost_fn", [
