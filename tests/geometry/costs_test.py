@@ -146,11 +146,10 @@ class TestTICost:
     A = A @ A.T
 
     transport_fn = cost_fn.transport_map(lambda z: -jnp.sum(z * (A.dot(z))))
-    transport_fn = jax.jit(transport_fn, static_argnames=["forward"])
+    transport_fn = jax.jit(transport_fn)
 
-    for fwd in [False, True]:
-      t_x = transport_fn(x, forward=fwd)
-      np.testing.assert_array_equal(jnp.isfinite(t_x), True)
+    t_x = transport_fn(x)
+    np.testing.assert_array_equal(jnp.isfinite(t_x), True)
 
   @pytest.mark.parametrize(
       "cost_fn", [
@@ -167,15 +166,14 @@ class TestTICost:
 
     h_f = cost_fn.h_transform(f)
     expected_fn = cost_fn.transport_map(f)
-    expected_fn = jax.jit(expected_fn, static_argnames=["forward"])
+    expected_fn = jax.jit(expected_fn)
     if isinstance(cost_fn, costs.SqEuclidean):
       # multiply by `0.5`, because `SqEuclidean := |x|_2^2`
       actual_fn = jax.jit(jax.vmap(lambda x: x - 0.5 * jax.grad(h_f)(x)))
     else:
       actual_fn = jax.jit(jax.vmap(lambda x: x - jax.grad(h_f)(x)))
 
-    np.testing.assert_array_equal(expected_fn(x, forward=True), actual_fn(x))
-    np.testing.assert_array_equal(expected_fn(x, forward=False), actual_fn(x))
+    np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
@@ -336,23 +334,20 @@ class TestRegTICost:
       self, rng: jax.Array, reg: regularizers.ProximalOperator
   ):
 
-    @functools.partial(jax.jit, static_argnames=["forward"])
-    @functools.partial(jax.vmap, in_axes=[0, None])
-    def expected_fn(x, forward: bool) -> jnp.ndarray:
+    @jax.jit
+    @functools.partial(jax.vmap, in_axes=0)
+    def expected_fn(x: jnp.ndarray) -> jnp.ndarray:
       f_h = cost_fn.h_transform(f)
-      if forward:
-        return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
-      return x + cost_fn.regularizer.prox(-jax.grad(f_h)(x))
+      return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
 
     x = jax.random.normal(rng, (11, 9))
     cost_fn = costs.RegTICost(reg)
     f = mu.logsumexp
 
     actual_fn = cost_fn.transport_map(f)
-    actual_fn = jax.jit(actual_fn, static_argnames=["forward"])
+    actual_fn = jax.jit(actual_fn)
 
-    np.testing.assert_array_equal(expected_fn(x, True), actual_fn(x, True))
-    np.testing.assert_array_equal(expected_fn(x, False), actual_fn(x, False))
+    np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
 
 
 @pytest.mark.fast()
