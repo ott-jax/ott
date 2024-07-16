@@ -333,10 +333,7 @@ class Grid(geometry.Geometry):
       **kwargs: Any
   ) -> Tuple["Grid", ...]:
     """Instantiate the geometries used for a divergence computation."""
-    grid_size = kwargs.pop("grid_size", None)
-    x = kwargs.pop("x", args)
-
-    sep_grid = cls(x=x, grid_size=grid_size, **kwargs)
+    sep_grid = cls(*args, **kwargs)
     size = 2 if static_b else 3
     return tuple(sep_grid for _ in range(size))
 
