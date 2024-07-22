@@ -325,6 +325,20 @@ class Grid(geometry.Geometry):
     """Not implemented."""
     raise NotImplementedError("Masking is not implemented for grids.")
 
+  @property
+  def cost_matrix(self) -> jnp.ndarray:
+    """Not implemented."""
+    raise NotImplementedError(
+        "Instantiating cost matrix is not implemented for grids."
+    )
+
+  @property
+  def kernel_matrix(self) -> jnp.ndarray:
+    """Not implemented."""
+    raise NotImplementedError(
+        "Instantiating kernel matrix is not implemented for grids."
+    )
+
   @classmethod
   def prepare_divergences(
       cls,
