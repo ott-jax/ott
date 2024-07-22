@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import pytest
 
@@ -19,7 +19,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import costs, geometry, pointcloud
+from ott.geometry import costs, geometry, grid, pointcloud
 from ott.solvers import linear
 from ott.solvers.linear import acceleration
 from ott.tools import sinkhorn_divergence
@@ -436,3 +436,23 @@ class TestSinkhornDivergenceGrad:
     np.testing.assert_allclose(
         custom_grad, finite_diff_grad, rtol=1e-2, atol=1e-2
     )
+
+  @pytest.mark.parametrize("grid_size", [(5,), (2, 3), (3, 4, 5)])
+  def test_grid_geometry(self, rng: jax.Array, grid_size: Tuple[int, ...]):
+    rng1, rng2 = jax.random.split(rng, 2)
+    gs = (5,)
+
+    a = jax.random.uniform(rng1, shape=gs)
+    a = a / jnp.sum(a)
+    b = jax.random.uniform(rng2, shape=gs)
+    b = b / jnp.sum(b)
+
+    out = sinkhorn_divergence.sinkhorn_divergence(
+        grid.Grid,
+        grid_size=gs,
+        a=a,
+        b=b,
+        epsilon=1e-1,
+    )
+
+    assert jnp.isfinite(out.divergence)
