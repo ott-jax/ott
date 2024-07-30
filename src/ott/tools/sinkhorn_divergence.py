@@ -20,7 +20,7 @@ from ott import utils
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
-from ott.solvers.linear import acceleration, sinkhorn
+from ott.solvers.linear import acceleration, sinkhorn, sinkhorn_lr
 
 __all__ = [
     "sinkhorn_divergence", "segment_sinkhorn_divergence",
@@ -28,12 +28,12 @@ __all__ = [
 ]
 
 Potentials_t = Tuple[jnp.ndarray, jnp.ndarray]
+Factors_t = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
 
 
 @utils.register_pytree_node
 class SinkhornDivergenceOutput:  # noqa: D101
   divergence: float
-  potentials: Tuple[Potentials_t, Potentials_t, Potentials_t]
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
   errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]]
@@ -41,9 +41,12 @@ class SinkhornDivergenceOutput:  # noqa: D101
   a: jnp.ndarray
   b: jnp.ndarray
   n_iters: Tuple[int, int, int]
+  potentials: Optional[Tuple[Potentials_t, Potentials_t, Potentials_t]]
+  factors: Optional[Tuple[Factors_t, Factors_t, Factors_t]]
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
+    assert self.potentials is not None, "Potentials not computed."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
@@ -53,11 +56,8 @@ class SinkhornDivergenceOutput:  # noqa: D101
 
   def tree_flatten(self):  # noqa: D102
     return [
-        self.divergence,
-        self.potentials,
-        self.geoms,
-        self.a,
-        self.b,
+        self.divergence, self.geoms, self.a, self.b, self.potentials,
+        self.factors
     ], {
         "n_iters": self.n_iters,
         "converged": self.converged,
@@ -93,7 +93,7 @@ def sinkhorn_divergence(
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
     sinkhorn_kwargs: keywords arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` that is called twice
+      :class:`~ott.solvers.linear.solver` that is called twice
       if ``static_b = True`` else 3 times.
     static_b: if True, divergence of measure `b` against itself is **not**
       computed.
@@ -146,7 +146,9 @@ def _sinkhorn_divergence(
   """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
-    measure, as defined in :sejourne:19:, eq. 15.
+    measure, as defined in :cite:`sejourne:19`, eq. 15, and is extended to also
+    accept :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, as
+    advocated in :cite:`scetbon:22b`.
 
   Args:
     geometry_xy: a Cost object able to apply kernels with a certain epsilon,
@@ -161,23 +163,28 @@ def _sinkhorn_divergence(
      all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
-    kwargs: Keyword arguments to :func:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+    kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
     SinkhornDivergenceOutput named tuple.
   """
-  # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
-  # terms are computed independently. The user might want to pass some
-  # sinkhorn_kwargs to parameterize Sinkhorn's behavior, but those should
-  # only apply to the (x,y) part. For the (x,x) / (y,y) part we fall back
-  # on a simpler choice (parallel_dual_updates + momentum 0.5) that is known
-  # to work well in such settings. In the future we might want to give some
-  # freedom on setting parameters for the (x,x)/(y,y) part.
-  # Since symmetric terms are computed assuming a = b, the linear systems
-  # arising in implicit differentiation (if used) of the potentials computed for
-  # the symmetric parts should be marked as symmetric.
   kwargs_symmetric = kwargs.copy()
-  if symmetric_sinkhorn:
+  rank = kwargs.get("rank")
+  using_lr_solver = rank is not None and rank > 0
+
+  if not using_lr_solver and symmetric_sinkhorn:
+    # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
+    # terms are computed independently. The user might want to pass some
+    # kwargs to parameterize the solver's behavior, but those should
+    # only apply to the (x,y) part.
+    #
+    # When using the Sinkhorn solver, for the (x,x) / (y,y) part, we fall back
+    # on a simpler choice (parallel_dual_updates + momentum 0.5) that is known
+    # to work well in such settings.
+    #
+    # Since symmetric terms are computed assuming a = b, the linear systems
+    # arising in implicit differentiation (if used) of the potentials computed
+    # for the symmetric parts should be marked as symmetric.
     kwargs_symmetric.update(
         parallel_dual_updates=True,
         momentum=acceleration.Momentum(start=0, value=0.5),
@@ -191,14 +198,27 @@ def _sinkhorn_divergence(
   out_xx = linear.solve(geometry_xx, a, a, **kwargs_symmetric)
   if geometry_yy is None:
     # Create dummy output, corresponds to scenario where static_b is True.
-    # This choice ensures that `converged`` of this dummy output is True.
-    out_yy = sinkhorn.SinkhornOutput(
-        (None, None),
-        errors=jnp.array([-jnp.inf]),
-        reg_ot_cost=0.0,
-        threshold=0.0,
-        inner_iterations=0,
-    )
+    if using_lr_solver:
+      out_yy = sinkhorn_lr.LRSinkhornOutput(
+          q=None,
+          r=None,
+          g=None,
+          ot_prob=None,
+          epsilon=None,
+          inner_iterations=0,
+          converged=True,
+          costs=jnp.array([-jnp.inf]),
+          errors=jnp.array([-jnp.inf]),
+          reg_ot_cost=0.0,
+      )
+    else:
+      out_yy = sinkhorn.SinkhornOutput(
+          (None, None),
+          errors=jnp.array([-jnp.inf]),
+          reg_ot_cost=0.0,
+          threshold=0.0,
+          inner_iterations=0,
+      )
   else:
     out_yy = linear.solve(geometry_yy, b, b, **kwargs_symmetric)
 
@@ -206,16 +226,26 @@ def _sinkhorn_divergence(
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
       0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
   )
+  if using_lr_solver:
+    factors = ((out_xy.q, out_xy.r, out_xy.g), (out_xx.q, out_xx.r, out_xx.g),
+               (out_yy.q, out_yy.r, out_yy.g))
+    potentials = None
+
+  else:
+    potentials = ((out_xy.f, out_xy.g), (out_xx.f, out_xx.g),
+                  (out_yy.f, out_yy.g))
+    factors = None
+
   return SinkhornDivergenceOutput(
       divergence=div,
-      potentials=((out_xy.f, out_xy.g), (out_xx.f, out_xx.g),
-                  (out_yy.f, out_yy.g)),
       geoms=(geometry_xy, geometry_xx, geometry_yy),
       errors=(out_xy.errors, out_xx.errors, out_yy.errors),
       converged=(out_xy.converged, out_xx.converged, out_yy.converged),
       a=a,
       b=b,
       n_iters=(out_xy.n_iters, out_xx.n_iters, out_yy.n_iters),
+      potentials=potentials,
+      factors=factors
   )
 
 
