@@ -22,6 +22,7 @@ from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence as sd
 
+# TODO(michalk8): simplify
 Output = Union[sinkhorn.SinkhornOutput, sd.SinkhornDivergenceOutput]
 Initializer = tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]
 SolveFn = Callable[
@@ -59,6 +60,7 @@ class ProgOTState(NamedTuple):
     return self._replace(**kwargs)
 
 
+# TODO(michalk8): docs
 class ProgOTOutput(NamedTuple):
   prob: linear_problem.LinearProblem
   alphas: jnp.ndarray  # [k,]
@@ -133,6 +135,7 @@ class ProgOT:
 
   def __init__(
       self,
+      # TODO(michalk8): pass `debiased` + kwargs?
       solve_fn: SolveFn,
       *,
       alphas: jnp.ndarray,
@@ -161,6 +164,7 @@ class ProgOT:
   ) -> ProgOTOutput:
 
     def body_fn(state: ProgOTState, it: int) -> tuple[ProgOTState, jnp.ndarray]:
+      # TODO(michalk8): check only one is being passed
       eps = None if self.epsilons is None else self.epsilons[it]
       eps_scale = None if self.epsilon_scales is None else self.epsilon_scales[
           it]
@@ -171,6 +175,7 @@ class ProgOT:
           state.x, y, cost_fn, eps, eps_scale, state.init_potentials, thr
       )
 
+      # TODO(michalk8): simplify
       if is_debiased:
         # out_xx = _sink_out_from_debiased(out, idx=1)
         out_xy = _sink_out_from_debiased(out, idx=0)
@@ -212,6 +217,7 @@ class ProgOT:
     is_debiased = isinstance(tree, sd.SinkhornDivergenceOutput)
     if warm_start:
       assert not is_debiased, "Warm-start is only available for Sinkhorn."
+      # FIXME(michalk8)
       # assume always LSE mode for now
       init_potentials = (jnp.zeros(n), jnp.zeros(m))
     else:
@@ -311,6 +317,7 @@ def get_epsilon_schedule(
     y: jnp.ndarray,
     alphas: jnp.ndarray,
     epsilon_scales: jnp.ndarray,
+    # TODO(michalk8): remove this
     solve_fn: SolveFn,
     eps0_multiplier: float = 1.0,
     y_eval: Optional[jnp.ndarray] = None,
