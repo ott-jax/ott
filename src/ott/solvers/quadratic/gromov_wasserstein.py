@@ -295,7 +295,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     return GWState(
         costs=-jnp.ones((num_iter,)),
-        linear_convergence=jnp.zeros((num_iter,)) * jnp.nan,
+        linear_convergence=jnp.full((num_iter,), fill_value=jnp.nan),
         linear_state=linear_state,
         linear_pb=init,
         old_transport_mass=transport_mass,
