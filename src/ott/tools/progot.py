@@ -147,7 +147,6 @@ class ProgOT:
       prob: linear_problem.LinearProblem,
       store_intermediate: bool = False,
       warm_start: bool = False,
-      autoscale_potentials: bool = False,
   ) -> ProgOTOutput:
 
     def body_fn(state: ProgOTState, it: int) -> tuple[ProgOTState, jnp.ndarray]:
@@ -173,22 +172,10 @@ class ProgOT:
         out_xy, eps = out, out.geom.epsilon
 
       t_x = out.to_dual_potentials().transport(state.x, forward=True)
-      # t_x = out_xy.apply(y.T, axis=1).T
-      # t_x = t_x / out_xy.marginal(axis=1)[:, None]
-      # if out_xx is not None:
-      #     t_xx = out_xx.apply(state.x.T, axis=0).T
-      #     t_xx = t_xx / out_xx.marginal(axis=0)[:, None]
-      #     t_x = t_x - t_xx + state.x
-
       next_x = _interpolate(x=state.x, t_x=t_x, alpha=alpha, cost_fn=cost_fn)
 
-      if warm_start:
-        # assumes f/g are already centered
-        f, g = out.f, out.g
-        scale = (1.0 - alpha) if autoscale_potentials else 1.0
-        next_init = (f * scale, g * scale)
-      else:
-        next_init = (None, None)
+      next_init = ((1.0 - alpha) * out.f,
+                   (1.0 - alpha) * out.g) if warm_start else (None, None)
 
       next_state = state.set(
           x=next_x,
