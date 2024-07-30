@@ -261,7 +261,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     linear_state = out.linear_state.set_cost(linearization, True, True)
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
-        iteration < self.max_iterations, jnp.all(out.linear_convergence)
+        iteration < self.max_iterations,
+        jnp.nanmean(out.linear_convergence) == 1.0
     )
     return out.set(
         linear_state=linear_state, geom=linearization.geom, converged=converged
@@ -294,7 +295,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     return GWState(
         costs=-jnp.ones((num_iter,)),
-        linear_convergence=-jnp.ones((num_iter,)),
+        linear_convergence=jnp.full((num_iter,), fill_value=jnp.nan),
         linear_state=linear_state,
         linear_pb=init,
         old_transport_mass=transport_mass,
