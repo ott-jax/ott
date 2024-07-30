@@ -125,7 +125,6 @@ class ProgOT:
       alpha_schedule: jnp.ndarray,
       # if `None`, all epsilons will be `None`
       epsilon_schedule: Optional[jnp.ndarray],
-      threshold_schedule: Union[float, jnp.ndarray],
       epsilon_scales: Optional[jnp.ndarray] = None,
   ):
     if epsilon_schedule is not None:
@@ -140,7 +139,6 @@ class ProgOT:
     self.alpha_schedule = alpha_schedule
     self.epsilon_schedule = epsilon_schedule
     self.epsilon_scales = epsilon_scales
-    self.threshold_schedule = threshold_schedule
 
   def __call__(
       self,
@@ -154,10 +152,7 @@ class ProgOT:
       eps_scale = None if self.epsilon_scales is None else self.epsilon_scales[
           it]
       alpha = self.alpha_schedule[it]
-      if isinstance(self.threshold_schedule, jnp.ndarray):
-        thr = self.threshold_schedule[it]
-      else:
-        thr = self.threshold_schedule
+      thr = 1e-3  # TODO(michalk8)
 
       out = self.solve_fn(
           state.x, y, cost_fn, eps, eps_scale, state.init_potentials, thr
@@ -237,7 +232,6 @@ class ProgOT:
         "alpha_schedule": self.alpha_schedule,
         "epsilon_schedule": self.epsilon_schedule,
         "epsilon_scales": self.epsilon_scales,
-        "threshold_schedule": self.threshold_schedule,
     }
 
   @classmethod
