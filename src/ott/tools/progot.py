@@ -122,22 +122,22 @@ class ProgOT:
       self,
       solve_fn: SolveFn,
       *,
-      alpha_schedule: jnp.ndarray,
+      alphas: jnp.ndarray,
       # if `None`, all epsilons will be `None`
-      epsilon_schedule: Optional[jnp.ndarray],
+      epsilons: Optional[jnp.ndarray],
       epsilon_scales: Optional[jnp.ndarray] = None,
   ):
-    if epsilon_schedule is not None:
-      assert len(alpha_schedule) == len(
-          epsilon_schedule
+    if epsilons is not None:
+      assert len(alphas) == len(
+          epsilons
       ), "Epsilon schedule has different length than alpha schedule."
     if epsilon_scales is not None:
-      assert len(alpha_schedule) == len(
+      assert len(alphas) == len(
           epsilon_scales
       ), "Epsilon scales has different length than alpha schedule."
     self.solve_fn = solve_fn
-    self.alpha_schedule = alpha_schedule
-    self.epsilon_schedule = epsilon_schedule
+    self.alphas = alphas
+    self.epsilons = epsilons
     self.epsilon_scales = epsilon_scales
 
   def __call__(
@@ -148,10 +148,10 @@ class ProgOT:
   ) -> ProgOTOutput:
 
     def body_fn(state: ProgOTState, it: int) -> tuple[ProgOTState, jnp.ndarray]:
-      eps = None if self.epsilon_schedule is None else self.epsilon_schedule[it]
+      eps = None if self.epsilons is None else self.epsilons[it]
       eps_scale = None if self.epsilon_scales is None else self.epsilon_scales[
           it]
-      alpha = self.alpha_schedule[it]
+      alpha = self.alphas[it]
       thr = 1e-3  # TODO(michalk8)
 
       out = self.solve_fn(
@@ -189,7 +189,7 @@ class ProgOT:
         prob.geom.cost_fn, costs.TICost
     ), "Cost must be a TI cost."
 
-    num_steps = len(self.alpha_schedule)
+    num_steps = len(self.alphas)
 
     n, m = prob.geom.shape
     x, y, cost_fn = prob.geom.x, prob.geom.y, prob.geom.cost_fn
@@ -229,8 +229,8 @@ class ProgOT:
   def tree_flatten(self):
     return [], {
         "solve_fn": self.solve_fn,
-        "alpha_schedule": self.alpha_schedule,
-        "epsilon_schedule": self.epsilon_schedule,
+        "alphas": self.alphas,
+        "epsilons": self.epsilons,
         "epsilon_scales": self.epsilon_scales,
     }
 
