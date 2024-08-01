@@ -109,6 +109,12 @@ def uniform_solver(
     can be :math:`0` in some entries, but always sums to :math:`1`
     for each of the :math:`d` slices.
   """  # noqa: E501
+
+  @functools.partial(jax.vmap, in_axes=[1, 1])
+  @functools.partial(jax.vmap, in_axes=[0, 0])
+  def cost(x: jnp.ndarray, y: jnp.ndarray) -> float:
+    return cost_fn(x[None], y[None])
+
   assert prob.is_equal_size, "Source and target have different sizes."
   assert prob.is_uniform, "Source or target marginals are not uniform."
 
@@ -119,7 +125,7 @@ def uniform_solver(
   i_x, i_y = jnp.argsort(x, axis=0), jnp.argsort(y, axis=0)
   x = jnp.take_along_axis(x, i_x, axis=0)
   y = jnp.take_along_axis(y, i_y, axis=0)
-  ot_costs = ((1.0 / n) * jax.vmap(cost_fn, in_axes=[1, 1])(x, y)).T
+  ot_costs = jnp.mean(cost(x, y), axis=-1)  # (d, n) -> (d,)
 
   if return_transport:
     paired_indices = jnp.stack([i_x, i_y]).transpose([2, 0, 1])
@@ -188,8 +194,9 @@ def quantile_solver(
     y_cdf_inv = all_values_sorted[i_y_cdf_inv]
 
     diff_q = jnp.diff(quantile_levels)
-    successive_costs = jax.vmap(prob.geom.cost_fn
-                               )(x_cdf_inv[1:, None], y_cdf_inv[1:, None])
+    successive_costs = jax.vmap(
+        prob.geom.cost_fn, in_axes=[0, 0]
+    )(x_cdf_inv[1:, None], y_cdf_inv[1:, None])
     cost = jnp.sum(successive_costs * diff_q)
 
     if not return_transport:
