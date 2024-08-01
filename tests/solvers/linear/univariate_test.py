@@ -117,7 +117,7 @@ class TestUnivariate:
 
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
-    geom = pointcloud.PointCloud(x, xx, cost_fn=costs.PNormP(1.0))
+    geom = pointcloud.PointCloud(x, xx, cost_fn=costs.Euclidean())
     prob = linear_problem.LinearProblem(geom)
     ott_d = univariate.uniform_solver(prob).ot_costs[0]
     scipy_d2 = st.wasserstein_distance(x[:, 0], xx[:, 0])
