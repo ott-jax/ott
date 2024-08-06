@@ -38,6 +38,7 @@ class ProgOTState(NamedTuple):
 
 
 class ProgOTOutput(NamedTuple):
+  """TODO."""
   prob: linear_problem.LinearProblem
   alphas: jnp.ndarray  # [k,]
   epsilons: jnp.ndarray  # [k,]
@@ -50,6 +51,7 @@ class ProgOTOutput(NamedTuple):
       return_all: bool = False,
       max_steps: Optional[int] = None,
   ) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """TODO."""
 
     def body_fn(x: jnp.ndarray,
                 it: int) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
@@ -57,7 +59,9 @@ class ProgOTOutput(NamedTuple):
       dp = self.get_entropic_map(it)
 
       t_x = dp.transport(x, forward=True)
-      next_x = _interpolate(x=x, t_x=t_x, alpha=alpha, cost_fn=self.cost_fn)
+      next_x = _interpolate(
+          x=x, t_x=t_x, alpha=alpha, cost_fn=self.prob.geom.cost_fn
+      )
 
       return next_x, (next_x, t_x)
 
@@ -74,12 +78,15 @@ class ProgOTOutput(NamedTuple):
     return xs[-1], ys[-1]
 
   def get_entropic_map(self, it: int) -> potentials.EntropicPotentials:
+    """TODO."""
     return self.get_output(it).to_dual_potentials()
 
   def get_output(self, it: int) -> Output:
+    """TODO."""
     return jtu.tree_map(lambda x: x[it], self.outputs)
 
   def get_plan(self, it: int) -> jnp.ndarray:
+    """TODO."""
     out = self.get_output(it)
     if isinstance(out, sd.SinkhornDivergenceOutput):
       out = _sink_out_from_debiased(out, idx=0)
@@ -87,10 +94,12 @@ class ProgOTOutput(NamedTuple):
 
   @property
   def converged(self) -> jnp.ndarray:
+    """TODO."""
     return self.outputs.converged[0]
 
   @property
   def num_iters(self) -> jnp.ndarray:
+    """TODO."""
     n_iters = jnp.array([
         self.get_output(it).n_iters for it in range(self.num_steps)
     ])
@@ -99,15 +108,22 @@ class ProgOTOutput(NamedTuple):
 
   @property
   def num_steps(self) -> int:
+    """TODO."""
     return len(self.alphas)
-
-  @property
-  def cost_fn(self) -> costs.TICost:
-    return self.prob.geom.cost_fn
 
 
 @jtu.register_pytree_node_class
 class ProgOT:
+  """Progressive Entropic Optimal Transport :cite:`kassraie:24`.
+
+  Args:
+    alphas: TODO.
+    epsilons: TODO.
+    epsilon_scales: TODO.
+    debiased: Whether to use
+      :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence` or
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+  """
 
   def __init__(
       self,
@@ -165,7 +181,7 @@ class ProgOT:
         eps = self.epsilon_scales[it] * geom.epsilon
 
       if self.debiased:
-        assert init == (None, None), "TODO"
+        assert state.init_potentials == (None, None), "TODO"
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
@@ -220,17 +236,18 @@ class ProgOT:
         outputs=outputs,
     )
 
-  def tree_flatten(self):
-    return (self.epsilons,), {
+  def tree_flatten(self):  # noqa: D102
+    return (self.alphas, self.epsilons), {
         "debiased": self.debiased,
-        "alphas": self.alphas,
         "epsilon_scales": self.epsilon_scales,
     }
 
   @classmethod
-  def tree_unflatten(cls, aux_data: dict[str, Any], children: Any) -> "ProgOT":
-    epsilons, = children
-    return cls(epsilons=epsilons, **aux_data)
+  def tree_unflatten(  # noqa: D102
+      cls, aux_data: dict[str, Any], children: Any
+  ) -> "ProgOT":
+    alphas, epsilons = children
+    return cls(alphas=alphas, epsilons=epsilons, **aux_data)
 
 
 def _sinkhorn(
@@ -274,6 +291,7 @@ def get_epsilon_schedule(
     start_epsilon_scale: float = 1.0,
     **kwargs: Any,
 ) -> jnp.ndarray:
+  """TODO."""
 
   def error(epsilon_scale: float) -> float:
     epsilon = epsilon_scale * geom_end.epsilon
@@ -310,6 +328,7 @@ def get_epsilon_schedule(
 def get_alpha_schedule(
     kind: Literal["lin", "exp", "quad"], *, num_steps: int
 ) -> jnp.ndarray:
+  """TODO."""
   if kind == "lin":
     arr = jnp.arange(2, num_steps + 2)
     arr = 1.0 / (num_steps - arr + 2)
