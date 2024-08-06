@@ -43,8 +43,8 @@ class ProgOTOutput(NamedTuple):
   Args:
     prob: Linear problem.
     alphas: Stepsize schedule of shape ``[num_steps,]``.
-    epsilons: Entropy regularization of shape ``[num_steps,]``.
-    outputs: Solver outputs at every step.
+    epsilons: Entropy regularizations of shape ``[num_steps,]``.
+    outputs: OT solver outputs for every step.
     xs: Intermediate interpolations of shape ``[num_steps, n, d]``, if present.
   """
   prob: linear_problem.LinearProblem
@@ -62,14 +62,17 @@ class ProgOTOutput(NamedTuple):
     """Transport points.
 
     Args:
-      x: Source points of shape ``[n, d]`` to transport.
+      x: Array of shape ``[n, d]`` to transport.
       max_steps: Maximum number of steps. If :obj:`None`, use :attr:`num_steps`.
-      return_intermediate: Whether to return inte
+      return_intermediate: Whether to return intermediate values.
 
     Returns:
-      If ``return_intermediate = True``, return arrays of shape
-      ``[max_steps + 1, n, d]`` and ``[max_steps, n, d]``, containing TODO.
-      Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``.
+      - If ``return_intermediate = True``, return arrays of shape
+        ``[max_steps + 1, n, d]`` and ``[max_steps, n, d]`` corresponding to the
+        interpolations (including the initial ``x``) and push-forwards after
+        each step, respectively.
+      - Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``
+        corresponding to the last interpolation and push-forward, respectively.
     """
 
     def body_fn(x: jnp.ndarray,
@@ -86,24 +89,27 @@ class ProgOTOutput(NamedTuple):
 
     if max_steps is None:
       max_steps = self.num_steps
-    assert (
-        max_steps <= self.num_steps
-    ), f"Maximum number of steps <= {self.num_steps}."
+    else:
+      assert (
+          0 < max_steps <= self.num_steps
+      ), f"Maximum number of steps must be in (0, {self.num_steps}], " \
+         f"found {max_steps}."
 
     _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(max_steps))
     if return_intermediate:
       # also include the starting point
+      # TODO(michalk8): unify with the solver
       return jnp.concatenate([x[None], xs]), ys
     return xs[-1], ys[-1]
 
   def get_output(self, step: int) -> Output:
-    r"""Get the solver output at a specific step.
+    r"""Get the OT solver output at a given step.
 
     Args:
       step: Iteration step in :math:`[0, \text{num_steps})`.
 
     Returns:
-      The solver output at ``step``.
+      The OT solver output at a ``step``.
     """
     return jtu.tree_map(lambda x: x[step], self.outputs)
 
@@ -113,10 +119,10 @@ class ProgOTOutput(NamedTuple):
   ) -> Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
     """Convergence at each step.
 
-    If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
-    values corresponding to the convergence of the  ``(x, y)``, ``(x, x)`` and
-    ``(y, y)`` problems.
-    Otherwise, return an array of shape ``[num_steps,]``.
+    - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
+      values corresponding to the convergence of the  ``(x, y)``, ``(x, x)`` and
+      ``(y, y)`` problems.
+    - Otherwise, return an array of shape ``[num_steps,]``.
     """
     return jnp.stack(self.outputs.converged, axis=-1)
 
@@ -124,10 +130,10 @@ class ProgOTOutput(NamedTuple):
   def num_iters(self) -> jnp.ndarray:
     """Number of iterations at each step.
 
-    If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
-    values corresponding to the number of iterations for the ``(x, y)``,
-    ``(x, x)`` and ``(y, y)`` problems.
-    Otherwise, return an array of shape ``[num_steps,]``.
+    - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
+      values corresponding to the number of iterations for the ``(x, y)``,
+      ``(x, x)`` and ``(y, y)`` problems.
+    - Otherwise, return an array of shape ``[num_steps,]``.
     """
     return jnp.array([
         self.get_output(it).n_iters for it in range(self.num_steps)
@@ -135,12 +141,12 @@ class ProgOTOutput(NamedTuple):
 
   @property
   def num_steps(self) -> int:
-    """Number of steps."""
+    """Number of :class:`ProgOT` steps."""
     return len(self.alphas)
 
   @property
   def is_debiased(self) -> bool:
-    """Whether the solver is debiased."""
+    """Whether the OT solver is debiased."""
     return isinstance(self.outputs[0], sd.SinkhornDivergenceOutput)
 
 
@@ -168,13 +174,15 @@ class ProgOT:
       epsilon_scales: Optional[jnp.ndarray] = None,
       is_debiased: bool = False,
   ):
+    if epsilons is not None and epsilon_scales is not None:
+      raise ValueError(
+          "Please pass either `epsilons` or `epsilon_scales`, not both."
+      )
     if epsilons is not None:
-      assert epsilon_scales is None, "TODO"
       assert len(alphas) == len(
           epsilons
       ), "Epsilons have different length than alphas."
     if epsilon_scales is not None:
-      assert epsilons is None, "TODO"
       assert len(alphas) == len(
           epsilon_scales
       ), "Epsilon scales have different length than alphas."
@@ -262,6 +270,7 @@ class ProgOT:
     )
 
     if store_intermediate:
+      # TODO(michalk8): unify with the output
       # add the initial `x` for nicer impl. in `ProgOTOutput`
       # also we could do `xs[:-1]`, since it's not needed
       xs = jnp.concatenate([x[None], xs[:-1]], axis=0)
@@ -308,8 +317,8 @@ def get_epsilon_schedule(
   Args:
     geom: Point cloud geometry.
     alphas: Stepsize schedule of shape ``[num_steps,]``.
-    epsilon_scales: scales of shape ``[num_,]`` used to scale
-      the TODO.
+    epsilon_scales: Array of shape ``[num_scales,]`` from which to select
+      the best scale of the default epsilon in the ``(y, y)`` point cloud.
     y_eval: Array of shape ``[k, d]`` from the target distribution used to
       compute the error.
     start_epsilon_scale: Constant by which to scale the initial epsilon.
