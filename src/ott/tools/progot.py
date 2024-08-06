@@ -24,30 +24,24 @@ from ott.tools import sinkhorn_divergence as sd
 
 __all__ = [
     "ProgOT",
-    "ProgOTState",
     "ProgOTOutput",
     "get_epsilon_schedule",
     "get_alpha_schedule",
 ]
 
+Output = Union[sinkhorn.SinkhornOutput, sd.SinkhornDivergenceOutput]
+
 
 class ProgOTState(NamedTuple):
-  x: jnp.ndarray  # [n, d]
-  xs: Optional[jnp.ndarray]  # [k, n, d]
-  epsilons: jnp.ndarray  # [k,]
-  alphas: jnp.ndarray  # [k,]
+  x: jnp.ndarray
   init_potentials: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]
-
-  def set(self, **kwargs: Any) -> "ProgOTState":
-    return self._replace(**kwargs)
 
 
 class ProgOTOutput(NamedTuple):
   prob: linear_problem.LinearProblem
   alphas: jnp.ndarray  # [k,]
   epsilons: jnp.ndarray  # [k,]
-  outputs: Union[sinkhorn.SinkhornOutput,
-                 sd.SinkhornDivergenceOutput]  # [k, ...]
+  outputs: Output  # [k, ...]
   xs: Optional[jnp.ndarray] = None  # [k, n, d]
 
   def transport(
@@ -82,9 +76,7 @@ class ProgOTOutput(NamedTuple):
   def get_entropic_map(self, it: int) -> potentials.EntropicPotentials:
     return self.get_output(it).to_dual_potentials()
 
-  def get_output(
-      self, it: int
-  ) -> Union[sinkhorn.SinkhornOutput, sd.SinkhornDivergenceOutput]:
+  def get_output(self, it: int) -> Output:
     return jtu.tree_map(lambda x: x[it], self.outputs)
 
   def get_plan(self, it: int) -> jnp.ndarray:
@@ -121,7 +113,6 @@ class ProgOT:
       self,
       alphas: jnp.ndarray,
       *,
-      # if `None`, all epsilons will be `None`
       epsilons: Optional[jnp.ndarray] = None,
       epsilon_scales: Optional[jnp.ndarray] = None,
       debiased: bool = False,
@@ -147,8 +138,25 @@ class ProgOT:
       warm_start: bool = False,
       **kwargs: Any,
   ) -> ProgOTOutput:
+    """Run the estimator.
 
-    def body_fn(state: ProgOTState, it: int) -> tuple[ProgOTState, jnp.ndarray]:
+    Args:
+      prob: Linear problem.
+      store_intermediate: Whether to store intermediate interpolations in
+        :attr:`ProgotOutput.xs`.
+      warm_start: Whether to initialize potentials from the previous step.
+      kwargs: Keyword arguments for
+        :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
+        :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`, depending
+        on :attr:`debiased`.
+
+    Returns:
+      The output.
+    """
+
+    def body_fn(
+        state: ProgOTState, it: int
+    ) -> Tuple[ProgOTState, Tuple[Output, float, Optional[jnp.ndarray]]]:
       alpha = self.alphas[it]
       eps = None if self.epsilons is None else self.epsilons[it]
       if self.epsilon_scales is not None:
@@ -178,19 +186,11 @@ class ProgOT:
 
       next_init = ((1.0 - alpha) * out.f,
                    (1.0 - alpha) * out.g) if warm_start else (None, None)
+      next_state = ProgOTState(x=next_x, init_potentials=next_init)
 
-      next_state = state.set(
-          x=next_x,
-          xs=state.xs.at[it].set(next_x) if store_intermediate else None,
-          alphas=state.alphas.at[it].set(alpha),
-          epsilons=state.epsilons.at[it].set(eps),
-          init_potentials=next_init,
-      )
-
-      return next_state, out
+      return next_state, (out, eps, (next_x if store_intermediate else None))
 
     lse_mode = kwargs.get("lse_mode", True)
-
     num_steps = len(self.alphas)
     n, m = prob.geom.shape
     x, y, cost_fn = prob.geom.x, prob.geom.y, prob.geom.cost_fn
@@ -202,25 +202,21 @@ class ProgOT:
     else:
       init_potentials = (None, None)
 
-    init = ProgOTState(
-        x=x,
-        xs=jnp.empty((num_steps, n, d)) if store_intermediate else None,
-        alphas=jnp.empty((num_steps,)),
-        epsilons=jnp.empty((num_steps,)),
-        init_potentials=init_potentials,
+    init_state = ProgOTState(x=x, init_potentials=init_potentials)
+    _, (outputs, epsilons, xs) = jax.lax.scan(
+        body_fn, init_state, xs=jnp.arange(num_steps)
     )
-    state, outputs = jax.lax.scan(body_fn, init, xs=jnp.arange(num_steps))
+
+    if store_intermediate:
+      # add the initial `x` for nicer impl. in `ProgOTOutput`
+      # also we could do `xs[:-1]`, since it's not needed
+      xs = jnp.concatenate([x[None], xs[:-1]], axis=0)
 
     return ProgOTOutput(
         prob,
-        # add the initial `x` for nicer impl. in `ProgOTOutput`
-        # also we could do `xs[:-1]`, since it's not needed
-        xs=(
-            jnp.concatenate([x[None], state.xs[:-1]], axis=0)
-            if store_intermediate else None
-        ),
-        alphas=state.alphas,
-        epsilons=state.epsilons,
+        xs=xs,
+        alphas=self.alphas,
+        epsilons=epsilons,
         outputs=outputs,
     )
 
