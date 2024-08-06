@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 
 from ott.geometry import costs, pointcloud
-from ott.problems.linear import linear_problem, potentials
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence as sd
 
@@ -38,25 +38,44 @@ class ProgOTState(NamedTuple):
 
 
 class ProgOTOutput(NamedTuple):
-  """TODO."""
+  """:class:`ProgOT` solver output.
+
+  Args:
+    prob: Linear problem.
+    alphas: Stepsize schedule of shape ``[num_steps,]``.
+    epsilons: Entropy regularization of shape ``[num_steps,]``.
+    outputs: Solver outputs at every step.
+    xs: Intermediate interpolations of shape ``[num_steps, n, d]``.
+  """
   prob: linear_problem.LinearProblem
-  alphas: jnp.ndarray  # [k,]
-  epsilons: jnp.ndarray  # [k,]
-  outputs: Output  # [k, ...]
-  xs: Optional[jnp.ndarray] = None  # [k, n, d]
+  alphas: jnp.ndarray
+  epsilons: jnp.ndarray
+  outputs: Output
+  xs: Optional[jnp.ndarray] = None
 
   def transport(
       self,
       x: jnp.ndarray,
-      return_all: bool = False,
       max_steps: Optional[int] = None,
-  ) -> tuple[jnp.ndarray, jnp.ndarray]:
-    """TODO."""
+      return_intermediate: bool = False,
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Transport points.
+
+    Args:
+      x: Source points of shape ``[n, d]`` to transport.
+      max_steps: Maximum number of steps. If :obj:`None`, use :attr:`num_steps`.
+      return_intermediate: Whether to return inte
+
+    Returns:
+      If ``return_intermediate = True``, return arrays of shape
+      ``[max_steps + 1, n, d]`` and ``[max_steps, n, d]``, containing TODO.
+      Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``.
+    """
 
     def body_fn(x: jnp.ndarray,
-                it: int) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
+                it: int) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]]:
       alpha = self.alphas[it]
-      dp = self.get_entropic_map(it)
+      dp = self.get_output(it).to_dual_potentials()
 
       t_x = dp.transport(x, forward=True)
       next_x = _interpolate(
@@ -72,44 +91,55 @@ class ProgOTOutput(NamedTuple):
     ), f"Maximum number of steps <= {self.num_steps}."
 
     _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(max_steps))
-    if return_all:
+    if return_intermediate:
       # also include the starting point
       return jnp.concatenate([x[None], xs]), ys
     return xs[-1], ys[-1]
 
-  def get_entropic_map(self, it: int) -> potentials.EntropicPotentials:
-    """TODO."""
-    return self.get_output(it).to_dual_potentials()
+  def get_output(self, step: int) -> Output:
+    r"""Get the solver output at a specific step.
 
-  def get_output(self, it: int) -> Output:
-    """TODO."""
-    return jtu.tree_map(lambda x: x[it], self.outputs)
+    Args:
+      step: Iteration step in :math:`[0, num_steps)`.
 
-  def get_plan(self, it: int) -> jnp.ndarray:
-    """TODO."""
-    out = self.get_output(it)
-    if isinstance(out, sd.SinkhornDivergenceOutput):
-      out = _sink_out_from_debiased(out, idx=0)
-    return out.matrix
+    Returns:
+      The output.
+    """
+    return jtu.tree_map(lambda x: x[step], self.outputs)
 
   @property
-  def converged(self) -> jnp.ndarray:
-    """TODO."""
-    return self.outputs.converged[0]
+  def converged(
+      self
+  ) -> Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+    """Converged flag at each step.
+
+    If :attr`is_debiased`, return an array of shape ``[num_steps, 3]`` with
+    values corresponding to ``(x, y)``, ``(x, x)`` and ``(y, y)`` problems.
+    Otherwise, return an array of shape ``[num_steps,]``.
+    """
+    return jnp.stack(self.outputs.converged, axis=1)
 
   @property
   def num_iters(self) -> jnp.ndarray:
-    """TODO."""
-    n_iters = jnp.array([
+    """Number of iterations at each steps.
+
+    If :attr`is_debiased`, return an array of shape ``[num_steps, 3]`` with
+    values corresponding to ``(x, y)``, ``(x, x)`` and ``(y, y)`` problems.
+    Otherwise, return an array of shape ``[num_steps,]``.
+    """
+    return jnp.array([
         self.get_output(it).n_iters for it in range(self.num_steps)
     ])
-    # handle sinkdiv output
-    return n_iters[:, 0] if n_iters.ndim == 2 else n_iters
 
   @property
   def num_steps(self) -> int:
-    """TODO."""
+    """Number of steps."""
     return len(self.alphas)
+
+  @property
+  def is_debiased(self) -> bool:
+    """Whether the solver is debiased."""
+    return isinstance(self.outputs[0], sd.SinkhornDivergenceOutput)
 
 
 @jtu.register_pytree_node_class
@@ -117,10 +147,11 @@ class ProgOT:
   """Progressive Entropic Optimal Transport :cite:`kassraie:24`.
 
   Args:
-    alphas: TODO.
-    epsilons: TODO.
+    alphas: Stepsize schedule.
+    epsilons: Epsilon regularization schedule. If :obj:`None`, use the default
+      epsilon at each step.
     epsilon_scales: TODO.
-    debiased: Whether to use
+    is_debiased: Whether to use
       :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence` or
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
@@ -131,7 +162,7 @@ class ProgOT:
       *,
       epsilons: Optional[jnp.ndarray] = None,
       epsilon_scales: Optional[jnp.ndarray] = None,
-      debiased: bool = False,
+      is_debiased: bool = False,
   ):
     if epsilons is not None:
       assert len(alphas) == len(
@@ -142,10 +173,10 @@ class ProgOT:
           epsilon_scales
       ), "Epsilon scales have different length than alphas."
 
-    self.debiased = debiased
     self.alphas = alphas
     self.epsilons = epsilons
     self.epsilon_scales = epsilon_scales
+    self.is_debiased = is_debiased
 
   def __call__(
       self,
@@ -158,8 +189,7 @@ class ProgOT:
 
     Args:
       prob: Linear problem.
-      store_intermediate: Whether to store intermediate interpolations in
-        :attr:`ProgotOutput.xs`.
+      store_intermediate: Whether to also store the intermediate values.
       warm_start: Whether to initialize potentials from the previous step.
       kwargs: Keyword arguments for
         :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
@@ -176,12 +206,14 @@ class ProgOT:
       alpha = self.alphas[it]
       eps = None if self.epsilons is None else self.epsilons[it]
       if self.epsilon_scales is not None:
-        assert eps is None, "TODO"
+        # use the default epsilon and scale it
         geom = pointcloud.PointCloud(state.x, y, cost_fn=cost_fn)
         eps = self.epsilon_scales[it] * geom.epsilon
 
-      if self.debiased:
-        assert state.init_potentials == (None, None), "TODO"
+      if self.is_debiased:
+        assert state.init_potentials == (
+            None, None
+        ), "Warm start is not implemented for debiased."
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
@@ -238,7 +270,7 @@ class ProgOT:
 
   def tree_flatten(self):  # noqa: D102
     return (self.alphas, self.epsilons), {
-        "debiased": self.debiased,
+        "debiased": self.is_debiased,
         "epsilon_scales": self.epsilon_scales,
     }
 
@@ -328,7 +360,15 @@ def get_epsilon_schedule(
 def get_alpha_schedule(
     kind: Literal["lin", "exp", "quad"], *, num_steps: int
 ) -> jnp.ndarray:
-  """TODO."""
+  """Get the stepsize schedule.
+
+  Args:
+    kind: Kind of the schedule.
+    num_steps: Total number of steps.
+
+  Returns:
+    The schedule.
+  """
   if kind == "lin":
     arr = jnp.arange(2, num_steps + 2)
     arr = 1.0 / (num_steps - arr + 2)
