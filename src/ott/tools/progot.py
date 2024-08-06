@@ -223,7 +223,7 @@ class ProgOT:
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
-        eps = _sink_out_from_debiased(out, idx=0).geom.epsilon
+        eps = out.geoms[0].epsilon
       else:
         out = _sinkhorn(
             state.x,
@@ -275,17 +275,21 @@ class ProgOT:
     )
 
   def tree_flatten(self):  # noqa: D102
-    return (self.alphas, self.epsilons), {
-        "debiased": self.is_debiased,
-        "epsilon_scales": self.epsilon_scales,
+    return (self.alphas, self.epsilons, self.epsilon_scales), {
+        "is_debiased": self.is_debiased,
     }
 
   @classmethod
   def tree_unflatten(  # noqa: D102
       cls, aux_data: dict[str, Any], children: Any
   ) -> "ProgOT":
-    alphas, epsilons = children
-    return cls(alphas=alphas, epsilons=epsilons, **aux_data)
+    alphas, epsilons, epsilon_scales = children
+    return cls(
+        alphas=alphas,
+        epsilons=epsilons,
+        epsilon_scales=epsilon_scales,
+        **aux_data
+    )
 
 
 def get_epsilon_schedule(
@@ -419,22 +423,3 @@ def _interpolate(
   xx, weights = jnp.stack([x, t_x]), jnp.array([1.0 - alpha, alpha])
   xx, _ = cost_fn.barycenter(weights=weights, xs=xx)
   return xx
-
-
-def _sink_out_from_debiased(
-    out: sd.SinkhornDivergenceOutput,
-    *,
-    idx: int = 0
-) -> sinkhorn.SinkhornOutput:
-  geom_xy = out.geoms[idx]
-  prob = linear_problem.LinearProblem(geom_xy, a=out.a, b=out.b)
-
-  return sinkhorn.SinkhornOutput(
-      potentials=out.potentials[idx],
-      errors=out.errors[idx],
-      ot_prob=prob,
-      # not needed
-      reg_ot_cost=None,
-      threshold=None,
-      inner_iterations=None,
-  )
