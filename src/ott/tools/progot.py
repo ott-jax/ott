@@ -56,19 +56,19 @@ class ProgOTOutput(NamedTuple):
   def transport(
       self,
       x: jnp.ndarray,
-      max_steps: Optional[int] = None,
+      num_steps: Optional[int] = None,
       return_intermediate: bool = False,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Transport points.
 
     Args:
       x: Array of shape ``[n, d]`` to transport.
-      max_steps: Maximum number of steps. If :obj:`None`, use :attr:`num_steps`.
+      num_steps: Number of steps. If :obj:`None`, use the full number of steps.
       return_intermediate: Whether to return intermediate values.
 
     Returns:
       - If ``return_intermediate = True``, return arrays of shape
-        ``[max_steps + 1, n, d]`` and ``[max_steps, n, d]`` corresponding to the
+        ``[num_steps + 1, n, d]`` and ``[num_steps, n, d]`` corresponding to the
         interpolations (including the initial ``x``) and push-forwards after
         each step, respectively.
       - Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``
@@ -87,15 +87,15 @@ class ProgOTOutput(NamedTuple):
 
       return next_x, (next_x, t_x)
 
-    if max_steps is None:
-      max_steps = self.num_steps
+    if num_steps is None:
+      num_steps = self.num_steps
     else:
       assert (
-          0 < max_steps <= self.num_steps
+          0 < num_steps <= self.num_steps
       ), f"Maximum number of steps must be in (0, {self.num_steps}], " \
-         f"found {max_steps}."
+         f"found {num_steps}."
 
-    _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(max_steps))
+    _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(num_steps))
     if return_intermediate:
       # also include the starting point
       # TODO(michalk8): unify with the solver
