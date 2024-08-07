@@ -15,6 +15,7 @@ from . import (
     gaussian_mixture,
     k_means,
     plot,
+    progot,
     segment_sinkhorn,
     sinkhorn_divergence,
     soft_sort,

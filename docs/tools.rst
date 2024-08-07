@@ -15,13 +15,6 @@ Segmented Sinkhorn
 
     segment_sinkhorn.segment_sinkhorn
 
-Plotting
---------
-.. autosummary::
-    :toctree: _autosummary
-
-    plot.Plot
-
 Sinkhorn Divergence
 -------------------
 .. autosummary::
@@ -29,6 +22,17 @@ Sinkhorn Divergence
 
     sinkhorn_divergence.sinkhorn_divergence
     sinkhorn_divergence.segment_sinkhorn_divergence
+
+ProgOT
+------
+.. autosummary::
+    :toctree: _autosummary
+
+    progot.ProgOT
+    progot.ProgOTOutput
+    progot.get_alpha_schedule
+    progot.get_epsilon_schedule
+
 
 Soft Sorting Algorithms
 -----------------------
@@ -51,6 +55,13 @@ Clustering
 
     k_means.k_means
     k_means.KMeansOutput
+
+Plotting
+--------
+.. autosummary::
+    :toctree: _autosummary
+
+    plot.Plot
 
 ott.tools.gaussian_mixture package
 ----------------------------------
