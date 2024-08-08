@@ -51,6 +51,30 @@ class TestUnivariate:
     self.b = b / jnp.sum(b)
     self.c = c / jnp.sum(c)
 
+  @pytest.mark.parametrize(
+      "cost_fn", [
+          costs.Euclidean(),
+          costs.SqEuclidean(),
+          costs.SqPNorm(1.5),
+          costs.PNormP(2.2)
+      ]
+  )
+  def test_solvers_match(self, rng: jax.Array, cost_fn: costs.CostFn):
+    rng1, rng2 = jax.random.split(rng, 2)
+    n, d = 12, 5
+
+    x = jax.random.normal(rng1, (n, d))
+    y = jax.random.normal(rng2, (n, d)) + 1.0
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
+    prob = linear_problem.LinearProblem(geom)
+
+    unif_costs = univariate.uniform_solver(prob).ot_costs
+    quant_costs = univariate.quantile_solver(prob).ot_costs
+    nw_costs = univariate.north_west_solver(prob).ot_costs
+
+    np.testing.assert_allclose(unif_costs, quant_costs, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(unif_costs, nw_costs, rtol=1e-6, atol=1e-6)
+
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.8)])
   def test_cdf_distance_and_sinkhorn(self, cost_fn: costs.TICost):
 
@@ -117,7 +141,7 @@ class TestUnivariate:
 
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
-    geom = pointcloud.PointCloud(x, xx, cost_fn=costs.PNormP(1.0))
+    geom = pointcloud.PointCloud(x, xx, cost_fn=costs.Euclidean())
     prob = linear_problem.LinearProblem(geom)
     ott_d = univariate.uniform_solver(prob).ot_costs[0]
     scipy_d2 = st.wasserstein_distance(x[:, 0], xx[:, 0])
