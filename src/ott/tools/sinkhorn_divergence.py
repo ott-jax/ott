@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from types import MappingProxyType
-from typing import Any, Mapping, Optional, Tuple, Type
+from typing import Any, Mapping, NamedTuple, Optional, Tuple, Type, Union
 
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
-from ott import utils
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
@@ -27,26 +27,26 @@ __all__ = [
     "SinkhornDivergenceOutput"
 ]
 
-Potentials_t = Tuple[jnp.ndarray, jnp.ndarray]
-Factors_t = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+Potentials = Tuple[jnp.ndarray, jnp.ndarray]
+Factors = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
 
 
-@utils.register_pytree_node
-class SinkhornDivergenceOutput:  # noqa: D101
+@jtu.register_pytree_node_class
+class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
   divergence: float
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
+  a: jnp.ndarray
+  b: jnp.ndarray
+  potentials: Optional[Tuple[Potentials, Potentials, Potentials]]
+  factors: Optional[Tuple[Factors, Factors, Factors]]
   errors: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
                 Optional[jnp.ndarray]]
   converged: Tuple[bool, bool, bool]
-  a: jnp.ndarray
-  b: jnp.ndarray
   n_iters: Tuple[int, int, int]
-  potentials: Optional[Tuple[Potentials_t, Potentials_t, Potentials_t]]
-  factors: Optional[Tuple[Factors_t, Factors_t, Factors_t]]
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
-    assert self.potentials is not None, "Potentials not computed."
+    assert not self.is_low_rank, "Dual potentials not available for low-rank."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
@@ -54,20 +54,24 @@ class SinkhornDivergenceOutput:  # noqa: D101
         f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
     )
 
+  @property
+  def is_low_rank(self) -> bool:
+    """Whether the output is low-rank."""
+    return self.factors is not None
+
   def tree_flatten(self):  # noqa: D102
     return [
         self.divergence, self.geoms, self.a, self.b, self.potentials,
         self.factors
     ], {
+        "errors": self.errors,
         "n_iters": self.n_iters,
         "converged": self.converged,
-        "errors": self.errors
     }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    div, pots, geoms, a, b = children
-    return cls(div, pots, geoms, a=a, b=b, **aux_data)
+    return cls(*children, **aux_data)
 
 
 def sinkhorn_divergence(
@@ -169,10 +173,9 @@ def _sinkhorn_divergence(
     SinkhornDivergenceOutput named tuple.
   """
   kwargs_symmetric = kwargs.copy()
-  rank = kwargs.get("rank")
-  using_lr_solver = rank is not None and rank > 0
+  is_low_rank = kwargs.get("rank", -1) > 0
 
-  if not using_lr_solver and symmetric_sinkhorn:
+  if symmetric_sinkhorn and not is_low_rank:
     # When computing a Sinkhorn divergence, the (x,y) terms and (x,x) / (y,y)
     # terms are computed independently. The user might want to pass some
     # kwargs to parameterize the solver's behavior, but those should
@@ -194,58 +197,37 @@ def _sinkhorn_divergence(
     if implicit_diff is not None:
       kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 
-  out_xy = linear.solve(geometry_xy, a, b, **kwargs)
-  out_xx = linear.solve(geometry_xx, a, a, **kwargs_symmetric)
+  out_xy = linear.solve(geometry_xy, a=a, b=b, **kwargs)
+  out_xx = linear.solve(geometry_xx, a=a, b=a, **kwargs_symmetric)
   if geometry_yy is None:
     # Create dummy output, corresponds to scenario where static_b is True.
-    if using_lr_solver:
-      out_yy = sinkhorn_lr.LRSinkhornOutput(
-          q=None,
-          r=None,
-          g=None,
-          ot_prob=None,
-          epsilon=None,
-          inner_iterations=0,
-          converged=True,
-          costs=jnp.array([-jnp.inf]),
-          errors=jnp.array([-jnp.inf]),
-          reg_ot_cost=0.0,
-      )
-    else:
-      out_yy = sinkhorn.SinkhornOutput(
-          (None, None),
-          errors=jnp.array([-jnp.inf]),
-          reg_ot_cost=0.0,
-          threshold=0.0,
-          inner_iterations=0,
-      )
+    out_yy = _empty_output(is_low_rank)
   else:
-    out_yy = linear.solve(geometry_yy, b, b, **kwargs_symmetric)
+    out_yy = linear.solve(geometry_yy, a=b, b=b, **kwargs_symmetric)
 
   div = (
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
       0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
   )
-  if using_lr_solver:
-    factors = ((out_xy.q, out_xy.r, out_xy.g), (out_xx.q, out_xx.r, out_xx.g),
-               (out_yy.q, out_yy.r, out_yy.g))
-    potentials = None
-
+  if is_low_rank:
+    factors = jtu.tree_map(
+        lambda out: (out.q, out.r, out.g), (out_xy, out_xx, out_yy)
+    )
+    pots = None
   else:
-    potentials = ((out_xy.f, out_xy.g), (out_xx.f, out_xx.g),
-                  (out_yy.f, out_yy.g))
+    pots = jtu.tree_map(lambda out: (out.f, out.g), (out_xy, out_xx, out_yy))
     factors = None
 
   return SinkhornDivergenceOutput(
       divergence=div,
       geoms=(geometry_xy, geometry_xx, geometry_yy),
-      errors=(out_xy.errors, out_xx.errors, out_yy.errors),
-      converged=(out_xy.converged, out_xx.converged, out_yy.converged),
       a=a,
       b=b,
+      potentials=pots,
+      factors=factors,
+      errors=(out_xy.errors, out_xx.errors, out_yy.errors),
+      converged=(out_xy.converged, out_xx.converged, out_yy.converged),
       n_iters=(out_xy.n_iters, out_xx.n_iters, out_yy.n_iters),
-      potentials=potentials,
-      factors=factors
   )
 
 
@@ -381,4 +363,30 @@ def segment_sinkhorn_divergence(
       weights_x=weights_x,
       weights_y=weights_y,
       padding_vector=padding_vector
+  )
+
+
+def _empty_output(
+    is_low_rank: bool
+) -> Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]:
+  if is_low_rank:
+    return sinkhorn_lr.LRSinkhornOutput(
+        q=None,
+        r=None,
+        g=None,
+        ot_prob=None,
+        epsilon=None,
+        inner_iterations=0,
+        converged=True,
+        costs=jnp.array([-jnp.inf]),
+        errors=jnp.array([-jnp.inf]),
+        reg_ot_cost=0.0,
+    )
+
+  return sinkhorn.SinkhornOutput(
+      potentials=(None, None),
+      errors=jnp.array([-jnp.inf]),
+      reg_ot_cost=0.0,
+      threshold=0.0,
+      inner_iterations=0,
   )
