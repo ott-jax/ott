@@ -38,15 +38,13 @@ class TestSinkhornDivergence:
     self._a = a / jnp.sum(a)
     self._b = b / jnp.sum(b)
 
-  @pytest.mark.fast.with_args(
-      cost_fn=[costs.Euclidean(),
-               costs.SqEuclidean(),
-               costs.SqPNorm(p=2.1)],
-      only_fast={
-          "cost_fn": costs.SqEuclidean(),
-      },
+  @pytest.mark.fast(
+      "cost_fn,rank", [(costs.SqEuclidean(), -1), (costs.Euclidean(), -1),
+                       (costs.SqPNorm(2.1), -1), (costs.SqEuclidean(), 3)],
+      only_fast=0
   )
-  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn):
+  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, rank: int):
+    is_low_rank = rank > 0
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
@@ -60,48 +58,68 @@ class TestSinkhornDivergence:
             cost_fn=cost_fn,
             a=self._a,
             b=self._b,
-            epsilon=epsilon
+            epsilon=epsilon,
+            sinkhorn_kwargs={"rank": rank},
         )
     )
     out = div(x)
-    np.testing.assert_array_less(0.0, out.divergence)
-    np.testing.assert_equal(len(out.potentials), 3)
+
+    assert out.divergence >= 0.0
+    assert out.is_low_rank == is_low_rank
+    if is_low_rank:
+      assert out.potentials is None
+      np.testing.assert_equal(len(out.factors), 3)
+    else:
+      assert out.factors is None
+      np.testing.assert_equal(len(out.potentials), 3)
+
     # Less iterations for (x,y) comparison, vs. (x,x) and (y,y)
     iters_xy, iters_xx, iters_yy = out.n_iters
-    np.testing.assert_array_less(iters_xx, iters_xy)
-    np.testing.assert_array_less(iters_yy, iters_xy)
+    assert iters_xx < iters_xy
+    assert iters_yy < iters_xy
+    if not is_low_rank:
+      # Check differentiability of Sinkhorn divergence works, without NaN's.
+      grad = jax.jit(jax.grad(lambda x: div(x).divergence))(x)
+      np.testing.assert_array_equal(jnp.isfinite(grad), True)
 
     # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
-    div2 = linear.solve(geometry_xy, self._a, self._b).reg_ot_cost
-    div2 -= 0.5 * linear.solve(geometry_xx, self._a, self._a).reg_ot_cost
-    div2 -= 0.5 * linear.solve(geometry_yy, self._b, self._b).reg_ot_cost
+    div2 = linear.solve(
+        geometry_xy, a=self._a, b=self._b, rank=rank
+    ).reg_ot_cost
+    div2 -= 0.5 * linear.solve(
+        geometry_xx, a=self._a, b=self._a, rank=rank
+    ).reg_ot_cost
+    div2 -= 0.5 * linear.solve(
+        geometry_yy, a=self._b, b=self._b, rank=rank
+    ).reg_ot_cost
 
     np.testing.assert_allclose(out.divergence, div2, rtol=1e-5, atol=1e-5)
 
-    # Check differentiability of Sinkhorn divergence works, without NaN's.
-    grad = jax.grad(lambda x: div(x).divergence)(x)
-    assert jnp.all(jnp.logical_not(jnp.isnan(grad)))
-
     # Test divergence of x to itself close to 0.
-    epsilon = 1e-1
     out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         x,
         cost_fn=cost_fn,
-        epsilon=epsilon,
+        epsilon=1e-1,
         sinkhorn_kwargs={
             "inner_iterations": 1,
-            "threshold": 1e-5
+            "threshold": 1e-5,
+            "rank": rank,
         },
     )
     np.testing.assert_allclose(out.divergence, 0.0, rtol=1e-5, atol=1e-5)
     iters_xx, iters_xx_sym, _ = out.n_iters
-    np.testing.assert_array_less(iters_xx_sym, iters_xx)
+
+    if is_low_rank:
+      # no symmetric updates
+      assert iters_xx_sym == iters_xx
+    else:
+      assert iters_xx_sym < iters_xx
 
   @pytest.mark.fast()
   def test_euclidean_autoepsilon(self):
@@ -364,7 +382,7 @@ class TestSinkhornDivergence:
       self, sinkhorn_kwargs: Dict[str, Any], epsilon: Optional[float]
   ):
     # check if sinkhorn divergence sinkhorn_kwargs parameters used for
-    # momentum/Anderson are properly overriden for the symmetric (x,x) and
+    # momentum/Anderson are properly overridden for the symmetric (x,x) and
     # (y,y) parts.
     rngs = jax.random.split(self.rng, 2)
     threshold = 3.2e-3

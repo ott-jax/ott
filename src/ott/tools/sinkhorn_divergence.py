@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple, Optional, Tuple, Type, Union
+from typing import Any, Mapping, Optional, Tuple, Type, Union
 
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
+from ott import utils
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
@@ -31,8 +31,8 @@ Potentials = Tuple[jnp.ndarray, jnp.ndarray]
 Factors = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
 
 
-@jtu.register_pytree_node_class
-class SinkhornDivergenceOutput(NamedTuple):  # noqa: D101
+@utils.register_pytree_node
+class SinkhornDivergenceOutput:  # noqa: D101
   divergence: float
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
   a: jnp.ndarray
@@ -210,12 +210,10 @@ def _sinkhorn_divergence(
       0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
   )
   if is_low_rank:
-    factors = jtu.tree_map(
-        lambda out: (out.q, out.r, out.g), (out_xy, out_xx, out_yy)
-    )
+    factors = tuple((out.q, out.r, out.g) for out in (out_xy, out_xx, out_yy))
     pots = None
   else:
-    pots = jtu.tree_map(lambda out: (out.f, out.g), (out_xy, out_xx, out_yy))
+    pots = tuple((out.f, out.g) for out in (out_xy, out_xx, out_yy))
     factors = None
 
   return SinkhornDivergenceOutput(
