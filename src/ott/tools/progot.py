@@ -365,9 +365,11 @@ def get_epsilon_schedule(
 def get_alpha_schedule(
     kind: Literal["lin", "exp", "quad"], *, num_steps: int
 ) -> jnp.ndarray:
-  """Get the stepsize schedule.
+  """Get the step size schedule.
 
-  See Section 4 in :cite:`kassraie:24` for more information.
+  Convenience wrapper to get a sequence of ``num_steps`` timestamps between
+  0 and 1, distributed according to the ``kind`` option below.
+  See Section 4 in :cite:`kassraie:24` for more details.
 
   Args:
     kind: The schedule to create:
