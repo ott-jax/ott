@@ -27,6 +27,7 @@ __all__ = [
     "kl",
     "gen_kl",
     "gen_js",
+    "gen_ent",
     "logsumexp",
     "softmin",
     "barycentric_projection",
@@ -110,6 +111,11 @@ def norm_jvp(ord, axis, keepdims, primals, tangents):
 def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   """Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
+
+
+def gen_ent(x: jnp.ndarray) -> float:
+  """Generalized entropy, adds the sum of ``x`` compared to usual entropy."""
+  return jnp.sum(jsp.special.entr(x)) + jnp.sum(x)
 
 
 def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
