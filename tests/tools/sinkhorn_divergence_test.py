@@ -44,25 +44,31 @@ class TestSinkhornDivergence:
       only_fast=0
   )
   def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, rank: int):
+
+    def sinkdiv(
+        x: jnp.ndarray,
+        y: jnp.ndarray,
+        cost_fn: costs.CostFn,
+        epsilon: float,
+    ) -> sinkhorn_divergence.SinkhornDivergenceOutput:
+      return sinkhorn_divergence.sinkhorn_divergence(
+          pointcloud.PointCloud,
+          x,
+          y,
+          cost_fn=cost_fn,
+          a=self._a,
+          b=self._b,
+          epsilon=epsilon,
+          sinkhorn_kwargs={"rank": rank},
+      )
+
     is_low_rank = rank > 0
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
     epsilon = 5e-2
-    div = jax.jit(
-        lambda x: sinkhorn_divergence.sinkhorn_divergence(
-            pointcloud.PointCloud,
-            x,
-            y,
-            cost_fn=cost_fn,
-            a=self._a,
-            b=self._b,
-            epsilon=epsilon,
-            sinkhorn_kwargs={"rank": rank},
-        )
-    )
-    out = div(x)
+    out = jax.jit(sinkdiv)(x, y, cost_fn, epsilon)
 
     assert out.divergence >= 0.0
     assert out.is_low_rank == is_low_rank
@@ -78,21 +84,10 @@ class TestSinkhornDivergence:
     assert iters_xx < iters_xy
     assert iters_yy < iters_xy
 
-    # Check differentiability of Sinkhorn divergence works, without NaN's.
-    # Notice div is redefined below, to have proper closure.
-    div = jax.jit(
-        lambda x: sinkhorn_divergence.sinkhorn_divergence(
-            pointcloud.PointCloud,
-            x,
-            y,
-            epsilon=epsilon,
-            sinkhorn_kwargs={
-                "rank": rank
-            },
-        ).divergence
+    grad = jax.jit(
+        jax.grad(lambda x: sinkdiv(x, y, cost_fn, epsilon).divergence)
     )
-    grad = jax.jit(jax.grad(div))(x)
-    np.testing.assert_array_equal(jnp.isfinite(grad), True)
+    np.testing.assert_array_equal(jnp.isfinite(grad(x)), True)
 
     # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)

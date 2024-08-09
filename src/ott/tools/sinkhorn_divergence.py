@@ -47,7 +47,8 @@ class SinkhornDivergenceOutput:  # noqa: D101
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
     """Return dual estimators :cite:`pooladian:22`, eq. 8."""
-    assert not self.is_low_rank, "Dual potentials not available for low-rank."
+    assert not self.is_low_rank, \
+      "Dual potentials are not available for low-rank."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
@@ -98,7 +99,7 @@ def sinkhorn_divergence(
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
     sinkhorn_kwargs: keywords arguments for
-      :class:`~ott.solvers.linear.solver` that is called twice
+      :func:`~ott.solvers.linear.solve` that is called twice
       if ``static_b = True`` else 3 times.
     static_b: if True, divergence of measure `b` against itself is **not**
       computed.
