@@ -65,7 +65,7 @@ class LRSinkhornState(NamedTuple):
       ot_prob: linear_problem.LinearProblem,
       *,
       epsilon: float,
-      use_danskin: bool = False
+      use_danskin: bool = True
   ) -> float:
     """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
     return compute_reg_ot_cost(
@@ -93,7 +93,7 @@ def compute_reg_ot_cost(
     g: jnp.ndarray,
     ot_prob: linear_problem.LinearProblem,
     epsilon: float,
-    use_danskin: bool = False
+    use_danskin: bool = True
 ) -> float:
   """Compute the regularized OT cost, here the primal cost of the LR solution.
 
@@ -104,16 +104,12 @@ def compute_reg_ot_cost(
     ot_prob: linear problem
     epsilon: Entropic regularization.
     use_danskin: if True, use Danskin's theorem :cite:`danskin:67,bertsekas:71`
-      to avoid computing the gradient of the cost function.
+      to avoid having to differentiate the three factors ``q``, ``r`` and ``g``
+      w.r.t. relevant quantities.
 
   Returns:
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
-
-  def ent(x: jnp.ndarray) -> float:
-    # generalized entropy
-    return jnp.sum(jsp.special.entr(x) + x)
-
   tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
 
   q = jax.lax.stop_gradient(q) if use_danskin else q
@@ -121,7 +117,7 @@ def compute_reg_ot_cost(
   g = jax.lax.stop_gradient(g) if use_danskin else g
 
   cost = jnp.sum(ot_prob.geom.apply_cost(r, axis=1) * q * (1.0 / g)[None, :])
-  cost -= epsilon * (ent(q) + ent(r) + ent(g))
+  cost -= epsilon * (mu.gen_ent(q) + mu.gen_ent(r) + mu.gen_ent(g))
   if tau_a != 1.0:
     cost += tau_a / (1.0 - tau_a) * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
   if tau_b != 1.0:
@@ -188,7 +184,7 @@ class LRSinkhornOutput(NamedTuple):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      use_danskin: bool = False
+      use_danskin: bool = True
   ) -> "LRSinkhornOutput":
     del lse_mode
     return self.set(reg_ot_cost=self.compute_reg_ot_cost(ot_prob, use_danskin))
@@ -196,7 +192,7 @@ class LRSinkhornOutput(NamedTuple):
   def compute_reg_ot_cost(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
-      use_danskin: bool = False,
+      use_danskin: bool = True,
   ) -> float:
     return compute_reg_ot_cost(
         self.q,

@@ -14,6 +14,7 @@
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Tuple, Type, Union
 
+import jax
 import jax.numpy as jnp
 
 from ott import utils
@@ -205,10 +206,12 @@ def _sinkhorn_divergence(
   else:
     out_yy = linear.solve(geometry_yy, a=b, b=b, **kwargs_symmetric)
 
+  eps = jax.lax.stop_gradient(geometry_xy.epsilon)
   div = (
       out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
-      0.5 * geometry_xy.epsilon * (jnp.sum(a) - jnp.sum(b)) ** 2
+      0.5 * eps * (jnp.sum(a) - jnp.sum(b)) ** 2
   )
+
   if is_low_rank:
     factors = tuple((out.q, out.r, out.g) for out in (out_xy, out_xx, out_yy))
     pots = None

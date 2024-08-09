@@ -77,10 +77,22 @@ class TestSinkhornDivergence:
     iters_xy, iters_xx, iters_yy = out.n_iters
     assert iters_xx < iters_xy
     assert iters_yy < iters_xy
-    if not is_low_rank:
-      # Check differentiability of Sinkhorn divergence works, without NaN's.
-      grad = jax.jit(jax.grad(lambda x: div(x).divergence))(x)
-      np.testing.assert_array_equal(jnp.isfinite(grad), True)
+
+    # Check differentiability of Sinkhorn divergence works, without NaN's.
+    # Notice div is redefined below, to have proper closure.
+    div = jax.jit(
+        lambda x: sinkhorn_divergence.sinkhorn_divergence(
+            pointcloud.PointCloud,
+            x,
+            y,
+            epsilon=epsilon,
+            sinkhorn_kwargs={
+                "rank": rank
+            },
+        ).divergence
+    )
+    grad = jax.jit(jax.grad(div))(x)
+    np.testing.assert_array_equal(jnp.isfinite(grad), True)
 
     # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
