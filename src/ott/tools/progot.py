@@ -44,7 +44,7 @@ class ProgOTOutput(NamedTuple):
     prob: Linear problem.
     alphas: Stepsize schedule of shape ``[num_steps,]``.
     epsilons: Entropy regularizations of shape ``[num_steps,]``.
-    outputs: OT solver outputs for every step.
+    outputs: OT solver outputs for every step, a struct of arrays.
     xs: Intermediate interpolations of shape ``[num_steps, n, d]``, if present.
   """
   prob: linear_problem.LinearProblem
@@ -128,7 +128,7 @@ class ProgOTOutput(NamedTuple):
 
   @property
   def num_iters(self) -> jnp.ndarray:
-    """Number of iterations at each step.
+    """Number of Sinkhorn iterations within each step.
 
     - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
       values corresponding to the number of iterations for the ``(x, y)``,
@@ -186,6 +186,9 @@ class ProgOT:
       assert len(alphas) == len(
           epsilon_scales
       ), "Epsilon scales have different length than alphas."
+
+    assert all(0.0 <= element <= 1.0 for element in alphas
+               ), "Alphas must be a sequence with values between zero and one"
 
     self.alphas = alphas
     self.epsilons = epsilons
@@ -372,7 +375,7 @@ def get_alpha_schedule(
   Args:
     kind: The schedule to create:
 
-      - ``'lin'`` - constant speed schedule.
+      - ``'lin'`` - constant-speed schedule.
       - ``'exp'`` - decelerating schedule.
       - ``'quad'`` - accelerating schedule.
     num_steps: Total number of steps.
