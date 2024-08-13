@@ -195,7 +195,6 @@ class ProgOT:
   def __call__(
       self,
       prob: linear_problem.LinearProblem,
-      store_intermediate: bool = False,
       warm_start: bool = False,
       **kwargs: Any,
   ) -> ProgOTOutput:
@@ -203,7 +202,6 @@ class ProgOT:
 
     Args:
       prob: Linear problem.
-      store_intermediate: Whether to also store the intermediate values.
       warm_start: Whether to initialize potentials from the previous step.
       kwargs: Keyword arguments for
         :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
@@ -214,9 +212,8 @@ class ProgOT:
       The solver output.
     """
 
-    def body_fn(
-        state: ProgOTState, it: int
-    ) -> Tuple[ProgOTState, Tuple[Output, float, Optional[jnp.ndarray]]]:
+    def body_fn(state: ProgOTState,
+                it: int) -> Tuple[ProgOTState, Tuple[Output, float]]:
       alpha = self.alphas[it]
       eps = None if self.epsilons is None else self.epsilons[it]
       if self.epsilon_scales is not None:
@@ -250,7 +247,7 @@ class ProgOT:
                    (1.0 - alpha) * out.g) if warm_start else (None, None)
       next_state = ProgOTState(x=next_x, init_potentials=next_init)
 
-      return next_state, (out, eps, (next_x if store_intermediate else None))
+      return next_state, (out, eps)
 
     lse_mode = kwargs.get("lse_mode", True)
     num_steps = len(self.alphas)
@@ -265,19 +262,12 @@ class ProgOT:
       init_potentials = (None, None)
 
     init_state = ProgOTState(x=x, init_potentials=init_potentials)
-    _, (outputs, epsilons, xs) = jax.lax.scan(
+    _, (outputs, epsilons) = jax.lax.scan(
         body_fn, init_state, xs=jnp.arange(num_steps)
     )
 
-    if store_intermediate:
-      # TODO(michalk8): unify with the output
-      # add the initial `x` for nicer impl. in `ProgOTOutput`
-      # also we could do `xs[:-1]`, since it's not needed
-      xs = jnp.concatenate([x[None], xs[:-1]], axis=0)
-
     return ProgOTOutput(
         prob,
-        xs=xs,
         alphas=self.alphas,
         epsilons=epsilons,
         outputs=outputs,
