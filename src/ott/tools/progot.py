@@ -69,15 +69,18 @@ class ProgOTOutput(NamedTuple):
 
     Returns:
       - If ``return_intermediate = True``, return arrays of shape
-        ``[num_steps + 1, n, d]`` and ``[num_steps, n, d]`` corresponding to the
+        ``[num_steps, n, d]`` and ``[num_steps, n, d]`` corresponding to the
         interpolations (including the initial ``x``) and push-forwards after
         each step, respectively.
       - Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``
         corresponding to the last interpolation and push-forward, respectively.
     """
 
-    def body_fn(x: jnp.ndarray,
-                it: int) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]]:
+    def body_fn(
+        xy: Tuple[jnp.ndarray, Optional[jnp.ndarray]], it: int
+    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray]], Tuple[
+        Optional[jnp.ndarray], Optional[jnp.ndarray]]]:
+      x, _ = xy
       alpha = self.alphas[it]
       dp = self.get_output(it).to_dual_potentials()
 
@@ -86,7 +89,9 @@ class ProgOTOutput(NamedTuple):
           x=x, t_x=t_x, alpha=alpha, cost_fn=self.prob.geom.cost_fn
       )
 
-      return next_x, (next_x, t_x)
+      if return_intermediate:
+        return (next_x, None), (next_x, t_x)
+      return (next_x, t_x), (None, None)
 
     if num_steps is None:
       num_steps = self.num_steps
@@ -96,12 +101,9 @@ class ProgOTOutput(NamedTuple):
       ), f"Maximum number of steps must be in (0, {self.num_steps}], " \
          f"found {num_steps}."
 
-    _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(num_steps))
-    if return_intermediate:
-      # also include the starting point
-      # TODO(michalk8): unify with the solver
-      return jnp.concatenate([x[None], xs]), ys
-    return xs[-1], ys[-1]
+    state = (x, None) if return_intermediate else (x, jnp.empty_like(x))
+    xy, xs_ys = jax.lax.scan(body_fn, state, xs=jnp.arange(num_steps))
+    return xs_ys if return_intermediate else xy
 
   def get_output(self, step: int) -> Output:
     r"""Get the OT solver output at a given step.
