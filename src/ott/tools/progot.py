@@ -16,6 +16,7 @@ from typing import Any, Literal, NamedTuple, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+from jax.experimental import checkify
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
@@ -44,7 +45,7 @@ class ProgOTOutput(NamedTuple):
     prob: Linear problem.
     alphas: Stepsize schedule of shape ``[num_steps,]``.
     epsilons: Entropy regularizations of shape ``[num_steps,]``.
-    outputs: OT solver outputs for every step.
+    outputs: OT solver outputs for every step, a struct of arrays.
     xs: Intermediate interpolations of shape ``[num_steps, n, d]``, if present.
   """
   prob: linear_problem.LinearProblem
@@ -128,7 +129,7 @@ class ProgOTOutput(NamedTuple):
 
   @property
   def num_iters(self) -> jnp.ndarray:
-    """Number of iterations at each step.
+    """Number of Sinkhorn iterations within each step.
 
     - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
       values corresponding to the number of iterations for the ``(x, y)``,
@@ -187,6 +188,11 @@ class ProgOT:
           epsilon_scales
       ), "Epsilon scales have different length than alphas."
 
+    checkify.check(
+        jnp.all((alphas >= 0.0) & (alphas <= 1.0)),
+        "Alphas must be a sequence with values between zero and one."
+    )
+
     self.alphas = alphas
     self.epsilons = epsilons
     self.epsilon_scales = epsilon_scales
@@ -224,7 +230,7 @@ class ProgOT:
       if self.is_debiased:
         assert state.init_potentials == (
             None, None
-        ), "Warm star is not implemented for debiased."
+        ), "Warm start is not implemented for debiased."
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
@@ -364,7 +370,7 @@ def get_alpha_schedule(
   Args:
     kind: The schedule to create:
 
-      - ``'lin'`` - constant speed schedule.
+      - ``'lin'`` - constant-speed schedule.
       - ``'exp'`` - decelerating schedule.
       - ``'quad'`` - accelerating schedule.
     num_steps: Total number of steps.
