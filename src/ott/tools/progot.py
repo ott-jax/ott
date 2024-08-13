@@ -70,8 +70,7 @@ class ProgOTOutput(NamedTuple):
     Returns:
       - If ``return_intermediate = True``, return arrays of shape
         ``[num_steps, n, d]`` and ``[num_steps, n, d]`` corresponding to the
-        interpolations (including the initial ``x``) and push-forwards after
-        each step, respectively.
+        interpolations and push-forwards after each step, respectively.
       - Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``
         corresponding to the last interpolation and push-forward, respectively.
     """
