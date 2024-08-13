@@ -16,6 +16,7 @@ from typing import Any, Literal, NamedTuple, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+from jax.experimental import checkify
 
 from ott.geometry import costs, pointcloud
 from ott.problems.linear import linear_problem
@@ -187,8 +188,10 @@ class ProgOT:
           epsilon_scales
       ), "Epsilon scales have different length than alphas."
 
-    assert all(0.0 <= element <= 1.0 for element in alphas
-               ), "Alphas must be a sequence with values between zero and one"
+    checkify.check(
+        jnp.all((alphas >= 0.0) & (alphas <= 1.0)),
+        "Alphas must be a sequence with values between zero and one."
+    )
 
     self.alphas = alphas
     self.epsilons = epsilons
@@ -230,7 +233,7 @@ class ProgOT:
       if self.is_debiased:
         assert state.init_potentials == (
             None, None
-        ), "Warm star is not implemented for debiased."
+        ), "Warm start is not implemented for debiased."
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
