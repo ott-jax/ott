@@ -69,15 +69,17 @@ class ProgOTOutput(NamedTuple):
 
     Returns:
       - If ``return_intermediate = True``, return arrays of shape
-        ``[num_steps + 1, n, d]`` and ``[num_steps, n, d]`` corresponding to the
-        interpolations (including the initial ``x``) and push-forwards after
-        each step, respectively.
+        ``[num_steps, n, d]`` and ``[num_steps, n, d]`` corresponding to the
+        interpolations and push-forwards after each step, respectively.
       - Otherwise, return arrays of shape ``[n, d]`` and ``[n, d]``
         corresponding to the last interpolation and push-forward, respectively.
     """
 
-    def body_fn(x: jnp.ndarray,
-                it: int) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]]:
+    def body_fn(
+        xy: Tuple[jnp.ndarray, Optional[jnp.ndarray]], it: int
+    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray]], Tuple[
+        Optional[jnp.ndarray], Optional[jnp.ndarray]]]:
+      x, _ = xy
       alpha = self.alphas[it]
       dp = self.get_output(it).to_dual_potentials()
 
@@ -86,7 +88,9 @@ class ProgOTOutput(NamedTuple):
           x=x, t_x=t_x, alpha=alpha, cost_fn=self.prob.geom.cost_fn
       )
 
-      return next_x, (next_x, t_x)
+      if return_intermediate:
+        return (next_x, None), (next_x, t_x)
+      return (next_x, t_x), (None, None)
 
     if num_steps is None:
       num_steps = self.num_steps
@@ -96,12 +100,9 @@ class ProgOTOutput(NamedTuple):
       ), f"Maximum number of steps must be in (0, {self.num_steps}], " \
          f"found {num_steps}."
 
-    _, (xs, ys) = jax.lax.scan(body_fn, x, xs=jnp.arange(num_steps))
-    if return_intermediate:
-      # also include the starting point
-      # TODO(michalk8): unify with the solver
-      return jnp.concatenate([x[None], xs]), ys
-    return xs[-1], ys[-1]
+    state = (x, None) if return_intermediate else (x, jnp.empty_like(x))
+    xy, xs_ys = jax.lax.scan(body_fn, state, xs=jnp.arange(num_steps))
+    return xs_ys if return_intermediate else xy
 
   def get_output(self, step: int) -> Output:
     r"""Get the OT solver output at a given step.
@@ -201,7 +202,6 @@ class ProgOT:
   def __call__(
       self,
       prob: linear_problem.LinearProblem,
-      store_intermediate: bool = False,
       warm_start: bool = False,
       **kwargs: Any,
   ) -> ProgOTOutput:
@@ -209,7 +209,6 @@ class ProgOT:
 
     Args:
       prob: Linear problem.
-      store_intermediate: Whether to also store the intermediate values.
       warm_start: Whether to initialize potentials from the previous step.
       kwargs: Keyword arguments for
         :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` or
@@ -220,9 +219,8 @@ class ProgOT:
       The solver output.
     """
 
-    def body_fn(
-        state: ProgOTState, it: int
-    ) -> Tuple[ProgOTState, Tuple[Output, float, Optional[jnp.ndarray]]]:
+    def body_fn(state: ProgOTState,
+                it: int) -> Tuple[ProgOTState, Tuple[Output, float]]:
       alpha = self.alphas[it]
       eps = None if self.epsilons is None else self.epsilons[it]
       if self.epsilon_scales is not None:
@@ -256,7 +254,7 @@ class ProgOT:
                    (1.0 - alpha) * out.g) if warm_start else (None, None)
       next_state = ProgOTState(x=next_x, init_potentials=next_init)
 
-      return next_state, (out, eps, (next_x if store_intermediate else None))
+      return next_state, (out, eps)
 
     lse_mode = kwargs.get("lse_mode", True)
     num_steps = len(self.alphas)
@@ -271,19 +269,12 @@ class ProgOT:
       init_potentials = (None, None)
 
     init_state = ProgOTState(x=x, init_potentials=init_potentials)
-    _, (outputs, epsilons, xs) = jax.lax.scan(
+    _, (outputs, epsilons) = jax.lax.scan(
         body_fn, init_state, xs=jnp.arange(num_steps)
     )
 
-    if store_intermediate:
-      # TODO(michalk8): unify with the output
-      # add the initial `x` for nicer impl. in `ProgOTOutput`
-      # also we could do `xs[:-1]`, since it's not needed
-      xs = jnp.concatenate([x[None], xs[:-1]], axis=0)
-
     return ProgOTOutput(
         prob,
-        xs=xs,
         alphas=self.alphas,
         epsilons=epsilons,
         outputs=outputs,
