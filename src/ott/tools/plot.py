@@ -24,25 +24,24 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
 try:
-  import matplotlib
   import matplotlib.patches as ptc
   import matplotlib.pyplot as plt
   from matplotlib import animation
-  matplotlib.rcParams["animation.embed_limit"] = 2 ** 128
 except ImportError:
   plt = animation = None
 
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
 Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
-                  gromov_wasserstein.GWOutput, mmsinkhorn.MMSinkhornOutput]
+                  gromov_wasserstein.GWOutput]
 
 
+@jax.jit
 def ccworder(A: jnp.ndarray) -> jnp.ndarray:
   """Helper fucntion to plot good looking polygons.
 
   https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
   """
-  A = A - jnp.mean(A, 0)[None]
+  A = A - jnp.mean(A, 0, keepdims=True)
   return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
 
 
@@ -242,8 +241,7 @@ class Plot:
       self,
       transports: Sequence[Transport],
       titles: Optional[Sequence[str]] = None,
-      frame_rate: float = 10.0,
-      **kwargs
+      frame_rate: float = 10.0
   ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
     _ = self(transports[0])
@@ -264,8 +262,10 @@ class Plot:
 
 # TODO(zoepiran): add support for data of d > 2 (PCA on all k's)
 class PlotMM(Plot):
-  """Plot an optimal transport map for MM-Sinkhorn.
+  """Plots an optimal transport map for Multi-Marginal Sinkhorn.
 
+  Expects outputs of the format
+  :class:`~ott.experimental.mmsinkhorn.MMSinkhornOutput`
   It enables to either plot or update a plot in a single object, offering the
   possibilities to create animations as a
   :class:`~matplotlib.animation.FuncAnimation`, which can in turned be saved to
@@ -323,10 +323,10 @@ class PlotMM(Plot):
     # Setttings for plot
     markers = "svopxdh"
 
+    alphas = np.linspace(0.6, 0.2, self._top_k - self._n)
     for j in range(self._top_k):
       points = [ot.x_s[i][indices[i][j], :] for i in range(self._k)]
       points = [points[i] for i in ccworder(jnp.array(points))]
-      alphas = np.linspace(0.6, 0.2, self._top_k - self._n)
       alpha = 0.6 if j < self._n else alphas[j - self._n]
       points = ptc.Polygon(
           points,
@@ -395,16 +395,16 @@ class PlotMM(Plot):
 
   def animate(
       self,
-      transports: Sequence[Transport],
+      transports: Sequence[mmsinkhorn.MMSinkhornOutput],
       titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0,
-      **kwargs
+      top_k: Optional[int] = None
   ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
     self._k = len(transports[0].tensor.shape)
     self._n = transports[0].tensor.shape[0]
+    self._top_k = top_k
 
-    self._top_k = kwargs.pop("top_k", self._n)
     _ = self(ot=transports[0])
 
     titles = titles if titles is not None else [""] * len(transports)
