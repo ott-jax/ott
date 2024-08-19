@@ -292,7 +292,7 @@ class PlotMM(Plot):
       ax: Optional["plt.Axes"] = None,
       cmap: str = "cividis_r",
       scale_alpha_by_coupling: bool = False,
-      alpha: float = 0.7,
+      alpha: float = 0.6,
       title: Optional[str] = None
   ):
 
@@ -307,46 +307,47 @@ class PlotMM(Plot):
 
     self._patches = []
     self._points = []
-    self._n, self._k, self._top_k = None, None, None
+    self._fix_axes_lim = None
 
-  def __call__(self, ot: mmsinkhorn.MMSinkhornOutput) -> List["plt.Artist"]:
+  def __call__(
+      self,
+      ot: mmsinkhorn.MMSinkhornOutput,
+      top_k: Optional[int] = None
+  ) -> List["plt.Artist"]:
     """Plot 2-D couplings. does not support higher dimensional."""
-    n_s = [len(ot.x_s[i]) for i in range(len(ot.x_s))]
-    assert self._n < jnp.prod(
-        jnp.array(n_s)
-    ), "Intended number of tuples too large."
-
     # Extract top_k largest entries in the tensor, and their indices.
-    val, idx = jax.lax.top_k(ot.tensor.ravel(), self._top_k)
-    indices = jnp.unravel_index(idx, n_s)
+    # if top_k is not provided use number of data instances mapped.
+    top_k = top_k if top_k is not None else ot.shape[0]
+    val, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    indices = jnp.unravel_index(idx, ot.shape)
 
     # Setttings for plot
     markers = "svopxdh"
 
-    alphas = np.linspace(0.6, 0.2, self._top_k - self._n)
-    for j in range(self._top_k):
-      points = [ot.x_s[i][indices[i][j], :] for i in range(self._k)]
+    alphas = np.linspace(self._alpha, 0.2, top_k - ot.shape[0])
+    for j in range(top_k):
+      points = [ot.x_s[i][indices[i][j], :] for i in range(ot.n_marginals)]
       points = [points[i] for i in ccworder(jnp.array(points))]
-      alpha = 0.6 if j < self._n else alphas[j - self._n]
+      alpha = self._alpha if j < ot.shape[0] else alphas[j - ot.shape[0]]
       points = ptc.Polygon(
           points,
           fill=True,
           linewidth=2,
-          color=self._cmap[j > self._n],
+          color=self._cmap[j > ot.shape[0]],
           alpha=alpha,
           zorder=-j,
       )
       self._patches.append(self.ax.add_patch(points))
 
-    for i in range(self._k):
+    for i in range(ot.n_marginals):
       for j, val in enumerate(ot.x_s[i]):
         self._points.append(
             self.ax.scatter(
                 val[0],
                 val[1],
                 s=200 * ot.a_s[i][j] * len(ot.a_s[i]),
-                marker=markers[i],
-                c="black",
+                marker=markers[i % len(markers)],
+                c="black" if i < len(markers) else "grey",
                 linewidth=0.0,
                 edgecolor=None,
                 label=str(i)
@@ -361,36 +362,40 @@ class PlotMM(Plot):
   def update(
       self,
       ot: mmsinkhorn.MMSinkhornOutput,
-      title: Optional[str] = None
+      title: Optional[str] = None,
+      top_k: Optional[int] = None,
   ) -> List["plt.Artist"]:
     """Update a plot with a transport instance."""
-    n_s = [len(ot.x_s[i]) for i in range(len(ot.x_s))]
-    assert self._n < jnp.prod(jnp.array(n_s)), \
-      "Intended number of tuples too large."
     # Extract top_k largest entries in the tensor, and their indices.
-    val, idx = jax.lax.top_k(ot.tensor.ravel(), self._top_k)
-    indices = jnp.unravel_index(idx, n_s)
+    # if top_k is not provided use number of data instances mapped.
+    top_k = top_k if top_k is not None else ot.shape[0]
+    val, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    indices = jnp.unravel_index(idx, ot.shape)
 
-    alphas = np.linspace(0.6, 0.2, self._top_k - self._n)
-    for j in range(self._top_k):
-      points = [ot.x_s[i][indices[i][j], :] for i in range(self._k)]
+    alphas = np.linspace(self._alpha, 0.2, top_k - ot.shape[0])
+    for j in range(top_k):
+      points = [ot.x_s[i][indices[i][j], :] for i in range(ot.n_marginals)]
       # reorder to ensure polygons have maximal area
       points = [points[i] for i in ccworder(jnp.array(points))]
-      alpha = 0.6 if j < self._n else alphas[j - self._n]
+      alpha = self._alpha if j < ot.shape[0] else alphas[j - ot.shape[0]]
+      # update the location of the patches according to the new coordinates
       self._patches[j].set_xy(points)
-      self._patches[j].set_color(self._cmap[j > self._n])
+      self._patches[j].set_color(self._cmap[j > ot.shape[0]])
       self._patches[j].set_alpha(alpha)
 
-    for i in range(self._k):
+    for i in range(ot.n_marginals):
       for j, val in enumerate(ot.x_s[i]):
-        idx = np.ravel_multi_index((i, j), (self._k, self._n))
+        idx = np.ravel_multi_index((i, j), (ot.n_marginals, ot.shape[0]))
         self._points[idx].set_offsets(val)
 
     if title is not None:
       self.ax.set_title(title)
 
-    self.ax.set_ylim(-2.5e-2, 1 + 2.5e-2)
-    self.ax.set_xlim(-2.5e-2, 1 + 2.5e-2)
+    # we keep the axis fixed to 0-1 assuming normalized data
+    if self._fix_axes_lim:
+      self.ax.set_ylim(-2.5e-2, 1 + 2.5e-2)
+      self.ax.set_xlim(-2.5e-2, 1 + 2.5e-2)
+
     return self._points + self._patches
 
   def animate(
@@ -398,21 +403,20 @@ class PlotMM(Plot):
       transports: Sequence[mmsinkhorn.MMSinkhornOutput],
       titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0,
-      top_k: Optional[int] = None
+      top_k: Optional[int] = None,
+      fix_axes_lim: Optional[bool] = False
   ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
-    self._k = len(transports[0].tensor.shape)
-    self._n = transports[0].tensor.shape[0]
-    self._top_k = top_k
-
-    _ = self(ot=transports[0])
+    self._fix_axes_lim = fix_axes_lim
+    _ = self(ot=transports[0], top_k=top_k)
 
     titles = titles if titles is not None else [""] * len(transports)
     return animation.FuncAnimation(
         self.fig,
-        lambda i: self.update(ot=transports[i], title=titles[i]),
+        lambda i: self.update(ot=transports[i], title=titles[i], top_k=top_k),
         np.arange(0, len(transports)),
-        init_func=lambda: self.update(ot=transports[0], title=titles[0]),
+        init_func=lambda: self.
+        update(ot=transports[0], title=titles[0], top_k=top_k),
         interval=1000 / frame_rate,
         blit=True,
     )
