@@ -82,7 +82,7 @@ class MMSinkhornOutput(NamedTuple):
   """
   potentials: Tuple[jnp.ndarray, ...]
   errors: jnp.ndarray
-  x_s: Optional[jnp.ndarray] = None
+  x_s: Optional[Tuple[jnp.ndarray, ...]] = None
   a_s: Optional[Tuple[jnp.ndarray, ...]] = None
   cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None
   epsilon: Optional[float] = None
@@ -125,6 +125,16 @@ class MMSinkhornOutput(NamedTuple):
   def transport_mass(self) -> float:
     """Sum of transport tensor."""
     return jnp.sum(self.tensor)
+
+  @property
+  def shape(self) -> Tuple[int, ...]:
+    """Shape of the transport :attr:`tensor`."""
+    return tuple(x.shape[0] for x in self.x_s)
+
+  @property
+  def n_marginals(self) -> int:
+    """Number of marginals."""
+    return len(self.x_s)
 
 
 def cost_tensor(
