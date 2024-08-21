@@ -16,7 +16,7 @@ from typing import List, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
-import scipy
+import scipy.sparse as sp
 
 from ott.experimental import mmsinkhorn
 from ott.geometry import pointcloud
@@ -24,6 +24,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
 try:
+  import matplotlib.colors as mcolors
   import matplotlib.patches as ptc
   import matplotlib.pyplot as plt
   from matplotlib import animation
@@ -37,7 +38,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
 
 @jax.jit
 def ccworder(A: jnp.ndarray) -> jnp.ndarray:
-  """Helper function to plot good looking polygons.
+  """Helper function to plot good-looking polygons.
 
   https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
   """
@@ -51,9 +52,7 @@ def bidimensional(x: jnp.ndarray,
   if x.shape[1] < 3:
     return x, y
 
-  u, s, _ = scipy.sparse.linalg.svds(
-      np.array(jnp.concatenate([x, y], axis=0)), k=2
-  )
+  u, s, _ = sp.linalg.svds(np.array(jnp.concatenate([x, y], axis=0)), k=2)
   proj = u * s
   k = x.shape[0]
   return proj[:k], proj[k:]
@@ -276,11 +275,8 @@ class PlotMM(Plot):
   Args:
     fig: Specify figure object. Created by default
     ax: Specify axes objects. Created by default
-    threshold: value below which links in transportation matrix won't be
-      plotted. This value should be negative when using animations.
-    cmap: color map used to plot line colors.
-    scale_alpha_by_coupling: use or not the coupling's value as proxy for alpha
     fix_axes_lim: Whether to fix x/y limits to :math:`[0, 1]`.
+    cmap: color map used to plot line colors.
     markers: Markers for each marginal.
     alpha: default alpha value for lines.
     title: title of the plot.
@@ -290,22 +286,17 @@ class PlotMM(Plot):
       self,
       fig: Optional["plt.Figure"] = None,
       ax: Optional["plt.Axes"] = None,
-      cmap: str = "cividis_r",
-      scale_alpha_by_coupling: bool = False,
       fix_axes_lim: bool = False,
+      cmap: Union[str, "mcolors.Colormap"] = "cividis_r",
       markers: str = "svopxdh",
       alpha: float = 0.6,
-      title: Optional[str] = None
+      title: Optional[str] = None,
   ):
-
-    super().__init__(
-        fig=fig,
-        ax=ax,
-        cmap=cmap,
-        scale_alpha_by_coupling=scale_alpha_by_coupling,
-        alpha=alpha,
-        title=title
-    )
+    if plt is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+    if isinstance(cmap, str):
+      cmap = plt.colormaps[cmap]
+    super().__init__(fig=fig, ax=ax, cmap=cmap, alpha=alpha, title=title)
     self._patches = None
     self._points = None
     self._markers = markers
@@ -317,20 +308,20 @@ class PlotMM(Plot):
       top_k: Optional[int] = None
   ) -> List["plt.Artist"]:
     """Plot 2-D couplings. does not support higher dimensional."""
+    assert ot.n_marginals <= len(self._markers), "Not enough markers to plot."
     self._points = []
     self._patches = []
     n0 = max(ot.shape)
     top_k = n0 if top_k is None else top_k
 
-    # Extract the top_k largest entries in the tensor, and their indices.
-    # if top_k is not provided use number of data instances mapped.
+    # extract the `top_k` entries in the tensor, and their indices.
     _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
     indices = jnp.unravel_index(idx, ot.shape)
 
     alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
     for j in range(top_k):
       points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
-      # reorder to ensure polygons have maximal area
+      # re-order to ensure polygons have maximal area
       points = [points[i] for i in ccworder(jnp.array(points))]
       alpha = self._alpha if j < n0 else alphas[j - n0]
 
@@ -338,7 +329,7 @@ class PlotMM(Plot):
           points,
           fill=True,
           linewidth=2,
-          color=self._cmap[j >= n0],
+          color=self._cmap(float(j >= n0)),
           alpha=alpha,
           zorder=-j,
       )
@@ -371,20 +362,19 @@ class PlotMM(Plot):
     """Update a plot with a transport instance."""
     n0 = max(ot.shape)
     top_k = n0 if top_k is None else top_k
-    # Extract top_k largest entries in the tensor, and their indices.
-    # if top_k is not provided use number of data instances mapped.
+    # extract the `top_k` entries in the tensor, and their indices.
     _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
     indices = jnp.unravel_index(idx, ot.shape)
 
     alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
     for j, patch in enumerate(self._patches):
       points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
-      # reorder to ensure polygons have maximal area
+      # re-order to ensure polygons have maximal area
       points = [points[i] for i in ccworder(jnp.array(points))]
       alpha = self._alpha if j < n0 else alphas[j - n0]
       # update the location of the patches according to the new coordinates
       patch.set_xy(points)
-      patch.set_color(self._cmap[j >= n0])
+      patch.set_color(self._cmap(float(j >= n0)))
       patch.set_alpha(alpha)
 
     for points, xs in zip(self._points, ot.x_s):
