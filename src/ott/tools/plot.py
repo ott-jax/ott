@@ -13,15 +13,19 @@
 # limitations under the License.
 from typing import List, Optional, Sequence, Tuple, Union
 
+import jax
 import jax.numpy as jnp
 import numpy as np
-import scipy
+import scipy.sparse as sp
 
+from ott.experimental import mmsinkhorn
 from ott.geometry import pointcloud
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
 try:
+  import matplotlib.colors as mcolors
+  import matplotlib.patches as ptc
   import matplotlib.pyplot as plt
   from matplotlib import animation
 except ImportError:
@@ -32,15 +36,23 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
                   gromov_wasserstein.GWOutput]
 
 
+@jax.jit
+def ccworder(A: jnp.ndarray) -> jnp.ndarray:
+  """Helper function to plot good-looking polygons.
+
+  https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
+  """
+  A = A - jnp.mean(A, 0, keepdims=True)
+  return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
+
+
 def bidimensional(x: jnp.ndarray,
                   y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y
 
-  u, s, _ = scipy.sparse.linalg.svds(
-      np.array(jnp.concatenate([x, y], axis=0)), k=2
-  )
+  u, s, _ = sp.linalg.svds(np.array(jnp.concatenate([x, y], axis=0)), k=2)
   proj = u * s
   k = x.shape[0]
   return proj[:k], proj[k:]
@@ -244,4 +256,157 @@ class Plot:
         init_func=lambda: self.update(transports[0], titles[0]),
         interval=1000 / frame_rate,
         blit=True
+    )
+
+
+# TODO(zoepiran): add support for data of d > 2 (PCA on all k's)
+class PlotMM(Plot):
+  """Plots an optimal transport map for :class:`~ott.experimental.mmsinkhorn.MMSinkhorn`.
+
+  It enables to either plot or update a plot in a single object, offering the
+  possibilities to create animations as a
+  :class:`~matplotlib.animation.FuncAnimation`, which can in turned be saved to
+  disk at will. There are two design principles here:
+
+  #. we do not rely on saving to/loading from disk to create animations
+  #. we try as much as possible to disentangle the transport problem from
+       its visualization.
+
+  Args:
+    fig: Specify figure object. Created by default
+    ax: Specify axes objects. Created by default
+    fix_axes_lim: Whether to fix x/y limits to :math:`[0, 1]`.
+    cmap: color map used to plot line colors.
+    markers: Markers for each marginal.
+    alpha: default alpha value for lines.
+    title: title of the plot.
+  """  # noqa: E501
+
+  def __init__(
+      self,
+      fig: Optional["plt.Figure"] = None,
+      ax: Optional["plt.Axes"] = None,
+      fix_axes_lim: bool = False,
+      cmap: Union[str, "mcolors.Colormap"] = "cividis_r",
+      markers: str = "svopxdh",
+      alpha: float = 0.6,
+      title: Optional[str] = None,
+  ):
+    if plt is None:
+      raise RuntimeError("Please install `matplotlib` first.")
+    if isinstance(cmap, str):
+      cmap = plt.colormaps[cmap]
+    super().__init__(fig=fig, ax=ax, cmap=cmap, alpha=alpha, title=title)
+    self._patches = None
+    self._points = None
+    self._markers = markers
+    self._fix_axes_lim = fix_axes_lim
+
+  def __call__(
+      self,
+      ot: mmsinkhorn.MMSinkhornOutput,
+      top_k: Optional[int] = None
+  ) -> List["plt.Artist"]:
+    """Plot 2-D couplings. does not support higher dimensional."""
+    assert ot.n_marginals <= len(self._markers), "Not enough markers to plot."
+    self._points = []
+    self._patches = []
+    n0 = max(ot.shape)
+    top_k = n0 if top_k is None else top_k
+
+    # extract the `top_k` entries in the tensor, and their indices.
+    _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    indices = jnp.unravel_index(idx, ot.shape)
+
+    alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
+    for j in range(top_k):
+      points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
+      # re-order to ensure polygons have maximal area
+      points = [points[i] for i in ccworder(jnp.array(points))]
+      alpha = self._alpha if j < n0 else alphas[j - n0]
+
+      polygon = ptc.Polygon(
+          points,
+          fill=True,
+          linewidth=2,
+          color=self._cmap(float(j >= n0)),
+          alpha=alpha,
+          zorder=-j,
+      )
+      self._patches.append(self.ax.add_patch(polygon))
+
+    for i, (x, a) in enumerate(zip(ot.x_s, ot.a_s)):
+      points = self.ax.scatter(
+          x[:, 0],
+          x[:, 1],
+          s=200.0 * len(a) * a,
+          marker=self._markers[i],
+          c="black",
+          linewidth=0.0,
+          edgecolor=None,
+          label=str(i)
+      )
+      self._points.append(points)
+
+    if self._title is not None:
+      self.ax.set_title(self._title)
+
+    return self._points + self._patches
+
+  def update(
+      self,
+      ot: mmsinkhorn.MMSinkhornOutput,
+      title: Optional[str] = None,
+      top_k: Optional[int] = None,
+  ) -> List["plt.Artist"]:
+    """Update a plot with a transport instance."""
+    n0 = max(ot.shape)
+    top_k = n0 if top_k is None else top_k
+    # extract the `top_k` entries in the tensor, and their indices.
+    _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    indices = jnp.unravel_index(idx, ot.shape)
+
+    alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
+    for j, patch in enumerate(self._patches):
+      points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
+      # re-order to ensure polygons have maximal area
+      points = [points[i] for i in ccworder(jnp.array(points))]
+      alpha = self._alpha if j < n0 else alphas[j - n0]
+      # update the location of the patches according to the new coordinates
+      patch.set_xy(points)
+      patch.set_color(self._cmap(float(j >= n0)))
+      patch.set_alpha(alpha)
+
+    for points, xs in zip(self._points, ot.x_s):
+      points.set_offsets(xs)
+
+    if title is not None:
+      self.ax.set_title(title)
+
+    # we keep the axis fixed to 0-1 assuming normalized data
+    if self._fix_axes_lim:
+      eps = 2.5e-2
+      self.ax.set_ylim(-eps, 1.0 + eps)
+      self.ax.set_xlim(-eps, 1.0 + eps)
+
+    return self._points + self._patches
+
+  def animate(
+      self,
+      transports: Sequence[mmsinkhorn.MMSinkhornOutput],
+      titles: Optional[Sequence[str]] = None,
+      frame_rate: float = 10.0,
+      top_k: Optional[int] = None,
+  ) -> "animation.FuncAnimation":
+    """Make an animation from several transports."""
+    ot, *_ = transports
+    _ = self(ot, top_k=top_k)
+    titles = titles if titles is not None else [""] * len(transports)
+    return animation.FuncAnimation(
+        self.fig,
+        lambda i: self.update(ot=transports[i], title=titles[i], top_k=top_k),
+        np.arange(0, len(transports)),
+        init_func=lambda: self.update(ot, title=titles[0], top_k=top_k),
+        interval=1000.0 / frame_rate,
+        blit=True,
     )
