@@ -37,7 +37,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
 
 @jax.jit
 def ccworder(A: jnp.ndarray) -> jnp.ndarray:
-  """Helper fucntion to plot good looking polygons.
+  """Helper function to plot good looking polygons.
 
   https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
   """
@@ -262,10 +262,8 @@ class Plot:
 
 # TODO(zoepiran): add support for data of d > 2 (PCA on all k's)
 class PlotMM(Plot):
-  """Plots an optimal transport map for Multi-Marginal Sinkhorn.
+  """Plots an optimal transport map for :class:`~ott.experimental.mmsinkhorn.MMSinkhorn`.
 
-  Expects outputs of the format
-  :class:`~ott.experimental.mmsinkhorn.MMSinkhornOutput`
   It enables to either plot or update a plot in a single object, offering the
   possibilities to create animations as a
   :class:`~matplotlib.animation.FuncAnimation`, which can in turned be saved to
@@ -282,9 +280,11 @@ class PlotMM(Plot):
       plotted. This value should be negative when using animations.
     cmap: color map used to plot line colors.
     scale_alpha_by_coupling: use or not the coupling's value as proxy for alpha
+    fix_axes_lim: Whether to fix x/y limits to :math:`[0, 1]`.
+    markers: Markers for each marginal.
     alpha: default alpha value for lines.
     title: title of the plot.
-  """
+  """  # noqa: E501
 
   def __init__(
       self,
@@ -292,6 +292,8 @@ class PlotMM(Plot):
       ax: Optional["plt.Axes"] = None,
       cmap: str = "cividis_r",
       scale_alpha_by_coupling: bool = False,
+      fix_axes_lim: bool = False,
+      markers: str = "svopxdh",
       alpha: float = 0.6,
       title: Optional[str] = None
   ):
@@ -304,10 +306,10 @@ class PlotMM(Plot):
         alpha=alpha,
         title=title
     )
-
-    self._patches = []
-    self._points = []
-    self._fix_axes_lim = None
+    self._patches = None
+    self._points = None
+    self._markers = markers
+    self._fix_axes_lim = fix_axes_lim
 
   def __call__(
       self,
@@ -315,44 +317,45 @@ class PlotMM(Plot):
       top_k: Optional[int] = None
   ) -> List["plt.Artist"]:
     """Plot 2-D couplings. does not support higher dimensional."""
-    # Extract top_k largest entries in the tensor, and their indices.
+    self._points = []
+    self._patches = []
+    n0 = max(ot.shape)
+    top_k = n0 if top_k is None else top_k
+
+    # Extract the top_k largest entries in the tensor, and their indices.
     # if top_k is not provided use number of data instances mapped.
-    top_k = top_k if top_k is not None else ot.shape[0]
-    val, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
     indices = jnp.unravel_index(idx, ot.shape)
 
-    # Setttings for plot
-    markers = "svopxdh"
-
-    alphas = np.linspace(self._alpha, 0.2, top_k - ot.shape[0])
+    alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
     for j in range(top_k):
-      points = [ot.x_s[i][indices[i][j], :] for i in range(ot.n_marginals)]
+      points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
+      # reorder to ensure polygons have maximal area
       points = [points[i] for i in ccworder(jnp.array(points))]
-      alpha = self._alpha if j < ot.shape[0] else alphas[j - ot.shape[0]]
-      points = ptc.Polygon(
+      alpha = self._alpha if j < n0 else alphas[j - n0]
+
+      polygon = ptc.Polygon(
           points,
           fill=True,
           linewidth=2,
-          color=self._cmap[j > ot.shape[0]],
+          color=self._cmap[j >= n0],
           alpha=alpha,
           zorder=-j,
       )
-      self._patches.append(self.ax.add_patch(points))
+      self._patches.append(self.ax.add_patch(polygon))
 
-    for i in range(ot.n_marginals):
-      for j, val in enumerate(ot.x_s[i]):
-        self._points.append(
-            self.ax.scatter(
-                val[0],
-                val[1],
-                s=200 * ot.a_s[i][j] * len(ot.a_s[i]),
-                marker=markers[i % len(markers)],
-                c="black" if i < len(markers) else "grey",
-                linewidth=0.0,
-                edgecolor=None,
-                label=str(i)
-            )
-        )
+    for i, (x, a) in enumerate(zip(ot.x_s, ot.a_s)):
+      points = self.ax.scatter(
+          x[:, 0],
+          x[:, 1],
+          s=200.0 * len(a) * a,
+          marker=self._markers[i],
+          c="black",
+          linewidth=0.0,
+          edgecolor=None,
+          label=str(i)
+      )
+      self._points.append(points)
 
     if self._title is not None:
       self.ax.set_title(self._title)
@@ -366,35 +369,35 @@ class PlotMM(Plot):
       top_k: Optional[int] = None,
   ) -> List["plt.Artist"]:
     """Update a plot with a transport instance."""
+    n0 = max(ot.shape)
+    top_k = n0 if top_k is None else top_k
     # Extract top_k largest entries in the tensor, and their indices.
     # if top_k is not provided use number of data instances mapped.
-    top_k = top_k if top_k is not None else ot.shape[0]
-    val, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
+    _, idx = jax.lax.top_k(ot.tensor.ravel(), top_k)
     indices = jnp.unravel_index(idx, ot.shape)
 
-    alphas = np.linspace(self._alpha, 0.2, top_k - ot.shape[0])
-    for j in range(top_k):
-      points = [ot.x_s[i][indices[i][j], :] for i in range(ot.n_marginals)]
+    alphas = np.linspace(self._alpha, 0.2, max(0, top_k - n0))
+    for j, patch in enumerate(self._patches):
+      points = [x[indices[i][j], ...] for i, x in enumerate(ot.x_s)]
       # reorder to ensure polygons have maximal area
       points = [points[i] for i in ccworder(jnp.array(points))]
-      alpha = self._alpha if j < ot.shape[0] else alphas[j - ot.shape[0]]
+      alpha = self._alpha if j < n0 else alphas[j - n0]
       # update the location of the patches according to the new coordinates
-      self._patches[j].set_xy(points)
-      self._patches[j].set_color(self._cmap[j > ot.shape[0]])
-      self._patches[j].set_alpha(alpha)
+      patch.set_xy(points)
+      patch.set_color(self._cmap[j >= n0])
+      patch.set_alpha(alpha)
 
-    for i in range(ot.n_marginals):
-      for j, val in enumerate(ot.x_s[i]):
-        idx = np.ravel_multi_index((i, j), (ot.n_marginals, ot.shape[0]))
-        self._points[idx].set_offsets(val)
+    for points, xs in zip(self._points, ot.x_s):
+      points.set_offsets(xs)
 
     if title is not None:
       self.ax.set_title(title)
 
     # we keep the axis fixed to 0-1 assuming normalized data
     if self._fix_axes_lim:
-      self.ax.set_ylim(-2.5e-2, 1 + 2.5e-2)
-      self.ax.set_xlim(-2.5e-2, 1 + 2.5e-2)
+      eps = 2.5e-2
+      self.ax.set_ylim(-eps, 1.0 + eps)
+      self.ax.set_xlim(-eps, 1.0 + eps)
 
     return self._points + self._patches
 
@@ -404,19 +407,16 @@ class PlotMM(Plot):
       titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0,
       top_k: Optional[int] = None,
-      fix_axes_lim: Optional[bool] = False
   ) -> "animation.FuncAnimation":
     """Make an animation from several transports."""
-    self._fix_axes_lim = fix_axes_lim
-    _ = self(ot=transports[0], top_k=top_k)
-
+    ot, *_ = transports
+    _ = self(ot, top_k=top_k)
     titles = titles if titles is not None else [""] * len(transports)
     return animation.FuncAnimation(
         self.fig,
         lambda i: self.update(ot=transports[i], title=titles[i], top_k=top_k),
         np.arange(0, len(transports)),
-        init_func=lambda: self.
-        update(ot=transports[0], title=titles[0], top_k=top_k),
-        interval=1000 / frame_rate,
+        init_func=lambda: self.update(ot, title=titles[0], top_k=top_k),
+        interval=1000.0 / frame_rate,
         blit=True,
     )
