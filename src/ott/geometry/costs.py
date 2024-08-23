@@ -514,7 +514,7 @@ class RegTICost(TICost):
 
   @property
   def rho(self) -> float:
-    r"""Scale of the quadratic part \frac{\rho}{2}\|\cdot\|_2^2."""
+    r"""Scale of the quadratic part :math:`\frac{\rho}{2}\|\cdot\|_2^2`."""
     return self._h.rho
 
   def tree_flatten(self):  # noqa: D102
