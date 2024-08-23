@@ -396,11 +396,11 @@ class STVS(ProximalOperator):
     u = jnp.arcsinh(jnp.abs(x) / (2.0 * self.gamma))
     y = u - 0.5 * jnp.exp(-2.0 * u)
     # Lemma 2.1 of `schreck:15`
-    return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
+    return self.gamma ** 2 * jnp.linalg.norm(y)
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
     tmp = 1.0 - (tau * self.gamma / (jnp.abs(v) + 1e-12)) ** 2
-    return tau * v * jax.nn.relu(tmp)
+    return v * jax.nn.relu(tmp)
 
 
 @jtu.register_pytree_node_class
@@ -416,7 +416,7 @@ class SqKOverlap(ProximalOperator):
   norm, defined in :cite:`argyriou:12`, def. 2.1.
 
   Args:
-    k: Number of groups in :math:`[0, d)` where :math:`d` is the dimensionality
+    k: Number of groups in :math:`[0, d)`, where :math:`d` is the dimensionality
       of the data.
   """
 
