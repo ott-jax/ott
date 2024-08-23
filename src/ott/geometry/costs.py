@@ -393,7 +393,7 @@ class RegTICost(TICost):
   r"""Regularized translation-invariant cost.
 
   .. math::
-    \frac{\rho}{2}\|\cdot\|_2^2 + \lambda \text{regularizer}(\cdot)
+    \frac{\rho}{2}\|\cdot\|_2^2 + \lambda \text{regularizer}\left(\cdot\right)
 
   Args:
     regularizer: Regularization function.
@@ -409,17 +409,11 @@ class RegTICost(TICost):
   ):
     super().__init__()
     self.regularizer = regularizers.PostComposition(regularizer, alpha=lam)
-    self.rho = rho
     self._h = regularizers.Regularization(
         self.regularizer,
         a=None,
         rho=rho,
     )
-
-  @property
-  def lam(self) -> float:
-    """Strength of the regularization."""
-    return self.regularizer.alpha
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return self._h(z)
@@ -511,6 +505,16 @@ class RegTICost(TICost):
       return self.h(z) - f(x - z)
 
     return f_h
+
+  @property
+  def lam(self) -> float:
+    """Strength of the regularization."""
+    return self.regularizer.alpha
+
+  @property
+  def rho(self) -> float:
+    r"""Strength of the quadratic part \frac{1}{2}\|\cdot\|_2^2."""
+    return self._h.rho
 
   def tree_flatten(self):  # noqa: D102
     return (self.regularizer.f, self.lam, self.rho), {}
