@@ -398,6 +398,7 @@ class RegTICost(TICost):
   Args:
     regularizer: Regularization function.
     lam: Strength of the regularization.
+    rho: Scale of the quadratic part.
   """
 
   def __init__(
@@ -513,7 +514,7 @@ class RegTICost(TICost):
 
   @property
   def rho(self) -> float:
-    r"""Strength of the quadratic part \frac{1}{2}\|\cdot\|_2^2."""
+    r"""Scale of the quadratic part \frac{\rho}{2}\|\cdot\|_2^2."""
     return self._h.rho
 
   def tree_flatten(self):  # noqa: D102
