@@ -393,23 +393,28 @@ class RegTICost(TICost):
   r"""Regularized translation-invariant cost.
 
   .. math::
-    \frac{\rho}{2}\|\cdot\|_2^2 + \text{regularizer}(\cdot)
+    \frac{\rho}{2}\|\cdot\|_2^2 + \lambda \text{regularizer}(\cdot)
 
   Args:
     regularizer: Regularization function.
-    rho: Scaling factor.
+    lam: Strength of the regularization.
   """
 
   def __init__(
-      self, regularizer: regularizers.ProximalOperator, rho: float = 1.0
+      self, regularizer: regularizers.ProximalOperator, lam: float = 1.0
   ):
-    self.regularizer = regularizer
-    self.rho = rho
+    super().__init__()
+    self.regularizer = regularizers.PostComposition(regularizer, alpha=lam)
     self._h = regularizers.Regularization(
-        regularizer,
+        self.regularizer,
         a=None,
-        rho=rho,
+        rho=1.0,
     )
+
+  @property
+  def lam(self) -> float:
+    """Strength of the regularization."""
+    return self.regularizer.alpha
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return self._h(z)
@@ -503,7 +508,7 @@ class RegTICost(TICost):
     return f_h
 
   def tree_flatten(self):  # noqa: D102
-    return (self.regularizer, self.rho), {}
+    return (self.regularizer.f, self.lam), {}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102

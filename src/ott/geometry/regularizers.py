@@ -22,6 +22,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 
 __all__ = [
+    "PostComposition",
     "Regularization",
     "Orthogonal",
     "Quadratic",
@@ -98,6 +99,22 @@ class ProximalOperator(abc.ABC):
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
+
+
+class PostComposition(ProximalOperator):
+  """TODO."""
+
+  def __init__(self, f: ProximalOperator, alpha: float = 1.0, b: float = 0.0):
+    super().__init__()
+    self.f = f
+    self.alpha = alpha
+    self.b = b
+
+  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+    return self.alpha * self.f(x) + self.b
+
+  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+    return self.f.prox(v, tau * self.alpha)
 
 
 @jtu.register_pytree_node_class
@@ -305,55 +322,41 @@ class Quadratic(ProximalOperator):
 
 @jtu.register_pytree_node_class
 class L1(ProximalOperator):
-  r"""L1 norm regularizer :math:`\lambda \|x\|_1`.
-
-  Args:
-    lam: Strength of the regularizer.
-  """
-
-  def __init__(self, lam: float = 1.0):
-    super().__init__()
-    self.lam = lam
+  r"""L1 norm regularizer :math:`\|x\|_1`."""
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    return self.lam * jnp.linalg.norm(x, ord=1)
+    return jnp.linalg.norm(x, ord=1)
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    return jnp.sign(v) * jax.nn.relu(jnp.abs(v) - self.lam * tau)
-
-  def tree_flatten(self):  # noqa: D102
-    return (self.lam,), {}
+    return jnp.sign(v) * jax.nn.relu(jnp.abs(v) - tau)
 
 
 @jtu.register_pytree_node_class
 class L2(ProximalOperator):
-  r"""L2 norm regularizer :math:`\frac{\lambda}{2} \left<x, A^TAx\right>`.
+  r"""L2 norm regularizer :math:`\frac{1}{2} \left<x, A^TAx\right>`.
 
   Args:
     A: Linear operator :math:`A`. If :obj:`None`, use identity.
-    lam: Strength of the regularizer.
     kwargs: Keyword arguments for :class:`Quadratic`.
   """
 
   def __init__(
       self,
       A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
-      lam: float = 1.0,
       **kwargs: Any,
   ):
     super().__init__()
     self.f = Quadratic(A, is_factor=True, **kwargs)
-    self.lam = lam
     self._init_kwargs = kwargs
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    return self.lam * self.f(x)
+    return self.f(x)
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    return self.f.prox(v, self.lam * tau)
+    return self.f.prox(v, tau)
 
   def tree_flatten(self):  # noqa: D102
-    return (self.f.A, self.lam), self._init_kwargs
+    return (self.f.A,), self._init_kwargs
 
 
 @jtu.register_pytree_node_class
@@ -363,31 +366,29 @@ class STVS(ProximalOperator):
   The operator is defined as:
 
   .. math::
-    \lambda^2 \mathbf{1}_d^T \left(\sigma(x) -
+    \gamma^2 \mathbf{1}_d^T \left(\sigma(x) -
     \frac{1}{2} \exp\left(-2\sigma(x)\right) + \frac{1}{2}\right)
 
-  where :math:`\sigma(x) := \text{asinh}\left(\frac{x}{2\lambda}\right)`.
+  where :math:`\sigma(x) := \text{asinh}\left(\frac{x}{2\gamma}\right)`.
 
   Args:
-    lam: Strength of the regularization.
+    gamma: TODO
   """  # noqa: E501
 
-  def __init__(self, lam: float = 1.0):
+  def __init__(self, gamma: float = 1.0):
     super().__init__()
-    self.lam = lam
+    self.gamma = gamma
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    u = jnp.arcsinh(jnp.abs(x) / (2 * self.lam))
+    u = jnp.arcsinh(jnp.abs(x) / (2.0 * self.gamma))
     y = u - 0.5 * jnp.exp(-2.0 * u)
     # Lemma 2.1 of `schreck:15`
-    return self.lam ** 2 * jnp.sum(y + 0.5)  # make positive
+    # TODO(michalk8)
+    return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    tmp = 1.0 - (self.lam * tau / (jnp.abs(v) + 1e-12)) ** 2
-    return jax.nn.relu(tmp) * v
-
-  def tree_flatten(self):  # noqa: D102
-    return (self.lam,), {}
+    tmp = 1.0 - (tau * self.gamma / (jnp.abs(v) + 1e-12)) ** 2
+    return v * jax.nn.relu(tmp)
 
 
 @jtu.register_pytree_node_class
@@ -397,7 +398,7 @@ class SqKOverlap(ProximalOperator):
   The regularizer is defined as:
 
   .. math::
-    \frac{\lambda}{2} \left(\|x\|_k^{\text{ov}}\right)^2
+    \frac{1}{2} \left(\|x\|_k^{\text{ov}}\right)^2
 
   where :math:`\left(\|x\|_k^{\text{ov}}\right)^2` is the squared k-overlap
   norm, defined in :cite:`argyriou:12`, def. 2.1.
@@ -405,13 +406,11 @@ class SqKOverlap(ProximalOperator):
   Args:
     k: Number of groups in :math:`[0, d)` where :math:`d` is the dimensionality
       of the data.
-    lam: Strength of the regularization.
   """
 
-  def __init__(self, k: int, lam: float = 1.0):
+  def __init__(self, k: int):
     super().__init__()
     self.k = k
-    self.lam = lam
 
   def __call__(self, z: jnp.ndarray) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
@@ -459,9 +458,8 @@ class SqKOverlap(ProximalOperator):
 
       return inner(r, l, z)
 
-    del tau  # this case is not handled and currently not needed
     # Alg. 1 of :cite:`argyriou:12`
-    k, d, beta = self.k, v.shape[-1], 1.0 / self.lam
+    k, d, beta = self.k, v.shape[-1], 1.0 / tau
 
     ixs = jnp.arange(d)
     v, sgn = jnp.abs(v), jnp.sign(v)
@@ -481,12 +479,7 @@ class SqKOverlap(ProximalOperator):
     return sgn * q[jnp.argsort(z_ixs.astype(float))]
 
   def tree_flatten(self):  # noqa: D102
-    return (self.lam,), {"k": self.k}
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    lam, = children
-    return cls(lam=lam, **aux_data)
+    return (), {"k": self.k}
 
 
 def _invert(A: lx.AbstractLinearOperator) -> lx.MatrixLinearOperator:
