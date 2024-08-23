@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Type
 
 import lineax as lx
 
@@ -282,25 +281,19 @@ class TestEntropicPotentials:
       with pytest.raises(AssertionError):
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
 
-  @pytest.mark.parametrize("reg_t", [regularizers.L1, regularizers.L2])
+  @pytest.mark.parametrize("reg", [regularizers.L1(), regularizers.L2()])
   def test_potentials_diff_param_costs(
-      self, rng: jax.Array, reg_t: Type[regularizers.ProximalOperator]
+      self, rng: jax.Array, reg: regularizers.ProximalOperator
   ):
 
     def proj(matrix: jnp.ndarray) -> jnp.ndarray:
       u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
       return u.dot(v_h)
 
-    def create_cost(mat: jnp.ndarray) -> costs.RegTICost:
-      reg = reg_t(lam=1.0)
-      reg = regularizers.Orthogonal(reg, A=lx.MatrixLinearOperator(mat))
-      return costs.RegTICost(reg)
-
-    def perturb_cost(
-        cost: costs.RegTICost, pert: jnp.ndarray
-    ) -> costs.RegTICost:
-      (reg, matrix), aux_data = cost.tree_flatten()
-      return type(cost).tree_unflatten(aux_data, (reg, matrix + pert))
+    def create_cost(A: jnp.ndarray) -> costs.RegTICost:
+      A = lx.MatrixLinearOperator(A)
+      orth = regularizers.Orthogonal(reg, A=A)
+      return costs.RegTICost(orth, lam=1.0)
 
     @jax.jit
     def loss(c: costs.RegTICost) -> float:
@@ -335,7 +328,7 @@ class TestEntropicPotentials:
     expected = (loss_p_delta - loss_m_delta) / (2.0 * eps)
 
     grad_matrix = jax.jit(jax.grad(loss))(cost_fn)
-    grad_matrix = grad_matrix.regularizer.A.as_matrix()
+    grad_matrix = grad_matrix.regularizer.f.A.as_matrix()
     np.testing.assert_allclose(
         expected, jnp.vdot(delta, grad_matrix), rtol=1e-2, atol=1e-2
     )

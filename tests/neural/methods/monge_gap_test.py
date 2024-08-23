@@ -79,8 +79,8 @@ class TestMongeGap:
       [
           (costs.SqEuclidean(), 13, 5),
           (costs.PNormP(p=1), 20, 3),
-          (costs.RegTICost(regularizers.L1(2.0)), 100, 30),
-          (costs.RegTICost(regularizers.STVS(3.0)), 7, 10),
+          (costs.RegTICost(regularizers.L1(), lam=2.0), 100, 30),
+          (costs.RegTICost(regularizers.STVS(gamma=3.0), lam=1.0), 7, 10),
       ],
       ids=[
           "sqeucl",
