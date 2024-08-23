@@ -401,14 +401,19 @@ class RegTICost(TICost):
   """
 
   def __init__(
-      self, regularizer: regularizers.ProximalOperator, lam: float = 1.0
+      self,
+      regularizer: regularizers.ProximalOperator,
+      lam: float = 1.0,
+      *,
+      rho: float = 1.0,
   ):
     super().__init__()
     self.regularizer = regularizers.PostComposition(regularizer, alpha=lam)
+    self.rho = rho
     self._h = regularizers.Regularization(
         self.regularizer,
         a=None,
-        rho=1.0,
+        rho=rho,
     )
 
   @property
@@ -508,11 +513,12 @@ class RegTICost(TICost):
     return f_h
 
   def tree_flatten(self):  # noqa: D102
-    return (self.regularizer.f, self.lam), {}
+    return (self.regularizer.f, self.lam, self.rho), {}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(*children, **aux_data)
+    f, lam, rho = children
+    return cls(f, lam=lam, rho=rho, **aux_data)
 
 
 @jtu.register_pytree_node_class
