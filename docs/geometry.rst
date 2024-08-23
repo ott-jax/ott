@@ -75,6 +75,7 @@ Regularizers
     :toctree: _autosummary
 
     regularizers.ProximalOperator
+    regularizers.PostComposition
     regularizers.Regularization
     regularizers.Orthogonal
     regularizers.Quadratic
