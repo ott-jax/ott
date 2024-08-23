@@ -106,7 +106,13 @@ class ProximalOperator(abc.ABC):
 
 @jtu.register_pytree_node_class
 class PostComposition(ProximalOperator):
-  """TODO."""
+  r"""Postcomposition operator :math:`\alpha f\left(x\right) + b`.
+
+  Args:
+    f: Function :math:`f`.
+    alpha: Scaling factor.
+    b: Offset.
+  """
 
   def __init__(self, f: ProximalOperator, alpha: float = 1.0, b: float = 0.0):
     super().__init__()
@@ -379,7 +385,7 @@ class STVS(ProximalOperator):
   where :math:`\sigma(x) := \text{asinh}\left(\frac{x}{2\gamma}\right)`.
 
   Args:
-    gamma: TODO
+    gamma: Strength of the regularization.
   """  # noqa: E501
 
   def __init__(self, gamma: float = 1.0):
@@ -393,7 +399,7 @@ class STVS(ProximalOperator):
     return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    tmp = 1.0 - (self.gamma / (jnp.abs(v) + 1e-12)) ** 2
+    tmp = 1.0 - (tau * self.gamma / (jnp.abs(v) + 1e-12)) ** 2
     return tau * v * jax.nn.relu(tmp)
 
 
