@@ -402,6 +402,9 @@ class STVS(ProximalOperator):
     tmp = 1.0 - ((tau * self.gamma) / (v + 1e-12)) ** 2
     return v * jax.nn.relu(tmp)
 
+  def tree_flatten(self):  # noqa: D102
+    return (self.gamma,), {}
+
 
 @jtu.register_pytree_node_class
 class SqKOverlap(ProximalOperator):
