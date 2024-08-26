@@ -393,13 +393,13 @@ class STVS(ProximalOperator):
     self.gamma = gamma
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    u = jnp.arcsinh(jnp.abs(x) / (2.0 * self.gamma))
-    y = u - 0.5 * jnp.exp(-2.0 * u)
     # Lemma 2.1 of `schreck:15`
-    return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
+    u = jnp.arcsinh(jnp.linalg.norm(x) / (2.0 * self.gamma))
+    y = u - 0.5 * jnp.exp(-2.0 * u)
+    return self.gamma ** 2 * (y + 0.5)  # make positive
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    tmp = 1.0 - (tau * self.gamma / (jnp.abs(v) + 1e-12)) ** 2
+    tmp = 1.0 - ((tau * self.gamma) / (v + 1e-8)) ** 2
     return v * jax.nn.relu(tmp)
 
 
