@@ -235,24 +235,23 @@ class TestTICost:
 @pytest.mark.fast()
 class TestRegTICost:
 
-  @pytest.mark.parametrize("lam", [8.0, 13.0])
   @pytest.mark.parametrize("d", [5, 31, 77])
   @pytest.mark.parametrize(
-      "reg", [
-          regularizers.L1(),
-          regularizers.L2(),
-          regularizers.STVS(),
+      "cost_fn",
+      [
+          costs.RegTICost(regularizers.L1(), lam=8.0),
+          costs.RegTICost(regularizers.L2(), lam=13.0),
+          # lam must be 1.0
+          costs.RegTICost(regularizers.STVS(8.0), lam=1.0),
+          costs.RegTICost(regularizers.STVS(13.0), lam=1.0),
       ]
   )
   def test_reg_legendre(
       self,
       rng: jax.Array,
-      lam: float,
+      cost_fn: costs.RegTICost,
       d: int,
-      reg: regularizers.ProximalOperator,
   ):
-    cost_fn = costs.RegTICost(reg, lam=lam)
-
     expected = jax.random.normal(rng, (d,))
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
@@ -324,6 +323,8 @@ class TestRegTICost:
 
     sparsity = {False: [], True: []}
     for lam in [9, 89]:
+      if isinstance(reg, regularizers.STVS):
+        reg, lam = regularizers.STVS(lam), 1.0
       cost_fn = costs.RegTICost(reg, lam=lam)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
