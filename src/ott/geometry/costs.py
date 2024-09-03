@@ -509,7 +509,10 @@ class RegTICost(TICost):
 
   @property
   def lam(self) -> float:
-    """Strength of the regularization."""
+    """Strength of the regularization.
+
+    Alias for :attr:`~ott.geometry.regularizers.PostComposition.alpha`.
+    """
     return self.regularizer.alpha
 
   @property

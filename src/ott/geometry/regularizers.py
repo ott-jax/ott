@@ -335,7 +335,7 @@ class Quadratic(ProximalOperator):
 
 @jtu.register_pytree_node_class
 class L1(ProximalOperator):
-  r"""L1 norm regularizer :math:`\|x\|_1`."""
+  r"""L1-norm regularizer :math:`ell_1`."""
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(x, ord=1)
@@ -346,7 +346,7 @@ class L1(ProximalOperator):
 
 @jtu.register_pytree_node_class
 class L2(ProximalOperator):
-  r"""L2 norm regularizer :math:`\frac{1}{2} \left<x, A^TAx\right>`.
+  r"""L2-norm regularizer :math:`\frac{1}{2} \left<x, A^TAx\right>`.
 
   Args:
     A: Linear operator :math:`A`. If :obj:`None`, use identity.
