@@ -25,6 +25,7 @@ Mahalanobis
 McCann
 Monge
 Moreau
+Postcomposition
 SGD
 Schrödinger
 Schur
