@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Type
+from typing import Any
 
 import pytest
 
@@ -160,18 +160,18 @@ class TestTICost:
       "cost_fn", [
           costs.SqEuclidean(),
           costs.PNormP(2),
-          costs.RegTICost(regularizers.L2(lam=0.0), rho=2.0)
+          costs.RegTICost(regularizers.SqL2(), lam=0.0, rho=1.0)
       ]
   )
   def test_sqeucl_transport(
       self, rng: jax.Array, cost_fn: costs.TICost, enable_x64
   ):
+    sqeucl = costs.SqEuclidean()
     x = jax.random.normal(rng, (12, 7))
     f = mu.logsumexp
 
     h_f = cost_fn.h_transform(f)
-    expected_fn = cost_fn.transport_map(f)
-    expected_fn = jax.jit(expected_fn)
+    expected_fn = jax.jit(cost_fn.transport_map(f))
     if isinstance(cost_fn, costs.SqEuclidean):
       # multiply by `0.5`, because `SqEuclidean := |x|_2^2`
       actual_fn = jax.jit(jax.vmap(lambda x: x - 0.5 * jax.grad(h_f)(x)))
@@ -179,6 +179,13 @@ class TestTICost:
       actual_fn = jax.jit(jax.vmap(lambda x: x - jax.grad(h_f)(x)))
 
     np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
+    if not isinstance(cost_fn, costs.SqEuclidean):
+      np.testing.assert_allclose(
+          0.5 * sqeucl.all_pairs(x, x),
+          cost_fn.all_pairs(x, x),
+          rtol=1e-6,
+          atol=1e-6
+      )
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
@@ -190,7 +197,7 @@ class TestTICost:
     u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
     x = jax.random.normal(rngs[1], (n, d))
 
-    gt_cost = costs.RegTICost(regularizers.L2(lam=0.0))
+    gt_cost = costs.RegTICost(regularizers.SqL2(), lam=0.0)
     concave_gt = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
 
     if isinstance(cost_fn, costs.PNormP):
@@ -228,25 +235,23 @@ class TestTICost:
 @pytest.mark.fast()
 class TestRegTICost:
 
-  @pytest.mark.parametrize("lam", [8.0, 13.0])
   @pytest.mark.parametrize("d", [5, 31, 77])
   @pytest.mark.parametrize(
-      "reg_t", [
-          regularizers.L1,
-          regularizers.L2,
-          regularizers.STVS,
+      "cost_fn",
+      [
+          costs.RegTICost(regularizers.L1(), lam=8.0),
+          costs.RegTICost(regularizers.SqL2(), lam=13.0),
+          # lam must be 1.0
+          costs.RegTICost(regularizers.STVS(8.0), lam=1.0),
+          costs.RegTICost(regularizers.STVS(13.0), lam=1.0),
       ]
   )
   def test_reg_legendre(
       self,
       rng: jax.Array,
-      lam: float,
+      cost_fn: costs.RegTICost,
       d: int,
-      reg_t: Type[regularizers.ProximalOperator],
   ):
-    reg = reg_t(lam=lam)
-    cost_fn = costs.RegTICost(reg)
-
     expected = jax.random.normal(rng, (d,))
     actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
@@ -261,7 +266,7 @@ class TestRegTICost:
         -5.0, 5.0, num=n
     )[:, None]
 
-    cost_fn = costs.RegTICost(regularizers.L1(lam))
+    cost_fn = costs.RegTICost(regularizers.L1(), lam=lam)
     f = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
 
     h_f = jax.vmap(cost_fn.h_transform(f), in_axes=[None, 0])
@@ -273,21 +278,23 @@ class TestRegTICost:
     )
 
   @pytest.mark.parametrize(
-      "reg", [
-          regularizers.L1(113),
-          regularizers.STVS(12),
-          regularizers.SqKOverlap(k=3, lam=17),
-      ]
+      "cost_fn",
+      [
+          costs.RegTICost(regularizers.L1(), lam=113.0),
+          costs.RegTICost(regularizers.STVS(12.0), lam=1.0),
+          costs.RegTICost(regularizers.SqKOverlap(3), lam=17.0)
+      ],
   )
   def test_sparse_displacement(
-      self, rng: jax.Array, reg: regularizers.ProximalOperator
+      self,
+      rng: jax.Array,
+      cost_fn: costs.RegTICost,
   ):
     rng1, rng2 = jax.random.split(rng, 2)
     d = 17
 
     x = jax.random.normal(rng1, (25, d))
     y = jax.random.normal(rng2, (37, d))
-    cost_fn = costs.RegTICost(reg)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
     dp = linear.solve(geom).to_dual_potentials()
@@ -297,15 +304,16 @@ class TestRegTICost:
       assert np.mean(np.isclose(arr, arr_t)) > 0.6
 
   @pytest.mark.parametrize(
-      "reg_t", [
-          regularizers.L1, regularizers.STVS,
-          functools.partial(regularizers.SqKOverlap, k=10)
+      "reg", [
+          regularizers.L1(),
+          regularizers.STVS(),
+          regularizers.SqKOverlap(10),
       ]
   )
   def test_stronger_regularization_increases_sparsity(
       self,
       rng: jax.Array,
-      reg_t: Type[regularizers.ProximalOperator],
+      reg: regularizers.ProximalOperator,
   ):
     d, rngs = 17, jax.random.split(rng, 4)
     x = jax.random.normal(rngs[0], (50, d))
@@ -315,8 +323,9 @@ class TestRegTICost:
 
     sparsity = {False: [], True: []}
     for lam in [9, 89]:
-      reg = reg_t(lam=lam)
-      cost_fn = costs.RegTICost(reg)
+      if isinstance(reg, regularizers.STVS):
+        reg, lam = regularizers.STVS(lam), 1.0
+      cost_fn = costs.RegTICost(reg, lam=lam)
       geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
 
       dp = linear.solve(geom).to_dual_potentials()
@@ -328,15 +337,17 @@ class TestRegTICost:
       np.testing.assert_array_equal(np.diff(sparsity[fwd]) > 0.0, True)
 
   @pytest.mark.parametrize(
-      "reg", [
-          regularizers.L1(lam=0.1),
-          regularizers.L2(lam=3.3),
-          regularizers.STVS(lam=1.0),
-          regularizers.SqKOverlap(k=3, lam=1.05)
+      "cost_fn", [
+          costs.RegTICost(regularizers.L1(), lam=0.1),
+          costs.RegTICost(regularizers.SqL2(), lam=3.3),
+          costs.RegTICost(regularizers.STVS(1.0), lam=1.0),
+          costs.RegTICost(regularizers.SqKOverlap(3), lam=1.05),
       ]
   )
   def test_reg_transport_fn(
-      self, rng: jax.Array, reg: regularizers.ProximalOperator
+      self,
+      rng: jax.Array,
+      cost_fn: costs.RegTICost,
   ):
 
     @jax.jit
@@ -346,7 +357,6 @@ class TestRegTICost:
       return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
 
     x = jax.random.normal(rng, (11, 9))
-    cost_fn = costs.RegTICost(reg)
     f = mu.logsumexp
 
     actual_fn = cost_fn.transport_map(f)
