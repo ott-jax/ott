@@ -160,7 +160,7 @@ class TestTICost:
       "cost_fn", [
           costs.SqEuclidean(),
           costs.PNormP(2),
-          costs.RegTICost(regularizers.L2(), lam=0.0, rho=1.0)
+          costs.RegTICost(regularizers.SqL2(), lam=0.0, rho=1.0)
       ]
   )
   def test_sqeucl_transport(
@@ -197,7 +197,7 @@ class TestTICost:
     u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
     x = jax.random.normal(rngs[1], (n, d))
 
-    gt_cost = costs.RegTICost(regularizers.L2(), lam=0.0)
+    gt_cost = costs.RegTICost(regularizers.SqL2(), lam=0.0)
     concave_gt = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
 
     if isinstance(cost_fn, costs.PNormP):
@@ -240,7 +240,7 @@ class TestRegTICost:
       "cost_fn",
       [
           costs.RegTICost(regularizers.L1(), lam=8.0),
-          costs.RegTICost(regularizers.L2(), lam=13.0),
+          costs.RegTICost(regularizers.SqL2(), lam=13.0),
           # lam must be 1.0
           costs.RegTICost(regularizers.STVS(8.0), lam=1.0),
           costs.RegTICost(regularizers.STVS(13.0), lam=1.0),
@@ -339,7 +339,7 @@ class TestRegTICost:
   @pytest.mark.parametrize(
       "cost_fn", [
           costs.RegTICost(regularizers.L1(), lam=0.1),
-          costs.RegTICost(regularizers.L2(), lam=3.3),
+          costs.RegTICost(regularizers.SqL2(), lam=3.3),
           costs.RegTICost(regularizers.STVS(1.0), lam=1.0),
           costs.RegTICost(regularizers.SqKOverlap(3), lam=1.05),
       ]

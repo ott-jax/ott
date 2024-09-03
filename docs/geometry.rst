@@ -80,7 +80,7 @@ Regularizers
     regularizers.Orthogonal
     regularizers.Quadratic
     regularizers.L1
-    regularizers.L2
+    regularizers.SqL2
     regularizers.STVS
     regularizers.SqKOverlap
 

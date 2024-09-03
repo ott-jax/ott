@@ -281,7 +281,7 @@ class TestEntropicPotentials:
       with pytest.raises(AssertionError):
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
 
-  @pytest.mark.parametrize("reg", [regularizers.L1(), regularizers.L2()])
+  @pytest.mark.parametrize("reg", [regularizers.L1(), regularizers.SqL2()])
   def test_potentials_diff_param_costs(
       self, rng: jax.Array, reg: regularizers.ProximalOperator
   ):

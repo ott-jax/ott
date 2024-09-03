@@ -35,7 +35,7 @@ class TestProximalOperator:
 
   @pytest.mark.parametrize("tau", [0.7, 1.0, 3.31])
   @pytest.mark.parametrize(("reg", "lam"), [(regularizers.L1(), 0.142),
-                                            (regularizers.L2(), 2.1)])
+                                            (regularizers.SqL2(), 2.1)])
   def test_moreau_envelope(
       self,
       rng: jax.Array,
@@ -72,7 +72,7 @@ class TestProximalOperator:
     self.test_moreau_envelope(rng_moreau, tau=tau, reg=reg, lam=None)
 
   @pytest.mark.parametrize(("nu", "use_b", "reg", "lam"),
-                           [(0.25, True, regularizers.L2(), 2.1),
+                           [(0.25, True, regularizers.SqL2(), 2.1),
                             (1.0, False, regularizers.L1(), 1.3)])
   def test_orthogonal(
       self,
@@ -234,7 +234,7 @@ class TestQuadratic:
     A = jax.random.normal(rng_A, (k, d))
     x = jax.random.normal(rng_x, (d,))
 
-    l2 = regularizers.L2(A, is_complement=is_complement)
+    l2 = regularizers.SqL2(A, is_complement=is_complement)
     l2 = regularizers.PostComposition(l2, alpha=lam)
     reg = l2.f.f
 
@@ -267,7 +267,7 @@ class TestQuadratic:
       A = _proj(A)
     x = jax.random.normal(rng_x, (n, d))
 
-    reg = regularizers.L2(
+    reg = regularizers.SqL2(
         A, is_complement=is_complement, is_orthogonal=is_orthogonal
     )
     reg = regularizers.PostComposition(reg, alpha=lam)
@@ -322,7 +322,7 @@ class TestSqKOverlap:
   @pytest.mark.parametrize("d", [4, 8, 16])
   def test_matches_l2(self, rng: jax.Array, d: int):
     x = jax.random.normal(rng, (d,))
-    l2 = regularizers.L2()
+    l2 = regularizers.SqL2()
     sq_kovp = regularizers.SqKOverlap(k=d)
 
     expected = 0.5 * jnp.linalg.norm(x, ord=2) ** 2

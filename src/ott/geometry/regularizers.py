@@ -27,7 +27,7 @@ __all__ = [
     "Orthogonal",
     "Quadratic",
     "L1",
-    "L2",
+    "SqL2",
     "STVS",
     "SqKOverlap",
 ]
@@ -345,11 +345,12 @@ class L1(ProximalOperator):
 
 
 @jtu.register_pytree_node_class
-class L2(ProximalOperator):
-  r"""L2-norm regularizer :math:`\frac{1}{2} \left<x, A^TAx\right>`.
+class SqL2(ProximalOperator):
+  r"""Squared L2-norm regularizer :math:`\ell_2^2`.
 
   Args:
-    A: Linear operator :math:`A`. If :obj:`None`, use identity.
+    A: Linear operator :math:`A` in :math:`\frac{1}{2} \left<x, A^TAx\right>`.
+      If :obj:`None`, use identity.
     kwargs: Keyword arguments for :class:`Quadratic`.
   """
 
