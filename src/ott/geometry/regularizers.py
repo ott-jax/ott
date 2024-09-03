@@ -335,7 +335,7 @@ class Quadratic(ProximalOperator):
 
 @jtu.register_pytree_node_class
 class L1(ProximalOperator):
-  r"""L1-norm regularizer :math:`ell_1`."""
+  r"""L1-norm regularizer :math:`\ell_1`."""
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     return jnp.linalg.norm(x, ord=1)
@@ -399,8 +399,8 @@ class STVS(ProximalOperator):
     return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    tmp = 1.0 - ((tau * self.gamma) / (v + 1e-12)) ** 2
-    return v * jax.nn.relu(tmp)
+    s = (tau * self.gamma) ** 2
+    return jnp.where(v ** 2 <= s, 0.0, v - s / jnp.where(v == 0.0, 1.0, v))
 
   def tree_flatten(self):  # noqa: D102
     return (self.gamma,), {}
