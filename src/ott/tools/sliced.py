@@ -60,7 +60,9 @@ def sliced_wasserstein(
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT
-  distances that relies on unidimensional projections.
+  distances that relies on creating features randomly for data, through e.g.,
+  projections, and then sum the 1D Wasserstein distances between these features'
+  distributions.
 
   Args:
     x: Array of shape ``[n, dim]`` of source points' coordinates.
