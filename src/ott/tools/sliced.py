@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from ott import utils
 from ott.geometry import costs, pointcloud
 from ott.solvers import linear
+from ott.solvers.linear import univariate
 
 __all__ = ["random_proj_sphere", "sliced_wasserstein"]
 
@@ -34,7 +35,7 @@ def random_proj_sphere(
 
   Args:
     x: Array of size ``[n, dim]``.
-    n_proj: Number of randomly generated projections/features produced.
+    n_proj: Number of randomly generated projections.
     rng: Key used to sample feature extractors.
 
   Returns:
@@ -57,7 +58,7 @@ def sliced_wasserstein(
     return_transport: bool = False,
     return_dual_variables: bool = False,
     **kwargs: Any,
-) -> Tuple[jnp.ndarray, linear.univariate.UnivariateOutput]:
+) -> Tuple[jnp.ndarray, univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT
@@ -70,7 +71,7 @@ def sliced_wasserstein(
     y: Array of shape ``[m, dim]`` of target points' coordinates.
     a: Array of shape ``[n,]`` of source probability weights.
     b: Array of shape ``[m,]`` of target probability weights.
-    cost_fn: Cost function. Must be submodular function of two real arguments,
+    cost_fn: Cost function. Must be a submodular function of two real arguments,
       i.e. such that :math:`\partial c(x,y)/\partial x \partial y <0`. If
       :obj:`None`, use :class:`~ott.geometry.costs.SqEuclidean`.
     proj_fn: Projection function, mapping any ``[b, dim]`` matrix of coordinates
