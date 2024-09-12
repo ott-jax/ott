@@ -23,6 +23,13 @@ Sinkhorn Divergence
     sinkhorn_divergence.sinkhorn_divergence
     sinkhorn_divergence.segment_sinkhorn_divergence
 
+Sliced Wasserstein Distance
+---------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    sliced.sliced_wasserstein
+
 ProgOT
 ------
 .. autosummary::
