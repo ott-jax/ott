@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -22,7 +22,28 @@ from ott.solvers import linear
 
 __all__ = ["sliced_wasserstein"]
 
-Projector_t = Callable[[int, int], jnp.ndarray]
+Projector = Callable[[jnp.ndarray, int, jax.Array], jnp.ndarray]
+
+
+def rand_proj_sphere(
+    x: jnp.ndarray,
+    n_proj: int = 1000,
+    rng: Optional[jax.Array] = None
+) -> jnp.ndarray:
+  """Projects data randomly on directions sampled randomly from sphere.
+
+  Args:
+    x: Array of size ``[n, dim]``.
+    n_proj: number of randomly generated projections/features produced.
+    rng: key used to sample feature extractors.
+
+  Returns:
+    Array of size ``[n, n_proj]`` features.
+  """
+  rng = utils.default_prng_key(rng)
+  proj_m = jax.random.normal(rng, (n_proj, x.shape[-1]))
+  proj_m /= jnp.linalg.norm(proj_m, axis=1, keepdims=True)
+  return x @ proj_m.T
 
 
 def sliced_wasserstein(
@@ -31,11 +52,11 @@ def sliced_wasserstein(
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
     cost_fn: Optional[costs.CostFn] = None,
-    proj_fn: Optional[Projector_t] = None,
-    return_univariate_output_obj: bool = False,
-    kwargs_univariate_solver: Optional[Any] = None,
+    proj_fn: Optional[Projector] = None,
+    return_transport: bool = False,
+    return_dual_variables: bool = False,
     **kwargs
-) -> jnp.ndarray:
+) -> Tuple[jnp.ndarray, linear.univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT
@@ -43,48 +64,38 @@ def sliced_wasserstein(
 
   Args:
     x: Array of shape ``[n, dim]`` of source points' coordinates.
-    y: Arrayof shape ``[m, dim]`` of target points' coordinates.
+    y: Array of shape ``[m, dim]`` of target points' coordinates.
     a: Array of shape ``[n,]`` of source probability weights.
     b: Arrayof shape ``[m,]`` of target probability weights.
-    cost_fn: cost function. Must be submodular function of two real arguments,
+    cost_fn: Cost function. Must be submodular function of two real arguments,
       i.e. such that :math:`\partial c(x,y)/\partial x \partial y <0`. If
-      obj:`None`, use :class:`~ott.geometry.costs.SqEuclidean`.
-    proj_fn: projection function, mapping any `[b,d]` matrix of coordinates to
-      `[b,n_proj]` coordinates, on which 1D transport (for `n_proj` directions)
-      are subsequently computed. Default is to use `n_proj` random vectors
-      distributed on the `d`-sphere and project data onto them.
-    return_univariate_output_obj: whether to retun a detailed univarite output
-      object.
-    kwargs_univariate_solver: passed on to solver
-      :class:`ott.solvers.linear.solve_univariate`, to recover e.g.
-      detailed information on univariate outputs on each slices (transport or
-      dual variables).
-    **kwargs: parameters to be passed on to `proj_fn`. Could for instance
-      include, as done with default setting, a `rng` key and specifying `n_proj`
-      directions.
+      :obj:`None`, use :class:`~ott.geometry.costs.SqEuclidean`.
+    proj_fn: Projection function, mapping any ``[b, dim]`` matrix of coordinates
+      to ``[b, n_proj]`` matrix of features, on which 1D transports (for
+      ``n_proj`` directions) are subsequently computed independently.
+      Default ``proj_fn`` uses ``n_proj`` random vectors distributed on the
+      ``dim``-sphere, and project data onto them.
+    return_transport: whether to output ``n_proj`` transports in the
+      :class:`~ott.solvers.linear.univariate.UnivariateOutput` output object.
+    return_dual_variables: whether to output ``n_proj`` pairs of ``n`` and ``m``
+      dimensional dual vectors in the
+      :class:`~ott.solvers.linear.univariate.UnivariateOutput` output object.
+    kwargs: parameters to be passed on to ``proj_fn``. Could for instance
+      include, as done with default projector, number of ``n_proj`` projections
+      as well as a ``rng`` key to sample as many directions.
 
   Returns:
-    The sliced Wasserstein distance, possibly with a
+    The sliced Wasserstein distance, with corresponding
     :class:`~ott.solvers.linear.univariate.UnivariateOutput` object.
   """
-  dim = x.shape[1]
-  if proj_fn is None:
-
-    def proj_fn(
-        input: jnp.ndarray,
-        rng: Optional[jax.Array] = None,
-        n_proj: int = 1000
-    ):
-      rng = utils.default_prng_key(rng)
-      proj_m = jax.random.normal(rng, (n_proj, dim))
-      proj_m /= jnp.linalg.norm(proj_m, axis=1)[:, None]
-      return x @ proj_m.T
-
+  proj_fn = rand_proj_sphere if proj_fn is None else proj_fn
   x_proj, y_proj = proj_fn(x, **kwargs), proj_fn(y, **kwargs),
   geom = pointcloud.PointCloud(x_proj, y_proj, cost_fn=cost_fn)
-  kw = {} if kwargs_univariate_solver is None else kwargs_univariate_solver
-  out = linear.solve_univariate(geom, a, b, **kw)
-
-  if not return_univariate_output_obj:
-    return jnp.sum(out.ot_costs)
+  out = linear.solve_univariate(
+      geom,
+      a,
+      b,
+      return_transport=return_transport,
+      return_dual_variables=return_dual_variables
+  )
   return jnp.sum(out.ot_costs), out
