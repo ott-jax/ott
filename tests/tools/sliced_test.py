@@ -26,10 +26,11 @@ class TestSliced:
   def test_random_projs(self, rng):
     cost_fn = costs.PNormP(1.3)
     n, m, dim = 12, 17, 5
-    x = jax.random.uniform(rng, (n, dim))
-    y = jax.random.uniform(rng, (m, dim))
-    a = jax.random.uniform(rng, (n,))
-    b = jax.random.uniform(rng, (m,))
+    rngs = jax.random.split(rng, 4)
+    x = jax.random.uniform(rngs[0], (n, dim))
+    y = jax.random.uniform(rngs[1], (m, dim))
+    a = jax.random.uniform(rngs[2], (n,))
+    b = jax.random.uniform(rngs[3], (m,))
     a /= jnp.sum(a)
     b /= jnp.sum(b)
 
