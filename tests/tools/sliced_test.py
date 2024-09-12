@@ -47,7 +47,7 @@ class TestSliced:
     )
     np.testing.assert_array_less(0.0, out)
 
-    # Test matches standard implementation when using proj as identity
+    # Test matches standard implementation when using identity for proj_matrix.
     out = sliced.sliced_w(x, y, a, b, proj_matrix=jnp.eye(dim), cost_fn=cost_fn)
     geom = pointcloud.PointCloud(x=x, y=y, cost_fn=cost_fn)
     out_lin = jnp.sum(linear.solve_univariate(geom=geom, a=a, b=b).ot_costs)
