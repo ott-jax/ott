@@ -42,10 +42,10 @@ def sliced_wasserstein(
   distances that relies on unidimensional projections.
 
   Args:
-    x: Array[n, dim] of source points' coordinates
-    y: Array[m, dim] of target points' coordinates
-    a: Array[n,] of source probability weights
-    b: Array[m,] of target probability weights
+    x: Array of shape ``[n, dim]`` of source points' coordinates.
+    y: Arrayof shape ``[m, dim]`` of target points' coordinates.
+    a: Array of shape ``[n,]`` of source probability weights.
+    b: Arrayof shape ``[m,]`` of target probability weights.
     cost_fn: cost function. Must be submodular function of two real arguments,
       i.e. such that :math:`\partial c(x,y)/\partial x \partial y <0`. If
       obj:`None`, use :class:`~ott.geometry.costs.SqEuclidean`.
