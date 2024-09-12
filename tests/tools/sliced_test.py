@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 
 import jax
 import jax.numpy as jnp
@@ -23,10 +24,11 @@ from ott.tools import sliced
 
 class TestSliced:
 
-  def test_random_projs(self, rng):
-    cost_fn = costs.PNormP(1.3)
-    n, m, dim = 12, 17, 5
-    rngs = jax.random.split(rng, 4)
+  @pytest.mark.parametrize("cost_fn", [costs.PNormP(1.3), None])
+  def test_random_projs(self, rng: jax.Array, cost_fn: costs.CostFn):
+
+    n, m, dim, n_proj = 12, 17, 5, 13
+    rngs = jax.random.split(rng, 5)
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
     a = jax.random.uniform(rngs[2], (n,))
@@ -34,21 +36,33 @@ class TestSliced:
     a /= jnp.sum(a)
     b /= jnp.sum(b)
 
-    # Test non-negative
-    out = sliced.sliced_w(
+    # Test non-negative and returns output as needed.
+    out = sliced.sliced_wasserstein(
         x,
         y,
         a,
         b,
-        rng=None,
-        n_proj=13,
-        random_direction_generator=jax.random.uniform,
-        cost_fn=cost_fn
+        cost_fn=cost_fn,
+        n_proj=n_proj,
+        return_univariate_output_obj=True
     )
-    np.testing.assert_array_less(0.0, out)
+    np.testing.assert_array_less(0.0, out[0])
+    assert isinstance(out[1], linear.univariate.UnivariateOutput)
 
     # Test matches standard implementation when using identity for proj_matrix.
-    out = sliced.sliced_w(x, y, a, b, proj_matrix=jnp.eye(dim), cost_fn=cost_fn)
+    out = sliced.sliced_wasserstein(x, y, proj_fn=lambda x: x, cost_fn=cost_fn)
     geom = pointcloud.PointCloud(x=x, y=y, cost_fn=cost_fn)
-    out_lin = jnp.sum(linear.solve_univariate(geom=geom, a=a, b=b).ot_costs)
-    np.testing.assert_approx_equal(out_lin, out)
+    out_lin = jnp.sum(linear.solve_univariate(geom).ot_costs)
+    np.testing.assert_allclose(out_lin, out)
+
+    # Test differentiability. We assume uniform samples because makes diff
+    # more accurate (avoiding ties, making computations a lot more sensitive).
+    def fn(x):
+      return sliced.sliced_wasserstein(x, y, cost_fn=cost_fn)
+
+    dx = jax.random.uniform(rngs[4], (n, dim)) - .5
+    eps = 1e-4
+    out_p = fn(x + eps * dx)
+    out_m = fn(x - eps * dx)
+    g = jax.grad(fn)(x)
+    np.testing.assert_allclose(jnp.sum(g * dx), (out_p - out_m) / (2 * eps))
