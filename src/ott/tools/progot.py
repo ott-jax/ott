@@ -232,12 +232,12 @@ class ProgOT:
         assert state.init_potentials == (
             None, None
         ), "Warm start is not implemented for debiased."
-        out = _sinkhorn_divergence(
+        _, out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
         eps = out.geoms[0].epsilon
       else:
-        out = _sinkhorn(
+        _, out = _sinkhorn(
             state.x,
             y,
             cost_fn=cost_fn,

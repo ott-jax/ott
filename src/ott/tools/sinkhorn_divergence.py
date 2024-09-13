@@ -86,7 +86,7 @@ def sinkhorn_divergence(
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = True,
     **kwargs: Any,
-) -> SinkhornDivergenceOutput:
+) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
@@ -115,7 +115,8 @@ def sinkhorn_divergence(
       geometry.
 
   Returns:
-    Sinkhorn divergence value, three pairs of potentials, three costs.
+    Sinkhorn divergence value, in addition to
+    :class:`~ott.tools.sinkhorn_divergence.SinkhornDivergenceOutput` object.
   """
   geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   geom_xy, geom_x, geom_y, *_ = geoms + (None,) * 3
@@ -148,7 +149,7 @@ def _sinkhorn_divergence(
     b: jnp.ndarray,
     symmetric_sinkhorn: bool,
     **kwargs: Any,
-) -> SinkhornDivergenceOutput:
+) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
   """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
@@ -172,7 +173,8 @@ def _sinkhorn_divergence(
     kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
-    SinkhornDivergenceOutput named tuple.
+    divergence value and corresponding
+    :class:`~ott.tools.sinkhorn_divergence.SinkhornDivergenceOutput` object.
   """
   kwargs_symmetric = kwargs.copy()
   is_low_rank = kwargs.get("rank", -1) > 0
@@ -220,7 +222,7 @@ def _sinkhorn_divergence(
     pots = tuple((out.f, out.g) for out in (out_xy, out_xx, out_yy))
     factors = None
 
-  return SinkhornDivergenceOutput(
+  return div, SinkhornDivergenceOutput(
       divergence=div,
       geoms=(geometry_xy, geometry_xx, geometry_yy),
       a=a,
@@ -317,7 +319,7 @@ def segment_sinkhorn_divergence(
       instance entropy regularization float, scheduler or normalization.
 
   Returns:
-    An array of Sinkhorn divergences for each segment.
+    An array of Sinkhorn divergence values for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]
@@ -335,7 +337,7 @@ def segment_sinkhorn_divergence(
   ) -> float:
     mask_x = padded_weight_x > 0.0
     mask_y = padded_weight_y > 0.0
-    return sinkhorn_divergence(
+    div, _ = sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
         padded_y,
@@ -349,7 +351,8 @@ def segment_sinkhorn_divergence(
         src_mask=mask_x,
         tgt_mask=mask_y,
         **kwargs
-    ).divergence
+    )
+    return div
 
   return segment._segment_interface(
       x,
