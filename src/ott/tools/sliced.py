@@ -55,6 +55,7 @@ def sliced_wasserstein(
     b: Optional[jnp.ndarray] = None,
     cost_fn: Optional[costs.CostFn] = None,
     proj_fn: Optional[Projector] = None,
+    weights: Optional[jnp.ndarray] = None,
     return_transport: bool = False,
     return_dual_variables: bool = False,
     **kwargs: Any,
@@ -62,9 +63,9 @@ def sliced_wasserstein(
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT
-  distances that relies on creating features randomly for data, through e.g.,
-  projections, and then sum the 1D Wasserstein distances between these features'
-  distributions.
+  distances that relies on creating features (possibly randomly) for data,
+  through e.g., projections, and then sum the 1D Wasserstein distances between
+  these features' univariate distributions on both source and target samples.
 
   Args:
     x: Array of shape ``[n, dim]`` of source points' coordinates.
@@ -78,6 +79,10 @@ def sliced_wasserstein(
       to ``[b, n_proj]`` matrix of features, on which 1D transports (for
       ``n_proj`` directions) are subsequently computed independently.
       By default, use :func:`~ott.tools.sliced.random_proj_sphere`.
+    weights: Array of shape ``[n_proj,]`` of weights used to average the
+      ``n_proj`` 1D Wasserstein contributions (one for each feature) and form
+      the sliced Wasserstein distance. Uniform by default, resulting in average
+      of all these values.
     return_transport: Whether to store ``n_proj`` transport plans in the output.
     return_dual_variables: Whether to store ``n_proj`` pairs of dual vectors
       in the output.
@@ -101,4 +106,4 @@ def sliced_wasserstein(
       return_transport=return_transport,
       return_dual_variables=return_dual_variables
   )
-  return jnp.sum(out.ot_costs), out
+  return jnp.average(out.ot_costs, weights=weights), out

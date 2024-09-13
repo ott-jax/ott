@@ -61,13 +61,24 @@ class TestSliced:
     n, m, dim, n_proj = 12, 17, 5, 13
     rng1, rng2 = jax.random.split(rng, 2)
     a, x, b, y = gen_data(rng1, n, m, dim)
+    weights = jax.random.uniform(rng2, n_proj)
 
     # Test non-negative and returns output as needed.
     cost, out = sliced.sliced_wasserstein(
-        x, y, a, b, cost_fn=cost_fn, proj_fn=proj_fn, n_proj=n_proj, rng=rng2
+        x,
+        y,
+        a,
+        b,
+        cost_fn=cost_fn,
+        proj_fn=proj_fn,
+        n_proj=n_proj,
+        rng=rng2,
+        weights=weights
     )
     assert cost > 0.0
-    np.testing.assert_array_equal(cost, jnp.sum(out.ot_costs))
+    np.testing.assert_array_equal(
+        cost, jnp.average(out.ot_costs, weights=weights)
+    )
 
   @pytest.mark.parametrize("cost_fn", [costs.SqPNorm(1.4), None])
   def test_consistency_with_id(
@@ -81,7 +92,7 @@ class TestSliced:
         x, y, proj_fn=lambda x: x, cost_fn=cost_fn
     )
     geom = pointcloud.PointCloud(x=x, y=y, cost_fn=cost_fn)
-    out_lin = jnp.sum(linear.solve_univariate(geom).ot_costs)
+    out_lin = jnp.mean(linear.solve_univariate(geom).ot_costs)
     np.testing.assert_allclose(out_lin, cost, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.parametrize("proj_fn", [None, custom_proj])
