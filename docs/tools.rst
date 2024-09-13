@@ -3,10 +3,15 @@ ott.tools
 .. module:: ott.tools
 .. currentmodule:: ott.tools
 
-The tools package contains high level functions that build on outputs produced
-by core functions. They can be used to compute Sinkhorn divergences
-:cite:`sejourne:19`, instantiate transport matrices, provide differentiable
-approximations to ranks and quantile functions :cite:`cuturi:19`, etc.
+The :mod:`~ott.tools` package contains high level functions that build on
+outputs produced by lower-level components in the toolbox, such as
+:mod:`~ott.solvers`.
+
+In particular, we provide user-friendly APIs to compute Sinkhorn divergences
+:cite:`genevay:18,sejourne:19`, sliced Wasserstein distances :cite:`rabin:12`,
+differentiable approximations to ranks and quantile functions :cite:`cuturi:19`,
+and various tools to study Gaussians with the 2-Wasserstein metric
+:cite:`gelbrich:90,delon:20`, etc.
 
 Segmented Sinkhorn
 ------------------
@@ -22,6 +27,14 @@ Sinkhorn Divergence
 
     sinkhorn_divergence.sinkhorn_divergence
     sinkhorn_divergence.segment_sinkhorn_divergence
+
+Sliced Wasserstein Distance
+---------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    sliced.random_proj_sphere
+    sliced.sliced_wasserstein
 
 ProgOT
 ------

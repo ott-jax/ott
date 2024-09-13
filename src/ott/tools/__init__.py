@@ -18,5 +18,6 @@ from . import (
     progot,
     segment_sinkhorn,
     sinkhorn_divergence,
+    sliced,
     soft_sort,
 )
