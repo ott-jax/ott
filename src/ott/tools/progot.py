@@ -232,12 +232,12 @@ class ProgOT:
         assert state.init_potentials == (
             None, None
         ), "Warm start is not implemented for debiased."
-        _, out = _sinkhorn_divergence(
+        out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
         eps = out.geoms[0].epsilon
       else:
-        _, out = _sinkhorn(
+        out = _sinkhorn(
             state.x,
             y,
             cost_fn=cost_fn,
@@ -414,7 +414,7 @@ def _sinkhorn_divergence(
     eps: Optional[float],
     **kwargs: Any,
 ) -> sd.SinkhornDivergenceOutput:
-  return sd.sinkhorn_divergence(
+  _, out = sd.sinkhorn_divergence(
       pointcloud.PointCloud,
       x,
       y,
@@ -423,6 +423,7 @@ def _sinkhorn_divergence(
       share_epsilon=False,
       sinkhorn_kwargs=kwargs,
   )
+  return out
 
 
 def _interpolate(

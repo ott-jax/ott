@@ -115,8 +115,7 @@ def sinkhorn_divergence(
       geometry.
 
   Returns:
-    Sinkhorn divergence value, in addition to
-    :class:`~ott.tools.sinkhorn_divergence.SinkhornDivergenceOutput` object.
+    The Sinkhorn divergence value, and output object detailing computations.
   """
   geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   geom_xy, geom_x, geom_y, *_ = geoms + (None,) * 3
@@ -130,7 +129,7 @@ def sinkhorn_divergence(
 
   a = jnp.ones(num_a) / num_a if a is None else a
   b = jnp.ones(num_b) / num_b if b is None else b
-  return _sinkhorn_divergence(
+  out = _sinkhorn_divergence(
       geom_xy,
       geom_x,
       geom_y,
@@ -139,6 +138,7 @@ def sinkhorn_divergence(
       symmetric_sinkhorn=symmetric_sinkhorn,
       **sinkhorn_kwargs
   )
+  return out.divergence, out
 
 
 def _sinkhorn_divergence(
@@ -149,7 +149,7 @@ def _sinkhorn_divergence(
     b: jnp.ndarray,
     symmetric_sinkhorn: bool,
     **kwargs: Any,
-) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
+) -> SinkhornDivergenceOutput:
   """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
     This definition includes a correction depending on the total masses of each
@@ -173,8 +173,7 @@ def _sinkhorn_divergence(
     kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
-    divergence value and corresponding
-    :class:`~ott.tools.sinkhorn_divergence.SinkhornDivergenceOutput` object.
+    The output object
   """
   kwargs_symmetric = kwargs.copy()
   is_low_rank = kwargs.get("rank", -1) > 0
@@ -222,7 +221,7 @@ def _sinkhorn_divergence(
     pots = tuple((out.f, out.g) for out in (out_xy, out_xx, out_yy))
     factors = None
 
-  return div, SinkhornDivergenceOutput(
+  return SinkhornDivergenceOutput(
       divergence=div,
       geoms=(geometry_xy, geometry_xx, geometry_yy),
       a=a,
