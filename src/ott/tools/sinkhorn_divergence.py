@@ -86,7 +86,7 @@ def sinkhorn_divergence(
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = True,
     **kwargs: Any,
-) -> SinkhornDivergenceOutput:
+) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
   """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
 
   Args:
@@ -115,7 +115,7 @@ def sinkhorn_divergence(
       geometry.
 
   Returns:
-    Sinkhorn divergence value, three pairs of potentials, three costs.
+    The Sinkhorn divergence value, and output object detailing computations.
   """
   geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
   geom_xy, geom_x, geom_y, *_ = geoms + (None,) * 3
@@ -129,7 +129,7 @@ def sinkhorn_divergence(
 
   a = jnp.ones(num_a) / num_a if a is None else a
   b = jnp.ones(num_b) / num_b if b is None else b
-  return _sinkhorn_divergence(
+  out = _sinkhorn_divergence(
       geom_xy,
       geom_x,
       geom_y,
@@ -138,6 +138,7 @@ def sinkhorn_divergence(
       symmetric_sinkhorn=symmetric_sinkhorn,
       **sinkhorn_kwargs
   )
+  return out.divergence, out
 
 
 def _sinkhorn_divergence(
@@ -172,7 +173,7 @@ def _sinkhorn_divergence(
     kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
-    SinkhornDivergenceOutput named tuple.
+    The output object
   """
   kwargs_symmetric = kwargs.copy()
   is_low_rank = kwargs.get("rank", -1) > 0
@@ -317,7 +318,7 @@ def segment_sinkhorn_divergence(
       instance entropy regularization float, scheduler or normalization.
 
   Returns:
-    An array of Sinkhorn divergences for each segment.
+    An array of Sinkhorn divergence values for each segment.
   """
   # instantiate padding vector
   dim = x.shape[1]
@@ -335,7 +336,7 @@ def segment_sinkhorn_divergence(
   ) -> float:
     mask_x = padded_weight_x > 0.0
     mask_y = padded_weight_y > 0.0
-    return sinkhorn_divergence(
+    div, _ = sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
         padded_y,
@@ -349,7 +350,8 @@ def segment_sinkhorn_divergence(
         src_mask=mask_x,
         tgt_mask=mask_y,
         **kwargs
-    ).divergence
+    )
+    return div
 
   return segment._segment_interface(
       x,

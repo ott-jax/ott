@@ -414,7 +414,7 @@ def _sinkhorn_divergence(
     eps: Optional[float],
     **kwargs: Any,
 ) -> sd.SinkhornDivergenceOutput:
-  return sd.sinkhorn_divergence(
+  _, out = sd.sinkhorn_divergence(
       pointcloud.PointCloud,
       x,
       y,
@@ -423,6 +423,7 @@ def _sinkhorn_divergence(
       share_epsilon=False,
       sinkhorn_kwargs=kwargs,
   )
+  return out
 
 
 def _interpolate(

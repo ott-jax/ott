@@ -164,12 +164,12 @@ class TestEntropicPotentials:
 
     if forward:
       z = potentials.transport(x_test, forward=forward)
-      div = sdiv(z, y).divergence
+      div, _ = sdiv(z, y)
     else:
       z = potentials.transport(y_test, forward=forward)
-      div = sdiv(x, z).divergence
+      div, _ = sdiv(x, z)
 
-    div_0 = sdiv(x, y).divergence
+    div_0, _ = sdiv(x, y)
     mult = 0.1 if p > 1.0 else 0.25
     # check we have moved points much closer to target
     assert div < mult * div_0
@@ -210,12 +210,12 @@ class TestEntropicPotentials:
     else:
       if forward:
         z = potentials.transport(x_test, forward=forward)
-        div = sdiv(z, y).divergence
+        div, _ = sdiv(z, y)
       else:
         z = potentials.transport(y_test, forward=forward)
-        div = sdiv(x, z).divergence
+        div, _ = sdiv(x, z)
 
-      div_0 = sdiv(x, y).divergence
+      div_0, _ = sdiv(x, y)
       # check we have moved points much closer to target
       assert div < 0.1 * div_0
 
@@ -255,9 +255,10 @@ class TestEntropicPotentials:
     prob = linear_problem.LinearProblem(geom)
 
     sink_pots = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
-    div_pots = sinkhorn_divergence.sinkhorn_divergence(
+    _, out = sinkhorn_divergence.sinkhorn_divergence(
         type(geom), x, y, epsilon=eps
-    ).to_dual_potentials()
+    )
+    div_pots = out.to_dual_potentials()
 
     assert not sink_pots.is_debiased
     assert div_pots.is_debiased

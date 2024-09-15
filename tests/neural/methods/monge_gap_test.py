@@ -144,11 +144,11 @@ class TestMongeGapEstimator:
         mapped_samples: jnp.ndarray,
     ) -> Optional[float]:
       r"""Sinkhorn divergence fitting loss."""
-      div = sinkhorn_divergence.sinkhorn_divergence(
+      div, _ = sinkhorn_divergence.sinkhorn_divergence(
           pointcloud.PointCloud,
           x=samples,
           y=mapped_samples,
-      ).divergence
+      )
       return div, None
 
     def regularizer(x, y):
