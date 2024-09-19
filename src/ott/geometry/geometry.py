@@ -136,7 +136,8 @@ class Geometry:
     Uses the :meth:`~ott.geometry.Geometry.apply_square_cost` to remain
     applicable to low-rank matrices, through the formula:
     .. math::
-      \sigma^2=\tfrac{1}{nm}\left(\sum_{ij} c_{ij}^2 - (\sum_{ij}c_ij)^2\right).
+        \sigma^2=\frac{1}{nm}\left(\sum_{ij} C_{ij}^2 -
+        (\sum_{ij}C_ij)^2\right).
 
     to output :math:`\sigma`.
     """
