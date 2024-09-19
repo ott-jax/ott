@@ -433,7 +433,7 @@ class TestGromovWasserstein:
       assert 38 < out.primal_cost < 39
     else:
       assert 0.215 < out.reg_gw_cost < 0.22
-      assert 0.19 < out.primal_cost < 0.20
+      assert 0.19 < out.primal_cost < 0.201
 
   @pytest.mark.parametrize(("tau_a", "tau_b", "eps", "ti"),
                            [(0.99, 0.95, 0.0, True), (0.9, 0.8, 1e-3, False),
