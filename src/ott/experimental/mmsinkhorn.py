@@ -303,7 +303,7 @@ class MMSinkhorn:
 
     cost_t = cost_tensor(x_s, cost_fns)
     state = self.init_state(n_s)
-    epsilon = 0.05 * jnp.mean(cost_t) if epsilon is None else epsilon
+    epsilon = 0.05 * jnp.std(cost_t) if epsilon is None else epsilon
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)
