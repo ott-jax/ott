@@ -15,7 +15,8 @@ import dataclasses
 import functools
 import io
 import warnings
-from typing import Any, Callable, NamedTuple, Optional, Tuple
+from collections.abc import Sequence
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Union
 
 import jax
 import numpy as np
@@ -31,6 +32,7 @@ __all__ = [
     "default_prng_key",
     "default_progress_fn",
     "tqdm_progress_fn",
+    "batched_vmap",
 ]
 
 Status_t = Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]
@@ -198,6 +200,18 @@ def tqdm_progress_fn(
       pbar.update()
 
   return progress_callback
+
+
+def batched_vmap(
+    fun: Callable,
+    in_axes: Optional[Union[int], Sequence[int]] = 0,
+    batch_size: Optional[int] = None
+) -> Callable:
+  """TODO."""
+  vmapped_fun = jax.vmap(fun, in_axes=in_axes)
+  if batch_size is None:
+    return vmapped_fun
+  return None
 
 
 def _prepare_info(status: Status_t) -> Tuple[int, int, int, np.ndarray]:
