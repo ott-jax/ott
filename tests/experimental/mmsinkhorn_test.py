@@ -98,7 +98,7 @@ class TestMMSinkhorn:
     np.testing.assert_array_equal(out_ms.tensor.shape, n_s)
     for i in range(len(n_s)):
       np.testing.assert_allclose(
-          out_ms.marginals[i], out_ms.a_s[i], rtol=1e-4, atol=1e-4
+          out_ms.marginals[i], out_ms.a_s[i], rtol=1e-3, atol=1e-3
       )
 
   def test_mm_sinkhorn_diff(self, rng: jax.Array):

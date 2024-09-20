@@ -144,17 +144,23 @@ class Geometry:
     """
     tmp = self._masked_geom().apply_square_cost(self._n_normed_ones).squeeze()
     return jnp.sqrt(
-        jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2
+        jax.nn.
+        relu(jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2)
     )
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
     """Kernel matrix.
 
-    Either provided by user or recomputed from :attr:`cost_matrix`.
+    Either provided by user or recomputed from :attr:`cost_matrix`. In the
+    latter case, the :attr:`cost_matrix` is recentered to avoid numerical
+    under/overflow. Since the kernel matrix is only used in `lse_mode=False`
+    runs to produce potentials, but not to evaluate transport costs, this
+    centering does not need to be reverted when evaluating objectives.
     """
     if self._kernel_matrix is None:
-      return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
+      centered_cost = self._cost_matrix - self.mean_cost_matrix
+      return jnp.exp(-centered_cost * self.inv_scale_cost / self.epsilon)
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
@@ -171,6 +177,9 @@ class Geometry:
         scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
       elif rel == "std":
         scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
+        # Avoid 0 std, since this would set epsilon to 0.0 and result in
+        # a division by 0.
+        scale_eps = jnp.where(scale_eps <= 0.0, 1.0, scale_eps)
 
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return self._epsilon_init.set(scale_epsilon=scale_eps)

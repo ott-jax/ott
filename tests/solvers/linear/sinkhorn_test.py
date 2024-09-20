@@ -90,25 +90,26 @@ class TestSinkhorn:
     np.testing.assert_array_equal(jnp.isnan(cost_other), False)
 
   def test_autoepsilon(self):
-    """Check that with auto-epsilon, dual potentials scale."""
+    """Check that with mean rescaling, dual potentials scale."""
     scale = 2.77
-    # First geom specifies explicitly relative_epsilon to be True. This is not
-    # needed in principle, but introduced here to test logic.
-    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
+    tau_a = 0.99
+    tau_b = 0.97
+    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon="mean")
     # not jitting
     f_1 = linear.solve(
         geom_1,
         a=self.a,
         b=self.b,
-        tau_a=0.99,
-        tau_b=0.97,
+        tau_a=tau_a,
+        tau_b=tau_b,
     ).f
 
-    # Second geom does not provide whether epsilon is relative.
-    geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
+    geom_2 = pointcloud.PointCloud(
+        scale * self.x, scale * self.y, relative_epsilon="mean"
+    )
     # jitting
     compute_f = jax.jit(linear.solve, static_argnames=["tau_a", "tau_b"])
-    f_2 = compute_f(geom_2, self.a, self.b, tau_a=0.99, tau_b=0.97).f
+    f_2 = compute_f(geom_2, self.a, self.b, tau_a=tau_a, tau_b=tau_b).f
 
     # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
     np.testing.assert_allclose(
