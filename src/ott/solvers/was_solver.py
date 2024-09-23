@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax
@@ -49,10 +50,12 @@ class WassersteinSolver:
     self.epsilon = epsilon if epsilon is not None else default_epsilon
     self.rank = rank
     self.linear_ot_solver = linear_ot_solver
+    used_kwargs = {}
     if self.linear_ot_solver is None:
       # Detect if user requests low-rank solver. In that case the
       # default_epsilon makes little sense, since it was designed for GW.
       if self.is_low_rank:
+        used_kwargs = dict(inspect.signature(sinkhorn_lr.LRSinkhorn).parameters)
         if epsilon is None:
           # Use default entropic regularization in LRSinkhorn if None was passed
           self.linear_ot_solver = sinkhorn_lr.LRSinkhorn(
@@ -64,6 +67,7 @@ class WassersteinSolver:
               rank=self.rank, epsilon=self.epsilon, **kwargs
           )
       else:
+        used_kwargs = dict(inspect.signature(sinkhorn.Sinkhorn).parameters)
         # When using Entropic GW, epsilon is not handled inside Sinkhorn,
         # but rather added back to the Geometry object re-instantiated
         # when linearizing the problem. Therefore, no need to pass it to solver.
@@ -73,6 +77,10 @@ class WassersteinSolver:
     self.max_iterations = max_iterations
     self.threshold = threshold
     self.store_inner_errors = store_inner_errors
+    # assert that all kwargs are valid
+    if not set(kwargs.keys()).issubset(used_kwargs.keys()):
+      unrecognized_kwargs = set(kwargs.keys()) - set(used_kwargs.keys())
+      raise TypeError(f"Invalid keyword arguments: {unrecognized_kwargs}.")
     self._kwargs = kwargs
 
   @property
