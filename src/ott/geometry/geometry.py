@@ -152,15 +152,10 @@ class Geometry:
   def kernel_matrix(self) -> jnp.ndarray:
     """Kernel matrix.
 
-    Either provided by user or recomputed from :attr:`cost_matrix`. In the
-    latter case, the :attr:`cost_matrix` is recentered to avoid numerical
-    under/overflow. Since the kernel matrix is only used in `lse_mode=False`
-    runs to produce potentials, but not to evaluate transport costs, this
-    centering does not need to be reverted when evaluating objectives.
+    Either provided by user or recomputed from :attr:`cost_matrix`.
     """
     if self._kernel_matrix is None:
-      centered_cost = self._cost_matrix - self.mean_cost_matrix
-      return jnp.exp(-centered_cost * self.inv_scale_cost / self.epsilon)
+      return jnp.exp(-self._cost_matrix * self.inv_scale_cost / self.epsilon)
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property

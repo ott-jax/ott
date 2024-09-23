@@ -121,6 +121,8 @@ pytree
 quantile
 quantiles
 quantizes
+recenter
+recentered
 regularizer
 regularizers
 reimplementation

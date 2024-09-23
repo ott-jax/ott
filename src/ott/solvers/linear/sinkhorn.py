@@ -241,7 +241,7 @@ def compute_kl_reg_cost(
   The objective is evaluated for dual solution ``f`` and ``g``, using
   information contained in  ``ot_prob``. The objective is the regularized
   optimal transport cost (i.e. the cost itself plus entropic and unbalanced
-  terms). Situations where marginals ``a`` or ``b`` in ot_prob have zero
+  terms). Situations where marginals ``a`` or ``b`` in ``ot_prob`` have zero
   coordinates are reflected in minus infinity entries in their corresponding
   dual potentials. To avoid NaN that may result when multiplying 0's by infinity
   values, ``jnp.where`` is used to cancel these contributions.
@@ -282,6 +282,7 @@ def compute_kl_reg_cost(
     u = ot_prob.geom.scaling_from_potential(f)
     v = ot_prob.geom.scaling_from_potential(g)
     total_sum = jnp.sum(ot_prob.geom.marginal_from_scalings(u, v))
+
   return div_a + div_b + ot_prob.epsilon * (
       jnp.sum(ot_prob.a) * jnp.sum(ot_prob.b) - total_sum
   )

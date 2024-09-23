@@ -43,10 +43,42 @@ class TestSinkhorn:
     b = jax.random.uniform(rngs[3], (self.m,))
 
     #  adding zero weights to test proper handling
-    # a = a.at[0].set(0)
-    # b = b.at[3].set(0)
+    a = a.at[0].set(0)
+    b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
+
+  @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
+  def test_lse_matchs(self, tau_a, tau_b):
+    """Test that regardless of lse_mode, Sinkhorn returns same value."""
+    geom = pointcloud.PointCloud(self.x, self.y)
+    out = []
+    for lse_mode in [True, False]:
+      out.append(
+          linear.solve(
+              geom,
+              a=self.a,
+              b=self.b,
+              tau_a=tau_a,
+              tau_b=tau_b,
+              lse_mode=lse_mode,
+              threshold=1e-5
+          )
+      )
+    assert out[0].converged
+    assert out[1].converged
+    np.testing.assert_allclose(
+        out[0].ent_reg_cost, out[1].ent_reg_cost, rtol=1e-5, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        out[0].reg_ot_cost, out[1].reg_ot_cost, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        out[0].dual_cost, out[1].dual_cost, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        out[0].primal_cost, out[1].primal_cost, rtol=1e-5, atol=1e-5
+    )
 
   @pytest.mark.fast.with_args(
       "lse_mode,mom_value,mom_start,inner_iterations,norm_error,cost_fn",
