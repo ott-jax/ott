@@ -266,7 +266,8 @@ class MMSinkhorn:
     ``x_s[i]`` and ``x_s[j]``, ``i<j``.)
 
     The solver also uses ``epsilon`` as an input, with the default rule set to
-    one twentieth of the mean of the cost tensor resulting from these inputs.
+    one twentieth of the standard deviation of the all values stored in the cost
+    tensor resulting from these inputs.
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import io
 import sys
 from typing import Optional, Tuple
@@ -49,35 +50,30 @@ class TestSinkhorn:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
-  def test_lse_matchs(self, tau_a, tau_b):
+  def test_lse_matches(self, tau_a, tau_b):
     """Test that regardless of lse_mode, Sinkhorn returns same value."""
     geom = pointcloud.PointCloud(self.x, self.y)
-    out = []
-    for lse_mode in [True, False]:
-      out.append(
-          linear.solve(
-              geom,
-              a=self.a,
-              b=self.b,
-              tau_a=tau_a,
-              tau_b=tau_b,
-              lse_mode=lse_mode,
-              threshold=1e-5
-          )
-      )
-    assert out[0].converged
-    assert out[1].converged
+
+    solve_fn = functools.partial(
+        linear.solve, geom=geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+    )
+    solve_fn = jax.jit(solve_fn, static_argnames=["lse_mode"])
+    lse_out = solve_fn(lse_mode=True)
+    ker_out = solve_fn(lse_mode=False)
+
+    assert lse_out.converged
+    assert ker_out.converged
     np.testing.assert_allclose(
-        out[0].ent_reg_cost, out[1].ent_reg_cost, rtol=1e-5, atol=1e-5
+        lse_out.ent_reg_cost, ker_out.ent_reg_cost, rtol=1e-5, atol=1e-5
     )
     np.testing.assert_allclose(
-        out[0].reg_ot_cost, out[1].reg_ot_cost, rtol=1e-6, atol=1e-6
+        lse_out.reg_ot_cost, ker_out.reg_ot_cost, rtol=1e-6, atol=1e-6
     )
     np.testing.assert_allclose(
-        out[0].dual_cost, out[1].dual_cost, rtol=1e-6, atol=1e-6
+        lse_out.dual_cost, ker_out.dual_cost, rtol=1e-6, atol=1e-6
     )
     np.testing.assert_allclose(
-        out[0].primal_cost, out[1].primal_cost, rtol=1e-5, atol=1e-5
+        lse_out.primal_cost, ker_out.primal_cost, rtol=1e-5, atol=1e-5
     )
 
   @pytest.mark.fast.with_args(

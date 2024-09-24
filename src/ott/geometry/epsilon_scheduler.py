@@ -18,6 +18,8 @@ import jax.numpy as jnp
 
 __all__ = ["Epsilon"]
 
+DEFAULT_SCALE = 0.05
+
 
 @jax.tree_util.register_pytree_node_class
 class Epsilon:
@@ -58,7 +60,7 @@ class Epsilon:
   @property
   def target(self) -> float:
     """Return the final regularizer value of scheduler."""
-    target = 5e-2 if self._target_init is None else self._target_init
+    target = DEFAULT_SCALE if self._target_init is None else self._target_init
     scale = 1.0 if self._scale_epsilon is None else self._scale_epsilon
     return scale * target
 

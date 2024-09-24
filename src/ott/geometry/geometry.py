@@ -59,7 +59,8 @@ class Geometry:
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
       refers to a fraction of the :attr:`std_cost_matrix`, which is computed
-      adaptively from data.
+      adaptively from data. Can also be set to ``mean`` or ``std`` to use mean
+      of cost matrix if necessary.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'std' and 'max_cost'. Alternatively, a float factor can
       be given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -133,7 +134,7 @@ class Geometry:
   def std_cost_matrix(self) -> float:
     r"""Standard deviation of all values stored in :attr:`cost_matrix`.
 
-    Uses the :meth:`~ott.geometry.Geometry.apply_square_cost` to remain
+    Uses the :meth:`apply_square_cost` to remain
     applicable to low-rank matrices, through the formula:
 
     .. math::
@@ -143,10 +144,8 @@ class Geometry:
     to output :math:`\sigma`.
     """
     tmp = self._masked_geom().apply_square_cost(self._n_normed_ones).squeeze()
-    return jnp.sqrt(
-        jax.nn.
-        relu(jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2)
-    )
+    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2
+    return jnp.sqrt(jax.nn.relu(tmp))
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:
