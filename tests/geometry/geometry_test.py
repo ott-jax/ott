@@ -22,7 +22,7 @@ from ott.geometry import geometry, pointcloud
 
 
 @pytest.mark.fast()
-class TestCostStd:
+class TestCostMeanStd:
 
   @pytest.mark.parametrize("geom_type", ["pc", "geometry"])
   def test_coststdmeanpc(self, rng: jax.Array, geom_type: str):
