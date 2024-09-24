@@ -36,7 +36,8 @@ class Epsilon:
 
   Args:
     target: the epsilon regularizer that is targeted.
-      If ``None``, use :math:`0.05`.
+      If ``None``, use the hardcoded value ``DEFAULT_SCALE``, currently set at
+      :math:`0.05`.
     scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
       If ``None``, use :math:`1`.
     init: initial value when using epsilon scheduling, understood as multiple
