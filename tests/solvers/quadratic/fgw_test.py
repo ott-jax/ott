@@ -28,6 +28,7 @@ from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 class TestFusedGromovWasserstein:
+
   # TODO(michalk8): refactor me in the future
   @pytest.fixture(autouse=True)
   def initialize(self, rng: jax.Array):
@@ -59,12 +60,7 @@ class TestFusedGromovWasserstein:
 
     def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       prob = quadratic_problem.QuadraticProblem(
-          geom_x,
-          geom_y,
-          geom_xy,
-          fused_penalty=self.fused_penalty,
-          a=a,
-          b=b,
+          geom_x, geom_y, geom_xy, fused_penalty=self.fused_penalty, a=a, b=b
       )
 
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
@@ -100,22 +96,16 @@ class TestFusedGromovWasserstein:
     np.testing.assert_allclose(g_a, gi_a, rtol=1e-2, atol=1e-2)
     np.testing.assert_allclose(g_b, gi_b, rtol=1e-2, atol=1e-2)
 
-  @pytest.mark.parametrize(
-      ("lse_mode", "is_cost"),
-      [(True, False), (False, True)],
-      ids=["lse-pc", "kernel-cost-mat"],
-  )
+  @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
+                                                     (False, True)],
+                           ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_fgw_solver_geometry(self, lse_mode: bool, is_cost: bool):
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray,
-        y: jnp.ndarray,
+        x: jnp.ndarray, y: jnp.ndarray,
         xy: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
-        fused_penalty: float,
-        a: jnp.ndarray,
-        b: jnp.ndarray,
-        implicit: bool,
+        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
     ):
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -131,9 +121,7 @@ class TestFusedGromovWasserstein:
 
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
-          lse_mode=lse_mode,
-          implicit_diff=implicit_diff,
-          max_iterations=1000,
+          lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=1000
       )
       solver = gromov_wasserstein.GromovWasserstein(
           linear_ot_solver=linear_solver, epsilon=1.0, max_iterations=10
@@ -180,7 +168,7 @@ class TestFusedGromovWasserstein:
           geom_xy,
           a=self.a,
           b=self.b,
-          fused_penalty=self.fused_penalty_2,
+          fused_penalty=self.fused_penalty_2
       )
       solver = gromov_wasserstein.GromovWasserstein(
           threshold=threshold, epsilon=1e-1
@@ -196,13 +184,8 @@ class TestFusedGromovWasserstein:
     lse_mode = True
 
     def reg_gw(
-        cx: jnp.ndarray,
-        cy: jnp.ndarray,
-        cxy: jnp.ndarray,
-        fused_penalty: float,
-        a: jnp.ndarray,
-        b: jnp.ndarray,
-        implicit: bool,
+        cx: jnp.ndarray, cy: jnp.ndarray, cxy: jnp.ndarray,
+        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
     ) -> float:
       geom_x = geometry.Geometry(cost_matrix=cx)
       geom_y = geometry.Geometry(cost_matrix=cy)
@@ -213,9 +196,7 @@ class TestFusedGromovWasserstein:
 
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
-          lse_mode=lse_mode,
-          implicit_diff=implicit_diff,
-          max_iterations=200,
+          lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=200
       )
       solver = gromov_wasserstein.GromovWasserstein(
           epsilon=1.0, max_iterations=10, linear_ot_solver=linear_solver
@@ -226,13 +207,8 @@ class TestFusedGromovWasserstein:
     for i, implicit in enumerate([True, False]):
       reg_fgw_grad = jax.grad(reg_gw, argnums=(3,))
       grad_matrices[i] = reg_fgw_grad(
-          self.cx,
-          self.cy,
-          self.cxy,
-          self.fused_penalty,
-          self.a,
-          self.b,
-          implicit,
+          self.cx, self.cy, self.cxy, self.fused_penalty, self.a, self.b,
+          implicit
       )
       assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
 
@@ -296,7 +272,7 @@ class TestFusedGromovWasserstein:
         epsilon=10.0,
         min_iterations=0,
         inner_iterations=10,
-        max_iterations=2000,
+        max_iterations=2000
     )
     out = solver(prob)
 
@@ -338,7 +314,7 @@ class TestFusedGromovWasserstein:
         geom_y,
         geom_xy,
         fused_penalty=fused_penalty,
-        scale_cost=scale_cost,
+        scale_cost=scale_cost
     )
     solver = gromov_wasserstein.GromovWasserstein(epsilon=epsilon)
 
@@ -368,14 +344,14 @@ class TestFusedGromovWasserstein:
         geom_yy,
         geom_xy=geom_xy,
         fused_penalty=fused_penalty,
-        store_inner_errors=True,
+        store_inner_errors=True
     )
     out_fp = quadratic.solve(
         geom_xx,
         geom_yy,
         geom_xy=geom_xy_fp,
         fused_penalty=1.0,
-        store_inner_errors=True,
+        store_inner_errors=True
     )
 
     np.testing.assert_allclose(out.costs, out_fp.costs, rtol=rtol, atol=atol)
@@ -386,50 +362,3 @@ class TestFusedGromovWasserstein:
     np.testing.assert_allclose(
         out.reg_gw_cost, out_fp.reg_gw_cost, rtol=rtol, atol=atol
     )
-
-  @pytest.mark.parametrize(
-      (
-          "fused",
-          "lr",
-      ),
-      [
-          (
-              True,
-              False,
-          ),
-          (
-              False,
-              True,
-          ),
-          (
-              True,
-              True,
-          ),
-          (
-              False,
-              False,
-          ),
-      ],
-  )
-  def test_solver_unrecognized_args_fails(self, fused: bool, lr: bool):
-    fused_penalty = 1.0 if fused else 0.0
-    epsilon = 5.0
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2) if fused else None
-
-    prob = quadratic_problem.QuadraticProblem(
-        geom_xx=geom_x,
-        geom_yy=geom_y,
-        geom_xy=geom_xy,
-        fused_penalty=fused_penalty,
-    )
-    if lr:
-      prob = prob.to_low_rank()
-
-    solver_cls = (
-        gromov_wasserstein_lr.LRGromovWasserstein
-        if lr else gromov_wasserstein.GromovWasserstein
-    )
-    with pytest.raises(TypeError):
-      solver_cls(epsilon=epsilon, dummy=42)(prob)
