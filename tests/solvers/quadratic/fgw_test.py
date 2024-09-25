@@ -362,3 +362,28 @@ class TestFusedGromovWasserstein:
     np.testing.assert_allclose(
         out.reg_gw_cost, out_fp.reg_gw_cost, rtol=rtol, atol=atol
     )
+
+  @pytest.mark.parametrize(("fused", "lr"), [(True, False), (False, True),
+                                             (True, True), (False, False)])
+  def test_solver_unrecognized_args_fails(self, fused: bool, lr: bool):
+    fused_penalty = 1.0 if fused else 0.0
+    epsilon = 5.0
+    geom_x = pointcloud.PointCloud(self.x)
+    geom_y = pointcloud.PointCloud(self.y)
+    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2) if fused else None
+
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx=geom_x,
+        geom_yy=geom_y,
+        geom_xy=geom_xy,
+        fused_penalty=fused_penalty,
+    )
+    if lr:
+      prob = prob.to_low_rank()
+
+    solver_cls = (
+        gromov_wasserstein_lr.LRGromovWasserstein
+        if lr else gromov_wasserstein.GromovWasserstein
+    )
+    with pytest.raises(TypeError):
+      solver_cls(epsilon=epsilon, dummy=42)(prob)
