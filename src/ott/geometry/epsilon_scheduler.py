@@ -16,8 +16,9 @@ from typing import Any, Optional
 import jax
 import jax.numpy as jnp
 
-__all__ = ["Epsilon"]
+__all__ = ["Epsilon", "DEFAULT_SCALE"]
 
+#: Scaling applied to statistic (mean/std) of cost to compute default epsilon.
 DEFAULT_SCALE = 0.05
 
 

@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, epsilon_scheduler, pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 
@@ -304,7 +304,8 @@ class MMSinkhorn:
 
     cost_t = cost_tensor(x_s, cost_fns)
     state = self.init_state(n_s)
-    epsilon = 0.05 * jnp.std(cost_t) if epsilon is None else epsilon
+    if epsilon is None:
+      epsilon = epsilon_scheduler.DEFAULT_SCALE * jnp.std(cost_t)
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)

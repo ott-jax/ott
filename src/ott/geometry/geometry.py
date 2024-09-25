@@ -179,7 +179,8 @@ class Geometry:
       return self._epsilon_init.set(scale_epsilon=scale_eps)
 
     return epsilon_scheduler.Epsilon(
-        target=1e-2 if target is None else target, scale_epsilon=scale_eps
+        target=epsilon_scheduler.DEFAULT_SCALE if target is None else target,
+        scale_epsilon=scale_eps
     )
 
   @property

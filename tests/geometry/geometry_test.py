@@ -18,7 +18,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ott.geometry import geometry, pointcloud
+from ott.geometry import epsilon_scheduler, geometry, pointcloud
 
 
 @pytest.mark.fast()
@@ -28,8 +28,7 @@ class TestCostMeanStd:
   def test_cost_stdmean(self, rng: jax.Array, geom_type: str):
     """Test consistency of std evaluation."""
     n, m, d = 5, 18, 10
-    # should match that in the `DEFAULT_SCALE` in epsilon_scheduler.py
-    default_scale = 5e-2
+    default_scale = epsilon_scheduler.DEFAULT_SCALE
     rngs = jax.random.split(rng, 5)
     x = jax.random.normal(rngs[0], (n, d))
     y = jax.random.normal(rngs[1], (m, d)) + 1
