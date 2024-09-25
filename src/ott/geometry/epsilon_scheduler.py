@@ -36,11 +36,10 @@ class Epsilon:
   multiply the max computed previously by ``scale_epsilon``.
 
   Args:
-    target: the epsilon regularizer that is targeted.
-      If ``None``, use the hardcoded value ``DEFAULT_SCALE``, currently set at
-      :math:`0.05`.
+    target: the epsilon regularizer that is targeted. If :obj:`None`,
+      use :obj:`DEFAULT_SCALE`, currently set at :math:`0.05`.
     scale_epsilon: if passed, used to multiply the regularizer, to rescale it.
-      If ``None``, use :math:`1`.
+      If :obj:`None`, use :math:`1`.
     init: initial value when using epsilon scheduling, understood as multiple
       of target value. if passed, ``int * decay ** iteration`` will be used
       to rescale target.
