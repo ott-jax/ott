@@ -44,7 +44,7 @@ class TestSinkhornImplicit:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
-                           [(False, 1e-6, False), (True, 1e-4, True)])
+                           [(True, 1e-4, True), (False, 1e-6, False)])
   def test_implicit_differentiation_versus_autodiff(
       self, lse_mode: bool, threshold: float, pcg: bool
   ):
@@ -113,7 +113,7 @@ class TestSinkhornImplicit:
         grad_loss_imp[0] - jnp.mean(grad_loss_imp[0]),
         grad_loss_auto[0] - jnp.mean(grad_loss_auto[0]),
         rtol=1e-2,
-        atol=1e-2,
+        atol=2e-2,
     )
 
     # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
@@ -195,10 +195,8 @@ class TestSinkhornJacobian:
     eps = 1e-3  # perturbation magnitude
 
     def loss_fn(cm: jnp.ndarray):
-      a = jnp.ones(cm.shape[0]) / cm.shape[0]
-      b = jnp.ones(cm.shape[1]) / cm.shape[1]
       geom = geometry.Geometry(cm, epsilon=0.5)
-      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      prob = linear_problem.LinearProblem(geom)
       solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
       out = solver(prob)
       return out.reg_ot_cost, (geom, out.f, out.g)

@@ -58,11 +58,12 @@ class Geometry:
       scheduler.
     relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
       value of the entropic regularization parameter. When `True`, ``epsilon``
-      refers to a fraction of the :attr:`mean_cost_matrix`, which is computed
-      adaptively from data.
+      refers to a fraction of the :attr:`std_cost_matrix`, which is computed
+      adaptively from data. Can also be set to ``mean`` or ``std`` to use mean
+      of cost matrix if necessary.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
-      'median', 'mean' and 'max_cost'. Alternatively, a float factor can be
-      given to rescale the cost such that ``cost_matrix /= scale_cost``.
+      'median', 'mean', 'std' and 'max_cost'. Alternatively, a float factor can
+      be given to rescale the cost such that ``cost_matrix /= scale_cost``.
     src_mask: Mask specifying valid rows when computing some statistics of
       :attr:`cost_matrix`, see :attr:`src_mask`.
     tgt_mask: Mask specifying valid columns when computing some statistics of
@@ -72,8 +73,8 @@ class Geometry:
     When defining a :class:`~ott.geometry.geometry.Geometry` through a
     ``cost_matrix``, it is important to select an ``epsilon`` regularization
     parameter that is meaningful. That parameter can be provided by the user,
-    or assigned a default value through a simple rule,
-    using the :attr:`mean_cost_matrix`.
+    or assigned a default value through a simple rule, using for instance the
+    :attr:`mean_cost_matrix` or the :attr:`std_cost_matrix`.
   """
 
   def __init__(
@@ -81,9 +82,9 @@ class Geometry:
       cost_matrix: Optional[jnp.ndarray] = None,
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
-      relative_epsilon: Optional[bool] = None,
-      scale_cost: Union[int, float, Literal["mean", "max_cost",
-                                            "median"]] = 1.0,
+      relative_epsilon: Optional[Union[bool, Literal["mean", "std"]]] = None,
+      scale_cost: Union[int, float, Literal["mean", "max_cost", "median",
+                                            "std"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
@@ -130,13 +131,30 @@ class Geometry:
     return jnp.sum(tmp * self._m_normed_ones)
 
   @property
+  def std_cost_matrix(self) -> float:
+    r"""Standard deviation of all values stored in :attr:`cost_matrix`.
+
+    Uses the :meth:`apply_square_cost` to remain
+    applicable to low-rank matrices, through the formula:
+
+    .. math::
+        \sigma^2=\frac{1}{nm}\left(\sum_{ij} C_{ij}^2 -
+        (\sum_{ij}C_ij)^2\right).
+
+    to output :math:`\sigma`.
+    """
+    tmp = self._masked_geom().apply_square_cost(self._n_normed_ones).squeeze()
+    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2
+    return jnp.sqrt(jax.nn.relu(tmp))
+
+  @property
   def kernel_matrix(self) -> jnp.ndarray:
     """Kernel matrix.
 
     Either provided by user or recomputed from :attr:`cost_matrix`.
     """
     if self._kernel_matrix is None:
-      return jnp.exp(-(self._cost_matrix * self.inv_scale_cost / self.epsilon))
+      return jnp.exp(-self._cost_matrix * self.inv_scale_cost / self.epsilon)
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
@@ -144,15 +162,25 @@ class Geometry:
     (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
     rel = self._relative_epsilon
 
-    use_mean_scale = rel is True or (rel is None and target is None)
-    if scale_eps is None and use_mean_scale:
-      scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
+    # If nothing passed, default to STD
+    if (rel is None and target is None and scale_eps is None):
+      scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
+    # If instructions passed change, otherwise (notably if False) skip.
+    elif rel is not None:
+      if rel == "mean" or rel is True:  # Legacy option.
+        scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
+      elif rel == "std":
+        scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
+        # Avoid 0 std, since this would set epsilon to 0.0 and result in
+        # a division by 0.
+        scale_eps = jnp.where(scale_eps <= 0.0, 1.0, scale_eps)
 
     if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
       return self._epsilon_init.set(scale_epsilon=scale_eps)
 
     return epsilon_scheduler.Epsilon(
-        target=5e-2 if target is None else target, scale_epsilon=scale_eps
+        target=epsilon_scheduler.DEFAULT_SCALE if target is None else target,
+        scale_epsilon=scale_eps
     )
 
   @property

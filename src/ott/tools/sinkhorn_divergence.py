@@ -107,8 +107,8 @@ def sinkhorn_divergence(
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
       will be by default that used when comparing x to y (contained in the first
       geometry). This flag is set to True by default, because in the default
-      setting, the epsilon regularization is a function of the mean of the cost
-      matrix.
+      setting, the epsilon regularization is a function of the std of the
+      entries in the cost matrix.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
     kwargs: keywords arguments to the generic class. This is specific to each

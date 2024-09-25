@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 
-from ott.geometry import costs, pointcloud
+from ott.geometry import costs, epsilon_scheduler, pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as mu
 
@@ -266,7 +266,8 @@ class MMSinkhorn:
     ``x_s[i]`` and ``x_s[j]``, ``i<j``.)
 
     The solver also uses ``epsilon`` as an input, with the default rule set to
-    one twentieth of the mean of the cost tensor resulting from these inputs.
+    one twentieth of the standard deviation of the all values stored in the cost
+    tensor resulting from these inputs.
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
@@ -303,7 +304,8 @@ class MMSinkhorn:
 
     cost_t = cost_tensor(x_s, cost_fns)
     state = self.init_state(n_s)
-    epsilon = 0.05 * jnp.mean(cost_t) if epsilon is None else epsilon
+    if epsilon is None:
+      epsilon = epsilon_scheduler.DEFAULT_SCALE * jnp.std(cost_t)
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)

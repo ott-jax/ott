@@ -295,7 +295,7 @@ class TestRegTICost:
 
     x = jax.random.normal(rng1, (25, d))
     y = jax.random.normal(rng2, (37, d))
-    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, relative_epsilon="mean")
 
     dp = linear.solve(geom).to_dual_potentials()
 

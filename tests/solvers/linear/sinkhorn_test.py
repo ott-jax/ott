@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import io
 import sys
 from typing import Optional, Tuple
@@ -48,6 +49,33 @@ class TestSinkhorn:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
+  @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
+  def test_lse_matches(self, tau_a, tau_b):
+    """Test that regardless of lse_mode, Sinkhorn returns same value."""
+    geom = pointcloud.PointCloud(self.x, self.y)
+
+    solve_fn = functools.partial(
+        linear.solve, geom=geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+    )
+    solve_fn = jax.jit(solve_fn, static_argnames=["lse_mode"])
+    lse_out = solve_fn(lse_mode=True)
+    ker_out = solve_fn(lse_mode=False)
+
+    assert lse_out.converged
+    assert ker_out.converged
+    np.testing.assert_allclose(
+        lse_out.ent_reg_cost, ker_out.ent_reg_cost, rtol=1e-5, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        lse_out.reg_ot_cost, ker_out.reg_ot_cost, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        lse_out.dual_cost, ker_out.dual_cost, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        lse_out.primal_cost, ker_out.primal_cost, rtol=1e-5, atol=1e-5
+    )
+
   @pytest.mark.fast.with_args(
       "lse_mode,mom_value,mom_start,inner_iterations,norm_error,cost_fn",
       [(True, 1.0, 29, 10, 1, costs.SqEuclidean()),
@@ -83,32 +111,33 @@ class TestSinkhorn:
     errors = out.errors
     err = errors[errors > -1][-1]
     np.testing.assert_array_less(err, threshold)
-    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-4, atol=1e-4)
 
     other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
     cost_other = out.transport_cost_at_geom(other_geom)
     np.testing.assert_array_equal(jnp.isnan(cost_other), False)
 
   def test_autoepsilon(self):
-    """Check that with auto-epsilon, dual potentials scale."""
+    """Check that with mean rescaling, dual potentials scale."""
     scale = 2.77
-    # First geom specifies explicitly relative_epsilon to be True. This is not
-    # needed in principle, but introduced here to test logic.
-    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon=True)
+    tau_a = 0.99
+    tau_b = 0.97
+    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon="mean")
     # not jitting
     f_1 = linear.solve(
         geom_1,
         a=self.a,
         b=self.b,
-        tau_a=0.99,
-        tau_b=0.97,
+        tau_a=tau_a,
+        tau_b=tau_b,
     ).f
 
-    # Second geom does not provide whether epsilon is relative.
-    geom_2 = pointcloud.PointCloud(scale * self.x, scale * self.y)
+    geom_2 = pointcloud.PointCloud(
+        scale * self.x, scale * self.y, relative_epsilon="mean"
+    )
     # jitting
     compute_f = jax.jit(linear.solve, static_argnames=["tau_a", "tau_b"])
-    f_2 = compute_f(geom_2, self.a, self.b, tau_a=0.99, tau_b=0.97).f
+    f_2 = compute_f(geom_2, self.a, self.b, tau_a=tau_a, tau_b=tau_b).f
 
     # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
     np.testing.assert_allclose(

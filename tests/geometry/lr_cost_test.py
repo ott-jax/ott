@@ -284,10 +284,10 @@ class TestCostMatrixFactorization:
     x = jnp.ones((n, d))
     vec, f, g = jnp.ones(n), jnp.zeros(n), jnp.zeros(n)
 
-    geom = low_rank.LRCGeometry(cost_1=x, cost_2=x + 1)
+    geom = low_rank.LRCGeometry(cost_1=x, cost_2=x + 1, epsilon=1.0)
     res = geom.apply_transport_from_potentials(f=f, g=g, vec=vec)
 
-    np.testing.assert_allclose(res, 1.1253539e-7, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(res, 0.183156, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.limit_memory("190 MB")
   def test_large_scale_factorization(self, rng: jax.Array):

@@ -168,4 +168,6 @@ class TestSegmentSinkhorn:
         sinkhorn_kwargs={"lse_mode": True},
         epsilon=0.1,
     )
-    np.testing.assert_allclose(segmented_reg_ot_cost, true_reg_ot_cost)
+    np.testing.assert_allclose(
+        segmented_reg_ot_cost, true_reg_ot_cost, atol=1e-7, rtol=1e-7
+    )
