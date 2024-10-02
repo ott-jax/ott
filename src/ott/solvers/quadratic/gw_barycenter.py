@@ -70,46 +70,29 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
   """Gromov-Wasserstein barycenter solver.
 
   Args:
-    epsilon: Entropy regularizer.
+    quadratic_solver: Quadratic OT solver.
+    threshold: Convergence threshold.
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
-    threshold: Convergence threshold.
-    store_inner_errors: Whether to store the errors of the GW solver, as well
-      as its linear solver, at each iteration for each measure.
-    quad_solver: The GW solver.
-    kwargs: Keyword argument for
-      :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`.
-      Only used when ``quad_solver = None``.
+    store_inner_errors: Whether to store the errors of the quadratic OT solver.
   """
 
   def __init__(
       self,
-      epsilon: Optional[float] = None,
+      quadratic_solver: gromov_wasserstein.GromovWasserstein,
+      threshold: float = 1e-3,
       min_iterations: int = 5,
       max_iterations: int = 50,
-      threshold: float = 1e-3,
       store_inner_errors: bool = False,
-      quad_solver: Optional[gromov_wasserstein.GromovWasserstein] = None,
-      # TODO(michalk8): maintain the API compatibility with `was_solver`
-      # but makes passing kwargs with the same name to `quad_solver` impossible
-      # will be fixed when refactoring the solvers
-      # note that `was_solver` also suffers from this
-      **kwargs: Any,
   ):
     super().__init__(
-        epsilon=epsilon,
+        quadratic_solver.linear_solver,
+        threshold=threshold,
         min_iterations=min_iterations,
         max_iterations=max_iterations,
-        threshold=threshold,
         store_inner_errors=store_inner_errors,
     )
-    if quad_solver is None:
-      kwargs["epsilon"] = epsilon
-      # TODO(michalk8): store only GW errors?
-      kwargs["store_inner_errors"] = store_inner_errors
-      self._quad_solver = gromov_wasserstein.GromovWasserstein(**kwargs)
-    else:
-      self._quad_solver = quad_solver
+    self._quad_solver = quadratic_solver
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
@@ -264,20 +247,11 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    children, aux = super().tree_flatten()
-    return children + [self._quad_solver], aux
-
-  @classmethod
-  def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "GromovWassersteinBarycenter":
-    epsilon, _, threshold, quad_solver = children
-    return cls(
-        epsilon=epsilon,
-        threshold=threshold,
-        quad_solver=quad_solver,
-        **aux_data,
-    )
+    return ([self._quad_solver, self.threshold], {
+        "min_iterations": self.min_iterations,
+        "max_iterations": self.max_iterations,
+        "store_inner_errors": self.store_inner_errors,
+    })
 
 
 @partial(jax.vmap, in_axes=[None, 0, None, 0, None])
