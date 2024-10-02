@@ -67,9 +67,7 @@ class TestFusedGromovWasserstein:
       linear_solver = sinkhorn.Sinkhorn(
           implicit_diff=implicit_diff, max_iterations=1000
       )
-      solver = gromov_wasserstein.GromovWasserstein(
-          linear_ot_solver=linear_solver, epsilon=1.0
-      )
+      solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=1.0)
 
       out = solver(prob)
 
@@ -124,7 +122,7 @@ class TestFusedGromovWasserstein:
           lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=1000
       )
       solver = gromov_wasserstein.GromovWasserstein(
-          linear_ot_solver=linear_solver, epsilon=1.0, max_iterations=10
+          linear_solver, epsilon=1.0, max_iterations=10
       )
 
       return solver(prob).reg_gw_cost
@@ -199,7 +197,9 @@ class TestFusedGromovWasserstein:
           lse_mode=lse_mode, implicit_diff=implicit_diff, max_iterations=200
       )
       solver = gromov_wasserstein.GromovWasserstein(
-          epsilon=1.0, max_iterations=10, linear_ot_solver=linear_solver
+          linear_solver,
+          epsilon=1.0,
+          max_iterations=10,
       )
       return solver(prob).reg_gw_cost
 

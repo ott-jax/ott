@@ -188,7 +188,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def __init__(
       self,
-      *args: Any,
+      linear_solver: sinkhorn.Sinkhorn,
       warm_start: Optional[bool] = None,
       relative_epsilon: Optional[bool] = None,
       quad_initializer: Optional[
@@ -198,10 +198,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
-    super().__init__(*args, **kwargs)
-    assert not self.is_low_rank, \
-      "For low-rank GW, use " \
-      "`ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`."
+    super().__init__(linear_solver, **kwargs)
     self._warm_start = warm_start
     self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
@@ -355,6 +352,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     aux_data["quad_initializer"] = self.quad_initializer
     aux_data["kwargs_init"] = self.kwargs_init
     return children, aux_data
+
+  @classmethod
+  def tree_unflatten(  # noqa: D102
+      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+  ) -> "GromovWasserstein":
+    linear_solver, threshold = children
+    return cls(linear_solver, threshold=threshold, **aux_data)
 
 
 def iterations(
