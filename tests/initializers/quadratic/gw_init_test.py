@@ -17,26 +17,12 @@ import jax
 import numpy as np
 
 from ott.geometry import pointcloud
-from ott.initializers.linear import initializers as lin_init
 from ott.initializers.linear import initializers_lr
-from ott.initializers.quadratic import initializers as quad_init
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from ott.solvers.quadratic import gromov_wasserstein_lr
 
 
 class TestQuadraticInitializers:
-
-  def test_explicit_initializer(self):
-    linear_init = lin_init.SortingInitializer()
-    q_init = quad_init.QuadraticInitializer()
-    solver = gromov_wasserstein.GromovWasserstein(
-        initializer=linear_init,
-        quad_initializer=q_init,
-    )
-
-    assert solver.create_initializer("not used") is q_init
-    assert solver.linear_solver.initializer is linear_init
-    assert solver.quad_initializer is q_init
 
   def test_explicit_initializer_lr(self):
     rank = 10
@@ -49,7 +35,6 @@ class TestQuadraticInitializers:
         max_iterations=2000
     )
 
-    assert solver.create_initializer("not used") is q_init
     assert solver.initializer is q_init
     assert solver.initializer.rank == rank
 

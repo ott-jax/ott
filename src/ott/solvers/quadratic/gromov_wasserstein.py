@@ -15,8 +15,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Literal,
-    Mapping,
     NamedTuple,
     Optional,
     Sequence,
@@ -176,7 +174,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       Gromov-Wasserstein iterations, so the user can display the error at each
       iteration, e.g., using a progress bar.
       See :func:`~ott.utils.default_progress_fn` for a basic implementation.
-    kwargs_init: Keyword arguments when creating the initializer.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
   """
@@ -186,19 +183,15 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       linear_solver: sinkhorn.Sinkhorn,
       warm_start: bool = False,
       relative_epsilon: Optional[bool] = None,
-      quad_initializer: Optional[
-          Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
-                quad_initializers.BaseQuadraticInitializer]] = None,
+      initializer: Optional[quad_initializers.BaseQuadraticInitializer] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
-      kwargs_init: Optional[Mapping[str, Any]] = None,
       **kwargs: Any
   ):
     super().__init__(linear_solver, **kwargs)
     self.warm_start = warm_start
     self.relative_epsilon = relative_epsilon
-    self.quad_initializer = quad_initializer
+    self.initializer = initializer
     self.progress_fn = progress_fn
-    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
@@ -221,7 +214,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       prob = prob.to_low_rank()
 
     if init is None:
-      initializer = self.create_initializer(prob)
+      initializer = self.initializer
+      if initializer is None:
+        initializer = quad_initializers.QuadraticInitializer()
       init = initializer(
           prob,
           epsilon=self.epsilon,
@@ -300,32 +295,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         old_transport_mass=state.old_transport_mass
     )
 
-  def create_initializer(
-      self, prob: quadratic_problem.QuadraticProblem
-  ) -> quad_initializers.BaseQuadraticInitializer:
-    """Create quadratic, possibly low-rank initializer.
-
-    Args:
-      prob: Quadratic OT problem used to determine the initializer.
-
-    Returns:
-      The initializer.
-    """
-    del prob
-    if isinstance(
-        self.quad_initializer, quad_initializers.BaseQuadraticInitializer
-    ):
-      return self.quad_initializer
-    # no other options implemented, use the default
-    return quad_initializers.QuadraticInitializer(**self.kwargs_init)
-
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["warm_start"] = self.warm_start
     aux_data["progress_fn"] = self.progress_fn
     aux_data["relative_epsilon"] = self.relative_epsilon
-    aux_data["quad_initializer"] = self.quad_initializer
-    aux_data["kwargs_init"] = self.kwargs_init
+    aux_data["initializer"] = self.initializer
     return children, aux_data
 
   @classmethod
