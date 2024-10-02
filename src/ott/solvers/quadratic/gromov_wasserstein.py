@@ -170,8 +170,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     args: Positional arguments for
       :class:`~ott.solvers.was_solver.WassersteinSolver`.
     warm_start: Whether to initialize Sinkhorn calls using values
-      from the previous iteration. If :obj:`None`, warm starts are not used for
-      standard Sinkhorn.
+      from the previous iteration.
     relative_epsilon: Whether to use relative epsilon in the linearized
       geometry.
     quad_initializer: Quadratic initializer. If the solver is entropic,
@@ -189,7 +188,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __init__(
       self,
       linear_solver: sinkhorn.Sinkhorn,
-      warm_start: Optional[bool] = None,
+      warm_start: bool = False,
       relative_epsilon: Optional[bool] = None,
       quad_initializer: Optional[
           Union[Literal["random", "rank2", "k-means", "generalized-k-means"],
@@ -199,7 +198,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       **kwargs: Any
   ):
     super().__init__(linear_solver, **kwargs)
-    self._warm_start = warm_start
+    self.warm_start = warm_start
     self.relative_epsilon = relative_epsilon
     self.quad_initializer = quad_initializer
     self.progress_fn = progress_fn
@@ -339,14 +338,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     # no other options implemented, use the default
     return quad_initializers.QuadraticInitializer(**self.kwargs_init)
 
-  @property
-  def warm_start(self) -> bool:
-    """Whether to initialize Sinkhorn using previous solutions."""
-    return self.is_low_rank if self._warm_start is None else self._warm_start
-
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
-    aux_data["warm_start"] = self._warm_start
+    aux_data["warm_start"] = self.warm_start
     aux_data["progress_fn"] = self.progress_fn
     aux_data["relative_epsilon"] = self.relative_epsilon
     aux_data["quad_initializer"] = self.quad_initializer
