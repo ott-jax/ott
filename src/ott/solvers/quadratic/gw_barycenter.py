@@ -92,7 +92,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         max_iterations=max_iterations,
         store_inner_errors=store_inner_errors,
     )
-    self._quad_solver = quadratic_solver
+    self.quadratic_solver = quadratic_solver
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
@@ -152,9 +152,10 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       rng = utils.default_prng_key(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
-      linear_solver = self._quad_solver.linear_solver
 
-      transports = init_transports(linear_solver, rngs, a, b, problem.epsilon)
+      transports = init_transports(
+          self.linear_solver, rngs, a, b, problem.epsilon
+      )
       x = problem.update_features(transports, a) if problem.is_fused else None
       cost = problem.update_barycenter(transports, a)
     else:
@@ -168,8 +169,8 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     if self.store_inner_errors:
       # TODO(michalk8): in the future, think about how to do this in general
       errors = -jnp.ones((
-          num_iter, problem.num_measures, self._quad_solver.max_iterations,
-          self._quad_solver.linear_solver.outer_iterations
+          num_iter, problem.num_measures, self.quadratic_solver.max_iterations,
+          self.linear_solver.outer_iterations
       ))
     else:
       errors = None
@@ -201,7 +202,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         f: Optional[jnp.ndarray]
     ) -> Tuple[float, bool, jnp.ndarray, Optional[jnp.ndarray]]:
       quad_problem = problem._create_problem(state, y=y, b=b, f=f)
-      out = self._quad_solver(quad_problem)
+      out = self.quadratic_solver(quad_problem)
       return (
           out.reg_gw_cost, out.converged, out.matrix,
           out.errors if store_errors else None
@@ -247,7 +248,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     return state
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return ([self._quad_solver, self.threshold], {
+    return ([self.quadratic_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
         "store_inner_errors": self.store_inner_errors,
