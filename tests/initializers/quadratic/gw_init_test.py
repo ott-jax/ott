@@ -35,7 +35,7 @@ class TestQuadraticInitializers:
     )
 
     assert solver.create_initializer("not used") is q_init
-    assert solver.linear_ot_solver.initializer is linear_init
+    assert solver.linear_solver.initializer is linear_init
     assert solver.quad_initializer is q_init
 
   def test_explicit_initializer_lr(self):

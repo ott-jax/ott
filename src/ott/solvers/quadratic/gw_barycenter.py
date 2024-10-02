@@ -169,7 +169,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       rng = utils.default_prng_key(rng)
       _, b = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
-      linear_solver = self._quad_solver.linear_ot_solver
+      linear_solver = self._quad_solver.linear_solver
 
       transports = init_transports(linear_solver, rngs, a, b, problem.epsilon)
       x = problem.update_features(transports, a) if problem.is_fused else None
@@ -186,7 +186,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       # TODO(michalk8): in the future, think about how to do this in general
       errors = -jnp.ones((
           num_iter, problem.num_measures, self._quad_solver.max_iterations,
-          self._quad_solver.linear_ot_solver.outer_iterations
+          self._quad_solver.linear_solver.outer_iterations
       ))
     else:
       errors = None

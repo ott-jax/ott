@@ -30,13 +30,13 @@ class WassersteinSolver:
 
   def __init__(
       self,
-      linear_ot_solver: Union["sinkhorn.Sinkhorn", "sinkhorn_lr.LRSinkhorn"],
+      linear_solver: Union["sinkhorn.Sinkhorn", "sinkhorn_lr.LRSinkhorn"],
       threshold: float = 1e-3,
       min_iterations: int = 5,
       max_iterations: int = 50,
       store_inner_errors: bool = False,
   ):
-    self.linear_ot_solver = linear_ot_solver
+    self.linear_solver = linear_solver
     self.min_iterations = min_iterations
     self.max_iterations = max_iterations
     self.threshold = threshold
@@ -45,15 +45,15 @@ class WassersteinSolver:
   @property
   def rank(self) -> int:
     """Rank of the linear OT solver."""
-    return self.linear_ot_solver.rank if self.is_low_rank else -1
+    return self.linear_solver.rank if self.is_low_rank else -1
 
   @property
   def is_low_rank(self) -> bool:
     """Whether the solver is low-rank."""
-    return isinstance(self.linear_ot_solver, sinkhorn_lr.LRSinkhorn)
+    return isinstance(self.linear_solver, sinkhorn_lr.LRSinkhorn)
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return ([self.linear_ot_solver, self.threshold], {
+    return ([self.linear_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
         "store_inner_errors": self.store_inner_errors,

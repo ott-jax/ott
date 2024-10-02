@@ -285,11 +285,11 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The initial Gromov-Wasserstein state.
     """
-    linear_state = self.linear_ot_solver(init)
+    linear_state = self.linear_solver(init)
     num_iter = self.max_iterations
     transport_mass = prob.init_transport_mass()
     if self.store_inner_errors:
-      errors = -jnp.ones((num_iter, self.linear_ot_solver.outer_iterations))
+      errors = -jnp.ones((num_iter, self.linear_solver.outer_iterations))
     else:
       errors = None
 
@@ -384,7 +384,7 @@ def iterations(
       linear_pb = prob.update_lr_linearization(
           state.linear_state, relative_epsilon=solver.relative_epsilon
       )
-      out = solver.linear_ot_solver(linear_pb, init=init, rng=rng)
+      out = solver.linear_solver(linear_pb, init=init, rng=rng)
     else:
       init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
       linear_pb = prob.update_linearization(
@@ -393,7 +393,7 @@ def iterations(
           state.old_transport_mass,
           relative_epsilon=solver.relative_epsilon,
       )
-      out = solver.linear_ot_solver(linear_pb, init=init)
+      out = solver.linear_solver(linear_pb, init=init)
 
     old_transport_mass = jax.lax.stop_gradient(
         state.linear_state.transport_mass
