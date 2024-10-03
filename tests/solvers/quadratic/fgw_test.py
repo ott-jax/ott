@@ -168,8 +168,9 @@ class TestFusedGromovWasserstein:
           b=self.b,
           fused_penalty=self.fused_penalty_2
       )
+      linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(
-          threshold=threshold, epsilon=1e-1
+          linear_solver, threshold=threshold, epsilon=1e-1
       )
 
       return solver(prob).reg_gw_cost
@@ -316,7 +317,10 @@ class TestFusedGromovWasserstein:
         fused_penalty=fused_penalty,
         scale_cost=scale_cost
     )
-    solver = gromov_wasserstein.GromovWasserstein(epsilon=epsilon)
+    linear_solver = sinkhorn.Sinkhorn()
+    solver = gromov_wasserstein.GromovWasserstein(
+        linear_solver, epsilon=epsilon
+    )
 
     gt = solver(prob_scale)
     pred = solver(prob_no_scale)

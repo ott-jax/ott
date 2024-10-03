@@ -134,13 +134,14 @@ class TestGromovWasserstein:
         geom_x, geom_y, a=self.a, b=self.b
     )
 
+    linear_solver = sinkhorn.Sinkhorn()
     solver = gromov_wasserstein.GromovWasserstein(
-        epsilon=1e-1, store_inner_errors=False
+        linear_solver, epsilon=1e-1, store_inner_errors=False
     )
     np.testing.assert_equal(solver(prob).errors, None)
 
     solver = gromov_wasserstein.GromovWasserstein(
-        epsilon=1e-1, store_inner_errors=True
+        linear_solver, epsilon=1e-1, store_inner_errors=True
     )
     out = solver(prob)
     np.testing.assert_array_less(out.n_iters, 10)
@@ -220,8 +221,9 @@ class TestGromovWasserstein:
           max_iterations=10,
       )
     else:
+      linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(
-          rank=rank, epsilon=1.0, max_iterations=10
+          linear_solver, epsilon=1.0, max_iterations=10
       )
 
     out = solver(prob)
@@ -308,8 +310,9 @@ class TestGromovWasserstein:
       prob = quadratic_problem.QuadraticProblem(
           geom_x, geom_y, a=self.a, b=self.b
       )
+      linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(
-          threshold=threshold, epsilon=1e-1
+          linear_solver, threshold=threshold, epsilon=1e-1
       )
 
       return solver(prob).reg_gw_cost
@@ -341,7 +344,8 @@ class TestGromovWasserstein:
         max_iterations=2000
     )
     ot_gwlr = solver(prob)
-    solver = gromov_wasserstein.GromovWasserstein(epsilon=0.2)
+    linear_solver = sinkhorn.Sinkhorn()
+    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=0.2)
     ot_gw = solver(prob)
 
     np.testing.assert_allclose(
@@ -379,7 +383,8 @@ class TestGromovWasserstein:
         max_iterations=2000
     )
     ot_gwlreps = solver(prob)
-    solver = gromov_wasserstein.GromovWasserstein(epsilon=5e-2)
+    linear_solver = sinkhorn.Sinkhorn()
+    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=5e-2)
     ot_gw = solver(prob)
 
     # Test solutions look alike
@@ -426,8 +431,9 @@ class TestGromovWasserstein:
     )
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
+    linear_solver = sinkhorn.Sinkhorn()
     solver = gromov_wasserstein.GromovWasserstein(
-        epsilon=eps, relative_epsilon=True
+        linear_solver, epsilon=eps, relative_epsilon=True
     )
 
     out = solver(prob)

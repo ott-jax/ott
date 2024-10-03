@@ -38,7 +38,7 @@ __all__ = ["GromovWasserstein", "GWOutput"]
 
 LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
-ProgressCallbackFn_t = Callable[
+ProgressCallbackFn = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
 
 
@@ -161,15 +161,14 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`.
 
   Args:
-    args: Positional arguments for
-      :class:`~ott.solvers.was_solver.WassersteinSolver`.
-    warm_start: Whether to initialize Sinkhorn calls using values
-      from the previous iteration.
+    linear_solver: Linear OT solver.
+    epsilon: Entropic regularization.
     relative_epsilon: Whether to use relative epsilon in the linearized
       geometry.
-    quad_initializer: Quadratic initializer. If the solver is entropic,
+    initializer: Quadratic initializer. If :obj:`None`, use
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
-      is always used.
+    warm_start: Whether to initialize Sinkhorn calls with the values
+      from the previous iteration.
     progress_fn: callback function which gets called during the
       Gromov-Wasserstein iterations, so the user can display the error at each
       iteration, e.g., using a progress bar.
@@ -181,16 +180,18 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __init__(
       self,
       linear_solver: sinkhorn.Sinkhorn,
-      warm_start: bool = False,
+      epsilon: float = 1.0,
       relative_epsilon: Optional[bool] = None,
       initializer: Optional[quad_initializers.BaseQuadraticInitializer] = None,
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
+      warm_start: bool = False,
+      progress_fn: Optional[ProgressCallbackFn] = None,
       **kwargs: Any
   ):
     super().__init__(linear_solver, **kwargs)
-    self.warm_start = warm_start
+    self.epsilon = epsilon
     self.relative_epsilon = relative_epsilon
     self.initializer = initializer
+    self.warm_start = warm_start
     self.progress_fn = progress_fn
 
   def __call__(
@@ -297,10 +298,11 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
-    aux_data["warm_start"] = self.warm_start
-    aux_data["progress_fn"] = self.progress_fn
+    aux_data["epsilon"] = self.epsilon
     aux_data["relative_epsilon"] = self.relative_epsilon
     aux_data["initializer"] = self.initializer
+    aux_data["warm_start"] = self.warm_start
+    aux_data["progress_fn"] = self.progress_fn
     return children, aux_data
 
   @classmethod
